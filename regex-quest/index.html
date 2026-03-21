@@ -1,0 +1,528 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Regex Quest</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { background: #0c0c14; color: #b8c0cc; font-family: 'Courier New', monospace; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+#game { flex: 1; display: flex; flex-direction: column; max-width: 800px; margin: 0 auto; width: 100%; padding: 12px; }
+
+/* HUD */
+.hud { display: flex; justify-content: space-between; padding: 8px 12px; background: #12121e; border: 1px solid #1e1e30; border-radius: 8px; margin-bottom: 10px; font-size: 12px; }
+.hud-item { text-align: center; }
+.hud-val { font-size: 16px; font-weight: bold; color: #fff; }
+.hud-label { font-size: 9px; color: #555; text-transform: uppercase; letter-spacing: 0.1em; }
+.hp-bar { width: 100%; height: 6px; background: #1a1a2a; border-radius: 3px; margin-top: 4px; overflow: hidden; }
+.hp-fill { height: 100%; border-radius: 3px; transition: width 0.3s; }
+.hp-player { background: linear-gradient(90deg, #22c55e, #4ade80); }
+.hp-enemy { background: linear-gradient(90deg, #ef4444, #f87171); }
+
+/* Battle area */
+.battle { flex: 1; display: flex; flex-direction: column; background: #10101c; border: 1px solid #1a1a2e; border-radius: 10px; overflow: hidden; }
+.battle-header { padding: 10px 14px; background: #14141f; border-bottom: 1px solid #1a1a2e; display: flex; justify-content: space-between; align-items: center; }
+.enemy-name { font-size: 14px; color: #f87171; font-weight: bold; }
+.enemy-level { font-size: 10px; color: #555; }
+.battle-body { flex: 1; padding: 14px; display: flex; flex-direction: column; gap: 10px; overflow-y: auto; }
+
+/* Enemy display */
+.enemy-art { text-align: center; font-size: 48px; margin: 10px 0; }
+.enemy-desc { text-align: center; font-size: 12px; color: #666; font-style: italic; margin-bottom: 8px; }
+
+/* Challenge */
+.challenge { background: #14141f; border: 1px solid #1e1e30; border-radius: 8px; padding: 12px; }
+.challenge-label { font-size: 10px; color: #58a6ff; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 6px; }
+.challenge-text { font-size: 14px; color: #e2e8f0; line-height: 1.6; white-space: pre-wrap; word-break: break-all; }
+.challenge-text .match { background: #22c55e33; color: #4ade80; border-radius: 2px; padding: 0 2px; }
+.hint { font-size: 11px; color: #f59e0b; margin-top: 8px; }
+
+/* Input */
+.input-area { padding: 10px 14px; background: #12121e; border-top: 1px solid #1a1a2e; display: flex; gap: 8px; }
+.input-area input { flex: 1; background: #0c0c14; border: 1px solid #2a2a40; color: #e2e8f0; padding: 8px 12px; border-radius: 6px; font-family: inherit; font-size: 14px; outline: none; }
+.input-area input:focus { border-color: #58a6ff; }
+.input-area button { padding: 8px 16px; background: #22c55e; border: none; color: #000; border-radius: 6px; font-family: inherit; font-weight: bold; cursor: pointer; font-size: 13px; }
+.input-area button:hover { background: #4ade80; }
+
+/* Log */
+.log { max-height: 120px; overflow-y: auto; padding: 8px 14px; font-size: 11px; background: #0a0a12; border-top: 1px solid #1a1a2e; }
+.log-entry { margin-bottom: 3px; }
+.log-hit { color: #4ade80; }
+.log-miss { color: #f87171; }
+.log-info { color: #58a6ff; }
+.log-gold { color: #fbbf24; }
+.log-level { color: #a78bfa; }
+
+/* Screens */
+.screen { display: none; flex: 1; align-items: center; justify-content: center; flex-direction: column; gap: 16px; text-align: center; }
+.screen.active { display: flex; }
+/* Battle screen needs full width layout, not centered overlay */
+#battle-screen.active { align-items: stretch; text-align: left; width: 100%; gap: 0; }
+/* Shop screen also needs width */
+#shop-screen.active { width: 100%; }
+.screen h1 { font-size: 2rem; color: #fff; letter-spacing: 0.15em; }
+.screen .sub { color: #555; font-size: 0.8rem; max-width: 400px; line-height: 1.5; }
+.screen button { padding: 10px 28px; background: transparent; border: 2px solid #22c55e; color: #22c55e; border-radius: 20px; font-family: inherit; font-size: 1rem; cursor: pointer; letter-spacing: 0.08em; }
+.screen button:hover { background: #22c55e; color: #000; }
+
+/* Shop */
+.shop-items { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; margin-top: 10px; }
+.shop-item { padding: 8px 12px; background: #14141f; border: 1px solid #2a2a40; border-radius: 8px; cursor: pointer; font-size: 11px; text-align: center; min-width: 100px; }
+.shop-item:hover { border-color: #fbbf24; }
+.shop-item .price { color: #fbbf24; font-weight: bold; }
+.shop-item .effect { color: #888; font-size: 10px; }
+</style>
+</head>
+<body>
+<div id="game">
+  <!-- Start screen -->
+  <div class="screen active" id="start-screen">
+    <h1>REGEX QUEST</h1>
+    <p class="sub">Battle monsters by writing regex patterns. Match their weakness to deal damage. Learn regex from basics to advanced as you level up.</p>
+    <button id="btn-start">[ Begin Quest ]</button>
+  </div>
+
+  <!-- Battle screen -->
+  <div class="screen" id="battle-screen">
+    <div class="hud">
+      <div class="hud-item"><div class="hud-val" id="h-level">1</div><div class="hud-label">Level</div></div>
+      <div class="hud-item"><div class="hud-val" id="h-hp">100</div><div class="hud-label">HP</div><div class="hp-bar"><div class="hp-fill hp-player" id="hp-bar" style="width:100%"></div></div></div>
+      <div class="hud-item"><div class="hud-val" id="h-xp">0/10</div><div class="hud-label">XP</div></div>
+      <div class="hud-item"><div class="hud-val" id="h-gold">0</div><div class="hud-label">Gold</div></div>
+      <div class="hud-item"><div class="hud-val" id="h-floor">1</div><div class="hud-label">Floor</div></div>
+    </div>
+    <div class="battle">
+      <div class="battle-header">
+        <span class="enemy-name" id="e-name">Slime</span>
+        <span><span class="enemy-level" id="e-level">Lv 1</span> | HP: <span id="e-hp">30</span></span>
+      </div>
+      <div class="hp-bar" style="margin:0 14px"><div class="hp-fill hp-enemy" id="e-hp-bar" style="width:100%"></div></div>
+      <div class="battle-body">
+        <div class="enemy-art" id="e-art">&#x1F9EA;</div>
+        <div class="enemy-desc" id="e-desc">A slimy creature vulnerable to simple patterns.</div>
+        <div class="challenge">
+          <div class="challenge-label">Target Text <span id="match-count"></span></div>
+          <div class="challenge-text" id="target-text"></div>
+          <div class="hint" id="hint" style="display:none"></div>
+        </div>
+      </div>
+      <div class="log" id="log"></div>
+      <div class="input-area">
+        <input type="text" id="regex-input" placeholder="Type your regex pattern..." autocomplete="off" spellcheck="false">
+        <button id="btn-attack">Attack!</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Game over -->
+  <div class="screen" id="gameover-screen">
+    <h1>QUEST OVER</h1>
+    <p class="sub" id="go-stats"></p>
+    <button id="btn-retry">[ Try Again ]</button>
+  </div>
+
+  <!-- Shop -->
+  <div class="screen" id="shop-screen">
+    <h1 style="font-size:1.4rem">MERCHANT</h1>
+    <p class="sub">Spend gold to prepare for the next floor.</p>
+    <div class="shop-items" id="shop-items"></div>
+    <button id="btn-continue" style="margin-top:16px">Continue Quest</button>
+  </div>
+</div>
+
+<script>
+(function() {
+'use strict';
+
+// ============ ENEMY DATABASE ============
+// Organized by difficulty tier — each tier unlocks new regex concepts
+const ENEMIES = [
+  // Tier 1: Literal matches
+  { name: 'Slime', art: '🟢', desc: 'Vulnerable to literal string matches.', tier: 1,
+    hp: 30, xp: 5, gold: 3,
+    challenges: [
+      { text: 'The slime oozes across the floor, leaving a trail of goo behind.', goal: 'goo', hint: 'Match the literal word "goo"' },
+      { text: 'abc 123 def 456 ghi 789 jkl', goal: '\\d+', hint: 'Match sequences of digits' },
+      { text: 'cats dogs cats birds cats fish', goal: 'cats', hint: 'Match all occurrences of "cats"' },
+    ]},
+  { name: 'Rat', art: '🐀', desc: 'Skitters through character classes.', tier: 1,
+    hp: 35, xp: 6, gold: 4,
+    challenges: [
+      { text: 'a1b2c3d4e5f6g7h8', goal: '[a-z]', hint: 'Match any lowercase letter' },
+      { text: 'Hello World FOO bar BAZ qux', goal: '[A-Z][a-z]+', hint: 'Match capitalized words' },
+      { text: 'file1.txt image2.png data3.csv', goal: '\\w+\\.\\w+', hint: 'Match filenames with extensions' },
+    ]},
+  // Tier 2: Quantifiers & anchors
+  { name: 'Goblin', art: '👺', desc: 'Guards the treasury with quantifiers.', tier: 2,
+    hp: 50, xp: 10, gold: 7,
+    challenges: [
+      { text: 'aaa bb cccc d eeeee fff', goal: '[a-z]{3,}', hint: 'Match 3 or more consecutive lowercase letters' },
+      { text: 'color colour colouur colouuur', goal: 'colou*r', hint: 'Match "color" with zero or more u\'s' },
+      { text: '192.168.1.1 10.0.0.1 255.255.255.0', goal: '\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}', hint: 'Match IP address patterns' },
+    ]},
+  { name: 'Skeleton', art: '💀', desc: 'Rises from anchored depths.', tier: 2,
+    hp: 55, xp: 12, gold: 8,
+    challenges: [
+      { text: 'start middle end\nstart again end\nno match here', goal: '^start', hint: 'Match "start" at the beginning of a line' },
+      { text: 'test_var my_func hello_world foo bar_baz', goal: '\\w+_\\w+', hint: 'Match snake_case identifiers' },
+      { text: '<div> <span> </div> </span> <br/>', goal: '<\\/?\\w+\\/?>',  hint: 'Match HTML tags' },
+    ]},
+  // Tier 3: Groups & alternation
+  { name: 'Wraith', art: '👻', desc: 'Phases between groups and alternatives.', tier: 3,
+    hp: 70, xp: 16, gold: 12,
+    challenges: [
+      { text: 'cat bat hat mat fat sat rat', goal: '[bcfhmrs]at', hint: 'Match words ending in "at"' },
+      { text: '2024-01-15 2023-12-25 2024-06-30', goal: '(\\d{4})-(\\d{2})-(\\d{2})', hint: 'Match and capture date components (YYYY-MM-DD)' },
+      { text: 'http://example.com https://secure.io ftp://files.net', goal: '(https?|ftp)://\\S+', hint: 'Match URLs with http, https, or ftp' },
+    ]},
+  { name: 'Mimic', art: '📦', desc: 'Disguises itself with backreferences.', tier: 3,
+    hp: 75, xp: 18, gold: 14,
+    challenges: [
+      { text: 'abcabc xyzxyz 123123 abcxyz', goal: '(\\w{3})\\1', hint: 'Match repeated 3-char sequences using backreference \\1' },
+      { text: 'aba xyxy abba noon deed level', goal: '(\\w)(\\w)\\2\\1', hint: 'Match 4-char palindromes (abba pattern)' },
+      { text: '"hello" \'world\' "test" \'foo\'', goal: '(["\'])\\w+\\1', hint: 'Match quoted words using backreference to match the same quote type' },
+    ]},
+  // Tier 4: Lookahead & advanced
+  { name: 'Dragon', art: '🐉', desc: 'Only vulnerable to lookahead precision strikes.', tier: 4,
+    hp: 100, xp: 25, gold: 20,
+    challenges: [
+      { text: 'foo123 bar baz456 qux789 hello', goal: '\\w+(?=\\d)', hint: 'Match words followed by digits (positive lookahead)' },
+      { text: 'Mr. Smith Mrs. Jones Ms. Davis Dr. Brown', goal: '(?:Mr|Mrs|Ms|Dr)\\.\\s\\w+', hint: 'Match titles with names using non-capturing group' },
+      { text: 'password123 letmein p@ssw0rd! abc 12345', goal: '(?=.*\\d)(?=.*[a-z]).{6,}', hint: 'Match strings with at least one digit, one letter, and 6+ chars (password validation)' },
+    ]},
+  // Boss
+  { name: 'REGEX DAEMON', art: '😈', desc: 'The final challenge. Master of all patterns.', tier: 5,
+    hp: 150, xp: 50, gold: 50,
+    challenges: [
+      { text: 'john@email.com bad@ good.one@sub.domain.org @nope test@.com', goal: '[\\w.]+@[\\w]+\\.[\\w.]+', hint: 'Match valid-looking email addresses' },
+      { text: '(555) 123-4567 555-123-4567 5551234567 123-45-6789', goal: '\\(?\\d{3}\\)?[\\s-]?\\d{3}[\\s-]?\\d{4}', hint: 'Match US phone numbers in various formats' },
+      { text: 'const x = 42;\nlet name = "hello";\nvar arr = [1,2,3];', goal: '(const|let|var)\\s+(\\w+)\\s*=', hint: 'Match JS variable declarations and capture the name' },
+    ]},
+];
+
+// ============ GAME STATE ============
+let player = { hp: 100, maxHp: 100, level: 1, xp: 0, xpNeeded: 10, gold: 0, floor: 1, dmgBonus: 0, hintCharges: 3 };
+let currentEnemy = null;
+let currentChallenge = null;
+let challengeIdx = 0;
+let logEntries = [];
+
+// ============ SCREENS ============
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+}
+
+// ============ START ============
+function startGame() {
+  player = { hp: 100, maxHp: 100, level: 1, xp: 0, xpNeeded: 10, gold: 0, floor: 1, dmgBonus: 0, hintCharges: 3 };
+  logEntries = [];
+  showScreen('battle-screen');
+  nextEnemy();
+}
+
+// ============ ENEMY SELECTION ============
+function nextEnemy() {
+  // Pick enemy from appropriate tier based on floor
+  const tier = Math.min(5, Math.ceil(player.floor / 2));
+  const pool = ENEMIES.filter(e => e.tier <= tier);
+  const template = pool[~~(Math.random() * pool.length)];
+
+  // Scale with floor
+  const scale = 1 + (player.floor - 1) * 0.3;
+  currentEnemy = {
+    ...template,
+    hp: ~~(template.hp * scale),
+    maxHp: ~~(template.hp * scale),
+    xp: ~~(template.xp * scale),
+    gold: ~~(template.gold * scale),
+  };
+  challengeIdx = 0;
+  nextChallenge();
+  updateUI();
+}
+
+function nextChallenge() {
+  const challenges = currentEnemy.challenges;
+  currentChallenge = challenges[challengeIdx % challenges.length];
+  renderChallenge();
+}
+
+// ============ RENDERING ============
+function renderChallenge() {
+  document.getElementById('target-text').textContent = currentChallenge.text;
+  document.getElementById('hint').style.display = 'none';
+  document.getElementById('hint').textContent = currentChallenge.hint;
+  document.getElementById('match-count').textContent = '';
+  document.getElementById('regex-input').value = '';
+  document.getElementById('regex-input').focus();
+}
+
+function updateUI() {
+  document.getElementById('h-level').textContent = player.level;
+  document.getElementById('h-hp').textContent = player.hp;
+  document.getElementById('hp-bar').style.width = (player.hp / player.maxHp * 100) + '%';
+  document.getElementById('h-xp').textContent = `${player.xp}/${player.xpNeeded}`;
+  document.getElementById('h-gold').textContent = player.gold;
+  document.getElementById('h-floor').textContent = player.floor;
+
+  if (currentEnemy) {
+    document.getElementById('e-name').textContent = currentEnemy.name;
+    document.getElementById('e-level').textContent = `Lv ${currentEnemy.tier}`;
+    document.getElementById('e-art').textContent = currentEnemy.art;
+    document.getElementById('e-desc').textContent = currentEnemy.desc;
+    document.getElementById('e-hp').textContent = currentEnemy.hp;
+    document.getElementById('e-hp-bar').style.width = (currentEnemy.hp / currentEnemy.maxHp * 100) + '%';
+  }
+
+  // Render log
+  const logEl = document.getElementById('log');
+  logEl.innerHTML = logEntries.slice(-15).map(e =>
+    `<div class="log-entry ${e.type}">${e.text}</div>`
+  ).join('');
+  logEl.scrollTop = logEl.scrollHeight;
+}
+
+function addLog(text, type) {
+  logEntries.push({ text, type: 'log-' + type });
+  updateUI();
+}
+
+// ============ SAFE REGEX EXECUTION ============
+function safeMatch(text, regex, timeoutMs) {
+  // Run regex with a time guard against catastrophic backtracking
+  const start = performance.now();
+  const matches = [];
+  let m;
+  const r = new RegExp(regex.source, regex.flags.replace('g', '') + 'g');
+  while ((m = r.exec(text)) !== null) {
+    matches.push(m[0]);
+    if (performance.now() - start > timeoutMs) return null; // Timeout
+    if (m[0].length === 0) r.lastIndex++; // Prevent infinite loop on zero-length match
+  }
+  return matches;
+}
+
+// ============ ATTACK ============
+function attack() {
+  const input = document.getElementById('regex-input').value.trim();
+  if (!input) return;
+
+  let regex;
+  try {
+    regex = new RegExp(input, 'gm');
+  } catch (e) {
+    addLog(`Invalid regex: ${e.message}`, 'miss');
+    return;
+  }
+
+  const text = currentChallenge.text;
+  const matches = safeMatch(text, regex, 200);
+
+  if (matches === null) {
+    addLog(`/${input}/ — Regex timed out! Catastrophic backtracking detected. Enemy strikes!`, 'miss');
+    enemyAttack();
+    return;
+  }
+
+  // Check against goal
+  let goalRegex;
+  try { goalRegex = new RegExp(currentChallenge.goal, 'gm'); } catch(e) { return; }
+  const goalMatches = text.match(goalRegex);
+
+  if (!matches || matches.length === 0) {
+    addLog(`/${input}/ — No matches found! Enemy strikes back.`, 'miss');
+    enemyAttack();
+    return;
+  }
+
+  // Highlight matches in display (XSS-safe)
+  const highlighted = text.replace(regex, m => `<span class="match">${escapeHtml(m)}</span>`);
+  document.getElementById('target-text').innerHTML = highlighted;
+  document.getElementById('match-count').textContent = `(${matches.length} match${matches.length > 1 ? 'es' : ''})`;
+
+  // Compare player matches with goal matches
+  const goalSet = new Set(goalMatches || []);
+  const playerSet = new Set(matches);
+  const correct = [...playerSet].filter(m => goalSet.has(m)).length;
+  const extra = [...playerSet].filter(m => !goalSet.has(m)).length;
+  const missed = [...goalSet].filter(m => !playerSet.has(m)).length;
+
+  if (correct === 0) {
+    addLog(`/${input}/ — Matched ${matches.length} item(s), but none were the weakness!`, 'miss');
+    enemyAttack();
+    return;
+  }
+
+  // Anti-cheat: penalize overly broad patterns like .* or .+ or [\s\S]*
+  const isCheesy = /^\.\*$|^\.\+$|^\[\\s\\S\]|^\(\.\*\)$/.test(input);
+  const cheesePenalty = isCheesy ? 0.2 : 1;
+
+  // Calculate damage
+  const accuracy = correct / goalSet.size;
+  const baseDamage = ~~((10 + accuracy * 20 + player.dmgBonus) * cheesePenalty);
+  const perfectBonus = (missed === 0 && extra === 0 && !isCheesy) ? 1.5 : 1;
+  const damage = ~~(baseDamage * perfectBonus);
+  if (isCheesy) addLog('Lazy pattern detected — damage reduced!', 'miss');
+
+  currentEnemy.hp -= damage;
+
+  if (missed === 0 && extra === 0) {
+    addLog(`/${input}/ — PERFECT MATCH! ${damage} damage!`, 'hit');
+  } else {
+    addLog(`/${input}/ — ${correct}/${goalSet.size} correct. ${damage} damage.${extra > 0 ? ` (${extra} extra match${extra > 1 ? 'es' : ''})` : ''}`, 'hit');
+  }
+
+  if (currentEnemy.hp <= 0) {
+    enemyDefeated();
+  } else {
+    // Move to next challenge pattern
+    challengeIdx++;
+    nextChallenge();
+    // Enemy counter-attack on imperfect match
+    if (missed > 0 || extra > 0) {
+      enemyAttack();
+    }
+  }
+  updateUI();
+}
+
+function enemyAttack() {
+  const damage = 5 + ~~(currentEnemy.tier * 3 + player.floor * 2);
+  player.hp -= damage;
+  addLog(`${currentEnemy.name} strikes for ${damage} damage!`, 'miss');
+  if (player.hp <= 0) {
+    player.hp = 0;
+    updateUI();
+    gameOver();
+  }
+}
+
+function enemyDefeated() {
+  addLog(`${currentEnemy.name} defeated! +${currentEnemy.xp} XP, +${currentEnemy.gold} gold`, 'gold');
+  player.xp += currentEnemy.xp;
+  player.gold += currentEnemy.gold;
+
+  // Level up
+  while (player.xp >= player.xpNeeded) {
+    player.xp -= player.xpNeeded;
+    player.level++;
+    player.xpNeeded = ~~(player.xpNeeded * 1.5);
+    player.maxHp += 15;
+    player.hp = Math.min(player.hp + 30, player.maxHp);
+    player.dmgBonus += 2;
+    addLog(`LEVEL UP! Now level ${player.level}. HP restored.`, 'level');
+  }
+
+  player.floor++;
+
+  // Shop every 3 floors
+  if (player.floor % 3 === 1 && player.floor > 1) {
+    showShop();
+  } else {
+    nextEnemy();
+  }
+  updateUI();
+}
+
+// ============ SHOP ============
+function showShop() {
+  showScreen('shop-screen');
+  const items = [
+    { name: 'Health Potion', cost: 10, effect: 'Restore 40 HP', action: () => { player.hp = Math.min(player.maxHp, player.hp + 40); } },
+    { name: 'Damage Rune', cost: 15, effect: '+5 bonus damage', action: () => { player.dmgBonus += 5; } },
+    { name: 'Vitality Gem', cost: 20, effect: '+25 max HP', action: () => { player.maxHp += 25; player.hp += 25; } },
+    { name: 'Hint Scroll', cost: 8, effect: '+2 hint charges', action: () => { player.hintCharges += 2; } },
+  ];
+
+  document.getElementById('shop-items').innerHTML = items.map((item, i) => `
+    <div class="shop-item" data-idx="${i}">
+      <div>${item.name}</div>
+      <div class="price">$${item.cost}</div>
+      <div class="effect">${item.effect}</div>
+    </div>
+  `).join('');
+
+  document.querySelectorAll('.shop-item').forEach(el => {
+    el.addEventListener('click', () => {
+      const item = items[parseInt(el.dataset.idx)];
+      if (player.gold >= item.cost) {
+        player.gold -= item.cost;
+        item.action();
+        addLog(`Bought ${item.name}!`, 'gold');
+        updateUI();
+        el.style.opacity = '0.3';
+        el.style.pointerEvents = 'none';
+      }
+    });
+  });
+}
+
+// ============ GAME OVER ============
+function gameOver() {
+  showScreen('gameover-screen');
+  document.getElementById('go-stats').textContent =
+    `Reached Floor ${player.floor} | Level ${player.level} | Score: ${player.gold + player.floor * 10}`;
+}
+
+// ============ INPUT ============
+document.getElementById('btn-start').addEventListener('click', startGame);
+document.getElementById('btn-retry').addEventListener('click', startGame);
+document.getElementById('btn-attack').addEventListener('click', attack);
+document.getElementById('btn-continue').addEventListener('click', () => {
+  showScreen('battle-screen');
+  nextEnemy();
+});
+
+document.getElementById('regex-input').addEventListener('keydown', e => {
+  if (e.key === 'Enter') attack();
+  if (e.key === 'h' && e.ctrlKey) {
+    e.preventDefault();
+    if (player.hintCharges > 0) {
+      player.hintCharges--;
+      document.getElementById('hint').style.display = 'block';
+      addLog(`Hint revealed! (${player.hintCharges} charges left)`, 'info');
+    } else {
+      addLog('No hint charges remaining!', 'miss');
+    }
+  }
+});
+
+// Live regex preview (debounced to prevent jank while typing)
+let previewTimer;
+document.getElementById('regex-input').addEventListener('input', e => {
+  clearTimeout(previewTimer);
+  previewTimer = setTimeout(() => doPreview(e.target.value.trim()), 120);
+});
+
+function doPreview(input) {
+  if (!input || !currentChallenge) {
+    document.getElementById('target-text').textContent = currentChallenge ? currentChallenge.text : '';
+    document.getElementById('match-count').textContent = '';
+    return;
+  }
+  try {
+    const regex = new RegExp(input, 'gm');
+    const text = currentChallenge.text;
+    const matches = text.match(regex);
+    if (matches && matches.length > 0) {
+      document.getElementById('target-text').innerHTML =
+        text.replace(regex, m => `<span class="match">${escapeHtml(m)}</span>`);
+      document.getElementById('match-count').textContent = `(${matches.length} match${matches.length > 1 ? 'es' : ''})`;
+    } else {
+      document.getElementById('target-text').textContent = text;
+      document.getElementById('match-count').textContent = '(0 matches)';
+    }
+  } catch (err) {
+    document.getElementById('target-text').textContent = currentChallenge.text;
+    document.getElementById('match-count').textContent = '(invalid)';
+  }
+}
+
+function escapeHtml(str) {
+  return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+})();
+</script>
+</body>
+</html>

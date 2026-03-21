@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Diff Painter</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: 'SF Mono', 'Fira Code', monospace; background: #0a0a0a; color: #ccc; }
+.header { padding: 1rem 1.5rem; border-bottom: 1px solid #1a1a1a; display: flex; align-items: center; gap: 1rem; }
+.header h1 { font-size: 1.2rem; color: #fff; }
+.header button { background: #1a1a1a; border: 1px solid #333; color: #999; padding: 0.3rem 0.6rem; border-radius: 4px; cursor: pointer; font-family: inherit; font-size: 0.7rem; }
+.header button:hover { color: #fff; border-color: #555; }
+.header button.active { background: #0a2a0a; color: #4ade80; border-color: #166534; }
+.stats { margin-left: auto; font-size: 0.7rem; color: #555; }
+.stats .add { color: #4ade80; }
+.stats .del { color: #f87171; }
+.input-area { display: grid; grid-template-columns: 1fr 1fr; border-bottom: 1px solid #1a1a1a; }
+.input-col { display: flex; flex-direction: column; }
+.input-col:first-child { border-right: 1px solid #1a1a1a; }
+.input-label { padding: 0.4rem 1rem; font-size: 0.7rem; color: #666; background: #0d0d0d; border-bottom: 1px solid #1a1a1a; }
+.input-col textarea { flex: 1; min-height: 120px; background: #0a0a0a; border: none; color: #ccc; padding: 0.8rem 1rem; font-family: inherit; font-size: 0.8rem; resize: vertical; line-height: 1.5; }
+.input-col textarea:focus { outline: none; }
+.diff-area { overflow: auto; flex: 1; }
+.diff-table { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
+.diff-table td { padding: 0 0.6rem; line-height: 1.7; vertical-align: top; white-space: pre-wrap; word-break: break-all; }
+.ln { width: 45px; color: #333; text-align: right; user-select: none; padding-right: 0.8rem; border-right: 1px solid #1a1a1a; }
+.ln-left { }
+.ln-right { border-left: 1px solid #1a1a1a; }
+.line-add { background: rgba(74, 222, 128, 0.06); }
+.line-add .content { color: #ccc; }
+.line-add .ln { color: #2a5a2a; }
+.line-del { background: rgba(248, 113, 113, 0.06); }
+.line-del .content { color: #ccc; }
+.line-del .ln { color: #5a2a2a; }
+.line-mod { background: rgba(251, 191, 36, 0.04); }
+.char-add { background: rgba(74, 222, 128, 0.2); border-radius: 2px; }
+.char-del { background: rgba(248, 113, 113, 0.2); border-radius: 2px; }
+.content { min-width: 100px; }
+.sep { width: 1px; background: #1a1a1a; }
+.gutter { width: 8px; }
+.gutter-add { background: #0a2a0a; }
+.gutter-del { background: #2a0a0a; }
+.gutter-mod { background: #2a2000; }
+/* Unified view */
+.unified .diff-table td.right-only { display: none; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>Diff Painter</h1>
+  <button class="active" id="btn-split" onclick="setView('split')">Split</button>
+  <button id="btn-unified" onclick="setView('unified')">Unified</button>
+  <button onclick="swapInputs()">Swap</button>
+  <button onclick="loadSample()">Sample</button>
+  <div class="stats" id="stats"></div>
+</div>
+
+<div class="input-area">
+  <div class="input-col">
+    <div class="input-label">Original</div>
+    <textarea id="left" spellcheck="false">function greet(name) {
+  console.log("Hello, " + name);
+  return true;
+}
+
+const x = 42;
+const y = 100;</textarea>
+  </div>
+  <div class="input-col">
+    <div class="input-label">Modified</div>
+    <textarea id="right" spellcheck="false">function greet(name, greeting) {
+  const msg = `${greeting}, ${name}!`;
+  console.log(msg);
+  return msg;
+}
+
+const x = 42;
+const z = 200;</textarea>
+  </div>
+</div>
+
+<div class="diff-area" id="diff-area"></div>
+
+<script>
+const leftEl = document.getElementById('left');
+const rightEl = document.getElementById('right');
+const diffArea = document.getElementById('diff-area');
+const statsEl = document.getElementById('stats');
+let viewMode = 'split';
+
+// LCS-based diff
+function lcs(a, b) {
+  const m = a.length, n = b.length;
+  const dp = Array.from({length: m + 1}, () => new Uint16Array(n + 1));
+  for (let i = 1; i <= m; i++)
+    for (let j = 1; j <= n; j++)
+      dp[i][j] = a[i-1] === b[j-1] ? dp[i-1][j-1] + 1 : Math.max(dp[i-1][j], dp[i][j-1]);
+  // Backtrack
+  const ops = [];
+  let i = m, j = n;
+  while (i > 0 || j > 0) {
+    if (i > 0 && j > 0 && a[i-1] === b[j-1]) {
+      ops.unshift({type: 'equal', left: i-1, right: j-1});
+      i--; j--;
+    } else if (j > 0 && (i === 0 || dp[i][j-1] >= dp[i-1][j])) {
+      ops.unshift({type: 'add', right: j-1});
+      j--;
+    } else {
+      ops.unshift({type: 'del', left: i-1});
+      i--;
+    }
+  }
+  return ops;
+}
+
+// Character-level diff for modified lines
+function charDiff(a, b) {
+  const ops = lcs(a.split(''), b.split(''));
+  let leftHtml = '', rightHtml = '';
+  for (const op of ops) {
+    if (op.type === 'equal') {
+      leftHtml += esc(a[op.left]);
+      rightHtml += esc(b[op.right]);
+    } else if (op.type === 'del') {
+      leftHtml += `<span class="char-del">${esc(a[op.left])}</span>`;
+    } else {
+      rightHtml += `<span class="char-add">${esc(b[op.right])}</span>`;
+    }
+  }
+  return { leftHtml, rightHtml };
+}
+
+function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+function computeDiff() {
+  const leftLines = leftEl.value.split('\n');
+  const rightLines = rightEl.value.split('\n');
+  const ops = lcs(leftLines, rightLines);
+
+  let adds = 0, dels = 0, mods = 0;
+  // Group into display rows
+  const rows = [];
+  let i = 0;
+  while (i < ops.length) {
+    const op = ops[i];
+    if (op.type === 'equal') {
+      rows.push({type: 'equal', left: leftLines[op.left], right: rightLines[op.right], leftNum: op.left + 1, rightNum: op.right + 1});
+      i++;
+    } else if (op.type === 'del' && i + 1 < ops.length && ops[i+1].type === 'add') {
+      // Modified line
+      const cd = charDiff(leftLines[op.left], rightLines[ops[i+1].right]);
+      rows.push({type: 'mod', leftHtml: cd.leftHtml, rightHtml: cd.rightHtml, leftNum: op.left + 1, rightNum: ops[i+1].right + 1});
+      mods++;
+      i += 2;
+    } else if (op.type === 'del') {
+      rows.push({type: 'del', left: leftLines[op.left], leftNum: op.left + 1});
+      dels++;
+      i++;
+    } else {
+      rows.push({type: 'add', right: rightLines[op.right], rightNum: op.right + 1});
+      adds++;
+      i++;
+    }
+  }
+
+  statsEl.innerHTML = `<span class="add">+${adds + mods}</span> <span class="del">-${dels + mods}</span> changes`;
+
+  // Render
+  if (viewMode === 'split') renderSplit(rows);
+  else renderUnified(rows);
+}
+
+function renderSplit(rows) {
+  let html = '<table class="diff-table">';
+  for (const row of rows) {
+    if (row.type === 'equal') {
+      html += `<tr><td class="ln ln-left">${row.leftNum}</td><td class="content">${esc(row.left)}</td><td class="gutter"></td><td class="ln ln-right">${row.rightNum}</td><td class="content">${esc(row.right)}</td></tr>`;
+    } else if (row.type === 'del') {
+      html += `<tr class="line-del"><td class="ln ln-left">${row.leftNum}</td><td class="content">${esc(row.left)}</td><td class="gutter gutter-del"></td><td class="ln ln-right"></td><td class="content"></td></tr>`;
+    } else if (row.type === 'add') {
+      html += `<tr class="line-add"><td class="ln ln-left"></td><td class="content"></td><td class="gutter gutter-add"></td><td class="ln ln-right">${row.rightNum}</td><td class="content">${row.right !== undefined ? esc(row.right) : ''}</td></tr>`;
+    } else if (row.type === 'mod') {
+      html += `<tr class="line-mod"><td class="ln ln-left">${row.leftNum}</td><td class="content">${row.leftHtml}</td><td class="gutter gutter-mod"></td><td class="ln ln-right">${row.rightNum}</td><td class="content">${row.rightHtml}</td></tr>`;
+    }
+  }
+  html += '</table>';
+  diffArea.innerHTML = html;
+}
+
+function renderUnified(rows) {
+  let html = '<table class="diff-table">';
+  for (const row of rows) {
+    if (row.type === 'equal') {
+      html += `<tr><td class="ln">${row.leftNum}</td><td class="ln">${row.rightNum}</td><td class="gutter"></td><td class="content">&nbsp;${esc(row.left)}</td></tr>`;
+    } else if (row.type === 'del') {
+      html += `<tr class="line-del"><td class="ln">${row.leftNum}</td><td class="ln"></td><td class="gutter gutter-del"></td><td class="content">-${esc(row.left)}</td></tr>`;
+    } else if (row.type === 'add') {
+      html += `<tr class="line-add"><td class="ln"></td><td class="ln">${row.rightNum}</td><td class="gutter gutter-add"></td><td class="content">+${esc(row.right)}</td></tr>`;
+    } else if (row.type === 'mod') {
+      html += `<tr class="line-del"><td class="ln">${row.leftNum}</td><td class="ln"></td><td class="gutter gutter-del"></td><td class="content">-${row.leftHtml}</td></tr>`;
+      html += `<tr class="line-add"><td class="ln"></td><td class="ln">${row.rightNum}</td><td class="gutter gutter-add"></td><td class="content">+${row.rightHtml}</td></tr>`;
+    }
+  }
+  html += '</table>';
+  diffArea.innerHTML = html;
+}
+
+window.setView = function(mode) {
+  viewMode = mode;
+  document.getElementById('btn-split').classList.toggle('active', mode === 'split');
+  document.getElementById('btn-unified').classList.toggle('active', mode === 'unified');
+  computeDiff();
+};
+
+window.swapInputs = function() {
+  const tmp = leftEl.value;
+  leftEl.value = rightEl.value;
+  rightEl.value = tmp;
+  computeDiff();
+};
+
+window.loadSample = function() {
+  leftEl.value = `# Configuration\nhost = "localhost"\nport = 3000\ndebug = false\nlog_level = "info"\nmax_connections = 100\ntimeout = 30`;
+  rightEl.value = `# Configuration\nhost = "0.0.0.0"\nport = 8080\ndebug = true\nlog_level = "debug"\nmax_connections = 500\ntimeout = 60\nretry = 3`;
+  computeDiff();
+};
+
+let debounce;
+leftEl.addEventListener('input', () => { clearTimeout(debounce); debounce = setTimeout(computeDiff, 200); });
+rightEl.addEventListener('input', () => { clearTimeout(debounce); debounce = setTimeout(computeDiff, 200); });
+computeDiff();
+</script>
+</body>
+</html>

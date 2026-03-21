@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Unit Convert</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'SF Mono','Fira Code',monospace;background:#0a0a0a;color:#ccc;padding:2rem;max-width:600px;margin:0 auto}
+h1{font-size:1.3rem;color:#fff;margin-bottom:0.3rem}
+.sub{color:#555;font-size:0.7rem;margin-bottom:1.5rem}
+.categories{display:flex;flex-wrap:wrap;gap:4px;margin-bottom:1.5rem}
+.cat{padding:0.35rem 0.7rem;background:#1a1a1a;border:1px solid #222;border-radius:4px;cursor:pointer;font-size:0.7rem;color:#666}
+.cat:hover{color:#ccc;border-color:#444}
+.cat.active{color:#4ade80;border-color:#166534;background:#0a1a0a}
+.converter{background:#111;border:1px solid #1a1a1a;border-radius:8px;padding:1.5rem;margin-bottom:1.5rem}
+.row{display:flex;gap:0.5rem;align-items:center;margin-bottom:0.8rem}
+.row input{flex:1;background:#0a0a0a;border:1px solid #222;color:#fff;padding:0.6rem;border-radius:6px;font-family:inherit;font-size:1.1rem;text-align:right}
+.row input:focus{outline:none;border-color:#4ade80}
+.row select{background:#0a0a0a;border:1px solid #222;color:#ccc;padding:0.6rem;border-radius:6px;font-family:inherit;font-size:0.8rem;width:140px}
+.swap{background:#1a1a1a;border:1px solid #333;color:#666;width:36px;height:36px;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:0.9rem;margin:0 auto}
+.swap:hover{color:#fff;border-color:#555}
+.all-results{margin-top:1rem}
+.all-title{font-size:0.7rem;color:#555;margin-bottom:0.5rem}
+.result-row{display:flex;justify-content:space-between;padding:0.3rem 0;border-bottom:1px solid #111;font-size:0.8rem;cursor:pointer}
+.result-row:hover{background:#0a0a0a}
+.result-unit{color:#666}
+.result-val{color:#4ade80}
+</style>
+</head>
+<body>
+<h1>Unit Convert</h1>
+<p class="sub">Instant conversion across units</p>
+<div class="categories" id="categories"></div>
+<div class="converter">
+  <div class="row"><input type="number" id="val-from" value="1"><select id="unit-from"></select></div>
+  <div style="text-align:center;margin:0.3rem 0"><div class="swap" onclick="swap()">&#8645;</div></div>
+  <div class="row"><input type="number" id="val-to" readonly><select id="unit-to"></select></div>
+</div>
+<div class="all-results" id="all-results"></div>
+
+<script>
+const UNITS = {
+  Length: {
+    m: 1, km: 1000, cm: 0.01, mm: 0.001, mi: 1609.344, yd: 0.9144, ft: 0.3048, in: 0.0254, nm: 1852, um: 1e-6
+  },
+  Weight: {
+    kg: 1, g: 0.001, mg: 1e-6, lb: 0.453592, oz: 0.0283495, ton: 1000, st: 6.35029
+  },
+  Temperature: { // special handling
+    C: 'C', F: 'F', K: 'K'
+  },
+  Time: {
+    s: 1, ms: 0.001, min: 60, hr: 3600, day: 86400, wk: 604800, yr: 31557600
+  },
+  Data: {
+    B: 1, KB: 1024, MB: 1048576, GB: 1073741824, TB: 1099511627776, bit: 0.125, Kb: 128, Mb: 131072, Gb: 134217728
+  },
+  Speed: {
+    'km/h': 1, 'mph': 1.60934, 'm/s': 3.6, knot: 1.852, 'ft/s': 1.09728
+  },
+  Area: {
+    'm2': 1, 'km2': 1e6, 'ft2': 0.092903, 'mi2': 2.59e6, acre: 4046.86, hectare: 10000
+  },
+  Volume: {
+    L: 1, mL: 0.001, gal: 3.78541, qt: 0.946353, pt: 0.473176, cup: 0.236588, 'fl oz': 0.0295735, 'm3': 1000
+  },
+  Pressure: {
+    Pa: 1, kPa: 1000, bar: 100000, atm: 101325, psi: 6894.76, mmHg: 133.322
+  }
+};
+
+let activeCategory = 'Length';
+
+function tempConvert(val, from, to) {
+  let c;
+  if (from === 'C') c = val;
+  else if (from === 'F') c = (val - 32) * 5/9;
+  else c = val - 273.15;
+  if (to === 'C') return c;
+  if (to === 'F') return c * 9/5 + 32;
+  return c + 273.15;
+}
+
+function convert(val, from, to, cat) {
+  if (cat === 'Temperature') return tempConvert(val, from, to);
+  const units = UNITS[cat];
+  return val * units[from] / units[to];
+}
+
+function renderCategories() {
+  document.getElementById('categories').innerHTML = Object.keys(UNITS).map(c =>
+    `<div class="cat ${c===activeCategory?'active':''}" onclick="setCategory('${c}')">${c}</div>`
+  ).join('');
+}
+
+function renderUnits() {
+  const units = Object.keys(UNITS[activeCategory]);
+  const fromEl = document.getElementById('unit-from');
+  const toEl = document.getElementById('unit-to');
+  fromEl.innerHTML = units.map((u,i) => `<option value="${u}" ${i===0?'selected':''}>${u}</option>`).join('');
+  toEl.innerHTML = units.map((u,i) => `<option value="${u}" ${i===1?'selected':''}>${u}</option>`).join('');
+}
+
+function doConvert() {
+  const val = parseFloat(document.getElementById('val-from').value) || 0;
+  const from = document.getElementById('unit-from').value;
+  const to = document.getElementById('unit-to').value;
+  const result = convert(val, from, to, activeCategory);
+  document.getElementById('val-to').value = result % 1 === 0 ? result : result.toPrecision(8);
+
+  // All conversions
+  const units = Object.keys(UNITS[activeCategory]);
+  document.getElementById('all-results').innerHTML = `
+    <div class="all-title">All conversions from ${val} ${from}</div>
+    ${units.filter(u => u !== from).map(u => {
+      const r = convert(val, from, u, activeCategory);
+      const display = Math.abs(r) > 1e6 || (Math.abs(r) < 0.001 && r !== 0) ? r.toExponential(4) : (r % 1 === 0 ? r.toLocaleString() : parseFloat(r.toPrecision(8)));
+      return `<div class="result-row" onclick="navigator.clipboard.writeText('${display}')"><span class="result-unit">${u}</span><span class="result-val">${display}</span></div>`;
+    }).join('')}`;
+}
+
+window.setCategory = function(c) { activeCategory = c; renderCategories(); renderUnits(); doConvert(); };
+window.swap = function() {
+  const f = document.getElementById('unit-from');
+  const t = document.getElementById('unit-to');
+  const tmp = f.value; f.value = t.value; t.value = tmp;
+  doConvert();
+};
+
+document.getElementById('val-from').addEventListener('input', doConvert);
+document.getElementById('unit-from').addEventListener('change', doConvert);
+document.getElementById('unit-to').addEventListener('change', doConvert);
+
+renderCategories(); renderUnits(); doConvert();
+</script>
+</body>
+</html>

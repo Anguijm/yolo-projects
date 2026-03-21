@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Kanban Board</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'SF Mono','Fira Code',monospace;background:#0a0a0a;color:#ccc;height:100vh;display:flex;flex-direction:column;overflow:hidden}
+.header{padding:0.8rem 1.5rem;border-bottom:1px solid #1a1a1a;display:flex;align-items:center;gap:1rem}
+.header h1{font-size:1.1rem;color:#fff}
+.header button{background:#1a1a1a;border:1px solid #333;color:#999;padding:0.3rem 0.6rem;border-radius:4px;cursor:pointer;font-family:inherit;font-size:0.7rem}
+.header button:hover{color:#fff;border-color:#555}
+.board{display:flex;gap:1rem;flex:1;padding:1rem;overflow-x:auto}
+.column{min-width:280px;width:280px;background:#0d0d0d;border-radius:8px;border:1px solid #1a1a1a;display:flex;flex-direction:column;flex-shrink:0}
+.column.drag-over{border-color:#4ade80;background:#0a1a0a}
+.col-header{padding:0.7rem 0.8rem;border-bottom:1px solid #1a1a1a;display:flex;align-items:center;gap:0.5rem}
+.col-dot{width:8px;height:8px;border-radius:50%}
+.col-title{font-size:0.8rem;color:#fff;flex:1}
+.col-count{font-size:0.65rem;color:#444;background:#111;padding:0.1rem 0.4rem;border-radius:8px}
+.col-add{background:none;border:none;color:#444;cursor:pointer;font-size:1rem;padding:0 4px;width:auto}
+.col-add:hover{color:#4ade80}
+.cards{flex:1;overflow-y:auto;padding:0.5rem;display:flex;flex-direction:column;gap:0.4rem;min-height:40px}
+.card{background:#111;border:1px solid #1a1a1a;border-radius:6px;padding:0.6rem 0.7rem;cursor:grab;transition:all 0.15s;position:relative}
+.card:hover{border-color:#333}
+.card.dragging{opacity:0.4;transform:rotate(2deg)}
+.card-title{font-size:0.8rem;color:#ddd;margin-bottom:0.3rem;outline:none}
+.card-meta{display:flex;gap:0.5rem;align-items:center}
+.card-tag{font-size:0.55rem;padding:0.1rem 0.35rem;border-radius:3px;background:#1a1a2a;color:#60a5fa}
+.card-tag.bug{background:#2a1a1a;color:#f87171}
+.card-tag.feature{background:#1a2a1a;color:#4ade80}
+.card-tag.chore{background:#2a2a1a;color:#fbbf24}
+.card-date{font-size:0.55rem;color:#444}
+.card-delete{position:absolute;top:4px;right:6px;background:none;border:none;color:#333;cursor:pointer;font-size:0.7rem;width:auto;padding:2px}
+.card-delete:hover{color:#f87171}
+.drop-indicator{height:3px;background:#4ade80;border-radius:2px;margin:2px 0;display:none}
+.add-col{min-width:200px;background:#0d0d0d;border:1px dashed #222;border-radius:8px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:#333;font-size:0.8rem;flex-shrink:0}
+.add-col:hover{border-color:#444;color:#666}
+.stats{padding:0.4rem 1.5rem;border-top:1px solid #1a1a1a;font-size:0.65rem;color:#444;display:flex;gap:1.5rem}
+</style>
+</head>
+<body>
+<div class="header">
+  <h1>Kanban Board</h1>
+  <button onclick="exportBoard()">Export JSON</button>
+  <button onclick="importBoard()">Import</button>
+  <button onclick="resetBoard()">Reset</button>
+</div>
+<div class="board" id="board"></div>
+<div class="stats" id="stats"></div>
+
+<script>
+const COL_COLORS = ['#4ade80','#fbbf24','#60a5fa','#a78bfa','#fb923c','#f472b6'];
+const DEFAULT_BOARD = {
+  columns: [
+    {id:1, title:'Backlog', color:'#666', cards:[
+      {id:101,title:'Research new architecture',tags:['feature'],created:'2026-03-20'},
+      {id:102,title:'Fix login redirect bug',tags:['bug'],created:'2026-03-19'},
+    ]},
+    {id:2, title:'To Do', color:'#fbbf24', cards:[
+      {id:201,title:'Design dashboard wireframes',tags:['feature'],created:'2026-03-20'},
+    ]},
+    {id:3, title:'In Progress', color:'#60a5fa', cards:[
+      {id:301,title:'Implement OAuth flow',tags:['feature'],created:'2026-03-18'},
+    ]},
+    {id:4, title:'Done', color:'#4ade80', cards:[
+      {id:401,title:'Set up CI/CD pipeline',tags:['chore'],created:'2026-03-17'},
+      {id:402,title:'Fix CSS overflow issue',tags:['bug'],created:'2026-03-16'},
+    ]},
+  ]
+};
+
+let board = JSON.parse(localStorage.getItem('kanban-board') || 'null') || JSON.parse(JSON.stringify(DEFAULT_BOARD));
+let dragCard = null;
+let dragCol = null;
+let nextId = Date.now();
+
+function save() { localStorage.setItem('kanban-board', JSON.stringify(board)); }
+
+function render() {
+  const el = document.getElementById('board');
+  el.innerHTML = board.columns.map(col => `
+    <div class="column" data-col="${col.id}" ondragover="onDragOver(event,${col.id})" ondragleave="onDragLeave(event)" ondrop="onDrop(event,${col.id})">
+      <div class="col-header">
+        <div class="col-dot" style="background:${col.color}"></div>
+        <span class="col-title" contenteditable="true" onblur="renameCol(${col.id},this.textContent)">${col.title}</span>
+        <span class="col-count">${col.cards.length}</span>
+        <span class="col-add" onclick="addCard(${col.id})">+</span>
+      </div>
+      <div class="cards" data-col="${col.id}">
+        ${col.cards.map(card => `
+          <div class="card" draggable="true" data-card="${card.id}" data-col="${col.id}"
+            ondragstart="onDragStart(event,${card.id},${col.id})" ondragend="onDragEnd(event)">
+            <div class="card-title" contenteditable="true" onblur="renameCard(${card.id},this.textContent)">${card.title}</div>
+            <div class="card-meta">
+              ${card.tags.map(t => `<span class="card-tag ${t}">${t}</span>`).join('')}
+              <span class="card-date">${card.created}</span>
+            </div>
+            <span class="card-delete" onclick="deleteCard(${col.id},${card.id})">x</span>
+          </div>
+        `).join('')}
+      </div>
+    </div>
+  `).join('') + `<div class="add-col" onclick="addColumn()">+ Add Column</div>`;
+
+  // Stats
+  const total = board.columns.reduce((s, c) => s + c.cards.length, 0);
+  const done = board.columns[board.columns.length - 1]?.cards.length || 0;
+  document.getElementById('stats').innerHTML = `
+    <span>${total} total cards</span>
+    <span>${board.columns.length} columns</span>
+    <span>${done} completed</span>
+  `;
+}
+
+window.addCard = function(colId) {
+  const col = board.columns.find(c => c.id === colId);
+  if (!col) return;
+  col.cards.unshift({id: nextId++, title: 'New task', tags: [], created: new Date().toISOString().slice(0,10)});
+  save(); render();
+};
+
+window.addColumn = function() {
+  board.columns.push({id: nextId++, title: 'New Column', color: COL_COLORS[board.columns.length % COL_COLORS.length], cards: []});
+  save(); render();
+};
+
+window.deleteCard = function(colId, cardId) {
+  const col = board.columns.find(c => c.id === colId);
+  if (col) col.cards = col.cards.filter(c => c.id !== cardId);
+  save(); render();
+};
+
+window.renameCol = function(colId, title) {
+  const col = board.columns.find(c => c.id === colId);
+  if (col) col.title = title.trim();
+  save();
+};
+
+window.renameCard = function(cardId, title) {
+  for (const col of board.columns) {
+    const card = col.cards.find(c => c.id === cardId);
+    if (card) { card.title = title.trim(); break; }
+  }
+  save();
+};
+
+// Drag and drop
+window.onDragStart = function(e, cardId, colId) {
+  dragCard = cardId;
+  dragCol = colId;
+  e.target.classList.add('dragging');
+  e.dataTransfer.effectAllowed = 'move';
+};
+
+window.onDragEnd = function(e) {
+  e.target.classList.remove('dragging');
+  document.querySelectorAll('.column').forEach(c => c.classList.remove('drag-over'));
+};
+
+window.onDragOver = function(e, colId) {
+  e.preventDefault();
+  e.dataTransfer.dropEffect = 'move';
+  document.querySelectorAll('.column').forEach(c => c.classList.remove('drag-over'));
+  document.querySelector(`[data-col="${colId}"].column`)?.classList.add('drag-over');
+};
+
+window.onDragLeave = function(e) {
+  e.target.closest('.column')?.classList.remove('drag-over');
+};
+
+window.onDrop = function(e, targetColId) {
+  e.preventDefault();
+  document.querySelectorAll('.column').forEach(c => c.classList.remove('drag-over'));
+  if (dragCard === null) return;
+  const srcCol = board.columns.find(c => c.id === dragCol);
+  const dstCol = board.columns.find(c => c.id === targetColId);
+  if (!srcCol || !dstCol) return;
+  const cardIdx = srcCol.cards.findIndex(c => c.id === dragCard);
+  if (cardIdx === -1) return;
+  const [card] = srcCol.cards.splice(cardIdx, 1);
+  dstCol.cards.push(card);
+  dragCard = null;
+  dragCol = null;
+  save(); render();
+};
+
+window.exportBoard = function() {
+  const blob = new Blob([JSON.stringify(board, null, 2)], {type:'application/json'});
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'kanban-board.json'; a.click();
+};
+
+window.importBoard = function() {
+  const input = document.createElement('input'); input.type = 'file'; input.accept = '.json';
+  input.addEventListener('change', async e => {
+    try { board = JSON.parse(await e.target.files[0].text()); save(); render(); } catch(err) { alert('Invalid JSON'); }
+  }); input.click();
+};
+
+window.resetBoard = function() {
+  if(confirm('Reset board to defaults?')) { board = JSON.parse(JSON.stringify(DEFAULT_BOARD)); save(); render(); }
+};
+
+render();
+</script>
+</body>
+</html>

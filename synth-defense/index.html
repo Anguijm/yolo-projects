@@ -1,0 +1,532 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Synth Defense</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { background: #0a0a12; overflow: hidden; height: 100vh; font-family: 'Segoe UI', system-ui, sans-serif; }
+canvas { display: block; position: fixed; inset: 0; }
+#overlay { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(5,5,15,0.92); z-index: 20; flex-direction: column; gap: 20px; }
+#overlay h1 { font-size: 2.4rem; color: #fff; letter-spacing: 0.15em; text-transform: uppercase; }
+#overlay .sub { color: #666; font-size: 0.85rem; max-width: 400px; text-align: center; line-height: 1.6; }
+#overlay button { padding: 12px 36px; background: transparent; border: 2px solid #0ff; color: #0ff; font-size: 1rem; font-family: inherit; cursor: pointer; border-radius: 30px; letter-spacing: 0.1em; transition: all 0.3s; }
+#overlay button:hover { background: #0ff; color: #000; }
+#hud { position: fixed; top: 10px; left: 10px; z-index: 10; font-size: 11px; color: #888; font-family: monospace; }
+#tower-select { position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%); z-index: 10; display: none; gap: 8px; }
+#tower-select button { padding: 8px 16px; background: rgba(10,10,20,0.8); border: 2px solid #333; color: #aaa; border-radius: 8px; cursor: pointer; font-family: inherit; font-size: 12px; backdrop-filter: blur(8px); transition: all 0.2s; }
+#tower-select button:hover { border-color: #888; color: #fff; }
+#tower-select button.active { border-color: var(--tc); color: var(--tc); }
+#tower-select .cost { font-size: 9px; color: #555; display: block; }
+#game-over { display: none; position: fixed; inset: 0; background: rgba(5,5,15,0.9); z-index: 25; align-items: center; justify-content: center; flex-direction: column; gap: 16px; }
+#game-over h2 { font-size: 2rem; color: #f55; letter-spacing: 0.1em; }
+#game-over .score { font-size: 1.2rem; color: #fff; }
+#game-over button { padding: 10px 30px; background: transparent; border: 2px solid #0ff; color: #0ff; font-size: 0.9rem; font-family: inherit; cursor: pointer; border-radius: 30px; }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="overlay">
+  <h1>Synth Defense</h1>
+  <p class="sub">Place musical towers to defend the path. Each tower plays synth notes quantized to the beat. Compose your defense.</p>
+  <button id="btn-start">[ Initiate Vibe Check ]</button>
+</div>
+<div id="hud">
+  <div id="hud-text"></div>
+</div>
+<div id="tower-select">
+  <button data-tower="bass" style="--tc:#f0f">Bass <span class="cost">$15 | Square | Slow</span></button>
+  <button data-tower="melody" style="--tc:#0ff" class="active">Melody <span class="cost">$10 | Sine | Medium</span></button>
+  <button data-tower="arp" style="--tc:#ff0">Arp <span class="cost">$8 | Triangle | Fast</span></button>
+</div>
+<div id="game-over">
+  <h2>SIGNAL LOST</h2>
+  <div class="score" id="final-score"></div>
+  <button id="btn-restart">[ Retry ]</button>
+</div>
+
+<script>
+(function() {
+'use strict';
+
+// ============ CONFIG ============
+const CELL = 40;
+const BPM = 120;
+const BEAT_MS = 60000 / BPM;
+const TICK_16 = BEAT_MS / 4; // 16th note = 125ms at 120bpm
+
+// Pentatonic scale frequencies (C4 pentatonic across 3 octaves)
+const PENTA = [
+  130.81, 146.83, 164.81, 196.00, 220.00, // C3 D3 E3 G3 A3
+  261.63, 293.66, 329.63, 392.00, 440.00, // C4 D4 E4 G4 A4
+  523.25, 587.33, 659.25, 783.99, 880.00  // C5 D5 E5 G5 A5
+];
+
+const TOWER_DEFS = {
+  bass:   { color: '#f0f', range: 3, damage: 40, cost: 15, fireDiv: 4, wave: 'square', octave: 0, label: 'BASS' },
+  melody: { color: '#0ff', range: 2.5, damage: 20, cost: 10, fireDiv: 2, wave: 'sine', octave: 1, label: 'MELODY' },
+  arp:    { color: '#ff0', range: 1.8, damage: 8, cost: 8, fireDiv: 1, wave: 'triangle', octave: 2, label: 'ARP' }
+};
+
+// ============ STATE ============
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+let W, H, cols, rows;
+let audioCtx, masterGain, compressor;
+let gameActive = false;
+let gold = 50;
+let lives = 20;
+let wave = 0;
+let score = 0;
+let selectedTower = 'melody';
+let globalTick = 0;
+let lastTickTime = 0;
+let enemies = [];
+let towers = [];
+let projectiles = [];
+let particles = [];
+let path = [];
+let pathSet = new Set();
+let pathGrid = null; // Uint8Array for O(1) grid lookup
+let spawnTimer = 0;
+let enemiesLeft = 0;
+let waveDelay = 0;
+
+// ============ POOLS ============
+const MAX_PROJ = 200;
+const projPool = [];
+for (let i = 0; i < MAX_PROJ; i++) projPool.push({ active: false, x:0, y:0, tx:0, ty:0, speed:0, damage:0, color:'', life:0 });
+
+const MAX_PARTS = 500;
+const partPool = [];
+for (let i = 0; i < MAX_PARTS; i++) partPool.push({ active: false, x:0, y:0, vx:0, vy:0, life:0, color:'', size:0 });
+
+function spawnProj(x, y, tx, ty, damage, color) {
+  for (const p of projPool) {
+    if (!p.active) {
+      const dx = tx - x, dy = ty - y, d = Math.sqrt(dx*dx + dy*dy);
+      Object.assign(p, { active: true, x, y, tx, ty, speed: 300, damage, color, life: 2,
+        vx: dx/d * 300, vy: dy/d * 300 });
+      return;
+    }
+  }
+}
+
+function spawnPart(x, y, color, count) {
+  for (let i = 0; i < count; i++) {
+    for (const p of partPool) {
+      if (!p.active) {
+        const angle = Math.random() * Math.PI * 2;
+        const speed = 30 + Math.random() * 80;
+        Object.assign(p, { active: true, x, y, vx: Math.cos(angle)*speed, vy: Math.sin(angle)*speed,
+          life: 0.3 + Math.random() * 0.4, color, size: 1 + Math.random() * 2 });
+        break;
+      }
+    }
+  }
+}
+
+// ============ PATH ============
+function generatePath() {
+  // Serpentine path
+  path = [];
+  const margin = 2;
+  let y = margin;
+  let dir = 1; // 1 = right, -1 = left
+  while (y < rows - margin) {
+    const startX = dir === 1 ? margin : cols - margin - 1;
+    const endX = dir === 1 ? cols - margin - 1 : margin;
+    const step = dir;
+    for (let x = startX; x !== endX + step; x += step) {
+      path.push({ x, y });
+    }
+    // Go down 2 cells
+    if (y + 2 < rows - margin) {
+      path.push({ x: endX, y: y + 1 });
+      path.push({ x: endX, y: y + 2 });
+      y += 2;
+    } else {
+      break;
+    }
+    dir *= -1;
+  }
+  pathSet = new Set(path.map(p => `${p.x},${p.y}`));
+  pathGrid = new Uint8Array(cols * rows);
+  for (const p of path) pathGrid[p.y * cols + p.x] = 1;
+}
+
+// ============ AUDIO ============
+function playNote(freq, wave, duration, volume) {
+  if (!audioCtx || !masterGain) return;
+  const osc = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+  osc.type = wave;
+  osc.frequency.value = freq;
+  gain.gain.setValueAtTime(volume * 0.12, audioCtx.currentTime);
+  gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
+  osc.connect(gain);
+  gain.connect(masterGain); // Route through compressor, not directly to destination
+  osc.start();
+  osc.stop(audioCtx.currentTime + duration);
+}
+
+// ============ RESIZE ============
+function resize() {
+  W = canvas.width = window.innerWidth;
+  H = canvas.height = window.innerHeight;
+  cols = ~~(W / CELL);
+  rows = ~~(H / CELL);
+  generatePath();
+}
+window.addEventListener('resize', resize);
+
+// ============ ENEMIES ============
+function spawnEnemy() {
+  if (path.length === 0) return;
+  const hp = 30 + wave * 15;
+  enemies.push({
+    x: path[0].x * CELL + CELL/2,
+    y: path[0].y * CELL + CELL/2,
+    pathIdx: 0,
+    hp, maxHp: hp,
+    speed: 50 + Math.min(wave * 2, 40),
+    reward: 3 + ~~(wave * 0.5),
+    size: 6 + Math.min(wave, 8)
+  });
+}
+
+function startWave() {
+  wave++;
+  enemiesLeft = 5 + wave * 2;
+  spawnTimer = 0;
+  waveDelay = 0;
+}
+
+// ============ UPDATE ============
+function update(dt) {
+  if (!gameActive) return;
+
+  // Global tick for quantized firing
+  lastTickTime += dt * 1000;
+  while (lastTickTime >= TICK_16) {
+    lastTickTime -= TICK_16;
+    globalTick++;
+  }
+
+  // Wave spawning
+  if (enemiesLeft > 0) {
+    spawnTimer -= dt;
+    if (spawnTimer <= 0) {
+      spawnEnemy();
+      enemiesLeft--;
+      spawnTimer = 0.6 - Math.min(wave * 0.02, 0.3);
+    }
+  } else if (enemies.length === 0) {
+    waveDelay += dt;
+    if (waveDelay > 2) startWave();
+  }
+
+  // Move enemies along path
+  for (let i = enemies.length - 1; i >= 0; i--) {
+    const e = enemies[i];
+    if (e.pathIdx >= path.length - 1) {
+      lives--;
+      enemies.splice(i, 1);
+      if (lives <= 0) { gameOver(); return; }
+      continue;
+    }
+    const target = path[e.pathIdx + 1];
+    const tx = target.x * CELL + CELL/2;
+    const ty = target.y * CELL + CELL/2;
+    const dx = tx - e.x, dy = ty - e.y;
+    const dist = Math.sqrt(dx*dx + dy*dy);
+    if (dist < 2) {
+      e.pathIdx++;
+    } else {
+      e.x += dx/dist * e.speed * dt;
+      e.y += dy/dist * e.speed * dt;
+    }
+  }
+
+  // Tower firing (quantized to BPM)
+  for (const t of towers) {
+    if (globalTick % t.def.fireDiv !== 0) continue;
+    // Find nearest enemy in range
+    let nearest = null, nearDist = Infinity;
+    const range = t.def.range * CELL;
+    for (const e of enemies) {
+      const dx = e.x - t.x, dy = e.y - t.y;
+      const d = Math.sqrt(dx*dx + dy*dy);
+      if (d < range && d < nearDist) { nearest = e; nearDist = d; }
+    }
+    if (nearest && globalTick !== t.lastFire) {
+      t.lastFire = globalTick;
+      spawnProj(t.x, t.y, nearest.x, nearest.y, t.def.damage, t.def.color);
+      // Play note — map tower grid position to pentatonic scale
+      const noteIdx = (t.gridY % 5) + t.def.octave * 5;
+      const freq = PENTA[Math.min(noteIdx, PENTA.length - 1)];
+      playNote(freq, t.def.wave, t.def.fireDiv === 1 ? 0.15 : t.def.fireDiv === 2 ? 0.3 : 0.5, 0.6);
+      t.flash = 1;
+    }
+  }
+
+  // Update projectiles
+  for (const p of projPool) {
+    if (!p.active) continue;
+    p.x += p.vx * dt;
+    p.y += p.vy * dt;
+    p.life -= dt;
+    if (p.life <= 0) { p.active = false; continue; }
+    // Hit enemies
+    for (let i = enemies.length - 1; i >= 0; i--) {
+      const e = enemies[i];
+      const dx = p.x - e.x, dy = p.y - e.y;
+      if (dx*dx + dy*dy < (e.size + 3) * (e.size + 3)) {
+        e.hp -= p.damage;
+        p.active = false;
+        spawnPart(e.x, e.y, p.color, 4);
+        if (e.hp <= 0) {
+          score += e.reward;
+          gold += e.reward;
+          spawnPart(e.x, e.y, '#fff', 8);
+          enemies.splice(i, 1);
+        }
+        break;
+      }
+    }
+  }
+
+  // Update particles
+  for (const p of partPool) {
+    if (!p.active) continue;
+    p.x += p.vx * dt;
+    p.y += p.vy * dt;
+    p.life -= dt;
+    if (p.life <= 0) p.active = false;
+  }
+
+  // Tower flash decay
+  for (const t of towers) {
+    if (t.flash > 0) t.flash -= dt * 5;
+  }
+
+  // HUD
+  document.getElementById('hud-text').textContent =
+    `Wave ${wave} | Gold: $${gold} | Lives: ${lives} | Score: ${score}`;
+}
+
+// ============ RENDER ============
+function render() {
+  // Dark fade for trails
+  ctx.fillStyle = 'rgba(10, 10, 18, 0.3)';
+  ctx.fillRect(0, 0, W, H);
+
+  // Path
+  ctx.fillStyle = '#12121e';
+  for (const p of path) {
+    ctx.fillRect(p.x * CELL, p.y * CELL, CELL, CELL);
+  }
+  // Path border lines
+  ctx.strokeStyle = '#1a1a2e';
+  ctx.lineWidth = 0.5;
+  for (const p of path) {
+    ctx.strokeRect(p.x * CELL, p.y * CELL, CELL, CELL);
+  }
+
+  // Grid dots (subtle)
+  ctx.fillStyle = '#0a0a15';
+  for (let x = 0; x < cols; x++) {
+    for (let y = 0; y < rows; y++) {
+      if (!pathSet.has(`${x},${y}`)) {
+        ctx.fillRect(x * CELL, y * CELL, 1, 1);
+      }
+    }
+  }
+
+  // Towers
+  for (const t of towers) {
+    const glow = t.flash || 0;
+    // Range circle on hover/flash
+    if (glow > 0.5) {
+      ctx.strokeStyle = t.def.color + '20';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.arc(t.x, t.y, t.def.range * CELL, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+
+    // Tower body
+    ctx.fillStyle = t.def.color;
+    ctx.globalAlpha = 0.3 + glow * 0.7;
+    if (t.def.wave === 'square') {
+      ctx.fillRect(t.x - 8, t.y - 8, 16, 16);
+    } else if (t.def.wave === 'triangle') {
+      ctx.beginPath();
+      ctx.moveTo(t.x, t.y - 10);
+      ctx.lineTo(t.x - 9, t.y + 7);
+      ctx.lineTo(t.x + 9, t.y + 7);
+      ctx.closePath();
+      ctx.fill();
+    } else {
+      ctx.beginPath();
+      ctx.arc(t.x, t.y, 8, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+
+    // Glow burst
+    if (glow > 0) {
+      ctx.globalCompositeOperation = 'lighter';
+      ctx.fillStyle = t.def.color;
+      ctx.globalAlpha = glow * 0.2;
+      ctx.beginPath();
+      ctx.arc(t.x, t.y, 15 + glow * 10, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.globalAlpha = 1;
+      ctx.globalCompositeOperation = 'source-over';
+    }
+  }
+
+  // Enemies
+  for (const e of enemies) {
+    const hpPct = e.hp / e.maxHp;
+    // Body
+    ctx.fillStyle = `hsl(${hpPct * 120}, 70%, 50%)`;
+    ctx.beginPath();
+    ctx.arc(e.x, e.y, e.size, 0, Math.PI * 2);
+    ctx.fill();
+    // HP bar
+    ctx.fillStyle = '#333';
+    ctx.fillRect(e.x - 10, e.y - e.size - 6, 20, 3);
+    ctx.fillStyle = `hsl(${hpPct * 120}, 80%, 50%)`;
+    ctx.fillRect(e.x - 10, e.y - e.size - 6, 20 * hpPct, 3);
+  }
+
+  // Projectiles
+  ctx.globalCompositeOperation = 'lighter';
+  for (const p of projPool) {
+    if (!p.active) continue;
+    ctx.fillStyle = p.color;
+    ctx.globalAlpha = 0.8;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, 2.5, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // Particles
+  for (const p of partPool) {
+    if (!p.active) continue;
+    ctx.fillStyle = p.color;
+    ctx.globalAlpha = Math.max(0, p.life * 2);
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+  ctx.globalCompositeOperation = 'source-over';
+
+  // Beat pulse indicator
+  const beatPhase = (lastTickTime / TICK_16);
+  const pulseAlpha = Math.max(0, 1 - beatPhase) * 0.15;
+  if (pulseAlpha > 0.01) {
+    ctx.fillStyle = `rgba(100, 100, 255, ${pulseAlpha})`;
+    ctx.fillRect(0, H - 3, W * (1 - beatPhase), 3);
+  }
+}
+
+// ============ GAME LOOP ============
+let lastTime = 0;
+function loop(ts) {
+  const dt = Math.min(0.05, (ts - lastTime) / 1000);
+  lastTime = ts;
+  update(dt);
+  render();
+  requestAnimationFrame(loop);
+}
+
+// ============ INPUT ============
+canvas.addEventListener('click', e => {
+  if (!gameActive) return;
+  const gx = ~~(e.clientX / CELL);
+  const gy = ~~(e.clientY / CELL);
+
+  // Can't place on path (O(1) lookup)
+  if (pathGrid && pathGrid[gy * cols + gx]) return;
+  // Can't place on existing tower
+  if (towers.some(t => t.gridX === gx && t.gridY === gy)) return;
+  // Check bounds
+  if (gx < 0 || gy < 0 || gx >= cols || gy >= rows) return;
+
+  const def = TOWER_DEFS[selectedTower];
+  if (gold < def.cost) return;
+  gold -= def.cost;
+
+  towers.push({
+    x: gx * CELL + CELL/2,
+    y: gy * CELL + CELL/2,
+    gridX: gx, gridY: gy,
+    def,
+    lastFire: -1,
+    flash: 0
+  });
+});
+
+// Tower selection
+document.querySelectorAll('#tower-select button').forEach(btn => {
+  btn.addEventListener('click', e => {
+    e.stopPropagation();
+    selectedTower = btn.dataset.tower;
+    document.querySelectorAll('#tower-select button').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+  });
+});
+
+// Keyboard shortcuts
+document.addEventListener('keydown', e => {
+  if (e.key === '1') selectTower('bass');
+  if (e.key === '2') selectTower('melody');
+  if (e.key === '3') selectTower('arp');
+});
+
+function selectTower(type) {
+  selectedTower = type;
+  document.querySelectorAll('#tower-select button').forEach(b =>
+    b.classList.toggle('active', b.dataset.tower === type));
+}
+
+// ============ GAME FLOW ============
+function startGame() {
+  document.getElementById('overlay').style.display = 'none';
+  document.getElementById('tower-select').style.display = 'flex';
+  document.getElementById('game-over').style.display = 'none';
+  audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  compressor = audioCtx.createDynamicsCompressor();
+  compressor.threshold.value = -24;
+  compressor.knee.value = 30;
+  compressor.ratio.value = 12;
+  masterGain = audioCtx.createGain();
+  masterGain.gain.value = 0.8;
+  masterGain.connect(compressor);
+  compressor.connect(audioCtx.destination);
+  gameActive = true;
+  gold = 50; lives = 20; wave = 0; score = 0;
+  enemies = []; towers = []; globalTick = 0; lastTickTime = 0;
+  resize();
+  startWave();
+  ctx.clearRect(0, 0, W, H);
+  requestAnimationFrame(loop);
+}
+
+function gameOver() {
+  gameActive = false;
+  document.getElementById('game-over').style.display = 'flex';
+  document.getElementById('final-score').textContent = `Wave ${wave} | Score: ${score}`;
+}
+
+document.getElementById('btn-start').addEventListener('click', startGame);
+document.getElementById('btn-restart').addEventListener('click', startGame);
+})();
+</script>
+</body>
+</html>

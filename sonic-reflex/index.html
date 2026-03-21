@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sonic Reflex</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { background: #0a0a0f; color: #e0e0e0; font-family: 'Segoe UI', system-ui, sans-serif; height: 100vh; display: flex; flex-direction: column; overflow: hidden; user-select: none; cursor: pointer; }
+#screen { flex: 1; display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 12px; transition: background 0.05s; }
+#screen.flash { background: #fff; color: #000; }
+#screen.early { background: #2a0a0a; }
+
+.big-text { font-size: clamp(3rem, 10vw, 8rem); font-weight: 900; letter-spacing: -0.02em; line-height: 1; }
+.sub-text { font-size: clamp(0.8rem, 2vw, 1.1rem); color: #555; max-width: 500px; text-align: center; line-height: 1.5; }
+.ms-text { font-size: clamp(5rem, 15vw, 12rem); font-weight: 900; font-family: monospace; letter-spacing: -0.04em; }
+.ms-unit { font-size: clamp(1rem, 3vw, 1.8rem); color: #666; }
+.rating { font-size: clamp(1rem, 3vw, 1.5rem); font-weight: bold; margin-top: 4px; }
+
+/* Stats panel */
+#stats { display: none; padding: 16px 20px; background: #0d1117; border-top: 1px solid #1a1a2e; }
+#stats.show { display: block; }
+.stats-row { display: flex; gap: 20px; justify-content: center; margin-bottom: 10px; }
+.stat-item { text-align: center; }
+.stat-val { font-size: 1.2rem; font-weight: bold; color: #fff; font-family: monospace; }
+.stat-label { font-size: 0.6rem; color: #555; text-transform: uppercase; letter-spacing: 0.1em; }
+#histogram { height: 60px; display: flex; align-items: flex-end; gap: 2px; justify-content: center; }
+.hist-bar { width: 12px; background: #58a6ff; border-radius: 2px 2px 0 0; min-height: 2px; transition: height 0.3s; }
+.hist-labels { display: flex; gap: 2px; justify-content: center; font-size: 7px; color: #333; }
+.hist-labels span { width: 12px; text-align: center; }
+
+/* Buttons */
+.btn { padding: 10px 24px; background: transparent; border: 2px solid #58a6ff; color: #58a6ff; border-radius: 6px; font-family: inherit; font-size: 0.9rem; cursor: pointer; font-weight: bold; }
+.btn:hover { background: #58a6ff; color: #000; }
+.btn-row { display: flex; gap: 8px; margin-top: 12px; }
+.btn-sm { padding: 5px 14px; font-size: 0.75rem; border-width: 1px; border-color: #333; color: #888; }
+.btn-sm:hover { border-color: #888; color: #fff; background: transparent; }
+
+/* Tension animation */
+.pulse-ring { width: 120px; height: 120px; border-radius: 50%; border: 3px solid #222; display: flex; align-items: center; justify-content: center; transition: all 0.1s; }
+.pulse-ring.active { border-color: #f55; box-shadow: 0 0 30px #f5522a; animation: pulseGrow 0.3s infinite alternate; }
+@keyframes pulseGrow { from { transform: scale(1); } to { transform: scale(1.08); } }
+.pulse-ring.drop { border-color: #fff; box-shadow: 0 0 80px #fff8; transform: scale(1.3); }
+</style>
+</head>
+<body>
+<div id="screen">
+  <div class="big-text">SONIC REFLEX</div>
+  <p class="sub-text">An audio-visual reaction test. Wait for the drop. Click the instant it hits. How fast are your reflexes?</p>
+  <p class="sub-text" style="color:#333;font-size:0.7rem">Contains sudden flashing lights and loud sounds. Bluetooth audio may add latency.</p>
+  <button class="btn" id="btn-go">START</button>
+</div>
+<div id="stats">
+  <div class="stats-row">
+    <div class="stat-item"><div class="stat-val" id="s-best">—</div><div class="stat-label">Best</div></div>
+    <div class="stat-item"><div class="stat-val" id="s-avg">—</div><div class="stat-label">Avg (last 10)</div></div>
+    <div class="stat-item"><div class="stat-val" id="s-tries">0</div><div class="stat-label">Tries</div></div>
+    <div class="stat-item"><div class="stat-val" id="s-rank">—</div><div class="stat-label">Rank</div></div>
+  </div>
+  <div id="histogram"></div>
+  <div class="hist-labels" id="hist-labels"></div>
+</div>
+
+<script>
+(function() {
+'use strict';
+
+// ============ STATE ============
+let audioCtx = null;
+let state = 'idle'; // idle, tension, waiting, flash, result, early
+let tensionTimeout = null;
+let dropTime = 0;
+let results = [];
+let tensionOsc = null;
+let tensionGain = null;
+let noiseNode = null;
+let noiseGain = null;
+let lfoNode = null;
+
+const screen = document.getElementById('screen');
+
+// Load saved results
+try { results = JSON.parse(localStorage.getItem('sonic_reflex_results')) || []; } catch(e) {}
+
+// ============ AUDIO ============
+function initAudio() {
+  if (audioCtx) return;
+  audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+}
+
+function startTension() {
+  if (!audioCtx) return;
+
+  // Rising sine tone
+  tensionOsc = audioCtx.createOscillator();
+  tensionGain = audioCtx.createGain();
+  tensionOsc.type = 'sine';
+  tensionOsc.frequency.setValueAtTime(80, audioCtx.currentTime);
+  tensionOsc.frequency.exponentialRampToValueAtTime(400, audioCtx.currentTime + 5);
+  tensionGain.gain.setValueAtTime(0, audioCtx.currentTime);
+  tensionGain.gain.linearRampToValueAtTime(0.15, audioCtx.currentTime + 0.5);
+
+  // Filtered noise layer (sidechain-like pumping)
+  const noiseBuffer = audioCtx.createBuffer(1, audioCtx.sampleRate * 2, audioCtx.sampleRate);
+  const noiseData = noiseBuffer.getChannelData(0);
+  for (let i = 0; i < noiseData.length; i++) noiseData[i] = Math.random() * 2 - 1;
+  noiseNode = audioCtx.createBufferSource();
+  noiseNode.buffer = noiseBuffer;
+  noiseNode.loop = true;
+  noiseGain = audioCtx.createGain();
+  noiseGain.gain.setValueAtTime(0, audioCtx.currentTime);
+  noiseGain.gain.linearRampToValueAtTime(0.06, audioCtx.currentTime + 3);
+
+  // LFO for pumping effect (accelerating)
+  lfoNode = audioCtx.createOscillator();
+  const lfoGain = audioCtx.createGain();
+  lfoNode.frequency.setValueAtTime(1, audioCtx.currentTime);
+  lfoNode.frequency.exponentialRampToValueAtTime(8, audioCtx.currentTime + 5);
+  lfoGain.gain.value = 0.04;
+  lfoNode.connect(lfoGain);
+  lfoGain.connect(noiseGain.gain);
+
+  // Compressor for punch
+  const comp = audioCtx.createDynamicsCompressor();
+  comp.threshold.value = -30;
+  comp.ratio.value = 12;
+  comp.attack.value = 0.003;
+
+  tensionOsc.connect(tensionGain);
+  tensionGain.connect(comp);
+  noiseNode.connect(noiseGain);
+  noiseGain.connect(comp);
+  comp.connect(audioCtx.destination);
+
+  tensionOsc.start();
+  noiseNode.start();
+  lfoNode.start();
+}
+
+function stopTension() {
+  const now = audioCtx ? audioCtx.currentTime : 0;
+  try {
+    if (tensionGain) tensionGain.gain.cancelScheduledValues(now);
+    if (tensionGain) tensionGain.gain.setValueAtTime(tensionGain.gain.value, now);
+    if (tensionGain) tensionGain.gain.linearRampToValueAtTime(0, now + 0.01);
+    if (noiseGain) noiseGain.gain.cancelScheduledValues(now);
+    if (noiseGain) noiseGain.gain.setValueAtTime(noiseGain.gain.value, now);
+    if (noiseGain) noiseGain.gain.linearRampToValueAtTime(0, now + 0.01);
+    setTimeout(() => {
+      try { tensionOsc?.stop(); noiseNode?.stop(); lfoNode?.stop(); } catch(e) {}
+    }, 50);
+  } catch(e) {}
+}
+
+function playDropSound() {
+  if (!audioCtx) return;
+  // Sharp, punchy "snap"
+  const osc = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+  osc.type = 'square';
+  osc.frequency.setValueAtTime(800, audioCtx.currentTime);
+  osc.frequency.exponentialRampToValueAtTime(100, audioCtx.currentTime + 0.1);
+  gain.gain.setValueAtTime(0.3, audioCtx.currentTime);
+  gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.15);
+  osc.connect(gain);
+  gain.connect(audioCtx.destination);
+  osc.start();
+  osc.stop(audioCtx.currentTime + 0.2);
+}
+
+function playResultSound(ms) {
+  if (!audioCtx) return;
+  // Pentatonic chime based on score quality
+  const notes = [523.25, 659.25, 783.99, 1046.50]; // C5, E5, G5, C6
+  const noteIdx = ms < 200 ? 3 : ms < 250 ? 2 : ms < 350 ? 1 : 0;
+  const osc = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+  osc.type = 'sine';
+  osc.frequency.value = notes[noteIdx];
+  gain.gain.setValueAtTime(0.12, audioCtx.currentTime);
+  gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.8);
+  osc.connect(gain);
+  gain.connect(audioCtx.destination);
+  osc.start();
+  osc.stop(audioCtx.currentTime + 1);
+}
+
+// ============ GAME LOGIC ============
+function startRound() {
+  initAudio();
+  state = 'tension';
+  screen.className = '';
+  screen.innerHTML = `
+    <div class="pulse-ring active" id="pulse-ring"></div>
+    <p class="sub-text" style="color:#444">Listen... wait for the drop...</p>
+  `;
+
+  startTension();
+
+  // Random delay 2-6 seconds
+  const delay = 2000 + Math.random() * 4000;
+  tensionTimeout = setTimeout(() => {
+    triggerDrop();
+  }, delay);
+}
+
+function triggerDrop() {
+  state = 'flash';
+  stopTension();
+  playDropSound();
+  dropTime = performance.now();
+
+  screen.className = 'flash';
+  screen.innerHTML = `
+    <div class="big-text" style="color:#000">NOW</div>
+  `;
+}
+
+function handleClick() {
+  if (state === 'idle') {
+    startRound();
+    return;
+  }
+
+  if (state === 'tension') {
+    // Too early!
+    clearTimeout(tensionTimeout);
+    stopTension();
+    state = 'early';
+    screen.className = 'early';
+    screen.innerHTML = `
+      <div class="big-text" style="color:#f55">TOO EARLY</div>
+      <p class="sub-text" style="color:#733">You clicked before the drop!</p>
+      <p class="sub-text" style="color:#444">Click to try again</p>
+    `;
+    state = 'idle';
+    return;
+  }
+
+  if (state === 'flash') {
+    const reactionMs = performance.now() - dropTime;
+    state = 'result';
+
+    const ms = Math.round(reactionMs);
+    results.push(ms);
+    saveResults();
+    playResultSound(ms);
+
+    const rating = getRating(ms);
+
+    screen.className = '';
+    screen.innerHTML = `
+      <div class="ms-text" style="color:${rating.color}">${ms}</div>
+      <div class="ms-unit">milliseconds</div>
+      <div class="rating" style="color:${rating.color}">${rating.text}</div>
+      <div class="btn-row">
+        <button class="btn" onclick="window._retry()">Again</button>
+        <button class="btn btn-sm" onclick="window._share(${ms})">Share</button>
+        <button class="btn btn-sm" onclick="window._reset()">Reset Stats</button>
+      </div>
+    `;
+
+    updateStats();
+    state = 'idle';
+    return;
+  }
+}
+
+function getRating(ms) {
+  if (ms < 150) return { text: 'INHUMAN', color: '#a78bfa' };
+  if (ms < 200) return { text: 'ELITE', color: '#3fb950' };
+  if (ms < 250) return { text: 'FAST', color: '#58a6ff' };
+  if (ms < 350) return { text: 'AVERAGE', color: '#d29922' };
+  if (ms < 500) return { text: 'SLOW', color: '#f0883e' };
+  return { text: 'ASLEEP?', color: '#f85149' };
+}
+
+// ============ STATS ============
+function saveResults() {
+  try { localStorage.setItem('sonic_reflex_results', JSON.stringify(results.slice(-100))); } catch(e) {}
+}
+
+function updateStats() {
+  if (results.length === 0) return;
+  document.getElementById('stats').classList.add('show');
+
+  const best = Math.min(...results);
+  const last10 = results.slice(-10);
+  const avg = Math.round(last10.reduce((a, b) => a + b, 0) / last10.length);
+
+  document.getElementById('s-best').textContent = best + 'ms';
+  document.getElementById('s-avg').textContent = avg + 'ms';
+  document.getElementById('s-tries').textContent = results.length;
+  document.getElementById('s-rank').textContent = getRating(avg).text;
+  document.getElementById('s-rank').style.color = getRating(avg).color;
+
+  // Histogram (buckets: <150, 150-200, 200-250, 250-300, 300-400, 400-500, 500+)
+  const buckets = [0, 0, 0, 0, 0, 0, 0];
+  const bucketLabels = ['<150', '200', '250', '300', '400', '500', '500+'];
+  for (const r of results) {
+    if (r < 150) buckets[0]++;
+    else if (r < 200) buckets[1]++;
+    else if (r < 250) buckets[2]++;
+    else if (r < 300) buckets[3]++;
+    else if (r < 400) buckets[4]++;
+    else if (r < 500) buckets[5]++;
+    else buckets[6]++;
+  }
+  const maxBucket = Math.max(1, ...buckets);
+  const colors = ['#a78bfa', '#3fb950', '#58a6ff', '#d29922', '#f0883e', '#f85149', '#f85149'];
+
+  document.getElementById('histogram').innerHTML = buckets.map((count, i) =>
+    `<div class="hist-bar" style="height:${(count / maxBucket) * 60}px;background:${colors[i]}" title="${bucketLabels[i]}: ${count}"></div>`
+  ).join('');
+  document.getElementById('hist-labels').innerHTML = bucketLabels.map(l =>
+    `<span>${l}</span>`
+  ).join('');
+}
+
+// ============ GLOBAL HANDLERS ============
+window._retry = () => { startRound(); };
+window._share = (ms) => {
+  const text = `Sonic Reflex: ${ms}ms (${getRating(ms).text}) | Best: ${Math.min(...results)}ms | Can you beat me?`;
+  navigator.clipboard.writeText(text).then(() => {
+    alert('Copied to clipboard!');
+  });
+};
+window._reset = () => {
+  if (confirm('Clear all stats?')) {
+    results = [];
+    saveResults();
+    document.getElementById('stats').classList.remove('show');
+  }
+};
+
+// ============ INPUT ============
+// Use pointerdown for zero-delay input (click has ~300ms delay on mobile)
+document.addEventListener('pointerdown', e => {
+  if (e.target.tagName === 'BUTTON') return;
+  handleClick();
+});
+
+document.addEventListener('keydown', e => {
+  if (e.key === ' ') { e.preventDefault(); handleClick(); }
+});
+
+// Show stats if we have history
+if (results.length > 0) updateStats();
+
+})();
+</script>
+</body>
+</html>

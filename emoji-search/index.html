@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Emoji Search</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'SF Mono','Fira Code',monospace;background:#0a0a0a;color:#ccc;padding:2rem;max-width:800px;margin:0 auto}
+h1{font-size:1.3rem;color:#fff;margin-bottom:0.3rem}
+.sub{color:#555;font-size:0.7rem;margin-bottom:1.5rem}
+.search-box{position:relative;margin-bottom:1rem}
+.search-box input{width:100%;background:#111;border:1px solid #333;color:#fff;padding:0.7rem 1rem 0.7rem 2.5rem;border-radius:8px;font-family:inherit;font-size:0.9rem}
+.search-box input:focus{outline:none;border-color:#4ade80}
+.search-icon{position:absolute;left:0.8rem;top:50%;transform:translateY(-50%);color:#444;font-size:1rem}
+.categories{display:flex;gap:4px;margin-bottom:1rem;overflow-x:auto;padding-bottom:4px}
+.cat-btn{padding:0.3rem 0.6rem;background:#1a1a1a;border:1px solid #222;border-radius:4px;cursor:pointer;font-size:0.65rem;color:#666;white-space:nowrap}
+.cat-btn:hover{color:#ccc;border-color:#444}
+.cat-btn.active{color:#4ade80;border-color:#166534;background:#0a1a0a}
+.recent{margin-bottom:1rem}
+.recent-label{font-size:0.65rem;color:#444;margin-bottom:0.3rem}
+.recent-grid{display:flex;gap:2px;flex-wrap:wrap}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(42px,1fr));gap:2px}
+.emoji-cell{width:42px;height:42px;display:flex;align-items:center;justify-content:center;font-size:1.4rem;cursor:pointer;border-radius:6px;transition:background 0.1s}
+.emoji-cell:hover{background:#1a1a1a}
+.emoji-cell:active{transform:scale(0.9)}
+.section-title{font-size:0.7rem;color:#444;margin:0.8rem 0 0.4rem;text-transform:uppercase;letter-spacing:0.05em}
+.copied{position:fixed;top:1rem;right:1rem;background:#0a2a0a;color:#4ade80;border:1px solid #166534;padding:0.4rem 0.8rem;border-radius:6px;font-size:0.8rem;opacity:0;transition:opacity 0.3s;pointer-events:none;z-index:100}
+.copied.show{opacity:1}
+.count{font-size:0.7rem;color:#333;margin-bottom:0.5rem}
+</style>
+</head>
+<body>
+<h1>Emoji Search</h1>
+<p class="sub">Click to copy. Search by name or keyword.</p>
+<div class="copied" id="copied"></div>
+
+<div class="search-box">
+  <span class="search-icon">&#128269;</span>
+  <input type="text" id="search" placeholder="Search emojis..." autofocus>
+</div>
+
+<div class="categories" id="categories"></div>
+
+<div class="recent" id="recent-section" style="display:none">
+  <span class="recent-label">Recently Used</span>
+  <div class="recent-grid" id="recent"></div>
+</div>
+
+<div class="count" id="count"></div>
+<div class="grid" id="grid"></div>
+
+<script>
+// Emoji data - comprehensive set with keywords
+const EMOJIS = [
+  // Smileys
+  {e:'😀',n:'grinning face',c:'smileys',k:'happy smile'},
+  {e:'😃',n:'grinning face big eyes',c:'smileys',k:'happy smile'},
+  {e:'😄',n:'grinning squinting',c:'smileys',k:'happy laugh'},
+  {e:'😁',n:'beaming face',c:'smileys',k:'happy grin'},
+  {e:'😅',n:'sweat smile',c:'smileys',k:'nervous laugh'},
+  {e:'🤣',n:'rolling laughing',c:'smileys',k:'lol rofl'},
+  {e:'😂',n:'joy tears',c:'smileys',k:'laugh cry funny'},
+  {e:'🙂',n:'slightly smiling',c:'smileys',k:'smile'},
+  {e:'😉',n:'winking face',c:'smileys',k:'wink'},
+  {e:'😊',n:'smiling blush',c:'smileys',k:'happy blush'},
+  {e:'😇',n:'smiling halo',c:'smileys',k:'angel innocent'},
+  {e:'🥰',n:'smiling hearts',c:'smileys',k:'love adore'},
+  {e:'😍',n:'heart eyes',c:'smileys',k:'love crush'},
+  {e:'🤩',n:'star struck',c:'smileys',k:'excited amazing'},
+  {e:'😘',n:'kissing heart',c:'smileys',k:'kiss love'},
+  {e:'😋',n:'yum savoring',c:'smileys',k:'delicious food'},
+  {e:'😎',n:'sunglasses cool',c:'smileys',k:'cool boss'},
+  {e:'🤓',n:'nerd face',c:'smileys',k:'nerd geek smart'},
+  {e:'🧐',n:'monocle',c:'smileys',k:'thinking inspect'},
+  {e:'🤔',n:'thinking face',c:'smileys',k:'think hmm'},
+  {e:'😐',n:'neutral face',c:'smileys',k:'meh blank'},
+  {e:'😑',n:'expressionless',c:'smileys',k:'blank deadpan'},
+  {e:'😶',n:'no mouth',c:'smileys',k:'silence speechless'},
+  {e:'😏',n:'smirking',c:'smileys',k:'smirk suggestive'},
+  {e:'😒',n:'unamused',c:'smileys',k:'meh bored'},
+  {e:'🙄',n:'rolling eyes',c:'smileys',k:'eyeroll whatever'},
+  {e:'😬',n:'grimacing',c:'smileys',k:'awkward cringe'},
+  {e:'😴',n:'sleeping',c:'smileys',k:'sleep zzz tired'},
+  {e:'🤮',n:'vomiting',c:'smileys',k:'sick puke gross'},
+  {e:'🤯',n:'exploding head',c:'smileys',k:'mindblown wow'},
+  {e:'🥳',n:'partying face',c:'smileys',k:'party celebrate'},
+  {e:'😱',n:'screaming fear',c:'smileys',k:'scared horror'},
+  {e:'😭',n:'loudly crying',c:'smileys',k:'cry sad sob'},
+  {e:'😤',n:'huffing',c:'smileys',k:'angry frustrated'},
+  {e:'🤬',n:'cursing',c:'smileys',k:'angry swear'},
+  {e:'💀',n:'skull',c:'smileys',k:'dead death lol'},
+  {e:'👻',n:'ghost',c:'smileys',k:'ghost spooky boo'},
+  // Gestures
+  {e:'👍',n:'thumbs up',c:'gestures',k:'yes good like approve'},
+  {e:'👎',n:'thumbs down',c:'gestures',k:'no bad dislike'},
+  {e:'👏',n:'clapping hands',c:'gestures',k:'clap bravo'},
+  {e:'🙌',n:'raising hands',c:'gestures',k:'celebrate hooray'},
+  {e:'🤝',n:'handshake',c:'gestures',k:'deal agree'},
+  {e:'✌️',n:'victory peace',c:'gestures',k:'peace victory two'},
+  {e:'🤞',n:'crossed fingers',c:'gestures',k:'luck hope'},
+  {e:'💪',n:'flexed biceps',c:'gestures',k:'strong muscle power'},
+  {e:'🖕',n:'middle finger',c:'gestures',k:'flip off rude'},
+  {e:'👋',n:'waving hand',c:'gestures',k:'wave hello bye'},
+  {e:'🤙',n:'call me hand',c:'gestures',k:'call shaka'},
+  {e:'👆',n:'pointing up',c:'gestures',k:'point up'},
+  {e:'👇',n:'pointing down',c:'gestures',k:'point down'},
+  {e:'👈',n:'pointing left',c:'gestures',k:'point left'},
+  {e:'👉',n:'pointing right',c:'gestures',k:'point right'},
+  {e:'🫡',n:'saluting face',c:'gestures',k:'salute yes sir'},
+  // Hearts & symbols
+  {e:'❤️',n:'red heart',c:'symbols',k:'love heart red'},
+  {e:'🧡',n:'orange heart',c:'symbols',k:'love heart orange'},
+  {e:'💛',n:'yellow heart',c:'symbols',k:'love heart yellow'},
+  {e:'💚',n:'green heart',c:'symbols',k:'love heart green'},
+  {e:'💙',n:'blue heart',c:'symbols',k:'love heart blue'},
+  {e:'💜',n:'purple heart',c:'symbols',k:'love heart purple'},
+  {e:'🖤',n:'black heart',c:'symbols',k:'love heart dark'},
+  {e:'🤍',n:'white heart',c:'symbols',k:'love heart pure'},
+  {e:'💔',n:'broken heart',c:'symbols',k:'heartbreak sad'},
+  {e:'🔥',n:'fire',c:'symbols',k:'fire hot lit flame'},
+  {e:'⭐',n:'star',c:'symbols',k:'star favorite'},
+  {e:'💯',n:'hundred points',c:'symbols',k:'100 perfect score'},
+  {e:'✅',n:'check mark',c:'symbols',k:'done yes complete'},
+  {e:'❌',n:'cross mark',c:'symbols',k:'no wrong error'},
+  {e:'⚠️',n:'warning',c:'symbols',k:'warning caution alert'},
+  {e:'💡',n:'light bulb',c:'symbols',k:'idea insight'},
+  {e:'🎯',n:'bullseye',c:'symbols',k:'target goal direct'},
+  {e:'🏆',n:'trophy',c:'symbols',k:'winner champion award'},
+  {e:'🎉',n:'party popper',c:'symbols',k:'celebrate party congrats'},
+  {e:'✨',n:'sparkles',c:'symbols',k:'sparkle magic new'},
+  {e:'⚡',n:'lightning',c:'symbols',k:'electric fast zap'},
+  {e:'💎',n:'gem stone',c:'symbols',k:'diamond jewel precious'},
+  {e:'🔑',n:'key',c:'symbols',k:'key lock access'},
+  {e:'🔗',n:'link',c:'symbols',k:'link url chain'},
+  // Tech
+  {e:'💻',n:'laptop',c:'tech',k:'computer laptop code'},
+  {e:'🖥️',n:'desktop computer',c:'tech',k:'computer monitor screen'},
+  {e:'📱',n:'mobile phone',c:'tech',k:'phone smartphone'},
+  {e:'⌨️',n:'keyboard',c:'tech',k:'keyboard type'},
+  {e:'🖱️',n:'mouse',c:'tech',k:'mouse click'},
+  {e:'🔧',n:'wrench',c:'tech',k:'tool fix repair'},
+  {e:'⚙️',n:'gear',c:'tech',k:'settings config'},
+  {e:'🐛',n:'bug',c:'tech',k:'bug insect debug'},
+  {e:'🚀',n:'rocket',c:'tech',k:'rocket launch deploy ship'},
+  {e:'📦',n:'package',c:'tech',k:'package box ship'},
+  {e:'🔒',n:'locked',c:'tech',k:'lock security private'},
+  {e:'🔓',n:'unlocked',c:'tech',k:'unlock open'},
+  {e:'📊',n:'bar chart',c:'tech',k:'chart graph data analytics'},
+  {e:'📈',n:'chart increasing',c:'tech',k:'growth up trending'},
+  {e:'📉',n:'chart decreasing',c:'tech',k:'decline down trending'},
+  {e:'🗂️',n:'card index',c:'tech',k:'files folder organize'},
+  {e:'📁',n:'file folder',c:'tech',k:'folder directory'},
+  {e:'🗑️',n:'wastebasket',c:'tech',k:'delete trash bin'},
+  {e:'🔍',n:'magnifying glass',c:'tech',k:'search find zoom'},
+  {e:'🏗️',n:'building construction',c:'tech',k:'build wip construction'},
+  // Nature
+  {e:'🌞',n:'sun face',c:'nature',k:'sun sunny bright'},
+  {e:'🌙',n:'crescent moon',c:'nature',k:'moon night sleep'},
+  {e:'🌈',n:'rainbow',c:'nature',k:'rainbow pride colorful'},
+  {e:'🌊',n:'wave',c:'nature',k:'wave ocean water'},
+  {e:'🌲',n:'evergreen tree',c:'nature',k:'tree pine forest'},
+  {e:'🌸',n:'cherry blossom',c:'nature',k:'flower pink spring'},
+  {e:'🍀',n:'four leaf clover',c:'nature',k:'luck lucky clover'},
+  {e:'🐱',n:'cat face',c:'nature',k:'cat kitten meow'},
+  {e:'🐶',n:'dog face',c:'nature',k:'dog puppy woof'},
+  {e:'🦊',n:'fox',c:'nature',k:'fox clever'},
+  {e:'🐍',n:'snake',c:'nature',k:'snake python'},
+  {e:'🦀',n:'crab',c:'nature',k:'crab rust'},
+  // Food
+  {e:'☕',n:'coffee',c:'food',k:'coffee tea hot drink'},
+  {e:'🍕',n:'pizza',c:'food',k:'pizza food'},
+  {e:'🍔',n:'hamburger',c:'food',k:'burger food'},
+  {e:'🌮',n:'taco',c:'food',k:'taco mexican food'},
+  {e:'🍣',n:'sushi',c:'food',k:'sushi japanese food'},
+  {e:'🍺',n:'beer',c:'food',k:'beer drink alcohol'},
+  {e:'🧁',n:'cupcake',c:'food',k:'cupcake cake dessert'},
+  {e:'🍩',n:'doughnut',c:'food',k:'donut sweet'},
+];
+
+const CATEGORIES = ['all', ...new Set(EMOJIS.map(e => e.c))];
+let activeCategory = 'all';
+let recent = JSON.parse(localStorage.getItem('emoji-recent') || '[]');
+
+function copyEmoji(emoji) {
+  navigator.clipboard.writeText(emoji);
+  // Update recent
+  recent = [emoji, ...recent.filter(e => e !== emoji)].slice(0, 20);
+  localStorage.setItem('emoji-recent', JSON.stringify(recent));
+  // Flash
+  const el = document.getElementById('copied');
+  el.textContent = `Copied ${emoji}`;
+  el.classList.add('show');
+  setTimeout(() => el.classList.remove('show'), 1200);
+  renderRecent();
+}
+
+function renderRecent() {
+  const section = document.getElementById('recent-section');
+  if (recent.length === 0) { section.style.display = 'none'; return; }
+  section.style.display = '';
+  document.getElementById('recent').innerHTML = recent.map(e =>
+    `<div class="emoji-cell" onclick="copyEmoji('${e}')">${e}</div>`
+  ).join('');
+}
+
+function render() {
+  const q = document.getElementById('search').value.toLowerCase();
+  let filtered = EMOJIS;
+  if (activeCategory !== 'all') filtered = filtered.filter(e => e.c === activeCategory);
+  if (q) filtered = filtered.filter(e => (e.n + ' ' + e.k + ' ' + e.e).toLowerCase().includes(q));
+
+  document.getElementById('count').textContent = `${filtered.length} emojis`;
+
+  if (q || activeCategory !== 'all') {
+    document.getElementById('grid').innerHTML = filtered.map(e =>
+      `<div class="emoji-cell" title="${e.n}" onclick="copyEmoji('${e.e}')">${e.e}</div>`
+    ).join('');
+  } else {
+    // Group by category
+    const groups = {};
+    filtered.forEach(e => { (groups[e.c] = groups[e.c] || []).push(e); });
+    let html = '';
+    for (const [cat, emojis] of Object.entries(groups)) {
+      html += `<div class="section-title" style="grid-column:1/-1">${cat}</div>`;
+      html += emojis.map(e =>
+        `<div class="emoji-cell" title="${e.n}" onclick="copyEmoji('${e.e}')">${e.e}</div>`
+      ).join('');
+    }
+    document.getElementById('grid').innerHTML = html;
+  }
+
+  // Categories
+  document.getElementById('categories').innerHTML = CATEGORIES.map(c =>
+    `<div class="cat-btn ${c === activeCategory ? 'active' : ''}" onclick="setCategory('${c}')">${c}</div>`
+  ).join('');
+}
+
+window.setCategory = function(c) { activeCategory = c; render(); };
+window.copyEmoji = copyEmoji;
+
+document.getElementById('search').addEventListener('input', render);
+renderRecent();
+render();
+</script>
+</body>
+</html>

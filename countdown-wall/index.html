@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Countdown Wall</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'SF Mono','Fira Code',monospace;background:#0a0a0a;color:#ccc;padding:2rem;max-width:900px;margin:0 auto}
+h1{font-size:1.3rem;color:#fff;margin-bottom:0.3rem}
+.sub{color:#555;font-size:0.7rem;margin-bottom:1.5rem}
+.add-form{display:flex;gap:0.5rem;margin-bottom:2rem;flex-wrap:wrap}
+.add-form input{background:#111;border:1px solid #333;color:#fff;padding:0.5rem 0.7rem;border-radius:6px;font-family:inherit;font-size:0.8rem}
+.add-form input:focus{outline:none;border-color:#4ade80}
+.add-form button{background:#0a2a0a;border:1px solid #166534;color:#4ade80;padding:0.5rem 1rem;border-radius:6px;cursor:pointer;font-family:inherit;font-size:0.8rem}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:1rem}
+.card{background:#111;border:1px solid #1a1a1a;border-radius:12px;padding:1.5rem;position:relative;overflow:hidden}
+.card-bg{position:absolute;bottom:0;left:0;right:0;height:4px;background:#1a1a1a;border-radius:0 0 12px 12px}
+.card-progress{height:100%;border-radius:0 0 12px 12px;transition:width 1s linear}
+.card-name{font-size:0.75rem;color:#888;margin-bottom:0.5rem}
+.card-time{font-size:2rem;font-weight:bold;color:#fff;margin-bottom:0.3rem;font-variant-numeric:tabular-nums}
+.card-target{font-size:0.65rem;color:#444}
+.card-delete{position:absolute;top:0.5rem;right:0.7rem;background:none;border:none;color:#333;cursor:pointer;font-size:0.8rem}
+.card-delete:hover{color:#f87171}
+.card.expired .card-time{color:#f87171}
+.card.expired{border-color:#2a1a1a}
+.empty{text-align:center;padding:3rem;color:#333}
+.presets{display:flex;gap:4px;margin-bottom:1rem}
+.preset{font-size:0.6rem;padding:0.2rem 0.5rem;background:#1a1a1a;border:1px solid #222;border-radius:3px;cursor:pointer;color:#888}
+.preset:hover{color:#fff;border-color:#444}
+</style>
+</head>
+<body>
+<h1>Countdown Wall</h1>
+<p class="sub">Multiple named countdown timers on a wall</p>
+
+<div class="presets">
+  <span class="preset" onclick="quickAdd('5 min timer',5*60)">5 min</span>
+  <span class="preset" onclick="quickAdd('15 min timer',15*60)">15 min</span>
+  <span class="preset" onclick="quickAdd('1 hour timer',3600)">1 hour</span>
+  <span class="preset" onclick="quickAdd('Pomodoro',25*60)">25 min</span>
+</div>
+
+<div class="add-form">
+  <input type="text" id="name" placeholder="Timer name" value="Deadline">
+  <input type="datetime-local" id="target">
+  <button onclick="addTimer()">Add Countdown</button>
+</div>
+
+<div class="grid" id="grid"></div>
+
+<script>
+let timers = JSON.parse(localStorage.getItem('countdown-timers')||'[]');
+const COLORS = ['#4ade80','#60a5fa','#fbbf24','#a78bfa','#fb923c','#f472b6','#34d399','#f87171'];
+
+// Set default datetime to 1 hour from now
+const def = new Date(Date.now() + 3600000);
+document.getElementById('target').value = def.toISOString().slice(0,16);
+
+function save() { localStorage.setItem('countdown-timers', JSON.stringify(timers)); }
+
+function addTimer() {
+  const name = document.getElementById('name').value.trim() || 'Timer';
+  const target = new Date(document.getElementById('target').value).getTime();
+  if (isNaN(target)) return;
+  timers.push({ id: Date.now(), name, target, created: Date.now(), color: COLORS[timers.length % COLORS.length] });
+  save(); render();
+}
+
+window.quickAdd = function(name, secs) {
+  timers.push({ id: Date.now(), name, target: Date.now() + secs * 1000, created: Date.now(), color: COLORS[timers.length % COLORS.length] });
+  save(); render();
+};
+
+window.deleteTimer = function(id) {
+  timers = timers.filter(t => t.id !== id);
+  save(); render();
+};
+
+function formatRemaining(ms) {
+  if (ms <= 0) return 'EXPIRED';
+  const s = Math.floor(ms / 1000);
+  const d = Math.floor(s / 86400);
+  const h = Math.floor((s % 86400) / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  const sec = s % 60;
+  if (d > 0) return `${d}d ${h}h ${m}m`;
+  if (h > 0) return `${h}h ${m}m ${sec}s`;
+  if (m > 0) return `${m}m ${sec}s`;
+  return `${sec}s`;
+}
+
+function render() {
+  const el = document.getElementById('grid');
+  if (timers.length === 0) { el.innerHTML = '<div class="empty">No timers. Add one above.</div>'; return; }
+
+  const now = Date.now();
+  el.innerHTML = timers.map(t => {
+    const remaining = t.target - now;
+    const total = t.target - t.created;
+    const pct = total > 0 ? Math.max(0, Math.min(100, 100 * (1 - remaining / total))) : 100;
+    const expired = remaining <= 0;
+    const targetDate = new Date(t.target);
+
+    return `<div class="card ${expired ? 'expired' : ''}">
+      <div class="card-name">${t.name}</div>
+      <div class="card-time">${formatRemaining(remaining)}</div>
+      <div class="card-target">${targetDate.toLocaleString([], {month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'})}</div>
+      <div class="card-bg"><div class="card-progress" style="width:${pct}%;background:${expired ? '#f87171' : t.color}"></div></div>
+      <button class="card-delete" onclick="deleteTimer(${t.id})">x</button>
+    </div>`;
+  }).join('');
+}
+
+render();
+setInterval(render, 1000);
+</script>
+</body>
+</html>

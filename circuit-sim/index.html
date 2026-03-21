@@ -1,0 +1,534 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Circuit Simulator</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { background: #0d1117; color: #eee; font-family: 'Segoe UI', system-ui, sans-serif; overflow: hidden; height: 100vh; display: flex; flex-direction: column; }
+#topbar { display: flex; align-items: center; gap: 10px; padding: 6px 14px; background: #161b22; border-bottom: 1px solid #30363d; z-index: 10; flex-wrap: wrap; }
+#topbar h1 { font-size: 15px; color: #58a6ff; white-space: nowrap; }
+#topbar button { padding: 4px 10px; background: #21262d; border: 1px solid #30363d; color: #c9d1d9; border-radius: 6px; cursor: pointer; font-size: 11px; }
+#topbar button:hover { background: #30363d; border-color: #58a6ff; }
+#topbar button.active { background: #58a6ff; color: #0d1117; }
+.gate-btn { display: inline-flex; align-items: center; gap: 4px; }
+.gate-btn span { font-size: 9px; background: #30363d; padding: 1px 4px; border-radius: 3px; color: #8b949e; }
+#topbar .sep { width: 1px; height: 20px; background: #30363d; }
+canvas { flex: 1; display: block; }
+#info { position: fixed; bottom: 8px; right: 10px; font-size: 10px; color: #484f58; font-family: monospace; }
+#truth-panel { display: none; position: fixed; right: 10px; top: 60px; background: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 12px; font-size: 11px; max-height: 60vh; overflow-y: auto; z-index: 20; min-width: 200px; }
+#truth-panel h3 { color: #58a6ff; font-size: 12px; margin-bottom: 8px; }
+#truth-panel table { border-collapse: collapse; width: 100%; }
+#truth-panel th, #truth-panel td { padding: 3px 8px; border: 1px solid #30363d; text-align: center; font-family: monospace; font-size: 11px; }
+#truth-panel th { background: #21262d; color: #58a6ff; }
+#truth-panel td.high { color: #3fb950; font-weight: bold; }
+#truth-panel td.low { color: #484f58; }
+</style>
+</head>
+<body>
+<div id="topbar">
+  <h1>CIRCUITS</h1>
+  <button class="gate-btn" data-type="INPUT">INPUT <span>I</span></button>
+  <button class="gate-btn" data-type="OUTPUT">OUTPUT <span>O</span></button>
+  <div class="sep"></div>
+  <button class="gate-btn" data-type="AND">AND</button>
+  <button class="gate-btn" data-type="OR">OR</button>
+  <button class="gate-btn" data-type="NOT">NOT</button>
+  <button class="gate-btn" data-type="XOR">XOR</button>
+  <button class="gate-btn" data-type="NAND">NAND</button>
+  <button class="gate-btn" data-type="NOR">NOR</button>
+  <div class="sep"></div>
+  <button id="btn-truth">Truth Table</button>
+  <button id="btn-clear">Clear All</button>
+  <button id="btn-example">Example</button>
+</div>
+<canvas id="canvas"></canvas>
+<div id="info">Drag gates from toolbar. Click inputs to toggle. Drag between ports to wire.</div>
+<div id="truth-panel"><h3>Truth Table</h3><div id="truth-body"></div></div>
+
+<script>
+(function() {
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+let W, H;
+
+const GATE_W = 80, GATE_H = 50, PORT_R = 6;
+const PORT_COLORS = { high: '#3fb950', low: '#484f58', unknown: '#f0883e' };
+
+let gates = [];
+let wires = [];
+let nextId = 1;
+let selectedGate = null;
+let dragOffset = { x: 0, y: 0 };
+let isDraggingGate = false;
+let isWiring = false;
+let wireStart = null; // { gateId, portIdx, isOutput }
+let wireEndPos = { x: 0, y: 0 };
+let placingType = null;
+
+function resize() {
+  W = canvas.width = window.innerWidth;
+  H = canvas.height = window.innerHeight - document.getElementById('topbar').offsetHeight;
+}
+window.addEventListener('resize', resize);
+resize();
+
+// Gate definition
+function gateInputCount(type) {
+  if (type === 'INPUT' || type === 'NOT') return type === 'NOT' ? 1 : 0;
+  if (type === 'OUTPUT') return 1;
+  return 2;
+}
+
+function createGate(type, x, y) {
+  const inputCount = gateInputCount(type);
+  const gate = {
+    id: nextId++,
+    type,
+    x, y,
+    inputs: Array(inputCount).fill(null), // null = unconnected
+    output: false,
+    value: type === 'INPUT' ? false : null, // INPUT can be toggled
+    label: type === 'INPUT' ? `IN${gates.filter(g => g.type === 'INPUT').length}` :
+           type === 'OUTPUT' ? `OUT${gates.filter(g => g.type === 'OUTPUT').length}` : type
+  };
+  gates.push(gate);
+  return gate;
+}
+
+function getInputPortPos(gate, idx) {
+  const count = gate.inputs.length;
+  if (count === 0) return null;
+  const spacing = GATE_H / (count + 1);
+  return { x: gate.x, y: gate.y + spacing * (idx + 1) };
+}
+
+function getOutputPortPos(gate) {
+  if (gate.type === 'OUTPUT') return null;
+  return { x: gate.x + GATE_W, y: gate.y + GATE_H / 2 };
+}
+
+// Evaluate circuit
+function evaluate() {
+  // Build lookup maps for O(1) access
+  const gateMap = new Map(gates.map(g => [g.id, g]));
+  const wireByInput = new Map(); // key: "gateId:portIdx" -> wire
+  for (const w of wires) wireByInput.set(`${w.toGate}:${w.toPort}`, w);
+
+  // Reset all non-input values
+  for (const g of gates) {
+    if (g.type !== 'INPUT') g.output = null;
+  }
+
+  // Iterative evaluation (handles simple cycles by converging)
+  for (let iter = 0; iter < gates.length + 2; iter++) {
+    let changed = false;
+    for (const g of gates) {
+      if (g.type === 'INPUT') {
+        const prev = g.output;
+        g.output = g.value;
+        if (prev !== g.output) changed = true;
+        continue;
+      }
+
+      // Get input values from connected wires via map lookup
+      const inputVals = g.inputs.map((_, idx) => {
+        const wire = wireByInput.get(`${g.id}:${idx}`);
+        if (!wire) return null;
+        const srcGate = gateMap.get(wire.fromGate);
+        return srcGate ? srcGate.output : null;
+      });
+
+      if (inputVals.some(v => v === null)) continue;
+
+      let result;
+      const a = inputVals[0], b = inputVals[1];
+      switch (g.type) {
+        case 'AND': result = a && b; break;
+        case 'OR': result = a || b; break;
+        case 'NOT': result = !a; break;
+        case 'XOR': result = a !== b; break;
+        case 'NAND': result = !(a && b); break;
+        case 'NOR': result = !(a || b); break;
+        case 'OUTPUT': result = a; break;
+        default: result = false;
+      }
+
+      const prev = g.output;
+      g.output = result;
+      if (prev !== result) changed = true;
+    }
+    if (!changed) break;
+  }
+}
+
+// Render
+function render() {
+  ctx.clearRect(0, 0, W, H);
+
+  // Build gate map for render lookups
+  const rGateMap = new Map(gates.map(g => [g.id, g]));
+
+  // Draw wires
+  for (const w of wires) {
+    const fromGate = rGateMap.get(w.fromGate);
+    const toGate = rGateMap.get(w.toGate);
+    if (!fromGate || !toGate) continue;
+    const from = getOutputPortPos(fromGate);
+    const to = getInputPortPos(toGate, w.toPort);
+    if (!from || !to) continue;
+
+    const isHigh = fromGate.output === true;
+    ctx.strokeStyle = isHigh ? '#3fb950' : '#30363d';
+    ctx.lineWidth = isHigh ? 2.5 : 1.5;
+
+    // Bezier curve
+    const midX = (from.x + to.x) / 2;
+    ctx.beginPath();
+    ctx.moveTo(from.x, from.y);
+    ctx.bezierCurveTo(midX, from.y, midX, to.y, to.x, to.y);
+    ctx.stroke();
+  }
+
+  // Wire being drawn
+  if (isWiring && wireStart) {
+    const srcGate = gates.find(g => g.id === wireStart.gateId);
+    let from;
+    if (wireStart.isOutput) from = getOutputPortPos(srcGate);
+    else from = getInputPortPos(srcGate, wireStart.portIdx);
+    if (from) {
+      ctx.strokeStyle = '#58a6ff88';
+      ctx.lineWidth = 2;
+      ctx.setLineDash([4, 4]);
+      ctx.beginPath();
+      ctx.moveTo(from.x, from.y);
+      ctx.lineTo(wireEndPos.x, wireEndPos.y);
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
+  }
+
+  // Draw gates
+  for (const g of gates) {
+    const isSelected = selectedGate && selectedGate.id === g.id;
+
+    // Gate body
+    ctx.fillStyle = isSelected ? '#1f2937' : '#161b22';
+    ctx.strokeStyle = isSelected ? '#58a6ff' : '#30363d';
+    ctx.lineWidth = isSelected ? 2 : 1;
+
+    if (g.type === 'INPUT' || g.type === 'OUTPUT') {
+      // Rounded rect for I/O
+      roundRect(ctx, g.x, g.y, GATE_W, GATE_H, 8);
+      ctx.fill();
+      ctx.stroke();
+    } else {
+      // Standard gate shape
+      roundRect(ctx, g.x, g.y, GATE_W, GATE_H, 6);
+      ctx.fill();
+      ctx.stroke();
+    }
+
+    // Gate label
+    ctx.fillStyle = '#c9d1d9';
+    ctx.font = 'bold 11px "Segoe UI", system-ui';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(g.label, g.x + GATE_W / 2, g.y + GATE_H / 2);
+
+    // Input ports
+    for (let i = 0; i < g.inputs.length; i++) {
+      const pos = getInputPortPos(g, i);
+      const wire = wires.find(w => w.toGate === g.id && w.toPort === i);
+      let val = null;
+      if (wire) {
+        const src = rGateMap.get(wire.fromGate);
+        val = src ? src.output : null;
+      }
+      ctx.fillStyle = val === true ? PORT_COLORS.high : val === false ? PORT_COLORS.low : PORT_COLORS.unknown;
+      ctx.beginPath();
+      ctx.arc(pos.x, pos.y, PORT_R, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = '#0d1117';
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+    }
+
+    // Output port
+    if (g.type !== 'OUTPUT') {
+      const pos = getOutputPortPos(g);
+      ctx.fillStyle = g.output === true ? PORT_COLORS.high : g.output === false ? PORT_COLORS.low : PORT_COLORS.unknown;
+      ctx.beginPath();
+      ctx.arc(pos.x, pos.y, PORT_R, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = '#0d1117';
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+    }
+
+    // INPUT toggle indicator
+    if (g.type === 'INPUT') {
+      ctx.fillStyle = g.value ? '#3fb950' : '#484f58';
+      ctx.font = '9px monospace';
+      ctx.fillText(g.value ? '1' : '0', g.x + GATE_W / 2, g.y + GATE_H - 8);
+    }
+
+    // OUTPUT value
+    if (g.type === 'OUTPUT') {
+      ctx.fillStyle = g.output === true ? '#3fb950' : g.output === false ? '#f85149' : '#f0883e';
+      ctx.font = 'bold 13px monospace';
+      ctx.fillText(g.output === true ? '1' : g.output === false ? '0' : '?', g.x + GATE_W / 2, g.y + GATE_H - 8);
+    }
+  }
+
+  requestAnimationFrame(render);
+}
+
+function roundRect(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.lineTo(x + w - r, y);
+  ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+  ctx.lineTo(x + w, y + h - r);
+  ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+  ctx.lineTo(x + r, y + h);
+  ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+  ctx.lineTo(x, y + r);
+  ctx.quadraticCurveTo(x, y, x + r, y);
+  ctx.closePath();
+}
+
+render();
+
+// Hit testing
+function hitTestPort(mx, my) {
+  for (const g of gates) {
+    // Check input ports
+    for (let i = 0; i < g.inputs.length; i++) {
+      const pos = getInputPortPos(g, i);
+      const dx = mx - pos.x, dy = my - pos.y;
+      if (dx * dx + dy * dy <= (PORT_R + 4) * (PORT_R + 4)) {
+        return { gateId: g.id, portIdx: i, isOutput: false };
+      }
+    }
+    // Check output port
+    if (g.type !== 'OUTPUT') {
+      const pos = getOutputPortPos(g);
+      const dx = mx - pos.x, dy = my - pos.y;
+      if (dx * dx + dy * dy <= (PORT_R + 4) * (PORT_R + 4)) {
+        return { gateId: g.id, portIdx: 0, isOutput: true };
+      }
+    }
+  }
+  return null;
+}
+
+function hitTestGate(mx, my) {
+  // Reverse order so top-drawn gates are hit first
+  for (let i = gates.length - 1; i >= 0; i--) {
+    const g = gates[i];
+    if (mx >= g.x && mx <= g.x + GATE_W && my >= g.y && my <= g.y + GATE_H) {
+      return g;
+    }
+  }
+  return null;
+}
+
+// Mouse events
+const topH = () => document.getElementById('topbar').offsetHeight;
+
+canvas.addEventListener('mousedown', e => {
+  const mx = e.clientX, my = e.clientY - topH();
+
+  // Check port hit first (for wiring)
+  const port = hitTestPort(mx, my);
+  if (port) {
+    isWiring = true;
+    wireStart = port;
+    wireEndPos = { x: mx, y: my };
+    return;
+  }
+
+  // Check gate hit (for dragging or toggling INPUT)
+  const gate = hitTestGate(mx, my);
+  if (gate) {
+    if (gate.type === 'INPUT' && e.detail === 1) {
+      // Toggle input on click
+      gate.value = !gate.value;
+      evaluate();
+    }
+    selectedGate = gate;
+    isDraggingGate = true;
+    dragOffset = { x: mx - gate.x, y: my - gate.y };
+    // Move to front
+    gates.splice(gates.indexOf(gate), 1);
+    gates.push(gate);
+    return;
+  }
+
+  // Placing new gate
+  if (placingType) {
+    createGate(placingType, mx - GATE_W / 2, my - GATE_H / 2);
+    evaluate();
+    placingType = null;
+    canvas.style.cursor = 'default';
+  }
+
+  selectedGate = null;
+});
+
+canvas.addEventListener('mousemove', e => {
+  const mx = e.clientX, my = e.clientY - topH();
+
+  if (isDraggingGate && selectedGate) {
+    selectedGate.x = mx - dragOffset.x;
+    selectedGate.y = my - dragOffset.y;
+  }
+
+  if (isWiring) {
+    wireEndPos = { x: mx, y: my };
+  }
+});
+
+canvas.addEventListener('mouseup', e => {
+  const mx = e.clientX, my = e.clientY - topH();
+
+  if (isWiring && wireStart) {
+    const port = hitTestPort(mx, my);
+    if (port && port.gateId !== wireStart.gateId) {
+      let from, to;
+      if (wireStart.isOutput && !port.isOutput) {
+        from = wireStart;
+        to = port;
+      } else if (!wireStart.isOutput && port.isOutput) {
+        from = port;
+        to = wireStart;
+      }
+
+      if (from && to) {
+        // Remove existing wire to this input
+        wires = wires.filter(w => !(w.toGate === to.gateId && w.toPort === to.portIdx));
+        wires.push({ fromGate: from.gateId, toGate: to.gateId, toPort: to.portIdx });
+        evaluate();
+      }
+    }
+    isWiring = false;
+    wireStart = null;
+  }
+
+  isDraggingGate = false;
+});
+
+// Delete gate with Delete/Backspace
+document.addEventListener('keydown', e => {
+  if ((e.key === 'Delete' || e.key === 'Backspace') && selectedGate) {
+    const id = selectedGate.id;
+    gates = gates.filter(g => g.id !== id);
+    wires = wires.filter(w => w.fromGate !== id && w.toGate !== id);
+    selectedGate = null;
+    evaluate();
+    e.preventDefault();
+  }
+  // Keyboard shortcuts for gates
+  const shortcuts = { 'i': 'INPUT', 'o': 'OUTPUT', 'a': 'AND', 'r': 'OR', 'n': 'NOT', 'x': 'XOR' };
+  if (shortcuts[e.key] && !e.ctrlKey && !e.metaKey) {
+    placingType = shortcuts[e.key];
+    canvas.style.cursor = 'copy';
+  }
+});
+
+// Gate buttons
+document.querySelectorAll('.gate-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    placingType = btn.dataset.type;
+    canvas.style.cursor = 'copy';
+  });
+});
+
+// Clear
+document.getElementById('btn-clear').addEventListener('click', () => {
+  gates = [];
+  wires = [];
+  selectedGate = null;
+  nextId = 1;
+});
+
+// Truth table
+document.getElementById('btn-truth').addEventListener('click', () => {
+  const panel = document.getElementById('truth-panel');
+  panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
+  if (panel.style.display === 'block') generateTruthTable();
+});
+
+function generateTruthTable() {
+  const inputs = gates.filter(g => g.type === 'INPUT');
+  const outputs = gates.filter(g => g.type === 'OUTPUT');
+  if (inputs.length === 0 || outputs.length === 0) {
+    document.getElementById('truth-body').innerHTML = '<p style="color:#8b949e">Add INPUT and OUTPUT gates first</p>';
+    return;
+  }
+  if (inputs.length > 8) {
+    document.getElementById('truth-body').innerHTML = '<p style="color:#8b949e">Too many inputs (max 8)</p>';
+    return;
+  }
+
+  const rows = 1 << inputs.length;
+  let html = '<table><tr>';
+  for (const inp of inputs) html += `<th>${inp.label}</th>`;
+  for (const out of outputs) html += `<th>${out.label}</th>`;
+  html += '</tr>';
+
+  // Save current state
+  const savedValues = inputs.map(g => g.value);
+
+  for (let r = 0; r < rows; r++) {
+    html += '<tr>';
+    for (let i = 0; i < inputs.length; i++) {
+      const bit = !!(r & (1 << (inputs.length - 1 - i)));
+      inputs[i].value = bit;
+      html += `<td class="${bit ? 'high' : 'low'}">${bit ? '1' : '0'}</td>`;
+    }
+    evaluate();
+    for (const out of outputs) {
+      const val = out.output;
+      html += `<td class="${val ? 'high' : 'low'}">${val === true ? '1' : val === false ? '0' : '?'}</td>`;
+    }
+    html += '</tr>';
+  }
+  html += '</table>';
+
+  // Restore state
+  inputs.forEach((g, i) => { g.value = savedValues[i]; });
+  evaluate();
+
+  document.getElementById('truth-body').innerHTML = html;
+}
+
+// Example circuit (half adder)
+document.getElementById('btn-example').addEventListener('click', () => {
+  gates = []; wires = []; nextId = 1;
+  const a = createGate('INPUT', 50, 80);
+  a.label = 'A';
+  const b = createGate('INPUT', 50, 200);
+  b.label = 'B';
+  const xorG = createGate('XOR', 220, 80);
+  const andG = createGate('AND', 220, 200);
+  const sum = createGate('OUTPUT', 400, 80);
+  sum.label = 'SUM';
+  const carry = createGate('OUTPUT', 400, 200);
+  carry.label = 'CARRY';
+
+  wires.push({ fromGate: a.id, toGate: xorG.id, toPort: 0 });
+  wires.push({ fromGate: b.id, toGate: xorG.id, toPort: 1 });
+  wires.push({ fromGate: a.id, toGate: andG.id, toPort: 0 });
+  wires.push({ fromGate: b.id, toGate: andG.id, toPort: 1 });
+  wires.push({ fromGate: xorG.id, toGate: sum.id, toPort: 0 });
+  wires.push({ fromGate: andG.id, toGate: carry.id, toPort: 0 });
+
+  evaluate();
+});
+})();
+</script>
+</body>
+</html>

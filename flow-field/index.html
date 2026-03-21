@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Flow Field</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { background: #000; overflow: hidden; height: 100vh; cursor: crosshair; }
+canvas { display: block; position: fixed; inset: 0; }
+#hint { position: fixed; bottom: 14px; left: 50%; transform: translateX(-50%); font-family: 'Segoe UI', system-ui, sans-serif; font-size: 11px; color: #333; z-index: 5; pointer-events: none; text-align: center; transition: opacity 1s; }
+#palette-name { position: fixed; top: 14px; right: 16px; font-family: 'Segoe UI', system-ui, sans-serif; font-size: 12px; color: #444; z-index: 5; pointer-events: none; }
+#mode-indicator { position: fixed; top: 14px; left: 16px; font-family: 'Segoe UI', system-ui, sans-serif; font-size: 12px; color: #555; z-index: 5; pointer-events: none; }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="hint">Click to place emitters | Shift+Click for attractors | Alt+Click for repulsors | Space = palette | S = save PNG | C = clear | F = field type</div>
+<div id="palette-name">Neon Tokyo</div>
+<div id="mode-indicator"></div>
+
+<script>
+(function() {
+'use strict';
+
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+let W, H;
+
+// ============ CONFIG ============
+const MAX_PARTICLES = 8000;
+const FIELD_SCALE = 0.003;
+const PARTICLE_SPEED = 1.5;
+const FADE_ALPHA = 0.04;
+const PARTICLE_DRAW_ALPHA = 0.15;
+const ATTRACTOR_STRENGTH = 80;
+const REPULSOR_STRENGTH = 120;
+const MAX_VOICES = 8;
+
+// Pentatonic scale (C major pentatonic, 3 octaves)
+const PENTA = [261.63, 293.66, 329.63, 392.00, 440.00, 523.25, 587.33, 659.25, 783.99, 880.00, 1046.50, 1174.66];
+
+// ============ PALETTES ============
+const PALETTES = [
+  { name: 'Neon Tokyo', bg: '#05050a', colors: ['#ff006e','#fb5607','#ffbe0b','#8338ec','#3a86ff','#06d6a0'] },
+  { name: 'Abyssal Glow', bg: '#020810', colors: ['#00f5d4','#00bbf9','#9b5de5','#f15bb5','#0077b6','#48bfe3'] },
+  { name: 'Infrared', bg: '#0a0505', colors: ['#ff0a0a','#ff4500','#ff6b35','#ffb627','#e01e5a','#c70039'] },
+  { name: 'Aurora', bg: '#030a08', colors: ['#00ff87','#60efff','#0061ff','#7b2ff7','#00d4aa','#b5ff3c'] },
+  { name: 'Monochrome', bg: '#050505', colors: ['#ffffff','#cccccc','#999999','#e0e0e0','#b0b0b0','#f5f5f5'] },
+];
+let paletteIdx = 0;
+
+// ============ FIELD TYPES ============
+const FIELD_TYPES = ['noise', 'spiral', 'converge', 'turbulent'];
+let fieldIdx = 0;
+
+// ============ STATE ============
+let emitters = [];
+let attractors = [];
+let repulsors = [];
+let time = 0;
+
+// Audio
+let audioCtx = null;
+let masterGain = null;
+let compressor = null;
+let activeVoices = 0;
+
+// ============ PARTICLE POOL ============
+const pool = new Float32Array(MAX_PARTICLES * 5); // x, y, vx, vy, life
+const STRIDE = 5;
+let activeCount = 0;
+
+function spawnParticle(x, y) {
+  if (activeCount >= MAX_PARTICLES) return;
+  const i = activeCount * STRIDE;
+  pool[i] = x + (Math.random() - 0.5) * 10;
+  pool[i + 1] = y + (Math.random() - 0.5) * 10;
+  pool[i + 2] = 0;
+  pool[i + 3] = 0;
+  pool[i + 4] = 200 + Math.random() * 300; // life in frames
+  activeCount++;
+}
+
+// ============ SIMPLEX NOISE (minimal implementation) ============
+// 2D gradient noise
+const PERM = new Uint8Array(512);
+const GRAD = [[1,1],[-1,1],[1,-1],[-1,-1],[1,0],[-1,0],[0,1],[0,-1]];
+(function initNoise() {
+  const p = new Uint8Array(256);
+  for (let i = 0; i < 256; i++) p[i] = i;
+  for (let i = 255; i > 0; i--) {
+    const j = ~~(Math.random() * (i + 1));
+    [p[i], p[j]] = [p[j], p[i]];
+  }
+  for (let i = 0; i < 512; i++) PERM[i] = p[i & 255];
+})();
+
+function noise2d(x, y) {
+  const X = ~~x & 255, Y = ~~y & 255;
+  const xf = x - ~~x, yf = y - ~~y;
+  const u = xf * xf * (3 - 2 * xf), v = yf * yf * (3 - 2 * yf);
+  const g00 = GRAD[PERM[X + PERM[Y]] & 7];
+  const g10 = GRAD[PERM[X + 1 + PERM[Y]] & 7];
+  const g01 = GRAD[PERM[X + PERM[Y + 1]] & 7];
+  const g11 = GRAD[PERM[X + 1 + PERM[Y + 1]] & 7];
+  const n00 = g00[0] * xf + g00[1] * yf;
+  const n10 = g10[0] * (xf - 1) + g10[1] * yf;
+  const n01 = g01[0] * xf + g01[1] * (yf - 1);
+  const n11 = g11[0] * (xf - 1) + g11[1] * (yf - 1);
+  return n00 + u * (n10 - n00) + v * (n01 - n00) + u * v * (n11 - n10 - n01 + n00);
+}
+
+// ============ FLOW FIELD ============
+function getField(x, y) {
+  const type = FIELD_TYPES[fieldIdx];
+  let angle;
+  if (type === 'noise') {
+    angle = noise2d(x * FIELD_SCALE + time * 0.2, y * FIELD_SCALE) * Math.PI * 4;
+  } else if (type === 'spiral') {
+    const cx = W / 2, cy = H / 2;
+    const dx = x - cx, dy = y - cy;
+    angle = Math.atan2(dy, dx) + 0.5 + noise2d(x * FIELD_SCALE * 0.5, y * FIELD_SCALE * 0.5) * 0.5;
+  } else if (type === 'converge') {
+    const cx = W / 2, cy = H / 2;
+    angle = Math.atan2(cy - y, cx - x) + noise2d(x * FIELD_SCALE, y * FIELD_SCALE) * 1.5;
+  } else { // turbulent
+    const n1 = noise2d(x * FIELD_SCALE * 2 + time * 0.3, y * FIELD_SCALE * 2);
+    const n2 = noise2d(x * FIELD_SCALE + 100, y * FIELD_SCALE + 100 + time * 0.15);
+    angle = (n1 + n2) * Math.PI * 3;
+  }
+  return [Math.cos(angle) * PARTICLE_SPEED, Math.sin(angle) * PARTICLE_SPEED];
+}
+
+// ============ UPDATE ============
+function update() {
+  time += 0.01;
+  const pal = PALETTES[paletteIdx];
+
+  // Spawn from emitters
+  for (const em of emitters) {
+    for (let i = 0; i < 3; i++) spawnParticle(em.x, em.y);
+  }
+
+  // Update particles
+  let writeIdx = 0;
+  for (let ri = 0; ri < activeCount; ri++) {
+    const i = ri * STRIDE;
+    let px = pool[i], py = pool[i + 1];
+    let life = pool[i + 4] - 1;
+    if (life <= 0 || px < -20 || px > W + 20 || py < -20 || py > H + 20) continue;
+
+    // Flow field
+    const [fx, fy] = getField(px, py);
+    let vx = pool[i + 2] * 0.95 + fx * 0.5;
+    let vy = pool[i + 3] * 0.95 + fy * 0.5;
+
+    // Attractors
+    for (const a of attractors) {
+      const dx = a.x - px, dy = a.y - py;
+      const d = Math.sqrt(dx * dx + dy * dy) + 1;
+      if (d < 200) {
+        const force = ATTRACTOR_STRENGTH / (d * d) * d;
+        vx += dx / d * force * 0.01;
+        vy += dy / d * force * 0.01;
+      }
+    }
+
+    // Repulsors
+    for (const r of repulsors) {
+      const dx = px - r.x, dy = py - r.y;
+      const d = Math.sqrt(dx * dx + dy * dy) + 1;
+      if (d < 200) {
+        const force = REPULSOR_STRENGTH / (d * d) * d;
+        vx += dx / d * force * 0.01;
+        vy += dy / d * force * 0.01;
+      }
+    }
+
+    px += vx; py += vy;
+
+    // Write back (compaction)
+    const wi = writeIdx * STRIDE;
+    pool[wi] = px; pool[wi + 1] = py;
+    pool[wi + 2] = vx; pool[wi + 3] = vy;
+    pool[wi + 4] = life;
+    writeIdx++;
+  }
+  activeCount = writeIdx;
+}
+
+// ============ RENDER ============
+function render() {
+  const pal = PALETTES[paletteIdx];
+
+  // Long-exposure fade
+  ctx.globalCompositeOperation = 'source-over';
+  ctx.fillStyle = pal.bg;
+  ctx.globalAlpha = FADE_ALPHA;
+  ctx.fillRect(0, 0, W, H);
+  ctx.globalAlpha = 1;
+
+  // Draw particles with additive blending
+  ctx.globalCompositeOperation = 'lighter';
+  for (let ri = 0; ri < activeCount; ri++) {
+    const i = ri * STRIDE;
+    const px = pool[i], py = pool[i + 1];
+    const life = pool[i + 4];
+
+    const colorIdx = ri % pal.colors.length;
+    const alpha = Math.min(PARTICLE_DRAW_ALPHA, life / 100);
+
+    ctx.fillStyle = pal.colors[colorIdx];
+    ctx.globalAlpha = alpha;
+    ctx.fillRect(px, py, 1.5, 1.5);
+  }
+  ctx.globalAlpha = 1;
+  ctx.globalCompositeOperation = 'source-over';
+
+  // Draw emitters / attractors / repulsors as subtle indicators
+  for (const em of emitters) {
+    ctx.strokeStyle = '#ffffff22';
+    ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.arc(em.x, em.y, 8, 0, Math.PI * 2); ctx.stroke();
+  }
+  for (const a of attractors) {
+    ctx.strokeStyle = '#58a6ff22';
+    ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.arc(a.x, a.y, 12, 0, Math.PI * 2); ctx.stroke();
+    ctx.beginPath(); ctx.arc(a.x, a.y, 4, 0, Math.PI * 2); ctx.stroke();
+  }
+  for (const r of repulsors) {
+    ctx.strokeStyle = '#f8717122';
+    ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.arc(r.x, r.y, 12, 0, Math.PI * 2); ctx.stroke();
+  }
+}
+
+// ============ AUDIO ============
+function initAudio() {
+  if (audioCtx) return;
+  audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  compressor = audioCtx.createDynamicsCompressor();
+  compressor.threshold.value = -30;
+  compressor.ratio.value = 8;
+  masterGain = audioCtx.createGain();
+  masterGain.gain.value = 0.15;
+  masterGain.connect(compressor);
+  compressor.connect(audioCtx.destination);
+}
+
+function triggerNote(freq, duration) {
+  if (!audioCtx || activeVoices >= MAX_VOICES) return;
+  activeVoices++;
+  const osc = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+  osc.type = 'sine';
+  osc.frequency.value = freq;
+  gain.gain.setValueAtTime(0, audioCtx.currentTime);
+  gain.gain.linearRampToValueAtTime(0.08, audioCtx.currentTime + 0.1); // attack
+  gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration); // release
+  osc.connect(gain);
+  gain.connect(masterGain);
+  osc.start();
+  osc.stop(audioCtx.currentTime + duration);
+  osc.onended = () => { activeVoices--; };
+}
+
+// Attractor-based ambient audio
+let audioTimer = 0;
+function updateAudio() {
+  audioTimer++;
+  if (audioTimer % 15 !== 0 || !audioCtx) return; // ~4 times/sec at 60fps
+
+  for (const a of attractors) {
+    // Count particles near this attractor
+    let nearCount = 0;
+    for (let ri = 0; ri < activeCount && nearCount < 50; ri++) {
+      const i = ri * STRIDE;
+      const dx = pool[i] - a.x, dy = pool[i + 1] - a.y;
+      if (dx * dx + dy * dy < 10000) nearCount++; // within 100px
+    }
+    if (nearCount > 5) {
+      // Map attractor Y position to pentatonic note
+      const noteIdx = ~~((a.y / H) * PENTA.length) % PENTA.length;
+      const freq = PENTA[noteIdx];
+      const duration = 1 + nearCount * 0.05;
+      triggerNote(freq, Math.min(duration, 3));
+    }
+  }
+}
+
+// ============ MAIN LOOP ============
+function loop() {
+  update();
+  render();
+  updateAudio();
+  requestAnimationFrame(loop);
+}
+
+// ============ INPUT ============
+canvas.addEventListener('click', e => {
+  initAudio();
+  if (e.shiftKey) {
+    attractors.push({ x: e.clientX, y: e.clientY });
+  } else if (e.altKey) {
+    repulsors.push({ x: e.clientX, y: e.clientY });
+  } else {
+    emitters.push({ x: e.clientX, y: e.clientY });
+  }
+});
+
+canvas.addEventListener('contextmenu', e => e.preventDefault());
+
+document.addEventListener('keydown', e => {
+  if (e.key === ' ') {
+    e.preventDefault();
+    paletteIdx = (paletteIdx + 1) % PALETTES.length;
+    document.getElementById('palette-name').textContent = PALETTES[paletteIdx].name;
+    // Flash clear for palette change
+    ctx.fillStyle = PALETTES[paletteIdx].bg;
+    ctx.globalAlpha = 1;
+    ctx.fillRect(0, 0, W, H);
+  }
+  if (e.key === 's' || e.key === 'S') {
+    const link = document.createElement('a');
+    link.download = `flowfield-${Date.now()}.png`;
+    link.href = canvas.toDataURL('image/png');
+    link.click();
+  }
+  if (e.key === 'c' || e.key === 'C') {
+    emitters = []; attractors = []; repulsors = [];
+    activeCount = 0;
+    ctx.fillStyle = PALETTES[paletteIdx].bg;
+    ctx.globalAlpha = 1;
+    ctx.fillRect(0, 0, W, H);
+  }
+  if (e.key === 'f' || e.key === 'F') {
+    fieldIdx = (fieldIdx + 1) % FIELD_TYPES.length;
+    document.getElementById('mode-indicator').textContent = FIELD_TYPES[fieldIdx];
+    setTimeout(() => { document.getElementById('mode-indicator').textContent = ''; }, 1500);
+  }
+});
+
+// Fade hint after 5s
+setTimeout(() => { document.getElementById('hint').style.opacity = '0'; }, 6000);
+
+function resize() {
+  W = canvas.width = window.innerWidth;
+  H = canvas.height = window.innerHeight;
+  // Fill with palette bg
+  ctx.fillStyle = PALETTES[paletteIdx].bg;
+  ctx.fillRect(0, 0, W, H);
+}
+window.addEventListener('resize', resize);
+resize();
+requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>

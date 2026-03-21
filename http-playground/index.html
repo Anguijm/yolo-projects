@@ -1,0 +1,438 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>HTTP Playground</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { background: #0d1117; color: #c9d1d9; font-family: 'Segoe UI', system-ui, sans-serif; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+
+/* Top bar */
+#topbar { display: flex; align-items: center; gap: 10px; padding: 8px 14px; background: #161b22; border-bottom: 1px solid #21262d; }
+#topbar h1 { font-size: 14px; color: #58a6ff; letter-spacing: 0.08em; white-space: nowrap; }
+
+/* Presets */
+.presets { display: flex; gap: 4px; }
+.preset { padding: 3px 8px; background: #21262d; border: 1px solid #30363d; color: #8b949e; border-radius: 12px; cursor: pointer; font-size: 10px; font-family: inherit; }
+.preset:hover { border-color: #58a6ff; color: #c9d1d9; }
+
+/* Request bar */
+#request-bar { display: flex; gap: 0; padding: 10px 14px; background: #0d1117; border-bottom: 1px solid #21262d; }
+#method { background: #21262d; border: 1px solid #30363d; color: #58a6ff; padding: 8px 10px; border-radius: 6px 0 0 6px; font-family: inherit; font-size: 13px; font-weight: bold; cursor: pointer; min-width: 80px; }
+#url { flex: 1; background: #0d1117; border: 1px solid #30363d; border-left: none; color: #e6edf3; padding: 8px 12px; font-family: 'Courier New', monospace; font-size: 13px; outline: none; }
+#url:focus { border-color: #58a6ff; }
+#btn-send { background: #238636; border: 1px solid #238636; color: #fff; padding: 8px 20px; border-radius: 0 6px 6px 0; font-family: inherit; font-size: 13px; font-weight: bold; cursor: pointer; }
+#btn-send:hover { background: #2ea043; }
+#btn-send:active { background: #196c2e; }
+
+/* Main content */
+#main { flex: 1; display: flex; overflow: hidden; }
+
+/* Panels */
+.panel { flex: 1; display: flex; flex-direction: column; border-right: 1px solid #21262d; min-width: 0; }
+.panel:last-child { border-right: none; }
+.panel-tabs { display: flex; background: #161b22; border-bottom: 1px solid #21262d; }
+.panel-tab { padding: 6px 14px; font-size: 11px; color: #8b949e; cursor: pointer; border-bottom: 2px solid transparent; }
+.panel-tab:hover { color: #c9d1d9; }
+.panel-tab.active { color: #58a6ff; border-bottom-color: #58a6ff; }
+.panel-body { flex: 1; overflow: auto; padding: 0; position: relative; }
+
+/* Text areas */
+.editor { width: 100%; height: 100%; background: #0d1117; border: none; color: #c9d1d9; padding: 10px 14px; font-family: 'Courier New', monospace; font-size: 12px; resize: none; outline: none; line-height: 1.6; }
+
+/* Response */
+.response-body { padding: 10px 14px; font-family: 'Courier New', monospace; font-size: 12px; white-space: pre-wrap; word-break: break-all; line-height: 1.6; }
+
+/* JSON syntax highlighting */
+.json-key { color: #7ee787; }
+.json-string { color: #a5d6ff; }
+.json-number { color: #f2cc60; }
+.json-bool { color: #ff7b72; }
+.json-null { color: #8b949e; }
+
+/* Status badge */
+.status-badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: bold; font-family: monospace; }
+.status-2xx { background: #238636; color: #fff; }
+.status-3xx { background: #9e6a03; color: #fff; }
+.status-4xx { background: #da3633; color: #fff; }
+.status-5xx { background: #8b0000; color: #fff; }
+.status-err { background: #6e4000; color: #ffa657; }
+
+/* Response header */
+#response-header { display: flex; align-items: center; gap: 8px; padding: 8px 14px; background: #161b22; border-bottom: 1px solid #21262d; font-size: 11px; color: #8b949e; }
+#response-header .timing { margin-left: auto; color: #8b949e; font-family: monospace; }
+
+/* Options row */
+#options { display: flex; align-items: center; gap: 12px; padding: 4px 14px; background: #161b22; border-bottom: 1px solid #21262d; font-size: 10px; color: #8b949e; }
+#options label { display: flex; align-items: center; gap: 4px; cursor: pointer; }
+#options input[type=checkbox] { accent-color: #58a6ff; }
+
+/* History */
+.history-item { padding: 6px 10px; border-bottom: 1px solid #21262d; cursor: pointer; font-size: 11px; display: flex; gap: 8px; align-items: center; }
+.history-item:hover { background: #161b22; }
+.history-method { font-weight: bold; font-size: 10px; min-width: 40px; }
+.history-url { flex: 1; color: #8b949e; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: monospace; }
+.history-status { font-size: 10px; font-family: monospace; }
+
+/* Method colors */
+.m-GET { color: #3fb950; } .m-POST { color: #d29922; } .m-PUT { color: #58a6ff; }
+.m-DELETE { color: #f85149; } .m-PATCH { color: #bc8cff; }
+
+/* Loading */
+.spinner { display: none; }
+.spinner.active { display: inline-block; width: 14px; height: 14px; border: 2px solid #30363d; border-top-color: #58a6ff; border-radius: 50%; animation: spin 0.6s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* Empty state */
+.empty { padding: 40px; text-align: center; color: #30363d; font-size: 12px; }
+</style>
+</head>
+<body>
+<div id="topbar">
+  <h1>HTTP</h1>
+  <div class="presets">
+    <button class="preset" data-p="joke">Random Joke</button>
+    <button class="preset" data-p="pokemon">Pokemon</button>
+    <button class="preset" data-p="post">Create Post</button>
+    <button class="preset" data-p="users">Users List</button>
+    <button class="preset" data-p="httpbin">HTTPBin</button>
+  </div>
+  <span style="margin-left:auto;font-size:10px;color:#30363d">Ctrl+Enter = Send</span>
+</div>
+
+<div id="request-bar">
+  <select id="method">
+    <option value="GET">GET</option>
+    <option value="POST">POST</option>
+    <option value="PUT">PUT</option>
+    <option value="DELETE">DELETE</option>
+    <option value="PATCH">PATCH</option>
+  </select>
+  <input type="text" id="url" placeholder="https://api.example.com/endpoint" spellcheck="false">
+  <button id="btn-send"><span class="spinner" id="spinner"></span> Send</button>
+</div>
+
+<div id="options">
+  <label><input type="checkbox" id="cors-proxy"> CORS Proxy</label>
+  <span id="cors-warn" style="display:none;color:#d29922;font-size:9px">Traffic routed via corsproxy.io — don't send sensitive keys</span>
+  <label><input type="checkbox" id="auto-format" checked> Pretty Print</label>
+  <label><input type="checkbox" id="auto-save" checked> Auto-save</label>
+</div>
+
+<div id="main">
+  <!-- Request panel -->
+  <div class="panel">
+    <div class="panel-tabs">
+      <div class="panel-tab active" data-tab="req-headers">Headers</div>
+      <div class="panel-tab" data-tab="req-body">Body</div>
+      <div class="panel-tab" data-tab="req-params">Params</div>
+      <div class="panel-tab" data-tab="history">History</div>
+    </div>
+    <div class="panel-body">
+      <div id="req-headers" class="tab-content" style="display:block">
+        <textarea class="editor" id="headers-editor" placeholder='{"Authorization": "Bearer token", "Content-Type": "application/json"}'></textarea>
+      </div>
+      <div id="req-body" class="tab-content" style="display:none">
+        <textarea class="editor" id="body-editor" placeholder='{"name": "test", "value": 42}'></textarea>
+      </div>
+      <div id="req-params" class="tab-content" style="display:none">
+        <textarea class="editor" id="params-editor" placeholder='key=value&#10;page=1&#10;limit=10'></textarea>
+      </div>
+      <div id="history" class="tab-content" style="display:none">
+        <div id="history-list"><div class="empty">No requests yet</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Response panel -->
+  <div class="panel">
+    <div id="response-header">
+      <span id="res-status"></span>
+      <span id="res-status-text"></span>
+      <span class="timing" id="res-timing"></span>
+    </div>
+    <div class="panel-tabs">
+      <div class="panel-tab active" data-tab="res-body">Body</div>
+      <div class="panel-tab" data-tab="res-headers">Headers</div>
+      <div class="panel-tab" data-tab="res-raw">Raw</div>
+      <button id="btn-copy" style="margin-left:auto;padding:2px 8px;background:#21262d;border:1px solid #30363d;color:#8b949e;border-radius:4px;cursor:pointer;font-size:10px;font-family:inherit">Copy</button>
+    </div>
+    <div class="panel-body">
+      <div id="res-body" class="tab-content" style="display:block">
+        <div class="response-body" id="response-display"><div class="empty">Send a request to see the response<br>or click a preset above</div></div>
+      </div>
+      <div id="res-headers" class="tab-content" style="display:none">
+        <div class="response-body" id="response-headers-display"></div>
+      </div>
+      <div id="res-raw" class="tab-content" style="display:none">
+        <div class="response-body" id="response-raw-display"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function() {
+'use strict';
+
+const CORS_PROXY = 'https://corsproxy.io/?';
+
+// ============ PRESETS ============
+const PRESETS = {
+  joke: { method: 'GET', url: 'https://official-joke-api.appspot.com/random_joke', headers: '', body: '' },
+  pokemon: { method: 'GET', url: 'https://pokeapi.co/api/v2/pokemon/pikachu', headers: '', body: '' },
+  post: { method: 'POST', url: 'https://jsonplaceholder.typicode.com/posts', headers: '{"Content-Type": "application/json"}', body: '{"title": "Hello World", "body": "This is a test post", "userId": 1}' },
+  users: { method: 'GET', url: 'https://jsonplaceholder.typicode.com/users', headers: '', body: '' },
+  httpbin: { method: 'GET', url: 'https://httpbin.org/get', headers: '', body: '' }
+};
+
+// ============ STATE ============
+let history = [];
+
+// ============ DOM ============
+const $url = document.getElementById('url');
+const $method = document.getElementById('method');
+const $headers = document.getElementById('headers-editor');
+const $body = document.getElementById('body-editor');
+const $params = document.getElementById('params-editor');
+const $display = document.getElementById('response-display');
+const $headersDisplay = document.getElementById('response-headers-display');
+const $rawDisplay = document.getElementById('response-raw-display');
+const $status = document.getElementById('res-status');
+const $statusText = document.getElementById('res-status-text');
+const $timing = document.getElementById('res-timing');
+const $spinner = document.getElementById('spinner');
+
+// ============ TABS ============
+document.querySelectorAll('.panel-tab').forEach(tab => {
+  tab.addEventListener('click', function() {
+    const panel = this.closest('.panel');
+    panel.querySelectorAll('.panel-tab').forEach(t => t.classList.remove('active'));
+    panel.querySelectorAll('.tab-content').forEach(t => t.style.display = 'none');
+    this.classList.add('active');
+    document.getElementById(this.dataset.tab).style.display = 'block';
+  });
+});
+
+// ============ SEND REQUEST ============
+async function sendRequest() {
+  const method = $method.value;
+  let url = $url.value.trim();
+  if (!url) return;
+
+  // Add query params
+  const paramText = $params.value.trim();
+  if (paramText) {
+    const params = paramText.split('\n').map(l => l.trim()).filter(l => l.includes('='));
+    const sep = url.includes('?') ? '&' : '?';
+    url += sep + params.join('&');
+  }
+
+  // CORS proxy
+  const useCors = document.getElementById('cors-proxy').checked;
+  const fetchUrl = useCors ? CORS_PROXY + encodeURIComponent(url) : url;
+
+  // Parse headers
+  let headersObj = {};
+  const headerText = $headers.value.trim();
+  if (headerText) {
+    try { headersObj = JSON.parse(headerText); } catch(e) {
+      // Try key: value format
+      headerText.split('\n').forEach(line => {
+        const idx = line.indexOf(':');
+        if (idx > 0) headersObj[line.substring(0, idx).trim()] = line.substring(idx + 1).trim();
+      });
+    }
+  }
+
+  // Build fetch options
+  const opts = { method, headers: headersObj };
+  if (['POST', 'PUT', 'PATCH'].includes(method) && $body.value.trim()) {
+    opts.body = $body.value.trim();
+  }
+
+  $spinner.classList.add('active');
+  $status.textContent = '';
+  $statusText.textContent = 'Sending...';
+  $timing.textContent = '';
+
+  const startTime = performance.now();
+
+  try {
+    const res = await fetch(fetchUrl, opts);
+    const elapsed = performance.now() - startTime;
+    const text = await res.text();
+
+    // Status
+    const statusClass = res.status < 300 ? '2xx' : res.status < 400 ? '3xx' : res.status < 500 ? '4xx' : '5xx';
+    $status.className = `status-badge status-${statusClass}`;
+    $status.textContent = res.status;
+    $statusText.textContent = res.statusText;
+    $timing.textContent = `${elapsed.toFixed(0)}ms`;
+
+    // Response body
+    const prettyPrint = document.getElementById('auto-format').checked;
+    let displayText = text;
+    let isJson = false;
+    try {
+      const parsed = JSON.parse(text);
+      isJson = true;
+      displayText = prettyPrint ? JSON.stringify(parsed, null, 2) : text;
+    } catch(e) {}
+
+    if (isJson) {
+      $display.innerHTML = highlightJson(displayText);
+    } else {
+      $display.textContent = displayText;
+    }
+
+    // Raw
+    $rawDisplay.textContent = text;
+
+    // Response headers
+    const resHeaders = [];
+    res.headers.forEach((val, key) => { resHeaders.push(`${key}: ${val}`); });
+    $headersDisplay.textContent = resHeaders.join('\n') || '(no headers exposed)';
+
+    // History
+    addHistory(method, url, res.status, elapsed);
+
+  } catch(err) {
+    const elapsed = performance.now() - startTime;
+    $status.className = 'status-badge status-err';
+    $status.textContent = 'ERR';
+    $statusText.textContent = err.message;
+    $timing.textContent = `${elapsed.toFixed(0)}ms`;
+    $display.textContent = `Error: ${err.message}\n\nIf this is a CORS issue, try enabling the "CORS Proxy" checkbox.`;
+    addHistory(method, url, 'ERR', elapsed);
+  }
+
+  $spinner.classList.remove('active');
+
+  // Auto-save
+  if (document.getElementById('auto-save').checked) saveState();
+}
+
+// ============ JSON HIGHLIGHTING ============
+function highlightJson(str) {
+  return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"([^"\\]*(\\.[^"\\]*)*)"\s*:/g, '<span class="json-key">"$1"</span>:')
+    .replace(/:\s*"([^"\\]*(\\.[^"\\]*)*)"/g, ': <span class="json-string">"$1"</span>')
+    .replace(/:\s*(-?\d+\.?\d*([eE][+-]?\d+)?)/g, ': <span class="json-number">$1</span>')
+    .replace(/:\s*(true|false)/g, ': <span class="json-bool">$1</span>')
+    .replace(/:\s*(null)/g, ': <span class="json-null">$1</span>');
+}
+
+// ============ HISTORY ============
+function addHistory(method, url, status, ms) {
+  history.unshift({ method, url, status, ms: ms.toFixed(0), time: new Date().toLocaleTimeString() });
+  if (history.length > 50) history.pop();
+  renderHistory();
+}
+
+function renderHistory() {
+  const el = document.getElementById('history-list');
+  if (history.length === 0) { el.innerHTML = '<div class="empty">No requests yet</div>'; return; }
+  el.innerHTML = history.map((h, i) => `
+    <div class="history-item" data-idx="${i}">
+      <span class="history-method m-${h.method}">${h.method}</span>
+      <span class="history-url">${escapeHtml(h.url)}</span>
+      <span class="history-status">${h.status}</span>
+      <span style="color:#30363d;font-size:9px">${h.ms}ms</span>
+    </div>
+  `).join('');
+
+  el.querySelectorAll('.history-item').forEach(item => {
+    item.addEventListener('click', () => {
+      const h = history[parseInt(item.dataset.idx)];
+      $method.value = h.method;
+      $url.value = h.url;
+    });
+  });
+}
+
+function escapeHtml(s) {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+// ============ PERSISTENCE ============
+function saveState() {
+  const state = {
+    method: $method.value,
+    url: $url.value,
+    headers: $headers.value,
+    body: $body.value,
+    params: $params.value,
+    corsProxy: document.getElementById('cors-proxy').checked,
+    history: history.slice(0, 20)
+  };
+  try { localStorage.setItem('http_playground', JSON.stringify(state)); } catch(e) {}
+}
+
+function loadState() {
+  try {
+    const state = JSON.parse(localStorage.getItem('http_playground'));
+    if (!state) return;
+    $method.value = state.method || 'GET';
+    $url.value = state.url || '';
+    $headers.value = state.headers || '';
+    $body.value = state.body || '';
+    $params.value = state.params || '';
+    if (state.corsProxy) document.getElementById('cors-proxy').checked = true;
+    if (state.history) { history = state.history; renderHistory(); }
+  } catch(e) {}
+}
+
+// ============ PRESETS ============
+document.querySelectorAll('.preset').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const p = PRESETS[btn.dataset.p];
+    if (!p) return;
+    $method.value = p.method;
+    $url.value = p.url;
+    $headers.value = p.headers;
+    $body.value = p.body;
+    $params.value = '';
+    // Auto-send
+    sendRequest();
+  });
+});
+
+// ============ EVENT HANDLERS ============
+document.getElementById('btn-send').addEventListener('click', sendRequest);
+
+document.addEventListener('keydown', e => {
+  if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+    e.preventDefault();
+    sendRequest();
+  }
+});
+
+// Method color
+$method.addEventListener('change', function() {
+  this.style.color = { GET: '#3fb950', POST: '#d29922', PUT: '#58a6ff', DELETE: '#f85149', PATCH: '#bc8cff' }[this.value] || '#c9d1d9';
+});
+$method.dispatchEvent(new Event('change'));
+
+// CORS proxy warning toggle
+document.getElementById('cors-proxy').addEventListener('change', function() {
+  document.getElementById('cors-warn').style.display = this.checked ? 'inline' : 'none';
+});
+
+// Copy response to clipboard
+document.getElementById('btn-copy').addEventListener('click', () => {
+  const text = $rawDisplay.textContent || $display.textContent;
+  navigator.clipboard.writeText(text).then(() => {
+    const btn = document.getElementById('btn-copy');
+    btn.textContent = 'Copied!';
+    setTimeout(() => { btn.textContent = 'Copy'; }, 1500);
+  });
+});
+
+// Load saved state
+loadState();
+})();
+</script>
+</body>
+</html>

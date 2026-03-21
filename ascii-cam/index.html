@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ASCII Cam</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { background: #000; color: #0f0; font-family: monospace; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+
+#topbar { display: flex; align-items: center; gap: 10px; padding: 6px 14px; background: #0a0a0a; border-bottom: 1px solid #1a1a1a; z-index: 10; flex-wrap: wrap; }
+#topbar h1 { font-size: 14px; color: #0f0; letter-spacing: 0.15em; }
+.tb-btn { padding: 4px 12px; background: #111; border: 1px solid #222; color: #888; border-radius: 5px; cursor: pointer; font-size: 10px; font-family: inherit; }
+.tb-btn:hover { border-color: #0f0; color: #0f0; }
+.tb-btn.active { background: #0f01; border-color: #0f0; color: #0f0; }
+.tb-btn.snap { background: #1a0a0a; border-color: #f55; color: #f55; }
+.tb-btn.snap:hover { background: #f55; color: #000; }
+select.tb-sel { background: #111; border: 1px solid #222; color: #888; padding: 3px 6px; border-radius: 4px; font-size: 10px; font-family: inherit; }
+.sep { width: 1px; height: 18px; background: #1a1a1a; }
+label.tb-label { font-size: 9px; color: #444; }
+input[type=range].tb-range { width: 60px; height: 3px; -webkit-appearance: none; background: #222; border-radius: 2px; }
+input[type=range].tb-range::-webkit-slider-thumb { -webkit-appearance: none; width: 10px; height: 10px; border-radius: 50%; background: #0f0; cursor: pointer; }
+
+#main { flex: 1; display: flex; align-items: center; justify-content: center; overflow: hidden; position: relative; }
+#ascii-output { white-space: pre; line-height: 1.0; letter-spacing: 0.05em; font-size: 8px; text-align: center; }
+
+/* Hidden elements */
+video { display: none; }
+canvas { display: none; }
+
+/* Themes */
+body.theme-green { background: #000; color: #0f0; }
+body.theme-amber { background: #0a0800; color: #ffaa00; }
+body.theme-blue { background: #000510; color: #4488ff; }
+body.theme-white { background: #111; color: #ddd; }
+body.theme-matrix { background: #000; color: #0f0; }
+body.theme-pink { background: #0a0008; color: #ff69b4; }
+
+/* Start overlay */
+#start-overlay { position: fixed; inset: 0; background: #000; z-index: 20; display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 16px; }
+#start-overlay.hidden { display: none; }
+#start-overlay h1 { font-size: 3rem; color: #0f0; letter-spacing: 0.2em; }
+#start-overlay .sub { color: #333; font-size: 0.85rem; max-width: 400px; text-align: center; line-height: 1.6; }
+#start-overlay button { padding: 12px 32px; background: transparent; border: 2px solid #0f0; color: #0f0; border-radius: 4px; font-family: monospace; font-size: 1rem; cursor: pointer; letter-spacing: 0.1em; }
+#start-overlay button:hover { background: #0f0; color: #000; }
+
+#fps { position: fixed; bottom: 6px; right: 10px; font-size: 9px; color: #222; }
+</style>
+</head>
+<body class="theme-green">
+
+<div id="start-overlay">
+  <h1>ASCII CAM</h1>
+  <p class="sub">Your webcam, rendered in real-time ASCII art. Multiple character sets, color themes, adjustable resolution.</p>
+  <button id="btn-start">ENABLE CAMERA</button>
+</div>
+
+<div id="topbar" style="display:none">
+  <h1>ASCII CAM</h1>
+  <label class="tb-label">Characters:</label>
+  <select class="tb-sel" id="sel-charset">
+    <option value="detailed">Detailed</option>
+    <option value="simple">Simple</option>
+    <option value="blocks">Blocks</option>
+    <option value="braille">Braille</option>
+    <option value="emoji">Emoji</option>
+  </select>
+  <label class="tb-label">Theme:</label>
+  <select class="tb-sel" id="sel-theme">
+    <option value="green">Green Terminal</option>
+    <option value="amber">Amber CRT</option>
+    <option value="blue">Blue Neon</option>
+    <option value="white">White</option>
+    <option value="pink">Hot Pink</option>
+  </select>
+  <div class="sep"></div>
+  <label class="tb-label">Resolution:</label>
+  <input type="range" class="tb-range" id="sl-res" min="40" max="200" value="100">
+  <label class="tb-label">Contrast:</label>
+  <input type="range" class="tb-range" id="sl-contrast" min="0.5" max="3" value="1.2" step="0.1">
+  <div class="sep"></div>
+  <button class="tb-btn" id="btn-invert">Invert</button>
+  <button class="tb-btn" id="btn-mirror">Mirror: ON</button>
+  <button class="tb-btn snap" id="btn-snap">SNAP</button>
+  <button class="tb-btn" id="btn-copy">Copy Text</button>
+</div>
+
+<div id="main">
+  <div id="ascii-output"></div>
+</div>
+
+<video id="video" autoplay playsinline></video>
+<canvas id="sample-canvas"></canvas>
+<div id="fps"></div>
+
+<script>
+(function() {
+'use strict';
+
+// ============ CHARSETS ============
+const CHARSETS = {
+  detailed: ' .\'`^",:;Il!i><~+_-?][}{1)(|\\/tfjrxnuvczXYUJCLQ0OZmwqpdbkhao*#MW&8%B@$',
+  simple: ' .-:=+*#%@',
+  blocks: ' ░▒▓█',
+  braille: null, // Special handling
+  emoji: null    // Special handling
+};
+
+const EMOJI_MAP = ['⬛','🌑','🟤','🔵','🟣','🟠','🟡','⬜','🟢','❤️'];
+
+// ============ STATE ============
+const video = document.getElementById('video');
+const sampleCanvas = document.getElementById('sample-canvas');
+const sctx = sampleCanvas.getContext('2d', { willReadFrequently: true });
+const outputEl = document.getElementById('ascii-output');
+let stream = null;
+let running = false;
+let charset = 'detailed';
+let resolution = 100; // columns
+let contrast = 1.2;
+let inverted = false;
+let mirrored = true;
+let frameCount = 0;
+let fpsTime = 0;
+
+// ============ CAMERA ============
+async function startCamera() {
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } }
+    });
+    video.srcObject = stream;
+    await video.play();
+    document.getElementById('start-overlay').classList.add('hidden');
+    document.getElementById('topbar').style.display = 'flex';
+    running = true;
+    requestAnimationFrame(loop);
+  } catch (err) {
+    document.querySelector('#start-overlay .sub').textContent =
+      'Camera access denied. Please allow camera access and refresh.';
+  }
+}
+
+// ============ CONVERSION ============
+function videoToAscii() {
+  if (!video.videoWidth) return '';
+
+  const aspect = video.videoWidth / video.videoHeight;
+  const cols = resolution;
+  // Characters are ~2x taller than wide, so halve the rows
+  const rows = ~~(cols / aspect / 2);
+
+  sampleCanvas.width = cols;
+  sampleCanvas.height = rows;
+
+  sctx.save();
+  if (mirrored) {
+    sctx.translate(cols, 0);
+    sctx.scale(-1, 1);
+  }
+  sctx.drawImage(video, 0, 0, cols, rows);
+  sctx.restore();
+
+  const imageData = sctx.getImageData(0, 0, cols, rows);
+  const pixels = imageData.data;
+
+  if (charset === 'braille') return toBraille(cols, rows, pixels);
+  if (charset === 'emoji') return toEmoji(cols, rows, pixels);
+
+  const chars = CHARSETS[charset];
+  const maxIdx = chars.length - 1;
+  // Use array + join to avoid GC pressure from string concatenation
+  const buf = new Array(rows * (cols + 1));
+  let bi = 0;
+
+  for (let y = 0; y < rows; y++) {
+    for (let x = 0; x < cols; x++) {
+      const i = (y * cols + x) * 4;
+      let brightness = (0.299 * pixels[i] + 0.587 * pixels[i + 1] + 0.114 * pixels[i + 2]) / 255;
+      brightness = Math.pow(brightness, 1 / contrast);
+      if (inverted) brightness = 1 - brightness;
+      const charIdx = ~~(brightness * maxIdx);
+      buf[bi++] = chars[Math.min(charIdx, maxIdx)];
+    }
+    buf[bi++] = '\n';
+  }
+  return buf.join('');
+}
+
+function toBraille(cols, rows, pixels) {
+  // Braille characters encode 2x4 pixel blocks
+  // Each braille char is 2 columns wide, 4 rows tall
+  const bCols = ~~(cols / 2);
+  const bRows = ~~(rows / 4);
+  let result = '';
+
+  for (let by = 0; by < bRows; by++) {
+    for (let bx = 0; bx < bCols; bx++) {
+      let code = 0x2800; // Braille base
+      // Dot positions: (0,0)=1, (0,1)=2, (0,2)=4, (1,0)=8, (1,1)=16, (1,2)=32, (0,3)=64, (1,3)=128
+      const dotMap = [[0,0,1],[0,1,2],[0,2,4],[1,0,8],[1,1,16],[1,2,32],[0,3,64],[1,3,128]];
+      for (const [dx, dy, bit] of dotMap) {
+        const px = bx * 2 + dx;
+        const py = by * 4 + dy;
+        if (px < cols && py < rows) {
+          const i = (py * cols + px) * 4;
+          let b = (0.299 * pixels[i] + 0.587 * pixels[i+1] + 0.114 * pixels[i+2]) / 255;
+          b = Math.pow(b, 1 / contrast);
+          if (inverted) b = 1 - b;
+          if (b > 0.5) code |= bit;
+        }
+      }
+      result += String.fromCharCode(code);
+    }
+    result += '\n';
+  }
+  return result;
+}
+
+function toEmoji(cols, rows, pixels) {
+  // Downsample more aggressively for emoji (they're wide)
+  const eCols = ~~(cols / 2);
+  const eRows = ~~(rows / 2);
+  let result = '';
+  for (let y = 0; y < eRows; y++) {
+    for (let x = 0; x < eCols; x++) {
+      const px = ~~(x * 2), py = ~~(y * 2);
+      const i = (py * cols + px) * 4;
+      let b = (0.299 * pixels[i] + 0.587 * pixels[i+1] + 0.114 * pixels[i+2]) / 255;
+      b = Math.pow(b, 1 / contrast);
+      if (inverted) b = 1 - b;
+      const emojiIdx = ~~(b * (EMOJI_MAP.length - 1));
+      result += EMOJI_MAP[Math.min(emojiIdx, EMOJI_MAP.length - 1)];
+    }
+    result += '\n';
+  }
+  return result;
+}
+
+// ============ RENDER LOOP ============
+function loop(ts) {
+  if (!running) return;
+
+  const ascii = videoToAscii();
+  outputEl.textContent = ascii;
+
+  // Auto-size font to fit
+  const lines = ascii.split('\n');
+  const lineCount = lines.length;
+  const longestLine = Math.max(...lines.map(l => l.length));
+  const mainEl = document.getElementById('main');
+  const maxH = mainEl.clientHeight - 10;
+  const maxW = mainEl.clientWidth - 20;
+  // Each char is roughly 0.6 * fontSize wide, 1.0 * fontSize tall
+  const fontByH = maxH / lineCount;
+  const fontByW = maxW / (longestLine * 0.6);
+  const fontSize = Math.max(3, Math.min(fontByH, fontByW, 16));
+  outputEl.style.fontSize = fontSize + 'px';
+
+  // FPS
+  frameCount++;
+  if (ts - fpsTime > 1000) {
+    document.getElementById('fps').textContent = ~~(frameCount / ((ts - fpsTime) / 1000)) + ' fps';
+    frameCount = 0; fpsTime = ts;
+  }
+
+  requestAnimationFrame(loop);
+}
+
+// ============ SNAPSHOT ============
+function snapshot() {
+  // Render current ASCII to a canvas for PNG export
+  const text = outputEl.textContent;
+  const lines = text.split('\n').filter(l => l.length > 0);
+  const charW = 6, charH = 10;
+  const w = (Math.max(...lines.map(l => l.length))) * charW + 20;
+  const h = lines.length * charH + 20;
+
+  const c = document.createElement('canvas');
+  c.width = w; c.height = h;
+  const cx = c.getContext('2d');
+
+  // Get current theme colors
+  const style = getComputedStyle(document.body);
+  cx.fillStyle = style.backgroundColor;
+  cx.fillRect(0, 0, w, h);
+  cx.fillStyle = style.color;
+  cx.font = `${charH}px monospace`;
+  cx.textBaseline = 'top';
+
+  for (let i = 0; i < lines.length; i++) {
+    cx.fillText(lines[i], 10, 10 + i * charH);
+  }
+
+  const link = document.createElement('a');
+  link.download = `ascii-cam-${Date.now()}.png`;
+  link.href = c.toDataURL('image/png');
+  link.click();
+}
+
+// ============ UI ============
+document.getElementById('btn-start').addEventListener('click', startCamera);
+
+document.getElementById('sel-charset').addEventListener('change', function() {
+  charset = this.value;
+});
+
+document.getElementById('sel-theme').addEventListener('change', function() {
+  document.body.className = 'theme-' + this.value;
+});
+
+document.getElementById('sl-res').addEventListener('input', function() {
+  resolution = parseInt(this.value);
+});
+
+document.getElementById('sl-contrast').addEventListener('input', function() {
+  contrast = parseFloat(this.value);
+});
+
+document.getElementById('btn-invert').addEventListener('click', function() {
+  inverted = !inverted;
+  this.classList.toggle('active', inverted);
+});
+
+document.getElementById('btn-mirror').addEventListener('click', function() {
+  mirrored = !mirrored;
+  this.textContent = 'Mirror: ' + (mirrored ? 'ON' : 'OFF');
+});
+
+document.getElementById('btn-snap').addEventListener('click', snapshot);
+
+document.getElementById('btn-copy').addEventListener('click', function() {
+  navigator.clipboard.writeText(outputEl.textContent).then(() => {
+    this.textContent = 'Copied!';
+    setTimeout(() => { this.textContent = 'Copy Text'; }, 1500);
+  });
+});
+
+// Keyboard shortcuts
+document.addEventListener('keydown', e => {
+  if (e.key === 's' || e.key === 'S') snapshot();
+  if (e.key === 'i') { inverted = !inverted; document.getElementById('btn-invert').classList.toggle('active', inverted); }
+  if (e.key === 'm') { mirrored = !mirrored; document.getElementById('btn-mirror').textContent = 'Mirror: ' + (mirrored ? 'ON' : 'OFF'); }
+});
+
+})();
+</script>
+</body>
+</html>

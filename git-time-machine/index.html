@@ -1,0 +1,629 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Git Time Machine</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { background: #0d1117; color: #c9d1d9; font-family: 'Segoe UI', system-ui, sans-serif; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+
+#topbar { display: flex; align-items: center; gap: 10px; padding: 6px 14px; background: #161b22; border-bottom: 1px solid #21262d; }
+#topbar h1 { font-size: 14px; color: #58a6ff; letter-spacing: 0.08em; }
+.tb-btn { padding: 3px 10px; background: #21262d; border: 1px solid #30363d; color: #8b949e; border-radius: 5px; cursor: pointer; font-size: 10px; font-family: inherit; }
+.tb-btn:hover { border-color: #58a6ff; color: #c9d1d9; }
+.sep { width: 1px; height: 18px; background: #21262d; }
+select.tb-sel { background: #21262d; border: 1px solid #30363d; color: #8b949e; padding: 3px 6px; border-radius: 4px; font-size: 10px; font-family: inherit; }
+#challenge-info { font-size: 10px; color: #8b949e; margin-left: auto; }
+
+#main { flex: 1; display: flex; overflow: hidden; }
+
+/* Graph panel */
+#graph-panel { flex: 1; background: #0d1117; position: relative; overflow: auto; }
+canvas#graph { display: block; }
+
+/* Terminal panel */
+#terminal-panel { width: 380px; display: flex; flex-direction: column; background: #010409; border-left: 1px solid #21262d; }
+#terminal-output { flex: 1; overflow-y: auto; padding: 10px 14px; font-family: 'Courier New', monospace; font-size: 12px; line-height: 1.6; }
+.term-line { margin-bottom: 2px; }
+.term-cmd { color: #58a6ff; }
+.term-ok { color: #3fb950; }
+.term-err { color: #f85149; }
+.term-info { color: #8b949e; }
+.term-branch { color: #d2a8ff; }
+#terminal-input { display: flex; padding: 8px 14px; background: #161b22; border-top: 1px solid #21262d; }
+#terminal-input span { color: #3fb950; font-family: 'Courier New', monospace; font-size: 12px; padding-right: 6px; line-height: 28px; }
+#cmd { flex: 1; background: transparent; border: none; color: #e6edf3; font-family: 'Courier New', monospace; font-size: 12px; outline: none; }
+
+/* Branch labels */
+.branch-label { font-size: 9px; padding: 1px 5px; border-radius: 3px; font-family: monospace; display: inline-block; margin: 1px; }
+
+/* Legend */
+#legend { padding: 4px 14px; background: #161b22; border-top: 1px solid #21262d; font-size: 9px; color: #484f58; display: flex; gap: 12px; }
+
+/* Challenge overlay */
+#challenge-overlay { display: none; position: fixed; inset: 0; background: rgba(1,4,9,0.92); z-index: 20; align-items: center; justify-content: center; flex-direction: column; gap: 12px; }
+#challenge-overlay.show { display: flex; }
+#challenge-overlay h2 { font-size: 1.5rem; color: #58a6ff; }
+#challenge-overlay .desc { color: #8b949e; font-size: 0.85rem; max-width: 450px; text-align: center; line-height: 1.6; }
+#challenge-overlay .goal { color: #3fb950; font-family: monospace; font-size: 0.8rem; background: #0d1117; padding: 10px 16px; border-radius: 8px; border: 1px solid #21262d; white-space: pre-line; }
+#challenge-overlay button { padding: 8px 24px; background: transparent; border: 2px solid #58a6ff; color: #58a6ff; border-radius: 20px; font-family: inherit; cursor: pointer; }
+#challenge-overlay button:hover { background: #58a6ff; color: #000; }
+</style>
+</head>
+<body>
+<div id="topbar">
+  <h1>GIT TIME MACHINE</h1>
+  <select class="tb-sel" id="sel-challenge">
+    <option value="-1">Sandbox (Free Play)</option>
+    <option value="0">1: First Commit</option>
+    <option value="1">2: Branching</option>
+    <option value="2">3: Merge</option>
+    <option value="3">4: Feature Branch</option>
+    <option value="4">5: Cherry Pick</option>
+  </select>
+  <button class="tb-btn" id="btn-reset">Reset</button>
+  <button class="tb-btn" id="btn-help">Commands</button>
+  <span id="challenge-info"></span>
+</div>
+<div id="main">
+  <div id="graph-panel"><canvas id="graph"></canvas></div>
+  <div id="terminal-panel">
+    <div id="terminal-output"></div>
+    <div id="terminal-input">
+      <span id="prompt-text">main $</span>
+      <input type="text" id="cmd" placeholder="git commit -m &quot;hello&quot;" autocomplete="off" spellcheck="false">
+    </div>
+  </div>
+</div>
+<div id="legend">
+  Type git commands in the terminal. The graph updates live. | Try: git commit, git branch, git checkout, git merge, git log
+</div>
+<div id="challenge-overlay">
+  <h2 id="ch-title"></h2>
+  <div class="desc" id="ch-desc"></div>
+  <div class="goal" id="ch-goal"></div>
+  <button id="ch-start">Start</button>
+</div>
+
+<script>
+(function() {
+'use strict';
+
+const canvas = document.getElementById('graph');
+const ctx = canvas.getContext('2d');
+
+// ============ CHALLENGES ============
+const CHALLENGES = [
+  { title: 'First Commit', desc: 'Make your first commit to the repository.', goal: 'Run: git commit -m "initial"', check: g => g.commits.length >= 2 },
+  { title: 'Branching', desc: 'Create a branch called "feature" and switch to it.', goal: 'Run: git branch feature\nthen: git checkout feature', check: g => g.branches.feature && g.HEAD === 'feature' },
+  { title: 'Merge', desc: 'Create a "feature" branch, make a commit on it, then merge it back to main.', goal: '1. git branch feature\n2. git checkout feature\n3. git commit -m "feat"\n4. git checkout main\n5. git merge feature', check: g => {
+    const mainC = g.commits[g.branches.main];
+    return mainC && mainC.parents.length === 2;
+  }},
+  { title: 'Feature Branch Workflow', desc: 'Create "dev" branch, make 2 commits on it, switch to main, make 1 commit on main, then merge dev into main.', goal: '1. git branch dev\n2. git checkout dev\n3. git commit (x2)\n4. git checkout main\n5. git commit (x1)\n6. git merge dev', check: g => {
+    const mainC = g.commits[g.branches.main];
+    return mainC && mainC.parents.length === 2 && g.commits.length >= 5;
+  }},
+  { title: 'Cherry Pick', desc: 'Create a "hotfix" branch, make a commit, switch back to main, and cherry-pick that commit.', goal: '1. git branch hotfix\n2. git checkout hotfix\n3. git commit -m "fix"\n4. git checkout main\n5. git cherry-pick <hash>', check: g => g.commits.length >= 3 && g.commits[g.branches.main]?.message?.includes('cherry-pick') },
+];
+let currentChallenge = -1;
+
+// ============ GIT ENGINE ============
+let git = null;
+
+function createGit() {
+  const initCommit = { id: genId(), message: 'init', parents: [], branch: 'main' };
+  return {
+    commits: { [initCommit.id]: initCommit },
+    commitOrder: [initCommit.id],
+    branches: { main: initCommit.id },
+    HEAD: 'main', // branch name or commit id (detached)
+    detached: false
+  };
+}
+
+let idCounter = 0;
+function genId() { return 'c' + (idCounter++).toString(36); }
+
+function headCommitId(g) {
+  return g.detached ? g.HEAD : g.branches[g.HEAD];
+}
+
+function execCommand(input) {
+  const parts = input.trim().split(/\s+/);
+  if (parts[0] !== 'git') return { ok: false, msg: 'Unknown command. Try "git ..."' };
+  const cmd = parts[1];
+
+  switch (cmd) {
+    case 'commit': return gitCommit(parts);
+    case 'branch': return gitBranch(parts);
+    case 'checkout': return gitCheckout(parts);
+    case 'merge': return gitMerge(parts);
+    case 'log': return gitLog();
+    case 'status': return gitStatus();
+    case 'cherry-pick': return gitCherryPick(parts);
+    case 'rebase': return gitRebase(parts);
+    default: return { ok: false, msg: `Unknown git command: ${cmd}` };
+  }
+}
+
+function gitCommit(parts) {
+  let message = 'commit';
+  const mIdx = parts.indexOf('-m');
+  if (mIdx >= 0 && parts[mIdx + 1]) {
+    message = parts.slice(mIdx + 1).join(' ').replace(/^["']|["']$/g, '');
+  }
+  const parentId = headCommitId(git);
+  const commit = { id: genId(), message, parents: [parentId], branch: git.detached ? null : git.HEAD };
+  git.commits[commit.id] = commit;
+  git.commitOrder.push(commit.id);
+  if (!git.detached) {
+    git.branches[git.HEAD] = commit.id;
+  } else {
+    git.HEAD = commit.id;
+  }
+  return { ok: true, msg: `[${git.detached ? commit.id : git.HEAD} ${commit.id.slice(0,7)}] ${message}` };
+}
+
+function gitBranch(parts) {
+  if (parts.length < 3) {
+    // List branches
+    const list = Object.keys(git.branches).map(b =>
+      (b === git.HEAD && !git.detached ? '* ' : '  ') + b
+    ).join('\n');
+    return { ok: true, msg: list, type: 'branch' };
+  }
+  const name = parts[2];
+  if (git.branches[name]) return { ok: false, msg: `Branch '${name}' already exists.` };
+  git.branches[name] = headCommitId(git);
+  return { ok: true, msg: `Created branch '${name}'` };
+}
+
+function gitCheckout(parts) {
+  if (parts.length < 3) return { ok: false, msg: 'Usage: git checkout <branch|commit>' };
+  const target = parts[2];
+  if (parts[2] === '-b' && parts[3]) {
+    // Create and switch
+    const name = parts[3];
+    if (git.branches[name]) return { ok: false, msg: `Branch '${name}' already exists.` };
+    git.branches[name] = headCommitId(git);
+    git.HEAD = name;
+    git.detached = false;
+    return { ok: true, msg: `Switched to new branch '${name}'` };
+  }
+  if (git.branches[target]) {
+    git.HEAD = target;
+    git.detached = false;
+    return { ok: true, msg: `Switched to branch '${target}'` };
+  }
+  if (git.commits[target]) {
+    git.HEAD = target;
+    git.detached = true;
+    return { ok: true, msg: `HEAD is now at ${target} (detached)` };
+  }
+  return { ok: false, msg: `error: pathspec '${target}' did not match` };
+}
+
+function gitMerge(parts) {
+  if (parts.length < 3) return { ok: false, msg: 'Usage: git merge <branch>' };
+  const target = parts[2];
+  if (!git.branches[target]) return { ok: false, msg: `Branch '${target}' not found.` };
+  if (git.detached) return { ok: false, msg: 'Cannot merge in detached HEAD state.' };
+  const currentId = headCommitId(git);
+  const targetId = git.branches[target];
+  if (currentId === targetId) return { ok: true, msg: 'Already up to date.' };
+  // Fast-forward check
+  if (isAncestor(git, currentId, targetId)) {
+    git.branches[git.HEAD] = targetId;
+    return { ok: true, msg: `Fast-forward merge to ${target}` };
+  }
+  // Merge commit
+  const mergeCommit = {
+    id: genId(),
+    message: `Merge branch '${target}'`,
+    parents: [currentId, targetId],
+    branch: git.HEAD
+  };
+  git.commits[mergeCommit.id] = mergeCommit;
+  git.commitOrder.push(mergeCommit.id);
+  git.branches[git.HEAD] = mergeCommit.id;
+  return { ok: true, msg: `Merge made: ${mergeCommit.id.slice(0,7)}` };
+}
+
+function gitCherryPick(parts) {
+  if (parts.length < 3) return { ok: false, msg: 'Usage: git cherry-pick <commit-hash>' };
+  const targetId = parts[2];
+  const targetCommit = git.commits[targetId];
+  if (!targetCommit) return { ok: false, msg: `Commit '${targetId}' not found.` };
+  if (git.detached) return { ok: false, msg: 'Cannot cherry-pick in detached HEAD state.' };
+  const parentId = headCommitId(git);
+  const newCommit = {
+    id: genId(),
+    message: `${targetCommit.message} (cherry-pick of ${targetId})`,
+    parents: [parentId],
+    branch: git.HEAD
+  };
+  git.commits[newCommit.id] = newCommit;
+  git.commitOrder.push(newCommit.id);
+  git.branches[git.HEAD] = newCommit.id;
+  return { ok: true, msg: `Cherry-picked ${targetId} as ${newCommit.id}` };
+}
+
+function gitRebase(parts) {
+  if (parts.length < 3) return { ok: false, msg: 'Usage: git rebase <branch>' };
+  const target = parts[2];
+  if (!git.branches[target]) return { ok: false, msg: `Branch '${target}' not found.` };
+  if (git.detached) return { ok: false, msg: 'Cannot rebase in detached HEAD state.' };
+
+  const currentBranch = git.HEAD;
+  const targetId = git.branches[target];
+  const currentId = git.branches[currentBranch];
+
+  if (currentId === targetId) return { ok: true, msg: 'Already up to date.' };
+  if (isAncestor(git, currentId, targetId)) return { ok: true, msg: 'Already up to date.' };
+
+  // Collect commits on current branch that aren't on target
+  const targetAncestors = new Set();
+  const queue = [targetId];
+  while (queue.length) {
+    const id = queue.shift();
+    if (targetAncestors.has(id)) continue;
+    targetAncestors.add(id);
+    const c = git.commits[id];
+    if (c) for (const pid of c.parents) queue.push(pid);
+  }
+
+  const toReplay = [];
+  let walkId = currentId;
+  while (walkId && !targetAncestors.has(walkId)) {
+    toReplay.unshift(walkId);
+    const c = git.commits[walkId];
+    walkId = c && c.parents.length > 0 ? c.parents[0] : null;
+  }
+
+  if (toReplay.length === 0) return { ok: true, msg: 'Nothing to rebase.' };
+
+  // Replay commits on top of target
+  let baseId = targetId;
+  for (const oldId of toReplay) {
+    const oldCommit = git.commits[oldId];
+    const newCommit = {
+      id: genId(),
+      message: oldCommit.message,
+      parents: [baseId],
+      branch: currentBranch
+    };
+    git.commits[newCommit.id] = newCommit;
+    git.commitOrder.push(newCommit.id);
+    baseId = newCommit.id;
+  }
+
+  git.branches[currentBranch] = baseId;
+  return { ok: true, msg: `Rebased ${toReplay.length} commit(s) onto ${target}` };
+}
+
+function gitLog() {
+  const lines = [];
+  let id = headCommitId(git);
+  let count = 0;
+  const visited = new Set();
+  const queue = [id];
+  while (queue.length && count < 15) {
+    const cid = queue.shift();
+    if (visited.has(cid)) continue;
+    visited.add(cid);
+    const c = git.commits[cid];
+    if (!c) continue;
+    const branchLabels = Object.entries(git.branches).filter(([_,v]) => v === cid).map(([b]) => b);
+    lines.push(`${cid} ${branchLabels.length ? '(' + branchLabels.join(', ') + ')' : ''} ${c.message}`);
+    for (const pid of c.parents) queue.push(pid);
+    count++;
+  }
+  return { ok: true, msg: lines.join('\n'), type: 'info' };
+}
+
+function gitStatus() {
+  const branch = git.detached ? `HEAD detached at ${git.HEAD}` : `On branch ${git.HEAD}`;
+  return { ok: true, msg: branch, type: 'info' };
+}
+
+function isAncestor(g, ancestorId, descendantId) {
+  const visited = new Set();
+  const queue = [descendantId];
+  while (queue.length) {
+    const id = queue.shift();
+    if (id === ancestorId) return true;
+    if (visited.has(id)) continue;
+    visited.add(id);
+    const c = g.commits[id];
+    if (c) for (const pid of c.parents) queue.push(pid);
+  }
+  return false;
+}
+
+// ============ GRAPH RENDERING ============
+const NODE_R = 16;
+const COL_W = 60;
+const ROW_H = 50;
+const BRANCH_COLORS = ['#58a6ff','#3fb950','#d2a8ff','#f0883e','#f85149','#d29922','#79c0ff','#56d364'];
+
+function layoutGraph() {
+  // Assign lanes (columns) and rows to commits
+  const lanes = {}; // branch name -> lane index
+  const positions = {}; // commit id -> {x, y, lane}
+  let nextLane = 0;
+
+  // Assign lanes to branches
+  for (const branch of Object.keys(git.branches)) {
+    if (!(branch in lanes)) lanes[branch] = nextLane++;
+  }
+
+  // Walk commits in order and assign positions
+  git.commitOrder.forEach((id, idx) => {
+    const c = git.commits[id];
+    let lane;
+    if (c.branch && lanes[c.branch] !== undefined) {
+      lane = lanes[c.branch];
+    } else {
+      // Find lane from parent
+      const parent = c.parents[0] ? positions[c.parents[0]] : null;
+      lane = parent ? parent.lane : 0;
+    }
+    positions[id] = {
+      x: 60 + lane * COL_W,
+      y: 40 + idx * ROW_H,
+      lane
+    };
+  });
+
+  return { positions, lanes };
+}
+
+function renderGraph() {
+  const { positions, lanes } = layoutGraph();
+  const maxY = 40 + git.commitOrder.length * ROW_H + 60;
+  const maxX = 60 + Object.keys(lanes).length * COL_W + 100;
+
+  canvas.width = Math.max(maxX, document.getElementById('graph-panel').clientWidth);
+  canvas.height = Math.max(maxY, document.getElementById('graph-panel').clientHeight);
+
+  ctx.fillStyle = '#0d1117';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  // Draw edges
+  for (const id of git.commitOrder) {
+    const c = git.commits[id];
+    const pos = positions[id];
+    if (!pos) continue;
+    for (const pid of c.parents) {
+      const ppos = positions[pid];
+      if (!ppos) continue;
+      // Color based on the child's branch
+      const branchName = c.branch || 'main';
+      const laneIdx = lanes[branchName] !== undefined ? lanes[branchName] : 0;
+      ctx.strokeStyle = BRANCH_COLORS[laneIdx % BRANCH_COLORS.length] + '66';
+      ctx.lineWidth = 2.5;
+      ctx.beginPath();
+      ctx.moveTo(pos.x, pos.y);
+      // Curved line for cross-lane connections
+      if (pos.x !== ppos.x) {
+        const midY = (pos.y + ppos.y) / 2;
+        ctx.bezierCurveTo(pos.x, midY, ppos.x, midY, ppos.x, ppos.y);
+      } else {
+        ctx.lineTo(ppos.x, ppos.y);
+      }
+      ctx.stroke();
+    }
+  }
+
+  // Draw nodes
+  const headId = headCommitId(git);
+  for (const id of git.commitOrder) {
+    const c = git.commits[id];
+    const pos = positions[id];
+    if (!pos) continue;
+
+    const isHead = id === headId;
+    const isMerge = c.parents.length > 1;
+    const branchName = c.branch || 'main';
+    const laneIdx = lanes[branchName] !== undefined ? lanes[branchName] : 0;
+    const color = BRANCH_COLORS[laneIdx % BRANCH_COLORS.length];
+
+    // Glow for HEAD
+    if (isHead) {
+      ctx.fillStyle = color + '22';
+      ctx.beginPath();
+      ctx.arc(pos.x, pos.y, NODE_R * 2, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // Node circle
+    ctx.fillStyle = isHead ? color : '#21262d';
+    ctx.strokeStyle = color;
+    ctx.lineWidth = isMerge ? 3 : 2;
+    ctx.beginPath();
+    ctx.arc(pos.x, pos.y, NODE_R, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+
+    // Commit hash
+    ctx.fillStyle = isHead ? '#fff' : '#8b949e';
+    ctx.font = '9px monospace';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(id, pos.x, pos.y);
+
+    // Branch labels to the right
+    const branchesHere = Object.entries(git.branches).filter(([_, v]) => v === id);
+    if (branchesHere.length > 0) {
+      let labelX = pos.x + NODE_R + 8;
+      for (const [bName] of branchesHere) {
+        const bLane = lanes[bName] !== undefined ? lanes[bName] : 0;
+        const bColor = BRANCH_COLORS[bLane % BRANCH_COLORS.length];
+        const isCurrentBranch = bName === git.HEAD && !git.detached;
+
+        ctx.fillStyle = bColor + '33';
+        ctx.strokeStyle = bColor;
+        ctx.lineWidth = 1;
+        const tw = ctx.measureText(bName).width + 8;
+        roundRect(ctx, labelX, pos.y - 8, tw, 16, 4);
+        ctx.fill();
+        ctx.stroke();
+        ctx.fillStyle = bColor;
+        ctx.font = `${isCurrentBranch ? 'bold ' : ''}9px monospace`;
+        ctx.textAlign = 'left';
+        ctx.fillText(bName, labelX + 4, pos.y + 1);
+
+        if (isCurrentBranch) {
+          // HEAD indicator
+          ctx.fillStyle = '#3fb950';
+          ctx.font = 'bold 8px monospace';
+          ctx.fillText('HEAD', labelX + tw + 4, pos.y + 1);
+        }
+        labelX += tw + (isCurrentBranch ? 35 : 6);
+      }
+    }
+
+    // Message below
+    ctx.fillStyle = '#484f58';
+    ctx.font = '9px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(c.message.slice(0, 25), pos.x, pos.y + NODE_R + 12);
+  }
+}
+
+function roundRect(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x+r,y); ctx.lineTo(x+w-r,y); ctx.quadraticCurveTo(x+w,y,x+w,y+r);
+  ctx.lineTo(x+w,y+h-r); ctx.quadraticCurveTo(x+w,y+h,x+w-r,y+h);
+  ctx.lineTo(x+r,y+h); ctx.quadraticCurveTo(x,y+h,x,y+h-r);
+  ctx.lineTo(x,y+r); ctx.quadraticCurveTo(x,y,x+r,y); ctx.closePath();
+}
+
+// ============ TERMINAL ============
+const output = document.getElementById('terminal-output');
+let cmdHistory = [];
+let historyIdx = -1;
+
+function termPrint(text, type) {
+  const div = document.createElement('div');
+  div.className = 'term-line term-' + (type || 'info');
+  div.textContent = text;
+  output.appendChild(div);
+  output.scrollTop = output.scrollHeight;
+}
+
+function updatePrompt() {
+  const branch = git.detached ? `(${git.HEAD.slice(0,7)})` : git.HEAD;
+  document.getElementById('prompt-text').textContent = `${branch} $`;
+}
+
+// ============ COMMAND EXECUTION ============
+function handleCommand(input) {
+  if (!input.trim()) return;
+  termPrint(`$ ${input}`, 'cmd');
+  cmdHistory.push(input);
+  historyIdx = cmdHistory.length;
+
+  if (input.trim() === 'help') {
+    showHelp();
+    return;
+  }
+  if (input.trim() === 'clear') {
+    output.innerHTML = '';
+    return;
+  }
+
+  const result = execCommand(input);
+  termPrint(result.msg, result.ok ? (result.type || 'ok') : 'err');
+  updatePrompt();
+  renderGraph();
+
+  // Check challenge
+  if (currentChallenge >= 0 && CHALLENGES[currentChallenge].check(git)) {
+    termPrint('Challenge complete!', 'ok');
+    document.getElementById('challenge-info').textContent = 'Challenge complete!';
+    document.getElementById('challenge-info').style.color = '#3fb950';
+  }
+}
+
+function showHelp() {
+  const cmds = [
+    'git commit -m "message"  — Create a commit',
+    'git branch <name>        — Create a branch',
+    'git branch               — List branches',
+    'git checkout <branch>    — Switch branch',
+    'git checkout -b <name>   — Create & switch',
+    'git merge <branch>       — Merge a branch',
+    'git cherry-pick <hash>   — Copy a commit',
+    'git rebase <branch>      — Replay commits onto branch',
+    'git log                  — Show history',
+    'git status               — Current branch',
+    'clear                    — Clear terminal',
+    'help                     — Show this help',
+  ];
+  cmds.forEach(c => termPrint(c, 'info'));
+}
+
+// ============ INPUT ============
+document.getElementById('cmd').addEventListener('keydown', e => {
+  if (e.key === 'Enter') {
+    handleCommand(e.target.value);
+    e.target.value = '';
+  }
+  if (e.key === 'ArrowUp') {
+    e.preventDefault();
+    if (historyIdx > 0) { historyIdx--; e.target.value = cmdHistory[historyIdx]; }
+  }
+  if (e.key === 'ArrowDown') {
+    e.preventDefault();
+    if (historyIdx < cmdHistory.length - 1) { historyIdx++; e.target.value = cmdHistory[historyIdx]; }
+    else { historyIdx = cmdHistory.length; e.target.value = ''; }
+  }
+});
+
+// Focus terminal on click anywhere
+document.addEventListener('click', () => document.getElementById('cmd').focus());
+
+// ============ UI ============
+function resetGit() {
+  idCounter = 0;
+  git = createGit();
+  output.innerHTML = '';
+  termPrint('Initialized empty Git repository.', 'ok');
+  termPrint('Type "help" for available commands.', 'info');
+  updatePrompt();
+  renderGraph();
+}
+
+document.getElementById('btn-reset').addEventListener('click', resetGit);
+document.getElementById('btn-help').addEventListener('click', showHelp);
+
+document.getElementById('sel-challenge').addEventListener('change', function() {
+  currentChallenge = parseInt(this.value);
+  resetGit();
+  if (currentChallenge >= 0) {
+    const ch = CHALLENGES[currentChallenge];
+    document.getElementById('ch-title').textContent = `Challenge ${currentChallenge + 1}: ${ch.title}`;
+    document.getElementById('ch-desc').textContent = ch.desc;
+    document.getElementById('ch-goal').textContent = ch.goal;
+    document.getElementById('challenge-overlay').classList.add('show');
+    document.getElementById('challenge-info').textContent = ch.title;
+    document.getElementById('challenge-info').style.color = '#8b949e';
+  } else {
+    document.getElementById('challenge-info').textContent = '';
+  }
+});
+
+document.getElementById('ch-start').addEventListener('click', () => {
+  document.getElementById('challenge-overlay').classList.remove('show');
+  document.getElementById('cmd').focus();
+});
+
+// Init
+resetGit();
+})();
+</script>
+</body>
+</html>

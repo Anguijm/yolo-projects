@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Whiteboard</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'SF Mono','Fira Code',monospace;background:#0a0a0a;overflow:hidden;height:100vh}
+.toolbar{position:fixed;top:1rem;left:50%;transform:translateX(-50%);display:flex;gap:4px;background:#111;border:1px solid #222;border-radius:8px;padding:4px;z-index:10}
+.tb-btn{width:36px;height:36px;background:#1a1a1a;border:1px solid #222;border-radius:6px;cursor:pointer;display:flex;align-items:center;justify-content:center;color:#888;font-size:0.7rem;transition:all 0.1s}
+.tb-btn:hover{color:#fff;border-color:#444}
+.tb-btn.active{background:#0a2a0a;color:#4ade80;border-color:#166534}
+.tb-sep{width:1px;background:#222;margin:4px 2px}
+.color-btn{width:24px;height:24px;border-radius:50%;border:2px solid transparent;cursor:pointer;margin:6px 1px}
+.color-btn.active{border-color:#fff}
+.size-slider{width:60px;accent-color:#4ade80;margin:0 4px}
+canvas{cursor:crosshair;display:block}
+.status{position:fixed;bottom:0.5rem;right:1rem;font-size:0.65rem;color:#333}
+</style>
+</head>
+<body>
+<div class="toolbar">
+  <div class="tb-btn active" data-tool="pen" title="Pen (P)">P</div>
+  <div class="tb-btn" data-tool="line" title="Line (L)">L</div>
+  <div class="tb-btn" data-tool="rect" title="Rect (R)">R</div>
+  <div class="tb-btn" data-tool="circle" title="Circle (C)">C</div>
+  <div class="tb-btn" data-tool="text" title="Text (T)">T</div>
+  <div class="tb-btn" data-tool="eraser" title="Eraser (E)">E</div>
+  <div class="tb-sep"></div>
+  <div class="color-btn active" data-color="#ffffff" style="background:#fff"></div>
+  <div class="color-btn" data-color="#4ade80" style="background:#4ade80"></div>
+  <div class="color-btn" data-color="#60a5fa" style="background:#60a5fa"></div>
+  <div class="color-btn" data-color="#f87171" style="background:#f87171"></div>
+  <div class="color-btn" data-color="#fbbf24" style="background:#fbbf24"></div>
+  <div class="color-btn" data-color="#a78bfa" style="background:#a78bfa"></div>
+  <div class="tb-sep"></div>
+  <input type="range" class="size-slider" id="size" min="1" max="20" value="2" title="Brush size">
+  <div class="tb-sep"></div>
+  <div class="tb-btn" onclick="undo()" title="Undo (Ctrl+Z)">U</div>
+  <div class="tb-btn" onclick="clearAll()" title="Clear all">X</div>
+  <div class="tb-btn" onclick="savePNG()" title="Save PNG">S</div>
+</div>
+
+<canvas id="canvas"></canvas>
+<div class="status" id="status"></div>
+
+<script>
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+let tool = 'pen';
+let color = '#ffffff';
+let lineWidth = 2;
+let drawing = false;
+let startX, startY;
+let strokes = []; // array of imageData snapshots
+let currentPath = [];
+
+function resize() {
+  const img = ctx.getImageData(0, 0, canvas.width, canvas.height);
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+  ctx.putImageData(img, 0, 0);
+}
+
+function saveState() {
+  strokes.push(ctx.getImageData(0, 0, canvas.width, canvas.height));
+  if (strokes.length > 40) strokes.shift();
+}
+
+window.undo = function() {
+  if (strokes.length === 0) return;
+  const prev = strokes.pop();
+  ctx.putImageData(prev, 0, 0);
+};
+
+window.clearAll = function() {
+  saveState();
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+};
+
+window.savePNG = function() {
+  // Draw on black bg
+  const tmp = document.createElement('canvas');
+  tmp.width = canvas.width; tmp.height = canvas.height;
+  const tctx = tmp.getContext('2d');
+  tctx.fillStyle = '#0a0a0a';
+  tctx.fillRect(0, 0, tmp.width, tmp.height);
+  tctx.drawImage(canvas, 0, 0);
+  const a = document.createElement('a');
+  a.href = tmp.toDataURL('image/png');
+  a.download = 'whiteboard.png';
+  a.click();
+};
+
+// Tool selection
+document.querySelectorAll('.tb-btn[data-tool]').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.tb-btn[data-tool]').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    tool = btn.dataset.tool;
+    canvas.style.cursor = tool === 'eraser' ? 'cell' : tool === 'text' ? 'text' : 'crosshair';
+  });
+});
+
+document.querySelectorAll('.color-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.color-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    color = btn.dataset.color;
+  });
+});
+
+document.getElementById('size').addEventListener('input', e => { lineWidth = parseInt(e.target.value); });
+
+// Drawing
+canvas.addEventListener('mousedown', e => {
+  if (tool === 'text') {
+    const text = prompt('Enter text:');
+    if (text) {
+      saveState();
+      ctx.fillStyle = color;
+      ctx.font = `${lineWidth * 8}px 'SF Mono', monospace`;
+      ctx.fillText(text, e.clientX, e.clientY);
+    }
+    return;
+  }
+  drawing = true;
+  startX = e.clientX;
+  startY = e.clientY;
+  saveState();
+  if (tool === 'pen' || tool === 'eraser') {
+    ctx.beginPath();
+    ctx.moveTo(startX, startY);
+  }
+});
+
+canvas.addEventListener('mousemove', e => {
+  document.getElementById('status').textContent = `${e.clientX}, ${e.clientY}`;
+  if (!drawing) return;
+  const x = e.clientX, y = e.clientY;
+
+  if (tool === 'pen') {
+    ctx.strokeStyle = color;
+    ctx.lineWidth = lineWidth;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.lineTo(x, y);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+  } else if (tool === 'eraser') {
+    ctx.save();
+    ctx.globalCompositeOperation = 'destination-out';
+    ctx.lineWidth = lineWidth * 5;
+    ctx.lineCap = 'round';
+    ctx.lineTo(x, y);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    ctx.restore();
+  } else {
+    // For shapes, restore last state and draw preview
+    if (strokes.length > 0) ctx.putImageData(strokes[strokes.length - 1], 0, 0);
+    ctx.strokeStyle = color;
+    ctx.lineWidth = lineWidth;
+    ctx.lineCap = 'round';
+    if (tool === 'line') {
+      ctx.beginPath(); ctx.moveTo(startX, startY); ctx.lineTo(x, y); ctx.stroke();
+    } else if (tool === 'rect') {
+      ctx.strokeRect(Math.min(startX,x), Math.min(startY,y), Math.abs(x-startX), Math.abs(y-startY));
+    } else if (tool === 'circle') {
+      const rx = Math.abs(x - startX) / 2, ry = Math.abs(y - startY) / 2;
+      const cx = Math.min(startX, x) + rx, cy = Math.min(startY, y) + ry;
+      ctx.beginPath(); ctx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2); ctx.stroke();
+    }
+  }
+});
+
+canvas.addEventListener('mouseup', () => { drawing = false; });
+canvas.addEventListener('mouseleave', () => { drawing = false; });
+
+// Keyboard shortcuts
+document.addEventListener('keydown', e => {
+  const keys = {p:'pen',l:'line',r:'rect',c:'circle',t:'text',e:'eraser'};
+  if (keys[e.key]) {
+    document.querySelectorAll('.tb-btn[data-tool]').forEach(b => b.classList.toggle('active', b.dataset.tool === keys[e.key]));
+    tool = keys[e.key];
+  }
+  if (e.ctrlKey && e.key === 'z') { e.preventDefault(); undo(); }
+});
+
+canvas.width = window.innerWidth;
+canvas.height = window.innerHeight;
+window.addEventListener('resize', resize);
+</script>
+</body>
+</html>

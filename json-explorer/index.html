@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>JSON Explorer</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: 'SF Mono', 'Fira Code', monospace; background: #0a0a0a; color: #ccc; }
+.layout { display: grid; grid-template-columns: 1fr 1fr; height: 100vh; }
+.left { border-right: 1px solid #1a1a1a; display: flex; flex-direction: column; }
+.right { display: flex; flex-direction: column; overflow: hidden; }
+.toolbar { padding: 0.6rem 1rem; background: #0d0d0d; border-bottom: 1px solid #1a1a1a; display: flex; gap: 0.5rem; align-items: center; }
+.toolbar h2 { font-size: 0.85rem; color: #fff; margin-right: auto; }
+.toolbar button { background: #1a1a1a; border: 1px solid #333; color: #999; padding: 0.3rem 0.6rem; border-radius: 4px; cursor: pointer; font-family: inherit; font-size: 0.7rem; }
+.toolbar button:hover { color: #fff; border-color: #555; }
+.toolbar input { background: #111; border: 1px solid #333; color: #ccc; padding: 0.3rem 0.6rem; border-radius: 4px; font-family: inherit; font-size: 0.7rem; width: 200px; }
+.toolbar input:focus { outline: none; border-color: #4ade80; }
+textarea { flex: 1; background: #0a0a0a; border: none; color: #ccc; padding: 1rem; font-family: inherit; font-size: 0.8rem; resize: none; line-height: 1.5; }
+textarea:focus { outline: none; }
+.error-bar { padding: 0.4rem 1rem; background: #1a0a0a; color: #f87171; font-size: 0.75rem; border-top: 1px solid #331a1a; display: none; }
+.tree { flex: 1; overflow: auto; padding: 1rem; font-size: 0.8rem; line-height: 1.7; }
+.node { padding-left: 1.2rem; }
+.toggle { cursor: pointer; user-select: none; display: inline-block; width: 1rem; text-align: center; color: #555; }
+.toggle:hover { color: #fff; }
+.key { color: #60a5fa; }
+.str { color: #4ade80; }
+.num { color: #fbbf24; }
+.bool { color: #f472b6; }
+.null { color: #666; font-style: italic; }
+.bracket { color: #666; }
+.comma { color: #444; }
+.colon { color: #444; }
+.count { color: #444; font-size: 0.7rem; }
+.collapsed .node { display: none; }
+.path-bar { padding: 0.4rem 1rem; background: #0d0d0d; border-top: 1px solid #1a1a1a; font-size: 0.7rem; color: #555; min-height: 1.6rem; }
+.path-val { color: #4ade80; }
+.highlight { background: rgba(74, 222, 128, 0.12); border-radius: 3px; }
+.hidden { display: none !important; }
+.stats { font-size: 0.65rem; color: #444; padding: 0.3rem 1rem; border-top: 1px solid #111; }
+</style>
+</head>
+<body>
+
+<div class="layout">
+  <div class="left">
+    <div class="toolbar">
+      <h2>JSON Input</h2>
+      <button onclick="formatJSON()">Format</button>
+      <button onclick="minifyJSON()">Minify</button>
+      <button onclick="loadSample()">Sample</button>
+    </div>
+    <textarea id="input" spellcheck="false" placeholder="Paste JSON here...">{
+  "name": "YOLO Projects",
+  "version": "1.0",
+  "projects": [
+    {"name": "git-xray", "status": "working", "tags": ["visualization", "git"]},
+    {"name": "proc-map", "status": "working", "tags": ["system", "visualization"]},
+    {"name": "wifi-time-machine", "status": "working", "tags": ["networking", "monitoring"]}
+  ],
+  "config": {
+    "stack": {"backend": "python", "frontend": "html"},
+    "rules": {"ui_required": true, "max_deps": 0},
+    "active": true,
+    "count": 4
+  }
+}</textarea>
+    <div class="error-bar" id="error"></div>
+    <div class="stats" id="stats"></div>
+  </div>
+  <div class="right">
+    <div class="toolbar">
+      <h2>Explorer</h2>
+      <input type="text" id="search" placeholder="Search keys or values...">
+      <button onclick="expandAll()">Expand</button>
+      <button onclick="collapseAll()">Collapse</button>
+      <button onclick="copyPath()">Copy Path</button>
+    </div>
+    <div class="tree" id="tree"></div>
+    <div class="path-bar" id="path-bar">Click a value to see its path</div>
+  </div>
+</div>
+
+<script>
+const inputEl = document.getElementById('input');
+const treeEl = document.getElementById('tree');
+const errorEl = document.getElementById('error');
+const searchEl = document.getElementById('search');
+const pathBar = document.getElementById('path-bar');
+const statsEl = document.getElementById('stats');
+let currentPath = '';
+let parsedData = null;
+
+function escHtml(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+function countItems(val) {
+  if (val === null || typeof val !== 'object') return 1;
+  if (Array.isArray(val)) return val.reduce((s, v) => s + countItems(v), 0);
+  return Object.values(val).reduce((s, v) => s + countItems(v), 0);
+}
+
+function renderValue(val, path) {
+  if (val === null) return `<span class="null" data-path="${escHtml(path)}">null</span>`;
+  if (typeof val === 'boolean') return `<span class="bool" data-path="${escHtml(path)}">${val}</span>`;
+  if (typeof val === 'number') return `<span class="num" data-path="${escHtml(path)}">${val}</span>`;
+  if (typeof val === 'string') return `<span class="str" data-path="${escHtml(path)}">"${escHtml(val)}"</span>`;
+  if (Array.isArray(val)) return renderArray(val, path);
+  return renderObject(val, path);
+}
+
+function renderObject(obj, path) {
+  const keys = Object.keys(obj);
+  if (keys.length === 0) return '<span class="bracket">{}</span>';
+  const id = 'n' + Math.random().toString(36).slice(2, 8);
+  let html = `<span class="toggle" data-id="${id}" onclick="toggleNode('${id}')">&#9660;</span><span class="bracket">{</span> <span class="count">${keys.length} keys</span>`;
+  html += `<div class="node" id="${id}">`;
+  keys.forEach((k, i) => {
+    const childPath = path ? path + '.' + k : k;
+    html += `<div class="tree-line" data-searchable="${escHtml(k)} ${escHtml(JSON.stringify(obj[k]))}">`;
+    html += `<span class="key" data-path="${escHtml(childPath)}">"${escHtml(k)}"</span><span class="colon">: </span>${renderValue(obj[k], childPath)}`;
+    if (i < keys.length - 1) html += '<span class="comma">,</span>';
+    html += '</div>';
+  });
+  html += '</div><span class="bracket">}</span>';
+  return html;
+}
+
+function renderArray(arr, path) {
+  if (arr.length === 0) return '<span class="bracket">[]</span>';
+  const id = 'n' + Math.random().toString(36).slice(2, 8);
+  let html = `<span class="toggle" data-id="${id}" onclick="toggleNode('${id}')">&#9660;</span><span class="bracket">[</span> <span class="count">${arr.length} items</span>`;
+  html += `<div class="node" id="${id}">`;
+  arr.forEach((v, i) => {
+    const childPath = path + '[' + i + ']';
+    html += `<div class="tree-line" data-searchable="${escHtml(JSON.stringify(v))}">`;
+    html += `<span class="num" style="color:#555;font-size:0.7rem">${i}</span><span class="colon"> </span>${renderValue(v, childPath)}`;
+    if (i < arr.length - 1) html += '<span class="comma">,</span>';
+    html += '</div>';
+  });
+  html += '</div><span class="bracket">]</span>';
+  return html;
+}
+
+window.toggleNode = function(id) {
+  const el = document.getElementById(id);
+  const toggle = document.querySelector(`[data-id="${id}"]`);
+  if (el.style.display === 'none') {
+    el.style.display = '';
+    toggle.innerHTML = '&#9660;';
+  } else {
+    el.style.display = 'none';
+    toggle.innerHTML = '&#9654;';
+  }
+};
+
+function parse() {
+  const raw = inputEl.value.trim();
+  if (!raw) { treeEl.innerHTML = ''; errorEl.style.display = 'none'; statsEl.textContent = ''; return; }
+  try {
+    parsedData = JSON.parse(raw);
+    errorEl.style.display = 'none';
+    treeEl.innerHTML = renderValue(parsedData, '$');
+    // Stats
+    const bytes = new Blob([raw]).size;
+    const items = countItems(parsedData);
+    statsEl.textContent = `${bytes.toLocaleString()} bytes \u00b7 ${items} values \u00b7 ${raw.split('\n').length} lines`;
+    // Click handlers for paths
+    treeEl.querySelectorAll('[data-path]').forEach(el => {
+      el.style.cursor = 'pointer';
+      el.addEventListener('click', e => {
+        e.stopPropagation();
+        currentPath = el.dataset.path;
+        pathBar.innerHTML = `<span class="path-val">${escHtml(currentPath)}</span>`;
+        // Remove old highlights
+        treeEl.querySelectorAll('.highlight').forEach(h => h.classList.remove('highlight'));
+        el.classList.add('highlight');
+      });
+    });
+  } catch(e) {
+    errorEl.textContent = e.message;
+    errorEl.style.display = '';
+    // Try to show position
+    const match = e.message.match(/position (\d+)/);
+    if (match) {
+      const pos = parseInt(match[1]);
+      const line = raw.slice(0, pos).split('\n').length;
+      errorEl.textContent += ` (line ~${line})`;
+    }
+  }
+}
+
+function formatJSON() {
+  try {
+    const obj = JSON.parse(inputEl.value);
+    inputEl.value = JSON.stringify(obj, null, 2);
+    parse();
+  } catch(e) {}
+}
+
+function minifyJSON() {
+  try {
+    const obj = JSON.parse(inputEl.value);
+    inputEl.value = JSON.stringify(obj);
+    parse();
+  } catch(e) {}
+}
+
+function loadSample() {
+  inputEl.value = JSON.stringify({
+    users: [
+      {id: 1, name: "Alice", email: "alice@example.com", roles: ["admin", "user"], active: true},
+      {id: 2, name: "Bob", email: "bob@example.com", roles: ["user"], active: false},
+      {id: 3, name: "Charlie", email: null, roles: [], active: true}
+    ],
+    metadata: {version: "2.0", generated: "2026-03-21T00:00:00Z", count: 3},
+    config: {nested: {deep: {value: 42, list: [1, [2, [3]]]}}}
+  }, null, 2);
+  parse();
+}
+
+function expandAll() {
+  treeEl.querySelectorAll('.node').forEach(el => el.style.display = '');
+  treeEl.querySelectorAll('.toggle').forEach(el => el.innerHTML = '&#9660;');
+}
+
+function collapseAll() {
+  treeEl.querySelectorAll('.node').forEach(el => el.style.display = 'none');
+  treeEl.querySelectorAll('.toggle').forEach(el => el.innerHTML = '&#9654;');
+}
+
+function copyPath() {
+  if (currentPath) navigator.clipboard.writeText(currentPath);
+}
+
+// Search
+searchEl.addEventListener('input', () => {
+  const q = searchEl.value.toLowerCase();
+  treeEl.querySelectorAll('.tree-line').forEach(line => {
+    if (!q) { line.classList.remove('hidden'); return; }
+    const searchable = (line.dataset.searchable || '').toLowerCase();
+    if (searchable.includes(q)) {
+      line.classList.remove('hidden');
+      // Make sure parents are visible
+      let parent = line.parentElement;
+      while (parent && parent !== treeEl) {
+        if (parent.classList.contains('node')) parent.style.display = '';
+        parent = parent.parentElement;
+      }
+    } else {
+      line.classList.add('hidden');
+    }
+  });
+});
+
+let debounceTimer;
+inputEl.addEventListener('input', () => {
+  clearTimeout(debounceTimer);
+  debounceTimer = setTimeout(parse, 300);
+});
+parse();
+</script>
+</body>
+</html>

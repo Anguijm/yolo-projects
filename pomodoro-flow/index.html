@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pomodoro Flow</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'SF Mono','Fira Code',monospace;background:#0a0a0a;color:#ccc;display:flex;flex-direction:column;align-items:center;min-height:100vh;padding:2rem}
+h1{font-size:1.3rem;color:#fff;margin-bottom:0.2rem}
+.sub{color:#555;font-size:0.7rem;margin-bottom:2rem}
+.timer-ring{position:relative;width:280px;height:280px;margin-bottom:2rem}
+.timer-ring svg{transform:rotate(-90deg)}
+.ring-bg{fill:none;stroke:#1a1a1a;stroke-width:8}
+.ring-progress{fill:none;stroke-width:8;stroke-linecap:round;transition:stroke-dashoffset 1s linear}
+.timer-display{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);text-align:center}
+.time-big{font-size:3.5rem;font-weight:bold;color:#fff}
+.time-label{font-size:0.75rem;color:#666;margin-top:0.3rem}
+.controls{display:flex;gap:0.8rem;margin-bottom:2rem}
+button{background:#1a1a1a;border:1px solid #333;color:#999;padding:0.5rem 1.2rem;border-radius:6px;cursor:pointer;font-family:inherit;font-size:0.8rem;transition:all 0.15s}
+button:hover{color:#fff;border-color:#555}
+button.primary{background:#0a2a0a;color:#4ade80;border-color:#166534}
+button.danger{background:#2a0a0a;color:#f87171;border-color:#991b1b}
+.mode-tabs{display:flex;gap:4px;margin-bottom:1.5rem}
+.mode-tab{padding:0.4rem 0.8rem;border-radius:4px;cursor:pointer;font-size:0.7rem;background:#111;border:1px solid #1a1a1a;color:#666}
+.mode-tab.active{border-color:#333;color:#fff}
+.mode-tab:hover{color:#aaa}
+.settings{display:flex;gap:1.5rem;margin-bottom:2rem;flex-wrap:wrap}
+.setting{display:flex;flex-direction:column;align-items:center;gap:0.2rem}
+.setting label{font-size:0.6rem;color:#555;text-transform:uppercase}
+.setting input{width:60px;background:#111;border:1px solid #222;color:#fff;padding:0.3rem;border-radius:4px;text-align:center;font-family:inherit;font-size:0.8rem}
+.stats{display:flex;gap:1.5rem;margin-bottom:2rem}
+.stat{text-align:center}
+.stat-num{font-size:1.5rem;font-weight:bold;color:#fff}
+.stat-label{font-size:0.6rem;color:#555;text-transform:uppercase}
+.history{width:100%;max-width:500px}
+.history-title{font-size:0.8rem;color:#fff;margin-bottom:0.6rem;display:flex;justify-content:space-between}
+.session{display:flex;align-items:center;gap:0.8rem;padding:0.4rem 0;border-bottom:1px solid #111;font-size:0.75rem}
+.session-dot{width:8px;height:8px;border-radius:50%}
+.session-time{color:#666;width:70px}
+.session-dur{color:#888;width:50px;text-align:right}
+.session-type{flex:1;color:#aaa}
+.today-grid{display:flex;gap:2px;margin-bottom:1.5rem}
+.today-block{width:18px;height:18px;border-radius:3px;background:#111}
+.today-block.work{background:#0a3a0a}
+.today-block.done{background:#4ade80}
+.today-block.break{background:#1a1a2a}
+.today-block.break.done{background:#60a5fa}
+audio{display:none}
+</style>
+</head>
+<body>
+<h1>Pomodoro Flow</h1>
+<p class="sub">focus timer with session tracking</p>
+
+<div class="mode-tabs" id="modes"></div>
+
+<div class="timer-ring">
+  <svg width="280" height="280" viewBox="0 0 280 280">
+    <circle class="ring-bg" cx="140" cy="140" r="120"/>
+    <circle class="ring-progress" id="ring" cx="140" cy="140" r="120" stroke-dasharray="754" stroke-dashoffset="0"/>
+  </svg>
+  <div class="timer-display">
+    <div class="time-big" id="display">25:00</div>
+    <div class="time-label" id="label">work</div>
+  </div>
+</div>
+
+<div class="controls">
+  <button class="primary" id="btn-start" onclick="toggleTimer()">Start</button>
+  <button onclick="resetTimer()">Reset</button>
+  <button onclick="skipTimer()">Skip</button>
+</div>
+
+<div class="settings">
+  <div class="setting"><label>Work</label><input type="number" id="set-work" value="25" min="1" max="120"></div>
+  <div class="setting"><label>Short Break</label><input type="number" id="set-short" value="5" min="1" max="30"></div>
+  <div class="setting"><label>Long Break</label><input type="number" id="set-long" value="15" min="1" max="60"></div>
+  <div class="setting"><label>Rounds</label><input type="number" id="set-rounds" value="4" min="1" max="10"></div>
+</div>
+
+<div class="today-grid" id="today-grid"></div>
+
+<div class="stats" id="stats"></div>
+
+<div class="history">
+  <div class="history-title"><span>Today's Sessions</span><button onclick="clearHistory()" style="font-size:0.6rem;padding:0.2rem 0.4rem">Clear</button></div>
+  <div id="sessions"></div>
+</div>
+
+<script>
+const MODES = [{name:'work',color:'#4ade80'},{name:'short break',color:'#60a5fa'},{name:'long break',color:'#a78bfa'}];
+let mode = 0; // 0=work, 1=short, 2=long
+let round = 1;
+let totalSecs = 25*60;
+let remaining = totalSecs;
+let running = false;
+let interval = null;
+let sessions = JSON.parse(localStorage.getItem('pomo-sessions')||'[]');
+
+function getSettings() {
+  return {
+    work: parseInt(document.getElementById('set-work').value)||25,
+    short: parseInt(document.getElementById('set-short').value)||5,
+    long: parseInt(document.getElementById('set-long').value)||15,
+    rounds: parseInt(document.getElementById('set-rounds').value)||4,
+  };
+}
+
+function modeDuration(m) {
+  const s = getSettings();
+  return [s.work, s.short, s.long][m] * 60;
+}
+
+function setMode(m) {
+  mode = m;
+  totalSecs = modeDuration(m);
+  remaining = totalSecs;
+  running = false;
+  clearInterval(interval);
+  updateDisplay();
+  renderModes();
+  document.getElementById('btn-start').textContent = 'Start';
+  document.getElementById('btn-start').className = 'primary';
+}
+
+function renderModes() {
+  document.getElementById('modes').innerHTML = MODES.map((m, i) =>
+    `<div class="mode-tab ${i===mode?'active':''}" onclick="setMode(${i})">${m.name}</div>`
+  ).join('');
+}
+
+function updateDisplay() {
+  const mins = Math.floor(remaining/60);
+  const secs = remaining%60;
+  document.getElementById('display').textContent = `${String(mins).padStart(2,'0')}:${String(secs).padStart(2,'0')}`;
+  document.getElementById('label').textContent = MODES[mode].name + (mode===0?` (${round}/${getSettings().rounds})`:'');
+
+  const ring = document.getElementById('ring');
+  const pct = totalSecs > 0 ? remaining / totalSecs : 0;
+  ring.setAttribute('stroke-dashoffset', 754 * (1 - pct));
+  ring.setAttribute('stroke', MODES[mode].color);
+
+  document.title = `${String(mins).padStart(2,'0')}:${String(secs).padStart(2,'0')} - Pomodoro Flow`;
+}
+
+function toggleTimer() {
+  if (running) {
+    running = false;
+    clearInterval(interval);
+    document.getElementById('btn-start').textContent = 'Resume';
+    document.getElementById('btn-start').className = 'primary';
+  } else {
+    running = true;
+    document.getElementById('btn-start').textContent = 'Pause';
+    document.getElementById('btn-start').className = 'danger';
+    interval = setInterval(tick, 1000);
+  }
+}
+
+function tick() {
+  if (remaining <= 0) {
+    clearInterval(interval);
+    running = false;
+    playSound();
+    logSession();
+    autoNext();
+    return;
+  }
+  remaining--;
+  updateDisplay();
+}
+
+function resetTimer() {
+  running = false;
+  clearInterval(interval);
+  remaining = totalSecs;
+  updateDisplay();
+  document.getElementById('btn-start').textContent = 'Start';
+  document.getElementById('btn-start').className = 'primary';
+}
+
+function skipTimer() {
+  clearInterval(interval);
+  running = false;
+  remaining = 0;
+  logSession();
+  autoNext();
+}
+
+function autoNext() {
+  const s = getSettings();
+  if (mode === 0) {
+    if (round >= s.rounds) {
+      round = 1;
+      setMode(2); // long break
+    } else {
+      setMode(1); // short break
+    }
+  } else {
+    if (mode === 1) round++;
+    setMode(0); // back to work
+  }
+}
+
+function logSession() {
+  const s = getSettings();
+  const dur = totalSecs - remaining;
+  if (dur < 5) return;
+  sessions.push({
+    time: new Date().toISOString(),
+    type: MODES[mode].name,
+    duration: dur,
+    planned: totalSecs,
+  });
+  localStorage.setItem('pomo-sessions', JSON.stringify(sessions));
+  renderSessions();
+}
+
+function playSound() {
+  try {
+    const ctx = new AudioContext();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.frequency.value = 800;
+    osc.type = 'sine';
+    gain.gain.setValueAtTime(0.3, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.5);
+    osc.start();
+    osc.stop(ctx.currentTime + 0.5);
+    setTimeout(() => {
+      const osc2 = ctx.createOscillator();
+      const gain2 = ctx.createGain();
+      osc2.connect(gain2);gain2.connect(ctx.destination);
+      osc2.frequency.value = 1000;osc2.type='sine';
+      gain2.gain.setValueAtTime(0.3,ctx.currentTime);
+      gain2.gain.exponentialRampToValueAtTime(0.01,ctx.currentTime+0.5);
+      osc2.start();osc2.stop(ctx.currentTime+0.5);
+    }, 200);
+  } catch(e){}
+}
+
+function todaySessions() {
+  const today = new Date().toISOString().slice(0,10);
+  return sessions.filter(s => s.time.startsWith(today));
+}
+
+function renderSessions() {
+  const today = todaySessions();
+  const workSessions = today.filter(s => s.type === 'work');
+  const totalWork = workSessions.reduce((s,x) => s + x.duration, 0);
+  const totalBreak = today.filter(s => s.type !== 'work').reduce((s,x) => s + x.duration, 0);
+
+  document.getElementById('stats').innerHTML = `
+    <div class="stat"><div class="stat-num">${workSessions.length}</div><div class="stat-label">Pomodoros</div></div>
+    <div class="stat"><div class="stat-num">${Math.floor(totalWork/60)}m</div><div class="stat-label">Focus Time</div></div>
+    <div class="stat"><div class="stat-num">${Math.floor(totalBreak/60)}m</div><div class="stat-label">Break Time</div></div>
+  `;
+
+  // Today grid
+  const s = getSettings();
+  const target = s.rounds * 2; // work+break pairs
+  const grid = document.getElementById('today-grid');
+  let blocks = '';
+  for (let i = 0; i < Math.max(target, today.length); i++) {
+    if (i < today.length) {
+      const isWork = today[i].type === 'work';
+      blocks += `<div class="today-block ${isWork?'work':'break'} done" title="${today[i].type} ${Math.floor(today[i].duration/60)}m"></div>`;
+    } else {
+      blocks += `<div class="today-block"></div>`;
+    }
+  }
+  grid.innerHTML = blocks;
+
+  // Session list
+  const el = document.getElementById('sessions');
+  el.innerHTML = today.reverse().map(s => {
+    const t = new Date(s.time);
+    const color = s.type === 'work' ? '#4ade80' : '#60a5fa';
+    return `<div class="session">
+      <div class="session-dot" style="background:${color}"></div>
+      <span class="session-time">${t.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}</span>
+      <span class="session-type">${s.type}</span>
+      <span class="session-dur">${Math.floor(s.duration/60)}m</span>
+    </div>`;
+  }).join('') || '<div style="color:#444;font-size:0.75rem;padding:0.5rem 0">No sessions yet today</div>';
+}
+
+window.clearHistory = function() {
+  if(confirm('Clear all session history?')){sessions=[];localStorage.removeItem('pomo-sessions');renderSessions();}
+};
+window.setMode = setMode;
+
+['set-work','set-short','set-long','set-rounds'].forEach(id => {
+  document.getElementById(id).addEventListener('change', () => { if(!running) setMode(mode); });
+});
+
+renderModes();
+updateDisplay();
+renderSessions();
+</script>
+</body>
+</html>

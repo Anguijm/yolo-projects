@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>File Treemap: yolo_projects/</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: 'SF Mono', 'Fira Code', monospace; background: #0a0a0a; color: #ccc; }
+.header { padding: 1rem 1.5rem; border-bottom: 1px solid #1a1a1a; display: flex; align-items: center; gap: 1rem; }
+.header h1 { font-size: 1.2rem; color: #fff; }
+.header .size { color: #4ade80; font-size: 0.85rem; }
+.breadcrumb { padding: 0.5rem 1.5rem; font-size: 0.75rem; color: #555; border-bottom: 1px solid #1a1a1a; background: #0d0d0d; min-height: 2rem; }
+.breadcrumb span { cursor: pointer; color: #60a5fa; }
+.breadcrumb span:hover { text-decoration: underline; }
+.treemap { width: 100%; height: calc(100vh - 100px); position: relative; overflow: hidden; }
+.cell { position: absolute; overflow: hidden; border: 1px solid #0a0a0a; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: opacity 0.1s; }
+.cell:hover { opacity: 0.8; }
+.cell-label { font-size: 0.6rem; color: rgba(255,255,255,0.85); text-align: center; padding: 3px; word-break: break-all; text-shadow: 0 1px 3px rgba(0,0,0,0.9); pointer-events: none; overflow: hidden; max-height: 100%; }
+.tooltip { position: fixed; background: #1a1a1a; border: 1px solid #333; border-radius: 6px; padding: 0.6rem 0.8rem; font-size: 0.75rem; pointer-events: none; z-index: 100; display: none; max-width: 300px; }
+.tt-name { color: #fff; font-weight: bold; margin-bottom: 0.2rem; word-break: break-all; }
+.tt-row { display: flex; justify-content: space-between; gap: 1rem; }
+.tt-key { color: #666; }
+.tt-val { color: #ccc; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>File Treemap</h1>
+  <span class="size" id="total-size"></span>
+</div>
+<div class="breadcrumb" id="breadcrumb"></div>
+<div class="treemap" id="treemap"></div>
+<div class="tooltip" id="tooltip"></div>
+
+<script>
+const DATA = {"name": "yolo_projects/", "size": 7369477527, "type": "dir", "children": [{"name": "api-mocker/", "size": 15452, "type": "dir", "children": [{"name": "README.md", "size": 523, "ext": "md", "type": "file"}, {"name": "api_mocker.py", "size": 14929, "ext": "py", "type": "file"}]}, {"name": "autoresearch/", "size": 7369036655, "type": "dir", "children": [{"name": ".git/", "size": 479252, "type": "dir", "ext": "hidden", "children": []}, {"name": ".gitignore", "size": 279, "type": "file", "ext": "hidden", "children": []}, {"name": ".python-version", "size": 5, "type": "file", "ext": "hidden", "children": []}, {"name": ".venv/", "size": 7367796008, "type": "dir", "ext": "hidden", "children": []}, {"name": "README.md", "size": 7971, "ext": "md", "type": "file"}, {"name": "analysis.ipynb", "size": 8165, "ext": "ipynb", "type": "file"}, {"name": "prepare.py", "size": 15043, "ext": "py", "type": "file"}, {"name": "program.md", "size": 7039, "ext": "md", "type": "file"}, {"name": "progress.png", "size": 252961, "ext": "png", "type": "file"}, {"name": "pyproject.toml", "size": 543, "ext": "toml", "type": "file"}, {"name": "train.py", "size": 26230, "ext": "py", "type": "file"}, {"name": "uv.lock", "size": 443159, "ext": "lock", "type": "file"}]}, {"name": "color-lab/", "size": 11010, "type": "dir", "children": [{"name": "README.md", "size": 318, "ext": "md", "type": "file"}, {"name": "index.html", "size": 10692, "ext": "html", "type": "file"}]}, {"name": "cron-decoder/", "size": 11233, "type": "dir", "children": [{"name": "README.md", "size": 296, "ext": "md", "type": "file"}, {"name": "index.html", "size": 10937, "ext": "html", "type": "file"}]}, {"name": "dashboard.html", "size": 7280, "ext": "html", "type": "file"}, {"name": "diff-painter/", "size": 10189, "type": "dir", "children": [{"name": "README.md", "size": 270, "ext": "md", "type": "file"}, {"name": "index.html", "size": 9919, "ext": "html", "type": "file"}]}, {"name": "file-treemap/", "size": 11186, "type": "dir", "children": [{"name": "file_treemap.py", "size": 11186, "ext": "py", "type": "file"}]}, {"name": "git-xray/", "size": 51680, "type": "dir", "children": [{"name": "README.md", "size": 1438, "ext": "md", "type": "file"}, {"name": "git_xray.py", "size": 27157, "ext": "py", "type": "file"}, {"name": "xray-autoresearch.html", "size": 23085, "ext": "html", "type": "file"}]}, {"name": "habit-grid/", "size": 10022, "type": "dir", "children": [{"name": "README.md", "size": 311, "ext": "md", "type": "file"}, {"name": "index.html", "size": 9711, "ext": "html", "type": "file"}]}, {"name": "json-explorer/", "size": 10929, "type": "dir", "children": [{"name": "README.md", "size": 278, "ext": "md", "type": "file"}, {"name": "index.html", "size": 10651, "ext": "html", "type": "file"}]}, {"name": "markdown-deck/", "size": 11530, "type": "dir", "children": [{"name": "README.md", "size": 301, "ext": "md", "type": "file"}, {"name": "index.html", "size": 11229, "ext": "html", "type": "file"}]}, {"name": "proc-map/", "size": 190102, "type": "dir", "children": [{"name": "README.md", "size": 1010, "ext": "md", "type": "file"}, {"name": "proc_map.html", "size": 168013, "ext": "html", "type": "file"}, {"name": "proc_map.py", "size": 21079, "ext": "py", "type": "file"}]}, {"name": "program.md", "size": 2557, "ext": "md", "type": "file"}, {"name": "regex-playground/", "size": 10904, "type": "dir", "children": [{"name": "README.md", "size": 354, "ext": "md", "type": "file"}, {"name": "index.html", "size": 10550, "ext": "html", "type": "file"}]}, {"name": "sound-synth/", "size": 11696, "type": "dir", "children": [{"name": "README.md", "size": 369, "ext": "md", "type": "file"}, {"name": "index.html", "size": 11327, "ext": "html", "type": "file"}]}, {"name": "speedtype/", "size": 34991, "type": "dir", "children": [{"name": "README.md", "size": 890, "ext": "md", "type": "file"}, {"name": "__pycache__/", "size": 19691, "type": "dir", "ext": "hidden", "children": []}, {"name": "speedtype.py", "size": 14410, "ext": "py", "type": "file"}]}, {"name": "update_dashboard.py", "size": 6407, "ext": "py", "type": "file"}, {"name": "wifi-time-machine/", "size": 32098, "type": "dir", "children": [{"name": "README.md", "size": 1535, "ext": "md", "type": "file"}, {"name": "data/", "size": 7746, "type": "dir", "children": [{"name": "wifi_log.jsonl", "size": 7746, "ext": "jsonl", "type": "file"}]}, {"name": "wifi_time_machine.py", "size": 22817, "ext": "py", "type": "file"}]}, {"name": "yolo_log.json", "size": 1606, "ext": "json", "type": "file"}]};
+
+const EXT_COLORS = {
+  py:'#3572A5', js:'#f1e05a', ts:'#3178c6', tsx:'#3178c6', jsx:'#f1e05a',
+  rs:'#dea584', go:'#00ADD8', java:'#b07219', c:'#555', cpp:'#f34b7d',
+  h:'#555', rb:'#701516', php:'#4F5D95', css:'#563d7c', html:'#e34c26',
+  md:'#083fa1', json:'#666', yaml:'#cb171e', yml:'#cb171e', toml:'#9c4221',
+  sh:'#89e051', sql:'#e38c00', svg:'#ff9900', png:'#a66', jpg:'#a66',
+  txt:'#888', log:'#555', lock:'#444', hidden:'#333',
+  none:'#4a4a4a'
+};
+
+function extColor(ext) { return EXT_COLORS[ext] || '#3a3a3a'; }
+
+function formatBytes(b) {
+  if (b < 1024) return b + ' B';
+  if (b < 1048576) return (b/1024).toFixed(1) + ' KB';
+  if (b < 1073741824) return (b/1048576).toFixed(1) + ' MB';
+  return (b/1073741824).toFixed(1) + ' GB';
+}
+
+const tooltip = document.getElementById('tooltip');
+let pathStack = [DATA];
+
+function layout(items, x, y, w, h) {
+  const rects = [];
+  if (items.length === 0 || w < 1 || h < 1) return rects;
+
+  const totalSize = items.reduce((s, i) => s + i.size, 0);
+  if (totalSize === 0) return rects;
+
+  function recurse(list, rx, ry, rw, rh) {
+    if (list.length === 0 || rw < 1 || rh < 1) return;
+    if (list.length === 1) {
+      rects.push({ item: list[0], x: rx, y: ry, w: rw, h: rh });
+      return;
+    }
+    const total = list.reduce((s, i) => s + i.size, 0);
+    const half = total / 2;
+    let acc = 0, split = 1;
+    for (let i = 0; i < list.length; i++) {
+      acc += list[i].size;
+      if (acc >= half) { split = i + 1; break; }
+    }
+    split = Math.max(1, Math.min(split, list.length - 1));
+    const leftSize = list.slice(0, split).reduce((s, i) => s + i.size, 0);
+    const ratio = leftSize / total;
+    if (rw >= rh) {
+      recurse(list.slice(0, split), rx, ry, rw * ratio, rh);
+      recurse(list.slice(split), rx + rw * ratio, ry, rw * (1 - ratio), rh);
+    } else {
+      recurse(list.slice(0, split), rx, ry, rw, rh * ratio);
+      recurse(list.slice(split), rx, ry + rh * ratio, rw, rh * (1 - ratio));
+    }
+  }
+
+  const sorted = [...items].sort((a, b) => b.size - a.size);
+  recurse(sorted, x, y, w, h);
+  return rects;
+}
+
+function render() {
+  const current = pathStack[pathStack.length - 1];
+  const container = document.getElementById('treemap');
+  const W = container.clientWidth;
+  const H = container.clientHeight;
+
+  document.getElementById('total-size').textContent = formatBytes(current.size);
+
+  // Breadcrumb
+  const bc = document.getElementById('breadcrumb');
+  bc.innerHTML = pathStack.map((p, i) =>
+    i < pathStack.length - 1
+      ? `<span onclick="navigateTo(${i})">${p.name}</span> / `
+      : p.name
+  ).join('');
+
+  const items = current.children || [current];
+  const rects = layout(items, 0, 0, W, H);
+
+  container.innerHTML = rects.map((r, i) => {
+    const ext = r.item.ext || (r.item.type === 'dir' ? 'none' : 'none');
+    const bg = r.item.type === 'dir'
+      ? `hsl(${(i * 37) % 360}, 25%, 18%)`
+      : extColor(ext);
+    const showLabel = r.w > 40 && r.h > 16;
+    const label = r.item.name.length > 20 ? r.item.name.slice(0, 18) + '..' : r.item.name;
+    return `<div class="cell" data-idx="${i}"
+      style="left:${r.x}px;top:${r.y}px;width:${r.w}px;height:${r.h}px;background:${bg}"
+    >${showLabel ? `<span class="cell-label">${label}<br><span style="font-size:0.5rem;opacity:0.7">${formatBytes(r.item.size)}</span></span>` : ''}</div>`;
+  }).join('');
+
+  // Events
+  container.querySelectorAll('.cell').forEach(cell => {
+    const r = rects[parseInt(cell.dataset.idx)];
+    cell.addEventListener('click', () => {
+      if (r.item.type === 'dir' && r.item.children && r.item.children.length > 0) {
+        pathStack.push(r.item);
+        render();
+      }
+    });
+    cell.addEventListener('mousemove', e => {
+      const item = r.item;
+      tooltip.innerHTML = `
+        <div class="tt-name">${item.name}</div>
+        <div class="tt-row"><span class="tt-key">Size</span><span class="tt-val">${formatBytes(item.size)}</span></div>
+        <div class="tt-row"><span class="tt-key">Type</span><span class="tt-val">${item.type}${item.ext ? ' .' + item.ext : ''}</span></div>
+        ${item.children ? `<div class="tt-row"><span class="tt-key">Items</span><span class="tt-val">${item.children.length}</span></div>` : ''}
+        ${item.file_count ? `<div class="tt-row"><span class="tt-key">Files</span><span class="tt-val">${item.file_count}</span></div>` : ''}
+      `;
+      tooltip.style.display = 'block';
+      tooltip.style.left = Math.min(e.clientX + 12, window.innerWidth - 310) + 'px';
+      tooltip.style.top = Math.min(e.clientY + 12, window.innerHeight - 150) + 'px';
+    });
+    cell.addEventListener('mouseleave', () => { tooltip.style.display = 'none'; });
+  });
+}
+
+window.navigateTo = function(idx) {
+  pathStack = pathStack.slice(0, idx + 1);
+  render();
+};
+
+// Back button with backspace
+document.addEventListener('keydown', e => {
+  if (e.key === 'Backspace' && pathStack.length > 1) {
+    pathStack.pop();
+    render();
+  }
+});
+
+window.addEventListener('resize', render);
+render();
+</script>
+</body>
+</html>

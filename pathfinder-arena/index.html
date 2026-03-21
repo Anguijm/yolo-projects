@@ -1,0 +1,633 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pathfinder Arena</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { background: #08080f; color: #c9d1d9; font-family: 'Segoe UI', system-ui, sans-serif; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+
+#topbar { display: flex; align-items: center; gap: 8px; padding: 6px 12px; background: #0d1117; border-bottom: 1px solid #21262d; flex-wrap: wrap; }
+#topbar h1 { font-size: 14px; color: #58a6ff; letter-spacing: 0.08em; white-space: nowrap; }
+.tb-btn { padding: 3px 10px; background: #161b22; border: 1px solid #30363d; color: #8b949e; border-radius: 5px; cursor: pointer; font-size: 10px; font-family: inherit; }
+.tb-btn:hover { border-color: #58a6ff; color: #c9d1d9; }
+.tb-btn.active { background: #58a6ff22; border-color: #58a6ff; color: #58a6ff; }
+.tb-btn.go { background: #238636; border-color: #238636; color: #fff; font-weight: bold; }
+.tb-btn.go:hover { background: #2ea043; }
+.sep { width: 1px; height: 18px; background: #21262d; }
+select.tb-sel { background: #161b22; border: 1px solid #30363d; color: #8b949e; padding: 3px 6px; border-radius: 4px; font-size: 10px; font-family: inherit; }
+label.tb-label { font-size: 9px; color: #484f58; }
+input[type=range].tb-range { width: 60px; height: 3px; -webkit-appearance: none; background: #21262d; border-radius: 2px; }
+input[type=range].tb-range::-webkit-slider-thumb { -webkit-appearance: none; width: 10px; height: 10px; border-radius: 50%; background: #58a6ff; cursor: pointer; }
+
+#main { flex: 1; display: flex; overflow: hidden; }
+#grid-panel { flex: 1; position: relative; display: flex; align-items: center; justify-content: center; background: #0a0a12; }
+canvas#grid { display: block; }
+
+#results-panel { width: 260px; background: #0d1117; border-left: 1px solid #21262d; overflow-y: auto; padding: 10px; display: flex; flex-direction: column; gap: 8px; }
+.algo-card { background: #161b22; border: 1px solid #21262d; border-radius: 8px; padding: 8px 10px; border-left: 3px solid #30363d; }
+.algo-card.running { border-left-color: #d29922; }
+.algo-card.done { border-left-color: #3fb950; }
+.algo-name { font-size: 12px; font-weight: bold; color: #fff; margin-bottom: 4px; display: flex; align-items: center; gap: 6px; }
+.algo-dot { width: 8px; height: 8px; border-radius: 50%; }
+.algo-stats { font-size: 10px; color: #8b949e; line-height: 1.5; font-family: monospace; }
+.algo-bar { height: 3px; background: #21262d; border-radius: 2px; margin-top: 4px; overflow: hidden; }
+.algo-bar-fill { height: 100%; border-radius: 2px; transition: width 0.1s; }
+
+#legend { padding: 8px 12px; background: #0d1117; border-top: 1px solid #21262d; font-size: 9px; color: #484f58; display: flex; gap: 12px; align-items: center; }
+.legend-item { display: flex; align-items: center; gap: 3px; }
+.legend-swatch { width: 10px; height: 10px; border-radius: 2px; }
+</style>
+</head>
+<body>
+<div id="topbar">
+  <h1>PATHFINDER</h1>
+  <button class="tb-btn active" id="btn-wall" data-tool="wall">Draw Walls</button>
+  <button class="tb-btn" id="btn-erase" data-tool="erase">Erase</button>
+  <button class="tb-btn" id="btn-start" data-tool="start">Set Start</button>
+  <button class="tb-btn" id="btn-end" data-tool="end">Set End</button>
+  <div class="sep"></div>
+  <button class="tb-btn go" id="btn-run">Race!</button>
+  <button class="tb-btn" id="btn-reset">Reset</button>
+  <button class="tb-btn" id="btn-clear">Clear Walls</button>
+  <div class="sep"></div>
+  <label class="tb-label">Maze:</label>
+  <select class="tb-sel" id="sel-maze">
+    <option value="">Custom</option>
+    <option value="random">Random 30%</option>
+    <option value="spiral">Spiral</option>
+    <option value="rooms">Rooms</option>
+    <option value="diagonal">Diagonal</option>
+  </select>
+  <label class="tb-label">Speed:</label>
+  <input type="range" class="tb-range" id="speed" min="1" max="50" value="10">
+  <label class="tb-label">Grid:</label>
+  <select class="tb-sel" id="sel-size">
+    <option value="30">30x30</option>
+    <option value="40" selected>40x40</option>
+    <option value="60">60x60</option>
+  </select>
+</div>
+
+<div id="main">
+  <div id="grid-panel">
+    <canvas id="grid"></canvas>
+  </div>
+  <div id="results-panel">
+    <div class="algo-card" id="card-astar">
+      <div class="algo-name"><span class="algo-dot" style="background:#58a6ff"></span>A*</div>
+      <div class="algo-stats" id="stats-astar">Waiting...</div>
+      <div class="algo-bar"><div class="algo-bar-fill" id="bar-astar" style="width:0;background:#58a6ff"></div></div>
+    </div>
+    <div class="algo-card" id="card-dijkstra">
+      <div class="algo-name"><span class="algo-dot" style="background:#a78bfa"></span>Dijkstra</div>
+      <div class="algo-stats" id="stats-dijkstra">Waiting...</div>
+      <div class="algo-bar"><div class="algo-bar-fill" id="bar-dijkstra" style="width:0;background:#a78bfa"></div></div>
+    </div>
+    <div class="algo-card" id="card-bfs">
+      <div class="algo-name"><span class="algo-dot" style="background:#3fb950"></span>BFS</div>
+      <div class="algo-stats" id="stats-bfs">Waiting...</div>
+      <div class="algo-bar"><div class="algo-bar-fill" id="bar-bfs" style="width:0;background:#3fb950"></div></div>
+    </div>
+    <div class="algo-card" id="card-greedy">
+      <div class="algo-name"><span class="algo-dot" style="background:#f0883e"></span>Greedy Best-First</div>
+      <div class="algo-stats" id="stats-greedy">Waiting...</div>
+      <div class="algo-bar"><div class="algo-bar-fill" id="bar-greedy" style="width:0;background:#f0883e"></div></div>
+    </div>
+    <div class="algo-card" id="card-dfs">
+      <div class="algo-name"><span class="algo-dot" style="background:#f87171"></span>DFS</div>
+      <div class="algo-stats" id="stats-dfs">Waiting...</div>
+      <div class="algo-bar"><div class="algo-bar-fill" id="bar-dfs" style="width:0;background:#f87171"></div></div>
+    </div>
+    <div class="algo-card" id="card-bidir">
+      <div class="algo-name"><span class="algo-dot" style="background:#d29922"></span>Bidirectional BFS</div>
+      <div class="algo-stats" id="stats-bidir">Waiting...</div>
+      <div class="algo-bar"><div class="algo-bar-fill" id="bar-bidir" style="width:0;background:#d29922"></div></div>
+    </div>
+  </div>
+</div>
+
+<div id="legend">
+  <span>Click & drag to draw.</span>
+  <span class="legend-item"><span class="legend-swatch" style="background:#3fb950"></span>Start</span>
+  <span class="legend-item"><span class="legend-swatch" style="background:#f87171"></span>End</span>
+  <span class="legend-item"><span class="legend-swatch" style="background:#c9d1d9"></span>Wall</span>
+  <span class="legend-item"><span class="legend-swatch" style="background:#ffd700"></span>Path</span>
+</div>
+
+<script>
+(function() {
+'use strict';
+
+// ============ CONFIG ============
+const ALGO_COLORS = {
+  astar: '#58a6ff', dijkstra: '#a78bfa', bfs: '#3fb950',
+  greedy: '#f0883e', dfs: '#f87171', bidir: '#d29922'
+};
+const WALL_COLOR = '#c9d1d9';
+const START_COLOR = '#3fb950';
+const END_COLOR = '#f87171';
+const PATH_COLOR = '#ffd700';
+const BG_COLOR = '#0a0a12';
+const GRID_LINE = '#12121e';
+
+// ============ STATE ============
+const canvas = document.getElementById('grid');
+const ctx = canvas.getContext('2d');
+let COLS = 40, ROWS = 40, CELL = 14;
+let grid = []; // 0=empty, 1=wall
+let startPos = { x: 2, y: 2 };
+let endPos = { x: 37, y: 37 };
+let tool = 'wall';
+let isDrawing = false;
+let running = false;
+let speed = 10;
+let algoStates = {}; // algo -> { visited: Set, frontier: [], path: [], done, found, stepsUsed }
+
+function initGrid() {
+  grid = [];
+  for (let y = 0; y < ROWS; y++) {
+    const row = [];
+    for (let x = 0; x < COLS; x++) row.push(0);
+    grid.push(row);
+  }
+  algoStates = {};
+  running = false;
+  updateAllStats('Waiting...');
+}
+
+function resize() {
+  const panel = document.getElementById('grid-panel');
+  const maxW = panel.clientWidth - 20;
+  const maxH = panel.clientHeight - 20;
+  CELL = Math.max(4, Math.min(~~(maxW / COLS), ~~(maxH / ROWS)));
+  canvas.width = COLS * CELL;
+  canvas.height = ROWS * CELL;
+}
+
+window.addEventListener('resize', resize);
+
+// ============ MAZE GENERATION ============
+function generateMaze(type) {
+  initGrid();
+  if (type === 'random') {
+    for (let y = 0; y < ROWS; y++)
+      for (let x = 0; x < COLS; x++)
+        if (Math.random() < 0.3 && !(x === startPos.x && y === startPos.y) && !(x === endPos.x && y === endPos.y))
+          grid[y][x] = 1;
+  } else if (type === 'spiral') {
+    let x = 1, y = 1, dx = 1, dy = 0, len = COLS - 3, steps = 0, turns = 0;
+    while (len > 1) {
+      for (let i = 0; i < len; i++) {
+        if (x >= 0 && x < COLS && y >= 0 && y < ROWS) grid[y][x] = 1;
+        x += dx; y += dy; steps++;
+      }
+      turns++;
+      const tmp = dx; dx = -dy; dy = tmp;
+      if (turns % 2 === 0) len -= 2;
+    }
+    // Poke holes for walkability
+    for (let y = 0; y < ROWS; y++)
+      for (let x = 0; x < COLS; x++)
+        if (grid[y][x] === 1 && Math.random() < 0.15) grid[y][x] = 0;
+  } else if (type === 'rooms') {
+    for (let i = 0; i < 8; i++) {
+      const rx = 2 + ~~(Math.random() * (COLS - 10));
+      const ry = 2 + ~~(Math.random() * (ROWS - 10));
+      const rw = 4 + ~~(Math.random() * 6);
+      const rh = 4 + ~~(Math.random() * 6);
+      for (let y = ry; y < ry + rh && y < ROWS; y++)
+        for (let x = rx; x < rx + rw && x < COLS; x++)
+          if (y === ry || y === ry + rh - 1 || x === rx || x === rx + rw - 1) grid[y][x] = 1;
+      // Door
+      const side = ~~(Math.random() * 4);
+      if (side === 0 && ry > 0) grid[ry][rx + ~~(rw / 2)] = 0;
+      else if (side === 1) grid[ry + rh - 1][rx + ~~(rw / 2)] = 0;
+      else if (side === 2) grid[ry + ~~(rh / 2)][rx] = 0;
+      else grid[ry + ~~(rh / 2)][rx + rw - 1] = 0;
+    }
+  } else if (type === 'diagonal') {
+    for (let i = 0; i < ROWS; i++) {
+      const x1 = ~~(i * COLS / ROWS);
+      if (x1 < COLS) grid[i][x1] = 1;
+      const x2 = COLS - 1 - x1;
+      if (x2 >= 0) grid[i][x2] = 1;
+    }
+    for (let y = 0; y < ROWS; y++)
+      for (let x = 0; x < COLS; x++)
+        if (grid[y][x] === 1 && Math.random() < 0.2) grid[y][x] = 0;
+  }
+  grid[startPos.y][startPos.x] = 0;
+  grid[endPos.y][endPos.x] = 0;
+}
+
+// ============ PATHFINDING ALGORITHMS ============
+function neighbors(x, y) {
+  const n = [];
+  if (x > 0 && !grid[y][x - 1]) n.push([x - 1, y]);
+  if (x < COLS - 1 && !grid[y][x + 1]) n.push([x + 1, y]);
+  if (y > 0 && !grid[y - 1][x]) n.push([x, y - 1]);
+  if (y < ROWS - 1 && !grid[y + 1][x]) n.push([x, y + 1]);
+  return n;
+}
+
+function heuristic(x1, y1, x2, y2) {
+  return Math.abs(x1 - x2) + Math.abs(y1 - y2);
+}
+
+function key(x, y) { return y * COLS + x; }
+
+function initAlgo(name) {
+  const s = {
+    visited: new Set(),
+    frontier: [],
+    path: [],
+    parent: new Map(),
+    gScore: new Map(),
+    done: false,
+    found: false,
+    stepsUsed: 0,
+    name
+  };
+  const sk = key(startPos.x, startPos.y);
+  s.gScore.set(sk, 0);
+
+  if (name === 'astar') {
+    s.frontier.push({ x: startPos.x, y: startPos.y, f: heuristic(startPos.x, startPos.y, endPos.x, endPos.y) });
+  } else if (name === 'dijkstra') {
+    s.frontier.push({ x: startPos.x, y: startPos.y, f: 0 });
+  } else if (name === 'bfs' || name === 'dfs') {
+    s.frontier.push({ x: startPos.x, y: startPos.y });
+    s.visited.add(sk);
+  } else if (name === 'greedy') {
+    s.frontier.push({ x: startPos.x, y: startPos.y, f: heuristic(startPos.x, startPos.y, endPos.x, endPos.y) });
+  } else if (name === 'bidir') {
+    const ek = key(endPos.x, endPos.y);
+    s.frontierA = [{ x: startPos.x, y: startPos.y }];
+    s.frontierB = [{ x: endPos.x, y: endPos.y }];
+    s.visitedA = new Set([sk]);
+    s.visitedB = new Set([ek]);
+    s.parentA = new Map();
+    s.parentB = new Map();
+  }
+  return s;
+}
+
+function stepAlgo(s) {
+  if (s.done) return;
+  s.stepsUsed++;
+
+  if (s.name === 'bidir') {
+    stepBidir(s);
+    return;
+  }
+
+  if (s.frontier.length === 0) { s.done = true; return; }
+
+  let current;
+  if (s.name === 'astar' || s.name === 'dijkstra' || s.name === 'greedy') {
+    // Priority queue — find min f
+    let minIdx = 0;
+    for (let i = 1; i < s.frontier.length; i++) {
+      if (s.frontier[i].f < s.frontier[minIdx].f) minIdx = i;
+    }
+    current = s.frontier.splice(minIdx, 1)[0];
+  } else if (s.name === 'bfs') {
+    current = s.frontier.shift();
+  } else if (s.name === 'dfs') {
+    current = s.frontier.pop();
+  }
+
+  const ck = key(current.x, current.y);
+
+  if (s.name === 'astar' || s.name === 'dijkstra' || s.name === 'greedy') {
+    if (s.visited.has(ck)) return;
+    s.visited.add(ck);
+  }
+
+  if (current.x === endPos.x && current.y === endPos.y) {
+    s.done = true;
+    s.found = true;
+    // Reconstruct path
+    let k = ck;
+    while (k !== undefined) {
+      s.path.push(k);
+      k = s.parent.get(k);
+    }
+    s.path.reverse();
+    return;
+  }
+
+  for (const [nx, ny] of neighbors(current.x, current.y)) {
+    const nk = key(nx, ny);
+
+    if (s.name === 'astar') {
+      const g = (s.gScore.get(ck) || 0) + 1;
+      if (g < (s.gScore.get(nk) || Infinity)) {
+        s.gScore.set(nk, g);
+        s.parent.set(nk, ck);
+        s.frontier.push({ x: nx, y: ny, f: g + heuristic(nx, ny, endPos.x, endPos.y) });
+      }
+    } else if (s.name === 'dijkstra') {
+      const g = (s.gScore.get(ck) || 0) + 1;
+      if (g < (s.gScore.get(nk) || Infinity)) {
+        s.gScore.set(nk, g);
+        s.parent.set(nk, ck);
+        s.frontier.push({ x: nx, y: ny, f: g });
+      }
+    } else if (s.name === 'greedy') {
+      if (!s.visited.has(nk)) {
+        s.parent.set(nk, ck);
+        s.frontier.push({ x: nx, y: ny, f: heuristic(nx, ny, endPos.x, endPos.y) });
+      }
+    } else if (s.name === 'bfs' || s.name === 'dfs') {
+      if (!s.visited.has(nk)) {
+        s.visited.add(nk);
+        s.parent.set(nk, ck);
+        s.frontier.push({ x: nx, y: ny });
+      }
+    }
+  }
+}
+
+function stepBidir(s) {
+  // Expand from A side
+  if (s.frontierA.length > 0) {
+    const curr = s.frontierA.shift();
+    for (const [nx, ny] of neighbors(curr.x, curr.y)) {
+      const nk = key(nx, ny);
+      if (!s.visitedA.has(nk)) {
+        s.visitedA.add(nk);
+        s.parentA.set(nk, key(curr.x, curr.y));
+        s.frontierA.push({ x: nx, y: ny });
+        s.visited.add(nk); // for rendering
+        if (s.visitedB.has(nk)) { buildBidirPath(s, nk); return; }
+      }
+    }
+  }
+  // Expand from B side
+  if (s.frontierB.length > 0) {
+    const curr = s.frontierB.shift();
+    for (const [nx, ny] of neighbors(curr.x, curr.y)) {
+      const nk = key(nx, ny);
+      if (!s.visitedB.has(nk)) {
+        s.visitedB.add(nk);
+        s.parentB.set(nk, key(curr.x, curr.y));
+        s.frontierB.push({ x: nx, y: ny });
+        s.visited.add(nk);
+        if (s.visitedA.has(nk)) { buildBidirPath(s, nk); return; }
+      }
+    }
+  }
+  if (s.frontierA.length === 0 && s.frontierB.length === 0) s.done = true;
+}
+
+function buildBidirPath(s, meetKey) {
+  s.done = true;
+  s.found = true;
+  const pathA = [];
+  let k = meetKey;
+  while (k !== undefined) { pathA.push(k); k = s.parentA.get(k); }
+  pathA.reverse();
+  const pathB = [];
+  k = s.parentB.get(meetKey);
+  while (k !== undefined) { pathB.push(k); k = s.parentB.get(k); }
+  s.path = [...pathA, ...pathB];
+}
+
+// ============ RENDERING ============
+function render() {
+  ctx.fillStyle = BG_COLOR;
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  // Grid lines
+  ctx.strokeStyle = GRID_LINE;
+  ctx.lineWidth = 0.5;
+  for (let x = 0; x <= COLS; x++) {
+    ctx.beginPath(); ctx.moveTo(x * CELL, 0); ctx.lineTo(x * CELL, ROWS * CELL); ctx.stroke();
+  }
+  for (let y = 0; y <= ROWS; y++) {
+    ctx.beginPath(); ctx.moveTo(0, y * CELL); ctx.lineTo(COLS * CELL, y * CELL); ctx.stroke();
+  }
+
+  // Walls
+  for (let y = 0; y < ROWS; y++) {
+    for (let x = 0; x < COLS; x++) {
+      if (grid[y][x] === 1) {
+        ctx.fillStyle = WALL_COLOR;
+        ctx.fillRect(x * CELL + 1, y * CELL + 1, CELL - 2, CELL - 2);
+      }
+    }
+  }
+
+  // Algorithm visited nodes (layered, semi-transparent)
+  const algoNames = Object.keys(algoStates);
+  for (const name of algoNames) {
+    const s = algoStates[name];
+    ctx.fillStyle = ALGO_COLORS[name] + '30';
+    const visitSet = name === 'bidir' ? new Set([...(s.visitedA || []), ...(s.visitedB || [])]) : s.visited;
+    for (const k of visitSet) {
+      const vx = k % COLS, vy = ~~(k / COLS);
+      ctx.fillRect(vx * CELL + 1, vy * CELL + 1, CELL - 2, CELL - 2);
+    }
+  }
+
+  // Paths (offset slightly per algorithm to avoid overlap)
+  const pathOffsets = { astar: [-2,-2], dijkstra: [2,-2], bfs: [-2,2], greedy: [2,2], dfs: [-1,0], bidir: [1,0] };
+  for (const name of algoNames) {
+    const s = algoStates[name];
+    if (s.path.length > 0) {
+      const [ox, oy] = pathOffsets[name] || [0, 0];
+      ctx.strokeStyle = ALGO_COLORS[name];
+      ctx.lineWidth = Math.max(2, CELL * 0.2);
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      ctx.beginPath();
+      for (let i = 0; i < s.path.length; i++) {
+        const px = (s.path[i] % COLS) * CELL + CELL / 2 + ox;
+        const py = ~~(s.path[i] / COLS) * CELL + CELL / 2 + oy;
+        if (i === 0) ctx.moveTo(px, py);
+        else ctx.lineTo(px, py);
+      }
+      ctx.stroke();
+    }
+  }
+
+  // Start & End
+  ctx.fillStyle = START_COLOR;
+  ctx.beginPath();
+  ctx.arc(startPos.x * CELL + CELL / 2, startPos.y * CELL + CELL / 2, CELL * 0.35, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = END_COLOR;
+  ctx.beginPath();
+  ctx.arc(endPos.x * CELL + CELL / 2, endPos.y * CELL + CELL / 2, CELL * 0.35, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+function updateStats(name) {
+  const s = algoStates[name];
+  if (!s) return;
+  const el = document.getElementById('stats-' + name);
+  const card = document.getElementById('card-' + name);
+  const bar = document.getElementById('bar-' + name);
+  const visitCount = name === 'bidir' ? ((s.visitedA?.size || 0) + (s.visitedB?.size || 0)) : s.visited.size;
+
+  if (s.done) {
+    card.className = 'algo-card done';
+    el.textContent = s.found
+      ? `Visited: ${visitCount} | Path: ${s.path.length} | Steps: ${s.stepsUsed}`
+      : `No path found | Visited: ${visitCount}`;
+  } else {
+    card.className = 'algo-card running';
+    el.textContent = `Visiting... ${visitCount} nodes`;
+  }
+
+  const maxVisit = COLS * ROWS;
+  bar.style.width = (visitCount / maxVisit * 100) + '%';
+}
+
+function updateAllStats(msg) {
+  for (const name of ['astar', 'dijkstra', 'bfs', 'greedy', 'dfs', 'bidir']) {
+    document.getElementById('stats-' + name).textContent = msg;
+    document.getElementById('card-' + name).className = 'algo-card';
+    document.getElementById('bar-' + name).style.width = '0';
+  }
+}
+
+// ============ SIMULATION LOOP ============
+function runStep() {
+  if (!running) return;
+
+  const stepsPerFrame = speed;
+  let allDone = true;
+  for (const name in algoStates) {
+    const s = algoStates[name];
+    if (!s.done) {
+      allDone = false;
+      for (let i = 0; i < stepsPerFrame; i++) {
+        stepAlgo(s);
+        if (s.done) break;
+      }
+      updateStats(name);
+    }
+  }
+
+  render();
+  if (allDone) { running = false; return; }
+  requestAnimationFrame(runStep);
+}
+
+function startRace() {
+  if (running) return;
+  algoStates = {};
+  for (const name of ['astar', 'dijkstra', 'bfs', 'greedy', 'dfs', 'bidir']) {
+    algoStates[name] = initAlgo(name);
+  }
+  running = true;
+  requestAnimationFrame(runStep);
+}
+
+// ============ INPUT ============
+function cellFromEvent(e) {
+  const rect = canvas.getBoundingClientRect();
+  const x = ~~((e.clientX - rect.left) / CELL);
+  const y = ~~((e.clientY - rect.top) / CELL);
+  if (x < 0 || y < 0 || x >= COLS || y >= ROWS) return null;
+  return { x, y };
+}
+
+canvas.addEventListener('mousedown', e => {
+  if (running) return;
+  isDrawing = true;
+  applyTool(e);
+});
+canvas.addEventListener('mousemove', e => {
+  if (!isDrawing || running) return;
+  applyTool(e);
+});
+canvas.addEventListener('mouseup', () => { isDrawing = false; });
+canvas.addEventListener('mouseleave', () => { isDrawing = false; });
+canvas.addEventListener('contextmenu', e => e.preventDefault());
+
+function applyTool(e) {
+  const c = cellFromEvent(e);
+  if (!c) return;
+  if (tool === 'wall') {
+    if (!(c.x === startPos.x && c.y === startPos.y) && !(c.x === endPos.x && c.y === endPos.y))
+      grid[c.y][c.x] = 1;
+  } else if (tool === 'erase') {
+    grid[c.y][c.x] = 0;
+  } else if (tool === 'start') {
+    grid[startPos.y][startPos.x] = 0;
+    startPos = c;
+    grid[c.y][c.x] = 0;
+  } else if (tool === 'end') {
+    grid[endPos.y][endPos.x] = 0;
+    endPos = c;
+    grid[c.y][c.x] = 0;
+  }
+  render();
+}
+
+// ============ UI ============
+document.querySelectorAll('[data-tool]').forEach(btn => {
+  btn.addEventListener('click', () => {
+    tool = btn.dataset.tool;
+    document.querySelectorAll('[data-tool]').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+  });
+});
+
+document.getElementById('btn-run').addEventListener('click', startRace);
+document.getElementById('btn-reset').addEventListener('click', () => {
+  running = false;
+  algoStates = {};
+  updateAllStats('Waiting...');
+  render();
+});
+document.getElementById('btn-clear').addEventListener('click', () => {
+  running = false;
+  initGrid();
+  render();
+});
+
+document.getElementById('sel-maze').addEventListener('change', function() {
+  if (this.value) {
+    generateMaze(this.value);
+    render();
+  }
+});
+
+document.getElementById('speed').addEventListener('input', function() {
+  speed = parseInt(this.value);
+});
+
+document.getElementById('sel-size').addEventListener('change', function() {
+  COLS = ROWS = parseInt(this.value);
+  endPos = { x: COLS - 3, y: ROWS - 3 };
+  startPos = { x: 2, y: 2 };
+  initGrid();
+  resize();
+  render();
+});
+
+// Keyboard
+document.addEventListener('keydown', e => {
+  if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); startRace(); }
+  if (e.key === 'r') { running = false; algoStates = {}; updateAllStats('Waiting...'); render(); }
+  if (e.key === 'c') { running = false; initGrid(); render(); }
+  if (e.key === '1') tool = 'wall';
+  if (e.key === '2') tool = 'erase';
+  if (e.key === '3') tool = 'start';
+  if (e.key === '4') tool = 'end';
+});
+
+// Init
+initGrid();
+resize();
+render();
+})();
+</script>
+</body>
+</html>

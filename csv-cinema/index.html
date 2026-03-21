@@ -1,0 +1,614 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CSV Cinema</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { background: #08080f; color: #d0d8e8; font-family: 'Segoe UI', system-ui, sans-serif; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+
+/* Drop zone */
+#dropzone { flex: 1; display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 16px; border: 2px dashed #1a1a2e; margin: 20px; border-radius: 16px; transition: all 0.3s; cursor: pointer; position: relative; }
+#dropzone.dragover { border-color: #58a6ff; background: #58a6ff08; }
+#dropzone h1 { font-size: 2rem; color: #fff; letter-spacing: 0.12em; }
+#dropzone .sub { color: #555; font-size: 0.85rem; max-width: 400px; text-align: center; line-height: 1.6; }
+#dropzone .or { color: #333; font-size: 0.75rem; margin: 4px 0; }
+#dropzone button { padding: 8px 24px; background: transparent; border: 2px solid #58a6ff; color: #58a6ff; border-radius: 20px; font-family: inherit; font-size: 0.9rem; cursor: pointer; }
+#dropzone button:hover { background: #58a6ff; color: #000; }
+#dropzone input[type=file] { display: none; }
+
+/* Demo buttons */
+.demo-row { display: flex; gap: 6px; margin-top: 8px; }
+.demo-btn { padding: 4px 10px; background: #12121e; border: 1px solid #2a2a40; color: #777; border-radius: 12px; cursor: pointer; font-size: 0.7rem; font-family: inherit; }
+.demo-btn:hover { border-color: #58a6ff; color: #aaa; }
+
+/* Cinema view */
+#cinema { display: none; flex: 1; flex-direction: column; }
+#cinema.active { display: flex; }
+
+/* Top bar */
+#topbar { display: flex; align-items: center; gap: 12px; padding: 8px 16px; background: #0c0c18; border-bottom: 1px solid #1a1a2e; }
+#topbar h2 { font-size: 14px; color: #58a6ff; white-space: nowrap; }
+#topbar .info { font-size: 11px; color: #555; margin-left: auto; }
+#topbar select { background: #12121e; border: 1px solid #2a2a40; color: #ccc; padding: 3px 8px; border-radius: 4px; font-size: 11px; font-family: inherit; }
+#topbar button { padding: 3px 10px; background: #12121e; border: 1px solid #2a2a40; color: #aaa; border-radius: 4px; cursor: pointer; font-size: 11px; font-family: inherit; }
+#topbar button:hover { border-color: #58a6ff; color: #fff; }
+
+/* Chart area */
+#chart-area { flex: 1; position: relative; padding: 16px; }
+canvas#chart { width: 100%; height: 100%; display: block; }
+
+/* Playback controls */
+#playback { padding: 10px 16px; background: #0a0a14; border-top: 1px solid #1a1a2e; display: flex; align-items: center; gap: 12px; }
+#playback button { background: #12121e; border: 1px solid #2a2a40; color: #ccc; width: 32px; height: 32px; border-radius: 50%; cursor: pointer; font-size: 14px; display: flex; align-items: center; justify-content: center; }
+#playback button:hover { border-color: #58a6ff; color: #fff; }
+#scrubber { flex: 1; -webkit-appearance: none; height: 4px; background: #1a1a2e; border-radius: 2px; outline: none; }
+#scrubber::-webkit-slider-thumb { -webkit-appearance: none; width: 14px; height: 14px; border-radius: 50%; background: #58a6ff; cursor: pointer; }
+#time-label { font-size: 12px; color: #888; font-family: monospace; min-width: 80px; text-align: right; }
+#speed-label { font-size: 10px; color: #555; }
+
+/* Mapping fallback */
+#mapping { display: none; padding: 12px 16px; background: #0c0c18; border-bottom: 1px solid #1a1a2e; gap: 10px; align-items: center; font-size: 11px; }
+#mapping.active { display: flex; }
+#mapping label { color: #888; }
+#mapping select { background: #12121e; border: 1px solid #2a2a40; color: #ccc; padding: 3px 8px; border-radius: 4px; font-size: 11px; font-family: inherit; }
+</style>
+</head>
+<body>
+
+<div id="dropzone">
+  <h1>CSV CINEMA</h1>
+  <p class="sub">Drop a CSV file to watch your data perform. Bar chart races, animated line charts, scatter morphs — auto-detected from your columns.</p>
+  <p class="or">or</p>
+  <button id="btn-browse">Browse Files</button>
+  <input type="file" id="file-input" accept=".csv,.tsv,.txt">
+  <div class="demo-row">
+    <button class="demo-btn" data-demo="population">Demo: World Population</button>
+    <button class="demo-btn" data-demo="stocks">Demo: Stock Prices</button>
+    <button class="demo-btn" data-demo="temps">Demo: Temperatures</button>
+  </div>
+</div>
+
+<div id="cinema">
+  <div id="topbar">
+    <h2>CSV CINEMA</h2>
+    <label>Chart: </label>
+    <select id="chart-type">
+      <option value="bar-race">Bar Chart Race</option>
+      <option value="line">Animated Line</option>
+      <option value="scatter">Scatter Plot</option>
+    </select>
+    <button id="btn-remap">Remap Columns</button>
+    <button id="btn-new">New File</button>
+    <span class="info" id="data-info"></span>
+  </div>
+  <div id="mapping">
+    <label>Time:</label> <select id="map-time"></select>
+    <label>Label:</label> <select id="map-label"></select>
+    <label>Value:</label> <select id="map-value"></select>
+    <button id="btn-apply-map" style="margin-left:8px">Apply</button>
+  </div>
+  <div id="chart-area">
+    <canvas id="chart"></canvas>
+  </div>
+  <div id="playback">
+    <button id="btn-play">&#9654;</button>
+    <input type="range" id="scrubber" min="0" max="100" value="0">
+    <span id="time-label">—</span>
+    <button id="btn-slower">-</button>
+    <span id="speed-label">1x</span>
+    <button id="btn-faster">+</button>
+  </div>
+</div>
+
+<script>
+(function() {
+'use strict';
+
+const canvas = document.getElementById('chart');
+const ctx = canvas.getContext('2d');
+let W, H;
+
+// ============ STATE ============
+let rawData = []; // [{col1: val, col2: val, ...}]
+let headers = [];
+let timeCol = null, labelCol = null, valueCol = null;
+let timeSteps = []; // sorted unique time values
+let frameData = {}; // { timeStep: [{label, value}] }
+let currentFrame = 0;
+let playing = false;
+let speed = 1;
+let chartType = 'bar-race';
+
+// Animation state for bar race
+let barPositions = {}; // label -> {y: current, targetY: target, value: current, targetValue: target, color}
+const BAR_COLORS = [
+  '#58a6ff','#f87171','#4ade80','#fbbf24','#a78bfa','#f472b6','#38bdf8','#fb923c',
+  '#34d399','#e879f9','#60a5fa','#facc15','#2dd4bf','#f97316','#818cf8','#ec4899'
+];
+
+// Dynamic color for labels beyond the 16-color palette (infinite distinct colors)
+function labelColor(label, idx) {
+  if (idx < BAR_COLORS.length) return BAR_COLORS[idx];
+  let hash = 0;
+  for (let i = 0; i < label.length; i++) hash = label.charCodeAt(i) + ((hash << 5) - hash);
+  return `hsl(${((hash % 360) + 360) % 360}, 70%, 60%)`;
+}
+
+function resize() {
+  const area = document.getElementById('chart-area');
+  W = canvas.width = area.clientWidth;
+  H = canvas.height = area.clientHeight;
+}
+window.addEventListener('resize', resize);
+
+// ============ CSV PARSING ============
+function parseCSV(text) {
+  const lines = text.trim().split('\n');
+  if (lines.length < 2) return { headers: [], rows: [] };
+
+  // Detect delimiter
+  const firstLine = lines[0];
+  const delim = firstLine.includes('\t') ? '\t' : firstLine.includes(';') ? ';' : ',';
+
+  const hdrs = firstLine.split(delim).map(h => h.trim().replace(/^["']|["']$/g, ''));
+  const rows = [];
+  for (let i = 1; i < lines.length; i++) {
+    const vals = lines[i].split(delim).map(v => v.trim().replace(/^["']|["']$/g, ''));
+    if (vals.length === hdrs.length) {
+      const row = {};
+      hdrs.forEach((h, j) => { row[h] = vals[j]; });
+      rows.push(row);
+    }
+  }
+  return { headers: hdrs, rows };
+}
+
+// ============ COLUMN INFERENCE ============
+function inferColumns(hdrs, rows) {
+  if (rows.length === 0) return;
+
+  const sample = rows.slice(0, 20);
+  const colTypes = {};
+
+  for (const h of hdrs) {
+    const vals = sample.map(r => r[h]);
+    const numericCount = vals.filter(v => !isNaN(parseFloat(v)) && v.trim() !== '').length;
+    const datePattern = /^\d{4}[-\/]?\d{0,2}[-\/]?\d{0,2}$|^\d{4}$/;
+    const dateCount = vals.filter(v => datePattern.test(v.trim())).length;
+    const uniqueCount = new Set(vals).size;
+
+    if (dateCount > sample.length * 0.6) colTypes[h] = 'time';
+    else if (numericCount > sample.length * 0.7) colTypes[h] = 'numeric';
+    else colTypes[h] = 'categorical';
+  }
+
+  // Pick columns
+  timeCol = hdrs.find(h => colTypes[h] === 'time') ||
+            hdrs.find(h => /year|date|time|month|period/i.test(h));
+  valueCol = hdrs.find(h => colTypes[h] === 'numeric' && h !== timeCol);
+  labelCol = hdrs.find(h => colTypes[h] === 'categorical' && h !== timeCol && h !== valueCol) ||
+             hdrs.find(h => h !== timeCol && h !== valueCol);
+
+  // Fallback: if no time col, use first col
+  if (!timeCol && hdrs.length >= 3) { timeCol = hdrs[0]; labelCol = hdrs[1]; valueCol = hdrs[2]; }
+  if (!timeCol) timeCol = hdrs[0];
+  if (!labelCol) labelCol = hdrs.length > 1 ? hdrs[1] : hdrs[0];
+  if (!valueCol) valueCol = hdrs.length > 2 ? hdrs[2] : hdrs[hdrs.length - 1];
+}
+
+// ============ PROCESS DATA ============
+function processData() {
+  // Build time steps and frame data
+  const timeSet = new Set();
+  rawData.forEach(r => timeSet.add(r[timeCol]));
+  timeSteps = [...timeSet].sort((a, b) => {
+    const na = parseFloat(a), nb = parseFloat(b);
+    if (!isNaN(na) && !isNaN(nb)) return na - nb;
+    return a.localeCompare(b);
+  });
+
+  frameData = {};
+  for (const t of timeSteps) {
+    frameData[t] = rawData
+      .filter(r => r[timeCol] === t)
+      .map(r => ({ label: r[labelCol], value: parseFloat(r[valueCol]) || 0 }))
+      .sort((a, b) => b.value - a.value);
+  }
+
+  // Assign colors
+  const allLabels = [...new Set(rawData.map(r => r[labelCol]))];
+  barPositions = {};
+  allLabels.forEach((label, i) => {
+    barPositions[label] = {
+      y: i * 40, targetY: i * 40,
+      value: 0, targetValue: 0,
+      color: labelColor(label, i)
+    };
+  });
+
+  // Setup scrubber
+  document.getElementById('scrubber').max = timeSteps.length - 1;
+  document.getElementById('scrubber').value = 0;
+  currentFrame = 0;
+
+  document.getElementById('data-info').textContent =
+    `${rawData.length} rows | ${timeSteps.length} frames | ${allLabels.length} series`;
+
+  // Populate mapping dropdowns
+  const selectors = ['map-time', 'map-label', 'map-value'];
+  const values = [timeCol, labelCol, valueCol];
+  // Populate mapping dropdowns (XSS-safe: build options via DOM API)
+  selectors.forEach((id, i) => {
+    const sel = document.getElementById(id);
+    sel.innerHTML = '';
+    headers.forEach(h => {
+      const opt = document.createElement('option');
+      opt.value = h;
+      opt.textContent = h;
+      if (h === values[i]) opt.selected = true;
+      sel.appendChild(opt);
+    });
+  });
+}
+
+// ============ RENDERING ============
+function renderBarRace(t) {
+  const data = frameData[timeSteps[~~t]] || [];
+  const maxBars = Math.min(15, data.length);
+  const barH = Math.min(35, (H - 60) / maxBars - 4);
+  const maxVal = Math.max(1, ...data.slice(0, maxBars).map(d => d.value));
+  const barAreaW = W - 180;
+
+  // Update targets
+  for (const key in barPositions) barPositions[key].targetY = H; // Off-screen by default
+  for (let i = 0; i < maxBars; i++) {
+    const d = data[i];
+    if (!barPositions[d.label]) continue;
+    barPositions[d.label].targetY = 30 + i * (barH + 4);
+    barPositions[d.label].targetValue = d.value;
+  }
+
+  // Lerp positions
+  for (const key in barPositions) {
+    const bp = barPositions[key];
+    bp.y += (bp.targetY - bp.y) * 0.12;
+    bp.value += (bp.targetValue - bp.value) * 0.12;
+  }
+
+  // Draw
+  ctx.fillStyle = '#08080f';
+  ctx.fillRect(0, 0, W, H);
+
+  // Time display
+  ctx.fillStyle = '#1a1a2e';
+  ctx.font = `bold ${Math.min(120, H * 0.3)}px 'Segoe UI', system-ui`;
+  ctx.textAlign = 'right';
+  ctx.fillText(timeSteps[~~t] || '', W - 20, H - 20);
+
+  // Bars
+  ctx.textAlign = 'left';
+  for (const key in barPositions) {
+    const bp = barPositions[key];
+    if (bp.y > H - 10) continue; // Off screen
+    const barW = (bp.value / maxVal) * barAreaW;
+    if (barW < 1) continue;
+
+    ctx.fillStyle = bp.color;
+    ctx.globalAlpha = 0.85;
+    ctx.beginPath();
+    roundRect(ctx, 130, bp.y, barW, barH, 4);
+    ctx.fill();
+    ctx.globalAlpha = 1;
+
+    // Label
+    ctx.fillStyle = '#e0e8f0';
+    ctx.font = `${Math.min(12, barH * 0.4)}px 'Segoe UI', system-ui`;
+    ctx.textAlign = 'right';
+    ctx.fillText(key, 125, bp.y + barH / 2 + 4);
+
+    // Value
+    ctx.textAlign = 'left';
+    ctx.fillStyle = '#888';
+    ctx.font = `${Math.min(11, barH * 0.35)}px monospace`;
+    ctx.fillText(formatNum(bp.value), 135 + barW, bp.y + barH / 2 + 4);
+  }
+}
+
+function renderLine(t) {
+  ctx.fillStyle = '#08080f';
+  ctx.fillRect(0, 0, W, H);
+
+  const endIdx = Math.min(~~t + 1, timeSteps.length);
+  const allLabels = [...new Set(rawData.map(r => r[labelCol]))];
+  const margin = { top: 30, right: 20, bottom: 40, left: 60 };
+  const plotW = W - margin.left - margin.right;
+  const plotH = H - margin.top - margin.bottom;
+
+  // Find value range
+  let maxVal = 1;
+  rawData.forEach(r => { const v = parseFloat(r[valueCol]); if (v > maxVal) maxVal = v; });
+
+  // Axes
+  ctx.strokeStyle = '#1a1a2e';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(margin.left, margin.top);
+  ctx.lineTo(margin.left, H - margin.bottom);
+  ctx.lineTo(W - margin.right, H - margin.bottom);
+  ctx.stroke();
+
+  // Time labels
+  ctx.fillStyle = '#444';
+  ctx.font = '9px monospace';
+  ctx.textAlign = 'center';
+  const labelStep = Math.max(1, ~~(timeSteps.length / 10));
+  for (let i = 0; i < endIdx; i += labelStep) {
+    const x = margin.left + (i / (timeSteps.length - 1)) * plotW;
+    ctx.fillText(timeSteps[i], x, H - margin.bottom + 14);
+  }
+
+  // Lines
+  allLabels.forEach((label, li) => {
+    ctx.strokeStyle = BAR_COLORS[li % BAR_COLORS.length];
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    let started = false;
+    for (let i = 0; i < endIdx; i++) {
+      const entry = frameData[timeSteps[i]]?.find(d => d.label === label);
+      if (!entry) continue;
+      const x = margin.left + (i / (timeSteps.length - 1)) * plotW;
+      const y = H - margin.bottom - (entry.value / maxVal) * plotH;
+      if (!started) { ctx.moveTo(x, y); started = true; }
+      else ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+
+    // Current point
+    if (endIdx > 0) {
+      const lastEntry = frameData[timeSteps[endIdx - 1]]?.find(d => d.label === label);
+      if (lastEntry) {
+        const x = margin.left + ((endIdx - 1) / (timeSteps.length - 1)) * plotW;
+        const y = H - margin.bottom - (lastEntry.value / maxVal) * plotH;
+        ctx.fillStyle = BAR_COLORS[li % BAR_COLORS.length];
+        ctx.beginPath();
+        ctx.arc(x, y, 4, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#ccc';
+        ctx.font = '10px sans-serif';
+        ctx.textAlign = 'left';
+        ctx.fillText(label, x + 8, y + 3);
+      }
+    }
+  });
+}
+
+function renderScatter(t) {
+  ctx.fillStyle = '#08080f';
+  ctx.fillRect(0, 0, W, H);
+
+  const step = timeSteps[~~t];
+  const data = frameData[step] || [];
+  const margin = { top: 30, right: 20, bottom: 40, left: 60 };
+  const plotW = W - margin.left - margin.right;
+  const plotH = H - margin.top - margin.bottom;
+
+  let maxVal = 1;
+  rawData.forEach(r => { const v = parseFloat(r[valueCol]); if (v > maxVal) maxVal = v; });
+
+  // Axes
+  ctx.strokeStyle = '#1a1a2e';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(margin.left, margin.top);
+  ctx.lineTo(margin.left, H - margin.bottom);
+  ctx.lineTo(W - margin.right, H - margin.bottom);
+  ctx.stroke();
+
+  // Time label
+  ctx.fillStyle = '#1a1a2e';
+  ctx.font = `bold ${Math.min(80, H * 0.2)}px sans-serif`;
+  ctx.textAlign = 'right';
+  ctx.fillText(step, W - 20, H - 20);
+
+  // Points
+  const allLabels = [...new Set(rawData.map(r => r[labelCol]))];
+  data.forEach((d, i) => {
+    const li = allLabels.indexOf(d.label);
+    const x = margin.left + ((li + 0.5) / allLabels.length) * plotW;
+    const y = H - margin.bottom - (d.value / maxVal) * plotH;
+    const r = 4 + Math.sqrt(d.value / maxVal) * 10;
+    ctx.fillStyle = BAR_COLORS[li % BAR_COLORS.length];
+    ctx.globalAlpha = 0.7;
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = '#ccc';
+    ctx.font = '9px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(d.label, x, y - r - 4);
+  });
+}
+
+function roundRect(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y); ctx.lineTo(x + w - r, y);
+  ctx.quadraticCurveTo(x + w, y, x + w, y + r); ctx.lineTo(x + w, y + h - r);
+  ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h); ctx.lineTo(x + r, y + h);
+  ctx.quadraticCurveTo(x, y + h, x, y + h - r); ctx.lineTo(x, y + r);
+  ctx.quadraticCurveTo(x, y, x + r, y);
+  ctx.closePath();
+}
+
+function formatNum(n) {
+  if (n >= 1e9) return (n / 1e9).toFixed(1) + 'B';
+  if (n >= 1e6) return (n / 1e6).toFixed(1) + 'M';
+  if (n >= 1e3) return (n / 1e3).toFixed(1) + 'K';
+  return n.toFixed(0);
+}
+
+// ============ MAIN LOOP ============
+function loop() {
+  if (playing && timeSteps.length > 0) {
+    currentFrame += speed * 0.03;
+    if (currentFrame >= timeSteps.length - 1) {
+      currentFrame = timeSteps.length - 1;
+      playing = false;
+      document.getElementById('btn-play').textContent = '\u25B6';
+    }
+    document.getElementById('scrubber').value = currentFrame;
+  }
+
+  if (timeSteps.length > 0) {
+    document.getElementById('time-label').textContent = timeSteps[~~currentFrame] || '';
+    switch (chartType) {
+      case 'bar-race': renderBarRace(currentFrame); break;
+      case 'line': renderLine(currentFrame); break;
+      case 'scatter': renderScatter(currentFrame); break;
+    }
+  }
+
+  requestAnimationFrame(loop);
+}
+
+// ============ FILE HANDLING ============
+function loadCSV(text) {
+  const parsed = parseCSV(text);
+  headers = parsed.headers;
+  rawData = parsed.rows;
+  if (rawData.length === 0) return;
+
+  inferColumns(headers, rawData);
+  processData();
+
+  document.getElementById('dropzone').style.display = 'none';
+  document.getElementById('cinema').classList.add('active');
+  resize();
+  playing = true;
+  document.getElementById('btn-play').textContent = '\u23F8';
+}
+
+// Drag and drop
+const dz = document.getElementById('dropzone');
+dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('dragover'); });
+dz.addEventListener('dragleave', () => dz.classList.remove('dragover'));
+dz.addEventListener('drop', e => {
+  e.preventDefault();
+  dz.classList.remove('dragover');
+  const file = e.dataTransfer.files[0];
+  if (file) file.text().then(loadCSV);
+});
+
+// Browse button
+document.getElementById('btn-browse').addEventListener('click', () => document.getElementById('file-input').click());
+document.getElementById('file-input').addEventListener('change', function() {
+  if (this.files[0]) this.files[0].text().then(loadCSV);
+});
+
+// ============ DEMO DATA ============
+const DEMOS = {
+  population: () => {
+    let csv = 'Year,Country,Population\n';
+    const countries = { China: 540, India: 376, USA: 158, Brazil: 54, Japan: 84, Germany: 68, UK: 50, France: 42 };
+    const growth = { China: [540,637,660,830,987,1135,1263,1368,1412], India: [376,449,555,700,873,1053,1210,1350,1425], USA: [158,186,210,230,253,282,309,330,340], Brazil: [54,72,95,122,150,174,196,210,216], Japan: [84,95,105,117,124,127,127,126,124], Germany: [68,73,78,78,80,82,82,83,84], UK: [50,53,56,56,57,59,62,66,68], France: [42,46,51,54,57,59,63,65,68] };
+    const years = [1950,1960,1970,1980,1990,2000,2010,2020,2023];
+    for (let yi = 0; yi < years.length; yi++) {
+      for (const [c, pops] of Object.entries(growth)) {
+        csv += `${years[yi]},${c},${pops[yi] * 1000000}\n`;
+      }
+    }
+    return csv;
+  },
+  stocks: () => {
+    let csv = 'Month,Company,Price\n';
+    const companies = ['AAPL','GOOGL','MSFT','AMZN','TSLA'];
+    const base = [150, 100, 300, 130, 200];
+    for (let m = 1; m <= 24; m++) {
+      const month = `2023-${String(~~((m-1)/12+1)).padStart(2,'0')}-${String(((m-1)%12)+1).padStart(2,'0')}`;
+      companies.forEach((c, i) => {
+        base[i] *= 1 + (Math.random() - 0.45) * 0.15;
+        csv += `${month},${c},${base[i].toFixed(2)}\n`;
+      });
+    }
+    return csv;
+  },
+  temps: () => {
+    let csv = 'Month,City,Temperature\n';
+    const cities = ['Phoenix','Miami','Seattle','Chicago','Denver'];
+    const patterns = [[15,18,23,30,36,41,41,39,35,27,20,15],[21,22,24,26,28,30,31,31,30,27,24,22],[5,7,9,13,16,19,22,22,18,13,8,5],[-3,0,5,12,18,24,27,26,22,14,6,0],[1,3,7,12,17,23,26,25,20,13,5,1]];
+    const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    months.forEach((m, mi) => {
+      cities.forEach((c, ci) => {
+        csv += `${m},${c},${patterns[ci][mi] + (Math.random()-0.5)*3}\n`;
+      });
+    });
+    return csv;
+  }
+};
+
+document.querySelectorAll('.demo-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const gen = DEMOS[btn.dataset.demo];
+    if (gen) loadCSV(gen());
+  });
+});
+
+// ============ PLAYBACK CONTROLS ============
+document.getElementById('btn-play').addEventListener('click', () => {
+  playing = !playing;
+  if (currentFrame >= timeSteps.length - 1) currentFrame = 0;
+  document.getElementById('btn-play').textContent = playing ? '\u23F8' : '\u25B6';
+});
+
+document.getElementById('scrubber').addEventListener('input', function() {
+  currentFrame = parseFloat(this.value);
+});
+
+document.getElementById('btn-slower').addEventListener('click', () => {
+  speed = Math.max(0.25, speed / 1.5);
+  document.getElementById('speed-label').textContent = speed.toFixed(2) + 'x';
+});
+document.getElementById('btn-faster').addEventListener('click', () => {
+  speed = Math.min(8, speed * 1.5);
+  document.getElementById('speed-label').textContent = speed.toFixed(2) + 'x';
+});
+
+document.getElementById('chart-type').addEventListener('change', function() {
+  chartType = this.value;
+});
+
+document.getElementById('btn-remap').addEventListener('click', () => {
+  document.getElementById('mapping').classList.toggle('active');
+});
+
+document.getElementById('btn-apply-map').addEventListener('click', () => {
+  timeCol = document.getElementById('map-time').value;
+  labelCol = document.getElementById('map-label').value;
+  valueCol = document.getElementById('map-value').value;
+  processData();
+  document.getElementById('mapping').classList.remove('active');
+  currentFrame = 0;
+});
+
+document.getElementById('btn-new').addEventListener('click', () => {
+  document.getElementById('cinema').classList.remove('active');
+  document.getElementById('dropzone').style.display = 'flex';
+  playing = false;
+  rawData = [];
+  timeSteps = [];
+});
+
+// Keyboard
+document.addEventListener('keydown', e => {
+  if (e.key === ' ') { e.preventDefault(); document.getElementById('btn-play').click(); }
+  if (e.key === 'ArrowRight') { currentFrame = Math.min(timeSteps.length - 1, currentFrame + 1); document.getElementById('scrubber').value = currentFrame; }
+  if (e.key === 'ArrowLeft') { currentFrame = Math.max(0, currentFrame - 1); document.getElementById('scrubber').value = currentFrame; }
+});
+
+requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>

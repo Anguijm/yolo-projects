@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Music Visualizer</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { background: #000; color: #eee; font-family: 'Segoe UI', system-ui, sans-serif; overflow: hidden; height: 100vh; display: flex; flex-direction: column; }
+#topbar { display: flex; align-items: center; gap: 12px; padding: 8px 16px; background: #111; border-bottom: 1px solid #222; z-index: 10; flex-wrap: wrap; }
+#topbar h1 { font-size: 16px; color: #a855f7; white-space: nowrap; }
+#topbar button { padding: 5px 14px; background: #1a1a2e; border: 1px solid #444; color: #ccc; border-radius: 4px; cursor: pointer; font-size: 12px; transition: all 0.2s; }
+#topbar button:hover { background: #2a1a4e; color: #fff; }
+#topbar button.active { background: #a855f7; color: #fff; border-color: #a855f7; }
+#topbar select { font-size: 12px; background: #1a1a2e; color: #ccc; border: 1px solid #444; border-radius: 4px; padding: 4px 8px; }
+#topbar label { font-size: 11px; color: #888; }
+#topbar input[type=range] { width: 80px; vertical-align: middle; }
+#topbar input[type=file] { display: none; }
+.file-label { padding: 5px 14px; background: #1a1a2e; border: 1px solid #444; color: #ccc; border-radius: 4px; cursor: pointer; font-size: 12px; }
+.file-label:hover { background: #2a1a4e; color: #fff; }
+canvas { flex: 1; display: block; }
+#status { position: fixed; bottom: 10px; left: 10px; font-size: 11px; color: #555; font-family: monospace; z-index: 5; }
+</style>
+</head>
+<body>
+<div id="topbar">
+  <h1>MUSIC VIZ</h1>
+  <button id="btn-mic">Microphone</button>
+  <label class="file-label" for="file-input">Load Audio</label>
+  <input type="file" id="file-input" accept="audio/*">
+  <button id="btn-play" style="display:none;">Play</button>
+  <button id="btn-pause" style="display:none;">Pause</button>
+  <select id="mode-select">
+    <option value="bars">Frequency Bars</option>
+    <option value="wave">Waveform</option>
+    <option value="circular">Circular Spectrum</option>
+    <option value="particles">Particle Burst</option>
+    <option value="mountain">Mountain Range</option>
+  </select>
+  <label>Sensitivity:</label>
+  <input type="range" id="sensitivity" min="0.5" max="3" value="1.5" step="0.1">
+  <label>Smoothing:</label>
+  <input type="range" id="smoothing" min="0" max="0.95" value="0.8" step="0.05">
+</div>
+<canvas id="canvas"></canvas>
+<div id="status">Click "Microphone" or load an audio file to start</div>
+
+<script>
+(function() {
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+let width, height;
+let audioCtx, analyser, source, dataArray, freqArray;
+let isActive = false;
+let currentMode = 'bars';
+let sensitivity = 1.5;
+let particles = [];
+let mountainHistory = [];
+const HISTORY_LEN = 60;
+// Pre-allocate mountain ring buffer
+const mountainPool = [];
+for (let i = 0; i < HISTORY_LEN; i++) mountainPool.push(new Float32Array(128));
+let mountainIdx = 0;
+
+function resize() {
+  width = canvas.width = window.innerWidth;
+  height = canvas.height = window.innerHeight - document.getElementById('topbar').offsetHeight;
+}
+window.addEventListener('resize', resize);
+resize();
+
+function initAudio() {
+  if (!audioCtx) {
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  }
+  if (audioCtx.state === 'suspended') audioCtx.resume();
+  analyser = audioCtx.createAnalyser();
+  analyser.fftSize = 2048;
+  analyser.smoothingTimeConstant = 0.8;
+  const bufLen = analyser.frequencyBinCount;
+  dataArray = new Uint8Array(bufLen);
+  freqArray = new Uint8Array(bufLen);
+}
+
+// Microphone
+document.getElementById('btn-mic').addEventListener('click', async function() {
+  try {
+    initAudio();
+    if (audioElement) { audioElement.pause(); }
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    if (source) source.disconnect();
+    source = audioCtx.createMediaStreamSource(stream);
+    source.connect(analyser);
+    isActive = true;
+    this.classList.add('active');
+    document.getElementById('status').textContent = 'Listening to microphone...';
+    document.getElementById('btn-play').style.display = 'none';
+    document.getElementById('btn-pause').style.display = 'none';
+  } catch (err) {
+    document.getElementById('status').textContent = 'Microphone access denied';
+  }
+});
+
+// File input
+let audioElement = null;
+let currentAudioURL = null;
+document.getElementById('file-input').addEventListener('change', function(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  initAudio();
+  if (audioElement) { audioElement.pause(); audioElement = null; }
+  if (source) source.disconnect();
+  if (currentAudioURL) URL.revokeObjectURL(currentAudioURL);
+
+  audioElement = new Audio();
+  currentAudioURL = URL.createObjectURL(file);
+  audioElement.src = currentAudioURL;
+  source = audioCtx.createMediaElementSource(audioElement);
+  source.connect(analyser);
+  analyser.connect(audioCtx.destination);
+  audioElement.play();
+  isActive = true;
+
+  document.getElementById('btn-mic').classList.remove('active');
+  document.getElementById('btn-play').style.display = 'inline-block';
+  document.getElementById('btn-pause').style.display = 'inline-block';
+  document.getElementById('status').textContent = `Playing: ${file.name}`;
+});
+
+document.getElementById('btn-play').addEventListener('click', () => { if (audioElement) audioElement.play(); });
+document.getElementById('btn-pause').addEventListener('click', () => { if (audioElement) audioElement.pause(); });
+
+document.getElementById('mode-select').addEventListener('change', e => {
+  currentMode = e.target.value;
+  particles = [];
+  mountainHistory = [];
+  ctx.clearRect(0, 0, width, height);
+});
+
+document.getElementById('sensitivity').addEventListener('input', e => { sensitivity = parseFloat(e.target.value); });
+document.getElementById('smoothing').addEventListener('input', e => {
+  if (analyser) analyser.smoothingTimeConstant = parseFloat(e.target.value);
+});
+
+// Visualization modes
+function drawBars() {
+  analyser.getByteFrequencyData(freqArray);
+  const barCount = 128;
+  const barWidth = width / barCount;
+  const step = Math.floor(freqArray.length / barCount);
+
+  for (let i = 0; i < barCount; i++) {
+    const val = freqArray[i * step] / 255 * sensitivity;
+    const barHeight = val * height * 0.8;
+    const hue = (i / barCount) * 300;
+    const lightness = 40 + val * 30;
+
+    ctx.fillStyle = `hsl(${hue}, 80%, ${lightness}%)`;
+    ctx.fillRect(i * barWidth, height - barHeight, barWidth - 1, barHeight);
+
+    // Reflection
+    ctx.globalAlpha = 0.15;
+    ctx.fillRect(i * barWidth, height, barWidth - 1, barHeight * 0.3);
+    ctx.globalAlpha = 1;
+  }
+}
+
+function drawWave() {
+  analyser.getByteTimeDomainData(dataArray);
+  const sliceWidth = width / dataArray.length;
+
+  // Glow effect
+  ctx.shadowBlur = 15;
+  ctx.shadowColor = '#a855f7';
+  ctx.strokeStyle = '#a855f7';
+  ctx.lineWidth = 2.5;
+  ctx.beginPath();
+
+  for (let i = 0; i < dataArray.length; i++) {
+    const v = dataArray[i] / 128.0 * sensitivity;
+    const y = (v * height) / 2;
+    if (i === 0) ctx.moveTo(0, y);
+    else ctx.lineTo(i * sliceWidth, y);
+  }
+  ctx.stroke();
+
+  // Secondary wave
+  ctx.shadowBlur = 0;
+  ctx.strokeStyle = '#6366f180';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  for (let i = 0; i < dataArray.length; i++) {
+    const v = dataArray[i] / 128.0 * sensitivity;
+    const y = (v * height) / 2 + 20;
+    if (i === 0) ctx.moveTo(0, y);
+    else ctx.lineTo(i * sliceWidth, y);
+  }
+  ctx.stroke();
+}
+
+function drawCircular() {
+  analyser.getByteFrequencyData(freqArray);
+  const cx = width / 2;
+  const cy = height / 2;
+  const baseRadius = Math.min(width, height) * 0.2;
+  const barCount = 180;
+  const step = Math.floor(freqArray.length / barCount);
+
+  for (let i = 0; i < barCount; i++) {
+    const val = freqArray[i * step] / 255 * sensitivity;
+    const angle = (i / barCount) * Math.PI * 2 - Math.PI / 2;
+    const barLen = val * baseRadius * 1.5;
+    const x1 = cx + Math.cos(angle) * baseRadius;
+    const y1 = cy + Math.sin(angle) * baseRadius;
+    const x2 = cx + Math.cos(angle) * (baseRadius + barLen);
+    const y2 = cy + Math.sin(angle) * (baseRadius + barLen);
+
+    const hue = (i / barCount) * 360;
+    ctx.strokeStyle = `hsl(${hue}, 90%, ${50 + val * 30}%)`;
+    ctx.lineWidth = Math.max(1, (Math.PI * 2 * baseRadius / barCount) - 1);
+    ctx.beginPath();
+    ctx.moveTo(x1, y1);
+    ctx.lineTo(x2, y2);
+    ctx.stroke();
+  }
+
+  // Inner circle glow
+  const avgVal = freqArray.slice(0, 10).reduce((a, b) => a + b, 0) / 10 / 255;
+  const gradient = ctx.createRadialGradient(cx, cy, 0, cx, cy, baseRadius);
+  gradient.addColorStop(0, `hsla(270, 80%, ${40 + avgVal * 40}%, 0.4)`);
+  gradient.addColorStop(1, 'transparent');
+  ctx.fillStyle = gradient;
+  ctx.beginPath();
+  ctx.arc(cx, cy, baseRadius, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+function drawParticles() {
+  analyser.getByteFrequencyData(freqArray);
+  const bass = freqArray.slice(0, 10).reduce((a, b) => a + b, 0) / 10 / 255 * sensitivity;
+  const mid = freqArray.slice(20, 60).reduce((a, b) => a + b, 0) / 40 / 255 * sensitivity;
+  const high = freqArray.slice(60, 120).reduce((a, b) => a + b, 0) / 60 / 255 * sensitivity;
+
+  // Spawn particles based on energy
+  const spawnCount = ~~(bass * 8 + mid * 4);
+  for (let i = 0; i < spawnCount; i++) {
+    const angle = Math.random() * Math.PI * 2;
+    const speed = 1 + bass * 6 + Math.random() * 3;
+    particles.push({
+      x: width / 2,
+      y: height / 2,
+      vx: Math.cos(angle) * speed,
+      vy: Math.sin(angle) * speed,
+      life: 1,
+      decay: 0.005 + Math.random() * 0.015,
+      size: 1 + bass * 4 + Math.random() * 2,
+      hue: ~~(Math.random() * 360),
+    });
+  }
+
+  // Update and draw particles
+  for (let i = particles.length - 1; i >= 0; i--) {
+    const p = particles[i];
+    p.x += p.vx;
+    p.y += p.vy;
+    p.life -= p.decay;
+    p.size *= 0.99;
+
+    if (p.life <= 0 || p.x < -50 || p.x > width + 50 || p.y < -50 || p.y > height + 50) {
+      particles.splice(i, 1);
+      continue;
+    }
+
+    ctx.globalAlpha = p.life;
+    ctx.fillStyle = `hsl(${p.hue}, 80%, 60%)`;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+
+  // Cap particles
+  if (particles.length > 2000) particles.splice(0, particles.length - 2000);
+
+  // Bass pulse ring
+  if (bass > 0.5) {
+    ctx.strokeStyle = `hsla(270, 80%, 60%, ${bass * 0.5})`;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(width / 2, height / 2, bass * 200, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+}
+
+function drawMountain() {
+  analyser.getByteFrequencyData(freqArray);
+  const barCount = 128;
+  const step = Math.floor(freqArray.length / barCount);
+  // Reuse pre-allocated buffer from pool
+  const snapshot = mountainPool[mountainIdx % HISTORY_LEN];
+  mountainIdx++;
+  for (let i = 0; i < barCount; i++) {
+    snapshot[i] = freqArray[i * step] / 255 * sensitivity;
+  }
+  mountainHistory.unshift(snapshot);
+  if (mountainHistory.length > HISTORY_LEN) mountainHistory.pop();
+
+  const rowHeight = height / HISTORY_LEN;
+  for (let row = mountainHistory.length - 1; row >= 0; row--) {
+    const data = mountainHistory[row];
+    const y = height - (mountainHistory.length - row) * rowHeight;
+    const alpha = 1 - row / HISTORY_LEN;
+
+    ctx.fillStyle = `hsla(${220 + row * 2}, 70%, ${30 + alpha * 30}%, ${alpha * 0.6})`;
+    ctx.beginPath();
+    ctx.moveTo(0, height);
+    for (let i = 0; i < barCount; i++) {
+      const x = (i / barCount) * width;
+      const h = data[i] * rowHeight * 3;
+      ctx.lineTo(x, y - h);
+    }
+    ctx.lineTo(width, height);
+    ctx.closePath();
+    ctx.fill();
+  }
+}
+
+// Main render loop
+function render() {
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.15)';
+  ctx.fillRect(0, 0, width, height);
+
+  if (isActive && analyser) {
+    switch (currentMode) {
+      case 'bars': ctx.clearRect(0, 0, width, height); drawBars(); break;
+      case 'wave': drawWave(); break;
+      case 'circular': ctx.clearRect(0, 0, width, height); drawCircular(); break;
+      case 'particles': drawParticles(); break;
+      case 'mountain': ctx.clearRect(0, 0, width, height); drawMountain(); break;
+    }
+  }
+
+  requestAnimationFrame(render);
+}
+render();
+})();
+</script>
+</body>
+</html>

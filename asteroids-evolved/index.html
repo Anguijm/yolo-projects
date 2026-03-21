@@ -1,0 +1,635 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Asteroids Evolved</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { background: #000; overflow: hidden; height: 100vh; }
+canvas { display: block; }
+#hud { position: fixed; top: 12px; left: 16px; font-family: 'Courier New', monospace; z-index: 5; pointer-events: none; }
+#score { font-size: 24px; color: #fff; font-weight: bold; }
+#info { font-size: 11px; color: #555; margin-top: 4px; }
+#overlay { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 12px; z-index: 10; pointer-events: auto; }
+#overlay h1 { font-family: 'Courier New', monospace; font-size: 2.5rem; color: #fff; letter-spacing: 0.2em; }
+#overlay .sub { font-family: 'Courier New', monospace; font-size: 0.8rem; color: #666; max-width: 400px; text-align: center; line-height: 1.6; }
+#overlay .legend { display: flex; gap: 16px; font-family: 'Courier New', monospace; font-size: 0.75rem; }
+#overlay .legend span { display: flex; align-items: center; gap: 4px; }
+#overlay .dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+#overlay .start-hint { font-family: 'Courier New', monospace; font-size: 1rem; color: #58a6ff; margin-top: 8px; animation: pulse 1.5s infinite; }
+@keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="hud">
+  <div id="score">0</div>
+  <div id="info">Allies: 0 | Enemies: 0 | Wave: 1</div>
+</div>
+<div id="overlay">
+  <h1>ASTEROIDS</h1>
+  <p class="sub">Destroy asteroids. Each one spawns AI drones — green allies fight with you, red enemies hunt you. Build your fleet, survive the chaos.</p>
+  <div class="legend">
+    <span><span class="dot" style="background:#0ff"></span> You</span>
+    <span><span class="dot" style="background:#888"></span> Asteroid</span>
+    <span><span class="dot" style="background:#4ade80"></span> Ally</span>
+    <span><span class="dot" style="background:#f87171"></span> Enemy</span>
+  </div>
+  <div class="start-hint">PRESS ENTER TO START</div>
+</div>
+
+<script>
+(function() {
+'use strict';
+
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+let W, H;
+
+// ============ CONFIG ============
+const FRICTION = 0.99;
+const THRUST = 200;
+const ROTATE_SPEED = 4;
+const BULLET_SPEED = 500;
+const BULLET_LIFE = 1.2;
+const FIRE_RATE = 0.15;
+const MAX_PARTICLES = 300;
+const DRONE_SPEED = 120;
+const DRONE_FIRE_RATE = 0.8;
+const ALLY_ORBIT_RADIUS = 80;
+
+// ============ STATE ============
+let gameState = 'menu'; // menu, playing, gameover
+let score = 0;
+let wave = 1;
+let shakeTimer = 0;
+let shakeIntensity = 0;
+
+// Player
+let player = null;
+// Entity arrays
+let bullets = [];
+let asteroids = [];
+let enemies = [];
+let allies = [];
+let particles = [];
+let droneBullets = [];
+
+// Input
+const keys = {};
+document.addEventListener('keydown', e => {
+  keys[e.key] = true;
+  if (e.key === 'Enter' && gameState !== 'playing') startGame();
+});
+document.addEventListener('keyup', e => { keys[e.key] = false; });
+window.addEventListener('blur', () => { for (const k in keys) keys[k] = false; });
+
+function resize() {
+  W = canvas.width = window.innerWidth;
+  H = canvas.height = window.innerHeight;
+}
+window.addEventListener('resize', resize);
+resize();
+
+// ============ HELPERS ============
+function wrap(entity) {
+  if (entity.x < -20) entity.x = W + 20;
+  if (entity.x > W + 20) entity.x = -20;
+  if (entity.y < -20) entity.y = H + 20;
+  if (entity.y > H + 20) entity.y = -20;
+}
+
+function dist(a, b) {
+  const dx = a.x - b.x, dy = a.y - b.y;
+  return Math.sqrt(dx * dx + dy * dy);
+}
+
+function spawnParticles(x, y, color, count, speed) {
+  for (let i = 0; i < count && particles.length < MAX_PARTICLES; i++) {
+    const angle = Math.random() * Math.PI * 2;
+    const spd = speed * (0.3 + Math.random() * 0.7);
+    particles.push({
+      x, y,
+      vx: Math.cos(angle) * spd,
+      vy: Math.sin(angle) * spd,
+      life: 0.4 + Math.random() * 0.5,
+      color,
+      size: 1 + Math.random() * 2
+    });
+  }
+}
+
+function screenShake(intensity) {
+  shakeTimer = 0.15;
+  shakeIntensity = intensity;
+}
+
+// ============ PLAYER ============
+function createPlayer() {
+  return {
+    x: W / 2, y: H / 2,
+    vx: 0, vy: 0,
+    angle: -Math.PI / 2,
+    radius: 12,
+    fireCooldown: 0,
+    invincible: 2 // brief invincibility at start
+  };
+}
+
+// ============ ASTEROIDS ============
+function spawnAsteroid(x, y, size) {
+  const angle = Math.random() * Math.PI * 2;
+  const speed = 30 + Math.random() * 50 + wave * 5;
+  asteroids.push({
+    x: x !== undefined ? x : Math.random() * W,
+    y: y !== undefined ? y : Math.random() * H,
+    vx: Math.cos(angle) * speed,
+    vy: Math.sin(angle) * speed,
+    radius: size || (20 + Math.random() * 20),
+    rotation: 0,
+    rotSpeed: (Math.random() - 0.5) * 2,
+    vertices: generateRockShape()
+  });
+}
+
+function generateRockShape() {
+  const pts = [];
+  const count = 8 + ~~(Math.random() * 5);
+  for (let i = 0; i < count; i++) {
+    const angle = (i / count) * Math.PI * 2;
+    const r = 0.7 + Math.random() * 0.3;
+    pts.push({ angle, r });
+  }
+  return pts;
+}
+
+function spawnWave() {
+  const count = 3 + wave;
+  for (let i = 0; i < count; i++) {
+    // Spawn away from player
+    let x, y;
+    do {
+      x = Math.random() * W;
+      y = Math.random() * H;
+    } while (player && dist({ x, y }, player) < 150);
+    spawnAsteroid(x, y);
+  }
+}
+
+// ============ DRONES ============
+function spawnDrone(x, y, isAlly) {
+  const drone = {
+    x, y,
+    vx: (Math.random() - 0.5) * 50,
+    vy: (Math.random() - 0.5) * 50,
+    angle: Math.random() * Math.PI * 2,
+    radius: 6,
+    hp: isAlly ? 2 : 2,
+    isAlly,
+    fireCooldown: Math.random() * DRONE_FIRE_RATE,
+    orbitAngle: Math.random() * Math.PI * 2
+  };
+  if (isAlly) allies.push(drone);
+  else enemies.push(drone);
+}
+
+// ============ UPDATE ============
+function update(dt) {
+  if (gameState !== 'playing') return;
+
+  // Player input
+  if (keys['ArrowLeft'] || keys['a']) player.angle -= ROTATE_SPEED * dt;
+  if (keys['ArrowRight'] || keys['d']) player.angle += ROTATE_SPEED * dt;
+  if (keys['ArrowUp'] || keys['w']) {
+    player.vx += Math.cos(player.angle) * THRUST * dt;
+    player.vy += Math.sin(player.angle) * THRUST * dt;
+  }
+
+  // Player physics
+  player.vx *= FRICTION;
+  player.vy *= FRICTION;
+  player.x += player.vx * dt;
+  player.y += player.vy * dt;
+  wrap(player);
+  if (player.invincible > 0) player.invincible -= dt;
+
+  // Shooting
+  player.fireCooldown -= dt;
+  if ((keys[' '] || keys['ArrowDown']) && player.fireCooldown <= 0) {
+    player.fireCooldown = FIRE_RATE;
+    bullets.push({
+      x: player.x + Math.cos(player.angle) * 15,
+      y: player.y + Math.sin(player.angle) * 15,
+      vx: Math.cos(player.angle) * BULLET_SPEED + player.vx * 0.3,
+      vy: Math.sin(player.angle) * BULLET_SPEED + player.vy * 0.3,
+      life: BULLET_LIFE,
+      fromPlayer: true
+    });
+  }
+
+  // Update bullets
+  for (let i = bullets.length - 1; i >= 0; i--) {
+    const b = bullets[i];
+    b.x += b.vx * dt;
+    b.y += b.vy * dt;
+    b.life -= dt;
+    wrap(b);
+    if (b.life <= 0) { bullets.splice(i, 1); continue; }
+
+    // Bullet vs asteroids
+    for (let j = asteroids.length - 1; j >= 0; j--) {
+      if (dist(b, asteroids[j]) < asteroids[j].radius) {
+        const ast = asteroids[j];
+        // Split or destroy
+        if (ast.radius > 15) {
+          for (let k = 0; k < 2; k++) {
+            const child = { ...ast };
+            child.radius *= 0.55;
+            child.vx = (Math.random() - 0.5) * 100;
+            child.vy = (Math.random() - 0.5) * 100;
+            child.vertices = generateRockShape();
+            child.x += (Math.random() - 0.5) * 10;
+            child.y += (Math.random() - 0.5) * 10;
+            asteroids.push(child);
+          }
+        }
+        // Spawn drones
+        const isAlly = Math.random() < 0.55; // Slightly favor allies
+        spawnDrone(ast.x, ast.y, isAlly);
+        if (ast.radius > 25 && Math.random() < 0.4) {
+          spawnDrone(ast.x + 10, ast.y + 10, !isAlly); // Sometimes spawn both
+        }
+
+        spawnParticles(ast.x, ast.y, '#aaa', 12, 100);
+        screenShake(ast.radius / 10);
+        score += ~~(ast.radius);
+        asteroids.splice(j, 1);
+        bullets.splice(i, 1);
+        break;
+      }
+    }
+  }
+
+  // Update drone bullets
+  for (let i = droneBullets.length - 1; i >= 0; i--) {
+    const b = droneBullets[i];
+    b.x += b.vx * dt;
+    b.y += b.vy * dt;
+    b.life -= dt;
+    if (b.life <= 0) { droneBullets.splice(i, 1); continue; }
+
+    if (b.isAlly) {
+      // Ally bullets hit enemies
+      for (let j = enemies.length - 1; j >= 0; j--) {
+        if (dist(b, enemies[j]) < enemies[j].radius + 3) {
+          enemies[j].hp--;
+          if (enemies[j].hp <= 0) {
+            spawnParticles(enemies[j].x, enemies[j].y, '#f87171', 8, 80);
+            enemies.splice(j, 1);
+            score += 15;
+          }
+          droneBullets.splice(i, 1);
+          break;
+        }
+      }
+    } else {
+      // Enemy bullets hit player
+      if (player.invincible <= 0 && dist(b, player) < player.radius) {
+        gameOver();
+        return;
+      }
+      // Enemy bullets hit allies
+      for (let j = allies.length - 1; j >= 0; j--) {
+        if (dist(b, allies[j]) < allies[j].radius + 3) {
+          allies[j].hp--;
+          if (allies[j].hp <= 0) {
+            spawnParticles(allies[j].x, allies[j].y, '#4ade80', 6, 60);
+            allies.splice(j, 1);
+          }
+          droneBullets.splice(i, 1);
+          break;
+        }
+      }
+    }
+  }
+
+  // Update enemies (seek player + separation from each other)
+  for (let ei = 0; ei < enemies.length; ei++) {
+    const e = enemies[ei];
+    const dx = player.x - e.x, dy = player.y - e.y;
+    const d = Math.sqrt(dx * dx + dy * dy) || 1;
+    e.vx += dx / d * DRONE_SPEED * dt;
+    e.vy += dy / d * DRONE_SPEED * dt;
+    // Separation from other enemies
+    for (let ej = ei + 1; ej < enemies.length; ej++) {
+      const o = enemies[ej];
+      const sx = e.x - o.x, sy = e.y - o.y;
+      const sd = Math.sqrt(sx * sx + sy * sy) || 1;
+      if (sd < 25) {
+        const repel = (25 - sd) * 2;
+        e.vx += sx / sd * repel * dt; e.vy += sy / sd * repel * dt;
+        o.vx -= sx / sd * repel * dt; o.vy -= sy / sd * repel * dt;
+      }
+    }
+    const spd = Math.sqrt(e.vx * e.vx + e.vy * e.vy);
+    if (spd > DRONE_SPEED) { e.vx *= DRONE_SPEED / spd; e.vy *= DRONE_SPEED / spd; }
+    e.x += e.vx * dt;
+    e.y += e.vy * dt;
+    e.angle = Math.atan2(dy, dx);
+    wrap(e);
+
+    // Enemy fires at player
+    e.fireCooldown -= dt;
+    if (e.fireCooldown <= 0 && d < 300) {
+      e.fireCooldown = DRONE_FIRE_RATE + Math.random() * 0.5;
+      droneBullets.push({
+        x: e.x, y: e.y,
+        vx: dx / d * 250, vy: dy / d * 250,
+        life: 1.5, isAlly: false
+      });
+    }
+
+    // Enemy collision with player
+    if (player.invincible <= 0 && dist(e, player) < player.radius + e.radius) {
+      gameOver();
+      return;
+    }
+  }
+
+  // Update allies (orbit player, shoot enemies, separate from each other)
+  for (let ai = 0; ai < allies.length; ai++) {
+    const a = allies[ai];
+    // Separation
+    for (let aj = ai + 1; aj < allies.length; aj++) {
+      const o = allies[aj];
+      const sx = a.x - o.x, sy = a.y - o.y;
+      const sd = Math.sqrt(sx * sx + sy * sy) || 1;
+      if (sd < 20) {
+        const repel = (20 - sd) * 2;
+        a.vx += sx / sd * repel * dt; a.vy += sy / sd * repel * dt;
+        o.vx -= sx / sd * repel * dt; o.vy -= sy / sd * repel * dt;
+      }
+    }
+    a.orbitAngle += 1.5 * dt;
+    const tx = player.x + Math.cos(a.orbitAngle) * ALLY_ORBIT_RADIUS;
+    const ty = player.y + Math.sin(a.orbitAngle) * ALLY_ORBIT_RADIUS;
+    a.vx += (tx - a.x) * 3 * dt;
+    a.vy += (ty - a.y) * 3 * dt;
+    a.vx *= 0.95; a.vy *= 0.95;
+    a.x += a.vx * dt;
+    a.y += a.vy * dt;
+    wrap(a);
+
+    // Auto-fire at nearest enemy or asteroid
+    a.fireCooldown -= dt;
+    if (a.fireCooldown <= 0) {
+      let nearest = null, nearDist = 250;
+      for (const e of enemies) {
+        const d = dist(a, e);
+        if (d < nearDist) { nearest = e; nearDist = d; }
+      }
+      if (!nearest) {
+        for (const ast of asteroids) {
+          const d = dist(a, ast);
+          if (d < nearDist) { nearest = ast; nearDist = d; }
+        }
+      }
+      if (nearest) {
+        a.fireCooldown = DRONE_FIRE_RATE;
+        const dx = nearest.x - a.x, dy = nearest.y - a.y;
+        const d = Math.sqrt(dx * dx + dy * dy) || 1;
+        a.angle = Math.atan2(dy, dx);
+        droneBullets.push({
+          x: a.x, y: a.y,
+          vx: dx / d * 200, vy: dy / d * 200,
+          life: 1, isAlly: true
+        });
+      }
+    }
+  }
+
+  // Player bullet vs enemies
+  for (let i = bullets.length - 1; i >= 0; i--) {
+    const b = bullets[i];
+    if (!b.fromPlayer) continue;
+    for (let j = enemies.length - 1; j >= 0; j--) {
+      if (dist(b, enemies[j]) < enemies[j].radius + 3) {
+        enemies[j].hp--;
+        if (enemies[j].hp <= 0) {
+          spawnParticles(enemies[j].x, enemies[j].y, '#f87171', 8, 80);
+          enemies.splice(j, 1);
+          score += 15;
+        }
+        bullets.splice(i, 1);
+        break;
+      }
+    }
+  }
+
+  // Asteroid collision with player
+  for (const ast of asteroids) {
+    ast.x += ast.vx * dt;
+    ast.y += ast.vy * dt;
+    ast.rotation += ast.rotSpeed * dt;
+    wrap(ast);
+    if (player.invincible <= 0 && dist(ast, player) < ast.radius + player.radius - 4) {
+      gameOver();
+      return;
+    }
+  }
+
+  // Particles
+  for (let i = particles.length - 1; i >= 0; i--) {
+    const p = particles[i];
+    p.x += p.vx * dt;
+    p.y += p.vy * dt;
+    p.life -= dt;
+    if (p.life <= 0) particles.splice(i, 1);
+  }
+
+  // Shake decay
+  if (shakeTimer > 0) shakeTimer -= dt;
+
+  // Next wave
+  if (asteroids.length === 0) {
+    wave++;
+    spawnWave();
+  }
+
+  // HUD
+  document.getElementById('score').textContent = score;
+  document.getElementById('info').textContent =
+    `Allies: ${allies.length} | Enemies: ${enemies.length} | Wave: ${wave}`;
+}
+
+// ============ RENDER ============
+function render() {
+  ctx.fillStyle = '#000';
+  ctx.fillRect(0, 0, W, H);
+
+  ctx.save();
+  if (shakeTimer > 0) {
+    ctx.translate(
+      (Math.random() - 0.5) * shakeIntensity * 2,
+      (Math.random() - 0.5) * shakeIntensity * 2
+    );
+  }
+
+  // Stars (subtle background)
+  ctx.fillStyle = '#111';
+  for (let i = 0; i < 60; i++) {
+    const sx = (i * 137.5) % W;
+    const sy = (i * 97.3) % H;
+    ctx.fillRect(sx, sy, 1, 1);
+  }
+
+  // Asteroids
+  for (const ast of asteroids) {
+    ctx.save();
+    ctx.translate(ast.x, ast.y);
+    ctx.rotate(ast.rotation);
+    ctx.strokeStyle = '#666';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    for (let i = 0; i < ast.vertices.length; i++) {
+      const v = ast.vertices[i];
+      const x = Math.cos(v.angle) * v.r * ast.radius;
+      const y = Math.sin(v.angle) * v.r * ast.radius;
+      if (i === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    }
+    ctx.closePath();
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  // Ally drones
+  for (const a of allies) {
+    drawDrone(a.x, a.y, a.angle, '#4ade80', a.radius);
+  }
+
+  // Enemy drones
+  for (const e of enemies) {
+    drawDrone(e.x, e.y, e.angle, '#f87171', e.radius);
+  }
+
+  // Bullets (player)
+  ctx.fillStyle = '#0ff';
+  for (const b of bullets) {
+    ctx.beginPath();
+    ctx.arc(b.x, b.y, 2, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // Drone bullets
+  for (const b of droneBullets) {
+    ctx.fillStyle = b.isAlly ? '#4ade8088' : '#f8717188';
+    ctx.beginPath();
+    ctx.arc(b.x, b.y, 2, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // Player
+  if (player && gameState === 'playing') {
+    const blink = player.invincible > 0 && ~~(player.invincible * 10) % 2 === 0;
+    if (!blink) {
+      ctx.save();
+      ctx.translate(player.x, player.y);
+      ctx.rotate(player.angle);
+      ctx.strokeStyle = '#0ff';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(15, 0);
+      ctx.lineTo(-10, -9);
+      ctx.lineTo(-6, 0);
+      ctx.lineTo(-10, 9);
+      ctx.closePath();
+      ctx.stroke();
+
+      // Thrust flame
+      if (keys['ArrowUp'] || keys['w']) {
+        ctx.strokeStyle = '#f80';
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.moveTo(-8, -4);
+        ctx.lineTo(-14 - Math.random() * 6, 0);
+        ctx.lineTo(-8, 4);
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
+  }
+
+  // Particles
+  for (const p of particles) {
+    ctx.globalAlpha = Math.max(0, p.life * 2);
+    ctx.fillStyle = p.color;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+
+  ctx.restore();
+}
+
+function drawDrone(x, y, angle, color, radius) {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(angle);
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(radius, 0);
+  ctx.lineTo(-radius * 0.7, -radius * 0.6);
+  ctx.lineTo(-radius * 0.3, 0);
+  ctx.lineTo(-radius * 0.7, radius * 0.6);
+  ctx.closePath();
+  ctx.stroke();
+  ctx.restore();
+}
+
+// ============ GAME FLOW ============
+function startGame() {
+  document.getElementById('overlay').style.display = 'none';
+  gameState = 'playing';
+  score = 0;
+  wave = 1;
+  player = createPlayer();
+  bullets = [];
+  asteroids = [];
+  enemies = [];
+  allies = [];
+  particles = [];
+  droneBullets = [];
+  spawnWave();
+}
+
+function gameOver() {
+  gameState = 'gameover';
+  spawnParticles(player.x, player.y, '#0ff', 30, 150);
+  screenShake(8);
+
+  const overlay = document.getElementById('overlay');
+  overlay.style.display = 'flex';
+  overlay.querySelector('h1').textContent = 'GAME OVER';
+  overlay.querySelector('.sub').textContent = `Score: ${score} | Wave: ${wave} | Allies recruited: ${allies.length}`;
+  overlay.querySelector('.start-hint').textContent = 'PRESS ENTER TO RETRY';
+}
+
+// ============ MAIN LOOP ============
+let lastTime = 0;
+function loop(ts) {
+  const dt = Math.min(0.05, (ts - lastTime) / 1000);
+  lastTime = ts;
+  update(dt);
+  render();
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+
+})();
+</script>
+</body>
+</html>

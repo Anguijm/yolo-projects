@@ -1,0 +1,571 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ray Caster — Wolfenstein-style Engine</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { background: #0a0a0a; color: #eee; font-family: 'Segoe UI', system-ui, sans-serif; overflow: hidden; height: 100vh; display: flex; flex-direction: column; }
+#topbar { display: flex; align-items: center; gap: 16px; padding: 8px 16px; background: #1a1a2e; border-bottom: 1px solid #333; z-index: 10; }
+#topbar h1 { font-size: 16px; color: #00d4ff; white-space: nowrap; }
+#topbar .info { font-size: 12px; color: #888; }
+#topbar button { padding: 4px 12px; background: #16213e; border: 1px solid #444; color: #ccc; border-radius: 4px; cursor: pointer; font-size: 12px; }
+#topbar button:hover { background: #0f3460; color: #fff; }
+#topbar button.active { background: #00d4ff; color: #000; border-color: #00d4ff; }
+#main { display: flex; flex: 1; overflow: hidden; }
+#viewport { flex: 1; background: #000; display: flex; align-items: center; justify-content: center; position: relative; }
+canvas#game { display: block; image-rendering: pixelated; }
+#minimap-overlay { position: absolute; top: 10px; right: 10px; border: 2px solid #00d4ff44; border-radius: 4px; background: #000000aa; }
+#sidebar { width: 260px; background: #111; border-left: 1px solid #333; padding: 12px; overflow-y: auto; display: none; flex-direction: column; gap: 10px; }
+#sidebar.open { display: flex; }
+#sidebar h3 { font-size: 13px; color: #00d4ff; margin-bottom: 4px; }
+#sidebar label { font-size: 11px; color: #aaa; display: block; margin-bottom: 2px; }
+#sidebar input[type=range] { width: 100%; }
+#sidebar .color-row { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 8px; }
+#sidebar .color-swatch { width: 28px; height: 28px; border-radius: 4px; cursor: pointer; border: 2px solid transparent; }
+#sidebar .color-swatch.active { border-color: #fff; }
+#sidebar .map-grid { display: inline-grid; gap: 1px; background: #333; border: 1px solid #444; }
+#sidebar .map-cell { width: 14px; height: 14px; cursor: pointer; }
+#help-overlay { display: none; position: fixed; inset: 0; background: #000000cc; z-index: 100; align-items: center; justify-content: center; }
+#help-overlay.show { display: flex; }
+#help-box { background: #1a1a2e; padding: 24px 32px; border-radius: 12px; border: 1px solid #333; max-width: 420px; }
+#help-box h2 { color: #00d4ff; margin-bottom: 12px; font-size: 18px; }
+#help-box p { font-size: 13px; line-height: 1.6; color: #ccc; margin-bottom: 8px; }
+#help-box kbd { background: #333; padding: 1px 6px; border-radius: 3px; font-size: 12px; }
+#fps { position: absolute; top: 10px; left: 10px; font-size: 12px; color: #0f0; font-family: monospace; z-index: 5; }
+</style>
+</head>
+<body>
+<div id="topbar">
+  <h1>RAY CASTER</h1>
+  <button id="btn-help">Help</button>
+  <button id="btn-editor">Map Editor</button>
+  <button id="btn-textures" class="active">Textures</button>
+  <button id="btn-fog">Fog</button>
+  <span class="info" id="pos-info">x: 0 y: 0 angle: 0</span>
+</div>
+<div id="main">
+  <div id="viewport">
+    <canvas id="game"></canvas>
+    <canvas id="minimap-overlay" width="160" height="160"></canvas>
+    <div id="fps">60 FPS</div>
+  </div>
+  <div id="sidebar">
+    <h3>Map Editor</h3>
+    <label>Wall Type</label>
+    <div class="color-row" id="wall-palette"></div>
+    <label>Click cells to toggle walls (right-click to erase)</label>
+    <div id="map-editor-grid"></div>
+    <h3>Player</h3>
+    <button id="btn-reset-pos" style="width:100%;margin-top:4px;">Reset Position</button>
+    <h3>Settings</h3>
+    <label>FOV: <span id="fov-val">60</span>°</label>
+    <input type="range" id="fov-slider" min="30" max="120" value="60">
+    <label>View Distance: <span id="dist-val">16</span></label>
+    <input type="range" id="dist-slider" min="4" max="32" value="16">
+    <label>Move Speed: <span id="speed-val">3.0</span></label>
+    <input type="range" id="speed-slider" min="1" max="8" value="3" step="0.5">
+  </div>
+</div>
+<div id="help-overlay">
+  <div id="help-box">
+    <h2>Controls</h2>
+    <p><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> — Move &amp; strafe</p>
+    <p><kbd>←</kbd><kbd>→</kbd> or <kbd>Mouse</kbd> — Look left/right</p>
+    <p><kbd>Shift</kbd> — Sprint</p>
+    <p><kbd>M</kbd> — Toggle minimap</p>
+    <p><kbd>E</kbd> — Toggle map editor</p>
+    <p><kbd>F</kbd> — Toggle fog</p>
+    <p><kbd>T</kbd> — Toggle textures</p>
+    <p><kbd>Esc</kbd> — Release mouse</p>
+    <p style="margin-top:12px;color:#888;">Click the viewport to capture mouse for mouselook.</p>
+    <button onclick="document.getElementById('help-overlay').classList.remove('show')" style="margin-top:12px;padding:6px 20px;background:#00d4ff;border:none;color:#000;border-radius:4px;cursor:pointer;">Got it</button>
+  </div>
+</div>
+
+<script>
+(function() { // IIFE to avoid polluting global scope
+// ============ CONFIG ============
+const RENDER_W = 640;
+const RENDER_H = 400;
+const MAP_SIZE = 24;
+const TEX_SIZE = 64;
+if ((TEX_SIZE & (TEX_SIZE - 1)) !== 0) throw new Error("TEX_SIZE must be a power of 2");
+
+// ============ MAP ============
+const wallColors = [
+  null,
+  '#cc3333', '#33aa33', '#3355cc', '#ccaa22',
+  '#aa33aa', '#33aaaa', '#cc6633', '#888888'
+];
+const wallNames = ['Erase','Red','Green','Blue','Yellow','Purple','Cyan','Orange','Gray'];
+
+function hexToRgb(hex) {
+  const v = parseInt(hex.slice(1), 16);
+  return { r: (v >> 16) & 255, g: (v >> 8) & 255, b: v & 255 };
+}
+const parsedWallColors = wallColors.map(c => c ? hexToRgb(c) : null);
+
+// Default map — outer walls + some inner structure
+let map = [];
+function initMap() {
+  map = [];
+  for (let y = 0; y < MAP_SIZE; y++) {
+    const row = [];
+    for (let x = 0; x < MAP_SIZE; x++) {
+      if (x === 0 || y === 0 || x === MAP_SIZE-1 || y === MAP_SIZE-1) row.push(1);
+      else row.push(0);
+    }
+    map.push(row);
+  }
+  // Inner structures
+  for (let i = 4; i < 10; i++) { map[4][i] = 2; map[10][i] = 3; }
+  for (let i = 4; i < 11; i++) { map[i][4] = 4; }
+  map[7][8] = 5; map[7][9] = 5; map[7][10] = 5;
+  map[14][6] = 6; map[14][7] = 6; map[14][8] = 6; map[14][9] = 6;
+  map[15][6] = 6; map[15][9] = 6;
+  map[16][6] = 7; map[16][7] = 7; map[16][8] = 7; map[16][9] = 7;
+  for (let i = 13; i < 20; i++) map[i][14] = 8;
+  for (let i = 14; i < 18; i++) map[13][i] = 2;
+  for (let i = 14; i < 18; i++) map[19][i] = 3;
+  map[13][18] = 0; // door gap
+}
+initMap();
+
+// ============ TEXTURES (procedural) ============
+const textures = [];
+function generateTextures() {
+  for (let t = 1; t <= 8; t++) {
+    const data = new Uint8ClampedArray(TEX_SIZE * TEX_SIZE * 4);
+    const c = hexToRgb(wallColors[t]);
+    for (let y = 0; y < TEX_SIZE; y++) {
+      for (let x = 0; x < TEX_SIZE; x++) {
+        const idx = (y * TEX_SIZE + x) * 4;
+        const brickH = 16, brickW = 32;
+        const row = ~~(y / brickH);
+        const offsetX = (row % 2) * (brickW / 2);
+        const bx = (x + offsetX) % brickW;
+        const isMortar = (y % brickH < 1) || (bx < 1);
+        if (isMortar) {
+          data[idx] = 40; data[idx+1] = 40; data[idx+2] = 40;
+        } else {
+          const noise = (Math.sin(x * 13.7 + y * 7.3) * 0.5 + 0.5) * 30 - 15;
+          data[idx] = c.r + noise;
+          data[idx+1] = c.g + noise;
+          data[idx+2] = c.b + noise;
+        }
+        data[idx+3] = 255;
+      }
+    }
+    textures[t] = data;
+  }
+}
+
+generateTextures();
+
+// ============ PLAYER ============
+let player = { x: 2.5, y: 2.5, angle: 0 };
+let fov = 60 * Math.PI / 180;
+let maxDist = 16;
+let moveSpeed = 3.0;
+let useTextures = true;
+let useFog = true;
+let showMinimap = true;
+let isPaused = false;
+
+// ============ INPUT ============
+const keys = {};
+let mouseLocked = false;
+let mouseDX = 0;
+
+document.addEventListener('keydown', e => {
+  keys[e.key.toLowerCase()] = true;
+  if (e.key.toLowerCase() === 'm') showMinimap = !showMinimap;
+  if (e.key.toLowerCase() === 'e') toggleEditor();
+  if (e.key.toLowerCase() === 'f') { useFog = !useFog; updateFogBtn(); }
+  if (e.key.toLowerCase() === 't') { useTextures = !useTextures; updateTexBtn(); }
+});
+document.addEventListener('keyup', e => { keys[e.key.toLowerCase()] = false; });
+document.addEventListener('mousemove', e => {
+  if (mouseLocked) mouseDX += e.movementX;
+});
+document.addEventListener('pointerlockchange', () => {
+  mouseLocked = !!document.pointerLockElement;
+  isPaused = !mouseLocked;
+});
+window.addEventListener('blur', () => { for (const k in keys) keys[k] = false; });
+
+const gameCanvas = document.getElementById('game');
+gameCanvas.width = RENDER_W;
+gameCanvas.height = RENDER_H;
+gameCanvas.style.width = '100%';
+gameCanvas.style.height = '100%';
+gameCanvas.style.objectFit = 'contain';
+gameCanvas.addEventListener('click', () => {
+  gameCanvas.requestPointerLock();
+});
+
+const ctx = gameCanvas.getContext('2d');
+const imgData = ctx.createImageData(RENDER_W, RENDER_H);
+const buf = imgData.data;
+
+// ============ MINIMAP ============
+const minimapCanvas = document.getElementById('minimap-overlay');
+const mctx = minimapCanvas.getContext('2d');
+
+// Offscreen minimap grid cache
+const minimapBg = document.createElement('canvas');
+minimapBg.width = 160; minimapBg.height = 160;
+const mbctx = minimapBg.getContext('2d');
+let minimapDirty = true;
+
+function renderMinimapBg() {
+  const mSize = 160;
+  const cellSize = mSize / MAP_SIZE;
+  mbctx.fillStyle = '#000';
+  mbctx.fillRect(0, 0, mSize, mSize);
+  for (let y = 0; y < MAP_SIZE; y++) {
+    for (let x = 0; x < MAP_SIZE; x++) {
+      if (map[y][x] > 0) {
+        mbctx.fillStyle = wallColors[map[y][x]] + '88';
+        mbctx.fillRect(x * cellSize, y * cellSize, cellSize, cellSize);
+      }
+    }
+  }
+  minimapDirty = false;
+}
+
+// Pre-computed full background buffer (sky + floor) — copied via .set() each frame
+const baseBg = new Uint8ClampedArray(RENDER_W * RENDER_H * 4);
+for (let y = 0; y < RENDER_H; y++) {
+  let r, g, b;
+  if (y < RENDER_H / 2) {
+    const t = y / (RENDER_H / 2);
+    r = ~~(10 + t * 20); g = ~~(10 + t * 30); b = ~~(40 + t * 60);
+  } else {
+    const t = (y - RENDER_H / 2) / (RENDER_H / 2);
+    r = ~~(20 + t * 30); g = ~~(15 + t * 20); b = ~~(10 + t * 10);
+  }
+  for (let x = 0; x < RENDER_W; x++) {
+    const idx = (y * RENDER_W + x) * 4;
+    baseBg[idx] = r; baseBg[idx+1] = g; baseBg[idx+2] = b; baseBg[idx+3] = 255;
+  }
+}
+
+// ============ RAYCASTING (DDA) ============
+function castRayDDA(ox, oy, angle) {
+  const dirX = Math.cos(angle);
+  const dirY = Math.sin(angle);
+
+  let mapX = Math.floor(ox);
+  let mapY = Math.floor(oy);
+
+  const deltaDistX = Math.abs(1 / dirX);
+  const deltaDistY = Math.abs(1 / dirY);
+
+  let stepX, stepY, sideDistX, sideDistY;
+
+  if (dirX < 0) { stepX = -1; sideDistX = (ox - mapX) * deltaDistX; }
+  else { stepX = 1; sideDistX = (mapX + 1 - ox) * deltaDistX; }
+
+  if (dirY < 0) { stepY = -1; sideDistY = (oy - mapY) * deltaDistY; }
+  else { stepY = 1; sideDistY = (mapY + 1 - oy) * deltaDistY; }
+
+  let side = 0;
+  let hit = false;
+
+  for (let i = 0; i < 200; i++) {
+    if (sideDistX < sideDistY) {
+      sideDistX += deltaDistX;
+      mapX += stepX;
+      side = 0;
+    } else {
+      sideDistY += deltaDistY;
+      mapY += stepY;
+      side = 1;
+    }
+    if (mapX < 0 || mapY < 0 || mapX >= MAP_SIZE || mapY >= MAP_SIZE) break;
+    if (map[mapY][mapX] > 0) { hit = true; break; }
+  }
+
+  if (!hit) return { dist: maxDist, wall: 0, texX: 0, side: 0 };
+
+  let perpDist;
+  if (side === 0) perpDist = sideDistX - deltaDistX;
+  else perpDist = sideDistY - deltaDistY;
+
+  let wallX;
+  if (side === 0) wallX = oy + perpDist * dirY;
+  else wallX = ox + perpDist * dirX;
+  wallX -= Math.floor(wallX);
+
+  return { dist: perpDist, wall: map[mapY][mapX], texX: wallX, side };
+}
+
+function render() {
+  // Blit pre-computed sky+floor background in one fast .set() call
+  buf.set(baseBg);
+
+  // Cast rays
+  for (let col = 0; col < RENDER_W; col++) {
+    const rayAngle = player.angle - fov/2 + (col / RENDER_W) * fov;
+    const hit = castRayDDA(player.x, player.y, rayAngle);
+
+    // Fix fisheye
+    const correctedDist = hit.dist * Math.cos(rayAngle - player.angle);
+    const trueWallHeight = RENDER_H / (correctedDist + 0.001);
+    const wallHeight = Math.min(RENDER_H * 2, trueWallHeight);
+
+    const bob = ~~headBobOffset;
+    const drawStart = Math.max(0, ~~((RENDER_H - wallHeight) / 2) + bob);
+    const drawEnd = Math.min(RENDER_H - 1, ~~((RENDER_H + wallHeight) / 2) + bob);
+
+    if (hit.wall > 0) {
+      const c = parsedWallColors[hit.wall];
+      const darken = hit.side === 1 ? 0.7 : 1.0;
+      const texXi = (~~(hit.texX * TEX_SIZE)) & (TEX_SIZE - 1);
+      const texStep = TEX_SIZE / trueWallHeight;
+      let texPos = (drawStart - bob - RENDER_H / 2 + trueWallHeight / 2) * texStep;
+      const fogMul = useFog ? Math.max(0, 1 - correctedDist / maxDist) : 1;
+      const shade = darken * fogMul;
+      const tex = textures[hit.wall];
+
+      for (let y = drawStart; y <= drawEnd; y++) {
+        const idx = (y * RENDER_W + col) * 4;
+        let r, g, b;
+        if (useTextures && tex) {
+          const texY = (~~texPos) & (TEX_SIZE - 1);
+          texPos += texStep;
+          const tIdx = (texY * TEX_SIZE + texXi) * 4;
+          r = tex[tIdx]; g = tex[tIdx+1]; b = tex[tIdx+2];
+        } else {
+          r = c.r; g = c.g; b = c.b;
+        }
+        buf[idx] = r * shade; buf[idx+1] = g * shade; buf[idx+2] = b * shade; buf[idx+3] = 255;
+      }
+    }
+  }
+
+  ctx.putImageData(imgData, 0, 0);
+
+  // Minimap
+  if (showMinimap) {
+    minimapCanvas.style.display = 'block';
+    const mSize = 160;
+    const cellSize = mSize / MAP_SIZE;
+    if (minimapDirty) renderMinimapBg();
+    mctx.drawImage(minimapBg, 0, 0);
+    // Player
+    const px = player.x * cellSize;
+    const py = player.y * cellSize;
+    mctx.fillStyle = '#0f0';
+    mctx.beginPath();
+    mctx.arc(px, py, 3, 0, Math.PI * 2);
+    mctx.fill();
+    // Direction
+    mctx.strokeStyle = '#0f0';
+    mctx.lineWidth = 1.5;
+    mctx.beginPath();
+    mctx.moveTo(px, py);
+    mctx.lineTo(px + Math.cos(player.angle) * 12, py + Math.sin(player.angle) * 12);
+    mctx.stroke();
+    // FOV cone
+    mctx.strokeStyle = '#0f044';
+    mctx.lineWidth = 0.5;
+    mctx.beginPath();
+    mctx.moveTo(px, py);
+    mctx.lineTo(px + Math.cos(player.angle - fov/2) * 30, py + Math.sin(player.angle - fov/2) * 30);
+    mctx.moveTo(px, py);
+    mctx.lineTo(px + Math.cos(player.angle + fov/2) * 30, py + Math.sin(player.angle + fov/2) * 30);
+    mctx.stroke();
+  } else {
+    minimapCanvas.style.display = 'none';
+  }
+}
+
+// ============ GAME LOOP ============
+let lastTime = 0;
+let frameCount = 0;
+let fpsTime = 0;
+
+let headBobPhase = 0;
+let headBobOffset = 0;
+
+function update(dt) {
+  if (isPaused) return;
+  const speed = moveSpeed * dt * (keys['shift'] ? 2 : 1);
+  const rotSpeed = 2.5 * dt;
+
+  // Mouse look (scaled by dt for polling-rate independence)
+  if (mouseDX !== 0) {
+    player.angle += mouseDX * 0.003;
+    mouseDX = 0;
+  }
+
+  // Keyboard rotation
+  if (keys['arrowleft']) player.angle -= rotSpeed;
+  if (keys['arrowright']) player.angle += rotSpeed;
+
+  const dx = Math.cos(player.angle);
+  const dy = Math.sin(player.angle);
+
+  // Accumulate movement vector and normalize for diagonal
+  let moveX = 0, moveY = 0;
+  if (keys['w']) { moveX += dx; moveY += dy; }
+  if (keys['s']) { moveX -= dx; moveY -= dy; }
+  if (keys['a']) { moveX += dy; moveY -= dx; }
+  if (keys['d']) { moveX -= dy; moveY += dx; }
+
+  const moveMag = Math.sqrt(moveX * moveX + moveY * moveY);
+  if (moveMag > 0) {
+    moveX = moveX / moveMag * speed;
+    moveY = moveY / moveMag * speed;
+    headBobPhase += dt * 10 * (keys['shift'] ? 1.5 : 1);
+    headBobOffset = Math.sin(headBobPhase) * 8;
+  } else {
+    headBobOffset *= 0.9; // Decay smoothly
+  }
+
+  const newX = player.x + moveX;
+  const newY = player.y + moveY;
+
+  // Collision — slide along walls
+  const margin = 0.2;
+  if (canMove(newX, player.y, margin)) player.x = newX;
+  if (canMove(player.x, newY, margin)) player.y = newY;
+
+  // Update info
+  document.getElementById('pos-info').textContent =
+    `x: ${player.x.toFixed(1)} y: ${player.y.toFixed(1)} angle: ${(player.angle * 180 / Math.PI % 360).toFixed(0)}°`;
+}
+
+function canMove(x, y, m) {
+  // Check corners of bounding box
+  const checks = [[x-m,y-m],[x+m,y-m],[x-m,y+m],[x+m,y+m]];
+  for (const [cx, cy] of checks) {
+    const mx = Math.floor(cx);
+    const my = Math.floor(cy);
+    if (mx < 0 || my < 0 || mx >= MAP_SIZE || my >= MAP_SIZE) return false;
+    if (map[my][mx] > 0) return false;
+  }
+  return true;
+}
+
+function loop(timestamp) {
+  const dt = Math.min(0.05, (timestamp - lastTime) / 1000);
+  lastTime = timestamp;
+
+  update(dt);
+  render();
+
+  frameCount++;
+  if (timestamp - fpsTime > 500) {
+    document.getElementById('fps').textContent = Math.round(frameCount / ((timestamp - fpsTime) / 1000)) + ' FPS';
+    frameCount = 0;
+    fpsTime = timestamp;
+  }
+
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+
+// ============ UI ============
+function toggleEditor() {
+  const sb = document.getElementById('sidebar');
+  sb.classList.toggle('open');
+  if (sb.classList.contains('open')) buildMapGrid();
+}
+
+function updateFogBtn() {
+  document.getElementById('btn-fog').classList.toggle('active', useFog);
+}
+function updateTexBtn() {
+  document.getElementById('btn-textures').classList.toggle('active', useTextures);
+}
+
+document.getElementById('btn-help').addEventListener('click', () => {
+  document.getElementById('help-overlay').classList.add('show');
+});
+document.getElementById('btn-editor').addEventListener('click', toggleEditor);
+document.getElementById('btn-textures').addEventListener('click', () => {
+  useTextures = !useTextures;
+  updateTexBtn();
+});
+document.getElementById('btn-fog').addEventListener('click', () => {
+  useFog = !useFog;
+  updateFogBtn();
+});
+document.getElementById('btn-reset-pos').addEventListener('click', () => {
+  player.x = 2.5; player.y = 2.5; player.angle = 0;
+});
+
+// Sliders
+document.getElementById('fov-slider').addEventListener('input', e => {
+  fov = e.target.value * Math.PI / 180;
+  document.getElementById('fov-val').textContent = e.target.value;
+});
+document.getElementById('dist-slider').addEventListener('input', e => {
+  maxDist = parseFloat(e.target.value);
+  document.getElementById('dist-val').textContent = e.target.value;
+});
+document.getElementById('speed-slider').addEventListener('input', e => {
+  moveSpeed = parseFloat(e.target.value);
+  document.getElementById('speed-val').textContent = e.target.value;
+});
+
+// Wall palette
+let selectedWall = 1;
+const paletteDiv = document.getElementById('wall-palette');
+wallColors.forEach((color, i) => {
+  const swatch = document.createElement('div');
+  swatch.className = 'color-swatch' + (i === selectedWall ? ' active' : '');
+  swatch.style.background = color || '#222';
+  if (i === 0) { swatch.style.background = '#222'; swatch.innerHTML = '<span style="font-size:10px;color:#888;">✕</span>'; swatch.style.display='flex';swatch.style.alignItems='center';swatch.style.justifyContent='center'; }
+  swatch.title = wallNames[i];
+  swatch.addEventListener('click', () => {
+    selectedWall = i;
+    document.querySelectorAll('.color-swatch').forEach((s,j) => s.classList.toggle('active', j===i));
+  });
+  paletteDiv.appendChild(swatch);
+});
+
+// Map grid editor
+function buildMapGrid() {
+  const container = document.getElementById('map-editor-grid');
+  container.innerHTML = '';
+  const grid = document.createElement('div');
+  grid.className = 'map-grid';
+  grid.style.gridTemplateColumns = `repeat(${MAP_SIZE}, 14px)`;
+
+  for (let y = 0; y < MAP_SIZE; y++) {
+    for (let x = 0; x < MAP_SIZE; x++) {
+      const cell = document.createElement('div');
+      cell.className = 'map-cell';
+      cell.style.background = map[y][x] > 0 ? wallColors[map[y][x]] : '#111';
+      cell.addEventListener('mousedown', e => {
+        e.preventDefault();
+        if (e.button === 2) { map[y][x] = 0; cell.style.background = '#111'; }
+        else { map[y][x] = selectedWall; cell.style.background = selectedWall > 0 ? wallColors[selectedWall] : '#111'; }
+        minimapDirty = true;
+      });
+      cell.addEventListener('mouseover', e => {
+        if (e.buttons === 1) { map[y][x] = selectedWall; cell.style.background = selectedWall > 0 ? wallColors[selectedWall] : '#111'; minimapDirty = true; }
+        else if (e.buttons === 2) { map[y][x] = 0; cell.style.background = '#111'; minimapDirty = true; }
+      });
+      cell.addEventListener('contextmenu', e => e.preventDefault());
+      grid.appendChild(cell);
+    }
+  }
+  container.appendChild(grid);
+}
+
+// Show help on first visit
+if (!localStorage.getItem('raycaster-seen')) {
+  document.getElementById('help-overlay').classList.add('show');
+  localStorage.setItem('raycaster-seen', '1');
+}
+})(); // End IIFE
+</script>
+</body>
+</html>

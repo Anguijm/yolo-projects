@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Regex Playground</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: 'SF Mono', 'Fira Code', monospace; background: #0a0a0a; color: #ccc; padding: 2rem; max-width: 1000px; margin: 0 auto; }
+h1 { font-size: 1.4rem; color: #fff; margin-bottom: 0.3rem; }
+.sub { color: #555; font-size: 0.75rem; margin-bottom: 1.5rem; }
+.input-group { margin-bottom: 1rem; }
+.input-group label { display: block; font-size: 0.7rem; color: #666; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 0.3rem; }
+.regex-row { display: flex; gap: 0.5rem; align-items: center; }
+.regex-row input { flex: 1; background: #111; border: 1px solid #333; color: #fff; padding: 0.6rem 0.8rem; border-radius: 6px; font-family: inherit; font-size: 0.9rem; }
+.regex-row input:focus { outline: none; border-color: #4ade80; }
+.flags { display: flex; gap: 0.3rem; }
+.flag-btn { background: #1a1a1a; border: 1px solid #333; color: #666; width: 28px; height: 34px; border-radius: 4px; cursor: pointer; font-family: inherit; font-size: 0.8rem; display: flex; align-items: center; justify-content: center; }
+.flag-btn.active { background: #0a2a0a; color: #4ade80; border-color: #166534; }
+textarea { width: 100%; background: #111; border: 1px solid #222; color: #ccc; padding: 0.8rem; border-radius: 6px; font-family: inherit; font-size: 0.85rem; resize: vertical; min-height: 120px; line-height: 1.6; }
+textarea:focus { outline: none; border-color: #333; }
+.error { color: #f87171; font-size: 0.75rem; margin-top: 0.3rem; min-height: 1rem; }
+.results { margin-top: 1.5rem; }
+.result-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.8rem; }
+.result-title { font-size: 0.85rem; color: #fff; }
+.match-count { font-size: 0.75rem; color: #4ade80; }
+.highlighted-text { background: #111; border: 1px solid #222; border-radius: 6px; padding: 0.8rem; font-size: 0.85rem; line-height: 1.8; white-space: pre-wrap; word-break: break-all; min-height: 60px; }
+.match { background: rgba(74, 222, 128, 0.15); border: 1px solid rgba(74, 222, 128, 0.3); border-radius: 3px; padding: 0 2px; }
+.match-alt { background: rgba(96, 165, 250, 0.15); border: 1px solid rgba(96, 165, 250, 0.3); border-radius: 3px; padding: 0 2px; }
+.groups-section { margin-top: 1.5rem; }
+.group-table { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
+.group-table th { text-align: left; padding: 0.4rem 0.6rem; border-bottom: 1px solid #222; color: #666; font-size: 0.7rem; text-transform: uppercase; }
+.group-table td { padding: 0.4rem 0.6rem; border-bottom: 1px solid #111; }
+.group-table tr:hover td { background: #111; }
+.group-idx { color: #666; width: 60px; }
+.group-name { color: #60a5fa; width: 100px; }
+.group-val { color: #4ade80; }
+.group-span { color: #555; font-size: 0.7rem; width: 80px; }
+.quick-ref { margin-top: 2rem; padding: 1rem; background: #0d0d0d; border-radius: 8px; border: 1px solid #1a1a1a; }
+.quick-ref summary { color: #666; font-size: 0.75rem; cursor: pointer; }
+.quick-ref summary:hover { color: #aaa; }
+.ref-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 0.3rem; margin-top: 0.8rem; }
+.ref-item { font-size: 0.7rem; padding: 0.2rem 0; }
+.ref-token { color: #4ade80; display: inline-block; width: 50px; }
+.ref-desc { color: #666; }
+</style>
+</head>
+<body>
+
+<h1>Regex Playground</h1>
+<p class="sub">Live regex testing with match highlighting and group extraction</p>
+
+<div class="input-group">
+  <label>Pattern</label>
+  <div class="regex-row">
+    <span style="color:#666;font-size:1.1rem">/</span>
+    <input type="text" id="pattern" placeholder="Enter regex pattern..." value="(\w+)@(\w+)\.(\w+)">
+    <span style="color:#666;font-size:1.1rem">/</span>
+    <div class="flags">
+      <button class="flag-btn active" data-flag="g" title="global">g</button>
+      <button class="flag-btn" data-flag="i" title="case insensitive">i</button>
+      <button class="flag-btn" data-flag="m" title="multiline">m</button>
+      <button class="flag-btn" data-flag="s" title="dotAll">s</button>
+    </div>
+  </div>
+  <div class="error" id="error"></div>
+</div>
+
+<div class="input-group">
+  <label>Test String</label>
+  <textarea id="test-string">Contact us at hello@example.com or support@company.org
+You can also reach admin@internal.net for urgent matters.</textarea>
+</div>
+
+<div class="results">
+  <div class="result-header">
+    <span class="result-title">Matches</span>
+    <span class="match-count" id="match-count"></span>
+  </div>
+  <div class="highlighted-text" id="highlighted"></div>
+</div>
+
+<div class="groups-section">
+  <div class="result-header">
+    <span class="result-title">Capture Groups</span>
+  </div>
+  <table class="group-table" id="groups-table">
+    <thead><tr><th>Match</th><th>Group</th><th>Name</th><th>Value</th><th>Span</th></tr></thead>
+    <tbody id="groups-body"></tbody>
+  </table>
+</div>
+
+<details class="quick-ref">
+  <summary>Quick Reference</summary>
+  <div class="ref-grid">
+    <div class="ref-item"><span class="ref-token">.</span><span class="ref-desc">Any character</span></div>
+    <div class="ref-item"><span class="ref-token">\\d</span><span class="ref-desc">Digit [0-9]</span></div>
+    <div class="ref-item"><span class="ref-token">\\w</span><span class="ref-desc">Word char</span></div>
+    <div class="ref-item"><span class="ref-token">\\s</span><span class="ref-desc">Whitespace</span></div>
+    <div class="ref-item"><span class="ref-token">\\b</span><span class="ref-desc">Word boundary</span></div>
+    <div class="ref-item"><span class="ref-token">^</span><span class="ref-desc">Start of line</span></div>
+    <div class="ref-item"><span class="ref-token">$</span><span class="ref-desc">End of line</span></div>
+    <div class="ref-item"><span class="ref-token">*</span><span class="ref-desc">0 or more</span></div>
+    <div class="ref-item"><span class="ref-token">+</span><span class="ref-desc">1 or more</span></div>
+    <div class="ref-item"><span class="ref-token">?</span><span class="ref-desc">0 or 1</span></div>
+    <div class="ref-item"><span class="ref-token">{n,m}</span><span class="ref-desc">n to m times</span></div>
+    <div class="ref-item"><span class="ref-token">(x)</span><span class="ref-desc">Capture group</span></div>
+    <div class="ref-item"><span class="ref-token">(?:x)</span><span class="ref-desc">Non-capture</span></div>
+    <div class="ref-item"><span class="ref-token">(?&lt;n&gt;x)</span><span class="ref-desc">Named group</span></div>
+    <div class="ref-item"><span class="ref-token">[abc]</span><span class="ref-desc">Char class</span></div>
+    <div class="ref-item"><span class="ref-token">[^abc]</span><span class="ref-desc">Negated class</span></div>
+    <div class="ref-item"><span class="ref-token">x|y</span><span class="ref-desc">Alternation</span></div>
+    <div class="ref-item"><span class="ref-token">(?=x)</span><span class="ref-desc">Lookahead</span></div>
+    <div class="ref-item"><span class="ref-token">(?!x)</span><span class="ref-desc">Neg lookahead</span></div>
+    <div class="ref-item"><span class="ref-token">(?&lt;=x)</span><span class="ref-desc">Lookbehind</span></div>
+  </div>
+</details>
+
+<script>
+const patternEl = document.getElementById('pattern');
+const testEl = document.getElementById('test-string');
+const errorEl = document.getElementById('error');
+const highlightedEl = document.getElementById('highlighted');
+const matchCountEl = document.getElementById('match-count');
+const groupsBody = document.getElementById('groups-body');
+const flagBtns = document.querySelectorAll('.flag-btn');
+
+let flags = 'g';
+
+flagBtns.forEach(btn => {
+  btn.addEventListener('click', () => {
+    btn.classList.toggle('active');
+    flags = [...document.querySelectorAll('.flag-btn.active')].map(b => b.dataset.flag).join('');
+    run();
+  });
+});
+
+function escapeHtml(s) {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+function run() {
+  const pattern = patternEl.value;
+  const text = testEl.value;
+  errorEl.textContent = '';
+  groupsBody.innerHTML = '';
+
+  if (!pattern) {
+    highlightedEl.innerHTML = escapeHtml(text);
+    matchCountEl.textContent = '';
+    return;
+  }
+
+  let regex;
+  try {
+    regex = new RegExp(pattern, flags);
+  } catch(e) {
+    errorEl.textContent = e.message;
+    highlightedEl.innerHTML = escapeHtml(text);
+    matchCountEl.textContent = '';
+    return;
+  }
+
+  // Find all matches with positions
+  const matches = [];
+  if (flags.includes('g')) {
+    let m;
+    while ((m = regex.exec(text)) !== null) {
+      matches.push(m);
+      if (m.index === regex.lastIndex) regex.lastIndex++;
+    }
+  } else {
+    const m = regex.exec(text);
+    if (m) matches.push(m);
+  }
+
+  matchCountEl.textContent = matches.length + ' match' + (matches.length !== 1 ? 'es' : '');
+
+  // Build highlighted text
+  let html = '';
+  let lastIdx = 0;
+  matches.forEach((m, i) => {
+    const start = m.index;
+    const end = start + m[0].length;
+    html += escapeHtml(text.slice(lastIdx, start));
+    const cls = i % 2 === 0 ? 'match' : 'match-alt';
+    html += `<span class="${cls}">${escapeHtml(m[0])}</span>`;
+    lastIdx = end;
+  });
+  html += escapeHtml(text.slice(lastIdx));
+  highlightedEl.innerHTML = html || escapeHtml(text);
+
+  // Build groups table
+  let groupsHtml = '';
+  matches.forEach((m, mi) => {
+    // Full match
+    groupsHtml += `<tr>
+      <td class="group-idx">#${mi + 1}</td>
+      <td class="group-idx">0</td>
+      <td class="group-name">full</td>
+      <td class="group-val">${escapeHtml(m[0])}</td>
+      <td class="group-span">${m.index}-${m.index + m[0].length}</td>
+    </tr>`;
+    // Capture groups
+    for (let g = 1; g < m.length; g++) {
+      const val = m[g];
+      // Check for named groups
+      let name = '';
+      if (m.groups) {
+        for (const [k, v] of Object.entries(m.groups)) {
+          if (v === val) { name = k; break; }
+        }
+      }
+      groupsHtml += `<tr>
+        <td class="group-idx"></td>
+        <td class="group-idx">${g}</td>
+        <td class="group-name">${name}</td>
+        <td class="group-val">${val !== undefined ? escapeHtml(val) : '<span style="color:#555">undefined</span>'}</td>
+        <td class="group-span"></td>
+      </tr>`;
+    }
+  });
+  groupsBody.innerHTML = groupsHtml;
+}
+
+patternEl.addEventListener('input', run);
+testEl.addEventListener('input', run);
+run();
+</script>
+</body>
+</html>

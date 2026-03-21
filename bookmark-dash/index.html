@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bookmark Dash</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'SF Mono','Fira Code',monospace;background:#0a0a0a;color:#ccc;min-height:100vh;display:flex;flex-direction:column;align-items:center;padding:3rem 2rem}
+.clock{font-size:4rem;font-weight:bold;color:#fff;margin-bottom:0.3rem;font-variant-numeric:tabular-nums}
+.date{font-size:0.85rem;color:#555;margin-bottom:2rem}
+.search-box{width:100%;max-width:500px;margin-bottom:2.5rem;position:relative}
+.search-box input{width:100%;background:#111;border:1px solid #222;color:#fff;padding:0.8rem 1rem;border-radius:8px;font-family:inherit;font-size:0.9rem}
+.search-box input:focus{outline:none;border-color:#4ade80}
+.groups{width:100%;max-width:800px}
+.group{margin-bottom:2rem}
+.group-header{display:flex;align-items:center;gap:0.5rem;margin-bottom:0.8rem}
+.group-title{font-size:0.7rem;color:#555;text-transform:uppercase;letter-spacing:0.1em;flex:1}
+.group-add{background:none;border:none;color:#333;cursor:pointer;font-size:0.8rem}
+.group-add:hover{color:#4ade80}
+.links{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:0.5rem}
+.link{background:#111;border:1px solid #1a1a1a;border-radius:8px;padding:0.8rem;cursor:pointer;text-decoration:none;color:#ccc;transition:all 0.15s;display:flex;flex-direction:column;gap:0.3rem;position:relative}
+.link:hover{border-color:#333;background:#151515}
+.link-icon{font-size:1.3rem;margin-bottom:0.1rem}
+.link-name{font-size:0.75rem;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.link-url{font-size:0.55rem;color:#444;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.link-del{position:absolute;top:4px;right:6px;background:none;border:none;color:transparent;cursor:pointer;font-size:0.6rem}
+.link:hover .link-del{color:#444}
+.link-del:hover{color:#f87171!important}
+.add-link{background:#0d0d0d;border:1px dashed #222;border-radius:8px;padding:0.8rem;cursor:pointer;display:flex;align-items:center;justify-content:center;color:#333;font-size:0.8rem;min-height:70px}
+.add-link:hover{border-color:#444;color:#666}
+.modal{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.8);display:none;align-items:center;justify-content:center;z-index:100}
+.modal.show{display:flex}
+.modal-box{background:#111;border:1px solid #222;border-radius:12px;padding:1.5rem;width:320px}
+.modal-box h3{font-size:0.9rem;color:#fff;margin-bottom:1rem}
+.modal-box input{width:100%;background:#0a0a0a;border:1px solid #222;color:#fff;padding:0.5rem;border-radius:6px;font-family:inherit;font-size:0.8rem;margin-bottom:0.5rem}
+.modal-box input:focus{outline:none;border-color:#4ade80}
+.modal-actions{display:flex;gap:0.5rem;margin-top:0.5rem}
+.modal-actions button{flex:1;padding:0.4rem;border-radius:4px;border:1px solid #333;background:#1a1a1a;color:#999;cursor:pointer;font-family:inherit;font-size:0.75rem}
+.modal-actions button.primary{background:#0a2a0a;color:#4ade80;border-color:#166534}
+</style>
+</head>
+<body>
+<div class="clock" id="clock"></div>
+<div class="date" id="date"></div>
+
+<div class="search-box">
+  <input type="text" id="search" placeholder="Search bookmarks or type URL..." autofocus>
+</div>
+
+<div class="groups" id="groups"></div>
+
+<div class="modal" id="modal">
+  <div class="modal-box">
+    <h3 id="modal-title">Add Bookmark</h3>
+    <input type="text" id="m-name" placeholder="Name">
+    <input type="text" id="m-url" placeholder="https://...">
+    <input type="text" id="m-icon" placeholder="Icon emoji (optional)">
+    <div class="modal-actions">
+      <button onclick="closeModal()">Cancel</button>
+      <button class="primary" onclick="saveLink()">Save</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const DEFAULT_DATA = {
+  groups: [
+    {name:'Work', links:[
+      {name:'GitHub',url:'https://github.com',icon:'&#128025;'},
+      {name:'Gmail',url:'https://mail.google.com',icon:'&#9993;'},
+      {name:'Calendar',url:'https://calendar.google.com',icon:'&#128197;'},
+      {name:'Notion',url:'https://notion.so',icon:'&#128221;'},
+    ]},
+    {name:'Dev', links:[
+      {name:'Stack Overflow',url:'https://stackoverflow.com',icon:'&#128218;'},
+      {name:'MDN',url:'https://developer.mozilla.org',icon:'&#128214;'},
+      {name:'Can I Use',url:'https://caniuse.com',icon:'&#10004;'},
+      {name:'npm',url:'https://npmjs.com',icon:'&#128230;'},
+    ]},
+    {name:'Social', links:[
+      {name:'Twitter/X',url:'https://x.com',icon:'&#128038;'},
+      {name:'Reddit',url:'https://reddit.com',icon:'&#129412;'},
+      {name:'YouTube',url:'https://youtube.com',icon:'&#9654;'},
+      {name:'HN',url:'https://news.ycombinator.com',icon:'&#128293;'},
+    ]},
+  ]
+};
+
+let data = JSON.parse(localStorage.getItem('bookmark-dash') || 'null') || JSON.parse(JSON.stringify(DEFAULT_DATA));
+let editingGroup = null;
+
+function save() { localStorage.setItem('bookmark-dash', JSON.stringify(data)); }
+
+function updateClock() {
+  const now = new Date();
+  document.getElementById('clock').textContent = now.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit',second:'2-digit'});
+  document.getElementById('date').textContent = now.toLocaleDateString([], {weekday:'long',month:'long',day:'numeric',year:'numeric'});
+}
+
+function render() {
+  const q = document.getElementById('search').value.toLowerCase();
+  document.getElementById('groups').innerHTML = data.groups.map((g, gi) => {
+    let links = g.links;
+    if (q) links = links.filter(l => (l.name + l.url).toLowerCase().includes(q));
+    return `<div class="group">
+      <div class="group-header">
+        <span class="group-title">${g.name}</span>
+        <span class="group-add" onclick="openModal(${gi})">+</span>
+      </div>
+      <div class="links">
+        ${links.map((l, li) => `
+          <a class="link" href="${l.url}" target="_blank">
+            <span class="link-icon">${l.icon||'&#128279;'}</span>
+            <span class="link-name">${l.name}</span>
+            <span class="link-url">${l.url.replace(/^https?:\/\//,'').slice(0,30)}</span>
+            <span class="link-del" onclick="event.preventDefault();event.stopPropagation();deleteLink(${gi},${gi}_${li})">x</span>
+          </a>
+        `).join('')}
+        <div class="add-link" onclick="openModal(${gi})">+</div>
+      </div>
+    </div>`;
+  }).join('') + `<div style="text-align:center;margin-top:1rem"><span class="group-add" style="font-size:0.7rem;color:#333;cursor:pointer" onclick="addGroup()">+ Add Group</span></div>`;
+}
+
+window.openModal = function(gi) {
+  editingGroup = gi;
+  document.getElementById('m-name').value = '';
+  document.getElementById('m-url').value = '';
+  document.getElementById('m-icon').value = '';
+  document.getElementById('modal').classList.add('show');
+  document.getElementById('m-name').focus();
+};
+
+window.closeModal = function() {
+  document.getElementById('modal').classList.remove('show');
+};
+
+window.saveLink = function() {
+  const name = document.getElementById('m-name').value.trim();
+  const url = document.getElementById('m-url').value.trim();
+  const icon = document.getElementById('m-icon').value.trim();
+  if (!name || !url) return;
+  data.groups[editingGroup].links.push({ name, url: url.startsWith('http') ? url : 'https://' + url, icon: icon || null });
+  save(); render(); closeModal();
+};
+
+window.deleteLink = function(gi, key) {
+  // Parse the actual index from the rendered order
+  const parts = String(key).split('_');
+  const li = parseInt(parts[1]);
+  data.groups[gi].links.splice(li, 1);
+  save(); render();
+};
+
+window.addGroup = function() {
+  const name = prompt('Group name:');
+  if (name) { data.groups.push({ name, links: [] }); save(); render(); }
+};
+
+document.getElementById('search').addEventListener('input', render);
+document.getElementById('search').addEventListener('keydown', e => {
+  if (e.key === 'Enter') {
+    const v = e.target.value.trim();
+    if (v.includes('.') && !v.includes(' ')) {
+      window.open(v.startsWith('http') ? v : 'https://' + v, '_blank');
+    }
+  }
+});
+
+document.getElementById('modal').addEventListener('click', e => { if (e.target === e.currentTarget) closeModal(); });
+
+updateClock();
+setInterval(updateClock, 1000);
+render();
+</script>
+</body>
+</html>

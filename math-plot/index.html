@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Math Plot</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'SF Mono','Fira Code',monospace;background:#0a0a0a;color:#ccc;display:flex;height:100vh;overflow:hidden}
+.sidebar{width:280px;background:#0d0d0d;border-right:1px solid #1a1a1a;padding:1rem;display:flex;flex-direction:column;gap:0.8rem;overflow-y:auto}
+h1{font-size:1.1rem;color:#fff}
+.sub{font-size:0.65rem;color:#555}
+.func-list{display:flex;flex-direction:column;gap:0.4rem}
+.func-row{display:flex;gap:0.3rem;align-items:center}
+.func-color{width:12px;height:12px;border-radius:50%;cursor:pointer;flex-shrink:0}
+.func-input{flex:1;background:#111;border:1px solid #222;color:#fff;padding:0.35rem 0.5rem;border-radius:4px;font-family:inherit;font-size:0.75rem}
+.func-input:focus{outline:none;border-color:#4ade80}
+.func-del{background:none;border:none;color:#444;cursor:pointer;font-size:0.9rem;padding:0 4px;width:auto}
+.func-del:hover{color:#f87171}
+button{background:#1a1a1a;border:1px solid #333;color:#999;padding:0.35rem 0.6rem;border-radius:4px;cursor:pointer;font-family:inherit;font-size:0.7rem;width:100%}
+button:hover{color:#fff;border-color:#555}
+.range-row{display:flex;gap:0.5rem;align-items:center}
+.range-row label{font-size:0.6rem;color:#555;width:30px}
+.range-row input{flex:1;background:#111;border:1px solid #222;color:#ccc;padding:0.3rem;border-radius:4px;font-family:inherit;font-size:0.7rem;width:50px}
+.presets{display:flex;flex-wrap:wrap;gap:3px}
+.preset{font-size:0.6rem;padding:0.2rem 0.4rem;background:#1a1a1a;border:1px solid #222;border-radius:3px;cursor:pointer;color:#888}
+.preset:hover{color:#fff;border-color:#444}
+.canvas-area{flex:1;position:relative}
+canvas{width:100%;height:100%}
+.coords{position:fixed;bottom:0.5rem;right:1rem;font-size:0.7rem;color:#444}
+.error{font-size:0.65rem;color:#f87171;min-height:0.8rem}
+.section-label{font-size:0.6rem;color:#555;text-transform:uppercase;letter-spacing:0.1em}
+</style>
+</head>
+<body>
+<div class="sidebar">
+  <h1>Math Plot</h1>
+  <p class="sub">Type f(x) expressions. Use: sin, cos, tan, abs, sqrt, log, exp, PI, E, ^</p>
+
+  <div class="section-label">Functions</div>
+  <div class="func-list" id="func-list"></div>
+  <button onclick="addFunc()">+ Add Function</button>
+
+  <div class="error" id="error"></div>
+
+  <div class="section-label" style="margin-top:0.5rem">View Range</div>
+  <div class="range-row"><label>X min</label><input id="xmin" value="-10" type="number" step="1"><label>max</label><input id="xmax" value="10" type="number" step="1"></div>
+  <div class="range-row"><label>Y min</label><input id="ymin" value="-10" type="number" step="1"><label>max</label><input id="ymax" value="10" type="number" step="1"></div>
+  <button onclick="plot()">Apply Range</button>
+
+  <div class="section-label" style="margin-top:0.5rem">Presets</div>
+  <div class="presets">
+    <div class="preset" onclick="loadPreset('sin(x)')">sin(x)</div>
+    <div class="preset" onclick="loadPreset('x^2')">x^2</div>
+    <div class="preset" onclick="loadPreset('1/x')">1/x</div>
+    <div class="preset" onclick="loadPreset('sqrt(x)')">sqrt(x)</div>
+    <div class="preset" onclick="loadPreset('exp(-x^2)')">gaussian</div>
+    <div class="preset" onclick="loadPreset('sin(x)/x')">sinc</div>
+    <div class="preset" onclick="loadPreset('tan(x)')">tan(x)</div>
+    <div class="preset" onclick="loadPreset('abs(sin(x)*x)')">|sin*x|</div>
+    <div class="preset" onclick="loadPreset('log(x)')">log(x)</div>
+    <div class="preset" onclick="loadPreset('sin(x)*cos(2*x)')">beats</div>
+  </div>
+</div>
+
+<div class="canvas-area">
+  <canvas id="canvas"></canvas>
+  <div class="coords" id="coords">0, 0</div>
+</div>
+
+<script>
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+const COLORS = ['#4ade80','#60a5fa','#f87171','#fbbf24','#a78bfa','#fb923c','#f472b6','#34d399'];
+
+let funcs = [{expr:'sin(x)', color:COLORS[0]},{expr:'x^2/10', color:COLORS[1]}];
+let xMin=-10, xMax=10, yMin=-10, yMax=10;
+let isDragging=false, dragStart={x:0,y:0}, dragRange={};
+
+function parseExpr(expr) {
+  // Convert to JS-safe expression
+  let js = expr
+    .replace(/\^/g, '**')
+    .replace(/sin\(/g, 'Math.sin(')
+    .replace(/cos\(/g, 'Math.cos(')
+    .replace(/tan\(/g, 'Math.tan(')
+    .replace(/abs\(/g, 'Math.abs(')
+    .replace(/sqrt\(/g, 'Math.sqrt(')
+    .replace(/log\(/g, 'Math.log(')
+    .replace(/exp\(/g, 'Math.exp(')
+    .replace(/PI/g, 'Math.PI')
+    .replace(/\bE\b/g, 'Math.E')
+    .replace(/(\d)(x)/g, '$1*x')
+    .replace(/(x)(\d)/g, 'x*$2')
+    .replace(/\)(x)/g, ')*x')
+    .replace(/(x)\(/g, 'x*(');
+  return new Function('x', `"use strict"; try { return ${js}; } catch(e) { return NaN; }`);
+}
+
+function resize() {
+  canvas.width = canvas.parentElement.clientWidth * 2;
+  canvas.height = canvas.parentElement.clientHeight * 2;
+  ctx.scale(2, 2);
+  plot();
+}
+
+function plot() {
+  xMin = parseFloat(document.getElementById('xmin').value) || -10;
+  xMax = parseFloat(document.getElementById('xmax').value) || 10;
+  yMin = parseFloat(document.getElementById('ymin').value) || -10;
+  yMax = parseFloat(document.getElementById('ymax').value) || 10;
+
+  const W = canvas.width / 2;
+  const H = canvas.height / 2;
+  ctx.clearRect(0, 0, W, H);
+  ctx.fillStyle = '#0a0a0a';
+  ctx.fillRect(0, 0, W, H);
+
+  const toX = v => (v - xMin) / (xMax - xMin) * W;
+  const toY = v => H - (v - yMin) / (yMax - yMin) * H;
+
+  // Grid
+  ctx.strokeStyle = '#151515';
+  ctx.lineWidth = 0.5;
+  const xStep = niceStep(xMax - xMin);
+  const yStep = niceStep(yMax - yMin);
+  for (let v = Math.ceil(xMin/xStep)*xStep; v <= xMax; v += xStep) {
+    const px = toX(v);
+    ctx.beginPath(); ctx.moveTo(px, 0); ctx.lineTo(px, H); ctx.stroke();
+    ctx.fillStyle = '#333';
+    ctx.font = '9px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText(fmt(v), px, toY(0) + 12);
+  }
+  for (let v = Math.ceil(yMin/yStep)*yStep; v <= yMax; v += yStep) {
+    const py = toY(v);
+    ctx.beginPath(); ctx.moveTo(0, py); ctx.lineTo(W, py); ctx.stroke();
+    ctx.fillStyle = '#333';
+    ctx.textAlign = 'right';
+    ctx.fillText(fmt(v), toX(0) - 4, py + 3);
+  }
+
+  // Axes
+  ctx.strokeStyle = '#333';
+  ctx.lineWidth = 1;
+  const ax = toX(0), ay = toY(0);
+  if (ax >= 0 && ax <= W) { ctx.beginPath(); ctx.moveTo(ax, 0); ctx.lineTo(ax, H); ctx.stroke(); }
+  if (ay >= 0 && ay <= H) { ctx.beginPath(); ctx.moveTo(0, ay); ctx.lineTo(W, ay); ctx.stroke(); }
+
+  // Plot functions
+  const errEl = document.getElementById('error');
+  errEl.textContent = '';
+  funcs.forEach(f => {
+    let fn;
+    try { fn = parseExpr(f.expr); } catch(e) { errEl.textContent = `Error in "${f.expr}"`; return; }
+    ctx.beginPath();
+    ctx.strokeStyle = f.color;
+    ctx.lineWidth = 2;
+    let started = false;
+    const step = (xMax - xMin) / W;
+    for (let px = 0; px < W; px++) {
+      const x = xMin + (px / W) * (xMax - xMin);
+      const y = fn(x);
+      if (isNaN(y) || !isFinite(y) || Math.abs(y) > 1e10) { started = false; continue; }
+      const py = toY(y);
+      if (!started) { ctx.moveTo(px, py); started = true; }
+      else ctx.lineTo(px, py);
+    }
+    ctx.stroke();
+  });
+}
+
+function niceStep(range) {
+  const rough = range / 8;
+  const mag = Math.pow(10, Math.floor(Math.log10(rough)));
+  const norm = rough / mag;
+  if (norm < 1.5) return mag;
+  if (norm < 3.5) return 2 * mag;
+  if (norm < 7.5) return 5 * mag;
+  return 10 * mag;
+}
+
+function fmt(v) {
+  if (Math.abs(v) < 1e-10) return '0';
+  if (Math.abs(v) >= 1000) return v.toExponential(0);
+  return parseFloat(v.toPrecision(4)).toString();
+}
+
+function renderFuncList() {
+  const el = document.getElementById('func-list');
+  el.innerHTML = funcs.map((f, i) => `
+    <div class="func-row">
+      <div class="func-color" style="background:${f.color}" onclick="cycleColor(${i})"></div>
+      <input class="func-input" value="${f.expr}" data-idx="${i}" placeholder="f(x) = ...">
+      <span class="func-del" onclick="delFunc(${i})">x</span>
+    </div>
+  `).join('');
+  el.querySelectorAll('.func-input').forEach(inp => {
+    inp.addEventListener('input', () => { funcs[parseInt(inp.dataset.idx)].expr = inp.value; plot(); });
+  });
+}
+
+function addFunc() {
+  funcs.push({expr: '', color: COLORS[funcs.length % COLORS.length]});
+  renderFuncList();
+}
+window.delFunc = function(i) { funcs.splice(i, 1); renderFuncList(); plot(); };
+window.cycleColor = function(i) {
+  const ci = COLORS.indexOf(funcs[i].color);
+  funcs[i].color = COLORS[(ci + 1) % COLORS.length];
+  renderFuncList(); plot();
+};
+window.addFunc = addFunc;
+window.loadPreset = function(expr) { funcs = [{expr, color: COLORS[0]}]; renderFuncList(); plot(); };
+
+// Mouse interaction - pan & zoom
+canvas.addEventListener('wheel', e => {
+  e.preventDefault();
+  const factor = e.deltaY > 0 ? 1.1 : 0.9;
+  const rect = canvas.getBoundingClientRect();
+  const mx = (e.clientX - rect.left) / rect.width;
+  const my = 1 - (e.clientY - rect.top) / rect.height;
+  const xCenter = xMin + mx * (xMax - xMin);
+  const yCenter = yMin + my * (yMax - yMin);
+  const newW = (xMax - xMin) * factor;
+  const newH = (yMax - yMin) * factor;
+  xMin = xCenter - mx * newW; xMax = xCenter + (1-mx) * newW;
+  yMin = yCenter - my * newH; yMax = yCenter + (1-my) * newH;
+  document.getElementById('xmin').value = fmt(xMin);
+  document.getElementById('xmax').value = fmt(xMax);
+  document.getElementById('ymin').value = fmt(yMin);
+  document.getElementById('ymax').value = fmt(yMax);
+  plot();
+});
+
+canvas.addEventListener('mousedown', e => { isDragging = true; dragStart = {x: e.clientX, y: e.clientY}; dragRange = {xMin, xMax, yMin, yMax}; });
+canvas.addEventListener('mousemove', e => {
+  const rect = canvas.getBoundingClientRect();
+  const mx = xMin + ((e.clientX - rect.left) / rect.width) * (xMax - xMin);
+  const my = yMax - ((e.clientY - rect.top) / rect.height) * (yMax - yMin);
+  document.getElementById('coords').textContent = `${mx.toFixed(2)}, ${my.toFixed(2)}`;
+  if (!isDragging) return;
+  const dx = (e.clientX - dragStart.x) / rect.width * (dragRange.xMax - dragRange.xMin);
+  const dy = (e.clientY - dragStart.y) / rect.height * (dragRange.yMax - dragRange.yMin);
+  xMin = dragRange.xMin - dx; xMax = dragRange.xMax - dx;
+  yMin = dragRange.yMin + dy; yMax = dragRange.yMax + dy;
+  document.getElementById('xmin').value = fmt(xMin);
+  document.getElementById('xmax').value = fmt(xMax);
+  document.getElementById('ymin').value = fmt(yMin);
+  document.getElementById('ymax').value = fmt(yMax);
+  plot();
+});
+canvas.addEventListener('mouseup', () => isDragging = false);
+
+['xmin','xmax','ymin','ymax'].forEach(id => document.getElementById(id).addEventListener('change', plot));
+window.addEventListener('resize', resize);
+renderFuncList();
+resize();
+</script>
+</body>
+</html>
