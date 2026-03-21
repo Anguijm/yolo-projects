@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Prose X-Ray</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { background: #0d1117; color: #c9d1d9; font-family: 'Segoe UI', system-ui, sans-serif; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+
+#topbar { display: flex; align-items: center; gap: 10px; padding: 6px 14px; background: #161b22; border-bottom: 1px solid #21262d; }
+#topbar h1 { font-size: 14px; color: #58a6ff; letter-spacing: 0.08em; }
+.tb-btn { padding: 3px 10px; background: #21262d; border: 1px solid #30363d; color: #8b949e; border-radius: 5px; cursor: pointer; font-size: 10px; font-family: inherit; }
+.tb-btn:hover { border-color: #58a6ff; color: #c9d1d9; }
+.sep { width: 1px; height: 18px; background: #21262d; }
+
+#main { flex: 1; display: flex; overflow: hidden; }
+
+/* Editor panel */
+#editor-panel { flex: 1; display: flex; flex-direction: column; border-right: 1px solid #21262d; min-width: 0; }
+#editor-panel textarea { flex: 1; background: #0d1117; border: none; color: #e6edf3; padding: 14px; font-family: 'Georgia', serif; font-size: 14px; line-height: 1.8; resize: none; outline: none; }
+#editor-panel textarea::placeholder { color: #30363d; }
+
+/* Stats panel */
+#stats-panel { width: 360px; overflow-y: auto; background: #0d1117; padding: 14px; display: flex; flex-direction: column; gap: 14px; }
+
+/* Stat cards */
+.stat-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.stat-card { background: #161b22; border: 1px solid #21262d; border-radius: 6px; padding: 8px; text-align: center; }
+.stat-val { font-size: 1.2rem; font-weight: bold; color: #fff; font-family: monospace; }
+.stat-label { font-size: 0.6rem; color: #484f58; text-transform: uppercase; letter-spacing: 0.08em; margin-top: 2px; }
+.stat-val.grade { color: #3fb950; }
+.stat-val.warn { color: #d29922; }
+.stat-val.hard { color: #f85149; }
+
+/* Section headers */
+.section-header { font-size: 0.7rem; color: #58a6ff; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 4px; }
+
+/* Sentence rhythm */
+#rhythm { height: 80px; display: flex; align-items: flex-end; gap: 1px; background: #161b22; border: 1px solid #21262d; border-radius: 6px; padding: 8px 4px; overflow: hidden; }
+.rhythm-bar { flex: 1; min-width: 2px; max-width: 8px; border-radius: 2px 2px 0 0; transition: height 0.2s; }
+
+/* Top words */
+.word-list { display: flex; flex-direction: column; gap: 3px; }
+.word-row { display: flex; align-items: center; gap: 8px; font-size: 0.75rem; }
+.word-text { font-family: monospace; color: #e6edf3; min-width: 80px; }
+.word-bar-wrap { flex: 1; height: 12px; background: #161b22; border-radius: 3px; overflow: hidden; }
+.word-bar { height: 100%; border-radius: 3px; background: #58a6ff; transition: width 0.3s; }
+.word-count { color: #484f58; font-size: 0.65rem; font-family: monospace; min-width: 24px; text-align: right; }
+
+/* Reading level meter */
+.meter { height: 8px; background: #161b22; border-radius: 4px; overflow: hidden; border: 1px solid #21262d; }
+.meter-fill { height: 100%; border-radius: 4px; transition: width 0.3s; }
+.meter-labels { display: flex; justify-content: space-between; font-size: 0.55rem; color: #30363d; margin-top: 2px; }
+
+/* Empty state */
+.empty-state { color: #30363d; text-align: center; padding: 40px 20px; font-size: 0.85rem; line-height: 1.6; }
+</style>
+</head>
+<body>
+<div id="topbar">
+  <h1>PROSE X-RAY</h1>
+  <div class="sep"></div>
+  <button class="tb-btn" data-demo="hemingway">Hemingway</button>
+  <button class="tb-btn" data-demo="academic">Academic</button>
+  <button class="tb-btn" data-demo="marketing">Marketing</button>
+  <button class="tb-btn" data-demo="dickens">Dickens</button>
+  <div class="sep"></div>
+  <button class="tb-btn" id="btn-clear">Clear</button>
+</div>
+<div id="main">
+  <div id="editor-panel">
+    <textarea id="editor" placeholder="Paste or type your text here..."></textarea>
+  </div>
+  <div id="stats-panel">
+    <div class="empty-state" id="empty-msg">Paste text or click a demo to see your prose x-ray.</div>
+    <div id="stats-content" style="display:none">
+      <div class="section-header">Vitals</div>
+      <div class="stat-grid">
+        <div class="stat-card"><div class="stat-val" id="s-words">0</div><div class="stat-label">Words</div></div>
+        <div class="stat-card"><div class="stat-val" id="s-sentences">0</div><div class="stat-label">Sentences</div></div>
+        <div class="stat-card"><div class="stat-val" id="s-paragraphs">0</div><div class="stat-label">Paragraphs</div></div>
+        <div class="stat-card"><div class="stat-val" id="s-chars">0</div><div class="stat-label">Characters</div></div>
+        <div class="stat-card"><div class="stat-val" id="s-readtime">0m</div><div class="stat-label">Read Time</div></div>
+        <div class="stat-card"><div class="stat-val" id="s-unique">0%</div><div class="stat-label">Unique Words</div></div>
+      </div>
+
+      <div class="section-header" style="margin-top:8px">Reading Level</div>
+      <div class="stat-grid" style="grid-template-columns: 1fr 1fr">
+        <div class="stat-card"><div class="stat-val" id="s-grade">—</div><div class="stat-label">Grade Level</div></div>
+        <div class="stat-card"><div class="stat-val" id="s-ease">—</div><div class="stat-label">Reading Ease</div></div>
+      </div>
+      <div class="meter"><div class="meter-fill" id="ease-meter" style="width:0;background:#3fb950"></div></div>
+      <div class="meter-labels"><span>Hard</span><span>Easy</span></div>
+
+      <div class="section-header" style="margin-top:8px">Averages</div>
+      <div class="stat-grid" style="grid-template-columns: 1fr 1fr">
+        <div class="stat-card"><div class="stat-val" id="s-avgword">—</div><div class="stat-label">Avg Word Len</div></div>
+        <div class="stat-card"><div class="stat-val" id="s-avgsent">—</div><div class="stat-label">Avg Sent Len</div></div>
+      </div>
+
+      <div class="section-header" style="margin-top:8px">Sentence Rhythm</div>
+      <div id="rhythm"></div>
+
+      <div class="section-header" style="margin-top:8px">Top Words</div>
+      <div class="word-list" id="top-words"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function() {
+'use strict';
+
+// ============ STOP WORDS ============
+const STOP_WORDS = new Set([
+  'the','be','to','of','and','a','in','that','have','i','it','for','not','on','with',
+  'he','as','you','do','at','this','but','his','by','from','they','we','her','she',
+  'or','an','will','my','one','all','would','there','their','what','so','up','out',
+  'if','about','who','get','which','go','me','when','make','can','like','time','no',
+  'just','him','know','take','people','into','year','your','good','some','could',
+  'them','see','other','than','then','now','look','only','come','its','over','think',
+  'also','back','after','use','two','how','our','work','first','well','way','even',
+  'new','want','because','any','these','give','day','most','us','is','was','are',
+  'been','had','has','were','did','said','each','very','much','own','may','more'
+]);
+
+// ============ DEMO TEXTS ============
+const DEMOS = {
+  hemingway: `He was an old man who fished alone in a skiff in the Gulf Stream and he had gone eighty-four days now without taking a fish. In the first forty days a boy had been with him. But after forty days without a fish the boy's parents had told him that the old man was now definitely and finally salao, which is the worst form of unlucky, and the boy had gone at their orders in another boat which caught three good fish the first week. It made the boy sad to see the old man come in each day with his skiff empty and he always went down to help him carry either the coiled lines or the gaff and harpoon and the sail that was furled around the mast. The sail was patched with flour sacks and, furled, it looked like the flag of permanent defeat.`,
+
+  academic: `The epistemological implications of quantum decoherence present a fundamental challenge to our understanding of measurement in quantum mechanical systems. While the Copenhagen interpretation posits an inherently probabilistic collapse of the wave function upon observation, the many-worlds interpretation eschews this discontinuity in favor of universal wave function evolution, thereby circumventing the measurement problem at the expense of ontological parsimony. Furthermore, the decoherence program, which elucidates the mechanism by which quantum superpositions become effectively classical through environmental entanglement, provides a framework for understanding the emergence of classicality without invoking a fundamental collapse postulate. Nevertheless, the interpretive significance of decoherence remains a subject of considerable philosophical debate, particularly regarding whether it constitutes a genuine resolution of the measurement problem or merely displaces the explanatory burden to the preferred basis problem.`,
+
+  marketing: `Ready to transform your workflow? Our revolutionary AI-powered platform helps teams collaborate faster, ship smarter, and scale effortlessly. Join over 10,000 companies who have already made the switch. Start your free trial today and see results in minutes, not months. No credit card required. Cancel anytime. Our customers report 3x productivity gains and 40% reduction in meeting time. Don't get left behind while your competitors innovate. The future of work is here, and it starts with one click. Sign up now and get exclusive early access to our premium features. Limited time offer.`,
+
+  dickens: `It was the best of times, it was the worst of times, it was the age of wisdom, it was the age of foolishness, it was the epoch of belief, it was the epoch of incredulity, it was the season of Light, it was the season of Darkness, it was the spring of hope, it was the winter of despair, we had everything before us, we had nothing before us, we were all going direct to Heaven, we were all going direct the other way, in short the period was so far like the present period, that some of its noisiest authorities insisted on its being received, for good or for evil, in the superlative degree of comparison only.`
+};
+
+// ============ TEXT ANALYSIS ============
+function splitSentences(text) {
+  // Protect common abbreviations, then split on sentence-ending punctuation
+  return text
+    .replace(/\b(Mr|Mrs|Ms|Dr|Prof|Jr|Sr|St|vs|etc|e\.g|i\.e)\.\s/gi, '$1\u2060 ')
+    .replace(/([.!?])\s+/g, '$1\u200B')
+    .split('\u200B')
+    .map(s => s.replace(/\u2060/g, '.').trim())
+    .filter(s => s.length > 0);
+}
+
+function countSyllables(word) {
+  word = word.toLowerCase().replace(/[^a-z]/g, '');
+  if (word.length <= 3) return 1;
+  word = word.replace(/(?:[^laeiouy]es|ed|[^laeiouy]e)$/, '');
+  word = word.replace(/^y/, '');
+  const matches = word.match(/[aeiouy]+/g);
+  return matches ? Math.max(1, matches.length) : 1;
+}
+
+function analyze(text) {
+  if (!text || text.trim().length === 0) return null;
+
+  const words = text.match(/\b[a-zA-Z']+\b/g) || [];
+  if (words.length === 0) return null;
+
+  const sentences = splitSentences(text);
+  const paragraphs = text.split(/\n\s*\n/).filter(p => p.trim().length > 0);
+  const chars = text.length;
+  const charsNoSpace = text.replace(/\s/g, '').length;
+
+  // Word stats
+  const wordLower = words.map(w => w.toLowerCase());
+  const uniqueWords = new Set(wordLower);
+  const totalSyllables = words.reduce((sum, w) => sum + countSyllables(w), 0);
+  const avgWordLen = words.reduce((sum, w) => sum + w.length, 0) / words.length;
+
+  // Sentence stats
+  const sentenceLengths = sentences.map(s => {
+    const sw = s.match(/\b[a-zA-Z']+\b/g);
+    return sw ? sw.length : 0;
+  }).filter(l => l > 0);
+  const validSentCount = sentenceLengths.length > 0 ? sentenceLengths.length : 1;
+  const avgSentLen = sentenceLengths.reduce((a, b) => a + b, 0) / validSentCount;
+
+  // Flesch-Kincaid
+  const wordsPerSent = words.length / validSentCount;
+  const syllPerWord = totalSyllables / Math.max(1, words.length);
+  const fleschEase = 206.835 - 1.015 * wordsPerSent - 84.6 * syllPerWord;
+  const fleschGrade = 0.39 * wordsPerSent + 11.8 * syllPerWord - 15.59;
+
+  // Reading time (avg 238 words/min)
+  const readTimeMin = words.length / 238;
+
+  // Word frequency (excluding stop words)
+  const freq = {};
+  for (const w of wordLower) {
+    if (!STOP_WORDS.has(w) && w.length > 2) {
+      freq[w] = (freq[w] || 0) + 1;
+    }
+  }
+  const topWords = Object.entries(freq)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 12);
+
+  return {
+    words: words.length,
+    sentences: sentences.length,
+    paragraphs: paragraphs.length,
+    chars,
+    charsNoSpace,
+    uniqueWords: uniqueWords.size,
+    uniqueRatio: uniqueWords.size / words.length,
+    avgWordLen,
+    avgSentLen,
+    sentenceLengths,
+    fleschEase: Math.max(0, Math.min(100, fleschEase)),
+    fleschGrade: Math.max(0, fleschGrade),
+    readTimeMin,
+    topWords
+  };
+}
+
+// ============ RENDERING ============
+function renderStats(stats) {
+  if (!stats) {
+    document.getElementById('empty-msg').style.display = 'block';
+    document.getElementById('stats-content').style.display = 'none';
+    return;
+  }
+  document.getElementById('empty-msg').style.display = 'none';
+  document.getElementById('stats-content').style.display = 'block';
+
+  // Vitals
+  document.getElementById('s-words').textContent = stats.words;
+  document.getElementById('s-sentences').textContent = stats.sentences;
+  document.getElementById('s-paragraphs').textContent = stats.paragraphs;
+  document.getElementById('s-chars').textContent = stats.charsNoSpace;
+  document.getElementById('s-unique').textContent = (stats.uniqueRatio * 100).toFixed(0) + '%';
+
+  const mins = Math.floor(stats.readTimeMin);
+  const secs = Math.round((stats.readTimeMin - mins) * 60);
+  document.getElementById('s-readtime').textContent = mins > 0 ? mins + 'm ' + secs + 's' : secs + 's';
+
+  // Reading level
+  const gradeEl = document.getElementById('s-grade');
+  const grade = stats.fleschGrade;
+  gradeEl.textContent = grade.toFixed(1);
+  gradeEl.className = 'stat-val ' + (grade < 8 ? 'grade' : grade < 12 ? 'warn' : 'hard');
+
+  const ease = stats.fleschEase;
+  const easeEl = document.getElementById('s-ease');
+  easeEl.textContent = ease.toFixed(0);
+  easeEl.className = 'stat-val ' + (ease > 60 ? 'grade' : ease > 30 ? 'warn' : 'hard');
+
+  const meterFill = document.getElementById('ease-meter');
+  meterFill.style.width = ease + '%';
+  meterFill.style.background = ease > 60 ? '#3fb950' : ease > 30 ? '#d29922' : '#f85149';
+
+  // Averages
+  document.getElementById('s-avgword').textContent = stats.avgWordLen.toFixed(1);
+  document.getElementById('s-avgsent').textContent = stats.avgSentLen.toFixed(1);
+
+  // Sentence rhythm
+  const rhythmEl = document.getElementById('rhythm');
+  const maxLen = Math.max(1, ...stats.sentenceLengths);
+  rhythmEl.innerHTML = stats.sentenceLengths.map(len => {
+    const pct = (len / maxLen) * 100;
+    const hue = len < 10 ? 120 : len < 20 ? 60 : len < 30 ? 30 : 0;
+    return '<div class="rhythm-bar" style="height:' + pct + '%;background:hsl(' + hue + ',70%,50%)" title="' + len + ' words"></div>';
+  }).join('');
+
+  // Top words
+  const topEl = document.getElementById('top-words');
+  const maxFreq = stats.topWords.length > 0 ? stats.topWords[0][1] : 1;
+  topEl.innerHTML = stats.topWords.map(function(entry) {
+    var word = entry[0];
+    var count = entry[1];
+    var pct = (count / maxFreq) * 100;
+    return '<div class="word-row">' +
+      '<span class="word-text">' + escapeHtml(word) + '</span>' +
+      '<div class="word-bar-wrap"><div class="word-bar" style="width:' + pct + '%"></div></div>' +
+      '<span class="word-count">' + count + '</span>' +
+      '</div>';
+  }).join('');
+}
+
+function escapeHtml(s) {
+  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;');
+}
+
+// ============ EVENT HANDLERS ============
+let debounceTimer;
+const editor = document.getElementById('editor');
+
+editor.addEventListener('input', function() {
+  clearTimeout(debounceTimer);
+  debounceTimer = setTimeout(function() {
+    var stats = analyze(editor.value);
+    renderStats(stats);
+  }, 300);
+});
+
+// Demo buttons
+document.querySelectorAll('[data-demo]').forEach(function(btn) {
+  btn.addEventListener('click', function() {
+    var demo = DEMOS[btn.dataset.demo];
+    if (demo) {
+      editor.value = demo;
+      var stats = analyze(demo);
+      renderStats(stats);
+    }
+  });
+});
+
+// Clear
+document.getElementById('btn-clear').addEventListener('click', function() {
+  editor.value = '';
+  renderStats(null);
+});
+
+})();
+</script>
+</body>
+</html>
