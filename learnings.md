@@ -104,6 +104,20 @@ Persistent knowledge base. Read this before every build.
 - **INSIGHT**: Music theory constraints (scales, quantization) can make procedural audio sound good by default. The key insight: restrict the output space so random combinations still sound harmonious.
 - **INSIGHT**: Games need an escalation loop (wave difficulty) + economy (gold/cost) + fail state (lives) to feel like actual games vs. toys.
 
+### life-canvas (2026-03-22) — PROJECT #60
+- **KEEP**: Cell age as Int16Array (0=dead, 1=newborn, n=survived n generations) — cheap storage, rich visual output
+- **KEEP**: HSL color mapping from age (hue=180+age*3, lightness=70-age*2) — creates beautiful cyan→purple gradient
+- **KEEP**: Ghost trails via Float32Array — dead cells leave fading afterglow, adds motion history
+- **KEEP**: Double-buffer grid swap (grid↔nextGrid) — avoids in-place mutation artifacts
+- **KEEP**: touchmove prevention SCOPED TO CANVAS — prevents game scroll without blocking rest of page
+- **KEEP**: pointercancel handler alongside pointerup/pointerleave — prevents stuck paint state on system interrupts
+- **TEST CAUGHT (via Gemini audit)**: Ghost decay ran during pause (tied to render, not game state). Guarded with `if (playing)`.
+- **TEST CAUGHT (via Gemini audit)**: touchmove on document blocked ALL page scrolling. Scoped to canvas element.
+- **TEST CAUGHT (via Gemini audit)**: Missing pointercancel — orientation change or system alert leaves painting=true permanently.
+- **INSIGHT**: Any visual effect tied to the render loop (ghosts, trails, particles) must check game state before decaying. Render runs at 60fps regardless of pause.
+- **INSIGHT**: ALWAYS scope touch/scroll prevention to the specific interactive element, NEVER the whole document. Users need to scroll to reach controls.
+- **INSIGHT**: The trio of pointer end events is: pointerup + pointerleave + pointercancel. Missing any one creates stuck states.
+
 ### word-garden (2026-03-22)
 - **KEEP**: Seeded PRNG (mulberry32) — deterministic infinite randomness from any string. Same input = same output, forever.
 - **KEEP**: hashString → seed → mulberry32 PRNG → pull rng() for each parameter. Clean separation of seed → entropy → parameters.
