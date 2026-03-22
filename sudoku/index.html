@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="theme-color" content="#000000">
+<title>Sudoku</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { height: 100%; background: #000; color: #ccc; font-family: 'Segoe UI', system-ui, sans-serif; overflow: hidden; touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+#app { height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 10px; }
+
+#board { display: grid; grid-template-columns: repeat(9, 1fr); gap: 0; border: 2px solid #444; max-width: 360px; width: 100%; aspect-ratio: 1; }
+.cell { display: flex; align-items: center; justify-content: center; font-size: clamp(1rem, 4vw, 1.5rem); border: 1px solid #1a1a1a; cursor: pointer; font-family: monospace; font-weight: bold; aspect-ratio: 1; background: #0a0a0a; transition: background 0.1s; }
+.cell.given { color: #888; cursor: default; }
+.cell.user { color: #58a6ff; }
+.cell.selected { background: #111; }
+.cell.error { color: #f85149; }
+.cell.highlight { background: #0a0a1a; }
+/* Thick borders for 3x3 boxes */
+.cell:nth-child(3n) { border-right: 2px solid #333; }
+.cell:nth-child(n+19):nth-child(-n+27),
+.cell:nth-child(n+46):nth-child(-n+54) { border-bottom: 2px solid #333; }
+
+#numpad { display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; max-width: 360px; width: 100%; margin-top: 12px; }
+.num-btn { padding: 10px; background: #0a0a0a; border: 1px solid #1a1a1a; color: #888; border-radius: 6px; font-size: 1.1rem; cursor: pointer; text-align: center; font-family: monospace; }
+.num-btn:active { background: #1a1a1a; color: #fff; }
+.num-btn.erase { font-size: 0.7rem; color: #555; }
+
+#controls { display: flex; gap: 6px; margin-top: 10px; }
+.ctrl-btn { padding: 6px 14px; background: transparent; border: 1px solid #1a1a1a; color: #555; border-radius: 8px; font-size: 0.65rem; cursor: pointer; font-family: inherit; }
+.ctrl-btn:active { border-color: #444; color: #aaa; }
+
+#status { font-size: 0.6rem; color: #222; margin-top: 8px; font-family: monospace; }
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="board"></div>
+  <div id="numpad"></div>
+  <div id="controls">
+    <button class="ctrl-btn" id="btn-easy" data-diff="easy">Easy</button>
+    <button class="ctrl-btn" id="btn-med" data-diff="medium">Medium</button>
+    <button class="ctrl-btn" id="btn-hard" data-diff="hard">Hard</button>
+    <button class="ctrl-btn" id="btn-check">Check</button>
+  </div>
+  <div id="status"></div>
+</div>
+
+<script>
+(function() {
+'use strict';
+
+var board = new Array(81).fill(0);
+var solution = new Array(81).fill(0);
+var given = new Array(81).fill(false);
+var selectedCell = -1;
+
+// ============ GENERATOR ============
+function solveSudoku(b) {
+  var empty = b.indexOf(0);
+  if (empty === -1) return true;
+  var row = Math.floor(empty / 9);
+  var col = empty % 9;
+  var nums = shuffle([1,2,3,4,5,6,7,8,9]);
+  for (var i = 0; i < 9; i++) {
+    var n = nums[i];
+    if (isValid(b, row, col, n)) {
+      b[empty] = n;
+      if (solveSudoku(b)) return true;
+      b[empty] = 0;
+    }
+  }
+  return false;
+}
+
+function isValid(b, row, col, num) {
+  for (var i = 0; i < 9; i++) {
+    if (b[row * 9 + i] === num) return false;
+    if (b[i * 9 + col] === num) return false;
+  }
+  var boxR = Math.floor(row / 3) * 3;
+  var boxC = Math.floor(col / 3) * 3;
+  for (var r = boxR; r < boxR + 3; r++) {
+    for (var c = boxC; c < boxC + 3; c++) {
+      if (b[r * 9 + c] === num) return false;
+    }
+  }
+  return true;
+}
+
+function shuffle(arr) {
+  for (var i = arr.length - 1; i > 0; i--) {
+    var j = Math.floor(Math.random() * (i + 1));
+    var t = arr[i]; arr[i] = arr[j]; arr[j] = t;
+  }
+  return arr;
+}
+
+function generatePuzzle(difficulty) {
+  // Generate complete solution
+  solution.fill(0);
+  solveSudoku(solution);
+
+  // Copy solution to board
+  for (var i = 0; i < 81; i++) board[i] = solution[i];
+
+  // Remove cells based on difficulty
+  var remove = difficulty === 'easy' ? 35 : difficulty === 'medium' ? 45 : 55;
+  var indices = shuffle(Array.from({length: 81}, function(_, i) { return i; }));
+  for (var i = 0; i < remove; i++) {
+    board[indices[i]] = 0;
+  }
+
+  // Mark givens
+  for (var i = 0; i < 81; i++) {
+    given[i] = board[i] !== 0;
+  }
+}
+
+// ============ UI ============
+function buildBoard() {
+  var el = document.getElementById('board');
+  el.innerHTML = '';
+  for (var i = 0; i < 81; i++) {
+    var cell = document.createElement('div');
+    cell.className = 'cell';
+    cell.dataset.idx = i;
+    el.appendChild(cell);
+  }
+  updateBoard();
+}
+
+function updateBoard() {
+  var cells = document.getElementById('board').children;
+  for (var i = 0; i < 81; i++) {
+    var cell = cells[i];
+    cell.textContent = board[i] || '';
+    cell.className = 'cell';
+    if (given[i]) cell.classList.add('given');
+    else if (board[i]) cell.classList.add('user');
+    if (i === selectedCell) cell.classList.add('selected');
+
+    // Highlight same row/col/box as selected
+    if (selectedCell >= 0 && i !== selectedCell) {
+      var sr = Math.floor(selectedCell / 9);
+      var sc = selectedCell % 9;
+      var cr = Math.floor(i / 9);
+      var cc = i % 9;
+      if (cr === sr || cc === sc ||
+          (Math.floor(cr/3) === Math.floor(sr/3) && Math.floor(cc/3) === Math.floor(sc/3))) {
+        cell.classList.add('highlight');
+      }
+    }
+  }
+}
+
+function buildNumpad() {
+  var el = document.getElementById('numpad');
+  el.innerHTML = '';
+  for (var n = 1; n <= 9; n++) {
+    var btn = document.createElement('div');
+    btn.className = 'num-btn';
+    btn.textContent = n;
+    btn.dataset.num = n;
+    el.appendChild(btn);
+  }
+  var eraseBtn = document.createElement('div');
+  eraseBtn.className = 'num-btn erase';
+  eraseBtn.textContent = 'Erase';
+  eraseBtn.dataset.num = '0';
+  el.appendChild(eraseBtn);
+}
+
+// ============ INTERACTION ============
+document.getElementById('board').addEventListener('click', function(e) {
+  var cell = e.target.closest('.cell');
+  if (!cell) return;
+  var idx = parseInt(cell.dataset.idx);
+  selectedCell = idx;
+  updateBoard();
+});
+
+document.getElementById('numpad').addEventListener('click', function(e) {
+  var btn = e.target.closest('.num-btn');
+  if (!btn) return;
+  if (selectedCell < 0 || given[selectedCell]) return;
+  var num = parseInt(btn.dataset.num);
+  board[selectedCell] = num;
+  updateBoard();
+});
+
+// Keyboard input
+document.addEventListener('keydown', function(e) {
+  if (selectedCell < 0) return;
+  var num = parseInt(e.key);
+  if (num >= 1 && num <= 9 && !given[selectedCell]) {
+    board[selectedCell] = num;
+    updateBoard();
+  }
+  if (e.key === 'Backspace' || e.key === 'Delete') {
+    if (!given[selectedCell]) { board[selectedCell] = 0; updateBoard(); }
+    e.preventDefault();
+  }
+  // Arrow navigation
+  var row = Math.floor(selectedCell / 9);
+  var col = selectedCell % 9;
+  if (e.key === 'ArrowUp' && row > 0) { selectedCell -= 9; updateBoard(); e.preventDefault(); }
+  if (e.key === 'ArrowDown' && row < 8) { selectedCell += 9; updateBoard(); e.preventDefault(); }
+  if (e.key === 'ArrowLeft' && col > 0) { selectedCell -= 1; updateBoard(); e.preventDefault(); }
+  if (e.key === 'ArrowRight' && col < 8) { selectedCell += 1; updateBoard(); e.preventDefault(); }
+});
+
+// Check solution
+document.getElementById('btn-check').addEventListener('click', function() {
+  var errors = 0;
+  var cells = document.getElementById('board').children;
+  for (var i = 0; i < 81; i++) {
+    cells[i].classList.remove('error');
+    if (board[i] !== 0) {
+      // Validate using Sudoku rules, not against one specific solution
+      var temp = board[i];
+      board[i] = 0;
+      if (!isValid(board, Math.floor(i / 9), i % 9, temp)) {
+        cells[i].classList.add('error');
+        errors++;
+      }
+      board[i] = temp;
+    }
+  }
+  var empty = board.filter(function(v) { return v === 0; }).length;
+  var statusEl = document.getElementById('status');
+  if (errors === 0 && empty === 0) {
+    statusEl.textContent = 'Solved!';
+    statusEl.style.color = '#3fb950';
+    if (navigator.vibrate) navigator.vibrate([30, 20, 30]);
+  } else if (errors > 0) {
+    statusEl.textContent = errors + ' error' + (errors > 1 ? 's' : '');
+    statusEl.style.color = '#f85149';
+  } else {
+    statusEl.textContent = empty + ' cells remaining';
+    statusEl.style.color = '#555';
+  }
+});
+
+// Difficulty buttons
+document.querySelectorAll('[data-diff]').forEach(function(btn) {
+  btn.addEventListener('click', function() {
+    generatePuzzle(btn.dataset.diff);
+    selectedCell = -1;
+    document.getElementById('status').textContent = '';
+    buildBoard();
+  });
+});
+
+// ============ INIT ============
+generatePuzzle('easy');
+buildBoard();
+buildNumpad();
+
+})();
+</script>
+</body>
+</html>
