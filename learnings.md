@@ -104,6 +104,20 @@ Persistent knowledge base. Read this before every build.
 - **INSIGHT**: Music theory constraints (scales, quantization) can make procedural audio sound good by default. The key insight: restrict the output space so random combinations still sound harmonious.
 - **INSIGHT**: Games need an escalation loop (wave difficulty) + economy (gold/cost) + fail state (lives) to feel like actual games vs. toys.
 
+### word-garden (2026-03-22)
+- **KEEP**: Seeded PRNG (mulberry32) — deterministic infinite randomness from any string. Same input = same output, forever.
+- **KEEP**: hashString → seed → mulberry32 PRNG → pull rng() for each parameter. Clean separation of seed → entropy → parameters.
+- **KEEP**: Curated palettes (8 high-quality combos) selected by hash mod — guarantees beauty regardless of input
+- **KEEP**: Quadratic bezier curves for branches (quadraticCurveTo) — dramatically more organic than straight lineTo
+- **KEEP**: Breadth-first sort (by depth) after depth-first generation — natural growth animation
+- **KEEP**: Branch count cap (15,000) — prevents exponential blowup (3^10 = ~59K theoretical branches)
+- **TEST CAUGHT (via Gemini audit)**: Depth-first animation drew one full branch tip-to-leaf then jumped back to trunk — ugly. Sorted by depth for natural growth.
+- **TEST CAUGHT (via Gemini audit)**: No branch cap — extreme seeds could generate 88K+ segments, freezing the browser for seconds.
+- **TEST CAUGHT (via Gemini audit)**: Resize on mobile keyboard open erased canvas — debounced resize prevents this.
+- **INSIGHT**: Deterministic generative art (same input = same output) is powerful for personal identity — "my name makes MY unique tree." This is viral because people want to compare.
+- **INSIGHT**: For recursive fractal generation: always generate depth-first (natural recursion), then SORT breadth-first for animation. Best of both worlds.
+- **INSIGHT**: Any recursive algorithm with branching factor >2 needs a hard cap on total output. 3^10 = 59,049. 3^12 = over 500K. Always cap.
+
 ### color-eye (2026-03-22)
 - **KEEP**: object-fit: cover coordinate mapping — must calculate render dimensions and offset to map screen coords to video coords accurately
 - **KEEP**: Single getImageData for NxN area vs N*N individual calls — 9x perf improvement. Canvas batch reads always beat per-pixel reads.
