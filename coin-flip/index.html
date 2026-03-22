@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="theme-color" content="#000000">
+<title>Flip</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { height: 100%; background: #000; overflow: hidden; touch-action: manipulation; -webkit-tap-highlight-color: transparent; font-family: 'Segoe UI', system-ui, sans-serif; }
+#app { height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; cursor: pointer; position: relative; }
+
+/* Coin */
+.coin-wrap { perspective: 600px; width: 140px; height: 140px; margin-bottom: 20px; }
+.coin { width: 100%; height: 100%; position: relative; transform-style: preserve-3d; transition: transform 0.8s cubic-bezier(0.2, 0.8, 0.3, 1); }
+.coin.flipping { transition: transform 1s cubic-bezier(0.15, 0.6, 0.35, 1); }
+.coin-face { position: absolute; inset: 0; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 2.5rem; font-weight: 900; backface-visibility: hidden; }
+.coin-heads { background: radial-gradient(circle at 40% 35%, #f0f0f0, #888); color: #333; border: 3px solid #999; }
+.coin-tails { background: radial-gradient(circle at 40% 35%, #e8e0d0, #8a7a60); color: #4a3a20; border: 3px solid #8a7a60; transform: rotateY(180deg); }
+
+/* Result */
+#result { font-size: 1.4rem; font-weight: 200; color: #333; letter-spacing: 0.3em; min-height: 2rem; transition: color 0.3s; }
+#result.show { color: #888; }
+
+/* History */
+#history { position: absolute; bottom: 16px; display: flex; gap: 3px; align-items: center; }
+.hist-dot { width: 8px; height: 8px; border-radius: 50%; opacity: 0.4; }
+.hist-dot.h { background: #e0e0e0; }
+.hist-dot.t { background: #8a7a60; }
+
+/* Stats */
+#stats { position: absolute; bottom: 36px; font-size: 0.55rem; color: #1a1a1a; font-family: monospace; letter-spacing: 0.1em; }
+
+/* Hint */
+#hint { position: absolute; top: 40%; font-size: 0.6rem; color: #111; letter-spacing: 0.15em; pointer-events: none; transition: opacity 0.5s; }
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="hint">TAP ANYWHERE</div>
+  <div class="coin-wrap">
+    <div class="coin" id="coin">
+      <div class="coin-face coin-heads">H</div>
+      <div class="coin-face coin-tails">T</div>
+    </div>
+  </div>
+  <div id="result"></div>
+  <div id="stats"></div>
+  <div id="history"></div>
+</div>
+
+<script>
+(function() {
+'use strict';
+
+// ============ STATE ============
+var coinEl = document.getElementById('coin');
+var resultEl = document.getElementById('result');
+var historyEl = document.getElementById('history');
+var statsEl = document.getElementById('stats');
+var hintEl = document.getElementById('hint');
+var flipping = false;
+var flipCount = 0;
+var currentRotation = 0; // Track cumulative rotation to prevent backward spinning
+var history = [];
+var heads = 0;
+var tails = 0;
+var audioCtx = null;
+
+// Load saved stats
+try {
+  var saved = JSON.parse(localStorage.getItem('coin_flip_data'));
+  if (saved && typeof saved === 'object') {
+    history = Array.isArray(saved.history) ? saved.history.slice(-20) : [];
+    heads = (typeof saved.heads === 'number' && !isNaN(saved.heads)) ? Math.max(0, saved.heads) : 0;
+    tails = (typeof saved.tails === 'number' && !isNaN(saved.tails)) ? Math.max(0, saved.tails) : 0;
+  }
+} catch (e) {}
+
+renderHistory();
+renderStats();
+
+// ============ AUDIO ============
+function initAudio() {
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  if (audioCtx.state === 'suspended') audioCtx.resume().catch(function() {});
+}
+
+function playClink() {
+  if (!audioCtx) return;
+  var now = audioCtx.currentTime;
+  // Metallic ping
+  var osc = audioCtx.createOscillator();
+  var gain = audioCtx.createGain();
+  osc.type = 'sine';
+  osc.frequency.setValueAtTime(2400, now);
+  osc.frequency.exponentialRampToValueAtTime(800, now + 0.08);
+  gain.gain.setValueAtTime(0.08, now);
+  gain.gain.exponentialRampToValueAtTime(0.001, now + 0.12);
+  osc.connect(gain);
+  gain.connect(audioCtx.destination);
+  osc.start(now);
+  osc.stop(now + 0.15);
+}
+
+function playLand() {
+  if (!audioCtx) return;
+  var now = audioCtx.currentTime;
+  // Thud
+  var osc = audioCtx.createOscillator();
+  var gain = audioCtx.createGain();
+  osc.type = 'sine';
+  osc.frequency.setValueAtTime(200, now);
+  osc.frequency.exponentialRampToValueAtTime(80, now + 0.1);
+  gain.gain.setValueAtTime(0.1, now);
+  gain.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
+  osc.connect(gain);
+  gain.connect(audioCtx.destination);
+  osc.start(now);
+  osc.stop(now + 0.2);
+}
+
+// ============ FLIP ============
+function flip() {
+  if (flipping) return;
+  flipping = true;
+  flipCount++;
+
+  initAudio();
+  playClink();
+  if (navigator.vibrate) navigator.vibrate([15, 40, 15, 40, 15]);
+
+  // Hide hint after first flip
+  if (hintEl) { hintEl.style.opacity = '0'; }
+
+  // Determine result
+  var isHeads = Math.random() < 0.5;
+
+  // Always spin FORWARD from current position (prevents backward spinning)
+  var turns = 5 + Math.floor(Math.random() * 3);
+  currentRotation += turns * 360 + (isHeads ? 0 : 180);
+
+  coinEl.classList.add('flipping');
+  coinEl.style.transform = 'rotateY(' + currentRotation + 'deg)';
+
+  resultEl.textContent = '';
+  resultEl.classList.remove('show');
+
+  // After animation completes
+  setTimeout(function() {
+    flipping = false;
+    coinEl.classList.remove('flipping');
+
+    playLand();
+    if (navigator.vibrate) navigator.vibrate(40);
+
+    // Record result
+    var result = isHeads ? 'H' : 'T';
+    if (isHeads) heads++;
+    else tails++;
+
+    history.push(result);
+    if (history.length > 20) history.shift();
+
+    // Display
+    resultEl.textContent = isHeads ? 'HEADS' : 'TAILS';
+    resultEl.classList.add('show');
+
+    renderHistory();
+    renderStats();
+    saveData();
+  }, 1000);
+}
+
+// ============ RENDER ============
+function renderHistory() {
+  historyEl.innerHTML = '';
+  for (var i = 0; i < history.length; i++) {
+    var dot = document.createElement('div');
+    dot.className = 'hist-dot ' + (history[i] === 'H' ? 'h' : 't');
+    historyEl.appendChild(dot);
+  }
+}
+
+function renderStats() {
+  var total = heads + tails;
+  if (total === 0) {
+    statsEl.textContent = '';
+    return;
+  }
+  var hPct = Math.round(heads / total * 100);
+  statsEl.textContent = 'H ' + heads + ' (' + hPct + '%) | T ' + tails + ' (' + (100 - hPct) + '%)';
+}
+
+function saveData() {
+  try {
+    localStorage.setItem('coin_flip_data', JSON.stringify({
+      history: history,
+      heads: heads,
+      tails: tails
+    }));
+  } catch (e) {}
+}
+
+// ============ INPUT ============
+document.getElementById('app').addEventListener('click', flip);
+
+})();
+</script>
+</body>
+</html>

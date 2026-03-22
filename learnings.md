@@ -104,6 +104,20 @@ Persistent knowledge base. Read this before every build.
 - **INSIGHT**: Music theory constraints (scales, quantization) can make procedural audio sound good by default. The key insight: restrict the output space so random combinations still sound harmonious.
 - **INSIGHT**: Games need an escalation loop (wave difficulty) + economy (gold/cost) + fail state (lives) to feel like actual games vs. toys.
 
+### maze-runner (2026-03-23)
+- **KEEP**: Recursive backtracker maze generation — long corridors, guaranteed solvable, simple implementation
+- **KEEP**: Smart trail: check if new position matches trail[-2] → pop (backtrack) else push (advance). Keeps trail clean and performant.
+- **KEEP**: Slide-until-wall for mobile swipe — one swipe moves player through entire corridor. Essential for maze playability on touch screens.
+- **KEEP**: Cached DOM element for timer display — getElementById once at init, reference in rAF loop. Never query DOM at 60fps.
+- **KEEP**: Increment game level BEFORE displaying "next" text — prevents showing impossible level ("32x32" when max is 30)
+- **TEST CAUGHT (via Gemini audit)**: getElementById in 60fps timer loop — CPU waste, battery drain. Cached at init.
+- **TEST CAUGHT (via Gemini audit)**: Trail grew forever on backtrack — overlapping segments caused render lag. Smart pop/push fixed it.
+- **TEST CAUGHT (via Gemini audit)**: One-step-per-swipe on mobile = hundreds of swipes for 30x30 maze. Slide loop made it playable.
+- **TEST CAUGHT (via Gemini audit)**: "Next: 32x32 maze" shown before clamping to 30 max. Display text must use the clamped value.
+- **INSIGHT**: Mobile maze/grid games need "slide until obstacle" mechanics. One-cell-per-swipe is physically exhausting on large grids.
+- **INSIGHT**: Any text showing "next level" must be computed AFTER the level increment + clamp, not before. Order of operations bug.
+- **INSIGHT**: Trail data structures that only grow (push) will eventually kill render perf. Backtrack-aware trails (pop on retrace) stay bounded.
+
 ### life-canvas (2026-03-22) — PROJECT #60
 - **KEEP**: Cell age as Int16Array (0=dead, 1=newborn, n=survived n generations) — cheap storage, rich visual output
 - **KEEP**: HSL color mapping from age (hue=180+age*3, lightness=70-age*2) — creates beautiful cyan→purple gradient
