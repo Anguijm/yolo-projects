@@ -104,6 +104,22 @@ Persistent knowledge base. Read this before every build.
 - **INSIGHT**: Music theory constraints (scales, quantization) can make procedural audio sound good by default. The key insight: restrict the output space so random combinations still sound harmonious.
 - **INSIGHT**: Games need an escalation loop (wave difficulty) + economy (gold/cost) + fail state (lives) to feel like actual games vs. toys.
 
+### secure-note (2026-03-22)
+- **KEEP**: AES-256-GCM provides both confidentiality AND integrity — tampered ciphertext fails to decrypt, doubling as password validation
+- **KEEP**: New random IV per save (generateIV called in encryptText) — prevents catastrophic nonce reuse
+- **KEEP**: Non-extractable CryptoKey (`extractable: false`) — JS can't export the raw key even if compromised by XSS
+- **KEEP**: Auto-lock on visibilitychange — instantly clears plaintext from DOM and memory
+- **KEEP**: First-time vs returning user flow — different UX for "Create" vs "Unlock"
+- **KEEP**: beforeunload warning when unsaved changes pending — prevents data loss
+- **KEEP**: autocomplete="new-password" — prevents browser from saving the encryption password
+- **TEST CAUGHT (via Gemini SECURITY audit)**: PBKDF2 iterations too low (100K). OWASP recommends 600K for SHA-256. Raised.
+- **TEST CAUGHT (via Gemini SECURITY audit)**: No password minimum — 1-char passwords are trivially brute-forceable. Added 8-char minimum for new notes.
+- **TEST CAUGHT (via Gemini SECURITY audit)**: Missing beforeunload — async crypto might not finish before tab closes. Added warning.
+- **TEST CAUGHT (via Gemini SECURITY audit)**: Missing autocomplete="new-password" — browser might save the master encryption password in autofill. Fixed.
+- **INSIGHT**: For security-sensitive apps, ask Gemini for a SECURITY-focused audit, not just a bug-focused one. The `focus: 'security'` parameter finds different issues.
+- **INSIGHT**: PBKDF2 iteration counts have a SHELF LIFE. 100K was fine in 2015. OWASP recommends 600K in 2024. Always check current recommendations.
+- **INSIGHT**: Web Crypto API's `extractable: false` is a powerful defense against XSS — even if an attacker injects script, they can't export the key material.
+
 ### neon-snake (2026-03-22)
 - **KEEP**: HSL gradient on snake segments `(i * 8 + Date.now() * 0.02) % 360` — creates animated rainbow ribbon with zero effort
 - **KEEP**: globalCompositeOperation = 'lighter' + shadowBlur = instant neon glow aesthetic

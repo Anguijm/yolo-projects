@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="theme-color" content="#000000">
+<title>Color Eye</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { height: 100%; background: #000; overflow: hidden; touch-action: manipulation; -webkit-tap-highlight-color: transparent; font-family: 'Segoe UI', system-ui, sans-serif; }
+#app { height: 100%; display: flex; flex-direction: column; position: relative; }
+
+/* Camera */
+video { position: fixed; inset: 0; width: 100%; height: 100%; object-fit: cover; z-index: 0; }
+canvas { display: none; }
+
+/* Reticle */
+#reticle { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 40px; height: 40px; border: 2px solid rgba(255,255,255,0.5); border-radius: 50%; z-index: 2; pointer-events: none; box-shadow: 0 0 0 1px rgba(0,0,0,0.3); }
+#reticle::after { content: ''; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 4px; height: 4px; background: #fff; border-radius: 50%; box-shadow: 0 0 4px rgba(0,0,0,0.5); }
+
+/* Tap overlay */
+#tap-layer { position: fixed; inset: 0; z-index: 1; cursor: crosshair; }
+
+/* Color card */
+#color-card { position: fixed; bottom: 0; left: 0; right: 0; z-index: 10; background: rgba(0,0,0,0.85); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border-top: 1px solid rgba(255,255,255,0.08); padding: 16px; transform: translateY(100%); transition: transform 0.3s; }
+#color-card.show { transform: translateY(0); }
+#color-preview { width: 100%; height: 60px; border-radius: 8px; margin-bottom: 10px; border: 1px solid rgba(255,255,255,0.1); }
+.color-values { display: flex; flex-direction: column; gap: 6px; }
+.color-row { display: flex; align-items: center; gap: 8px; }
+.color-label { font-size: 0.6rem; color: rgba(255,255,255,0.3); min-width: 28px; text-transform: uppercase; letter-spacing: 0.1em; }
+.color-value { flex: 1; font-family: 'Courier New', monospace; font-size: 0.85rem; color: #fff; }
+.copy-btn { background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.1); color: rgba(255,255,255,0.5); padding: 4px 10px; border-radius: 12px; font-size: 0.6rem; cursor: pointer; font-family: inherit; }
+.copy-btn:active { background: rgba(255,255,255,0.2); color: #fff; }
+
+/* Actions */
+#actions { display: flex; gap: 8px; margin-top: 10px; }
+.action-btn { flex: 1; padding: 8px; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.08); color: rgba(255,255,255,0.5); border-radius: 8px; font-family: inherit; font-size: 0.7rem; cursor: pointer; text-align: center; }
+.action-btn:active { background: rgba(255,255,255,0.15); color: #fff; }
+
+/* Palette */
+#palette { position: fixed; top: 10px; left: 10px; right: 10px; z-index: 10; display: flex; gap: 4px; flex-wrap: wrap; pointer-events: none; }
+.palette-dot { width: 24px; height: 24px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.2); pointer-events: auto; cursor: pointer; }
+
+/* Start screen */
+#start { position: fixed; inset: 0; background: #000; z-index: 20; display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 14px; }
+#start.hidden { display: none; }
+#start h1 { font-size: 1.4rem; font-weight: 200; color: #444; letter-spacing: 0.2em; }
+#start .sub { font-size: 0.75rem; color: #222; max-width: 280px; text-align: center; line-height: 1.5; }
+#start button { padding: 10px 28px; background: transparent; border: 1px solid #333; color: #666; border-radius: 20px; font-family: inherit; font-size: 0.8rem; cursor: pointer; }
+
+/* Toast */
+#toast { position: fixed; top: 50px; left: 50%; transform: translateX(-50%) translateY(-50px); background: rgba(0,0,0,0.8); color: #fff; padding: 6px 16px; border-radius: 16px; font-size: 0.7rem; z-index: 30; transition: transform 0.3s; pointer-events: none; }
+#toast.show { transform: translateX(-50%) translateY(0); }
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="start">
+    <h1>COLOR EYE</h1>
+    <p class="sub">Point your camera at anything. Tap to capture its color. Build palettes from the real world.</p>
+    <button id="btn-start">Open Camera</button>
+  </div>
+
+  <video id="video" autoplay playsinline></video>
+  <canvas id="sample"></canvas>
+  <div id="tap-layer"></div>
+  <div id="reticle"></div>
+  <div id="palette"></div>
+  <div id="toast">Copied!</div>
+
+  <div id="color-card">
+    <div id="color-preview"></div>
+    <div class="color-values">
+      <div class="color-row"><span class="color-label">HEX</span><span class="color-value" id="v-hex">#000000</span><button class="copy-btn" data-copy="hex">Copy</button></div>
+      <div class="color-row"><span class="color-label">RGB</span><span class="color-value" id="v-rgb">rgb(0, 0, 0)</span><button class="copy-btn" data-copy="rgb">Copy</button></div>
+      <div class="color-row"><span class="color-label">HSL</span><span class="color-value" id="v-hsl">hsl(0, 0%, 0%)</span><button class="copy-btn" data-copy="hsl">Copy</button></div>
+    </div>
+    <div id="actions">
+      <button class="action-btn" id="btn-save-palette">Save to Palette</button>
+      <button class="action-btn" id="btn-dismiss">Dismiss</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function() {
+'use strict';
+
+var video = document.getElementById('video');
+var canvasEl = document.getElementById('sample');
+var ctx = canvasEl.getContext('2d', { willReadFrequently: true });
+var cameraReady = false;
+var currentColor = { r: 0, g: 0, b: 0 };
+var palette = [];
+var toastTimer;
+
+try { palette = JSON.parse(localStorage.getItem('color_eye_palette')) || []; } catch (e) { palette = []; }
+if (!Array.isArray(palette)) palette = [];
+
+// ============ CAMERA ============
+async function startCamera() {
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    document.querySelector('#start .sub').textContent = 'Camera not available. Requires HTTPS.';
+    return;
+  }
+  try {
+    var stream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } }
+    });
+    video.srcObject = stream;
+    await video.play();
+    cameraReady = true;
+    document.getElementById('start').classList.add('hidden');
+    renderPalette();
+  } catch (e) {
+    document.querySelector('#start .sub').textContent = 'Camera access denied. Allow camera and refresh.';
+  }
+}
+
+// ============ COLOR SAMPLING ============
+function sampleColorAt(clientX, clientY) {
+  if (!cameraReady) return null;
+
+  var vw = video.videoWidth;
+  var vh = video.videoHeight;
+  if (vw === 0 || vh === 0) return null;
+
+  canvasEl.width = vw;
+  canvasEl.height = vh;
+  ctx.drawImage(video, 0, 0, vw, vh);
+
+  // Map screen coords to video coords (accounting for object-fit: cover)
+  var screenW = window.innerWidth;
+  var screenH = window.innerHeight;
+  var videoAspect = vw / vh;
+  var screenAspect = screenW / screenH;
+  var renderW, renderH, offsetX, offsetY;
+
+  if (videoAspect > screenAspect) {
+    // Video wider — height fits, width crops
+    renderH = screenH;
+    renderW = screenH * videoAspect;
+    offsetX = (renderW - screenW) / 2;
+    offsetY = 0;
+  } else {
+    // Video taller — width fits, height crops
+    renderW = screenW;
+    renderH = screenW / videoAspect;
+    offsetX = 0;
+    offsetY = (renderH - screenH) / 2;
+  }
+
+  var vidX = Math.round((clientX + offsetX) / renderW * vw);
+  var vidY = Math.round((clientY + offsetY) / renderH * vh);
+
+  // Clamp to bounds
+  vidX = Math.max(0, Math.min(vw - 1, vidX));
+  vidY = Math.max(0, Math.min(vh - 1, vidY));
+
+  // Single getImageData for 3x3 area (9x faster than per-pixel calls)
+  var sx = Math.max(0, vidX - 1);
+  var sy = Math.max(0, vidY - 1);
+  var sw = Math.min(3, vw - sx);
+  var sh = Math.min(3, vh - sy);
+  var imgData = ctx.getImageData(sx, sy, sw, sh).data;
+  var totalR = 0, totalG = 0, totalB = 0;
+  var pixelCount = imgData.length / 4;
+  for (var pi = 0; pi < imgData.length; pi += 4) {
+    totalR += imgData[pi]; totalG += imgData[pi + 1]; totalB += imgData[pi + 2];
+  }
+
+  return {
+    r: Math.round(totalR / pixelCount),
+    g: Math.round(totalG / pixelCount),
+    b: Math.round(totalB / pixelCount)
+  };
+}
+
+// ============ COLOR CONVERSION ============
+function rgbToHex(r, g, b) {
+  return '#' + ((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1);
+}
+
+function rgbToHsl(r, g, b) {
+  r /= 255; g /= 255; b /= 255;
+  var max = Math.max(r, g, b), min = Math.min(r, g, b);
+  var h, s, l = (max + min) / 2;
+  if (max === min) { h = s = 0; }
+  else {
+    var d = max - min;
+    s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+    if (max === r) h = ((g - b) / d + (g < b ? 6 : 0)) / 6;
+    else if (max === g) h = ((b - r) / d + 2) / 6;
+    else h = ((r - g) / d + 4) / 6;
+  }
+  return { h: Math.round(h * 360), s: Math.round(s * 100), l: Math.round(l * 100) };
+}
+
+function luminance(r, g, b) {
+  return (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+}
+
+// ============ DISPLAY ============
+function showColor(color) {
+  currentColor = color;
+  var hex = rgbToHex(color.r, color.g, color.b);
+  var hsl = rgbToHsl(color.r, color.g, color.b);
+  var rgbStr = 'rgb(' + color.r + ', ' + color.g + ', ' + color.b + ')';
+  var hslStr = 'hsl(' + hsl.h + ', ' + hsl.s + '%, ' + hsl.l + '%)';
+
+  document.getElementById('color-preview').style.background = hex;
+  document.getElementById('v-hex').textContent = hex;
+  document.getElementById('v-rgb').textContent = rgbStr;
+  document.getElementById('v-hsl').textContent = hslStr;
+
+  // Dynamic text contrast
+  var lum = luminance(color.r, color.g, color.b);
+  var textColor = lum > 0.5 ? '#000' : '#fff';
+  document.querySelectorAll('.color-value').forEach(function(el) { el.style.color = textColor; });
+
+  document.getElementById('color-card').classList.add('show');
+}
+
+// ============ CLIPBOARD ============
+function copyText(text) {
+  if (navigator.clipboard && window.isSecureContext) {
+    navigator.clipboard.writeText(text).then(function() { showToast('Copied!'); })
+      .catch(function() { showToast('Copy failed'); });
+  } else {
+    var ta = document.createElement('textarea');
+    ta.value = text; ta.style.position = 'fixed'; ta.style.left = '-9999px'; ta.style.top = '0';
+    document.body.appendChild(ta);
+    ta.focus(); ta.select(); ta.setSelectionRange(0, 99999); // iOS Safari fix
+    try { document.execCommand('copy'); showToast('Copied!'); }
+    catch (err) { showToast('Copy failed'); }
+    document.body.removeChild(ta);
+  }
+}
+
+function showToast(msg) {
+  var t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(function() { t.classList.remove('show'); }, 1200);
+}
+
+// ============ PALETTE ============
+function saveToPalette() {
+  var hex = rgbToHex(currentColor.r, currentColor.g, currentColor.b);
+  if (palette.indexOf(hex) === -1) {
+    palette.unshift(hex);
+    if (palette.length > 20) palette.pop();
+    try { localStorage.setItem('color_eye_palette', JSON.stringify(palette)); } catch (e) {}
+    renderPalette();
+    showToast('Saved!');
+  } else {
+    showToast('Already in palette');
+  }
+}
+
+function renderPalette() {
+  var el = document.getElementById('palette');
+  el.innerHTML = '';
+  for (var i = 0; i < palette.length; i++) {
+    (function(hex, idx) {
+      var dot = document.createElement('div');
+      dot.className = 'palette-dot';
+      dot.style.background = hex;
+      dot.title = hex;
+      dot.addEventListener('click', function(e) {
+        e.stopPropagation();
+        copyText(hex);
+      });
+      el.appendChild(dot);
+    })(palette[i], i);
+  }
+}
+
+// ============ EVENTS (click only) ============
+document.getElementById('btn-start').addEventListener('click', startCamera);
+
+document.getElementById('tap-layer').addEventListener('click', function(e) {
+  if (!cameraReady) return;
+  var color = sampleColorAt(e.clientX, e.clientY);
+  if (color) {
+    showColor(color);
+    if (navigator.vibrate) navigator.vibrate(15);
+  }
+});
+
+document.querySelectorAll('.copy-btn').forEach(function(btn) {
+  btn.addEventListener('click', function() {
+    var format = btn.dataset.copy;
+    var text;
+    if (format === 'hex') text = document.getElementById('v-hex').textContent;
+    else if (format === 'rgb') text = document.getElementById('v-rgb').textContent;
+    else text = document.getElementById('v-hsl').textContent;
+    copyText(text);
+  });
+});
+
+document.getElementById('btn-save-palette').addEventListener('click', saveToPalette);
+document.getElementById('btn-dismiss').addEventListener('click', function() {
+  document.getElementById('color-card').classList.remove('show');
+});
+
+})();
+</script>
+</body>
+</html>
