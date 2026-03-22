@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="theme-color" content="#000000">
+<title>Breath Pacer</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { height: 100%; background: #000; color: #888; font-family: 'Segoe UI', system-ui, sans-serif; overflow: hidden; touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+
+#app { height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; position: relative; }
+
+/* Circle */
+#circle-wrap { position: relative; width: 200px; height: 200px; display: flex; align-items: center; justify-content: center; }
+#circle { width: 100%; height: 100%; border-radius: 50%; border: 2px solid #333; transition: transform 0.3s ease-out; transform: scale(0.4); }
+#circle.inhale { transform: scale(1); border-color: #58a6ff; box-shadow: 0 0 40px #58a6ff22; }
+#circle.hold { border-color: #a78bfa; box-shadow: 0 0 30px #a78bfa22; }
+#circle.exhale { transform: scale(0.4); border-color: #3fb950; box-shadow: 0 0 40px #3fb95022; }
+
+/* Phase label */
+#phase { position: absolute; font-size: 0.8rem; letter-spacing: 0.2em; text-transform: uppercase; color: #555; pointer-events: none; }
+
+/* Timer */
+#timer { margin-top: 24px; font-size: 2rem; font-weight: 200; color: #333; font-family: monospace; letter-spacing: 0.1em; }
+
+/* Controls */
+#controls { position: absolute; bottom: 0; left: 0; right: 0; padding: 20px; display: flex; flex-direction: column; align-items: center; gap: 12px; }
+
+#pattern-row { display: flex; gap: 6px; }
+.pat-btn { padding: 6px 14px; background: transparent; border: 1px solid #222; color: #555; border-radius: 20px; font-family: inherit; font-size: 0.7rem; cursor: pointer; letter-spacing: 0.05em; -webkit-tap-highlight-color: transparent; }
+.pat-btn.active { border-color: #58a6ff; color: #58a6ff; }
+
+#start-btn { width: 60px; height: 60px; border-radius: 50%; background: transparent; border: 2px solid #333; color: #888; font-family: inherit; font-size: 0.7rem; cursor: pointer; letter-spacing: 0.1em; display: flex; align-items: center; justify-content: center; -webkit-tap-highlight-color: transparent; }
+#start-btn:active { border-color: #58a6ff; }
+#start-btn.running { border-color: #f87171; color: #f87171; }
+
+#cycle-count { font-size: 0.65rem; color: #222; }
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="circle-wrap">
+    <div id="circle"></div>
+    <div id="phase">TAP TO START</div>
+  </div>
+  <div id="timer">0:00</div>
+  <div id="cycle-count"></div>
+  <div id="controls">
+    <div id="pattern-row">
+      <button class="pat-btn active" data-pattern="box">Box 4-4-4-4</button>
+      <button class="pat-btn" data-pattern="relax">4-7-8</button>
+      <button class="pat-btn" data-pattern="calm">Calm 5-5</button>
+      <button class="pat-btn" data-pattern="energize">2-2 Fast</button>
+    </div>
+    <button id="start-btn">START</button>
+  </div>
+</div>
+
+<script>
+(function() {
+'use strict';
+
+// ============ PATTERNS ============
+var PATTERNS = {
+  box:      { name: 'Box',      phases: [{name:'INHALE',dur:4},{name:'HOLD',dur:4},{name:'EXHALE',dur:4},{name:'HOLD',dur:4}] },
+  relax:    { name: '4-7-8',    phases: [{name:'INHALE',dur:4},{name:'HOLD',dur:7},{name:'EXHALE',dur:8}] },
+  calm:     { name: 'Calm',     phases: [{name:'INHALE',dur:5},{name:'EXHALE',dur:5}] },
+  energize: { name: 'Energize', phases: [{name:'INHALE',dur:2},{name:'EXHALE',dur:2}] },
+};
+
+// ============ STATE ============
+var currentPattern = 'box';
+var running = false;
+var phaseIdx = 0;
+var phaseElapsed = 0;
+var totalElapsed = 0;
+var cycles = 0;
+var lastTime = 0;
+var animId = null;
+var wakeLock = null;
+
+// Audio
+var audioCtx = null;
+var masterGain = null;
+
+// DOM
+var circleEl = document.getElementById('circle');
+var phaseEl = document.getElementById('phase');
+var timerEl = document.getElementById('timer');
+var startBtn = document.getElementById('start-btn');
+var cycleEl = document.getElementById('cycle-count');
+
+// ============ AUDIO ============
+function initAudio() {
+  if (audioCtx) return;
+  audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  masterGain = audioCtx.createGain();
+  masterGain.gain.value = 0.15;
+  masterGain.connect(audioCtx.destination);
+}
+
+function resumeAudio() {
+  if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+}
+
+function playTransitionTone(phaseName) {
+  if (!audioCtx) return;
+  var freq, duration;
+  if (phaseName === 'INHALE') { freq = 396; duration = 0.6; }
+  else if (phaseName === 'HOLD') { freq = 528; duration = 0.4; }
+  else { freq = 432; duration = 0.8; }
+
+  var osc = audioCtx.createOscillator();
+  var gain = audioCtx.createGain();
+  osc.type = 'sine';
+  osc.frequency.value = freq;
+  gain.gain.setValueAtTime(0.08, audioCtx.currentTime);
+  gain.gain.linearRampToValueAtTime(0.08, audioCtx.currentTime + 0.05);
+  gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
+  osc.connect(gain);
+  gain.connect(masterGain);
+  osc.start();
+  osc.stop(audioCtx.currentTime + duration + 0.1);
+}
+
+// ============ WAKE LOCK ============
+async function requestWakeLock() {
+  if (wakeLock !== null) return; // Already have one
+  try {
+    if ('wakeLock' in navigator) {
+      wakeLock = await navigator.wakeLock.request('screen');
+      wakeLock.addEventListener('release', function() { wakeLock = null; });
+    }
+  } catch (e) {
+    // Silently fail — not all browsers support it
+  }
+}
+
+function releaseWakeLock() {
+  if (wakeLock) {
+    wakeLock.release().catch(function() {});
+    wakeLock = null;
+  }
+}
+
+// ============ GAME LOOP ============
+function start() {
+  initAudio();
+  resumeAudio();
+  running = true;
+  phaseIdx = 0;
+  phaseElapsed = 0;
+  totalElapsed = 0;
+  cycles = 0;
+  lastTime = performance.now();
+  startBtn.textContent = 'STOP';
+  startBtn.classList.add('running');
+  requestWakeLock();
+  applyPhase();
+  animId = requestAnimationFrame(tick);
+}
+
+function stop() {
+  running = false;
+  if (animId) cancelAnimationFrame(animId);
+  animId = null;
+  startBtn.textContent = 'START';
+  startBtn.classList.remove('running');
+  circleEl.className = '';
+  circleEl.style.transitionDuration = '';
+  phaseEl.textContent = 'TAP TO START';
+  phaseEl.style.color = '#555';
+  releaseWakeLock();
+}
+
+function tick(now) {
+  if (!running) return;
+  var dt = (now - lastTime) / 1000;
+  lastTime = now;
+  if (dt > 2) dt = 0; // Cap dt to prevent rapid-fire catch-up after tab switch
+  phaseElapsed += dt;
+  totalElapsed += dt;
+
+  var pattern = PATTERNS[currentPattern];
+  var phase = pattern.phases[phaseIdx];
+
+  // Progress within current phase (0 to 1)
+  var progress = Math.min(1, phaseElapsed / phase.dur);
+
+  // Update timer
+  var mins = ~~(totalElapsed / 60);
+  var secs = ~~(totalElapsed % 60);
+  timerEl.textContent = mins + ':' + (secs < 10 ? '0' : '') + secs;
+
+  // Phase transition
+  if (phaseElapsed >= phase.dur) {
+    phaseElapsed -= phase.dur;
+    phaseIdx++;
+    if (phaseIdx >= pattern.phases.length) {
+      phaseIdx = 0;
+      cycles++;
+      cycleEl.textContent = cycles + ' cycle' + (cycles !== 1 ? 's' : '');
+    }
+    applyPhase();
+  }
+
+  animId = requestAnimationFrame(tick);
+}
+
+function applyPhase() {
+  var pattern = PATTERNS[currentPattern];
+  var phase = pattern.phases[phaseIdx];
+
+  // Set transition duration to match phase duration
+  circleEl.style.transitionDuration = phase.dur + 's';
+
+  // Apply class
+  var cls = phase.name.toLowerCase();
+  if (cls === 'hold') cls = 'hold'; // Keep current scale, just change color
+  circleEl.className = cls;
+
+  // For HOLD: keep the current transform but change border color
+  if (phase.name === 'HOLD') {
+    // Maintain previous scale
+    var prevPhase = pattern.phases[(phaseIdx - 1 + pattern.phases.length) % pattern.phases.length];
+    if (prevPhase.name === 'INHALE') {
+      circleEl.style.transform = 'scale(1)';
+    } else {
+      circleEl.style.transform = 'scale(0.4)';
+    }
+    circleEl.style.transitionDuration = '0.3s';
+  } else {
+    circleEl.style.transform = '';
+  }
+
+  // Phase label
+  phaseEl.textContent = phase.name;
+  phaseEl.style.color = phase.name === 'INHALE' ? '#58a6ff' : phase.name === 'HOLD' ? '#a78bfa' : '#3fb950';
+
+  // Audio
+  playTransitionTone(phase.name);
+
+  // Haptic
+  if (navigator.vibrate) {
+    navigator.vibrate(phase.name === 'INHALE' ? 50 : phase.name === 'HOLD' ? 30 : 40);
+  }
+}
+
+// ============ INPUT ============
+// Use both pointerdown (fast) and click (iOS audio compat) — deduplicate via flag
+var startHandled = false;
+function handleStartToggle(e) {
+  e.preventDefault();
+  if (startHandled) { startHandled = false; return; }
+  startHandled = true;
+  setTimeout(function() { startHandled = false; }, 300);
+  if (running) stop();
+  else start();
+}
+startBtn.addEventListener('pointerdown', handleStartToggle);
+startBtn.addEventListener('click', handleStartToggle);
+
+// Pattern selection
+document.querySelectorAll('.pat-btn').forEach(function(btn) {
+  btn.addEventListener('pointerdown', function(e) {
+    e.preventDefault();
+    currentPattern = btn.dataset.pattern;
+    document.querySelectorAll('.pat-btn').forEach(function(b) { b.classList.remove('active'); });
+    btn.classList.add('active');
+    if (running) {
+      stop();
+      start();
+    }
+  });
+});
+
+// Tap circle to start/stop
+document.getElementById('circle-wrap').addEventListener('pointerdown', function(e) {
+  e.preventDefault();
+  if (running) stop();
+  else start();
+});
+
+// Re-acquire wake lock on visibility change
+document.addEventListener('visibilitychange', function() {
+  if (document.visibilityState === 'visible' && running) {
+    requestWakeLock();
+  }
+});
+
+})();
+</script>
+</body>
+</html>

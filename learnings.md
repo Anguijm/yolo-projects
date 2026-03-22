@@ -104,6 +104,19 @@ Persistent knowledge base. Read this before every build.
 - **INSIGHT**: Music theory constraints (scales, quantization) can make procedural audio sound good by default. The key insight: restrict the output space so random combinations still sound harmonious.
 - **INSIGHT**: Games need an escalation loop (wave difficulty) + economy (gold/cost) + fail state (lives) to feel like actual games vs. toys.
 
+### pendulum-waves (2026-03-22)
+- **KEEP**: Sub-stepped physics (4 steps per frame) prevents instability at high gravity values
+- **KEEP**: HSL hue mapped to pendulum index creates instant rainbow beauty — zero effort, maximum visual impact
+- **KEEP**: Canvas shadowBlur on bobs creates a glow effect that elevates the aesthetic dramatically
+- **KEEP**: Trail arrays (trailX/trailY) with .shift() capping give smooth fading paths without canvas fade tricks
+- **KEEP**: Zero-crossing detection (sign change) is a clean audio trigger — fires exactly once per swing direction
+- **KEEP**: Octave shifting for pendulums beyond the PENTA array length — prevents identical frequency phasing
+- **TEST CAUGHT (via Gemini audit)**: prevSign hardcoded to 1 — if amplitude was negative, ALL pendulums would trigger audio on frame 1 (loud burst)
+- **TEST CAUGHT (via Gemini audit)**: Resize didn't re-init pendulums — they'd render off-screen after window shrink
+- **TEST CAUGHT (via Gemini audit)**: Audio frequency wrapping — pendulums 11-15 played same notes as 1-5, causing phasing artifacts
+- **INSIGHT**: Physics simulations using pixel lengths in formulas designed for meters will run at wrong speeds. Either add a scale factor or calibrate constants empirically.
+- **INSIGHT**: Any parameter that indexes into a finite array (PENTA[i % length]) needs to handle wrap-around distinctly — same index = same output = unwanted duplication.
+
 ### drum-lab (2026-03-22)
 - **KEEP**: Lookahead scheduler (100ms window, 25ms setTimeout check) — the "Tale of Two Clocks" pattern is mandatory for Web Audio timing
 - **KEEP**: DynamicsCompressor with low threshold (-18dB) and fast attack (3ms) — essential for punchy drum sounds without clipping
