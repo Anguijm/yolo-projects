@@ -104,6 +104,18 @@ Persistent knowledge base. Read this before every build.
 - **INSIGHT**: Music theory constraints (scales, quantization) can make procedural audio sound good by default. The key insight: restrict the output space so random combinations still sound harmonious.
 - **INSIGHT**: Games need an escalation loop (wave difficulty) + economy (gold/cost) + fail state (lives) to feel like actual games vs. toys.
 
+### wheel-of-fate (2026-03-22)
+- **KEEP**: Physics spin with friction coefficient (velocity *= 0.985 per frame) creates realistic deceleration
+- **KEEP**: Segment boundary detection via `(pointerAngle / sliceAngle) % n` — clean and frame-rate independent
+- **KEEP**: Haptic tick with cooldown (30ms) prevents spam at high velocity but still feels satisfying at low velocity
+- **KEEP**: CSS pointer/flapper as a separate div above canvas — simpler than drawing it in canvas, always visible
+- **KEEP**: Celebratory arpeggio (C5-E5-G5-C6 at 80ms intervals) feels like a genuine "win" moment
+- **KEEP**: Edit via textarea (one per line) — simplest possible input for list customization
+- **TEST CAUGHT (via Gemini audit)**: indexOf for color mapping broken with duplicate options — must use segment index directly
+- **TEST CAUGHT (via Gemini audit)**: No minimum wheelSize = negative canvas arc radius = DOMException crash on tiny windows
+- **INSIGHT**: Any time you map a string to an index (for color, position, etc.), use the KNOWN index, not indexOf(). indexOf always returns the first occurrence, which is wrong for duplicates.
+- **INSIGHT**: Canvas arc() throws DOMException on negative radius. Always clamp computed sizes to a minimum.
+
 ### sound-meter (2026-03-22)
 - **KEEP**: RMS-to-dB formula: `20 * Math.log10(rms) + 94` — +94 approximates SPL from digital full scale
 - **KEEP**: Color-coded severity levels (quiet/moderate/loud/very loud/dangerous) — immediately graspable

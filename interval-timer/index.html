@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="theme-color" content="#000000">
+<title>Interval</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { height: 100%; background: #000; color: #fff; font-family: 'Segoe UI', system-ui, sans-serif; overflow: hidden; touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+#app { height: 100%; display: flex; flex-direction: column; }
+
+/* Setup view */
+#setup { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px; padding: 20px; }
+#setup.hidden { display: none; }
+#setup h1 { font-size: 1.4rem; font-weight: 200; color: #333; letter-spacing: 0.15em; }
+.preset-row { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
+.preset-btn { padding: 10px 20px; background: transparent; border: 1px solid #222; color: #666; border-radius: 8px; font-family: inherit; font-size: 0.8rem; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.preset-btn:active { border-color: #0ff; color: #0ff; }
+.custom-row { display: flex; gap: 8px; align-items: center; margin-top: 8px; }
+.custom-row label { font-size: 0.65rem; color: #444; min-width: 45px; text-align: right; }
+.custom-row input { width: 50px; background: #0a0a0a; border: 1px solid #222; color: #fff; padding: 6px; text-align: center; font-family: monospace; font-size: 0.9rem; border-radius: 4px; }
+.go-btn { margin-top: 16px; padding: 14px 40px; background: transparent; border: 2px solid #0ff; color: #0ff; border-radius: 30px; font-family: inherit; font-size: 1rem; cursor: pointer; letter-spacing: 0.1em; font-weight: bold; }
+.go-btn:active { background: #0ff; color: #000; }
+
+/* Timer view */
+#timer { display: none; flex: 1; flex-direction: column; align-items: center; justify-content: center; position: relative; cursor: pointer; }
+#timer.active { display: flex; }
+#timer-bg { position: absolute; inset: 0; transition: background 0.5s; }
+
+#phase-label { font-size: clamp(1rem, 4vw, 1.5rem); font-weight: 200; letter-spacing: 0.3em; text-transform: uppercase; z-index: 1; opacity: 0.7; }
+#countdown { font-size: clamp(8rem, 35vw, 16rem); font-weight: 900; font-family: monospace; letter-spacing: -0.05em; z-index: 1; line-height: 1; }
+#round-info { font-size: clamp(0.7rem, 2vw, 1rem); color: #444; z-index: 1; margin-top: 8px; font-family: monospace; }
+#pause-hint { position: absolute; bottom: 20px; font-size: 0.6rem; color: #1a1a1a; z-index: 1; }
+#back-btn { position: absolute; top: 16px; left: 16px; width: 36px; height: 36px; background: transparent; border: 1px solid #1a1a1a; color: #333; border-radius: 50%; cursor: pointer; z-index: 2; font-size: 0.8rem; display: flex; align-items: center; justify-content: center; }
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="setup">
+    <h1>INTERVAL</h1>
+    <div class="preset-row">
+      <button class="preset-btn" data-work="20" data-rest="10" data-rounds="8">Tabata 20/10 x8</button>
+      <button class="preset-btn" data-work="40" data-rest="20" data-rounds="6">HIIT 40/20 x6</button>
+      <button class="preset-btn" data-work="45" data-rest="15" data-rounds="10">Circuit 45/15 x10</button>
+      <button class="preset-btn" data-work="30" data-rest="30" data-rounds="8">Equal 30/30 x8</button>
+    </div>
+    <div class="custom-row">
+      <label>Work</label><input type="number" id="in-work" value="20" min="5" max="300">
+      <label>Rest</label><input type="number" id="in-rest" value="10" min="1" max="120">
+      <label>Rounds</label><input type="number" id="in-rounds" value="8" min="1" max="50">
+    </div>
+    <button class="go-btn" id="btn-go">START</button>
+  </div>
+
+  <div id="timer">
+    <div id="timer-bg"></div>
+    <button id="back-btn">&larr;</button>
+    <div id="phase-label">GET READY</div>
+    <div id="countdown">3</div>
+    <div id="round-info">—</div>
+    <div id="pause-hint">TAP TO PAUSE</div>
+  </div>
+</div>
+
+<script>
+(function() {
+'use strict';
+
+// ============ STATE ============
+var workTime = 20;
+var restTime = 10;
+var totalRounds = 8;
+var currentRound = 0;
+var phase = 'ready'; // ready, work, rest, done
+var timeLeft = 3; // seconds remaining in current phase
+var paused = false;
+var running = false;
+var lastTimestamp = 0;
+var audioCtx = null;
+var wakeLock = null;
+
+// ============ DOM ============
+var setupEl = document.getElementById('setup');
+var timerEl = document.getElementById('timer');
+var timerBg = document.getElementById('timer-bg');
+var phaseLabel = document.getElementById('phase-label');
+var countdownEl = document.getElementById('countdown');
+var roundInfo = document.getElementById('round-info');
+var pauseHint = document.getElementById('pause-hint');
+
+// ============ AUDIO ============
+function initAudio() {
+  if (!audioCtx) {
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  }
+  if (audioCtx.state === 'suspended') audioCtx.resume();
+}
+
+function playBeep(freq, duration) {
+  if (!audioCtx) return;
+  var osc = audioCtx.createOscillator();
+  var gain = audioCtx.createGain();
+  osc.type = 'sine';
+  osc.frequency.value = freq;
+  gain.gain.setValueAtTime(0.12, audioCtx.currentTime);
+  gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
+  osc.connect(gain);
+  gain.connect(audioCtx.destination);
+  osc.start();
+  osc.stop(audioCtx.currentTime + duration + 0.05);
+}
+
+function playWorkStart() { playBeep(880, 0.15); setTimeout(function() { playBeep(1175, 0.2); }, 120); }
+function playRestStart() { playBeep(440, 0.3); }
+function playCountdownTick() { playBeep(660, 0.08); }
+function playDone() {
+  if (!audioCtx) return;
+  // Schedule via audioCtx.currentTime for reliable timing even when backgrounded
+  var now = audioCtx.currentTime;
+  var notes = [[523, now, 0.15], [659, now + 0.1, 0.15], [784, now + 0.2, 0.15], [1047, now + 0.3, 0.3]];
+  for (var i = 0; i < notes.length; i++) {
+    var osc = audioCtx.createOscillator();
+    var gain = audioCtx.createGain();
+    osc.type = 'sine';
+    osc.frequency.value = notes[i][0];
+    gain.gain.setValueAtTime(0.12, notes[i][1]);
+    gain.gain.exponentialRampToValueAtTime(0.001, notes[i][1] + notes[i][2]);
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+    osc.start(notes[i][1]);
+    osc.stop(notes[i][1] + notes[i][2] + 0.05);
+  }
+}
+
+// ============ WAKE LOCK ============
+async function requestWakeLock() {
+  if (wakeLock !== null) return;
+  try {
+    if ('wakeLock' in navigator) {
+      wakeLock = await navigator.wakeLock.request('screen');
+      wakeLock.addEventListener('release', function() { wakeLock = null; });
+    }
+  } catch (e) {}
+}
+function releaseWakeLock() {
+  if (wakeLock !== null) { wakeLock.release().catch(function() {}); wakeLock = null; }
+}
+document.addEventListener('visibilitychange', function() {
+  if (document.visibilityState === 'visible' && running) {
+    requestWakeLock();
+    if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+  }
+});
+
+// ============ TIMER ENGINE ============
+var phaseEndTime = 0; // Absolute timestamp for current phase end
+
+function startTimer() {
+  if (running) return; // Prevent double-start
+  initAudio();
+  var w = parseInt(document.getElementById('in-work').value);
+  var r = parseInt(document.getElementById('in-rest').value);
+  var n = parseInt(document.getElementById('in-rounds').value);
+  workTime = isNaN(w) || w < 1 ? 20 : w;
+  restTime = isNaN(r) || r < 0 ? 10 : r;
+  totalRounds = isNaN(n) || n < 1 ? 8 : n;
+
+  currentRound = 0;
+  phase = 'ready';
+  timeLeft = 3;
+  paused = false;
+  running = true;
+
+  setupEl.classList.add('hidden');
+  timerEl.classList.add('active');
+  requestWakeLock();
+  phaseEndTime = Date.now() + timeLeft * 1000;
+  updateDisplay();
+  requestAnimationFrame(tick);
+}
+
+function stopTimer() {
+  running = false;
+  paused = false;
+  releaseWakeLock();
+  timerEl.classList.remove('active');
+  setupEl.classList.remove('hidden');
+}
+
+function tick() {
+  if (!running) return;
+  if (paused) {
+    // Push end time forward while paused
+    phaseEndTime = Date.now() + timeLeft * 1000;
+    requestAnimationFrame(tick);
+    return;
+  }
+
+  var prevSec = Math.ceil(timeLeft);
+  // Use absolute time — works correctly even when backgrounded
+  timeLeft = (phaseEndTime - Date.now()) / 1000;
+  var currSec = Math.ceil(timeLeft);
+
+  // Countdown tick in last 3 seconds
+  if (currSec !== prevSec && currSec > 0 && currSec <= 3) {
+    playCountdownTick();
+    if (navigator.vibrate) navigator.vibrate(currSec === 1 ? [50, 30, 50] : 30);
+  }
+
+  if (timeLeft <= 0) {
+    advancePhase();
+  }
+
+  updateDisplay();
+  requestAnimationFrame(tick);
+}
+
+function advancePhase() {
+  if (phase === 'ready') {
+    phase = 'work';
+    currentRound = 1;
+    timeLeft = workTime;
+    phaseEndTime = Date.now() + workTime * 1000;
+    playWorkStart();
+    if (navigator.vibrate) navigator.vibrate([80, 40, 80]);
+  } else if (phase === 'work') {
+    if (currentRound >= totalRounds) {
+      phase = 'done';
+      timeLeft = 0;
+      playDone();
+      if (navigator.vibrate) navigator.vibrate([100, 50, 100, 50, 100]);
+      releaseWakeLock();
+    } else {
+      phase = 'rest';
+      timeLeft = restTime;
+      phaseEndTime = Date.now() + restTime * 1000;
+      playRestStart();
+      if (navigator.vibrate) navigator.vibrate(60);
+    }
+  } else if (phase === 'rest') {
+    phase = 'work';
+    currentRound++;
+    timeLeft = workTime;
+    phaseEndTime = Date.now() + workTime * 1000;
+    playWorkStart();
+    if (navigator.vibrate) navigator.vibrate([80, 40, 80]);
+  }
+}
+
+function updateDisplay() {
+  var secs = Math.max(0, Math.ceil(timeLeft));
+  var mins = Math.floor(secs / 60);
+  var s = secs % 60;
+  countdownEl.textContent = mins > 0 ? mins + ':' + (s < 10 ? '0' : '') + s : secs;
+
+  var bgColor, textColor, label;
+  if (phase === 'ready') {
+    bgColor = '#0a0a0a'; textColor = '#888'; label = 'GET READY';
+  } else if (phase === 'work') {
+    bgColor = '#001a1a'; textColor = '#0ff'; label = 'WORK';
+  } else if (phase === 'rest') {
+    bgColor = '#1a0a00'; textColor = '#f0883e'; label = 'REST';
+  } else {
+    bgColor = '#0a0a0a'; textColor = '#3fb950'; label = 'DONE';
+  }
+
+  timerBg.style.background = bgColor;
+  countdownEl.style.color = textColor;
+  phaseLabel.textContent = label;
+  phaseLabel.style.color = textColor;
+
+  if (phase === 'done') {
+    roundInfo.textContent = totalRounds + ' rounds complete';
+  } else if (phase === 'ready') {
+    roundInfo.textContent = totalRounds + ' rounds of ' + workTime + '/' + restTime;
+  } else {
+    roundInfo.textContent = 'Round ' + currentRound + ' / ' + totalRounds;
+  }
+
+  pauseHint.textContent = paused ? 'TAP TO RESUME' : (phase === 'done' ? 'TAP TO RETURN' : 'TAP TO PAUSE');
+}
+
+// ============ INPUT ============
+// Tap timer area to pause/resume/return
+timerEl.addEventListener('pointerdown', function(e) {
+  if (e.target === document.getElementById('back-btn')) return;
+  e.preventDefault();
+  if (phase === 'done') { stopTimer(); return; }
+  paused = !paused;
+  updateDisplay();
+});
+timerEl.addEventListener('click', function(e) {
+  if (e.target === document.getElementById('back-btn')) return;
+  // iOS fallback — handled by pointerdown above
+});
+
+document.getElementById('back-btn').addEventListener('pointerdown', function(e) {
+  e.preventDefault(); e.stopPropagation();
+  stopTimer();
+});
+document.getElementById('back-btn').addEventListener('click', function(e) {
+  e.stopPropagation();
+  stopTimer();
+});
+
+// Presets
+document.querySelectorAll('.preset-btn').forEach(function(btn) {
+  btn.addEventListener('pointerdown', function(e) {
+    e.preventDefault();
+    document.getElementById('in-work').value = btn.dataset.work;
+    document.getElementById('in-rest').value = btn.dataset.rest;
+    document.getElementById('in-rounds').value = btn.dataset.rounds;
+  });
+  btn.addEventListener('click', function() {
+    document.getElementById('in-work').value = btn.dataset.work;
+    document.getElementById('in-rest').value = btn.dataset.rest;
+    document.getElementById('in-rounds').value = btn.dataset.rounds;
+  });
+});
+
+// Go button
+document.getElementById('btn-go').addEventListener('pointerdown', function(e) {
+  e.preventDefault(); startTimer();
+});
+document.getElementById('btn-go').addEventListener('click', function() {
+  startTimer();
+});
+
+})();
+</script>
+</body>
+</html>
