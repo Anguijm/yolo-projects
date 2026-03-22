@@ -104,6 +104,20 @@ Persistent knowledge base. Read this before every build.
 - **INSIGHT**: Music theory constraints (scales, quantization) can make procedural audio sound good by default. The key insight: restrict the output space so random combinations still sound harmonious.
 - **INSIGHT**: Games need an escalation loop (wave difficulty) + economy (gold/cost) + fail state (lives) to feel like actual games vs. toys.
 
+### gradient-studio (2026-03-22) — FIRST CLICK-ONLY BUILD (no pointerdown)
+- **KEEP**: Fullscreen preview IS the UI — no separate preview panel needed. Body background = product.
+- **KEEP**: Glassmorphic control panel (backdrop-filter blur + rgba background) looks premium over content
+- **KEEP**: HSL randomization with constrained S (50-90) and L (40-70) guarantees visually pleasing colors
+- **KEEP**: Click-only event handlers — ZERO double-fire issues. Process improvement validated.
+- **KEEP**: Clipboard fallback (textarea + execCommand) for non-HTTPS contexts
+- **KEEP**: Array.isArray guard on localStorage parse — prevents crashes from corrupted/tampered data
+- **TEST CAUGHT (via Gemini audit)**: Toast race condition — rapid clicks queued overlapping timeouts. Fixed with clearTimeout.
+- **TEST CAUGHT (via Gemini audit)**: Stale color slots — loading a 2-color saved gradient left colors 3 and 4 from previous session. Reset unused to random.
+- **TEST CAUGHT (via Gemini audit)**: Non-array localStorage data caused .unshift crash. Array.isArray guard prevents this.
+- **INSIGHT**: The click-only rule eliminated an entire bug class (double-fire). Process improvements that eliminate bug CLASSES are more valuable than fixing individual bugs.
+- **INSIGHT**: Always guard localStorage with both try/catch AND type validation (Array.isArray, typeof === 'object', etc.). Users, extensions, and other apps can corrupt stored data.
+- **INSIGHT**: Toast notifications need a single shared timeout variable with clearTimeout — otherwise rapid triggers cause visual glitches.
+
 ### one-line (2026-03-22)
 - **KEEP**: Constraint as feature — 80 char limit forces distillation, creates a unique medium
 - **KEEP**: Calendar mosaic with filled/empty indicators — visual progress tracking without numbers
