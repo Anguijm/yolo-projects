@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="theme-color" content="#000000">
+<title>Tip</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { height: 100%; background: #000; color: #ccc; font-family: 'Segoe UI', system-ui, sans-serif; overflow-y: auto; touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+#app { max-width: 400px; margin: 0 auto; padding: 20px 16px; }
+h1 { font-size: 0.8rem; color: #333; letter-spacing: 0.2em; text-transform: uppercase; text-align: center; margin-bottom: 20px; }
+
+/* Bill input */
+.bill-input { display: flex; align-items: center; gap: 4px; margin-bottom: 20px; }
+.bill-input span { font-size: 2rem; color: #555; font-weight: 200; }
+.bill-input input { flex: 1; background: transparent; border: none; border-bottom: 1px solid #1a1a1a; color: #fff; font-size: 2rem; font-weight: 300; font-family: monospace; padding: 4px 0; outline: none; text-align: left; }
+.bill-input input::placeholder { color: #1a1a1a; }
+
+/* Tip buttons */
+.section-label { font-size: 0.6rem; color: #333; text-transform: uppercase; letter-spacing: 0.15em; margin-bottom: 8px; }
+.tip-row { display: flex; gap: 6px; margin-bottom: 16px; }
+.tip-btn { flex: 1; padding: 10px; background: #0a0a0a; border: 1px solid #1a1a1a; color: #666; border-radius: 8px; font-family: inherit; font-size: 0.85rem; cursor: pointer; text-align: center; }
+.tip-btn.active { border-color: #58a6ff; color: #58a6ff; background: #58a6ff0a; }
+
+/* Custom tip */
+.custom-row { display: flex; align-items: center; gap: 8px; margin-bottom: 20px; }
+.custom-row input { width: 60px; background: #0a0a0a; border: 1px solid #1a1a1a; color: #ccc; padding: 8px; font-family: monospace; font-size: 0.9rem; border-radius: 6px; text-align: center; outline: none; }
+
+/* Split */
+.split-row { display: flex; align-items: center; gap: 12px; margin-bottom: 20px; }
+.split-btn { width: 36px; height: 36px; background: #0a0a0a; border: 1px solid #1a1a1a; color: #666; border-radius: 50%; font-size: 1.2rem; cursor: pointer; display: flex; align-items: center; justify-content: center; font-family: inherit; }
+.split-btn:active { border-color: #555; color: #fff; }
+.split-val { font-size: 1.4rem; color: #fff; font-weight: bold; min-width: 30px; text-align: center; }
+
+/* Results */
+.results { background: #0a0a0a; border: 1px solid #111; border-radius: 12px; padding: 16px; }
+.result-row { display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid #0f0f0f; }
+.result-row:last-child { border-bottom: none; }
+.result-label { font-size: 0.75rem; color: #555; }
+.result-value { font-size: 0.95rem; color: #ccc; font-family: monospace; font-weight: bold; }
+.result-row.total .result-label { color: #888; }
+.result-row.total .result-value { color: #fff; font-size: 1.2rem; }
+.per-person { margin-top: 10px; padding-top: 10px; border-top: 1px solid #1a1a1a; }
+.per-person .result-value { color: #58a6ff; }
+</style>
+</head>
+<body>
+<div id="app">
+  <h1>Tip Calculator</h1>
+
+  <div class="bill-input">
+    <span>$</span>
+    <input type="number" id="bill" placeholder="0.00" inputmode="decimal" step="0.01">
+  </div>
+
+  <div class="section-label">Tip %</div>
+  <div class="tip-row">
+    <button class="tip-btn" data-tip="10">10%</button>
+    <button class="tip-btn" data-tip="15">15%</button>
+    <button class="tip-btn active" data-tip="18">18%</button>
+    <button class="tip-btn" data-tip="20">20%</button>
+    <button class="tip-btn" data-tip="25">25%</button>
+  </div>
+
+  <div class="custom-row">
+    <span class="section-label" style="margin:0">Custom</span>
+    <input type="number" id="custom-tip" placeholder="%" inputmode="numeric">
+  </div>
+
+  <div class="section-label">Split</div>
+  <div class="split-row">
+    <button class="split-btn" id="split-down">&minus;</button>
+    <span class="split-val" id="split-val">1</span>
+    <button class="split-btn" id="split-up">+</button>
+    <span class="section-label" style="margin:0">people</span>
+  </div>
+
+  <div class="results">
+    <div class="result-row"><span class="result-label">Bill</span><span class="result-value" id="r-bill">$0.00</span></div>
+    <div class="result-row"><span class="result-label">Tip</span><span class="result-value" id="r-tip">$0.00</span></div>
+    <div class="result-row total"><span class="result-label">Total</span><span class="result-value" id="r-total">$0.00</span></div>
+    <div class="result-row per-person"><span class="result-label">Per person</span><span class="result-value" id="r-person">$0.00</span></div>
+  </div>
+</div>
+
+<script>
+(function() {
+'use strict';
+
+var billEl = document.getElementById('bill');
+var customTipEl = document.getElementById('custom-tip');
+var splitVal = 1;
+var tipPercent = 18;
+
+function calculate() {
+  var bill = parseFloat(billEl.value);
+  if (isNaN(bill) || bill < 0) bill = 0;
+  var tip = bill * tipPercent / 100;
+  var total = bill + tip;
+  var perPerson = splitVal > 0 ? total / splitVal : total;
+
+  document.getElementById('r-bill').textContent = '$' + bill.toFixed(2);
+  document.getElementById('r-tip').textContent = '$' + tip.toFixed(2);
+  document.getElementById('r-total').textContent = '$' + total.toFixed(2);
+  document.getElementById('r-person').textContent = '$' + perPerson.toFixed(2);
+
+  // Show/hide per-person
+  document.querySelector('.per-person').style.display = splitVal > 1 ? 'flex' : 'none';
+}
+
+// Tip buttons
+document.querySelectorAll('.tip-btn').forEach(function(btn) {
+  btn.addEventListener('click', function() {
+    tipPercent = parseFloat(btn.dataset.tip) || 0;
+    document.querySelectorAll('.tip-btn').forEach(function(b) { b.classList.remove('active'); });
+    btn.classList.add('active');
+    customTipEl.value = '';
+    calculate();
+  });
+});
+
+// Custom tip
+customTipEl.addEventListener('input', function() {
+  var val = parseFloat(this.value);
+  if (!isNaN(val) && val >= 0) {
+    tipPercent = val;
+    document.querySelectorAll('.tip-btn').forEach(function(b) { b.classList.remove('active'); });
+  } else {
+    tipPercent = 0; // Reset when cleared or invalid
+  }
+  calculate();
+});
+
+// Bill input
+billEl.addEventListener('input', calculate);
+
+// Split
+document.getElementById('split-up').addEventListener('click', function() {
+  splitVal = Math.min(20, splitVal + 1);
+  document.getElementById('split-val').textContent = splitVal;
+  calculate();
+});
+
+document.getElementById('split-down').addEventListener('click', function() {
+  splitVal = Math.max(1, splitVal - 1);
+  document.getElementById('split-val').textContent = splitVal;
+  calculate();
+});
+
+// Auto-focus bill
+setTimeout(function() { billEl.focus(); }, 300);
+
+calculate();
+})();
+</script>
+</body>
+</html>
