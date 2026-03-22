@@ -104,6 +104,20 @@ Persistent knowledge base. Read this before every build.
 - **INSIGHT**: Music theory constraints (scales, quantization) can make procedural audio sound good by default. The key insight: restrict the output space so random combinations still sound harmonious.
 - **INSIGHT**: Games need an escalation loop (wave difficulty) + economy (gold/cost) + fail state (lives) to feel like actual games vs. toys.
 
+### color-eye (2026-03-22)
+- **KEEP**: object-fit: cover coordinate mapping — must calculate render dimensions and offset to map screen coords to video coords accurately
+- **KEEP**: Single getImageData for NxN area vs N*N individual calls — 9x perf improvement. Canvas batch reads always beat per-pixel reads.
+- **KEEP**: Dynamic text contrast via BT.601 luminance — white text on dark colors, black on light. Essential for any color display UI.
+- **KEEP**: willReadFrequently hint on canvas context — critical when getImageData is called on every tap
+- **KEEP**: Palette dedup check (indexOf before unshift) — prevents duplicate saved colors
+- **KEEP**: navigator.mediaDevices existence check before getUserMedia — prevents crash on HTTP contexts
+- **TEST CAUGHT (via Gemini audit)**: 9 individual getImageData calls — massive perf waste. Fixed to single call with area parameters.
+- **TEST CAUGHT (via Gemini audit)**: No mediaDevices check — getUserMedia is undefined on HTTP, causing crash before try/catch.
+- **TEST CAUGHT (via Gemini audit)**: iOS clipboard fallback needs ta.setSelectionRange(0, 99999) after ta.select() — older Safari ignores select() alone.
+- **INSIGHT**: Camera → canvas → getImageData is a reusable pipeline for ANY real-world pixel sampling (color, QR, OCR). The coordinate mapping for object-fit: cover is the hardest part.
+- **INSIGHT**: getImageData(x, y, width, height) can grab an AREA in one call. Never loop individual pixel reads when you can batch.
+- **INSIGHT**: Every browser API that requires a "secure context" (HTTPS) should have an existence check before use — mediaDevices, crypto.subtle, clipboard, etc.
+
 ### secure-note (2026-03-22)
 - **KEEP**: AES-256-GCM provides both confidentiality AND integrity — tampered ciphertext fails to decrypt, doubling as password validation
 - **KEEP**: New random IV per save (generateIV called in encryptText) — prevents catastrophic nonce reuse
