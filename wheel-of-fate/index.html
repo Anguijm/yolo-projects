@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="theme-color" content="#000000">
+<title>Wheel of Fate</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { height: 100%; background: #000; color: #fff; font-family: 'Segoe UI', system-ui, sans-serif; overflow: hidden; touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+
+#app { height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; position: relative; }
+
+canvas { display: block; touch-action: none; }
+
+/* Pointer / flapper */
+#pointer { position: absolute; top: 8px; left: 50%; transform: translateX(-50%); width: 0; height: 0; border-left: 14px solid transparent; border-right: 14px solid transparent; border-top: 28px solid #fff; z-index: 5; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.5)); }
+
+/* Result */
+#result { position: absolute; bottom: 80px; font-size: 1.4rem; font-weight: 900; color: #fff; text-align: center; opacity: 0; transition: opacity 0.3s; letter-spacing: 0.05em; text-shadow: 0 0 20px currentColor; max-width: 80%; }
+#result.show { opacity: 1; }
+
+/* Controls */
+#controls { position: absolute; bottom: 16px; display: flex; gap: 8px; }
+.ctrl-btn { padding: 8px 18px; background: transparent; border: 1px solid #222; color: #666; border-radius: 20px; font-family: inherit; font-size: 0.75rem; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.ctrl-btn:active { border-color: #555; color: #fff; }
+
+/* Edit modal */
+#edit-modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.95); z-index: 20; flex-direction: column; align-items: center; justify-content: center; padding: 20px; }
+#edit-modal.show { display: flex; }
+#edit-modal h2 { font-size: 1rem; color: #555; margin-bottom: 12px; letter-spacing: 0.1em; }
+#edit-modal textarea { width: 100%; max-width: 320px; height: 200px; background: #0a0a0a; border: 1px solid #222; color: #fff; padding: 12px; font-family: inherit; font-size: 0.9rem; border-radius: 8px; resize: none; outline: none; line-height: 1.6; }
+#edit-modal textarea::placeholder { color: #333; }
+#edit-modal .btn-row { display: flex; gap: 8px; margin-top: 12px; }
+.modal-btn { padding: 8px 24px; background: transparent; border: 1px solid #333; color: #888; border-radius: 20px; font-family: inherit; font-size: 0.8rem; cursor: pointer; }
+.modal-btn.primary { border-color: #58a6ff; color: #58a6ff; }
+
+#hint { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 0.7rem; color: #222; pointer-events: none; z-index: 3; }
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="pointer"></div>
+  <canvas id="wheel"></canvas>
+  <div id="hint">TAP TO SPIN</div>
+  <div id="result"></div>
+  <div id="controls">
+    <button class="ctrl-btn" id="btn-edit">Edit</button>
+    <button class="ctrl-btn" id="btn-spin">Spin</button>
+  </div>
+</div>
+<div id="edit-modal">
+  <h2>EDIT OPTIONS</h2>
+  <textarea id="options-input" placeholder="One option per line..."></textarea>
+  <div class="btn-row">
+    <button class="modal-btn" id="btn-cancel">Cancel</button>
+    <button class="modal-btn primary" id="btn-apply">Apply</button>
+  </div>
+</div>
+
+<script>
+(function() {
+'use strict';
+
+// ============ CONFIG ============
+var FRICTION = 0.985;
+var MIN_VELOCITY = 0.002;
+var COLORS = ['#58a6ff','#f0883e','#3fb950','#a78bfa','#f472b6','#d29922','#38bdf8','#fb923c','#34d399','#e879f9','#60a5fa','#facc15'];
+var TICK_COOLDOWN = 30; // ms between haptic ticks
+
+// ============ STATE ============
+var canvas = document.getElementById('wheel');
+var ctx = canvas.getContext('2d');
+var options = ['Pizza', 'Sushi', 'Burgers', 'Thai', 'Tacos', 'Ramen'];
+var angle = 0; // Current rotation in radians
+var velocity = 0;
+var spinning = false;
+var settled = false;
+var lastTickTime = 0;
+var prevSegment = -1;
+var audioCtx = null;
+var wheelSize = 0;
+
+// Load saved options
+try {
+  var saved = JSON.parse(localStorage.getItem('wheel_options'));
+  if (saved && saved.length >= 2) options = saved;
+} catch (e) {}
+
+// ============ AUDIO ============
+function initAudio() {
+  if (audioCtx) return;
+  audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+}
+
+function resumeAudio() {
+  if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+}
+
+function playTick() {
+  if (!audioCtx) return;
+  var osc = audioCtx.createOscillator();
+  var gain = audioCtx.createGain();
+  osc.type = 'sine';
+  osc.frequency.value = 1200 + Math.random() * 400;
+  gain.gain.setValueAtTime(0.04, audioCtx.currentTime);
+  gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.03);
+  osc.connect(gain);
+  gain.connect(audioCtx.destination);
+  osc.start();
+  osc.stop(audioCtx.currentTime + 0.04);
+}
+
+function playWin() {
+  if (!audioCtx) return;
+  var notes = [523, 659, 784, 1047];
+  for (var i = 0; i < notes.length; i++) {
+    (function(freq, delay) {
+      setTimeout(function() {
+        var osc = audioCtx.createOscillator();
+        var gain = audioCtx.createGain();
+        osc.type = 'sine';
+        osc.frequency.value = freq;
+        gain.gain.setValueAtTime(0.08, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.3);
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start();
+        osc.stop(audioCtx.currentTime + 0.4);
+      }, delay);
+    })(notes[i], i * 80);
+  }
+}
+
+// ============ SIZING ============
+function resize() {
+  var w = window.innerWidth;
+  var h = window.innerHeight;
+  wheelSize = Math.max(200, Math.min(w - 40, h - 160));
+  canvas.width = wheelSize;
+  canvas.height = wheelSize;
+  canvas.style.marginTop = '30px';
+  drawWheel();
+}
+window.addEventListener('resize', resize);
+
+// ============ DRAWING ============
+function drawWheel() {
+  var cx = wheelSize / 2;
+  var cy = wheelSize / 2;
+  var r = wheelSize / 2 - 4;
+  var n = options.length;
+  if (n === 0) return;
+  var sliceAngle = (Math.PI * 2) / n;
+
+  ctx.clearRect(0, 0, wheelSize, wheelSize);
+
+  for (var i = 0; i < n; i++) {
+    var startA = angle + i * sliceAngle;
+    var endA = startA + sliceAngle;
+
+    // Slice
+    ctx.beginPath();
+    ctx.moveTo(cx, cy);
+    ctx.arc(cx, cy, r, startA, endA);
+    ctx.closePath();
+    ctx.fillStyle = COLORS[i % COLORS.length];
+    ctx.fill();
+
+    // Border
+    ctx.strokeStyle = '#000';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    // Text
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.rotate(startA + sliceAngle / 2);
+    ctx.textAlign = 'right';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = '#000';
+    var fontSize = Math.min(14, r * 0.12);
+    ctx.font = 'bold ' + fontSize + 'px sans-serif';
+    var text = options[i];
+    if (text.length > 15) text = text.substring(0, 14) + '...';
+    ctx.fillText(text, r - 10, 0);
+    ctx.restore();
+  }
+
+  // Center circle
+  ctx.beginPath();
+  ctx.arc(cx, cy, 18, 0, Math.PI * 2);
+  ctx.fillStyle = '#000';
+  ctx.fill();
+  ctx.strokeStyle = '#333';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+}
+
+// ============ PHYSICS ============
+function spin() {
+  if (spinning) return;
+  if (options.length < 2) return;
+  initAudio();
+  resumeAudio();
+  velocity = 0.2 + Math.random() * 0.3; // Random initial velocity
+  spinning = true;
+  settled = false;
+  prevSegment = -1;
+  document.getElementById('result').classList.remove('show');
+  document.getElementById('hint').style.display = 'none';
+  requestAnimationFrame(tick);
+}
+
+function tick() {
+  if (!spinning) return;
+
+  angle += velocity;
+  velocity *= FRICTION;
+
+  // Normalize angle
+  while (angle > Math.PI * 2) angle -= Math.PI * 2;
+  while (angle < 0) angle += Math.PI * 2;
+
+  // Detect segment boundary crossing
+  var n = options.length;
+  var sliceAngle = (Math.PI * 2) / n;
+  // The pointer is at the top (angle 0 relative to screen = -PI/2 in canvas coords)
+  // Winning segment is at the top
+  var pointerAngle = (Math.PI * 2 - angle + Math.PI * 1.5) % (Math.PI * 2);
+  var currentSegment = Math.floor(pointerAngle / sliceAngle) % n;
+
+  if (currentSegment !== prevSegment && prevSegment !== -1) {
+    // Crossed a boundary — tick!
+    var now = performance.now();
+    if (now - lastTickTime > TICK_COOLDOWN) {
+      playTick();
+      if (navigator.vibrate) navigator.vibrate(8);
+      lastTickTime = now;
+    }
+  }
+  prevSegment = currentSegment;
+
+  drawWheel();
+
+  if (velocity < MIN_VELOCITY) {
+    // Settled
+    spinning = false;
+    settled = true;
+    showResult(currentSegment);
+    return;
+  }
+
+  requestAnimationFrame(tick);
+}
+
+function showResult(segmentIdx) {
+  var resultEl = document.getElementById('result');
+  var winner = options[segmentIdx];
+  resultEl.textContent = winner;
+  resultEl.style.color = COLORS[segmentIdx % COLORS.length]; // Use index, not indexOf (handles duplicates)
+  resultEl.classList.add('show');
+  playWin();
+  if (navigator.vibrate) navigator.vibrate([30, 50, 30]);
+}
+
+// ============ INPUT ============
+// Tap canvas or spin button to spin
+canvas.addEventListener('pointerdown', function(e) {
+  e.preventDefault();
+  spin();
+});
+canvas.addEventListener('click', function(e) {
+  // iOS fallback
+  if (!spinning && !settled) spin();
+});
+
+document.getElementById('btn-spin').addEventListener('pointerdown', function(e) {
+  e.preventDefault();
+  spin();
+});
+document.getElementById('btn-spin').addEventListener('click', function() {
+  if (!spinning) spin();
+});
+
+// Edit modal
+document.getElementById('btn-edit').addEventListener('pointerdown', function(e) {
+  e.preventDefault();
+  document.getElementById('options-input').value = options.join('\n');
+  document.getElementById('edit-modal').classList.add('show');
+});
+document.getElementById('btn-edit').addEventListener('click', function() {
+  document.getElementById('options-input').value = options.join('\n');
+  document.getElementById('edit-modal').classList.add('show');
+});
+
+document.getElementById('btn-cancel').addEventListener('pointerdown', function(e) {
+  e.preventDefault();
+  document.getElementById('edit-modal').classList.remove('show');
+});
+document.getElementById('btn-cancel').addEventListener('click', function() {
+  document.getElementById('edit-modal').classList.remove('show');
+});
+
+document.getElementById('btn-apply').addEventListener('pointerdown', function(e) {
+  e.preventDefault();
+  applyOptions();
+});
+document.getElementById('btn-apply').addEventListener('click', applyOptions);
+
+function applyOptions() {
+  var text = document.getElementById('options-input').value;
+  var lines = text.split('\n').map(function(l) { return l.trim(); }).filter(function(l) { return l.length > 0; });
+  if (lines.length < 2) return;
+  options = lines;
+  try { localStorage.setItem('wheel_options', JSON.stringify(options)); } catch (e) {}
+  document.getElementById('edit-modal').classList.remove('show');
+  angle = 0;
+  velocity = 0;
+  spinning = false;
+  settled = false;
+  document.getElementById('result').classList.remove('show');
+  document.getElementById('hint').style.display = 'block';
+  drawWheel();
+}
+
+// ============ INIT ============
+resize();
+})();
+</script>
+</body>
+</html>

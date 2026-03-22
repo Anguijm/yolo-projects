@@ -104,6 +104,21 @@ Persistent knowledge base. Read this before every build.
 - **INSIGHT**: Music theory constraints (scales, quantization) can make procedural audio sound good by default. The key insight: restrict the output space so random combinations still sound harmonious.
 - **INSIGHT**: Games need an escalation loop (wave difficulty) + economy (gold/cost) + fail state (lives) to feel like actual games vs. toys.
 
+### sound-meter (2026-03-22)
+- **KEEP**: RMS-to-dB formula: `20 * Math.log10(rms) + 94` — +94 approximates SPL from digital full scale
+- **KEEP**: Color-coded severity levels (quiet/moderate/loud/very loud/dangerous) — immediately graspable
+- **KEEP**: Vibration cooldown (1s) prevents battery death and browser freezing from 60fps haptics
+- **KEEP**: AudioContext created synchronously BEFORE async getUserMedia — iOS REQUIRES this order
+- **KEEP**: AudioContext.resume() on visibilitychange — OS can suspend context when backgrounded
+- **KEEP**: Double-start guard (`if (running) return`) — prevents overlapping streams and animation loops
+- **KEEP**: Proper cleanup: stream.getTracks().forEach(stop), audioCtx.close() — prevents resource leaks
+- **TEST CAUGHT (via Gemini audit)**: AudioContext after await = silent on iOS (moved to synchronous creation)
+- **TEST CAUGHT (via Gemini audit)**: navigator.vibrate at 60fps = device lockup (added 1s cooldown)
+- **TEST CAUGHT (via Gemini audit)**: No running guard = potential double streams + double rAF loops
+- **TEST CAUGHT (via Gemini audit)**: Background suspension kills AudioContext without notification (resume on visibility)
+- **INSIGHT**: APIs that fire at requestAnimationFrame rate (60fps) MUST be throttled for any side effect (vibration, audio triggers, DOM updates). Only the rendering itself should run at full frame rate.
+- **INSIGHT**: iOS audio initialization order is STRICTLY: create AudioContext → resume → THEN async getUserMedia. Reversing this = permanent silence. This is the #1 mobile audio gotcha.
+
 ### breath-pacer (2026-03-22) — FIRST MOBILE-FIRST PWA BUILD
 - **KEEP**: OLED black (#000) saves battery and looks premium on modern phones
 - **KEEP**: Screen Wake Lock API prevents screen dimming during sessions — critical for breathing apps
