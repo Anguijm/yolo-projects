@@ -104,6 +104,20 @@ Persistent knowledge base. Read this before every build.
 - **INSIGHT**: Music theory constraints (scales, quantization) can make procedural audio sound good by default. The key insight: restrict the output space so random combinations still sound harmonious.
 - **INSIGHT**: Games need an escalation loop (wave difficulty) + economy (gold/cost) + fail state (lives) to feel like actual games vs. toys.
 
+### one-line (2026-03-22)
+- **KEEP**: Constraint as feature — 80 char limit forces distillation, creates a unique medium
+- **KEEP**: Calendar mosaic with filled/empty indicators — visual progress tracking without numbers
+- **KEEP**: Streak that tolerates "not yet written today" — check yesterday if today empty, prevents discouraging reset
+- **KEEP**: Auto-focus input with 300ms delay — mobile keyboard pops up immediately
+- **KEEP**: Pre-fill existing entry on load — user sees what they already wrote, can edit
+- **KEEP**: Storage-full error feedback instead of silent failure — user knows their data wasn't saved
+- **TEST CAUGHT (via Gemini audit)**: Streak showed 0 mid-day before writing — demoralizing, wrong. Fixed by checking yesterday first.
+- **TEST CAUGHT (via Gemini audit)**: Entry deletion unreachable — save() returned early on empty string, so saveEntry's delete logic never ran
+- **TEST CAUGHT (via Gemini audit)**: localStorage.setItem failure silently swallowed — user sees "Saved" but entry lost. Added error UI.
+- **INSIGHT**: Streak algorithms must handle "haven't done it YET today" gracefully. Breaking the streak at 2pm because you haven't written yet is hostile UX. Always look back from yesterday if today is empty.
+- **INSIGHT**: Any feature that has both "save" and "delete" semantics through the same action (empty vs filled input) must NOT have early returns that prevent the delete path.
+- **INSIGHT**: The simplest apps benefit MOST from Gemini audit — fewer lines means each bug has outsized impact. 3 bugs in 200 lines = 1 bug per 67 lines.
+
 ### interval-timer (2026-03-22)
 - **KEEP**: Absolute timestamps (Date.now() + duration) instead of dt subtraction — timer counts correctly even when rAF is paused in background
 - **KEEP**: audioCtx.currentTime scheduling for completion arpeggio — setTimeout throttled to 1s+ in background tabs

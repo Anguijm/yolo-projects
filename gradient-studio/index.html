@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#000000">
+<title>Gradient Studio</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { height: 100%; overflow: hidden; touch-action: manipulation; -webkit-tap-highlight-color: transparent; font-family: 'Segoe UI', system-ui, sans-serif; }
+
+#preview { position: fixed; inset: 0; transition: background 0.3s; }
+
+#panel { position: fixed; bottom: 0; left: 0; right: 0; background: rgba(0,0,0,0.6); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); border-top: 1px solid rgba(255,255,255,0.08); padding: 14px 16px; z-index: 10; display: flex; flex-direction: column; gap: 10px; max-height: 50vh; overflow-y: auto; }
+.row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.row label { font-size: 0.65rem; color: rgba(255,255,255,0.4); min-width: 40px; text-transform: uppercase; letter-spacing: 0.1em; }
+input[type=color] { width: 36px; height: 36px; border: 2px solid rgba(255,255,255,0.1); border-radius: 8px; cursor: pointer; background: transparent; padding: 0; -webkit-appearance: none; }
+input[type=color]::-webkit-color-swatch-wrapper { padding: 2px; }
+input[type=color]::-webkit-color-swatch { border-radius: 4px; border: none; }
+input[type=range] { flex: 1; height: 3px; -webkit-appearance: none; background: rgba(255,255,255,0.1); border-radius: 2px; max-width: 120px; }
+input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 14px; height: 14px; border-radius: 50%; background: #fff; cursor: pointer; }
+.type-btn { padding: 5px 12px; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1); color: rgba(255,255,255,0.5); border-radius: 16px; font-family: inherit; font-size: 0.65rem; cursor: pointer; }
+.type-btn.active { background: rgba(255,255,255,0.15); color: #fff; border-color: rgba(255,255,255,0.3); }
+.action-btn { padding: 6px 16px; background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.12); color: rgba(255,255,255,0.7); border-radius: 20px; font-family: inherit; font-size: 0.7rem; cursor: pointer; letter-spacing: 0.05em; }
+.action-btn:active { background: rgba(255,255,255,0.2); color: #fff; }
+#angle-val { font-size: 0.65rem; color: rgba(255,255,255,0.3); font-family: monospace; min-width: 28px; }
+
+/* Toast */
+#toast { position: fixed; top: 20px; left: 50%; transform: translateX(-50%) translateY(-60px); background: rgba(0,0,0,0.8); backdrop-filter: blur(8px); color: #fff; padding: 8px 20px; border-radius: 20px; font-size: 0.75rem; z-index: 30; transition: transform 0.3s; pointer-events: none; }
+#toast.show { transform: translateX(-50%) translateY(0); }
+
+/* Saved panel */
+#saved-panel { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.9); z-index: 20; padding: 20px; overflow-y: auto; }
+#saved-panel.show { display: block; }
+#saved-panel h2 { font-size: 0.8rem; color: rgba(255,255,255,0.4); letter-spacing: 0.15em; text-transform: uppercase; margin-bottom: 12px; }
+.saved-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 8px; }
+.saved-item { height: 80px; border-radius: 8px; cursor: pointer; border: 1px solid rgba(255,255,255,0.08); position: relative; }
+.saved-item .del { position: absolute; top: 4px; right: 4px; width: 20px; height: 20px; background: rgba(0,0,0,0.5); border: none; color: #fff; border-radius: 50%; font-size: 0.6rem; cursor: pointer; display: flex; align-items: center; justify-content: center; opacity: 0.5; }
+.saved-item .del:hover { opacity: 1; }
+#close-saved { position: absolute; top: 16px; right: 16px; background: none; border: none; color: rgba(255,255,255,0.4); font-size: 1.2rem; cursor: pointer; }
+.empty-msg { color: rgba(255,255,255,0.2); font-size: 0.75rem; text-align: center; padding: 40px; }
+</style>
+</head>
+<body>
+<div id="preview"></div>
+<div id="toast">Copied!</div>
+
+<div id="panel">
+  <div class="row">
+    <label>Colors</label>
+    <input type="color" id="c1" value="#6366f1">
+    <input type="color" id="c2" value="#ec4899">
+    <input type="color" id="c3" value="#f59e0b">
+    <input type="color" id="c4" value="#06b6d4">
+  </div>
+  <div class="row">
+    <label>Type</label>
+    <button class="type-btn active" data-type="linear">Linear</button>
+    <button class="type-btn" data-type="radial">Radial</button>
+    <button class="type-btn" data-type="conic">Conic</button>
+  </div>
+  <div class="row">
+    <label>Angle</label>
+    <input type="range" id="angle" min="0" max="360" value="135">
+    <span id="angle-val">135°</span>
+  </div>
+  <div class="row">
+    <label>Stops</label>
+    <button class="type-btn active" data-stops="2">2</button>
+    <button class="type-btn" data-stops="3">3</button>
+    <button class="type-btn" data-stops="4">4</button>
+  </div>
+  <div class="row">
+    <button class="action-btn" id="btn-random">Randomize</button>
+    <button class="action-btn" id="btn-copy">Copy CSS</button>
+    <button class="action-btn" id="btn-save">Save</button>
+    <button class="action-btn" id="btn-saved">Favorites</button>
+  </div>
+</div>
+
+<div id="saved-panel">
+  <button id="close-saved">&times;</button>
+  <h2>Saved Gradients</h2>
+  <div class="saved-grid" id="saved-grid"></div>
+</div>
+
+<script>
+(function() {
+'use strict';
+
+// ============ STATE ============
+var gradType = 'linear';
+var angle = 135;
+var numStops = 2;
+var colors = ['#6366f1', '#ec4899', '#f59e0b', '#06b6d4'];
+var saved = [];
+var toastTimeout;
+
+// Load saved (with Array.isArray guard against corruption)
+try { var parsed = JSON.parse(localStorage.getItem('gradient_saved'));
+  saved = Array.isArray(parsed) ? parsed : []; } catch (e) {}
+
+// ============ GRADIENT ============
+function buildCSS() {
+  var stops = colors.slice(0, numStops).join(', ');
+  if (gradType === 'linear') {
+    return 'linear-gradient(' + angle + 'deg, ' + stops + ')';
+  } else if (gradType === 'radial') {
+    return 'radial-gradient(circle, ' + stops + ')';
+  } else {
+    return 'conic-gradient(from ' + angle + 'deg, ' + stops + ')';
+  }
+}
+
+function updatePreview() {
+  var css = buildCSS();
+  document.getElementById('preview').style.background = css;
+}
+
+// ============ RANDOMIZE ============
+function randomColor() {
+  var h = Math.floor(Math.random() * 360);
+  var s = 50 + Math.floor(Math.random() * 40);
+  var l = 40 + Math.floor(Math.random() * 30);
+  return hslToHex(h, s, l);
+}
+
+function hslToHex(h, s, l) {
+  s /= 100; l /= 100;
+  var c = (1 - Math.abs(2 * l - 1)) * s;
+  var x = c * (1 - Math.abs((h / 60) % 2 - 1));
+  var m = l - c / 2;
+  var r, g, b;
+  if (h < 60) { r = c; g = x; b = 0; }
+  else if (h < 120) { r = x; g = c; b = 0; }
+  else if (h < 180) { r = 0; g = c; b = x; }
+  else if (h < 240) { r = 0; g = x; b = c; }
+  else if (h < 300) { r = x; g = 0; b = c; }
+  else { r = c; g = 0; b = x; }
+  r = Math.round((r + m) * 255);
+  g = Math.round((g + m) * 255);
+  b = Math.round((b + m) * 255);
+  return '#' + ((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1);
+}
+
+function randomize() {
+  for (var i = 0; i < 4; i++) {
+    colors[i] = randomColor();
+    document.getElementById('c' + (i + 1)).value = colors[i];
+  }
+  angle = Math.floor(Math.random() * 360);
+  document.getElementById('angle').value = angle;
+  document.getElementById('angle-val').textContent = angle + '\u00B0';
+  var types = ['linear', 'radial', 'conic'];
+  gradType = types[Math.floor(Math.random() * types.length)];
+  document.querySelectorAll('[data-type]').forEach(function(b) {
+    b.classList.toggle('active', b.dataset.type === gradType);
+  });
+  updatePreview();
+}
+
+// ============ TOAST ============
+function showToast(msg) {
+  var t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(toastTimeout);
+  toastTimeout = setTimeout(function() { t.classList.remove('show'); }, 1500);
+}
+
+// ============ COPY ============
+function copyCSS() {
+  var css = 'background: ' + buildCSS() + ';';
+  if (navigator.clipboard && window.isSecureContext) {
+    navigator.clipboard.writeText(css).then(function() {
+      showToast('Copied!');
+    }).catch(function() {
+      showToast('Copy failed');
+    });
+  } else {
+    // Fallback
+    var ta = document.createElement('textarea');
+    ta.value = css;
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand('copy');
+    document.body.removeChild(ta);
+    showToast('Copied!');
+  }
+}
+
+// ============ SAVE / LOAD ============
+function saveGradient() {
+  var entry = { type: gradType, angle: angle, colors: colors.slice(0, numStops), css: buildCSS() };
+  saved.unshift(entry);
+  if (saved.length > 50) saved.pop();
+  try { localStorage.setItem('gradient_saved', JSON.stringify(saved)); }
+  catch (e) { showToast('Storage full'); return; }
+  showToast('Saved!');
+}
+
+function renderSaved() {
+  var grid = document.getElementById('saved-grid');
+  grid.innerHTML = '';
+  if (saved.length === 0) {
+    grid.innerHTML = '<div class="empty-msg">No saved gradients yet</div>';
+    return;
+  }
+  for (var i = 0; i < saved.length; i++) {
+    (function(idx) {
+      var item = document.createElement('div');
+      item.className = 'saved-item';
+      item.style.background = saved[idx].css;
+      item.addEventListener('click', function() {
+        loadGradient(idx);
+        document.getElementById('saved-panel').classList.remove('show');
+      });
+      var del = document.createElement('button');
+      del.className = 'del';
+      del.textContent = '\u00D7';
+      del.addEventListener('click', function(e) {
+        e.stopPropagation();
+        saved.splice(idx, 1);
+        try { localStorage.setItem('gradient_saved', JSON.stringify(saved)); } catch (e) {}
+        renderSaved();
+      });
+      item.appendChild(del);
+      grid.appendChild(item);
+    })(i);
+  }
+}
+
+function loadGradient(idx) {
+  var entry = saved[idx];
+  gradType = entry.type;
+  angle = entry.angle;
+  numStops = entry.colors.length;
+  // Update all 4 color slots — fill unused ones with random to prevent stale leftovers
+  for (var i = 0; i < 4; i++) {
+    colors[i] = i < entry.colors.length ? entry.colors[i] : randomColor();
+    document.getElementById('c' + (i + 1)).value = colors[i];
+  }
+  document.getElementById('angle').value = angle;
+  document.getElementById('angle-val').textContent = angle + '\u00B0';
+  document.querySelectorAll('[data-type]').forEach(function(b) {
+    b.classList.toggle('active', b.dataset.type === gradType);
+  });
+  document.querySelectorAll('[data-stops]').forEach(function(b) {
+    b.classList.toggle('active', parseInt(b.dataset.stops) === numStops);
+  });
+  updatePreview();
+}
+
+// ============ EVENT HANDLERS (click only — no pointerdown) ============
+for (var i = 1; i <= 4; i++) {
+  (function(idx) {
+    document.getElementById('c' + idx).addEventListener('input', function() {
+      colors[idx - 1] = this.value;
+      updatePreview();
+    });
+  })(i);
+}
+
+document.getElementById('angle').addEventListener('input', function() {
+  angle = parseInt(this.value);
+  document.getElementById('angle-val').textContent = angle + '\u00B0';
+  updatePreview();
+});
+
+document.querySelectorAll('[data-type]').forEach(function(btn) {
+  btn.addEventListener('click', function() {
+    gradType = btn.dataset.type;
+    document.querySelectorAll('[data-type]').forEach(function(b) { b.classList.remove('active'); });
+    btn.classList.add('active');
+    updatePreview();
+  });
+});
+
+document.querySelectorAll('[data-stops]').forEach(function(btn) {
+  btn.addEventListener('click', function() {
+    numStops = parseInt(btn.dataset.stops);
+    document.querySelectorAll('[data-stops]').forEach(function(b) { b.classList.remove('active'); });
+    btn.classList.add('active');
+    updatePreview();
+  });
+});
+
+document.getElementById('btn-random').addEventListener('click', randomize);
+document.getElementById('btn-copy').addEventListener('click', copyCSS);
+document.getElementById('btn-save').addEventListener('click', saveGradient);
+document.getElementById('btn-saved').addEventListener('click', function() {
+  renderSaved();
+  document.getElementById('saved-panel').classList.add('show');
+});
+document.getElementById('close-saved').addEventListener('click', function() {
+  document.getElementById('saved-panel').classList.remove('show');
+});
+
+// ============ INIT ============
+updatePreview();
+})();
+</script>
+</body>
+</html>
