@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="theme-color" content="#000000">
+<title>Tile Painter</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { height: 100%; overflow: hidden; touch-action: manipulation; -webkit-tap-highlight-color: transparent; font-family: 'Segoe UI', system-ui, sans-serif; }
+
+#preview { position: fixed; inset: 0; background-repeat: repeat; background-size: 64px 64px; image-rendering: pixelated; transition: background-image 0.05s; }
+
+#editor { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 10; display: flex; flex-direction: column; align-items: center; gap: 10px; }
+
+#grid-wrap { background: rgba(0,0,0,0.7); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); border: 1px solid rgba(255,255,255,0.06); border-radius: 12px; padding: 8px; }
+
+#grid { display: grid; grid-template-columns: repeat(16, 1fr); gap: 0; touch-action: none; }
+.cell { width: 18px; height: 18px; border: 0.5px solid rgba(255,255,255,0.03); cursor: pointer; }
+
+/* Controls */
+#controls { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; justify-content: center; }
+.palette-group { display: flex; gap: 2px; padding: 3px; background: rgba(0,0,0,0.5); border-radius: 8px; border: 1px solid rgba(255,255,255,0.06); }
+.color-swatch { width: 22px; height: 22px; border-radius: 4px; cursor: pointer; border: 2px solid transparent; }
+.color-swatch.active { border-color: #fff; }
+.ctrl-btn { padding: 4px 10px; background: rgba(0,0,0,0.5); border: 1px solid rgba(255,255,255,0.08); color: rgba(255,255,255,0.4); border-radius: 10px; font-size: 0.6rem; cursor: pointer; font-family: inherit; }
+.ctrl-btn:active { color: #fff; border-color: rgba(255,255,255,0.3); }
+
+#palette-select { display: flex; gap: 4px; }
+.pal-btn { padding: 3px 8px; background: rgba(0,0,0,0.4); border: 1px solid rgba(255,255,255,0.06); color: rgba(255,255,255,0.3); border-radius: 8px; font-size: 0.55rem; cursor: pointer; font-family: inherit; }
+.pal-btn.active { border-color: rgba(255,255,255,0.2); color: rgba(255,255,255,0.7); }
+</style>
+</head>
+<body>
+<div id="preview"></div>
+<div id="editor">
+  <div id="palette-select"></div>
+  <div id="grid-wrap"><div id="grid"></div></div>
+  <div id="controls">
+    <div class="palette-group" id="color-row"></div>
+    <button class="ctrl-btn" id="btn-eraser">Eraser</button>
+    <button class="ctrl-btn" id="btn-clear">Clear</button>
+    <button class="ctrl-btn" id="btn-save">Save PNG</button>
+  </div>
+</div>
+
+<script>
+(function() {
+'use strict';
+
+// ============ CONFIG ============
+var SIZE = 16;
+var PALETTES = {
+  'Midnight': { bg: '#0a0a14', colors: ['#0a0a14','#1a1a3e','#3b3b8e','#6366f1','#c4b5fd'] },
+  'Matcha': { bg: '#0a1008', colors: ['#0a1008','#1a3a18','#3fb950','#86efac','#f0fdf4'] },
+  'Ember': { bg: '#1a0a05', colors: ['#1a0a05','#7c2d12','#ea580c','#fb923c','#fef3c7'] },
+  'Mono': { bg: '#000', colors: ['#000','#333','#666','#aaa','#fff'] },
+};
+var paletteNames = Object.keys(PALETTES);
+var currentPalette = paletteNames[0];
+var currentColor = PALETTES[currentPalette].colors[2];
+var isEraser = false;
+
+// ============ STATE ============
+var grid = [];
+for (var i = 0; i < SIZE * SIZE; i++) grid.push(null); // null = transparent (use palette bg)
+var painting = false;
+var tileCanvas = document.createElement('canvas');
+tileCanvas.width = SIZE;
+tileCanvas.height = SIZE;
+var tileCtx = tileCanvas.getContext('2d');
+
+// ============ GRID UI ============
+function buildGrid() {
+  var gridEl = document.getElementById('grid');
+  gridEl.innerHTML = '';
+  for (var i = 0; i < SIZE * SIZE; i++) {
+    var cell = document.createElement('div');
+    cell.className = 'cell';
+    cell.dataset.idx = i;
+    cell.style.background = grid[i] || PALETTES[currentPalette].bg;
+    gridEl.appendChild(cell);
+  }
+}
+
+function updateCellVisual(idx) {
+  var cells = document.getElementById('grid').children;
+  if (cells[idx]) cells[idx].style.background = grid[idx] || PALETTES[currentPalette].bg;
+}
+
+// ============ PALETTE UI ============
+function buildPaletteSelector() {
+  var el = document.getElementById('palette-select');
+  el.innerHTML = '';
+  for (var i = 0; i < paletteNames.length; i++) {
+    var btn = document.createElement('button');
+    btn.className = 'pal-btn' + (paletteNames[i] === currentPalette ? ' active' : '');
+    btn.textContent = paletteNames[i];
+    btn.dataset.pal = paletteNames[i];
+    btn.addEventListener('click', function() {
+      currentPalette = this.dataset.pal;
+      currentColor = PALETTES[currentPalette].colors[2];
+      isEraser = false;
+      buildPaletteSelector();
+      buildColorRow();
+      buildGrid();
+      updatePreview();
+    });
+    el.appendChild(btn);
+  }
+}
+
+function buildColorRow() {
+  var el = document.getElementById('color-row');
+  el.innerHTML = '';
+  var colors = PALETTES[currentPalette].colors;
+  for (var i = 0; i < colors.length; i++) {
+    var swatch = document.createElement('div');
+    swatch.className = 'color-swatch' + (colors[i] === currentColor && !isEraser ? ' active' : '');
+    swatch.style.background = colors[i];
+    swatch.dataset.color = colors[i];
+    swatch.addEventListener('click', function() {
+      currentColor = this.dataset.color;
+      isEraser = false;
+      buildColorRow();
+    });
+    el.appendChild(swatch);
+  }
+}
+
+// ============ PREVIEW ============
+function updatePreview() {
+  var pal = PALETTES[currentPalette];
+  tileCtx.fillStyle = pal.bg;
+  tileCtx.fillRect(0, 0, SIZE, SIZE);
+  for (var i = 0; i < grid.length; i++) {
+    if (grid[i]) {
+      var x = i % SIZE;
+      var y = Math.floor(i / SIZE);
+      tileCtx.fillStyle = grid[i];
+      tileCtx.fillRect(x, y, 1, 1);
+    }
+  }
+  document.getElementById('preview').style.backgroundImage = 'url(' + tileCanvas.toDataURL() + ')';
+}
+
+// ============ PAINTING ============
+var previewDirty = false;
+
+function paintCell(idx) {
+  if (idx < 0 || idx >= grid.length) return;
+  var newVal = isEraser ? null : currentColor;
+  if (grid[idx] === newVal) return;
+  grid[idx] = newVal;
+  updateCellVisual(idx);
+  previewDirty = true; // Defer expensive toDataURL to rAF
+}
+
+// Debounced preview update via rAF (prevents toDataURL lag during drag)
+function previewLoop() {
+  if (previewDirty) {
+    updatePreview();
+    previewDirty = false;
+  }
+  requestAnimationFrame(previewLoop);
+}
+requestAnimationFrame(previewLoop);
+
+function getCellFromEvent(e) {
+  var gridEl = document.getElementById('grid');
+  var rect = gridEl.getBoundingClientRect();
+  var cellW = rect.width / SIZE;
+  var cellH = rect.height / SIZE;
+  var x = Math.floor((e.clientX - rect.left) / cellW);
+  var y = Math.floor((e.clientY - rect.top) / cellH);
+  if (x < 0 || x >= SIZE || y < 0 || y >= SIZE) return -1;
+  return y * SIZE + x;
+}
+
+var gridEl = document.getElementById('grid');
+gridEl.style.touchAction = 'none'; // Prevent scroll during draw
+
+gridEl.addEventListener('pointerdown', function(e) {
+  e.preventDefault();
+  painting = true;
+  gridEl.setPointerCapture(e.pointerId); // Reliable drag even outside element
+  var idx = getCellFromEvent(e);
+  if (idx >= 0) paintCell(idx);
+});
+
+gridEl.addEventListener('pointermove', function(e) {
+  if (!painting) return;
+  e.preventDefault();
+  var idx = getCellFromEvent(e);
+  if (idx >= 0) paintCell(idx);
+});
+
+gridEl.addEventListener('pointerup', function(e) { painting = false; gridEl.releasePointerCapture(e.pointerId); });
+gridEl.addEventListener('pointerleave', function() { painting = false; });
+gridEl.addEventListener('pointercancel', function() { painting = false; });
+
+// ============ CONTROLS ============
+document.getElementById('btn-eraser').addEventListener('click', function() {
+  isEraser = !isEraser;
+  this.style.color = isEraser ? '#fff' : '';
+  this.style.borderColor = isEraser ? 'rgba(255,255,255,0.3)' : '';
+  buildColorRow();
+});
+
+document.getElementById('btn-clear').addEventListener('click', function() {
+  for (var i = 0; i < grid.length; i++) grid[i] = null;
+  buildGrid();
+  updatePreview();
+});
+
+document.getElementById('btn-save').addEventListener('click', function() {
+  // Generate wallpaper at device resolution
+  var dpr = window.devicePixelRatio || 1;
+  var w = Math.min(window.screen.width * dpr, 2048);
+  var h = Math.min(window.screen.height * dpr, 2048);
+  var wallpaper = document.createElement('canvas');
+  wallpaper.width = w;
+  wallpaper.height = h;
+  var wctx = wallpaper.getContext('2d');
+
+  // Fill background
+  wctx.fillStyle = PALETTES[currentPalette].bg;
+  wctx.fillRect(0, 0, w, h);
+
+  // Tile the pattern
+  var scale = 4; // Each pixel = 4x4 on wallpaper
+  for (var ty = 0; ty < Math.ceil(h / (SIZE * scale)); ty++) {
+    for (var tx = 0; tx < Math.ceil(w / (SIZE * scale)); tx++) {
+      for (var i = 0; i < grid.length; i++) {
+        if (grid[i]) {
+          var px = (i % SIZE) * scale + tx * SIZE * scale;
+          var py = Math.floor(i / SIZE) * scale + ty * SIZE * scale;
+          wctx.fillStyle = grid[i];
+          wctx.fillRect(px, py, scale, scale);
+        }
+      }
+    }
+  }
+
+  // Use toBlob to avoid URL length limits on large canvases
+  wallpaper.toBlob(function(blob) {
+    var url = URL.createObjectURL(blob);
+    var link = document.createElement('a');
+    link.download = 'tile-' + Date.now() + '.png';
+    link.href = url;
+    link.click();
+    setTimeout(function() { URL.revokeObjectURL(url); }, 200);
+  }, 'image/png');
+});
+
+// ============ INIT ============
+buildPaletteSelector();
+buildColorRow();
+buildGrid();
+updatePreview();
+})();
+</script>
+</body>
+</html>

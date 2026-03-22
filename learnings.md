@@ -104,6 +104,21 @@ Persistent knowledge base. Read this before every build.
 - **INSIGHT**: Music theory constraints (scales, quantization) can make procedural audio sound good by default. The key insight: restrict the output space so random combinations still sound harmonious.
 - **INSIGHT**: Games need an escalation loop (wave difficulty) + economy (gold/cost) + fail state (lives) to feel like actual games vs. toys.
 
+### coin-flip (2026-03-23)
+- **KEEP**: CSS 3D coin with preserve-3d + backface-visibility hidden — clean two-sided rendering
+- **KEEP**: Cumulative rotation tracking (currentRotation += turns*360 + offset) — prevents backward spinning
+- **KEEP**: Custom cubic-bezier(0.15, 0.6, 0.35, 1) — gives coin a weighty, decelerating feel
+- **KEEP**: Entire screen as tap target (no button) — maximum simplicity
+- **KEEP**: Dot-based history (tiny colored circles) — visual pattern recognition without text clutter
+- **KEEP**: isNaN + Math.max(0) guard on localStorage numbers — handles tampering and corruption
+- **KEEP**: audioCtx.resume().catch() — prevents unhandled promise rejection in strict browsers
+- **TEST CAUGHT (via Gemini audit)**: Backward spinning — absolute rotation causes CSS to animate in reverse when new angle < previous. MUST track cumulative rotation with +=.
+- **TEST CAUGHT (via Gemini audit)**: NaN in localStorage — typeof === 'number' passes for NaN. Must also check isNaN().
+- **TEST CAUGHT (via Gemini audit)**: audioCtx.resume() returns Promise — rejection goes unhandled if browser blocks. Must .catch().
+- **INSIGHT**: CSS transform rotation animations MUST use cumulative angles (always increasing) to guarantee forward spin direction. Absolute angles can go backward.
+- **INSIGHT**: typeof NaN === 'number' is TRUE in JavaScript. Always pair typeof check with isNaN() for localStorage number validation.
+- **INSIGHT**: The simplest apps demand the most polish. When there's only one interaction, every detail of that interaction must be perfect.
+
 ### maze-runner (2026-03-23)
 - **KEEP**: Recursive backtracker maze generation — long corridors, guaranteed solvable, simple implementation
 - **KEEP**: Smart trail: check if new position matches trail[-2] → pop (backtrack) else push (advance). Keeps trail clean and performant.
