@@ -104,6 +104,21 @@ Persistent knowledge base. Read this before every build.
 - **INSIGHT**: Music theory constraints (scales, quantization) can make procedural audio sound good by default. The key insight: restrict the output space so random combinations still sound harmonious.
 - **INSIGHT**: Games need an escalation loop (wave difficulty) + economy (gold/cost) + fail state (lives) to feel like actual games vs. toys.
 
+### interval-timer (2026-03-22)
+- **KEEP**: Absolute timestamps (Date.now() + duration) instead of dt subtraction — timer counts correctly even when rAF is paused in background
+- **KEEP**: audioCtx.currentTime scheduling for completion arpeggio — setTimeout throttled to 1s+ in background tabs
+- **KEEP**: Phase state machine (ready→work→rest→work→...→done) is clean and prevents invalid transitions
+- **KEEP**: Haptic choreography: heartbeat (short pulses) in last 3s, sharp double-snap on phase start, triple burst on done
+- **KEEP**: Preset buttons fill input fields (not direct-start) — lets users see/modify values before starting
+- **KEEP**: Input validation with isNaN + minimum check — prevents negative values that bypass || fallback
+- **TEST CAUGHT (via Gemini audit)**: dt=0 cap after tab switch KILLED the timer in background — switched to absolute Date.now() timestamps. This is the correct approach for ANY timer that must survive backgrounding.
+- **TEST CAUGHT (via Gemini audit)**: Dual pointerdown+click on start button = double startTimer() = double rAF loop = 2x speed. Added `if (running) return` guard.
+- **TEST CAUGHT (via Gemini audit)**: `parseInt('-10') || 20` = -10 (truthy). Negative values bypass || fallback. Must use explicit isNaN/min check.
+- **TEST CAUGHT (via Gemini audit)**: setTimeout in playDone throttled when backgrounded. Switched to audioCtx.currentTime scheduling.
+- **INSIGHT**: For ANY countdown timer: use absolute timestamps (endTime = Date.now() + seconds*1000), then calculate remaining = (endTime - Date.now()) / 1000. NEVER subtract dt — it breaks on background.
+- **INSIGHT**: parseInt(negativeString) || defaultValue DOES NOT CATCH negative numbers. -10 is truthy. Always validate with explicit range checks.
+- **INSIGHT**: Web Audio's currentTime is the ONLY reliable scheduler for background audio. setTimeout/setInterval are throttled to 1s+ in inactive tabs.
+
 ### wheel-of-fate (2026-03-22)
 - **KEEP**: Physics spin with friction coefficient (velocity *= 0.985 per frame) creates realistic deceleration
 - **KEEP**: Segment boundary detection via `(pointerAngle / sliceAngle) % n` — clean and frame-rate independent

@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="theme-color" content="#000000">
+<title>One Line</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { height: 100%; background: #000; color: #fff; font-family: Georgia, 'Times New Roman', serif; overflow: hidden; touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+#app { height: 100%; display: flex; flex-direction: column; }
+
+/* Nav */
+#nav { display: flex; justify-content: center; gap: 24px; padding: 12px; }
+.nav-btn { background: none; border: none; color: #333; font-family: inherit; font-size: 0.75rem; cursor: pointer; letter-spacing: 0.15em; text-transform: uppercase; padding: 4px 8px; -webkit-tap-highlight-color: transparent; }
+.nav-btn.active { color: #888; border-bottom: 1px solid #444; }
+
+/* Write view */
+#write-view { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 20px; }
+#write-view.hidden { display: none; }
+#date-label { font-size: 0.65rem; color: #222; letter-spacing: 0.2em; text-transform: uppercase; font-family: 'Courier New', monospace; margin-bottom: 20px; }
+#line-input { width: 100%; max-width: 500px; background: transparent; border: none; border-bottom: 1px solid #1a1a1a; color: #e0e0e0; font-family: Georgia, 'Times New Roman', serif; font-size: 1.1rem; padding: 8px 0; outline: none; text-align: center; letter-spacing: 0.02em; /* 16px minimum prevents iOS zoom */ }
+#line-input::placeholder { color: #1a1a1a; font-style: italic; }
+#char-count { font-size: 0.55rem; color: #1a1a1a; font-family: monospace; margin-top: 6px; }
+#save-btn { margin-top: 20px; padding: 8px 28px; background: transparent; border: 1px solid #222; color: #555; border-radius: 20px; font-family: inherit; font-size: 0.75rem; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+#save-btn:active { border-color: #888; color: #fff; }
+#save-msg { font-size: 0.6rem; color: #1a1a1a; margin-top: 8px; min-height: 16px; }
+#streak-info { position: absolute; bottom: 16px; font-size: 0.55rem; color: #1a1a1a; font-family: monospace; }
+
+/* Mosaic view */
+#mosaic-view { flex: 1; display: none; flex-direction: column; padding: 16px; overflow-y: auto; }
+#mosaic-view.active { display: flex; }
+#mosaic-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+#mosaic-title { font-size: 0.8rem; color: #555; letter-spacing: 0.1em; font-family: monospace; }
+.arrow-btn { background: none; border: none; color: #333; font-size: 1.2rem; cursor: pointer; padding: 4px 8px; -webkit-tap-highlight-color: transparent; }
+.arrow-btn:active { color: #888; }
+#mosaic-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 3px; max-width: 320px; margin: 0 auto; }
+.day-dot { aspect-ratio: 1; border-radius: 3px; background: #0a0a0a; cursor: pointer; position: relative; display: flex; align-items: center; justify-content: center; font-size: 0.5rem; color: #1a1a1a; font-family: monospace; -webkit-tap-highlight-color: transparent; }
+.day-dot.filled { background: #1a2a1a; }
+.day-dot.today { border: 1px solid #333; }
+.day-dot.filled.today { border-color: #3fb950; }
+.day-labels { display: grid; grid-template-columns: repeat(7, 1fr); gap: 3px; max-width: 320px; margin: 0 auto 4px; }
+.day-labels span { text-align: center; font-size: 0.45rem; color: #222; font-family: monospace; }
+
+/* Entry display */
+#entry-display { display: none; margin-top: 16px; padding: 16px; background: #0a0a0a; border: 1px solid #1a1a1a; border-radius: 8px; max-width: 320px; width: 100%; align-self: center; }
+#entry-display.show { display: block; }
+#entry-date { font-size: 0.6rem; color: #333; font-family: monospace; margin-bottom: 6px; }
+#entry-text { font-size: 1rem; color: #ccc; font-style: italic; line-height: 1.5; }
+
+/* Stats */
+#stats-bar { padding: 8px 16px; font-size: 0.5rem; color: #1a1a1a; font-family: monospace; text-align: center; letter-spacing: 0.1em; }
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="nav">
+    <button class="nav-btn active" id="nav-write">Write</button>
+    <button class="nav-btn" id="nav-mosaic">Mosaic</button>
+  </div>
+
+  <div id="write-view">
+    <div id="date-label"></div>
+    <input type="text" id="line-input" maxlength="80" placeholder="What defined today?" autocomplete="off" spellcheck="true">
+    <div id="char-count">0 / 80</div>
+    <button id="save-btn">Save</button>
+    <div id="save-msg"></div>
+    <div id="streak-info"></div>
+  </div>
+
+  <div id="mosaic-view">
+    <div id="mosaic-header">
+      <button class="arrow-btn" id="prev-month">&larr;</button>
+      <div id="mosaic-title"></div>
+      <button class="arrow-btn" id="next-month">&rarr;</button>
+    </div>
+    <div class="day-labels"><span>S</span><span>M</span><span>T</span><span>W</span><span>T</span><span>F</span><span>S</span></div>
+    <div id="mosaic-grid"></div>
+    <div id="entry-display">
+      <div id="entry-date"></div>
+      <div id="entry-text"></div>
+    </div>
+  </div>
+
+  <div id="stats-bar" id="stats"></div>
+</div>
+
+<script>
+(function() {
+'use strict';
+
+// ============ STORAGE ============
+var STORAGE_KEY = 'one_line_entries';
+
+function loadEntries() {
+  try { return JSON.parse(localStorage.getItem(STORAGE_KEY)) || {}; }
+  catch (e) { return {}; }
+}
+
+function saveEntry(dateStr, text) {
+  var entries = loadEntries();
+  if (text.trim().length === 0) {
+    delete entries[dateStr];
+  } else {
+    entries[dateStr] = text.trim();
+  }
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(entries)); }
+  catch (e) { saveMsg.textContent = 'Storage full'; saveMsg.style.color = '#f85149'; }
+}
+
+function getEntry(dateStr) {
+  return loadEntries()[dateStr] || '';
+}
+
+function dateStr(d) {
+  var y = d.getFullYear();
+  var m = String(d.getMonth() + 1).padStart(2, '0');
+  var day = String(d.getDate()).padStart(2, '0');
+  return y + '-' + m + '-' + day;
+}
+
+// ============ STATE ============
+var today = new Date();
+var todayStr = dateStr(today);
+var viewMonth = today.getMonth();
+var viewYear = today.getFullYear();
+
+// ============ WRITE VIEW ============
+var inputEl = document.getElementById('line-input');
+var charCount = document.getElementById('char-count');
+var saveMsg = document.getElementById('save-msg');
+
+function initWriteView() {
+  var months = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+  var days = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+  document.getElementById('date-label').textContent =
+    days[today.getDay()] + ', ' + months[today.getMonth()] + ' ' + today.getDate() + ', ' + today.getFullYear();
+
+  var existing = getEntry(todayStr);
+  if (existing) {
+    inputEl.value = existing;
+    saveMsg.textContent = 'Entry saved for today';
+  }
+  updateCharCount();
+  updateStreak();
+
+  // Auto-focus (slight delay for mobile keyboard)
+  setTimeout(function() { inputEl.focus(); }, 300);
+}
+
+function updateCharCount() {
+  var len = inputEl.value.length;
+  charCount.textContent = len + ' / 80';
+  charCount.style.color = len >= 70 ? '#555' : '#1a1a1a';
+}
+
+function save() {
+  var text = inputEl.value.trim();
+  saveEntry(todayStr, text); // Allow empty = delete entry
+  if (text.length === 0) {
+    saveMsg.textContent = 'Cleared';
+    saveMsg.style.color = '#555';
+  } else {
+    saveMsg.textContent = 'Saved';
+    saveMsg.style.color = '#3fb950';
+  }
+  setTimeout(function() { saveMsg.style.color = '#1a1a1a'; }, 1500);
+  updateStreak();
+}
+
+function updateStreak() {
+  var entries = loadEntries();
+  var count = Object.keys(entries).length;
+  var streak = 0;
+  var d = new Date(today);
+  // If today not written yet, start checking from yesterday
+  if (!entries[dateStr(d)]) d.setDate(d.getDate() - 1);
+  while (entries[dateStr(d)]) {
+    streak++;
+    d.setDate(d.getDate() - 1);
+  }
+  var info = count + ' entries';
+  if (streak > 1) info += ' | ' + streak + ' day streak';
+  document.getElementById('streak-info').textContent = info;
+}
+
+inputEl.addEventListener('input', updateCharCount);
+inputEl.addEventListener('keydown', function(e) {
+  if (e.key === 'Enter') { e.preventDefault(); save(); }
+});
+document.getElementById('save-btn').addEventListener('pointerdown', function(e) { e.preventDefault(); save(); });
+document.getElementById('save-btn').addEventListener('click', save);
+
+// ============ MOSAIC VIEW ============
+function renderMosaic() {
+  var entries = loadEntries();
+  var grid = document.getElementById('mosaic-grid');
+  grid.innerHTML = '';
+
+  var months = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+  document.getElementById('mosaic-title').textContent = months[viewMonth] + ' ' + viewYear;
+
+  var firstDay = new Date(viewYear, viewMonth, 1);
+  var lastDay = new Date(viewYear, viewMonth + 1, 0);
+  var startDow = firstDay.getDay();
+  var daysInMonth = lastDay.getDate();
+
+  // Empty cells before first day
+  for (var i = 0; i < startDow; i++) {
+    var empty = document.createElement('div');
+    empty.className = 'day-dot';
+    empty.style.background = 'transparent';
+    grid.appendChild(empty);
+  }
+
+  for (var day = 1; day <= daysInMonth; day++) {
+    var d = new Date(viewYear, viewMonth, day);
+    var ds = dateStr(d);
+    var hasEntry = !!entries[ds];
+    var isToday = ds === todayStr;
+
+    var dot = document.createElement('div');
+    dot.className = 'day-dot' + (hasEntry ? ' filled' : '') + (isToday ? ' today' : '');
+    dot.textContent = day;
+    dot.dataset.date = ds;
+
+    if (hasEntry) {
+      dot.style.color = '#3fb950';
+    }
+
+    dot.addEventListener('pointerdown', handleDotTap);
+    grid.appendChild(dot);
+  }
+
+  document.getElementById('entry-display').classList.remove('show');
+  updateStatsBar(entries);
+}
+
+function handleDotTap(e) {
+  e.preventDefault();
+  var ds = e.target.dataset.date;
+  if (!ds) return;
+  var text = getEntry(ds);
+  if (text) {
+    document.getElementById('entry-date').textContent = ds;
+    document.getElementById('entry-text').textContent = text;
+    document.getElementById('entry-display').classList.add('show');
+  } else {
+    document.getElementById('entry-display').classList.remove('show');
+  }
+}
+
+function updateStatsBar(entries) {
+  var count = Object.keys(entries).length;
+  var monthEntries = Object.keys(entries).filter(function(k) {
+    return k.startsWith(viewYear + '-' + String(viewMonth + 1).padStart(2, '0'));
+  }).length;
+  document.getElementById('stats-bar').textContent =
+    count + ' total entries | ' + monthEntries + ' this month';
+}
+
+document.getElementById('prev-month').addEventListener('pointerdown', function(e) {
+  e.preventDefault();
+  viewMonth--;
+  if (viewMonth < 0) { viewMonth = 11; viewYear--; }
+  renderMosaic();
+});
+document.getElementById('prev-month').addEventListener('click', function() {
+  // iOS fallback handled by pointerdown
+});
+document.getElementById('next-month').addEventListener('pointerdown', function(e) {
+  e.preventDefault();
+  viewMonth++;
+  if (viewMonth > 11) { viewMonth = 0; viewYear++; }
+  renderMosaic();
+});
+document.getElementById('next-month').addEventListener('click', function() {});
+
+// ============ NAVIGATION ============
+document.getElementById('nav-write').addEventListener('pointerdown', function(e) {
+  e.preventDefault();
+  document.getElementById('write-view').classList.remove('hidden');
+  document.getElementById('mosaic-view').classList.remove('active');
+  document.getElementById('nav-write').classList.add('active');
+  document.getElementById('nav-mosaic').classList.remove('active');
+  setTimeout(function() { inputEl.focus(); }, 100);
+});
+document.getElementById('nav-write').addEventListener('click', function() {});
+
+document.getElementById('nav-mosaic').addEventListener('pointerdown', function(e) {
+  e.preventDefault();
+  document.getElementById('write-view').classList.add('hidden');
+  document.getElementById('mosaic-view').classList.add('active');
+  document.getElementById('nav-write').classList.remove('active');
+  document.getElementById('nav-mosaic').classList.add('active');
+  renderMosaic();
+});
+document.getElementById('nav-mosaic').addEventListener('click', function() {});
+
+// ============ INIT ============
+initWriteView();
+})();
+</script>
+</body>
+</html>
