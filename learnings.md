@@ -104,6 +104,21 @@ Persistent knowledge base. Read this before every build.
 - **INSIGHT**: Music theory constraints (scales, quantization) can make procedural audio sound good by default. The key insight: restrict the output space so random combinations still sound harmonious.
 - **INSIGHT**: Games need an escalation loop (wave difficulty) + economy (gold/cost) + fail state (lives) to feel like actual games vs. toys.
 
+### tile-painter (2026-03-23)
+- **KEEP**: rAF dirty flag pattern — set `previewDirty = true` in hot path, only call expensive operation (toDataURL) in rAF loop. Essential for any drag-based editor.
+- **KEEP**: toBlob + URL.createObjectURL for large canvas downloads — toDataURL hits URL length limits on 2048x2048 canvases
+- **KEEP**: setPointerCapture on pointerdown, releasePointerCapture on pointerup — prevents stuck drag when pointer leaves element bounds
+- **KEEP**: touch-action: none on drawing surfaces — prevents mobile scroll from interrupting paint strokes
+- **KEEP**: Curated palettes (4-5 color sets) guarantee aesthetic output regardless of user skill
+- **KEEP**: image-rendering: pixelated on preview — keeps pixel art crisp when scaled up
+- **TEST CAUGHT (via Gemini audit)**: toDataURL called on every pointermove = CPU meltdown during drag. rAF dirty flag reduced calls from 60+/sec to 1/frame.
+- **TEST CAUGHT (via Gemini audit)**: toDataURL for 2048x2048 wallpaper download = multi-MB URL string that exceeds browser limits. toBlob is the correct approach.
+- **TEST CAUGHT (via Gemini audit)**: No setPointerCapture = fast drag outside grid leaves painting=true permanently.
+- **TEST CAUGHT (via Gemini audit)**: No touch-action:none = mobile scroll interrupts drawing.
+- **INSIGHT**: toDataURL is the MOST EXPENSIVE canvas operation. NEVER call it in a high-frequency event handler (pointermove, input, scroll). Always debounce via rAF dirty flag.
+- **INSIGHT**: For large canvas exports: toBlob > toDataURL. toBlob creates a Blob in memory; toDataURL creates a Base64 string that can exceed URL limits.
+- **INSIGHT**: setPointerCapture is the professional solution for drag interactions — it guarantees the element receives all pointer events even when the pointer leaves its bounds.
+
 ### coin-flip (2026-03-23)
 - **KEEP**: CSS 3D coin with preserve-3d + backface-visibility hidden — clean two-sided rendering
 - **KEEP**: Cumulative rotation tracking (currentRotation += turns*360 + offset) — prevents backward spinning

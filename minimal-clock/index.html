@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="theme-color" content="#000000">
+<title>Clock</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { height: 100%; background: #000; overflow: hidden; touch-action: none; -webkit-tap-highlight-color: transparent; cursor: pointer; }
+canvas { display: block; }
+#face-label { position: fixed; bottom: 12px; left: 50%; transform: translateX(-50%); font-family: 'Segoe UI', system-ui, sans-serif; font-size: 0.6rem; color: #1a1a1a; letter-spacing: 0.2em; text-transform: uppercase; pointer-events: none; transition: opacity 0.3s; }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="face-label">CLASSIC</div>
+
+<script>
+(function() {
+'use strict';
+
+var canvas = document.getElementById('c');
+var ctx = canvas.getContext('2d');
+var W, H, cx, cy, radius;
+var dpr = window.devicePixelRatio || 1;
+var currentFace = 0;
+var faceNames = ['CLASSIC', 'BAUHAUS', 'RADAR', 'BINARY'];
+var wakeLock = null;
+var labelTimer;
+
+try { currentFace = parseInt(localStorage.getItem('clock_face')) || 0; } catch(e) {}
+if (currentFace < 0 || currentFace > 3) currentFace = 0;
+document.getElementById('face-label').textContent = faceNames[currentFace];
+
+// ============ SIZING ============
+function resize() {
+  W = window.innerWidth;
+  H = window.innerHeight;
+  canvas.width = W * dpr;
+  canvas.height = H * dpr;
+  canvas.style.width = W + 'px';
+  canvas.style.height = H + 'px';
+  ctx.scale(dpr, dpr);
+  cx = W / 2;
+  cy = H / 2;
+  radius = Math.min(W, H) * 0.38;
+}
+var resizeTimer;
+window.addEventListener('resize', function() {
+  clearTimeout(resizeTimer);
+  resizeTimer = setTimeout(resize, 150);
+});
+resize();
+
+// ============ TIME ============
+function getTime() {
+  var d = new Date();
+  var h = d.getHours() % 12;
+  var m = d.getMinutes();
+  var s = d.getSeconds();
+  var ms = d.getMilliseconds();
+  var smoothS = s + ms / 1000;
+  var smoothM = m + smoothS / 60;
+  var smoothH = h + smoothM / 60;
+  return {
+    hours: smoothH, minutes: smoothM, seconds: smoothS,
+    h24: d.getHours(), m: m, s: s
+  };
+}
+
+// ============ CLASSIC FACE ============
+function drawClassic(t) {
+  // Hour markers
+  for (var i = 0; i < 12; i++) {
+    var angle = (i / 12) * Math.PI * 2 - Math.PI / 2;
+    var inner = i % 3 === 0 ? radius * 0.82 : radius * 0.88;
+    ctx.strokeStyle = '#444';
+    ctx.lineWidth = i % 3 === 0 ? 2 : 1;
+    ctx.beginPath();
+    ctx.moveTo(cx + Math.cos(angle) * inner, cy + Math.sin(angle) * inner);
+    ctx.lineTo(cx + Math.cos(angle) * radius * 0.92, cy + Math.sin(angle) * radius * 0.92);
+    ctx.stroke();
+  }
+
+  // Hour hand
+  var hAngle = (t.hours / 12) * Math.PI * 2 - Math.PI / 2;
+  ctx.strokeStyle = '#e0e0e0';
+  ctx.lineWidth = 4;
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.moveTo(cx, cy);
+  ctx.lineTo(cx + Math.cos(hAngle) * radius * 0.5, cy + Math.sin(hAngle) * radius * 0.5);
+  ctx.stroke();
+
+  // Minute hand
+  var mAngle = (t.minutes / 60) * Math.PI * 2 - Math.PI / 2;
+  ctx.strokeStyle = '#ccc';
+  ctx.lineWidth = 2.5;
+  ctx.beginPath();
+  ctx.moveTo(cx, cy);
+  ctx.lineTo(cx + Math.cos(mAngle) * radius * 0.75, cy + Math.sin(mAngle) * radius * 0.75);
+  ctx.stroke();
+
+  // Second hand
+  var sAngle = (t.seconds / 60) * Math.PI * 2 - Math.PI / 2;
+  ctx.strokeStyle = '#f87171';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(cx - Math.cos(sAngle) * radius * 0.1, cy - Math.sin(sAngle) * radius * 0.1);
+  ctx.lineTo(cx + Math.cos(sAngle) * radius * 0.85, cy + Math.sin(sAngle) * radius * 0.85);
+  ctx.stroke();
+
+  // Center dot
+  ctx.fillStyle = '#f87171';
+  ctx.beginPath();
+  ctx.arc(cx, cy, 3, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+// ============ BAUHAUS FACE ============
+function drawBauhaus(t) {
+  // Outer ring
+  ctx.strokeStyle = '#333';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+  ctx.stroke();
+
+  // Hour: thick blue arc
+  var hAngle = (t.hours / 12) * Math.PI * 2 - Math.PI / 2;
+  ctx.strokeStyle = '#3b82f6';
+  ctx.lineWidth = radius * 0.12;
+  ctx.lineCap = 'butt';
+  ctx.beginPath();
+  ctx.arc(cx, cy, radius * 0.4, -Math.PI / 2, hAngle);
+  ctx.stroke();
+
+  // Minute: medium yellow arc
+  var mAngle = (t.minutes / 60) * Math.PI * 2 - Math.PI / 2;
+  ctx.strokeStyle = '#eab308';
+  ctx.lineWidth = radius * 0.06;
+  ctx.beginPath();
+  ctx.arc(cx, cy, radius * 0.65, -Math.PI / 2, mAngle);
+  ctx.stroke();
+
+  // Second: thin red arc
+  var sAngle = (t.seconds / 60) * Math.PI * 2 - Math.PI / 2;
+  ctx.strokeStyle = '#ef4444';
+  ctx.lineWidth = radius * 0.025;
+  ctx.beginPath();
+  ctx.arc(cx, cy, radius * 0.85, -Math.PI / 2, sAngle);
+  ctx.stroke();
+
+  // Center circle
+  ctx.fillStyle = '#fff';
+  ctx.beginPath();
+  ctx.arc(cx, cy, 4, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+// ============ RADAR FACE ============
+function drawRadar(t) {
+  // Concentric rings
+  for (var r = 1; r <= 3; r++) {
+    ctx.strokeStyle = '#0a2a0a';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.arc(cx, cy, radius * r / 3, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+
+  // Cross hairs
+  ctx.strokeStyle = '#0a2a0a';
+  ctx.lineWidth = 0.5;
+  ctx.beginPath();
+  ctx.moveTo(cx - radius, cy); ctx.lineTo(cx + radius, cy);
+  ctx.moveTo(cx, cy - radius); ctx.lineTo(cx, cy + radius);
+  ctx.stroke();
+
+  // Sweeping beam
+  var sAngle = (t.seconds / 60) * Math.PI * 2 - Math.PI / 2;
+  // Conic gradient with fallback for older browsers
+  if (ctx.createConicGradient) {
+    var grad = ctx.createConicGradient(sAngle - 0.5, cx, cy);
+    grad.addColorStop(0, 'transparent');
+    grad.addColorStop(0.08, 'rgba(34, 197, 94, 0.15)');
+    grad.addColorStop(0.15, 'transparent');
+    ctx.fillStyle = grad;
+  } else {
+    ctx.fillStyle = 'rgba(34, 197, 94, 0.05)';
+  }
+  ctx.beginPath();
+  ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Sweep line
+  ctx.strokeStyle = '#22c55e';
+  ctx.lineWidth = 2;
+  ctx.shadowBlur = 8;
+  ctx.shadowColor = '#22c55e';
+  ctx.beginPath();
+  ctx.moveTo(cx, cy);
+  ctx.lineTo(cx + Math.cos(sAngle) * radius, cy + Math.sin(sAngle) * radius);
+  ctx.stroke();
+  ctx.shadowBlur = 0;
+
+  // Hour/minute blips
+  var hAngle = (t.hours / 12) * Math.PI * 2 - Math.PI / 2;
+  var mAngle = (t.minutes / 60) * Math.PI * 2 - Math.PI / 2;
+  ctx.fillStyle = '#22c55e';
+  ctx.shadowBlur = 6;
+  ctx.shadowColor = '#22c55e';
+  ctx.beginPath();
+  ctx.arc(cx + Math.cos(hAngle) * radius * 0.4, cy + Math.sin(hAngle) * radius * 0.4, 4, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.arc(cx + Math.cos(mAngle) * radius * 0.7, cy + Math.sin(mAngle) * radius * 0.7, 3, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.shadowBlur = 0;
+
+  // Center dot
+  ctx.fillStyle = '#22c55e';
+  ctx.beginPath();
+  ctx.arc(cx, cy, 2, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+// ============ BINARY FACE ============
+function drawBinary(t) {
+  var h = t.h24;
+  var m = t.m;
+  var s = t.s;
+  var dotR = Math.min(radius * 0.06, 8);
+  var colW = radius * 0.22;
+  var rowH = dotR * 3.5;
+  var startX = cx - colW * 2.5;
+  var startY = cy - rowH * 3;
+
+  // Labels
+  ctx.fillStyle = '#333';
+  ctx.font = (dotR * 1.2) + 'px monospace';
+  ctx.textAlign = 'center';
+  var labels = ['H', 'H', 'M', 'M', 'S', 'S'];
+  var digits = [
+    Math.floor(h / 10), h % 10,
+    Math.floor(m / 10), m % 10,
+    Math.floor(s / 10), s % 10
+  ];
+  var maxBits = [2, 9, 5, 9, 5, 9]; // Max value per digit
+
+  for (var col = 0; col < 6; col++) {
+    var x = startX + col * colW;
+    ctx.fillStyle = '#222';
+    ctx.fillText(labels[col], x, startY - rowH * 0.5);
+
+    // Binary dots (4 bits, MSB at top)
+    for (var bit = 3; bit >= 0; bit--) {
+      var y = startY + (3 - bit) * rowH;
+      var isOn = (digits[col] >> bit) & 1;
+      var maxBit = Math.ceil(Math.log2(maxBits[col] + 1));
+      if (bit >= maxBit) continue; // Skip unused bits
+
+      ctx.fillStyle = isOn ? '#58a6ff' : '#111';
+      if (isOn) {
+        ctx.shadowBlur = 6;
+        ctx.shadowColor = '#58a6ff';
+      }
+      ctx.beginPath();
+      ctx.arc(x, y, dotR, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.shadowBlur = 0;
+    }
+
+    // Decimal value below
+    ctx.fillStyle = '#333';
+    ctx.fillText(digits[col], x, startY + 4 * rowH + rowH * 0.5);
+  }
+}
+
+// ============ RENDER LOOP ============
+function render() {
+  if (W === 0 || H === 0) { requestAnimationFrame(render); return; } // Skip when minimized
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.fillStyle = '#000';
+  ctx.fillRect(0, 0, W, H);
+
+  var t = getTime();
+
+  switch (currentFace) {
+    case 0: drawClassic(t); break;
+    case 1: drawBauhaus(t); break;
+    case 2: drawRadar(t); break;
+    case 3: drawBinary(t); break;
+  }
+
+  requestAnimationFrame(render);
+}
+requestAnimationFrame(render);
+
+// ============ WAKE LOCK ============
+async function requestWakeLock() {
+  if (wakeLock !== null) return;
+  try {
+    if ('wakeLock' in navigator) {
+      wakeLock = await navigator.wakeLock.request('screen');
+      wakeLock.addEventListener('release', function() { wakeLock = null; });
+    }
+  } catch (e) {}
+}
+document.addEventListener('visibilitychange', function() {
+  if (document.visibilityState === 'visible') requestWakeLock();
+});
+requestWakeLock();
+
+// ============ INPUT ============
+document.addEventListener('click', function() {
+  currentFace = (currentFace + 1) % 4;
+  var label = document.getElementById('face-label');
+  label.textContent = faceNames[currentFace];
+  label.style.opacity = '1';
+  clearTimeout(labelTimer);
+  labelTimer = setTimeout(function() { label.style.opacity = '0.15'; }, 2000);
+  try { localStorage.setItem('clock_face', currentFace); } catch(e) {}
+  requestWakeLock(); // More reliable than on-load (requires user gesture)
+});
+
+// Fade label initially
+setTimeout(function() {
+  document.getElementById('face-label').style.opacity = '0.15';
+}, 3000);
+
+})();
+</script>
+</body>
+</html>
