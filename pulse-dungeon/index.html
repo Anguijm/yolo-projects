@@ -1,0 +1,469 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pulse Dungeon</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { background: #000; color: #ccc; font-family: 'Courier New', monospace; height: 100vh; display: flex; flex-direction: column; overflow: hidden; user-select: none; }
+canvas { display: block; margin: auto; }
+#hud { padding: 6px 14px; background: #0a0a0a; border-top: 1px solid #1a1a1a; display: flex; gap: 16px; font-size: 11px; align-items: center; }
+.hud-item { display: flex; align-items: center; gap: 4px; }
+.hud-label { color: #555; }
+.hud-val { color: #fff; font-weight: bold; }
+.hp-bar { width: 120px; height: 8px; background: #1a1a1a; border-radius: 4px; overflow: hidden; }
+.hp-fill { height: 100%; border-radius: 4px; transition: width 0.2s; }
+.hp-player { background: #3fb950; }
+#log { padding: 4px 14px; font-size: 9px; color: #444; background: #050505; height: 18px; overflow: hidden; white-space: nowrap; }
+#overlay { position: fixed; inset: 0; background: #000; display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 14px; z-index: 20; }
+#overlay.hidden { display: none; }
+#overlay h1 { font-size: 2.5rem; color: #0ff; letter-spacing: 0.2em; }
+#overlay .sub { color: #444; font-size: 0.8rem; max-width: 400px; text-align: center; line-height: 1.6; }
+#overlay button { padding: 10px 28px; background: transparent; border: 2px solid #0ff; color: #0ff; border-radius: 4px; font-family: inherit; font-size: 1rem; cursor: pointer; }
+#overlay button:hover { background: #0ff; color: #000; }
+</style>
+</head>
+<body>
+<div id="overlay">
+  <h1>PULSE DUNGEON</h1>
+  <p class="sub">A roguelike that sounds as good as it plays. Move with arrow keys. Bump enemies to fight. Reach the stairs to descend. Every action makes music.</p>
+  <button id="btn-start">ENTER THE DUNGEON</button>
+</div>
+<canvas id="c"></canvas>
+<div id="hud">
+  <div class="hud-item"><span class="hud-label">HP</span><div class="hp-bar"><div class="hp-fill hp-player" id="hp-bar" style="width:100%"></div></div><span class="hud-val" id="hp-val">20/20</span></div>
+  <div class="hud-item"><span class="hud-label">Floor</span><span class="hud-val" id="h-floor">1</span></div>
+  <div class="hud-item"><span class="hud-label">Kills</span><span class="hud-val" id="h-kills">0</span></div>
+  <div class="hud-item"><span class="hud-label">Gold</span><span class="hud-val" id="h-gold">0</span></div>
+</div>
+<div id="log">Welcome to the dungeon...</div>
+
+<script>
+(function() {
+'use strict';
+
+// ============ CONFIG ============
+const COLS = 32, ROWS = 20, TILE = 24;
+const TILE_EMPTY = 0, TILE_WALL = 1, TILE_STAIRS = 2, TILE_GOLD = 3;
+const PENTA = [130.81,146.83,164.81,196.00,220.00, 261.63,293.66,329.63,392.00,440.00];
+
+// ============ STATE ============
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+let audioCtx = null;
+let masterGain = null;
+let compressor = null;
+let grid = [];
+let player = { x: 1, y: 1, hp: 20, maxHp: 20, gold: 0, kills: 0 };
+let enemies = [];
+let floor = 1;
+let gameActive = false;
+let moveCount = 0;
+
+canvas.width = COLS * TILE;
+canvas.height = ROWS * TILE;
+
+// ============ AUDIO ============
+function initAudio() {
+  if (audioCtx) return;
+  audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  compressor = audioCtx.createDynamicsCompressor();
+  compressor.threshold.value = -24;
+  compressor.ratio.value = 8;
+  masterGain = audioCtx.createGain();
+  masterGain.gain.value = 0.4;
+  masterGain.connect(compressor);
+  compressor.connect(audioCtx.destination);
+}
+
+function playNote(freq, duration, type) {
+  if (!audioCtx) return;
+  var osc = audioCtx.createOscillator();
+  var gain = audioCtx.createGain();
+  osc.type = type || 'sine';
+  osc.frequency.value = freq;
+  gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
+  gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
+  osc.connect(gain);
+  gain.connect(masterGain);
+  osc.start();
+  osc.stop(audioCtx.currentTime + duration);
+}
+
+function playKick() {
+  if (!audioCtx) return;
+  var osc = audioCtx.createOscillator();
+  var gain = audioCtx.createGain();
+  osc.frequency.setValueAtTime(150, audioCtx.currentTime);
+  osc.frequency.exponentialRampToValueAtTime(30, audioCtx.currentTime + 0.12);
+  gain.gain.setValueAtTime(0.25, audioCtx.currentTime);
+  gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.15);
+  osc.connect(gain);
+  gain.connect(masterGain);
+  osc.start();
+  osc.stop(audioCtx.currentTime + 0.2);
+}
+
+function playHit() {
+  if (!audioCtx) return;
+  // Noise burst
+  var bufSize = audioCtx.sampleRate * 0.08;
+  var buf = audioCtx.createBuffer(1, bufSize, audioCtx.sampleRate);
+  var data = buf.getChannelData(0);
+  for (var i = 0; i < bufSize; i++) data[i] = Math.random() * 2 - 1;
+  var src = audioCtx.createBufferSource();
+  src.buffer = buf;
+  var gain = audioCtx.createGain();
+  gain.gain.setValueAtTime(0.2, audioCtx.currentTime);
+  gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.1);
+  src.connect(gain);
+  gain.connect(masterGain);
+  src.start();
+}
+
+function playDeath() {
+  if (!audioCtx) return;
+  playNote(220, 0.3, 'sawtooth');
+  setTimeout(function() { playNote(165, 0.4, 'sawtooth'); }, 150);
+  setTimeout(function() { playNote(110, 0.6, 'sawtooth'); }, 350);
+}
+
+function playStairs() {
+  if (!audioCtx) return;
+  playNote(523, 0.15, 'sine');
+  setTimeout(function() { playNote(659, 0.15, 'sine'); }, 100);
+  setTimeout(function() { playNote(784, 0.3, 'sine'); }, 200);
+}
+
+function playGold() {
+  if (!audioCtx) return;
+  playNote(880, 0.08, 'triangle');
+  setTimeout(function() { playNote(1175, 0.15, 'triangle'); }, 60);
+}
+
+function updateAudioState() {
+  if (!compressor) return;
+  // Low health = compressed, tense audio
+  var hpRatio = player.hp / player.maxHp;
+  compressor.threshold.value = -24 + (1 - hpRatio) * -20; // Gets more aggressive
+  compressor.ratio.value = 8 + (1 - hpRatio) * 12;
+}
+
+// ============ DUNGEON GENERATION ============
+function generateDungeon() {
+  // Initialize with walls
+  grid = [];
+  for (var y = 0; y < ROWS; y++) {
+    var row = [];
+    for (var x = 0; x < COLS; x++) row.push(TILE_WALL);
+    grid.push(row);
+  }
+
+  // Carve rooms using BSP-like approach
+  var rooms = [];
+  var numRooms = 4 + floor;
+  for (var i = 0; i < numRooms * 3; i++) {
+    var rw = 3 + ~~(Math.random() * 5);
+    var rh = 3 + ~~(Math.random() * 4);
+    var rx = 1 + ~~(Math.random() * (COLS - rw - 2));
+    var ry = 1 + ~~(Math.random() * (ROWS - rh - 2));
+
+    // Check overlap
+    var overlaps = false;
+    for (var r = 0; r < rooms.length; r++) {
+      var o = rooms[r];
+      if (rx < o.x + o.w + 1 && rx + rw + 1 > o.x && ry < o.y + o.h + 1 && ry + rh + 1 > o.y) {
+        overlaps = true;
+        break;
+      }
+    }
+    if (overlaps) continue;
+
+    // Carve room
+    for (var cy = ry; cy < ry + rh; cy++)
+      for (var cx = rx; cx < rx + rw; cx++)
+        grid[cy][cx] = TILE_EMPTY;
+
+    rooms.push({ x: rx, y: ry, w: rw, h: rh, cx: ~~(rx + rw / 2), cy: ~~(ry + rh / 2) });
+    if (rooms.length >= numRooms) break;
+  }
+
+  // Connect rooms with corridors
+  for (var i = 1; i < rooms.length; i++) {
+    var a = rooms[i - 1], b = rooms[i];
+    var cx = a.cx, cy = a.cy;
+    while (cx !== b.cx) {
+      if (cy >= 0 && cy < ROWS && cx >= 0 && cx < COLS) grid[cy][cx] = TILE_EMPTY;
+      cx += cx < b.cx ? 1 : -1;
+    }
+    while (cy !== b.cy) {
+      if (cy >= 0 && cy < ROWS && cx >= 0 && cx < COLS) grid[cy][cx] = TILE_EMPTY;
+      cy += cy < b.cy ? 1 : -1;
+    }
+  }
+
+  // Place player in first room
+  player.x = rooms[0].cx;
+  player.y = rooms[0].cy;
+
+  // Place stairs in last room
+  var lastRoom = rooms[rooms.length - 1];
+  grid[lastRoom.cy][lastRoom.cx] = TILE_STAIRS;
+
+  // Place gold
+  var goldCount = 3 + floor;
+  for (var g = 0; g < goldCount; g++) {
+    var room = rooms[1 + ~~(Math.random() * (rooms.length - 1))];
+    var gx = room.x + ~~(Math.random() * room.w);
+    var gy = room.y + ~~(Math.random() * room.h);
+    if (grid[gy][gx] === TILE_EMPTY) grid[gy][gx] = TILE_GOLD;
+  }
+
+  // Place enemies
+  enemies = [];
+  var enemyCount = 2 + floor * 2;
+  var enemyTypes = [
+    { name: 'Slime', char: 'S', color: '#3fb950', hp: 3 + floor, dmg: 1 + ~~(floor / 2), xp: 2 },
+    { name: 'Bat', char: 'B', color: '#a78bfa', hp: 2 + floor, dmg: 2 + ~~(floor / 2), xp: 3 },
+    { name: 'Orc', char: 'O', color: '#f87171', hp: 5 + floor * 2, dmg: 3 + floor, xp: 5 },
+  ];
+  for (var e = 0; e < enemyCount; e++) {
+    var room = rooms[1 + ~~(Math.random() * (rooms.length - 1))];
+    var ex = room.x + ~~(Math.random() * room.w);
+    var ey = room.y + ~~(Math.random() * room.h);
+    var isOccupied = enemies.some(function(en) { return en.x === ex && en.y === ey; });
+    if (grid[ey][ex] === TILE_EMPTY && !(ex === player.x && ey === player.y) && !isOccupied) {
+      var type = enemyTypes[~~(Math.random() * Math.min(enemyTypes.length, 1 + ~~(floor / 2)))];
+      enemies.push({ x: ex, y: ey, hp: type.hp, maxHp: type.hp, dmg: type.dmg, name: type.name, char: type.char, color: type.color });
+    }
+  }
+}
+
+// ============ GAME LOGIC ============
+function movePlayer(dx, dy) {
+  if (!gameActive) return;
+  var nx = player.x + dx, ny = player.y + dy;
+  if (nx < 0 || ny < 0 || nx >= COLS || ny >= ROWS) return;
+  if (grid[ny][nx] === TILE_WALL) return;
+
+  // Check for enemy
+  var enemy = null;
+  for (var i = 0; i < enemies.length; i++) {
+    if (enemies[i].x === nx && enemies[i].y === ny) { enemy = enemies[i]; break; }
+  }
+
+  if (enemy) {
+    // Combat
+    var playerDmg = 2 + ~~(floor * 0.5) + ~~(Math.random() * 3);
+    enemy.hp -= playerDmg;
+    playHit();
+    log(player.hp > 0 ? 'You hit ' + enemy.name + ' for ' + playerDmg + '!' : '');
+
+    if (enemy.hp <= 0) {
+      enemies.splice(enemies.indexOf(enemy), 1);
+      player.kills++;
+      player.gold += ~~(Math.random() * 3) + 1;
+      log(enemy.name + ' defeated!');
+      playKick();
+    }
+    // Enemy counter-attack removed — moveEnemies() handles enemy turns
+  } else {
+    // Move
+    player.x = nx;
+    player.y = ny;
+    moveCount++;
+
+    // Movement note (pentatonic, mapped to position)
+    var noteIdx = ((nx + ny * 3) % PENTA.length);
+    playNote(PENTA[noteIdx], 0.12, 'sine');
+
+    // Check tile
+    if (grid[ny][nx] === TILE_STAIRS) {
+      floor++;
+      playStairs();
+      log('Descending to floor ' + floor + '...');
+      player.hp = Math.min(player.maxHp, player.hp + 5);
+      generateDungeon();
+    } else if (grid[ny][nx] === TILE_GOLD) {
+      grid[ny][nx] = TILE_EMPTY;
+      player.gold += 3 + floor;
+      playGold();
+      log('Found gold! (+' + (3 + floor) + ')');
+    }
+  }
+
+  // Enemy movement
+  moveEnemies();
+  updateAudioState();
+  updateHUD();
+  render();
+}
+
+function moveEnemies() {
+  for (var i = 0; i < enemies.length; i++) {
+    var e = enemies[i];
+    var dx = player.x - e.x, dy = player.y - e.y;
+    var dist = Math.abs(dx) + Math.abs(dy);
+    if (dist > 8) continue; // Only move if near player
+
+    // Simple chase: move toward player
+    var mx = 0, my = 0;
+    if (Math.abs(dx) > Math.abs(dy)) mx = dx > 0 ? 1 : -1;
+    else my = dy > 0 ? 1 : -1;
+
+    var nx = e.x + mx, ny = e.y + my;
+    if (nx >= 0 && ny >= 0 && nx < COLS && ny < ROWS && grid[ny][nx] !== TILE_WALL) {
+      // Don't walk onto other enemies
+      var blocked = false;
+      for (var j = 0; j < enemies.length; j++) {
+        if (j !== i && enemies[j].x === nx && enemies[j].y === ny) { blocked = true; break; }
+      }
+      if (nx === player.x && ny === player.y) {
+        // Enemy attacks player
+        player.hp -= e.dmg;
+        log(e.name + ' attacks! (-' + e.dmg + ' HP)');
+        playHit();
+        if (player.hp <= 0 && gameActive) {
+          player.hp = 0;
+          gameActive = false;
+          playDeath();
+          setTimeout(function() { showGameOver(); }, 500);
+        }
+      } else if (!blocked) {
+        e.x = nx;
+        e.y = ny;
+      }
+    }
+  }
+}
+
+// ============ RENDERING ============
+function render() {
+  ctx.fillStyle = '#000';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  // Viewport centered on player
+  var vpx = player.x - ~~(COLS / 2);
+  var vpy = player.y - ~~(ROWS / 2);
+
+  for (var y = 0; y < ROWS; y++) {
+    for (var x = 0; x < COLS; x++) {
+      var tile = grid[y] ? grid[y][x] : TILE_WALL;
+      var sx = x * TILE, sy = y * TILE;
+
+      if (tile === TILE_WALL) {
+        ctx.fillStyle = '#1a1a2e';
+        ctx.fillRect(sx, sy, TILE, TILE);
+        ctx.strokeStyle = '#12121e';
+        ctx.lineWidth = 0.5;
+        ctx.strokeRect(sx + 0.5, sy + 0.5, TILE - 1, TILE - 1);
+      } else if (tile === TILE_EMPTY) {
+        ctx.fillStyle = '#0d0d18';
+        ctx.fillRect(sx, sy, TILE, TILE);
+      } else if (tile === TILE_STAIRS) {
+        ctx.fillStyle = '#0d0d18';
+        ctx.fillRect(sx, sy, TILE, TILE);
+        ctx.fillStyle = '#0ff';
+        ctx.font = (TILE - 4) + 'px monospace';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('>', sx + TILE / 2, sy + TILE / 2);
+      } else if (tile === TILE_GOLD) {
+        ctx.fillStyle = '#0d0d18';
+        ctx.fillRect(sx, sy, TILE, TILE);
+        ctx.fillStyle = '#fbbf24';
+        ctx.font = (TILE - 6) + 'px monospace';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('$', sx + TILE / 2, sy + TILE / 2);
+      }
+    }
+  }
+
+  // Enemies
+  for (var i = 0; i < enemies.length; i++) {
+    var e = enemies[i];
+    var sx = e.x * TILE, sy = e.y * TILE;
+    ctx.fillStyle = e.color;
+    ctx.font = 'bold ' + (TILE - 4) + 'px monospace';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(e.char, sx + TILE / 2, sy + TILE / 2);
+    // HP bar
+    var hpPct = e.hp / e.maxHp;
+    ctx.fillStyle = '#1a1a1a';
+    ctx.fillRect(sx + 2, sy, TILE - 4, 3);
+    ctx.fillStyle = hpPct > 0.5 ? '#3fb950' : hpPct > 0.25 ? '#d29922' : '#f87171';
+    ctx.fillRect(sx + 2, sy, (TILE - 4) * hpPct, 3);
+  }
+
+  // Player
+  var px = player.x * TILE, py = player.y * TILE;
+  ctx.fillStyle = '#0ff';
+  ctx.font = 'bold ' + (TILE - 2) + 'px monospace';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('@', px + TILE / 2, py + TILE / 2);
+
+  // Player glow
+  ctx.shadowBlur = 8;
+  ctx.shadowColor = '#0ff';
+  ctx.fillText('@', px + TILE / 2, py + TILE / 2);
+  ctx.shadowBlur = 0;
+}
+
+function updateHUD() {
+  document.getElementById('hp-val').textContent = player.hp + '/' + player.maxHp;
+  document.getElementById('hp-bar').style.width = (player.hp / player.maxHp * 100) + '%';
+  document.getElementById('hp-bar').style.background = player.hp > player.maxHp * 0.5 ? '#3fb950' : player.hp > player.maxHp * 0.25 ? '#d29922' : '#f87171';
+  document.getElementById('h-floor').textContent = floor;
+  document.getElementById('h-kills').textContent = player.kills;
+  document.getElementById('h-gold').textContent = player.gold;
+}
+
+function log(msg) {
+  document.getElementById('log').textContent = msg;
+}
+
+// ============ GAME FLOW ============
+function startGame() {
+  initAudio();
+  floor = 1;
+  player = { x: 1, y: 1, hp: 20, maxHp: 20, gold: 0, kills: 0 };
+  moveCount = 0;
+  generateDungeon();
+  gameActive = true;
+  document.getElementById('overlay').classList.add('hidden');
+  updateHUD();
+  render();
+  log('You enter the dungeon... (Arrow keys to move)');
+}
+
+function showGameOver() {
+  var ov = document.getElementById('overlay');
+  ov.classList.remove('hidden');
+  ov.querySelector('h1').textContent = 'YOU DIED';
+  ov.querySelector('h1').style.color = '#f87171';
+  ov.querySelector('.sub').textContent = 'Floor ' + floor + ' | Kills: ' + player.kills + ' | Gold: ' + player.gold;
+  document.getElementById('btn-start').textContent = 'TRY AGAIN';
+}
+
+// ============ INPUT ============
+document.getElementById('btn-start').addEventListener('click', startGame);
+
+document.addEventListener('keydown', function(e) {
+  if (!gameActive) {
+    if (e.key === 'Enter') startGame();
+    return;
+  }
+  if (e.key === 'ArrowUp' || e.key === 'w') { e.preventDefault(); movePlayer(0, -1); }
+  else if (e.key === 'ArrowDown' || e.key === 's') { e.preventDefault(); movePlayer(0, 1); }
+  else if (e.key === 'ArrowLeft' || e.key === 'a') { e.preventDefault(); movePlayer(-1, 0); }
+  else if (e.key === 'ArrowRight' || e.key === 'd') { e.preventDefault(); movePlayer(1, 0); }
+});
+
+})();
+</script>
+</body>
+</html>
