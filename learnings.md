@@ -104,6 +104,20 @@ Persistent knowledge base. Read this before every build.
 - **INSIGHT**: Music theory constraints (scales, quantization) can make procedural audio sound good by default. The key insight: restrict the output space so random combinations still sound harmonious.
 - **INSIGHT**: Games need an escalation loop (wave difficulty) + economy (gold/cost) + fail state (lives) to feel like actual games vs. toys.
 
+### minimal-clock (2026-03-23)
+- **KEEP**: High-DPI scaling with setTransform(dpr,0,0,dpr,0,0) in render loop — crisp lines on Retina
+- **KEEP**: Smooth sweep via milliseconds: `seconds + ms/1000` creates liquid-smooth hand motion
+- **KEEP**: All drawing relative to `Math.min(W,H) * 0.38` — auto-scales to any viewport
+- **KEEP**: 4 visual modes showing same data = "multiple visualization modes >> one fancy one"
+- **KEEP**: Face label opacity fades after 2s — shows info without cluttering
+- **KEEP**: W/H = 0 skip in render — prevents wasted cycles when window minimized
+- **TEST CAUGHT (via Gemini audit)**: createConicGradient not available in older browsers — feature detection with fallback prevents crash
+- **TEST CAUGHT (via Gemini audit)**: Wake lock on page load often blocked — user gesture (click) is more reliable trigger
+- **TEST CAUGHT (via Gemini audit)**: Render loop runs when minimized (W=0, H=0) — wastes CPU
+- **INSIGHT**: Canvas APIs that use newer features (createConicGradient, OffscreenCanvas, etc.) ALWAYS need feature detection. `if (ctx.methodName)` before calling.
+- **INSIGHT**: Wake Lock API is most reliable when called inside a click/touch handler, not on page load. Browsers increasingly restrict non-gesture API calls.
+- **INSIGHT**: Multiple visual representations of the same data in one app is a powerful pattern — each face is a different "lens" on time.
+
 ### tile-painter (2026-03-23)
 - **KEEP**: rAF dirty flag pattern — set `previewDirty = true` in hot path, only call expensive operation (toDataURL) in rAF loop. Essential for any drag-based editor.
 - **KEEP**: toBlob + URL.createObjectURL for large canvas downloads — toDataURL hits URL length limits on 2048x2048 canvases

@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="theme-color" content="#000000">
+<title>Name Picker</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { height: 100%; background: #000; color: #ccc; font-family: 'Segoe UI', system-ui, sans-serif; overflow: hidden; touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+#app { height: 100%; display: flex; flex-direction: column; }
+
+#input-area { padding: 12px; background: #0a0a0a; border-bottom: 1px solid #111; }
+textarea { width: 100%; height: 80px; background: #050505; border: 1px solid #1a1a1a; color: #ccc; padding: 8px; font-family: inherit; font-size: 0.85rem; border-radius: 6px; resize: none; outline: none; line-height: 1.4; }
+textarea::placeholder { color: #222; }
+.btn-row { display: flex; gap: 6px; margin-top: 8px; }
+.btn { flex: 1; padding: 8px; background: transparent; border: 1px solid #222; color: #666; border-radius: 8px; font-family: inherit; font-size: 0.75rem; cursor: pointer; }
+.btn:active { border-color: #555; color: #fff; }
+.btn.primary { border-color: #58a6ff; color: #58a6ff; }
+
+/* Display area */
+#display { flex: 1; display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 12px; padding: 20px; position: relative; }
+#picked-name { font-size: clamp(2rem, 10vw, 5rem); font-weight: 900; color: #fff; text-align: center; min-height: 1.2em; transition: color 0.2s; letter-spacing: -0.02em; }
+#slot-reel { font-size: clamp(1.5rem, 7vw, 3rem); color: #333; text-align: center; min-height: 1.2em; font-weight: 300; }
+#count-label { font-size: 0.6rem; color: #1a1a1a; font-family: monospace; }
+
+/* Teams display */
+#teams-display { display: none; flex: 1; overflow-y: auto; padding: 12px; gap: 8px; }
+#teams-display.show { display: flex; flex-wrap: wrap; align-content: flex-start; }
+.team-card { flex: 1; min-width: 140px; background: #0a0a0a; border: 1px solid #1a1a1a; border-radius: 8px; padding: 10px; }
+.team-title { font-size: 0.65rem; color: #555; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 6px; }
+.team-member { font-size: 0.8rem; color: #ccc; padding: 2px 0; }
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="input-area">
+    <textarea id="names" placeholder="Enter names, one per line..."></textarea>
+    <div class="btn-row">
+      <button class="btn primary" id="btn-pick">Pick One</button>
+      <button class="btn" id="btn-teams">Split Teams</button>
+      <button class="btn" id="btn-shuffle">Shuffle</button>
+    </div>
+  </div>
+  <div id="display">
+    <div id="slot-reel"></div>
+    <div id="picked-name"></div>
+    <div id="count-label"></div>
+  </div>
+  <div id="teams-display"></div>
+</div>
+
+<script>
+(function() {
+'use strict';
+
+var namesEl = document.getElementById('names');
+var pickedEl = document.getElementById('picked-name');
+var slotEl = document.getElementById('slot-reel');
+var countEl = document.getElementById('count-label');
+var teamsEl = document.getElementById('teams-display');
+var displayEl = document.getElementById('display');
+var picking = false;
+var audioCtx = null;
+
+// Load saved names
+try { var saved = localStorage.getItem('name_picker_list'); if (saved) namesEl.value = saved; } catch(e) {}
+
+// Auto-save names
+namesEl.addEventListener('input', function() {
+  try { localStorage.setItem('name_picker_list', namesEl.value); } catch(e) {}
+});
+
+function getNames() {
+  return namesEl.value.split('\n').map(function(n) { return n.trim(); }).filter(function(n) { return n.length > 0; });
+}
+
+// ============ AUDIO ============
+function initAudio() {
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  if (audioCtx.state === 'suspended') audioCtx.resume().catch(function() {});
+}
+
+function playTick() {
+  if (!audioCtx) return;
+  var now = audioCtx.currentTime;
+  var osc = audioCtx.createOscillator();
+  var gain = audioCtx.createGain();
+  osc.type = 'sine';
+  osc.frequency.value = 600 + Math.random() * 400;
+  gain.gain.setValueAtTime(0.03, now);
+  gain.gain.exponentialRampToValueAtTime(0.001, now + 0.04);
+  osc.connect(gain); gain.connect(audioCtx.destination);
+  osc.start(now); osc.stop(now + 0.05);
+}
+
+function playWin() {
+  if (!audioCtx) return;
+  var now = audioCtx.currentTime;
+  var notes = [523, 659, 784];
+  for (var i = 0; i < notes.length; i++) {
+    var osc = audioCtx.createOscillator();
+    var gain = audioCtx.createGain();
+    osc.type = 'sine'; osc.frequency.value = notes[i];
+    var t = now + i * 0.08;
+    gain.gain.setValueAtTime(0.06, t);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + 0.2);
+    osc.connect(gain); gain.connect(audioCtx.destination);
+    osc.start(t); osc.stop(t + 0.25);
+  }
+}
+
+// ============ PICK ONE ============
+function pickOne() {
+  var names = getNames();
+  if (names.length === 0 || picking) return;
+  if (names.length === 1) { pickedEl.textContent = names[0]; return; }
+  picking = true;
+  initAudio();
+  teamsEl.classList.remove('show');
+  displayEl.style.display = 'flex';
+
+  var winner = names[Math.floor(Math.random() * names.length)];
+  var steps = 20 + Math.floor(Math.random() * 10);
+  var step = 0;
+  var delay = 50;
+
+  pickedEl.textContent = '';
+  countEl.textContent = names.length + ' names';
+
+  function tick() {
+    var shown = names[Math.floor(Math.random() * names.length)];
+    slotEl.textContent = shown;
+    playTick();
+    if (navigator.vibrate) navigator.vibrate(5);
+    step++;
+    delay += step * 2; // Decelerate
+
+    if (step < steps) {
+      setTimeout(tick, delay);
+    } else {
+      // Land on winner
+      slotEl.textContent = '';
+      pickedEl.textContent = winner;
+      pickedEl.style.color = '#58a6ff';
+      setTimeout(function() { pickedEl.style.color = '#fff'; }, 600);
+      playWin();
+      if (navigator.vibrate) navigator.vibrate([30, 20, 30]);
+      picking = false;
+    }
+  }
+  tick();
+}
+
+// ============ SPLIT TEAMS ============
+function splitTeams() {
+  if (picking) return; // Don't interrupt pick animation
+  var names = getNames();
+  if (names.length < 2) return;
+
+  // Shuffle
+  for (var i = names.length - 1; i > 0; i--) {
+    var j = Math.floor(Math.random() * (i + 1));
+    var tmp = names[i]; names[i] = names[j]; names[j] = tmp;
+  }
+
+  var teamCount = names.length <= 4 ? 2 : names.length <= 9 ? 3 : 4;
+  var teams = [];
+  for (var t = 0; t < teamCount; t++) teams.push([]);
+  for (var i = 0; i < names.length; i++) {
+    teams[i % teamCount].push(names[i]);
+  }
+
+  displayEl.style.display = 'none';
+  teamsEl.innerHTML = '';
+  teamsEl.classList.add('show');
+
+  var teamColors = ['#58a6ff', '#3fb950', '#f0883e', '#a78bfa'];
+  for (var t = 0; t < teams.length; t++) {
+    var card = document.createElement('div');
+    card.className = 'team-card';
+    card.style.borderColor = teamColors[t % teamColors.length] + '33';
+    var title = document.createElement('div');
+    title.className = 'team-title';
+    title.style.color = teamColors[t % teamColors.length];
+    title.textContent = 'Team ' + (t + 1);
+    card.appendChild(title);
+    for (var m = 0; m < teams[t].length; m++) {
+      var member = document.createElement('div');
+      member.className = 'team-member';
+      member.textContent = teams[t][m];
+      card.appendChild(member);
+    }
+    teamsEl.appendChild(card);
+  }
+
+  initAudio();
+  playWin();
+  if (navigator.vibrate) navigator.vibrate([20, 10, 20]);
+}
+
+// ============ SHUFFLE ORDER ============
+function shuffleList() {
+  if (picking) return;
+  var names = getNames();
+  if (names.length < 2) return;
+  for (var i = names.length - 1; i > 0; i--) {
+    var j = Math.floor(Math.random() * (i + 1));
+    var tmp = names[i]; names[i] = names[j]; names[j] = tmp;
+  }
+  namesEl.value = names.join('\n');
+  try { localStorage.setItem('name_picker_list', namesEl.value); } catch(e) {}
+  initAudio();
+  playTick();
+  if (navigator.vibrate) navigator.vibrate(10);
+}
+
+// ============ EVENTS (click only) ============
+document.getElementById('btn-pick').addEventListener('click', pickOne);
+document.getElementById('btn-teams').addEventListener('click', splitTeams);
+document.getElementById('btn-shuffle').addEventListener('click', shuffleList);
+
+})();
+</script>
+</body>
+</html>
