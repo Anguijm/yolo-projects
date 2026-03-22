@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pendulum Waves</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { background: #000; color: #ccc; font-family: 'Segoe UI', system-ui, sans-serif; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+canvas { flex: 1; display: block; }
+#controls { padding: 8px 16px; background: #0a0a0a; border-top: 1px solid #1a1a1a; display: flex; gap: 14px; align-items: center; flex-wrap: wrap; }
+.ctrl { display: flex; align-items: center; gap: 4px; }
+.ctrl label { font-size: 9px; color: #555; text-transform: uppercase; letter-spacing: 0.08em; min-width: 50px; }
+.ctrl input[type=range] { width: 80px; height: 3px; -webkit-appearance: none; background: #1a1a1a; border-radius: 2px; }
+.ctrl input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 10px; height: 10px; border-radius: 50%; background: #58a6ff; cursor: pointer; }
+.ctrl-val { font-size: 10px; color: #888; font-family: monospace; min-width: 24px; }
+.btn { padding: 4px 12px; background: #111; border: 1px solid #222; color: #888; border-radius: 4px; cursor: pointer; font-size: 10px; font-family: inherit; }
+.btn:hover { border-color: #58a6ff; color: #fff; }
+.sep { width: 1px; height: 18px; background: #1a1a1a; }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="controls">
+  <div class="ctrl">
+    <label>Count</label>
+    <input type="range" id="sl-count" min="5" max="30" value="15">
+    <span class="ctrl-val" id="v-count">15</span>
+  </div>
+  <div class="ctrl">
+    <label>Spread</label>
+    <input type="range" id="sl-spread" min="0.5" max="5" value="2" step="0.1">
+    <span class="ctrl-val" id="v-spread">2.0</span>
+  </div>
+  <div class="ctrl">
+    <label>Damping</label>
+    <input type="range" id="sl-damp" min="0" max="0.01" value="0.001" step="0.0005">
+    <span class="ctrl-val" id="v-damp">0.001</span>
+  </div>
+  <div class="ctrl">
+    <label>Gravity</label>
+    <input type="range" id="sl-grav" min="0.5" max="5" value="1.5" step="0.1">
+    <span class="ctrl-val" id="v-grav">1.5</span>
+  </div>
+  <div class="ctrl">
+    <label>Amplitude</label>
+    <input type="range" id="sl-amp" min="10" max="60" value="30" step="1">
+    <span class="ctrl-val" id="v-amp">30</span>
+  </div>
+  <div class="sep"></div>
+  <button class="btn" id="btn-reset">Reset</button>
+  <button class="btn" id="btn-audio">Audio: OFF</button>
+  <div class="sep"></div>
+  <div class="ctrl">
+    <label>Trail</label>
+    <input type="range" id="sl-trail" min="0" max="0.3" value="0.08" step="0.01">
+  </div>
+</div>
+
+<script>
+(function() {
+'use strict';
+
+var canvas = document.getElementById('c');
+var ctx = canvas.getContext('2d');
+var W, H;
+
+// ============ STATE ============
+var count = 15;
+var spread = 2;
+var damping = 0.001;
+var gravity = 1.5;
+var amplitude = 30; // degrees
+var trailFade = 0.08;
+var audioEnabled = false;
+var audioCtx = null;
+var masterGain = null;
+
+var pendulums = [];
+var time = 0;
+
+// Pentatonic frequencies for audio
+var PENTA = [261.63, 293.66, 329.63, 392.00, 440.00, 523.25, 587.33, 659.25, 783.99, 880.00];
+
+function resize() {
+  var ctrl = document.getElementById('controls');
+  W = canvas.width = window.innerWidth;
+  H = canvas.height = window.innerHeight - (ctrl ? ctrl.offsetHeight : 40);
+  if (pendulums.length > 0) initPendulums(); // Re-scale to new window size
+}
+window.addEventListener('resize', resize);
+resize();
+
+// ============ AUDIO ============
+function initAudio() {
+  if (audioCtx) return;
+  audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  masterGain = audioCtx.createGain();
+  masterGain.gain.value = 0.08;
+  var comp = audioCtx.createDynamicsCompressor();
+  comp.threshold.value = -24;
+  comp.ratio.value = 8;
+  masterGain.connect(comp);
+  comp.connect(audioCtx.destination);
+}
+
+function playTone(freq) {
+  if (!audioCtx || !audioEnabled) return;
+  if (audioCtx.state === 'suspended') audioCtx.resume();
+  var osc = audioCtx.createOscillator();
+  var gain = audioCtx.createGain();
+  osc.type = 'sine';
+  osc.frequency.value = freq;
+  gain.gain.setValueAtTime(0.06, audioCtx.currentTime);
+  gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.4);
+  osc.connect(gain);
+  gain.connect(masterGain);
+  osc.start();
+  osc.stop(audioCtx.currentTime + 0.5);
+}
+
+// ============ PHYSICS ============
+function initPendulums() {
+  pendulums = [];
+  time = 0;
+  var baseLength = H * 0.3;
+  var ampRad = amplitude * Math.PI / 180;
+
+  for (var i = 0; i < count; i++) {
+    var lengthFactor = 1 + (i / count) * spread;
+    var length = baseLength * lengthFactor;
+    pendulums.push({
+      length: length,
+      angle: ampRad, // Start all at same angle
+      velocity: 0,
+      prevSign: ampRad >= 0 ? 1 : -1, // Match initial angle sign
+      trailX: [],
+      trailY: []
+    });
+  }
+
+  // Clear canvas
+  ctx.fillStyle = '#000';
+  ctx.fillRect(0, 0, W, H);
+}
+
+function updatePhysics(dt) {
+  for (var i = 0; i < pendulums.length; i++) {
+    var p = pendulums[i];
+    // Angular acceleration: a = -(g/L) * sin(theta)
+    var accel = -(gravity * 9.81 / p.length) * Math.sin(p.angle);
+    // Apply damping
+    p.velocity += accel * dt;
+    p.velocity *= (1 - damping);
+    p.angle += p.velocity * dt;
+
+    // Audio trigger: detect when pendulum crosses center (sign change)
+    var currentSign = p.angle >= 0 ? 1 : -1;
+    if (currentSign !== p.prevSign && audioEnabled) {
+      // Shift octave for pendulums beyond the palette to avoid frequency phasing
+      var noteIdx = i % PENTA.length;
+      var octaveShift = 1 + Math.floor(i / PENTA.length) * 0.5;
+      playTone(PENTA[noteIdx] * octaveShift);
+    }
+    p.prevSign = currentSign;
+  }
+  time += dt;
+}
+
+// ============ RENDERING ============
+function render() {
+  // Trail effect
+  ctx.fillStyle = 'rgba(0, 0, 0, ' + trailFade + ')';
+  ctx.fillRect(0, 0, W, H);
+
+  var pivotY = 30;
+  var spacing = W / (count + 1);
+
+  for (var i = 0; i < pendulums.length; i++) {
+    var p = pendulums[i];
+    var pivotX = spacing * (i + 1);
+    var bobX = pivotX + Math.sin(p.angle) * p.length;
+    var bobY = pivotY + Math.cos(p.angle) * p.length;
+
+    // Store trail
+    p.trailX.push(bobX);
+    p.trailY.push(bobY);
+    if (p.trailX.length > 60) {
+      p.trailX.shift();
+      p.trailY.shift();
+    }
+
+    // Draw trail
+    if (p.trailX.length > 2) {
+      for (var j = 1; j < p.trailX.length; j++) {
+        var alpha = j / p.trailX.length * 0.3;
+        ctx.strokeStyle = 'hsla(' + (i / count * 300) + ', 70%, 60%, ' + alpha + ')';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(p.trailX[j - 1], p.trailY[j - 1]);
+        ctx.lineTo(p.trailX[j], p.trailY[j]);
+        ctx.stroke();
+      }
+    }
+
+    // Draw string
+    ctx.strokeStyle = '#222';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(pivotX, pivotY);
+    ctx.lineTo(bobX, bobY);
+    ctx.stroke();
+
+    // Draw bob
+    var hue = (i / count) * 300;
+    ctx.fillStyle = 'hsl(' + hue + ', 70%, 60%)';
+    ctx.beginPath();
+    ctx.arc(bobX, bobY, 6, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Glow
+    ctx.shadowBlur = 8;
+    ctx.shadowColor = 'hsl(' + hue + ', 70%, 60%)';
+    ctx.beginPath();
+    ctx.arc(bobX, bobY, 4, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.shadowBlur = 0;
+  }
+
+  // Pivot bar
+  ctx.strokeStyle = '#222';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(spacing * 0.5, pivotY);
+  ctx.lineTo(W - spacing * 0.5, pivotY);
+  ctx.stroke();
+}
+
+// ============ MAIN LOOP ============
+var lastTime = 0;
+function loop(ts) {
+  var dt = Math.min(0.03, (ts - lastTime) / 1000);
+  lastTime = ts;
+
+  // Sub-step for stability
+  var steps = 4;
+  var subDt = dt / steps;
+  for (var s = 0; s < steps; s++) {
+    updatePhysics(subDt);
+  }
+
+  render();
+  requestAnimationFrame(loop);
+}
+
+// ============ CONTROLS ============
+function bindSlider(id, valId, callback) {
+  var el = document.getElementById(id);
+  el.addEventListener('input', function() {
+    callback(el.value);
+    if (valId) document.getElementById(valId).textContent = parseFloat(el.value).toFixed(el.step && el.step.includes('.') ? el.step.split('.')[1].length : 0);
+  });
+}
+
+bindSlider('sl-count', 'v-count', function(v) { count = parseInt(v); initPendulums(); });
+bindSlider('sl-spread', 'v-spread', function(v) { spread = parseFloat(v); initPendulums(); });
+bindSlider('sl-damp', 'v-damp', function(v) { damping = parseFloat(v); });
+bindSlider('sl-grav', 'v-grav', function(v) { gravity = parseFloat(v); initPendulums(); });
+bindSlider('sl-amp', 'v-amp', function(v) { amplitude = parseInt(v); initPendulums(); });
+bindSlider('sl-trail', null, function(v) { trailFade = parseFloat(v); });
+
+document.getElementById('btn-reset').addEventListener('click', function() { initPendulums(); });
+
+document.getElementById('btn-audio').addEventListener('click', function() {
+  audioEnabled = !audioEnabled;
+  if (audioEnabled) initAudio();
+  this.textContent = 'Audio: ' + (audioEnabled ? 'ON' : 'OFF');
+  this.style.color = audioEnabled ? '#3fb950' : '#888';
+});
+
+// Keyboard
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'r') initPendulums();
+  if (e.key === 'a') document.getElementById('btn-audio').click();
+  if (e.key === ' ') { e.preventDefault(); initPendulums(); }
+});
+
+// Init
+initPendulums();
+requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>

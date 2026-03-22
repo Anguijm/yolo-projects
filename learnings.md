@@ -104,6 +104,20 @@ Persistent knowledge base. Read this before every build.
 - **INSIGHT**: Music theory constraints (scales, quantization) can make procedural audio sound good by default. The key insight: restrict the output space so random combinations still sound harmonious.
 - **INSIGHT**: Games need an escalation loop (wave difficulty) + economy (gold/cost) + fail state (lives) to feel like actual games vs. toys.
 
+### drum-lab (2026-03-22)
+- **KEEP**: Lookahead scheduler (100ms window, 25ms setTimeout check) — the "Tale of Two Clocks" pattern is mandatory for Web Audio timing
+- **KEEP**: DynamicsCompressor with low threshold (-18dB) and fast attack (3ms) — essential for punchy drum sounds without clipping
+- **KEEP**: Per-track synth engines with exposed parameters — makes "sequencer" into "instrument"
+- **KEEP**: Randomize with per-track density distributions (kick 25%, hat 35%, clap 10%) — generates musically sensible patterns
+- **KEEP**: Pattern save/load via localStorage including params + volumes + bpm + swing — complete state persistence
+- **TEST CAUGHT (via Gemini audit)**: Swing math was REVERSED (lengthened offbeats, shortened downbeats) AND caused cumulative tempo drift (asymmetric add/subtract). Would have sounded wrong and gradually decelerated.
+- **TEST CAUGHT (via Gemini audit)**: exponentialRampToValueAtTime crashes when starting value is exactly 0. Volume slider at zero = immediate DOMException crash. Clamped to 0.001 minimum.
+- **TEST CAUGHT (via Gemini audit)**: Creating noise buffers (Math.random() fill) on every drum hit caused GC pressure. Cached 2-second buffer at init, reused everywhere.
+- **TEST CAUGHT (via Gemini audit)**: querySelectorAll('.step') on every highlight tick is wasteful. Track previousStep and only update delta.
+- **INSIGHT**: Web Audio's exponentialRamp CANNOT start or end at zero — this is a framework constraint that's easy to forget. Always clamp gain values to >= 0.001.
+- **INSIGHT**: Swing math must be SYMMETRIC — if you add X to downbeats, subtract X from offbeats. Asymmetric swing = tempo drift over time.
+- **INSIGHT**: Pre-generate noise buffers once. Random noise doesn't change perceptibly between hits, but creating Float32Arrays 8x/sec absolutely causes GC stutter.
+
 ### key-strike (2026-03-22)
 - **KEEP**: Instant start (no button, no overlay, just start typing) = fastest possible time-to-value
 - **KEEP**: Combo counter with visual glow at 10+ creates "flow state" pursuit
