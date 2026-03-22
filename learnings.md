@@ -104,6 +104,18 @@ Persistent knowledge base. Read this before every build.
 - **INSIGHT**: Music theory constraints (scales, quantization) can make procedural audio sound good by default. The key insight: restrict the output space so random combinations still sound harmonious.
 - **INSIGHT**: Games need an escalation loop (wave difficulty) + economy (gold/cost) + fail state (lives) to feel like actual games vs. toys.
 
+### key-strike (2026-03-22)
+- **KEEP**: Instant start (no button, no overlay, just start typing) = fastest possible time-to-value
+- **KEEP**: Combo counter with visual glow at 10+ creates "flow state" pursuit
+- **KEEP**: Micro-shake on errors (50ms, 1-2px CSS transform) — tactile without disrupting eye tracking
+- **KEEP**: Web Audio key sounds with randomized pitch (800-1200Hz) feel satisfyingly mechanical
+- **KEEP**: performance.now() for timing — essential for competitive accuracy
+- **KEEP**: Share format with ego-bait ("Your fingers are too slow") drives competitive sharing
+- **TEST CAUGHT (via Gemini audit)**: Wrong chars never rendered red — chars array wasn't mutated on incorrect key, cursor didn't advance. User couldn't see their mistakes. Would have been invisible to syntax/static checks.
+- **TEST CAUGHT (via Gemini audit)**: AudioContext.resume() needed — browsers start context suspended, sounds wouldn't play on first keystrokes
+- **INSIGHT**: Typing tests have a unique state bug: storing wrong input vs skipping it. If wrong keys don't advance the cursor AND mutate the display array, errors become invisible. Always test the error state, not just the happy path.
+- **INSIGHT**: "No start button" is the ultimate 3-second time-to-value — the app is ready the instant the page loads.
+
 ### pulse-dungeon (2026-03-22)
 - **KEEP**: BSP-like room generation (random rooms + overlap check + corridor carving) creates varied, connected layouts
 - **KEEP**: Position-mapped pentatonic notes (noteIdx = (x + y*3) % PENTA.length) makes exploration musical
