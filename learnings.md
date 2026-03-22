@@ -104,6 +104,18 @@ Persistent knowledge base. Read this before every build.
 - **INSIGHT**: Music theory constraints (scales, quantization) can make procedural audio sound good by default. The key insight: restrict the output space so random combinations still sound harmonious.
 - **INSIGHT**: Games need an escalation loop (wave difficulty) + economy (gold/cost) + fail state (lives) to feel like actual games vs. toys.
 
+### pulse-dungeon (2026-03-22)
+- **KEEP**: BSP-like room generation (random rooms + overlap check + corridor carving) creates varied, connected layouts
+- **KEEP**: Position-mapped pentatonic notes (noteIdx = (x + y*3) % PENTA.length) makes exploration musical
+- **KEEP**: DynamicsCompressor threshold/ratio mapped to HP ratio — creates genuine audio tension at low health
+- **KEEP**: Different synth sounds for different events (sine=movement, noise=combat, kick=kill, sawtooth=death, triangle=gold)
+- **KEEP**: Turn-based movement with enemy AI chase gives tactical depth
+- **TEST CAUGHT (via Gemini audit)**: Double attack bug — enemy counter-attacked in movePlayer AND moveEnemies, hitting player twice per turn
+- **TEST CAUGHT (via Gemini audit)**: Enemy stacking — no overlap check during spawn allowed multiple enemies on one tile
+- **TEST CAUGHT (via Gemini audit)**: Multiple game-over — dying to 3 enemies in one turn queued 3 setTimeout(showGameOver) calls
+- **INSIGHT**: When sending code to Gemini, if the file is too long, send the LOGIC portions (game mechanics, state management) not the rendering. Gemini found gameplay bugs, not rendering bugs.
+- **INSIGHT**: Turn-based games have a unique bug class: "action happens twice per turn." Always trace the full execution path of one player action to verify each entity acts exactly once.
+
 ### prose-xray (2026-03-22) — FIRST BUILD UNDER NEW TESTING PROTOCOL
 - **KEEP**: Sending ACTUAL CODE to Gemini (not summaries) found 5 real bugs. This is the single biggest quality improvement.
 - **KEEP**: Automated test suite caught the project loads and has no console errors

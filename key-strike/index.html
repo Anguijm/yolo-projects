@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>KEY/STRIKE</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { background: #000; color: #888; font-family: 'Courier New', monospace; height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; overflow: hidden; }
+#container { max-width: 700px; width: 90%; position: relative; }
+#title { text-align: center; font-size: 0.7rem; color: #333; letter-spacing: 0.3em; margin-bottom: 24px; }
+#text-display { font-size: 1.3rem; line-height: 2; letter-spacing: 0.02em; min-height: 120px; position: relative; outline: none; }
+#text-display .char { transition: color 0.05s; }
+#text-display .correct { color: #fff; }
+#text-display .incorrect { color: #ff003c; text-decoration: underline; }
+#text-display .current { border-left: 2px solid #0ff; animation: blink 1s step-end infinite; }
+#text-display .upcoming { color: #333; }
+@keyframes blink { 50% { border-color: transparent; } }
+
+#stats-bar { display: flex; gap: 24px; justify-content: center; margin-top: 20px; font-size: 0.75rem; color: #444; }
+.stat { text-align: center; }
+.stat-big { font-size: 1.8rem; font-weight: 900; color: #fff; font-family: monospace; }
+.stat-label { font-size: 0.55rem; color: #444; text-transform: uppercase; letter-spacing: 0.15em; }
+
+#results { display: none; text-align: center; }
+#results .stat-big { font-size: 3rem; color: #0ff; }
+#results .grade { font-size: 1.2rem; margin-top: 4px; font-weight: bold; }
+.btn-row { display: flex; gap: 8px; justify-content: center; margin-top: 16px; }
+.btn { padding: 8px 20px; background: transparent; border: 1px solid #333; color: #888; border-radius: 4px; font-family: inherit; font-size: 0.8rem; cursor: pointer; }
+.btn:hover { border-color: #0ff; color: #0ff; }
+.btn.primary { border-color: #0ff; color: #0ff; }
+
+#best-bar { text-align: center; margin-top: 12px; font-size: 0.6rem; color: #222; }
+#hint { text-align: center; margin-top: 16px; font-size: 0.6rem; color: #1a1a1a; }
+
+/* Shake */
+.shake { animation: microShake 0.05s; }
+@keyframes microShake { 0%,100% { transform: translate(0); } 25% { transform: translate(-1px,-1px); } 75% { transform: translate(1px,1px); } }
+
+/* Combo */
+.combo-glow { text-shadow: 0 0 8px #0ff4, 0 0 16px #0ff2; }
+#combo-counter { position: fixed; top: 50%; left: 50%; transform: translate(-50%,-50%); font-size: 6rem; font-weight: 900; color: #0ff08; pointer-events: none; z-index: -1; font-family: monospace; }
+</style>
+</head>
+<body>
+<div id="container">
+  <div id="title">KEY / STRIKE</div>
+  <div id="text-display" tabindex="0"></div>
+  <div id="stats-bar">
+    <div class="stat"><div class="stat-big" id="s-wpm">0</div><div class="stat-label">WPM</div></div>
+    <div class="stat"><div class="stat-big" id="s-acc">100</div><div class="stat-label">Accuracy %</div></div>
+    <div class="stat"><div class="stat-big" id="s-time">0.0</div><div class="stat-label">Seconds</div></div>
+    <div class="stat"><div class="stat-big" id="s-combo">0</div><div class="stat-label">Combo</div></div>
+  </div>
+  <div id="results">
+    <div class="stat-big" id="r-wpm">0</div>
+    <div class="stat-label">Words Per Minute</div>
+    <div class="grade" id="r-grade"></div>
+    <div id="stats-bar-final" style="display:flex;gap:20px;justify-content:center;margin-top:12px;font-size:0.7rem;color:#555">
+      <span>Accuracy: <b id="r-acc">0</b>%</span>
+      <span>Time: <b id="r-time">0</b>s</span>
+      <span>Errors: <b id="r-errors">0</b></span>
+      <span>Best Combo: <b id="r-combo">0</b></span>
+    </div>
+    <div class="btn-row">
+      <button class="btn primary" id="btn-retry">Tab+Enter or Click: Retry</button>
+      <button class="btn" id="btn-share">Copy Score</button>
+    </div>
+  </div>
+  <div id="best-bar">Best: <span id="best-wpm">—</span> WPM</div>
+  <div id="hint">Start typing to begin. Tab+Enter to restart.</div>
+</div>
+<div id="combo-counter"></div>
+
+<script>
+(function() {
+'use strict';
+
+// ============ PASSAGES ============
+var PASSAGES = [
+  "The quick brown fox jumps over the lazy dog. A wizard's job is to vex chumps quickly in fog.",
+  "In the beginning was the command line. The screen glowed softly in the dark room as fingers danced across the keyboard.",
+  "Code is like humor. When you have to explain it, it's bad. Simple is better than complex. Complex is better than complicated.",
+  "The best way to predict the future is to invent it. Move fast and break things. Stay hungry, stay foolish.",
+  "Every great developer you know got there by solving problems they were unqualified to solve until they actually did it.",
+  "First solve the problem. Then write the code. Programs must be written for people to read, and only incidentally for machines to execute.",
+  "Any fool can write code that a computer can understand. Good programmers write code that humans can understand.",
+  "The most damaging phrase in the language is: we have always done it this way. Think different. Ship it.",
+];
+
+// ============ STATE ============
+var display = document.getElementById('text-display');
+var target = '';
+var chars = [];
+var currentIdx = 0;
+var errors = 0;
+var totalKeystrokes = 0;
+var startTime = 0;
+var timerInterval = null;
+var state = 'idle'; // idle, typing, done
+var combo = 0;
+var bestCombo = 0;
+var bestWPM = 0;
+
+// Audio
+var audioCtx = null;
+
+// Load best
+try { bestWPM = parseInt(localStorage.getItem('keystrike_best')) || 0; } catch(e) {}
+document.getElementById('best-wpm').textContent = bestWPM > 0 ? bestWPM : '—';
+
+// ============ AUDIO ============
+function initAudio() {
+  if (!audioCtx) {
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  }
+  if (audioCtx.state === 'suspended') audioCtx.resume();
+}
+
+function playKeySound() {
+  if (!audioCtx) return;
+  var osc = audioCtx.createOscillator();
+  var gain = audioCtx.createGain();
+  osc.type = 'square';
+  osc.frequency.value = 800 + Math.random() * 400;
+  gain.gain.setValueAtTime(0.015, audioCtx.currentTime);
+  gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.03);
+  osc.connect(gain);
+  gain.connect(audioCtx.destination);
+  osc.start();
+  osc.stop(audioCtx.currentTime + 0.04);
+}
+
+function playErrorSound() {
+  if (!audioCtx) return;
+  var bufSize = audioCtx.sampleRate * 0.03;
+  var buf = audioCtx.createBuffer(1, bufSize, audioCtx.sampleRate);
+  var data = buf.getChannelData(0);
+  for (var i = 0; i < bufSize; i++) data[i] = Math.random() * 2 - 1;
+  var src = audioCtx.createBufferSource();
+  src.buffer = buf;
+  var gain = audioCtx.createGain();
+  gain.gain.setValueAtTime(0.04, audioCtx.currentTime);
+  gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.04);
+  src.connect(gain);
+  gain.connect(audioCtx.destination);
+  src.start();
+}
+
+// ============ INIT ============
+function loadPassage() {
+  target = PASSAGES[~~(Math.random() * PASSAGES.length)];
+  chars = target.split('');
+  currentIdx = 0;
+  errors = 0;
+  totalKeystrokes = 0;
+  combo = 0;
+  bestCombo = 0;
+  startTime = 0;
+  state = 'idle';
+  if (timerInterval) clearInterval(timerInterval);
+  timerInterval = null;
+  document.getElementById('results').style.display = 'none';
+  document.getElementById('text-display').style.display = 'block';
+  document.getElementById('stats-bar').style.display = 'flex';
+  document.getElementById('hint').style.display = 'block';
+  document.getElementById('s-wpm').textContent = '0';
+  document.getElementById('s-acc').textContent = '100';
+  document.getElementById('s-time').textContent = '0.0';
+  document.getElementById('s-combo').textContent = '0';
+  document.getElementById('combo-counter').textContent = '';
+  renderText();
+  display.focus();
+}
+
+function renderText() {
+  var html = '';
+  for (var i = 0; i < chars.length; i++) {
+    var cls = 'upcoming';
+    if (i < currentIdx) {
+      cls = chars[i] === target[i] ? 'correct' : 'incorrect';
+    } else if (i === currentIdx) {
+      cls = 'current';
+    }
+    var ch = target[i] === ' ' ? '&nbsp;' : escapeHtml(target[i]);
+    html += '<span class="char ' + cls + '">' + ch + '</span>';
+  }
+  display.innerHTML = html;
+
+  // Combo glow
+  if (combo >= 10) {
+    display.classList.add('combo-glow');
+    document.getElementById('combo-counter').textContent = combo;
+  } else {
+    display.classList.remove('combo-glow');
+    document.getElementById('combo-counter').textContent = '';
+  }
+}
+
+function escapeHtml(s) {
+  if (s === '<') return '&lt;';
+  if (s === '>') return '&gt;';
+  if (s === '&') return '&amp;';
+  return s;
+}
+
+// ============ TYPING ============
+function handleKey(e) {
+  if (state === 'done') {
+    if (e.key === 'Tab') { e.preventDefault(); }
+    if (e.key === 'Enter') { loadPassage(); }
+    return;
+  }
+
+  // Tab+Enter restart
+  if (e.key === 'Tab') { e.preventDefault(); return; }
+  if (e.key === 'Enter' && state === 'idle') { return; }
+
+  // Ignore modifiers
+  if (e.ctrlKey || e.metaKey || e.altKey) return;
+  if (e.key.length > 1 && e.key !== 'Backspace') return;
+
+  initAudio();
+
+  if (e.key === 'Backspace') {
+    if (currentIdx > 0) {
+      currentIdx--;
+      combo = 0;
+      playKeySound();
+    }
+    renderText();
+    return;
+  }
+
+  // Start timer on first keystroke
+  if (state === 'idle') {
+    state = 'typing';
+    startTime = performance.now();
+    document.getElementById('hint').style.display = 'none';
+    timerInterval = setInterval(updateLiveStats, 100);
+  }
+
+  if (currentIdx >= chars.length) return;
+
+  totalKeystrokes++;
+  var expected = target[currentIdx];
+
+  if (e.key === expected) {
+    chars[currentIdx] = expected;
+    currentIdx++;
+    combo++;
+    if (combo > bestCombo) bestCombo = combo;
+    playKeySound();
+  } else {
+    chars[currentIdx] = e.key; // Store wrong character so it renders as red
+    currentIdx++; // Advance past the error — user must backspace to fix
+    errors++;
+    combo = 0;
+    playErrorSound();
+    // Micro shake
+    display.classList.remove('shake');
+    void display.offsetWidth;
+    display.classList.add('shake');
+  }
+
+  document.getElementById('s-combo').textContent = combo;
+  renderText();
+
+  // Check completion
+  if (currentIdx >= chars.length) {
+    finishTest();
+  }
+}
+
+function updateLiveStats() {
+  if (state !== 'typing') return;
+  var elapsed = (performance.now() - startTime) / 1000;
+  var minutes = elapsed / 60;
+  var wordsTyped = currentIdx / 5; // Standard: 5 chars = 1 word
+  var wpm = minutes > 0 ? ~~(wordsTyped / minutes) : 0;
+  var accuracy = totalKeystrokes > 0 ? ~~((totalKeystrokes - errors) / totalKeystrokes * 100) : 100;
+  document.getElementById('s-wpm').textContent = wpm;
+  document.getElementById('s-acc').textContent = accuracy;
+  document.getElementById('s-time').textContent = elapsed.toFixed(1);
+}
+
+function finishTest() {
+  state = 'done';
+  if (timerInterval) clearInterval(timerInterval);
+  var elapsed = (performance.now() - startTime) / 1000;
+  var minutes = elapsed / 60;
+  var wordsTyped = target.length / 5;
+  var wpm = ~~(wordsTyped / minutes);
+  var accuracy = totalKeystrokes > 0 ? ~~((totalKeystrokes - errors) / totalKeystrokes * 100) : 100;
+
+  var grade = getGrade(wpm);
+
+  document.getElementById('text-display').style.display = 'none';
+  document.getElementById('stats-bar').style.display = 'none';
+  document.getElementById('results').style.display = 'block';
+  document.getElementById('r-wpm').textContent = wpm;
+  document.getElementById('r-wpm').style.color = grade.color;
+  document.getElementById('r-grade').textContent = grade.text;
+  document.getElementById('r-grade').style.color = grade.color;
+  document.getElementById('r-acc').textContent = accuracy;
+  document.getElementById('r-time').textContent = elapsed.toFixed(1);
+  document.getElementById('r-errors').textContent = errors;
+  document.getElementById('r-combo').textContent = bestCombo;
+
+  // Save best
+  if (wpm > bestWPM) {
+    bestWPM = wpm;
+    try { localStorage.setItem('keystrike_best', bestWPM); } catch(e) {}
+    document.getElementById('best-wpm').textContent = bestWPM;
+  }
+}
+
+function getGrade(wpm) {
+  if (wpm >= 120) return { text: 'LEGENDARY', color: '#a78bfa' };
+  if (wpm >= 90) return { text: 'BLAZING', color: '#0ff' };
+  if (wpm >= 70) return { text: 'FAST', color: '#3fb950' };
+  if (wpm >= 50) return { text: 'SOLID', color: '#d29922' };
+  if (wpm >= 30) return { text: 'WARMING UP', color: '#f0883e' };
+  return { text: 'HUNT & PECK', color: '#f85149' };
+}
+
+function shareScore() {
+  var elapsed = (performance.now() - startTime) / 1000;
+  var wpm = document.getElementById('r-wpm').textContent;
+  var acc = document.getElementById('r-acc').textContent;
+  var grade = document.getElementById('r-grade').textContent;
+  var text = 'KEY/STRIKE: ' + wpm + ' WPM / ' + acc + '% accuracy (' + grade + '). Your fingers are too slow. Beat me.';
+  navigator.clipboard.writeText(text).then(function() {
+    document.getElementById('btn-share').textContent = 'Copied!';
+    setTimeout(function() { document.getElementById('btn-share').textContent = 'Copy Score'; }, 1500);
+  });
+}
+
+// ============ INPUT ============
+document.addEventListener('keydown', handleKey);
+document.getElementById('btn-retry').addEventListener('click', loadPassage);
+document.getElementById('btn-share').addEventListener('click', shareScore);
+
+// Focus on click
+document.addEventListener('click', function() { display.focus(); });
+
+// Init
+loadPassage();
+})();
+</script>
+</body>
+</html>
