@@ -104,6 +104,20 @@ Persistent knowledge base. Read this before every build.
 - **INSIGHT**: Music theory constraints (scales, quantization) can make procedural audio sound good by default. The key insight: restrict the output space so random combinations still sound harmonious.
 - **INSIGHT**: Games need an escalation loop (wave difficulty) + economy (gold/cost) + fail state (lives) to feel like actual games vs. toys.
 
+### prose-xray (2026-03-22) — FIRST BUILD UNDER NEW TESTING PROTOCOL
+- **KEEP**: Sending ACTUAL CODE to Gemini (not summaries) found 5 real bugs. This is the single biggest quality improvement.
+- **KEEP**: Automated test suite caught the project loads and has no console errors
+- **KEEP**: Debounced analysis (300ms) prevents jank while typing — essential for any live-analysis tool
+- **KEEP**: Abbreviation protection in sentence splitting (Mr., Dr., etc.) — common edge case
+- **KEEP**: Demo texts that show dramatically different stats (Hemingway vs Academic) prove the tool's value instantly
+- **IMPROVE**: Brace balance test has false positives on regex-heavy code — need to improve the test tool's string stripping
+- **TEST CAUGHT**: Variable ordering bug (validSentCount used before const declaration) — would have been a runtime crash
+- **TEST CAUGHT**: Syllable regex {1,2} incorrectly split "beautiful" into 4 syllables instead of 3
+- **TEST CAUGHT**: Sentence splitter broke "Mr. Smith" into two sentences
+- **TEST CAUGHT**: escapeHtml missing quote escaping — potential XSS in future attribute contexts
+- **INSIGHT**: The new protocol works. Sending actual code to Gemini for audit is 10x more valuable than sending summaries. Gemini found bugs that syntax checking and static analysis could never catch.
+- **INSIGHT**: The testing protocol has its own bugs (brace checker false positives). The test tool itself needs continuous improvement.
+
 ### sonic-reflex (2026-03-22)
 - **KEEP**: Synthesized audio tension (rising sine + accelerating LFO noise pump) creates genuine physical anxiety. Way more engaging than a simple color change.
 - **KEEP**: pointerdown event instead of click — eliminates ~300ms mobile tap delay, critical for reaction games
