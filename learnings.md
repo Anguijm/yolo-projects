@@ -104,6 +104,21 @@ Persistent knowledge base. Read this before every build.
 - **INSIGHT**: Music theory constraints (scales, quantization) can make procedural audio sound good by default. The key insight: restrict the output space so random combinations still sound harmonious.
 - **INSIGHT**: Games need an escalation loop (wave difficulty) + economy (gold/cost) + fail state (lives) to feel like actual games vs. toys.
 
+### breath-pacer (2026-03-22) — FIRST MOBILE-FIRST PWA BUILD
+- **KEEP**: OLED black (#000) saves battery and looks premium on modern phones
+- **KEEP**: Screen Wake Lock API prevents screen dimming during sessions — critical for breathing apps
+- **KEEP**: WakeLock release event listener + re-acquisition on visibilitychange — handles OS-level revocation
+- **KEEP**: CSS transform: scale() for circle animation — hardware accelerated, silky smooth on mobile
+- **KEEP**: Haptic feedback (navigator.vibrate) on phase transitions — genuine mobile-only feature
+- **KEEP**: Solfeggio-adjacent frequencies (396/432/528 Hz) feel genuinely calming vs arbitrary tones
+- **KEEP**: Dual event handling (pointerdown + click with dedup flag) — pointerdown for speed, click for iOS audio compat
+- **TEST CAUGHT (via Gemini audit)**: Tab-inactive dt catch-up — returning after 30s caused 30+ rapid phase transitions. Capping dt > 2s to 0 prevents this.
+- **TEST CAUGHT (via Gemini audit)**: WakeLock leaked on repeated start/stop — overwrote reference without releasing previous lock
+- **TEST CAUGHT (via Gemini audit)**: iOS WebKit may not honor pointerdown for AudioContext resume — needs click fallback
+- **INSIGHT**: Mobile-first PWAs need: viewport meta (with user-scalable=no), apple-mobile-web-app-capable, theme-color, touch-action: manipulation, -webkit-tap-highlight-color: transparent. This is a checklist, not optional.
+- **INSIGHT**: requestAnimationFrame pauses when tab is hidden but performance.now() keeps counting. ALWAYS cap dt in tick functions to prevent physics/state explosions on return.
+- **INSIGHT**: The best mobile apps are the ones that leverage mobile-ONLY features (wake lock, haptics, camera, accelerometer) that desktops simply can't do.
+
 ### pendulum-waves (2026-03-22)
 - **KEEP**: Sub-stepped physics (4 steps per frame) prevents instability at high gravity values
 - **KEEP**: HSL hue mapped to pendulum index creates instant rainbow beauty — zero effort, maximum visual impact

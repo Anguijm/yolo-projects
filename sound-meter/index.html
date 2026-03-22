@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="theme-color" content="#000000">
+<title>dB</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { height: 100%; background: #000; color: #fff; font-family: 'Segoe UI', system-ui, sans-serif; overflow: hidden; touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+
+#app { height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; position: relative; }
+
+/* Start screen */
+#start { display: flex; flex-direction: column; align-items: center; gap: 16px; }
+#start.hidden { display: none; }
+#start h1 { font-size: 4rem; font-weight: 100; letter-spacing: 0.1em; color: #333; }
+#start p { font-size: 0.8rem; color: #1a1a1a; max-width: 280px; text-align: center; line-height: 1.5; }
+#start button { padding: 12px 32px; background: transparent; border: 1px solid #222; color: #555; border-radius: 30px; font-family: inherit; font-size: 0.85rem; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+
+/* Meter view */
+#meter { display: none; flex-direction: column; align-items: center; justify-content: center; width: 100%; height: 100%; }
+#meter.active { display: flex; }
+
+#db-value { font-size: clamp(6rem, 25vw, 14rem); font-weight: 900; font-family: monospace; letter-spacing: -0.05em; transition: color 0.15s; line-height: 1; }
+#db-unit { font-size: 1rem; font-weight: 200; color: #333; letter-spacing: 0.3em; margin-top: -4px; }
+#db-label { font-size: 0.7rem; color: #333; letter-spacing: 0.2em; text-transform: uppercase; margin-top: 12px; }
+
+/* Stats bar */
+#stats { position: absolute; bottom: 20px; left: 0; right: 0; display: flex; justify-content: center; gap: 24px; }
+.stat { text-align: center; }
+.stat-val { font-size: 1.2rem; font-weight: 700; color: #444; font-family: monospace; }
+.stat-label { font-size: 0.5rem; color: #222; text-transform: uppercase; letter-spacing: 0.15em; }
+
+/* Level bar */
+#level-bar { position: absolute; bottom: 0; left: 0; height: 3px; background: #333; transition: width 0.1s, background 0.3s; }
+
+/* Controls */
+#controls { position: absolute; top: 16px; right: 16px; display: flex; gap: 8px; }
+.ctrl-btn { width: 36px; height: 36px; border-radius: 50%; background: transparent; border: 1px solid #1a1a1a; color: #333; font-size: 0.7rem; cursor: pointer; display: flex; align-items: center; justify-content: center; -webkit-tap-highlight-color: transparent; }
+
+/* History */
+#history { position: absolute; top: 16px; left: 16px; font-size: 0.5rem; color: #1a1a1a; }
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="start">
+    <h1>dB</h1>
+    <p>Measure the sound level around you. Tap to start listening.</p>
+    <button id="btn-start">LISTEN</button>
+  </div>
+
+  <div id="meter">
+    <div id="db-value">0</div>
+    <div id="db-unit">DECIBELS</div>
+    <div id="db-label">QUIET</div>
+    <div id="stats">
+      <div class="stat"><div class="stat-val" id="s-peak">0</div><div class="stat-label">Peak</div></div>
+      <div class="stat"><div class="stat-val" id="s-avg">0</div><div class="stat-label">Avg</div></div>
+      <div class="stat"><div class="stat-val" id="s-min">—</div><div class="stat-label">Min</div></div>
+    </div>
+    <div id="level-bar"></div>
+    <div id="controls">
+      <button class="ctrl-btn" id="btn-reset" title="Reset">R</button>
+      <button class="ctrl-btn" id="btn-stop" title="Stop">X</button>
+    </div>
+    <div id="history" id="history-text"></div>
+  </div>
+</div>
+
+<script>
+(function() {
+'use strict';
+
+// ============ CONFIG ============
+var LOUD_THRESHOLD = 85; // dB — trigger haptic above this
+var SMOOTHING = 0.8;
+var DB_FLOOR = 20; // Minimum meaningful dB reading
+var DB_CEIL = 120;
+
+// ============ STATE ============
+var audioCtx = null;
+var analyser = null;
+var stream = null;
+var running = false;
+var animId = null;
+var wakeLock = null;
+var dataArray = null;
+
+var peakDb = 0;
+var minDb = 999;
+var dbHistory = [];
+var sampleCount = 0;
+var dbSum = 0;
+var lastVibrateTime = 0;
+var VIBRATE_COOLDOWN = 1000; // Only vibrate once per second
+
+// DOM
+var dbValueEl = document.getElementById('db-value');
+var dbLabelEl = document.getElementById('db-label');
+var levelBar = document.getElementById('level-bar');
+var peakEl = document.getElementById('s-peak');
+var avgEl = document.getElementById('s-avg');
+var minEl = document.getElementById('s-min');
+
+// ============ AUDIO ============
+async function startListening() {
+  if (running) return; // Guard against double-start
+
+  // Create AudioContext synchronously BEFORE async await (iOS requirement)
+  if (!audioCtx) {
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  }
+  if (audioCtx.state === 'suspended') {
+    try { await audioCtx.resume(); } catch (e) {}
+  }
+
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+  } catch (e) {
+    document.querySelector('#start p').textContent = 'Microphone access denied. Please allow and refresh.';
+    return;
+  }
+  var source = audioCtx.createMediaStreamSource(stream);
+  analyser = audioCtx.createAnalyser();
+  analyser.fftSize = 2048;
+  analyser.smoothingTimeConstant = SMOOTHING;
+  source.connect(analyser);
+  dataArray = new Float32Array(analyser.fftSize);
+
+  running = true;
+  peakDb = 0;
+  minDb = 999;
+  dbHistory = [];
+  sampleCount = 0;
+  dbSum = 0;
+
+  document.getElementById('start').classList.add('hidden');
+  document.getElementById('meter').classList.add('active');
+
+  requestWakeLock();
+  animId = requestAnimationFrame(tick);
+}
+
+// ============ dB CALCULATION ============
+function calculateDb() {
+  analyser.getFloatTimeDomainData(dataArray);
+  var sumSquares = 0;
+  for (var i = 0; i < dataArray.length; i++) {
+    sumSquares += dataArray[i] * dataArray[i];
+  }
+  var rms = Math.sqrt(sumSquares / dataArray.length);
+  // Convert RMS to approximate dB SPL (calibrated roughly)
+  // Real calibration would need a reference mic, but this gives relative readings
+  var db = 20 * Math.log10(Math.max(rms, 1e-10)) + 94; // +94 dB to approximate SPL from digital full scale
+  return Math.max(DB_FLOOR, Math.min(DB_CEIL, db));
+}
+
+// ============ TICK ============
+function tick() {
+  if (!running) return;
+
+  var db = calculateDb();
+  var dbRound = Math.round(db);
+
+  // Update display
+  dbValueEl.textContent = dbRound;
+
+  // Color based on level
+  var color, label;
+  if (db < 40) { color = '#333'; label = 'QUIET'; }
+  else if (db < 60) { color = '#3fb950'; label = 'MODERATE'; }
+  else if (db < 75) { color = '#d29922'; label = 'LOUD'; }
+  else if (db < 85) { color = '#f0883e'; label = 'VERY LOUD'; }
+  else { color = '#f85149'; label = 'DANGEROUS'; }
+
+  dbValueEl.style.color = color;
+  dbLabelEl.textContent = label;
+  dbLabelEl.style.color = color;
+
+  // Level bar
+  var pct = Math.max(0, Math.min(100, ((db - DB_FLOOR) / (DB_CEIL - DB_FLOOR)) * 100));
+  levelBar.style.width = pct + '%';
+  levelBar.style.background = color;
+
+  // Stats
+  if (db > peakDb) peakDb = db;
+  if (db < minDb) minDb = db;
+  sampleCount++;
+  dbSum += db;
+
+  peakEl.textContent = Math.round(peakDb);
+  peakEl.style.color = peakDb >= LOUD_THRESHOLD ? '#f85149' : '#444';
+  avgEl.textContent = Math.round(dbSum / sampleCount);
+  minEl.textContent = minDb < 999 ? Math.round(minDb) : '—';
+
+  // Haptic on loud threshold (throttled to prevent spam)
+  if (db >= LOUD_THRESHOLD && navigator.vibrate) {
+    var now = performance.now();
+    if (now - lastVibrateTime > VIBRATE_COOLDOWN) {
+      navigator.vibrate(30);
+      lastVibrateTime = now;
+    }
+  }
+
+  animId = requestAnimationFrame(tick);
+}
+
+// ============ WAKE LOCK ============
+async function requestWakeLock() {
+  if (wakeLock !== null) return;
+  try {
+    if ('wakeLock' in navigator) {
+      wakeLock = await navigator.wakeLock.request('screen');
+      wakeLock.addEventListener('release', function() { wakeLock = null; });
+    }
+  } catch (e) {}
+}
+
+function releaseWakeLock() {
+  if (wakeLock !== null) {
+    wakeLock.release().catch(function() {});
+    wakeLock = null;
+  }
+}
+
+// Re-acquire on visibility change
+document.addEventListener('visibilitychange', function() {
+  if (document.visibilityState === 'visible' && running) {
+    requestWakeLock();
+    // Resume AudioContext if OS suspended it while backgrounded
+    if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+  }
+});
+
+// ============ CONTROLS ============
+function stopListening() {
+  running = false;
+  if (animId) cancelAnimationFrame(animId);
+  if (stream) {
+    stream.getTracks().forEach(function(t) { t.stop(); });
+    stream = null;
+  }
+  if (audioCtx) {
+    audioCtx.close().catch(function() {});
+    audioCtx = null;
+  }
+  releaseWakeLock();
+  document.getElementById('meter').classList.remove('active');
+  document.getElementById('start').classList.remove('hidden');
+  document.querySelector('#start button').textContent = 'LISTEN AGAIN';
+}
+
+// Dual event handling for iOS compat
+var startHandled = false;
+function handleStart(e) {
+  e.preventDefault();
+  if (startHandled) { startHandled = false; return; }
+  startHandled = true;
+  setTimeout(function() { startHandled = false; }, 300);
+  startListening();
+}
+
+document.getElementById('btn-start').addEventListener('pointerdown', handleStart);
+document.getElementById('btn-start').addEventListener('click', handleStart);
+
+document.getElementById('btn-stop').addEventListener('pointerdown', function(e) {
+  e.preventDefault();
+  stopListening();
+});
+
+document.getElementById('btn-reset').addEventListener('pointerdown', function(e) {
+  e.preventDefault();
+  peakDb = 0;
+  minDb = 999;
+  sampleCount = 0;
+  dbSum = 0;
+  peakEl.textContent = '0';
+  avgEl.textContent = '0';
+  minEl.textContent = '—';
+});
+
+})();
+</script>
+</body>
+</html>
