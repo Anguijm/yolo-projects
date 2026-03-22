@@ -104,6 +104,23 @@ Persistent knowledge base. Read this before every build.
 - **INSIGHT**: Music theory constraints (scales, quantization) can make procedural audio sound good by default. The key insight: restrict the output space so random combinations still sound harmonious.
 - **INSIGHT**: Games need an escalation loop (wave difficulty) + economy (gold/cost) + fail state (lives) to feel like actual games vs. toys.
 
+### neon-snake (2026-03-22)
+- **KEEP**: HSL gradient on snake segments `(i * 8 + Date.now() * 0.02) % 360` — creates animated rainbow ribbon with zero effort
+- **KEEP**: globalCompositeOperation = 'lighter' + shadowBlur = instant neon glow aesthetic
+- **KEEP**: Layered oscillators (sine + detuned triangle at freq * 1.002) creates shimmer/chorus effect
+- **KEEP**: Swipe controls with min threshold (20px) prevents accidental direction changes
+- **KEEP**: Only preventDefault on handled keys — global preventDefault blocks browser functions (F5, devtools)
+- **KEEP**: touchmove preventDefault during gameplay — prevents mobile page scroll/refresh during swipes
+- **TEST CAUGHT (automated)**: Dynamic ID not in HTML caused test failure. Fixed by adding element to HTML.
+- **TEST CAUGHT (automated)**: Uninitialized snake array caused console error before game start. Fixed with empty array default.
+- **TEST CAUGHT (via Gemini audit)**: e.preventDefault() on every keydown — blocked F5, Ctrl+C, etc. Must only prevent game keys.
+- **TEST CAUGHT (via Gemini audit)**: getElementById in 60fps render loop — redundant DOM query killed performance. Removed.
+- **TEST CAUGHT (via Gemini audit)**: No touchmove handler — swipe gestures scrolled the page instead of steering.
+- **TEST CAUGHT (via Gemini audit)**: No win state — snake filling grid caused infinite spawnFood loop.
+- **INSIGHT**: DOM queries in render loops are performance killers. Cache element references at init, NEVER query during animation.
+- **INSIGHT**: Mobile games MUST prevent touchmove during active gameplay — otherwise the browser interprets swipes as scroll/pull-to-refresh.
+- **INSIGHT**: Game state must handle ALL terminal conditions: lose (collision), AND win (board full). Missing the win state = infinite loop.
+
 ### gradient-studio (2026-03-22) — FIRST CLICK-ONLY BUILD (no pointerdown)
 - **KEEP**: Fullscreen preview IS the UI — no separate preview panel needed. Body background = product.
 - **KEEP**: Glassmorphic control panel (backdrop-filter blur + rgba background) looks premium over content

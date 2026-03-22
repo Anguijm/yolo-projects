@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="theme-color" content="#000000">
+<title>Secure Note</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { height: 100%; background: #000; color: #ccc; font-family: 'Courier New', monospace; overflow: hidden; touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+#app { height: 100%; display: flex; flex-direction: column; }
+
+/* Lock screen */
+#lock-screen { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; padding: 20px; }
+#lock-screen.hidden { display: none; }
+#lock-screen h1 { font-size: 1.2rem; font-weight: 200; color: #333; letter-spacing: 0.2em; }
+#lock-screen input { width: 100%; max-width: 280px; background: #0a0a0a; border: 1px solid #1a1a1a; color: #fff; padding: 12px 16px; font-family: inherit; font-size: 1rem; border-radius: 6px; outline: none; text-align: center; letter-spacing: 0.1em; }
+#lock-screen input:focus { border-color: #333; }
+#lock-screen input::placeholder { color: #1a1a1a; }
+.lock-btn { padding: 10px 32px; background: transparent; border: 1px solid #222; color: #555; border-radius: 20px; font-family: inherit; font-size: 0.8rem; cursor: pointer; }
+.lock-btn:active { border-color: #888; color: #fff; }
+#lock-error { font-size: 0.7rem; color: #f85149; min-height: 18px; }
+#lock-warning { font-size: 0.55rem; color: #1a1a1a; max-width: 280px; text-align: center; line-height: 1.5; margin-top: 8px; }
+
+/* Editor */
+#editor-view { display: none; flex: 1; flex-direction: column; }
+#editor-view.active { display: flex; }
+#editor-bar { display: flex; align-items: center; padding: 8px 14px; background: #0a0a0a; border-bottom: 1px solid #111; }
+#editor-bar .title { font-size: 0.7rem; color: #333; letter-spacing: 0.15em; flex: 1; }
+.bar-btn { background: none; border: 1px solid #1a1a1a; color: #444; padding: 4px 12px; border-radius: 12px; font-family: inherit; font-size: 0.6rem; cursor: pointer; margin-left: 6px; }
+.bar-btn:active { border-color: #555; color: #888; }
+#editor { flex: 1; background: #000; border: none; color: #ccc; padding: 16px; font-family: 'Courier New', monospace; font-size: 0.9rem; line-height: 1.7; resize: none; outline: none; }
+#editor::placeholder { color: #111; }
+#save-status { font-size: 0.5rem; color: #1a1a1a; padding: 4px 14px; background: #0a0a0a; border-top: 1px solid #111; }
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="lock-screen">
+    <h1>SECURE NOTE</h1>
+    <input type="password" id="pw-input" placeholder="password" autocomplete="new-password" spellcheck="false">
+    <button class="lock-btn" id="btn-unlock">Unlock</button>
+    <div id="lock-error"></div>
+    <div id="lock-warning">Your notes are encrypted locally. No server, no cloud. If you forget your password, your notes are gone forever.</div>
+  </div>
+  <div id="editor-view">
+    <div id="editor-bar">
+      <span class="title">SECURE NOTE</span>
+      <button class="bar-btn" id="btn-lock">Lock</button>
+      <button class="bar-btn" id="btn-clear">Clear</button>
+    </div>
+    <textarea id="editor" placeholder="Start typing..."></textarea>
+    <div id="save-status">Ready</div>
+  </div>
+</div>
+
+<script>
+(function() {
+'use strict';
+
+var STORAGE_KEY = 'secure_note_data';
+var ITERATIONS = 600000; // OWASP-recommended for PBKDF2-HMAC-SHA256
+var derivedKey = null;
+var currentSalt = null;
+var saveTimer = null;
+var isNewUser = false;
+var hasUnsavedChanges = false;
+
+// ============ CRYPTO ============
+function generateSalt() {
+  return crypto.getRandomValues(new Uint8Array(16));
+}
+
+function generateIV() {
+  return crypto.getRandomValues(new Uint8Array(12));
+}
+
+async function deriveKey(password, salt) {
+  var enc = new TextEncoder();
+  var keyMaterial = await crypto.subtle.importKey(
+    'raw', enc.encode(password), 'PBKDF2', false, ['deriveKey']
+  );
+  return crypto.subtle.deriveKey(
+    { name: 'PBKDF2', salt: salt, iterations: ITERATIONS, hash: 'SHA-256' },
+    keyMaterial,
+    { name: 'AES-GCM', length: 256 },
+    false,
+    ['encrypt', 'decrypt']
+  );
+}
+
+async function encryptText(text, key) {
+  var enc = new TextEncoder();
+  var iv = generateIV();
+  var ciphertext = await crypto.subtle.encrypt(
+    { name: 'AES-GCM', iv: iv },
+    key,
+    enc.encode(text)
+  );
+  return { iv: iv, ciphertext: new Uint8Array(ciphertext) };
+}
+
+async function decryptText(ciphertextBytes, iv, key) {
+  var decrypted = await crypto.subtle.decrypt(
+    { name: 'AES-GCM', iv: iv },
+    key,
+    ciphertextBytes
+  );
+  return new TextDecoder().decode(decrypted);
+}
+
+// ============ STORAGE ============
+function uint8ToBase64(arr) {
+  var binary = '';
+  for (var i = 0; i < arr.length; i++) binary += String.fromCharCode(arr[i]);
+  return btoa(binary);
+}
+
+function base64ToUint8(b64) {
+  var binary = atob(b64);
+  var arr = new Uint8Array(binary.length);
+  for (var i = 0; i < binary.length; i++) arr[i] = binary.charCodeAt(i);
+  return arr;
+}
+
+function saveEncrypted(salt, iv, ciphertext) {
+  var payload = {
+    salt: uint8ToBase64(salt),
+    iv: uint8ToBase64(iv),
+    ciphertext: uint8ToBase64(ciphertext)
+  };
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
+    setStatus('Saved');
+  } catch (e) {
+    setStatus('Storage full');
+  }
+}
+
+function loadPayload() {
+  try {
+    var raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return null;
+    var payload = JSON.parse(raw);
+    if (!payload || !payload.salt || !payload.iv || !payload.ciphertext) return null;
+    return {
+      salt: base64ToUint8(payload.salt),
+      iv: base64ToUint8(payload.iv),
+      ciphertext: base64ToUint8(payload.ciphertext)
+    };
+  } catch (e) {
+    return null;
+  }
+}
+
+function hasExistingData() {
+  return loadPayload() !== null;
+}
+
+// ============ UI ============
+function setStatus(msg) {
+  document.getElementById('save-status').textContent = msg;
+}
+
+function showLock() {
+  derivedKey = null;
+  document.getElementById('editor').value = '';
+  document.getElementById('lock-screen').classList.remove('hidden');
+  document.getElementById('editor-view').classList.remove('active');
+  document.getElementById('pw-input').value = '';
+  document.getElementById('lock-error').textContent = '';
+
+  isNewUser = !hasExistingData();
+  document.getElementById('btn-unlock').textContent = isNewUser ? 'Create' : 'Unlock';
+  document.getElementById('pw-input').placeholder = isNewUser ? 'set a password' : 'password';
+}
+
+function showEditor(text) {
+  document.getElementById('lock-screen').classList.add('hidden');
+  document.getElementById('editor-view').classList.add('active');
+  document.getElementById('editor').value = text;
+  document.getElementById('editor').focus();
+  setStatus('Unlocked');
+}
+
+// ============ UNLOCK / CREATE ============
+async function handleUnlock() {
+  var password = document.getElementById('pw-input').value;
+  if (password.length < 1) {
+    document.getElementById('lock-error').textContent = 'Enter a password';
+    return;
+  }
+  if (isNewUser && password.length < 8) {
+    document.getElementById('lock-error').textContent = 'Min 8 characters for new password';
+    return;
+  }
+
+  if (isNewUser) {
+    // First time — create new encrypted note
+    currentSalt = generateSalt();
+    try {
+      derivedKey = await deriveKey(password, currentSalt);
+    } catch (e) {
+      document.getElementById('lock-error').textContent = 'Crypto error';
+      return;
+    }
+    // Save empty note to establish the salt
+    var encrypted = await encryptText('', derivedKey);
+    saveEncrypted(currentSalt, encrypted.iv, encrypted.ciphertext);
+    showEditor('');
+  } else {
+    // Returning user — decrypt
+    var payload = loadPayload();
+    if (!payload) {
+      document.getElementById('lock-error').textContent = 'Data corrupted';
+      return;
+    }
+    currentSalt = payload.salt;
+    try {
+      derivedKey = await deriveKey(password, currentSalt);
+      var text = await decryptText(payload.ciphertext, payload.iv, derivedKey);
+      showEditor(text);
+    } catch (e) {
+      document.getElementById('lock-error').textContent = 'Wrong password';
+      derivedKey = null;
+    }
+  }
+}
+
+// ============ AUTO-SAVE ============
+async function autoSave() {
+  if (!derivedKey || !currentSalt) return;
+  var text = document.getElementById('editor').value;
+  try {
+    var encrypted = await encryptText(text, derivedKey);
+    saveEncrypted(currentSalt, encrypted.iv, encrypted.ciphertext);
+  } catch (e) {
+    setStatus('Save error');
+  }
+}
+
+function scheduleAutoSave() {
+  hasUnsavedChanges = true;
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(function() {
+    autoSave().then(function() { hasUnsavedChanges = false; });
+  }, 500);
+  setStatus('Typing...');
+}
+
+// Warn on close with unsaved changes
+window.addEventListener('beforeunload', function(e) {
+  if (hasUnsavedChanges && derivedKey) {
+    e.preventDefault();
+    e.returnValue = 'You have unsaved changes.';
+  }
+});
+
+// ============ AUTO-LOCK ============
+document.addEventListener('visibilitychange', function() {
+  if (document.visibilityState === 'hidden' && derivedKey) {
+    // Auto-save before locking
+    autoSave().then(function() {
+      showLock();
+    });
+  }
+});
+
+// ============ EVENT HANDLERS (click only) ============
+document.getElementById('btn-unlock').addEventListener('click', handleUnlock);
+document.getElementById('pw-input').addEventListener('keydown', function(e) {
+  if (e.key === 'Enter') handleUnlock();
+});
+
+document.getElementById('editor').addEventListener('input', scheduleAutoSave);
+
+document.getElementById('btn-lock').addEventListener('click', function() {
+  autoSave().then(function() { showLock(); });
+});
+
+document.getElementById('btn-clear').addEventListener('click', function() {
+  if (confirm('Clear all notes? This cannot be undone.')) {
+    document.getElementById('editor').value = '';
+    autoSave();
+  }
+});
+
+// ============ INIT ============
+showLock();
+})();
+</script>
+</body>
+</html>
