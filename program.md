@@ -17,6 +17,10 @@ These are non-negotiable. Every single build must follow these without exception
 - **Just build it.** Don't ask clarifying questions. Make your best assumptions and go.
 - **Keep the scope small.** Build the simplest possible version that proves the idea works. No feature creep.
 - **Every project must have a UI.** No CLI-only tools. Build a web interface (single HTML file, or Python serving HTML) that I can open in a browser. Default stack: Python for backend, single-file HTML for the frontend. Only deviate if the idea specifically requires something else.
+- **Mobile-first PWA.** Every project must work on mobile. Design touch-first: use `pointerdown` not just `click`, ensure tap targets are large enough, test at narrow viewport widths. Include a `<meta name="viewport">` tag. Include a web app manifest and service worker for offline support where feasible. At minimum:
+  - Responsive layout that doesn't break at 375px width
+  - Touch-friendly controls (no hover-only interactions, no right-click-only features without alternatives)
+  - `<meta name="apple-mobile-web-app-capable" content="yes">` for iOS home screen support
 - **Use all available tools freely.** You have full permission to read, write, execute, search, and install packages. Don't hold back — if you need to `pip install` something, fetch a URL, or run a dev server, just do it.
 - **If you're stuck on one approach for more than 15 minutes**, try a completely different approach. Don't spiral.
 - **Save all work** to `~/yolo_projects/<project-name>/` with a clear folder name.
