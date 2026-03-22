@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="theme-color" content="#000000">
+<title>Tic Tac Toe</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { height: 100%; background: #000; color: #ccc; font-family: 'Segoe UI', system-ui, sans-serif; overflow: hidden; touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+#app { height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px; }
+
+#board { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; width: min(80vw, 300px); aspect-ratio: 1; }
+.cell { background: #0a0a0a; border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: clamp(2.5rem, 12vw, 5rem); font-weight: 200; cursor: pointer; aspect-ratio: 1; transition: background 0.1s; }
+.cell:active { background: #111; }
+.cell.x { color: #58a6ff; }
+.cell.o { color: #f0883e; }
+.cell.win { background: #111; }
+
+#status { font-size: 1rem; color: #555; min-height: 1.5em; font-weight: 300; letter-spacing: 0.1em; }
+#status.win { color: #3fb950; }
+#status.lose { color: #f85149; }
+#status.draw { color: #d29922; }
+
+#controls { display: flex; gap: 6px; }
+.ctrl-btn { padding: 6px 16px; background: transparent; border: 1px solid #1a1a1a; color: #555; border-radius: 8px; font-size: 0.7rem; cursor: pointer; font-family: inherit; }
+.ctrl-btn.active { border-color: #58a6ff; color: #58a6ff; }
+
+#score { font-size: 0.6rem; color: #222; font-family: monospace; }
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="status">Your turn</div>
+  <div id="board"></div>
+  <div id="controls">
+    <button class="ctrl-btn active" data-diff="hard">Unbeatable</button>
+    <button class="ctrl-btn" data-diff="easy">Easy</button>
+    <button class="ctrl-btn" id="btn-reset">New Game</button>
+  </div>
+  <div id="score"></div>
+</div>
+
+<script>
+(function() {
+'use strict';
+
+var board = [0,0,0,0,0,0,0,0,0]; // 0=empty, 1=X(human), 2=O(AI)
+var gameOver = false;
+var aiThinking = false; // Prevent click spam during AI delay
+var difficulty = 'hard';
+var wins = 0, losses = 0, draws = 0;
+var audioCtx = null;
+
+var LINES = [[0,1,2],[3,4,5],[6,7,8],[0,3,6],[1,4,7],[2,5,8],[0,4,8],[2,4,6]];
+
+try {
+  var s = JSON.parse(localStorage.getItem('ttt_score'));
+  if (s) { wins = s.w || 0; losses = s.l || 0; draws = s.d || 0; }
+} catch(e) {}
+updateScore();
+
+// ============ AUDIO ============
+function initAudio() {
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  if (audioCtx.state === 'suspended') audioCtx.resume().catch(function(){});
+}
+
+function playPlace() {
+  if (!audioCtx) return;
+  var osc = audioCtx.createOscillator(); var gain = audioCtx.createGain();
+  osc.type = 'sine'; osc.frequency.value = 500;
+  gain.gain.setValueAtTime(0.04, audioCtx.currentTime);
+  gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.06);
+  osc.connect(gain); gain.connect(audioCtx.destination);
+  osc.start(); osc.stop(audioCtx.currentTime + 0.08);
+}
+
+function playWin() {
+  if (!audioCtx) return;
+  var now = audioCtx.currentTime;
+  [523,659,784].forEach(function(f, i) {
+    var osc = audioCtx.createOscillator(); var gain = audioCtx.createGain();
+    osc.type = 'sine'; osc.frequency.value = f;
+    gain.gain.setValueAtTime(0.06, now + i*0.08);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + i*0.08 + 0.2);
+    osc.connect(gain); gain.connect(audioCtx.destination);
+    osc.start(now + i*0.08); osc.stop(now + i*0.08 + 0.25);
+  });
+}
+
+// ============ BOARD UI ============
+function buildBoard() {
+  var el = document.getElementById('board');
+  el.innerHTML = '';
+  for (var i = 0; i < 9; i++) {
+    var cell = document.createElement('div');
+    cell.className = 'cell';
+    cell.dataset.idx = i;
+    el.appendChild(cell);
+  }
+}
+
+function renderBoard() {
+  var cells = document.getElementById('board').children;
+  for (var i = 0; i < 9; i++) {
+    cells[i].textContent = board[i] === 1 ? 'X' : board[i] === 2 ? 'O' : '';
+    cells[i].className = 'cell';
+    if (board[i] === 1) cells[i].classList.add('x');
+    if (board[i] === 2) cells[i].classList.add('o');
+  }
+}
+
+function highlightWin(line) {
+  var cells = document.getElementById('board').children;
+  for (var i = 0; i < line.length; i++) cells[line[i]].classList.add('win');
+}
+
+function updateScore() {
+  document.getElementById('score').textContent = 'W:' + wins + ' L:' + losses + ' D:' + draws;
+}
+
+// ============ GAME LOGIC ============
+function checkWin(b) {
+  for (var i = 0; i < LINES.length; i++) {
+    var a = LINES[i][0], c = LINES[i][1], d = LINES[i][2];
+    if (b[a] && b[a] === b[c] && b[a] === b[d]) return { winner: b[a], line: LINES[i] };
+  }
+  if (b.indexOf(0) === -1) return { winner: 0, line: null }; // Draw
+  return null;
+}
+
+function minimax(b, isMaximizing, depth) {
+  var result = checkWin(b);
+  if (result) {
+    if (result.winner === 2) return 10 - depth; // AI wins
+    if (result.winner === 1) return depth - 10; // Human wins
+    return 0; // Draw
+  }
+  if (isMaximizing) {
+    var best = -Infinity;
+    for (var i = 0; i < 9; i++) {
+      if (b[i] === 0) {
+        b[i] = 2;
+        best = Math.max(best, minimax(b, false, depth + 1));
+        b[i] = 0;
+      }
+    }
+    return best;
+  } else {
+    var best = Infinity;
+    for (var i = 0; i < 9; i++) {
+      if (b[i] === 0) {
+        b[i] = 1;
+        best = Math.min(best, minimax(b, true, depth + 1));
+        b[i] = 0;
+      }
+    }
+    return best;
+  }
+}
+
+function aiMove() {
+  if (gameOver) return;
+  var bestScore = -Infinity;
+  var bestMove = -1;
+
+  if (difficulty === 'easy' && Math.random() < 0.4) {
+    // Easy: 40% chance of random move
+    var empty = [];
+    for (var i = 0; i < 9; i++) { if (board[i] === 0) empty.push(i); }
+    bestMove = empty[Math.floor(Math.random() * empty.length)];
+  } else {
+    // Hard: minimax
+    for (var i = 0; i < 9; i++) {
+      if (board[i] === 0) {
+        board[i] = 2;
+        var score = minimax(board, false, 0);
+        board[i] = 0;
+        if (score > bestScore) { bestScore = score; bestMove = i; }
+      }
+    }
+  }
+
+  if (bestMove >= 0) {
+    board[bestMove] = 2;
+    playPlace();
+    renderBoard();
+    checkEnd();
+  }
+}
+
+function checkEnd() {
+  var result = checkWin(board);
+  if (!result) return;
+  gameOver = true;
+  var statusEl = document.getElementById('status');
+  if (result.winner === 1) {
+    statusEl.textContent = 'You win!';
+    statusEl.className = 'win';
+    wins++;
+    playWin();
+    if (navigator.vibrate) navigator.vibrate([30, 20, 30]);
+  } else if (result.winner === 2) {
+    statusEl.textContent = 'AI wins';
+    statusEl.className = 'lose';
+    losses++;
+  } else {
+    statusEl.textContent = 'Draw';
+    statusEl.className = 'draw';
+    draws++;
+  }
+  if (result.line) highlightWin(result.line);
+  updateScore();
+  try { localStorage.setItem('ttt_score', JSON.stringify({ w: wins, l: losses, d: draws })); } catch(e) {}
+}
+
+// ============ INPUT ============
+document.getElementById('board').addEventListener('click', function(e) {
+  var cell = e.target.closest('.cell');
+  if (!cell || gameOver || aiThinking) return;
+  var idx = parseInt(cell.dataset.idx);
+  if (board[idx] !== 0) return;
+  initAudio();
+  board[idx] = 1;
+  playPlace();
+  renderBoard();
+  checkEnd();
+  if (!gameOver) { aiThinking = true; setTimeout(function() { aiMove(); aiThinking = false; }, 200); }
+});
+
+document.getElementById('btn-reset').addEventListener('click', function() {
+  board = [0,0,0,0,0,0,0,0,0];
+  gameOver = false;
+  aiThinking = false;
+  document.getElementById('status').textContent = 'Your turn';
+  document.getElementById('status').className = '';
+  renderBoard();
+});
+
+document.querySelectorAll('[data-diff]').forEach(function(btn) {
+  btn.addEventListener('click', function() {
+    difficulty = btn.dataset.diff;
+    document.querySelectorAll('[data-diff]').forEach(function(b) { b.classList.remove('active'); });
+    btn.classList.add('active');
+  });
+});
+
+// ============ INIT ============
+buildBoard();
+renderBoard();
+
+})();
+</script>
+</body>
+</html>
