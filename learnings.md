@@ -624,3 +624,18 @@ Persistent knowledge base. Read this before every build.
 - **INSIGHT**: High-DPI canvas rendering requires TWO size settings: canvas.width/height (buffer resolution) AND canvas.style.width/height (CSS layout). Missing either causes overflow or blurriness.
 - **INSIGHT**: CSS comments can trigger test regex patterns — the word "overlay" in a comment triggered the start-screen test. Be mindful of test heuristics.
 - **TEST CAUGHT (automated)**: CSS comment "Controls overlay" triggered overlay detection test. Renamed to "Controls panel".
+
+### glitch-studio (2026-03-23)
+- **KEEP**: Uint32Array view over ImageData buffer for pixel manipulation — move whole pixels as 32-bit integers instead of 4 separate channel reads
+- **KEEP**: Transpose-sort-transpose for vertical pixel sorting — avoids rewriting sort logic for column traversal
+- **KEEP**: SMPTE test pattern as default demo — immediately shows what the tool does without requiring user upload
+- **KEEP**: toBlob for image export — avoids toDataURL length limits on large images
+- **KEEP**: Luminance threshold band (min+max) for selective sorting — gives fine control over which pixel ranges get sorted
+- **IMPROVE**: Init applied effect with temp values then reset sliders to defaults — UI showed 0 but canvas showed 8. Gemini caught. UI state must always match visual state.
+- **IMPROVE**: Paired range sliders (min/max threshold) could cross, silently breaking the filter. Must auto-clamp on input.
+- **IMPROVE**: Missing dragenter preventDefault — browser could navigate away on file drop. Must handle dragenter + dragover + drop.
+- **IMPROVE**: Array.push in hot pixel loop causes GC pressure — use pre-allocated Uint32Array instead
+- **INSIGHT**: When initializing a demo/preview state, set the UI controls to match the demo values and LEAVE them there. Never apply temporary values then silently reset.
+- **INSIGHT**: Any paired min/max slider UI must enforce ordering constraints on input — the lower slider must not exceed the upper, and vice versa. Silent failure on impossible ranges is confusing.
+- **INSIGHT**: For drag-and-drop: handle ALL three events (dragenter, dragover, drop) with preventDefault. Missing any one can cause the browser to navigate away.
+- **TEST CAUGHT**: No bugs caught by automated tests — all issues were UI logic and UX patterns

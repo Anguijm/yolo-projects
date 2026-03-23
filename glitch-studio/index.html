@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="theme-color" content="#000000">
+<title>Glitch Studio</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { height: 100%; background: #050505; overflow: hidden; font-family: 'Courier New', Courier, monospace; touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+#app { height: 100%; display: flex; flex-direction: column; }
+
+/* Canvas area */
+#canvas-wrap { flex: 1; display: flex; align-items: center; justify-content: center; position: relative; }
+canvas { max-width: 100%; max-height: 100%; image-rendering: auto; }
+#dropzone { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; pointer-events: none; }
+#dropzone.active { background: rgba(0,255,200,0.05); border: 2px dashed #0fc; pointer-events: auto; }
+#drop-text { color: #1a1a1a; font-size: 0.7rem; text-align: center; letter-spacing: 0.1em; }
+
+/* HUD controls */
+#hud { padding: 8px 12px; background: rgba(5,5,5,0.95); border-top: 1px solid #111; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: center; }
+.ctrl { display: flex; flex-direction: column; align-items: center; gap: 2px; }
+.ctrl-label { font-size: 0.4rem; color: #333; text-transform: uppercase; letter-spacing: 0.15em; }
+.ctrl-val { font-size: 0.55rem; color: #666; min-width: 3ch; text-align: center; }
+input[type="range"] { width: 65px; height: 3px; accent-color: #0fc; }
+.btn { padding: 4px 10px; background: transparent; border: 1px solid #1a1a1a; color: #444; font-family: inherit; font-size: 0.5rem; cursor: pointer; letter-spacing: 0.1em; text-transform: uppercase; }
+.btn:active { border-color: #0fc; color: #0fc; }
+.btn.active { border-color: #0fc; color: #0fc; }
+.sep { width: 1px; height: 24px; background: #1a1a1a; }
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="canvas-wrap">
+    <canvas id="c"></canvas>
+    <div id="dropzone">
+      <div id="drop-text">Drop image here<br>or tap to upload</div>
+    </div>
+  </div>
+  <div id="hud">
+    <div class="ctrl">
+      <span class="ctrl-label">Threshold</span>
+      <input type="range" id="sl-thresh" min="0" max="255" value="80">
+      <span class="ctrl-val" id="v-thresh">80</span>
+    </div>
+    <div class="ctrl">
+      <span class="ctrl-label">Max Thresh</span>
+      <input type="range" id="sl-thresh2" min="0" max="255" value="220">
+      <span class="ctrl-val" id="v-thresh2">220</span>
+    </div>
+    <div class="ctrl">
+      <span class="ctrl-label">Aberration</span>
+      <input type="range" id="sl-aber" min="0" max="30" value="0">
+      <span class="ctrl-val" id="v-aber">0</span>
+    </div>
+    <div class="sep"></div>
+    <button class="btn active" id="btn-horiz">Horiz</button>
+    <button class="btn" id="btn-vert">Vert</button>
+    <div class="sep"></div>
+    <button class="btn" id="btn-apply">Sort</button>
+    <button class="btn" id="btn-reset">Reset</button>
+    <button class="btn" id="btn-save">Save</button>
+    <input type="file" id="file-input" accept="image/*" style="display:none">
+  </div>
+</div>
+
+<script>
+(function() {
+'use strict';
+
+// ============ CONFIG ============
+var MAX_DIM = 1080;
+var canvas = document.getElementById('c');
+var ctx = canvas.getContext('2d');
+
+// State
+var origImg = null; // original Image element
+var srcCanvas = null; // scaled source (preserved for reset)
+var W = 0, H = 0;
+var threshold = 80;
+var threshold2 = 220;
+var aberration = 0;
+var sortDir = 'horiz'; // 'horiz' or 'vert'
+
+// ============ SMPTE TEST PATTERN ============
+function drawSMPTE(w, h) {
+  var tc = document.createElement('canvas');
+  tc.width = w; tc.height = h;
+  var tctx = tc.getContext('2d');
+  var colors = ['#c0c0c0','#c0c000','#00c0c0','#00c000','#c000c0','#c00000','#0000c0'];
+  var bw = w / colors.length;
+  for (var i = 0; i < colors.length; i++) {
+    tctx.fillStyle = colors[i];
+    tctx.fillRect(Math.floor(i * bw), 0, Math.ceil(bw), h);
+  }
+  return tc;
+}
+
+// ============ IMAGE LOADING ============
+function loadImage(src) {
+  var img = new Image();
+  img.onload = function() {
+    origImg = img;
+    setupCanvas(img);
+    applyEffect();
+  };
+  img.src = src;
+}
+
+function setupCanvas(img) {
+  var w = img.width || img.naturalWidth;
+  var h = img.height || img.naturalHeight;
+  // Scale down if needed
+  if (w > MAX_DIM || h > MAX_DIM) {
+    var scale = MAX_DIM / Math.max(w, h);
+    w = Math.floor(w * scale);
+    h = Math.floor(h * scale);
+  }
+  W = w; H = h;
+  canvas.width = W;
+  canvas.height = H;
+
+  // Store source
+  srcCanvas = document.createElement('canvas');
+  srcCanvas.width = W; srcCanvas.height = H;
+  var sctx = srcCanvas.getContext('2d');
+  sctx.drawImage(img, 0, 0, W, H);
+}
+
+// ============ PIXEL SORTING ============
+function luminance(pixel) {
+  // pixel is ABGR in little-endian Uint32Array
+  var r = pixel & 0xFF;
+  var g = (pixel >> 8) & 0xFF;
+  var b = (pixel >> 16) & 0xFF;
+  return 0.299 * r + 0.587 * g + 0.114 * b;
+}
+
+function sortRow(pixels, start, length) {
+  // Find chunks within threshold band and sort them
+  var i = 0;
+  while (i < length) {
+    var lum = luminance(pixels[start + i]);
+    if (lum >= threshold && lum <= threshold2) {
+      // Start of a sortable chunk
+      var chunkStart = i;
+      while (i < length) {
+        var l2 = luminance(pixels[start + i]);
+        if (l2 < threshold || l2 > threshold2) break;
+        i++;
+      }
+      // Sort this chunk by luminance
+      var chunkLen = i - chunkStart;
+      var chunk = new Uint32Array(chunkLen);
+      for (var j = 0; j < chunkLen; j++) chunk[j] = pixels[start + chunkStart + j];
+      chunk.sort(function(a, b) { return luminance(a) - luminance(b); });
+      for (var j = 0; j < chunkLen; j++) pixels[start + chunkStart + j] = chunk[j];
+    } else {
+      i++;
+    }
+  }
+}
+
+function pixelSort(imgData) {
+  var data = new Uint32Array(imgData.data.buffer);
+  var w = imgData.width, h = imgData.height;
+
+  if (sortDir === 'horiz') {
+    for (var y = 0; y < h; y++) {
+      sortRow(data, y * w, w);
+    }
+  } else {
+    // Vertical: transpose, sort rows, transpose back
+    var transposed = new Uint32Array(w * h);
+    for (var y = 0; y < h; y++) {
+      for (var x = 0; x < w; x++) {
+        transposed[x * h + y] = data[y * w + x];
+      }
+    }
+    for (var x = 0; x < w; x++) {
+      sortRow(transposed, x * h, h);
+    }
+    // Transpose back
+    for (var y = 0; y < h; y++) {
+      for (var x = 0; x < w; x++) {
+        data[y * w + x] = transposed[x * h + y];
+      }
+    }
+  }
+}
+
+// ============ CHROMATIC ABERRATION ============
+function applyAberration(imgData, shift) {
+  if (shift === 0) return;
+  var data = imgData.data;
+  var w = imgData.width, h = imgData.height;
+  var copy = new Uint8ClampedArray(data);
+
+  for (var y = 0; y < h; y++) {
+    for (var x = 0; x < w; x++) {
+      var idx = (y * w + x) * 4;
+      // Shift red channel right
+      var rx = Math.min(x + shift, w - 1);
+      data[idx] = copy[(y * w + rx) * 4];
+      // Shift blue channel left
+      var bx = Math.max(x - shift, 0);
+      data[idx + 2] = copy[(y * w + bx) * 4 + 2];
+      // Green stays in place (already correct)
+    }
+  }
+}
+
+// ============ APPLY EFFECT ============
+function applyEffect() {
+  if (!srcCanvas) return;
+  // Draw source to output
+  ctx.drawImage(srcCanvas, 0, 0);
+  var imgData = ctx.getImageData(0, 0, W, H);
+  pixelSort(imgData);
+  applyAberration(imgData, aberration);
+  ctx.putImageData(imgData, 0, 0);
+}
+
+// ============ DRAG & DROP ============
+var dropzone = document.getElementById('dropzone');
+var canvasWrap = document.getElementById('canvas-wrap');
+var fileInput = document.getElementById('file-input');
+
+canvasWrap.addEventListener('dragenter', function(e) { e.preventDefault(); });
+
+canvasWrap.addEventListener('dragover', function(e) {
+  e.preventDefault();
+  dropzone.classList.add('active');
+});
+
+canvasWrap.addEventListener('dragleave', function() {
+  dropzone.classList.remove('active');
+});
+
+canvasWrap.addEventListener('drop', function(e) {
+  e.preventDefault();
+  dropzone.classList.remove('active');
+  var file = e.dataTransfer.files[0];
+  if (file && file.type.startsWith('image/')) {
+    readFile(file);
+  }
+});
+
+// Tap to upload on mobile
+dropzone.addEventListener('click', function() {
+  fileInput.click();
+});
+canvas.addEventListener('click', function() {
+  if (!origImg) fileInput.click();
+});
+
+fileInput.addEventListener('change', function() {
+  if (fileInput.files[0]) readFile(fileInput.files[0]);
+});
+
+function readFile(file) {
+  var reader = new FileReader();
+  reader.onload = function(e) {
+    dropzone.style.display = 'none';
+    loadImage(e.target.result);
+  };
+  reader.readAsDataURL(file);
+}
+
+// ============ CONTROLS ============
+var slThresh = document.getElementById('sl-thresh');
+var slThresh2 = document.getElementById('sl-thresh2');
+var slAber = document.getElementById('sl-aber');
+var vThresh = document.getElementById('v-thresh');
+var vThresh2 = document.getElementById('v-thresh2');
+var vAber = document.getElementById('v-aber');
+
+slThresh.addEventListener('input', function() {
+  threshold = parseInt(slThresh.value, 10);
+  if (threshold > threshold2) {
+    threshold2 = threshold;
+    slThresh2.value = threshold2;
+    vThresh2.textContent = threshold2;
+  }
+  vThresh.textContent = threshold;
+});
+
+slThresh2.addEventListener('input', function() {
+  threshold2 = parseInt(slThresh2.value, 10);
+  if (threshold2 < threshold) {
+    threshold = threshold2;
+    slThresh.value = threshold;
+    vThresh.textContent = threshold;
+  }
+  vThresh2.textContent = threshold2;
+});
+
+slAber.addEventListener('input', function() {
+  aberration = parseInt(slAber.value, 10);
+  vAber.textContent = aberration;
+});
+
+document.getElementById('btn-horiz').addEventListener('click', function() {
+  sortDir = 'horiz';
+  this.classList.add('active');
+  document.getElementById('btn-vert').classList.remove('active');
+});
+
+document.getElementById('btn-vert').addEventListener('click', function() {
+  sortDir = 'vert';
+  this.classList.add('active');
+  document.getElementById('btn-horiz').classList.remove('active');
+});
+
+document.getElementById('btn-apply').addEventListener('click', function() {
+  applyEffect();
+});
+
+document.getElementById('btn-reset').addEventListener('click', function() {
+  if (srcCanvas) {
+    ctx.drawImage(srcCanvas, 0, 0);
+  }
+});
+
+document.getElementById('btn-save').addEventListener('click', function() {
+  canvas.toBlob(function(blob) {
+    if (!blob) return;
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url;
+    a.download = 'glitch-' + Date.now() + '.png';
+    a.click();
+    setTimeout(function() { URL.revokeObjectURL(url); }, 1000);
+  }, 'image/png');
+});
+
+// ============ INIT ============
+// Start with SMPTE test pattern
+var smpte = drawSMPTE(640, 400);
+var smpteImg = new Image();
+smpteImg.onload = function() {
+  origImg = smpteImg;
+  setupCanvas(smpteImg);
+  // Apply with visible settings so UI matches canvas
+  threshold = 40; slThresh.value = 40; vThresh.textContent = '40';
+  aberration = 8; slAber.value = 8; vAber.textContent = '8';
+  applyEffect();
+};
+smpteImg.src = smpte.toDataURL();
+
+})();
+</script>
+</body>
+</html>
