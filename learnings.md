@@ -828,3 +828,16 @@ Persistent knowledge base. Read this before every build.
 - **Recurring: Web Audio exponentialRamp from zero** — aura-keys. ADDED TO PRINCIPLES: always use setTargetAtTime for release, never exponentialRamp (crashes on 0).
 - **Recurring: Async clipboard feedback** — color-forge. REINFORCED: clipboard.writeText is a Promise; UI feedback in .then() only.
 - **Portfolio milestone**: 85 projects, 20 consecutive working. Process is highly mature. Gemini audits catching 3-5 bugs per build consistently.
+
+### neon-tetra (2026-03-24)
+- **KEEP**: 7-bag randomizer (shuffle array of 7 types, pop until empty, refill) — guarantees fair piece distribution, prevents long droughts
+- **KEEP**: Ghost piece via while(isValid(shape, x, gy+1)) gy++ — shows exact landing position
+- **KEEP**: Wall kick table with multiple offset attempts — allows rotation near walls/blocks
+- **KEEP**: Grid rotation approach (rotateMatrix for CW rotation) — single function handles all orientations
+- **KEEP**: Gravity tick decoupled from render (time-based dropInterval vs rAF) — consistent game speed
+- **IMPROVE**: O-piece rotation triggered wall kicks and shifted position — O-piece is rotationally symmetric, must skip rotation entirely. Gemini caught.
+- **IMPROVE**: Any keypress instantly restarted on game over — player couldn't see final board state. Added 1s gameOverTime delay before restart allowed.
+- **IMPROVE**: Grid not initialized before first draw() call — caused "Cannot read properties of undefined" on load. Added initGrid() before first rAF.
+- **INSIGHT**: Rotationally symmetric pieces (O-piece in Tetris, or any piece that looks the same after rotation) should skip the rotation function entirely, because wall kick offsets can still shift them unexpectedly.
+- **INSIGHT**: Game over state needs a "cool-down" delay before accepting restart input. Players are mashing keys when they die — instant restart feels broken and they never see their final board.
+- **TEST CAUGHT (automated)**: Console error — grid accessed before initGrid() was called. Added early initGrid() call.
