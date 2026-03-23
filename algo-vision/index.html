@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="theme-color" content="#000000">
+<title>Algo Vision</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { height: 100%; background: #0a0a0c; color: #ccc; font-family: system-ui, sans-serif; overflow: hidden; touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+#app { height: 100%; display: flex; flex-direction: column; }
+
+#controls { display: flex; gap: 6px; padding: 8px; flex-wrap: wrap; align-items: center; justify-content: center; border-bottom: 1px solid #111; }
+.ctrl-btn { padding: 4px 10px; background: transparent; border: 1px solid #1a1a1a; color: #444; font-family: inherit; font-size: 0.5rem; cursor: pointer; border-radius: 3px; letter-spacing: 0.08em; }
+.ctrl-btn:active { border-color: #555; color: #888; }
+.ctrl-btn.active { border-color: #58a6ff; color: #58a6ff; }
+.ctrl-btn.running { border-color: #f85149; color: #f85149; }
+select { background: #111; border: 1px solid #1a1a1a; color: #888; padding: 3px 6px; font-family: inherit; font-size: 0.5rem; border-radius: 3px; outline: none; }
+.ctrl-label { font-size: 0.4rem; color: #333; letter-spacing: 0.1em; }
+input[type="range"] { width: 60px; height: 3px; accent-color: #555; }
+.sep { width: 1px; height: 20px; background: #1a1a1a; }
+#info { font-size: 0.4rem; color: #333; font-family: monospace; min-width: 80px; text-align: right; }
+
+/* Bars */
+#bars { flex: 1; display: flex; align-items: flex-end; gap: 1px; padding: 8px; min-height: 0; }
+.bar { flex: 1; min-width: 1px; background: #334; border-radius: 1px 1px 0 0; transition: none; }
+.bar.comparing { background: #ffe600; box-shadow: 0 0 4px #ffe600; }
+.bar.swapping { background: #ff3366; box-shadow: 0 0 6px #ff3366; }
+.bar.sorted { background: #39ff14; }
+.bar.pivot { background: #58a6ff; box-shadow: 0 0 4px #58a6ff; }
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="controls">
+    <select id="sel-algo">
+      <option value="bubble">Bubble Sort</option>
+      <option value="insertion">Insertion Sort</option>
+      <option value="quick">Quick Sort</option>
+      <option value="merge">Merge Sort</option>
+    </select>
+    <div class="sep"></div>
+    <span class="ctrl-label">Size</span>
+    <input type="range" id="sl-size" min="10" max="120" value="50">
+    <span class="ctrl-label">Speed</span>
+    <input type="range" id="sl-speed" min="1" max="100" value="50">
+    <div class="sep"></div>
+    <button class="ctrl-btn" id="btn-gen">New Array</button>
+    <button class="ctrl-btn" id="btn-start">Start</button>
+    <button class="ctrl-btn" id="btn-audio" data-on="0">Sound</button>
+    <span id="info"></span>
+  </div>
+  <div id="bars"></div>
+</div>
+
+<script>
+(function() {
+'use strict';
+
+// ============ STATE ============
+var arr = [];
+var size = 50;
+var speed = 50;
+var sorting = false;
+var cancelled = false;
+var comparisons = 0;
+var swaps = 0;
+var audioOn = false;
+var audioCtx = null;
+
+// ============ AUDIO ============
+function initAudio() {
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  if (audioCtx.state === 'suspended') audioCtx.resume();
+}
+
+function playTone(value, maxVal) {
+  if (!audioOn || !audioCtx) return;
+  var freq = 200 + (value / maxVal) * 800;
+  var t = audioCtx.currentTime;
+  var osc = audioCtx.createOscillator();
+  var gain = audioCtx.createGain();
+  osc.type = 'sine';
+  osc.frequency.value = freq;
+  gain.gain.setValueAtTime(0.04, t);
+  gain.gain.exponentialRampToValueAtTime(0.001, t + 0.05);
+  osc.connect(gain);
+  gain.connect(audioCtx.destination);
+  osc.start(t);
+  osc.stop(t + 0.06);
+  osc.onended = function() { osc.disconnect(); gain.disconnect(); };
+}
+
+// ============ ARRAY / RENDERING ============
+function generateArray() {
+  arr = [];
+  for (var i = 0; i < size; i++) arr.push(Math.floor(Math.random() * 100) + 1);
+  renderBars();
+  comparisons = 0;
+  swaps = 0;
+  updateInfo();
+}
+
+function renderBars(highlights) {
+  var container = document.getElementById('bars');
+  // Reuse existing bars if count matches
+  while (container.children.length > arr.length) container.removeChild(container.lastChild);
+  while (container.children.length < arr.length) {
+    var bar = document.createElement('div');
+    bar.className = 'bar';
+    container.appendChild(bar);
+  }
+  var maxVal = Math.max.apply(null, arr);
+  var hl = highlights || {};
+  for (var i = 0; i < arr.length; i++) {
+    var bar = container.children[i];
+    bar.style.height = (arr[i] / maxVal * 100) + '%';
+    bar.className = 'bar';
+    if (hl.sorted && hl.sorted.indexOf(i) >= 0) bar.classList.add('sorted');
+    else if (hl.swapping && hl.swapping.indexOf(i) >= 0) bar.classList.add('swapping');
+    else if (hl.comparing && hl.comparing.indexOf(i) >= 0) bar.classList.add('comparing');
+    else if (hl.pivot !== undefined && hl.pivot === i) bar.classList.add('pivot');
+  }
+}
+
+function updateInfo() {
+  document.getElementById('info').textContent = 'C:' + comparisons + ' S:' + swaps;
+}
+
+// ============ DELAY ============
+function delay() {
+  var ms = Math.max(1, 101 - speed);
+  return new Promise(function(resolve) { setTimeout(resolve, ms); });
+}
+
+// ============ SORTING ALGORITHMS ============
+async function bubbleSort() {
+  var n = arr.length;
+  for (var i = 0; i < n - 1; i++) {
+    for (var j = 0; j < n - 1 - i; j++) {
+      if (cancelled) return;
+      comparisons++;
+      renderBars({ comparing: [j, j + 1] });
+      playTone(arr[j], 100);
+      await delay();
+      if (arr[j] > arr[j + 1]) {
+        var tmp = arr[j]; arr[j] = arr[j + 1]; arr[j + 1] = tmp;
+        swaps++;
+        renderBars({ swapping: [j, j + 1] });
+        await delay();
+      }
+      updateInfo();
+    }
+    renderBars({ sorted: sortedRange(n - 1 - i, n) });
+  }
+  markAllSorted();
+}
+
+async function insertionSort() {
+  for (var i = 1; i < arr.length; i++) {
+    if (cancelled) return;
+    var key = arr[i];
+    var j = i - 1;
+    renderBars({ comparing: [i] });
+    playTone(arr[i], 100);
+    await delay();
+    while (j >= 0 && arr[j] > key) {
+      if (cancelled) return;
+      comparisons++;
+      arr[j + 1] = arr[j];
+      swaps++;
+      j--;
+      renderBars({ swapping: [j + 1, j + 2] });
+      await delay();
+      updateInfo();
+    }
+    arr[j + 1] = key;
+    renderBars({});
+  }
+  markAllSorted();
+}
+
+async function quickSort() {
+  await qsHelper(0, arr.length - 1);
+  if (!cancelled) markAllSorted();
+}
+
+async function qsHelper(lo, hi) {
+  if (lo >= hi || cancelled) return;
+  var pivotIdx = await partition(lo, hi);
+  if (cancelled) return;
+  await qsHelper(lo, pivotIdx - 1);
+  await qsHelper(pivotIdx + 1, hi);
+}
+
+async function partition(lo, hi) {
+  var pivot = arr[hi];
+  var i = lo;
+  for (var j = lo; j < hi; j++) {
+    if (cancelled) return lo;
+    comparisons++;
+    renderBars({ comparing: [j], pivot: hi });
+    playTone(arr[j], 100);
+    await delay();
+    if (arr[j] < pivot) {
+      var tmp = arr[i]; arr[i] = arr[j]; arr[j] = tmp;
+      swaps++;
+      renderBars({ swapping: [i, j], pivot: hi });
+      await delay();
+      i++;
+    }
+    updateInfo();
+  }
+  var tmp = arr[i]; arr[i] = arr[hi]; arr[hi] = tmp;
+  swaps++;
+  renderBars({ swapping: [i, hi] });
+  await delay();
+  updateInfo();
+  return i;
+}
+
+async function mergeSort() {
+  await msHelper(0, arr.length - 1);
+  if (!cancelled) markAllSorted();
+}
+
+async function msHelper(lo, hi) {
+  if (lo >= hi || cancelled) return;
+  var mid = Math.floor((lo + hi) / 2);
+  await msHelper(lo, mid);
+  if (cancelled) return;
+  await msHelper(mid + 1, hi);
+  if (cancelled) return;
+  await merge(lo, mid, hi);
+}
+
+async function merge(lo, mid, hi) {
+  var left = arr.slice(lo, mid + 1);
+  var right = arr.slice(mid + 1, hi + 1);
+  var i = 0, j = 0, k = lo;
+  while (i < left.length && j < right.length) {
+    if (cancelled) return;
+    comparisons++;
+    renderBars({ comparing: [lo + i, mid + 1 + j] });
+    playTone(left[i], 100);
+    await delay();
+    if (left[i] <= right[j]) {
+      arr[k] = left[i]; i++;
+    } else {
+      arr[k] = right[j]; j++;
+    }
+    swaps++;
+    k++;
+    renderBars({ swapping: [k - 1] });
+    await delay();
+    updateInfo();
+  }
+  while (i < left.length) {
+    if (cancelled) return;
+    arr[k] = left[i]; i++; k++;
+    renderBars({ swapping: [k - 1] });
+    await delay();
+  }
+  while (j < right.length) {
+    if (cancelled) return;
+    arr[k] = right[j]; j++; k++;
+    renderBars({ swapping: [k - 1] });
+    await delay();
+  }
+}
+
+function sortedRange(start, end) {
+  var r = [];
+  for (var i = start; i < end; i++) r.push(i);
+  return r;
+}
+
+function markAllSorted() {
+  var all = [];
+  for (var i = 0; i < arr.length; i++) all.push(i);
+  renderBars({ sorted: all });
+}
+
+// ============ CONTROLS ============
+var ALGOS = { bubble: bubbleSort, insertion: insertionSort, quick: quickSort, merge: mergeSort };
+
+document.getElementById('btn-start').addEventListener('click', async function() {
+  if (sorting) {
+    cancelled = true;
+    return;
+  }
+  var algo = document.getElementById('sel-algo').value;
+  sorting = true;
+  cancelled = false;
+  comparisons = 0;
+  swaps = 0;
+  updateInfo();
+  this.textContent = 'Stop';
+  this.classList.add('running');
+  document.getElementById('btn-gen').disabled = true;
+
+  if (audioOn) initAudio();
+  await ALGOS[algo]();
+
+  sorting = false;
+  this.textContent = 'Start';
+  this.classList.remove('running');
+  document.getElementById('btn-gen').disabled = false;
+});
+
+document.getElementById('btn-gen').addEventListener('click', function() {
+  if (sorting) return;
+  generateArray();
+});
+
+document.getElementById('sl-size').addEventListener('input', function(e) {
+  size = parseInt(e.target.value, 10);
+  if (isNaN(size) || size < 5) size = 5;
+  if (!sorting) generateArray();
+});
+
+document.getElementById('sl-speed').addEventListener('input', function(e) {
+  speed = parseInt(e.target.value, 10);
+  if (isNaN(speed)) speed = 50;
+});
+
+document.getElementById('btn-audio').addEventListener('click', function() {
+  audioOn = !audioOn;
+  this.classList.toggle('active', audioOn);
+  if (audioOn) initAudio();
+});
+
+// ============ INIT ============
+generateArray();
+
+})();
+</script>
+</body>
+</html>

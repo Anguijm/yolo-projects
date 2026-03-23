@@ -898,3 +898,16 @@ Persistent knowledge base. Read this before every build.
 - **Recurring: DOM thrash during high-frequency events** — sprite-forge. NEW PRINCIPLE: during pointermove/drag, update only the affected DOM element.
 - **Recurring: e.repeat guard** — neon-reflex. Now a standard check for all keyboard-driven games.
 - **Portfolio milestone**: 90 projects, 25 consecutive working. Process mature, bugs caught at audit stage.
+
+### algo-vision (2026-03-24)
+- **KEEP**: Async/await for sorting visualization — natural pause points with `await delay()` at each step
+- **KEEP**: Color-coded bar states (comparing/swapping/sorted/pivot) — instant visual understanding
+- **KEEP**: Audio mapped to value (freq = 200 + value/max * 800) — algorithmic music adds sensory dimension
+- **KEEP**: DOM bar reuse (add/remove only as needed) — avoids full rebuild on every render
+- **IMPROVE**: insertionSort outer loop missing cancel check — sort continued silently after stop. Gemini caught. Must check cancelled at EVERY loop level.
+- **IMPROVE**: mergeSort second recursive branch executed after cancel — need cancel check between `await msHelper(lo, mid)` and `await msHelper(mid+1, hi)`
+- **IMPROVE**: Stats display not reset until first comparison — stale values shown briefly. Added updateInfo() on start.
+- **IMPROVE**: Audio nodes never disconnected — onended callback with disconnect() prevents memory leaks at high speed
+- **INSIGHT**: Async cancellation in recursive algorithms needs checks at EVERY level: before each recursive call, between sibling calls, and inside each inner loop. A single check at the top of the function is not enough.
+- **INSIGHT**: Web Audio nodes (oscillator, gain) persist in the audio graph even after stop(). Must explicitly disconnect via onended callback to prevent GC pressure during rapid creation.
+- **TEST CAUGHT**: No bugs caught by automated tests — all were async control flow and audio lifecycle issues
