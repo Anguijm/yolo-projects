@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="theme-color" content="#000000">
+<title>Flash Cards</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { height: 100%; background: #000; color: #ccc; font-family: 'Segoe UI', system-ui, sans-serif; overflow: hidden; touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+#app { height: 100%; display: flex; flex-direction: column; }
+
+/* Card area */
+#card-area { flex: 1; display: flex; align-items: center; justify-content: center; padding: 16px; perspective: 800px; }
+.card-wrap { width: 100%; max-width: 360px; aspect-ratio: 3/2; position: relative; cursor: pointer; }
+.card { width: 100%; height: 100%; position: relative; transform-style: preserve-3d; transition: transform 0.5s cubic-bezier(0.4,0,0.2,1); }
+.card.flipped { transform: rotateY(180deg); }
+.card-face { position: absolute; inset: 0; backface-visibility: hidden; border-radius: 12px; display: flex; align-items: center; justify-content: center; padding: 20px; text-align: center; font-size: clamp(1rem, 4vw, 1.4rem); line-height: 1.5; word-break: break-word; }
+.card-front { background: #0a0a0a; border: 1px solid #1a1a1a; color: #e0e0e0; }
+.card-back { background: #0a0a14; border: 1px solid #1a1a2e; color: #58a6ff; transform: rotateY(180deg); }
+
+/* Rating buttons */
+#rating { display: none; gap: 8px; padding: 12px 16px; justify-content: center; }
+#rating.show { display: flex; }
+.rate-btn { flex: 1; padding: 10px; border-radius: 8px; font-family: inherit; font-size: 0.75rem; cursor: pointer; text-align: center; border: 1px solid; }
+.rate-btn.hard { background: #1a0a0a; border-color: #331a1a; color: #f87171; }
+.rate-btn.ok { background: #1a1a0a; border-color: #33331a; color: #d29922; }
+.rate-btn.easy { background: #0a1a0a; border-color: #1a331a; color: #3fb950; }
+
+/* Progress */
+#progress { padding: 8px 16px; display: flex; justify-content: space-between; font-size: 0.6rem; color: #333; font-family: monospace; }
+
+/* Edit mode */
+#edit-area { display: none; flex: 1; flex-direction: column; padding: 12px; }
+#edit-area.show { display: flex; }
+#edit-area textarea { flex: 1; background: #0a0a0a; border: 1px solid #1a1a1a; color: #ccc; padding: 10px; font-family: inherit; font-size: 0.85rem; border-radius: 8px; resize: none; outline: none; line-height: 1.6; }
+#edit-area textarea::placeholder { color: #222; }
+
+/* Controls */
+#controls { padding: 8px 16px; display: flex; gap: 6px; background: #050505; border-top: 1px solid #111; }
+.ctrl-btn { flex: 1; padding: 8px; background: transparent; border: 1px solid #1a1a1a; color: #555; border-radius: 8px; font-size: 0.7rem; cursor: pointer; font-family: inherit; text-align: center; }
+.ctrl-btn:active { border-color: #444; color: #aaa; }
+
+/* Empty state */
+#empty { text-align: center; color: #222; font-size: 0.8rem; padding: 40px; }
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="progress"><span id="p-left">0 left</span><span id="p-total">0 cards</span></div>
+  <div id="card-area">
+    <div class="card-wrap" id="card-wrap">
+      <div class="card" id="card">
+        <div class="card-face card-front" id="front"></div>
+        <div class="card-face card-back" id="back"></div>
+      </div>
+    </div>
+    <div id="empty">Add cards to get started.<br>Tap "Edit" below.</div>
+  </div>
+  <div id="rating">
+    <button class="rate-btn hard" data-rating="1">Hard<br><span style="font-size:0.5rem">1 min</span></button>
+    <button class="rate-btn ok" data-rating="2">OK<br><span style="font-size:0.5rem">10 min</span></button>
+    <button class="rate-btn easy" data-rating="3">Easy<br><span style="font-size:0.5rem">1 day</span></button>
+  </div>
+  <div id="edit-area">
+    <textarea id="card-editor" placeholder="front | back&#10;capital of France | Paris&#10;2+2 | 4&#10;&#10;One card per line, front | back"></textarea>
+  </div>
+  <div id="controls">
+    <button class="ctrl-btn" id="btn-study">Study</button>
+    <button class="ctrl-btn" id="btn-edit">Edit</button>
+    <button class="ctrl-btn" id="btn-shuffle">Reset</button>
+  </div>
+</div>
+
+<script>
+(function() {
+'use strict';
+
+var cards = []; // [{front, back, nextReview (timestamp), interval (ms)}]
+var currentIdx = -1;
+var isFlipped = false;
+var isEditing = false;
+
+// ============ STORAGE ============
+function saveCards() {
+  try { localStorage.setItem('flash_cards', JSON.stringify(cards)); } catch(e) {}
+}
+
+function loadCards() {
+  try {
+    var saved = JSON.parse(localStorage.getItem('flash_cards'));
+    if (Array.isArray(saved)) cards = saved;
+  } catch(e) {}
+}
+
+// ============ CARD MANAGEMENT ============
+function parseEditor() {
+  var text = document.getElementById('card-editor').value;
+  var lines = text.split('\n').filter(function(l) { return l.trim().length > 0 && l.includes('|'); });
+  // Build lookup of existing cards to preserve spaced repetition progress
+  var existing = {};
+  cards.forEach(function(c) { existing[c.front + '||' + c.back] = c; });
+  cards = lines.map(function(l) {
+    var parts = l.split('|');
+    var front = (parts[0] || '').trim();
+    var back = (parts.slice(1).join('|') || '').trim();
+    var prev = existing[front + '||' + back];
+    return {
+      front: front,
+      back: back,
+      nextReview: prev ? prev.nextReview : 0,
+      interval: prev ? prev.interval : 60000
+    };
+  });
+  saveCards();
+}
+
+function cardsToText() {
+  return cards.map(function(c) { return c.front + ' | ' + c.back; }).join('\n');
+}
+
+function getDueCards() {
+  var now = Date.now();
+  return cards.filter(function(c) { return c.nextReview <= now; });
+}
+
+// ============ STUDY ============
+function showNextCard() {
+  var due = getDueCards();
+  isFlipped = false;
+  document.getElementById('card').classList.remove('flipped');
+  document.getElementById('rating').classList.remove('show');
+
+  if (due.length === 0 && cards.length > 0) {
+    document.getElementById('front').textContent = 'All caught up!';
+    document.getElementById('back').textContent = 'Come back later for review.';
+    document.getElementById('card-wrap').style.display = 'block';
+    document.getElementById('empty').style.display = 'none';
+    currentIdx = -1;
+    updateProgress();
+    return;
+  }
+
+  if (cards.length === 0) {
+    document.getElementById('card-wrap').style.display = 'none';
+    document.getElementById('empty').style.display = 'block';
+    currentIdx = -1;
+    updateProgress();
+    return;
+  }
+
+  // Pick random due card
+  var card = due[Math.floor(Math.random() * due.length)];
+  currentIdx = cards.indexOf(card);
+  document.getElementById('front').textContent = card.front;
+  document.getElementById('back').textContent = card.back;
+  document.getElementById('card-wrap').style.display = 'block';
+  document.getElementById('empty').style.display = 'none';
+  updateProgress();
+}
+
+function flipCard() {
+  if (currentIdx < 0) return;
+  isFlipped = !isFlipped;
+  document.getElementById('card').classList.toggle('flipped', isFlipped);
+  if (isFlipped) {
+    document.getElementById('rating').classList.add('show');
+    if (navigator.vibrate) navigator.vibrate(8);
+  } else {
+    document.getElementById('rating').classList.remove('show');
+  }
+}
+
+function rateCard(rating) {
+  if (currentIdx < 0) return;
+  var card = cards[currentIdx];
+  // Simple spaced repetition: multiply interval by rating factor
+  if (rating === 1) card.interval = 60000; // Hard: reset to 1 min
+  else if (rating === 2) card.interval = Math.min(card.interval * 2, 86400000); // OK: double, max 1 day
+  else if (rating === 3) card.interval = Math.min(card.interval * 4, 604800000); // Easy: 4x, max 1 week
+  else return; // Invalid rating, do nothing
+  card.nextReview = Date.now() + card.interval;
+  saveCards();
+  showNextCard();
+}
+
+function updateProgress() {
+  var due = getDueCards().length;
+  document.getElementById('p-left').textContent = due + ' due';
+  document.getElementById('p-total').textContent = cards.length + ' cards';
+}
+
+// ============ MODES ============
+function enterStudyMode() {
+  isEditing = false;
+  document.getElementById('edit-area').classList.remove('show');
+  document.getElementById('card-area').style.display = 'flex';
+  showNextCard();
+}
+
+function enterEditMode() {
+  isEditing = true;
+  document.getElementById('card-area').style.display = 'none';
+  document.getElementById('rating').classList.remove('show');
+  document.getElementById('edit-area').classList.add('show');
+  document.getElementById('card-editor').value = cardsToText();
+}
+
+// ============ EVENTS ============
+document.getElementById('card-wrap').addEventListener('click', flipCard);
+
+document.querySelectorAll('.rate-btn').forEach(function(btn) {
+  btn.addEventListener('click', function(e) {
+    e.stopPropagation();
+    rateCard(parseInt(btn.dataset.rating));
+  });
+});
+
+document.getElementById('btn-study').addEventListener('click', function() {
+  if (isEditing) parseEditor();
+  enterStudyMode();
+});
+
+document.getElementById('btn-edit').addEventListener('click', enterEditMode);
+
+document.getElementById('btn-shuffle').addEventListener('click', function() {
+  // Reset all review times so all cards become due again
+  for (var i = 0; i < cards.length; i++) {
+    cards[i].nextReview = 0;
+  }
+  saveCards();
+  if (!isEditing) showNextCard();
+});
+
+// ============ INIT ============
+loadCards();
+enterStudyMode();
+
+})();
+</script>
+</body>
+</html>

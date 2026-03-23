@@ -568,3 +568,12 @@ Persistent knowledge base. Read this before every build.
 8. **Always run `node -c` syntax check** after refactoring JS. A stray `});` (leftover from extracting an anonymous function) silently broke regex-quest's start button. The IIFE still loaded but threw at the bad line, preventing all event listeners below it from binding.
 
 9. **Abstract projects need onboarding.** Neural-playground was "too abstract" — adding a welcome overlay explaining what the colors mean + descriptive preset cards with difficulty hints made it approachable. If the user can't understand what they're looking at in 5 seconds, add a guide.
+
+### flash-cards (2026-03-23)
+- **KEEP**: CSS 3D card flip with preserve-3d + backface-visibility — clean, performant animation with no JS animation frames needed
+- **KEEP**: Using front+back composite key to match existing cards when re-parsing editor text — preserves spaced repetition progress
+- **IMPROVE**: parseEditor was rebuilding the entire cards array from scratch, destroying all study progress — Gemini caught this critical UX bug. Always preserve user data when editing content that has associated metadata
+- **IMPROVE**: Rating fallthrough defaulted to "Easy" on invalid input — always use explicit conditionals with a failsafe return for user-facing rating/scoring functions
+- **DISCARD**: Shuffle button that resets intervals — since cards are already shown randomly, shuffling the array does nothing useful. Changed to a "Reset" button that only clears nextReview times
+- **INSIGHT**: When a data model has both user-editable content (front/back text) AND system-managed metadata (intervals, timestamps), editing must merge, not replace. This applies broadly: any editor that touches objects with hidden state needs a merge strategy.
+- **TEST CAUGHT**: No bugs caught by automated tests this build — all bugs were logic-level (data loss on edit) that require Gemini review to catch
