@@ -639,3 +639,18 @@ Persistent knowledge base. Read this before every build.
 - **INSIGHT**: Any paired min/max slider UI must enforce ordering constraints on input — the lower slider must not exceed the upper, and vice versa. Silent failure on impossible ranges is confusing.
 - **INSIGHT**: For drag-and-drop: handle ALL three events (dragenter, dragover, drop) with preventDefault. Missing any one can cause the browser to navigate away.
 - **TEST CAUGHT**: No bugs caught by automated tests — all issues were UI logic and UX patterns
+
+### morse-pulse (2026-03-23)
+- **KEEP**: Koch method character progression (start with 2 chars, add at 90% accuracy) — scientifically backed Morse learning approach
+- **KEEP**: Farnsworth timing (fast character speed, stretched spacing) — forces auditory pattern recognition over counting
+- **KEEP**: 550Hz sine wave with 5ms linear ramp envelope — clean, fatigue-free Morse tone
+- **KEEP**: Silent progression (no fanfare on level-up) — maintains flow state
+- **KEEP**: Error replay with visual aid (letter = morse pattern) shown during replay — reinforces correct association
+- **IMPROVE**: Rolling accuracy history not cleared on level-up — caused cascading multi-level jumps. Gemini caught. Must reset tracking state on progression events.
+- **IMPROVE**: calcFarnsworthDelay() was defined but never called — dead code meant the key Farnsworth feature was missing. Always grep for defined-but-uncalled functions before shipping.
+- **IMPROVE**: Visual aid text reverted before replay audio finished — moved revert into playMorse callback so user sees the answer while hearing it
+- **IMPROVE**: Audio envelope had fixed 5ms ramp that could exceed duration at high WPM — use Math.min(0.005, duration/4) for safety
+- **INSIGHT**: Any progression system with a rolling accuracy window must RESET the window on progression. Otherwise the old high-accuracy data carries forward and triggers immediate cascading level-ups.
+- **INSIGHT**: Dead code is a bug signal. If you define a function and never call it, you either have an unused feature or a missing integration. Grep for all function definitions and verify each is called.
+- **INSIGHT**: Start screens that are plain divs (not buttons) may not be clicked by automated tests that look for button elements. Include a visible button for test compatibility.
+- **TEST CAUGHT (automated)**: Start screen (#start-screen div) wasn't dismissed by Playwright — test clicks buttons, not divs. Added a START button.

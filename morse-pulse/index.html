@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="theme-color" content="#000000">
+<title>Morse Pulse</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { height: 100%; background: #000; color: #fff; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Courier New", monospace; overflow: hidden; touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+#app { height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+
+#start-screen { text-align: center; cursor: pointer; }
+#start-screen .title { font-size: 1.2rem; letter-spacing: 0.3em; margin-bottom: 16px; font-weight: 400; }
+#start-screen .prompt { font-size: 0.6rem; color: #333; letter-spacing: 0.2em; }
+
+#game { display: none; height: 100%; width: 100%; position: relative; }
+#flash { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: clamp(6rem, 25vw, 14rem); font-weight: 200; opacity: 0; transition: none; pointer-events: none; }
+#flash.show { opacity: 1; }
+#flash.error { color: #333; }
+
+#morse-display { position: absolute; top: 40%; left: 50%; transform: translate(-50%, -50%); font-size: clamp(1.5rem, 6vw, 3rem); color: #222; letter-spacing: 0.5em; text-align: center; pointer-events: none; }
+
+#hud { position: absolute; bottom: 10px; left: 12px; font-size: 0.55rem; color: #333; letter-spacing: 0.1em; line-height: 1.8; }
+
+#input-hint { position: absolute; bottom: 10px; right: 12px; font-size: 0.5rem; color: #1a1a1a; letter-spacing: 0.1em; }
+
+#replay-btn { position: absolute; top: 10px; right: 12px; background: none; border: 1px solid #1a1a1a; color: #222; padding: 4px 10px; font-family: inherit; font-size: 0.5rem; cursor: pointer; letter-spacing: 0.1em; }
+#replay-btn:active { border-color: #444; color: #666; }
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="start-screen">
+    <div class="title">MORSE PULSE</div>
+    <button id="btn-start" style="background:none;border:1px solid #222;color:#333;padding:8px 20px;font-family:inherit;font-size:0.6rem;cursor:pointer;letter-spacing:0.2em;margin-bottom:12px">START</button>
+    <div class="prompt">PRESS SPACE OR TAP TO INITIATE</div>
+  </div>
+  <div id="game">
+    <div id="morse-display"></div>
+    <div id="flash"></div>
+    <div id="hud"></div>
+    <div id="input-hint">type the letter</div>
+    <button id="replay-btn">REPLAY</button>
+  </div>
+</div>
+
+<script>
+(function() {
+'use strict';
+
+// ============ MORSE DICTIONARY ============
+var MORSE = {
+  'K': '-.-', 'M': '--', 'R': '.-.', 'S': '...', 'U': '..-',
+  'A': '.-', 'P': '.--.', 'T': '-', 'L': '.-..', 'O': '---',
+  'W': '.--', 'I': '..', 'N': '-.', 'J': '.---', 'E': '.',
+  'F': '..-.', 'D': '-..', 'B': '-...', 'C': '-.-.', 'G': '--.',
+  'H': '....', 'Q': '--.-', 'V': '...-', 'X': '-..-', 'Y': '-.--', 'Z': '--..',
+  '0': '-----', '1': '.----', '2': '..---', '3': '...--', '4': '....-',
+  '5': '.....', '6': '-....', '7': '--...', '8': '---..', '9': '----.'
+};
+
+// Koch method order (optimized for auditory distinctiveness)
+var KOCH_ORDER = ['K','M','R','S','U','A','P','T','L','O','W','I','N','J','E','F','D','B','C','G','H','Q','V','X','Y','Z','0','1','2','3','4','5','6','7','8','9'];
+
+// ============ STATE ============
+var audioCtx = null;
+var charWPM = 20;        // Character speed (Farnsworth: chars play at this speed)
+var effectiveWPM = 10;   // Overall speed (spacing stretched to this)
+var poolSize = 2;        // Start with K, M
+var currentChar = '';
+var currentMorse = '';
+var waiting = false;      // Waiting for user input
+var playing = false;      // Audio is playing
+var history = [];         // Last 20 results for rolling accuracy
+var totalCorrect = 0;
+var totalAttempts = 0;
+var started = false;
+
+// ============ AUDIO ============
+function initAudio() {
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  if (audioCtx.state === 'suspended') audioCtx.resume();
+}
+
+function calcUnit() {
+  // PARIS standard: 1 unit at given WPM
+  return 1200 / charWPM; // ms per dot
+}
+
+function calcFarnsworthDelay() {
+  // Extra delay between characters for Farnsworth timing
+  // Standard inter-char = 3 units at charWPM
+  // Farnsworth stretches this to match effectiveWPM
+  var dotMs = calcUnit();
+  var charMs = 3 * dotMs; // standard inter-char gap
+  if (effectiveWPM >= charWPM) return charMs;
+  // Farnsworth formula
+  var totalDelay = (60000 / effectiveWPM - 31 * dotMs) / 19;
+  return Math.max(totalDelay * 3, charMs);
+}
+
+function playTone(startTime, duration) {
+  var osc = audioCtx.createOscillator();
+  var gain = audioCtx.createGain();
+  osc.type = 'sine';
+  osc.frequency.value = 550;
+  var ramp = Math.min(0.005, duration / 4); // Safe envelope for high WPM
+  gain.gain.setValueAtTime(0, startTime);
+  gain.gain.linearRampToValueAtTime(0.3, startTime + ramp);
+  gain.gain.setValueAtTime(0.3, startTime + duration - ramp);
+  gain.gain.linearRampToValueAtTime(0, startTime + duration);
+  osc.connect(gain);
+  gain.connect(audioCtx.destination);
+  osc.start(startTime);
+  osc.stop(startTime + duration);
+}
+
+function playError() {
+  var now = audioCtx.currentTime;
+  var osc = audioCtx.createOscillator();
+  var gain = audioCtx.createGain();
+  osc.type = 'square';
+  osc.frequency.value = 150;
+  gain.gain.setValueAtTime(0.08, now);
+  gain.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
+  osc.connect(gain);
+  gain.connect(audioCtx.destination);
+  osc.start(now);
+  osc.stop(now + 0.2);
+}
+
+function playMorse(morseStr, callback) {
+  playing = true;
+  var dotMs = calcUnit();
+  var dashMs = dotMs * 3;
+  var intraGap = dotMs;   // gap between elements within a character
+  var t = audioCtx.currentTime + 0.05; // small buffer
+
+  for (var i = 0; i < morseStr.length; i++) {
+    var sym = morseStr[i];
+    if (sym === '.') {
+      playTone(t, dotMs / 1000);
+      t += dotMs / 1000;
+    } else if (sym === '-') {
+      playTone(t, dashMs / 1000);
+      t += dashMs / 1000;
+    }
+    // Intra-character gap (except after last element)
+    if (i < morseStr.length - 1) {
+      t += intraGap / 1000;
+    }
+  }
+
+  // Call back after playback ends
+  var totalDuration = (t - audioCtx.currentTime) * 1000;
+  setTimeout(function() {
+    playing = false;
+    if (callback) callback();
+  }, totalDuration + 50);
+}
+
+// ============ GAME LOGIC ============
+function getPool() {
+  return KOCH_ORDER.slice(0, poolSize);
+}
+
+function pickChar() {
+  var pool = getPool();
+  var c;
+  do {
+    c = pool[Math.floor(Math.random() * pool.length)];
+  } while (c === currentChar && pool.length > 1);
+  return c;
+}
+
+function nextRound() {
+  currentChar = pickChar();
+  currentMorse = MORSE[currentChar];
+  waiting = false;
+
+  // Show morse pattern dimly
+  document.getElementById('morse-display').textContent = currentMorse;
+  document.getElementById('flash').classList.remove('show', 'error');
+  document.getElementById('flash').textContent = '';
+
+  playMorse(currentMorse, function() {
+    waiting = true;
+  });
+}
+
+function handleAnswer(key) {
+  if (!waiting || playing) return;
+  waiting = false;
+  totalAttempts++;
+
+  var flash = document.getElementById('flash');
+
+  if (key === currentChar) {
+    // Correct
+    totalCorrect++;
+    history.push(1);
+    if (history.length > 20) history.shift();
+
+    flash.textContent = currentChar;
+    flash.classList.remove('error');
+    flash.classList.add('show');
+
+    // Check Koch progression
+    checkProgression();
+    updateHUD();
+
+    setTimeout(function() {
+      flash.classList.remove('show');
+      setTimeout(nextRound, calcFarnsworthDelay());
+    }, 150);
+
+  } else {
+    // Incorrect
+    history.push(0);
+    if (history.length > 20) history.shift();
+
+    flash.textContent = currentChar;
+    flash.classList.add('show', 'error');
+    playError();
+    updateHUD();
+
+    // Replay the same character after a pause
+    setTimeout(function() {
+      flash.classList.remove('show', 'error');
+      document.getElementById('morse-display').textContent = currentChar + ' = ' + currentMorse;
+      setTimeout(function() {
+        playMorse(currentMorse, function() {
+          document.getElementById('morse-display').textContent = currentMorse;
+          waiting = true;
+        });
+      }, 800);
+    }, 400);
+  }
+}
+
+function checkProgression() {
+  if (history.length < 10) return; // Need at least 10 attempts
+  var recent = history.slice(-20);
+  var correct = 0;
+  for (var i = 0; i < recent.length; i++) {
+    if (recent[i] === 1) correct++;
+  }
+  var accuracy = correct / recent.length;
+  if (accuracy >= 0.9 && poolSize < KOCH_ORDER.length) {
+    poolSize++;
+    history = []; // Reset to prevent cascading level-ups
+  }
+}
+
+function getAccuracy() {
+  if (history.length === 0) return 0;
+  var sum = 0;
+  for (var i = 0; i < history.length; i++) sum += history[i];
+  return Math.round((sum / history.length) * 100);
+}
+
+function updateHUD() {
+  var acc = getAccuracy();
+  document.getElementById('hud').textContent =
+    'WPM: ' + charWPM + ' | ACC: ' + acc + '% | POOL: ' + poolSize;
+}
+
+// ============ START ============
+var startScreen = document.getElementById('start-screen');
+var game = document.getElementById('game');
+
+function startGame() {
+  if (started) return;
+  started = true;
+  initAudio();
+  startScreen.style.display = 'none';
+  game.style.display = 'block';
+  updateHUD();
+  setTimeout(nextRound, 500);
+}
+
+startScreen.addEventListener('click', startGame);
+document.getElementById('btn-start').addEventListener('click', startGame);
+
+document.addEventListener('keydown', function(e) {
+  if (!started) {
+    if (e.key === ' ') {
+      e.preventDefault();
+      startGame();
+    }
+    return;
+  }
+
+  if (e.key === ' ') {
+    e.preventDefault();
+    return;
+  }
+
+  var key = e.key.toUpperCase();
+  // Only accept A-Z, 0-9
+  if (/^[A-Z0-9]$/.test(key)) {
+    handleAnswer(key);
+  }
+});
+
+// Replay button
+document.getElementById('replay-btn').addEventListener('click', function() {
+  if (!started || playing) return;
+  waiting = false;
+  playMorse(currentMorse, function() {
+    waiting = true;
+  });
+});
+
+})();
+</script>
+</body>
+</html>
