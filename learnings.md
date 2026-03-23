@@ -841,3 +841,15 @@ Persistent knowledge base. Read this before every build.
 - **INSIGHT**: Rotationally symmetric pieces (O-piece in Tetris, or any piece that looks the same after rotation) should skip the rotation function entirely, because wall kick offsets can still shift them unexpectedly.
 - **INSIGHT**: Game over state needs a "cool-down" delay before accepting restart input. Players are mashing keys when they die — instant restart feels broken and they never see their final board.
 - **TEST CAUGHT (automated)**: Console error — grid accessed before initGrid() was called. Added early initGrid() call.
+
+### base-sync (2026-03-24)
+- **KEEP**: BigInt for number base conversion — handles arbitrary precision beyond Number.MAX_SAFE_INTEGER
+- **KEEP**: BigInt prefix parsing ('0x', '0b', '0o') + toString(radix) — clean, native base conversion
+- **KEEP**: Auto-formatting binary in nibbles (4-bit groups) and decimal with commas — dramatically improves readability
+- **KEEP**: Cursor-relative-to-data-characters tracking for formatted inputs — prevents cursor jump
+- **KEEP**: One-click copy with formatting stripped (commas/spaces removed) — clean clipboard output
+- **IMPROVE**: Cursor jumped to end of input on every keystroke — el.value reassignment kills cursor. Gemini caught. Fixed by tracking cursor position relative to data characters (ignoring format chars), then restoring after re-format.
+- **IMPROVE**: Dead variable (toastTimer) and unused function (filterInput) — removed. Consolidated into handleInput.
+- **INSIGHT**: Any input field with auto-formatting (commas, spaces, dashes) MUST track cursor position relative to meaningful data characters, not raw string index. The pattern: count non-format chars before cursor → reformat → walk new string counting non-format chars to find new cursor position.
+- **INSIGHT**: BigInt prefix strings ('0x', '0b', '0o') are the cleanest way to parse arbitrary-base strings in JS without writing custom parsers.
+- **TEST CAUGHT**: No bugs caught by automated tests — cursor jump is a UX issue only visible during interaction

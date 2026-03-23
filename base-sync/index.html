@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="theme-color" content="#000000">
+<title>Base Sync</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { height: 100%; background: #0e1117; color: #c9d1d9; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Courier New", monospace; overflow-y: auto; touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+#app { max-width: 520px; margin: 0 auto; padding: 16px 12px; }
+
+h1 { font-size: 0.75rem; color: #484f58; letter-spacing: 0.25em; font-weight: 300; margin-bottom: 16px; }
+
+.field { margin-bottom: 12px; }
+.field-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px; }
+.field-label { font-size: 0.5rem; color: #484f58; letter-spacing: 0.15em; text-transform: uppercase; }
+.field-bits { font-size: 0.45rem; color: #30363d; }
+.field-row { display: flex; gap: 4px; }
+.field-input { flex: 1; background: #161b22; border: 1px solid #21262d; color: #c9d1d9; padding: 10px 12px; font-family: inherit; font-size: 0.85rem; border-radius: 4px; outline: none; letter-spacing: 0.05em; }
+.field-input:focus { border-color: #388bfd; }
+.field-input.error { border-color: #f85149; }
+.field-input::placeholder { color: #21262d; }
+.copy-btn { width: 38px; background: #161b22; border: 1px solid #21262d; color: #484f58; font-family: inherit; font-size: 0.7rem; cursor: pointer; border-radius: 4px; display: flex; align-items: center; justify-content: center; }
+.copy-btn:active { border-color: #388bfd; color: #388bfd; }
+.copy-btn.copied { border-color: #3fb950; color: #3fb950; }
+
+/* Bit length indicator */
+#bit-info { font-size: 0.45rem; color: #30363d; text-align: center; margin-top: 8px; letter-spacing: 0.1em; }
+
+/* Toast */
+#toast { position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%); background: #21262d; color: #c9d1d9; padding: 6px 16px; border-radius: 4px; font-size: 0.6rem; opacity: 0; transition: opacity 0.2s; pointer-events: none; z-index: 10; }
+#toast.show { opacity: 1; }
+</style>
+</head>
+<body>
+<div id="app">
+  <h1>BASE SYNC</h1>
+
+  <div class="field">
+    <div class="field-header">
+      <span class="field-label">Decimal (Base 10)</span>
+      <span class="field-bits" id="bits-dec"></span>
+    </div>
+    <div class="field-row">
+      <input type="text" class="field-input" id="in-dec" placeholder="0" inputmode="numeric" spellcheck="false" autocomplete="off">
+      <button class="copy-btn" data-target="in-dec">&#x2398;</button>
+    </div>
+  </div>
+
+  <div class="field">
+    <div class="field-header">
+      <span class="field-label">Hexadecimal (Base 16)</span>
+      <span class="field-bits" id="bits-hex"></span>
+    </div>
+    <div class="field-row">
+      <input type="text" class="field-input" id="in-hex" placeholder="0" spellcheck="false" autocomplete="off">
+      <button class="copy-btn" data-target="in-hex">&#x2398;</button>
+    </div>
+  </div>
+
+  <div class="field">
+    <div class="field-header">
+      <span class="field-label">Binary (Base 2)</span>
+      <span class="field-bits" id="bits-bin"></span>
+    </div>
+    <div class="field-row">
+      <input type="text" class="field-input" id="in-bin" placeholder="0" inputmode="numeric" spellcheck="false" autocomplete="off">
+      <button class="copy-btn" data-target="in-bin">&#x2398;</button>
+    </div>
+  </div>
+
+  <div class="field">
+    <div class="field-header">
+      <span class="field-label">Octal (Base 8)</span>
+      <span class="field-bits" id="bits-oct"></span>
+    </div>
+    <div class="field-row">
+      <input type="text" class="field-input" id="in-oct" placeholder="0" inputmode="numeric" spellcheck="false" autocomplete="off">
+      <button class="copy-btn" data-target="in-oct">&#x2398;</button>
+    </div>
+  </div>
+
+  <div id="bit-info"></div>
+</div>
+
+<div id="toast">Copied!</div>
+
+<script>
+(function() {
+'use strict';
+
+var inDec = document.getElementById('in-dec');
+var inHex = document.getElementById('in-hex');
+var inBin = document.getElementById('in-bin');
+var inOct = document.getElementById('in-oct');
+var bitInfo = document.getElementById('bit-info');
+// Valid character patterns per base
+var VALID = {
+  dec: /[^0-9]/g,
+  hex: /[^0-9a-fA-F]/g,
+  bin: /[^01]/g,
+  oct: /[^0-7]/g
+};
+
+// ============ CONVERSION ============
+function updateFromSource(source) {
+  var raw, value;
+
+  try {
+    if (source === 'dec') {
+      raw = inDec.value.replace(/,/g, '').trim();
+      if (raw === '' || raw === '-') { clearAll(source); return; }
+      value = BigInt(raw);
+    } else if (source === 'hex') {
+      raw = inHex.value.replace(/\s/g, '').trim();
+      if (raw === '') { clearAll(source); return; }
+      value = BigInt('0x' + raw);
+    } else if (source === 'bin') {
+      raw = inBin.value.replace(/\s/g, '').trim();
+      if (raw === '') { clearAll(source); return; }
+      value = BigInt('0b' + raw);
+    } else if (source === 'oct') {
+      raw = inOct.value.replace(/\s/g, '').trim();
+      if (raw === '') { clearAll(source); return; }
+      value = BigInt('0o' + raw);
+    }
+  } catch(e) {
+    // Invalid input — mark error
+    markError(source);
+    return;
+  }
+
+  clearErrors();
+
+  // Update all fields except source
+  if (source !== 'dec') inDec.value = formatDecimal(value.toString());
+  if (source !== 'hex') inHex.value = value.toString(16).toUpperCase();
+  if (source !== 'bin') inBin.value = formatBinary(value.toString(2));
+  if (source !== 'oct') inOct.value = value.toString(8);
+
+  // Bit length info
+  var binStr = value.toString(2);
+  var bits = value === 0n ? 1 : binStr.length;
+  bitInfo.textContent = bits + ' bit' + (bits !== 1 ? 's' : '');
+}
+
+function clearAll(except) {
+  if (except !== 'dec') inDec.value = '';
+  if (except !== 'hex') inHex.value = '';
+  if (except !== 'bin') inBin.value = '';
+  if (except !== 'oct') inOct.value = '';
+  bitInfo.textContent = '';
+  clearErrors();
+}
+
+function markError(source) {
+  var el = source === 'dec' ? inDec : source === 'hex' ? inHex : source === 'bin' ? inBin : inOct;
+  el.classList.add('error');
+}
+
+function clearErrors() {
+  inDec.classList.remove('error');
+  inHex.classList.remove('error');
+  inBin.classList.remove('error');
+  inOct.classList.remove('error');
+}
+
+// ============ FORMATTING ============
+function formatBinary(binStr) {
+  // Space every 4 digits from the right
+  var result = '';
+  var len = binStr.length;
+  for (var i = 0; i < len; i++) {
+    if (i > 0 && (len - i) % 4 === 0) result += ' ';
+    result += binStr[i];
+  }
+  return result;
+}
+
+function formatDecimal(decStr) {
+  // Comma every 3 digits from the right
+  if (decStr[0] === '-') return '-' + formatDecimal(decStr.slice(1));
+  var result = '';
+  var len = decStr.length;
+  for (var i = 0; i < len; i++) {
+    if (i > 0 && (len - i) % 3 === 0) result += ',';
+    result += decStr[i];
+  }
+  return result;
+}
+
+// ============ EVENTS ============
+function handleInput(el, base, fmtRegex) {
+  // Track cursor relative to data chars (ignoring formatting)
+  var cursorPos = el.selectionStart || 0;
+  var beforeCursor = el.value.slice(0, cursorPos);
+  var dataCharsBefore = beforeCursor.replace(fmtRegex, '').length;
+
+  // Strip formatting + invalid chars
+  var raw = el.value.replace(fmtRegex, '');
+  raw = raw.replace(VALID[base], '');
+  el.value = raw;
+  updateFromSource(base);
+
+  // Restore cursor relative to data chars in formatted value
+  var newPos = 0, count = 0;
+  for (var i = 0; i < el.value.length && count < dataCharsBefore; i++) {
+    if (!el.value[i].match(fmtRegex)) count++;
+    newPos = i + 1;
+  }
+  el.setSelectionRange(newPos, newPos);
+}
+
+inDec.addEventListener('input', function() { handleInput(inDec, 'dec', /,/g); });
+inHex.addEventListener('input', function() { handleInput(inHex, 'hex', /\s/g); });
+inBin.addEventListener('input', function() { handleInput(inBin, 'bin', /\s/g); });
+inOct.addEventListener('input', function() { handleInput(inOct, 'oct', /\s/g); });
+
+// Copy buttons
+document.querySelectorAll('.copy-btn').forEach(function(btn) {
+  btn.addEventListener('click', function() {
+    var target = document.getElementById(btn.dataset.target);
+    if (!target || !target.value) return;
+    // Strip formatting for clean copy
+    var val = target.value.replace(/[\s,]/g, '');
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(val).then(function() {
+        flashCopy(btn);
+      }).catch(function() {});
+    } else {
+      var ta = document.createElement('textarea');
+      ta.value = val; ta.style.position = 'fixed'; ta.style.opacity = '0';
+      document.body.appendChild(ta); ta.select(); ta.setSelectionRange(0, 99999);
+      document.execCommand('copy'); document.body.removeChild(ta);
+      flashCopy(btn);
+    }
+  });
+});
+
+function flashCopy(btn) {
+  btn.classList.add('copied');
+  btn.textContent = '\u2713';
+  setTimeout(function() {
+    btn.classList.remove('copied');
+    btn.textContent = '\u2398';
+  }, 800);
+}
+
+// ============ INIT ============
+// Start with 0
+updateFromSource('dec');
+
+})();
+</script>
+</body>
+</html>
