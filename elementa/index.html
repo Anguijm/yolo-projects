@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="theme-color" content="#000000">
+<title>Elementa</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { height: 100%; background: #000; overflow: hidden; touch-action: none; -webkit-tap-highlight-color: transparent; font-family: 'Segoe UI', system-ui, sans-serif; }
+#app { height: 100%; display: flex; flex-direction: column; }
+canvas { display: block; flex: 1; width: 100%; image-rendering: pixelated; image-rendering: crisp-edges; cursor: crosshair; }
+
+/* Toolbar */
+#toolbar { display: flex; gap: 4px; padding: 6px 8px; background: rgba(10,10,10,0.95); border-top: 1px solid #1a1a1a; flex-wrap: wrap; align-items: center; justify-content: center; }
+.elem-btn { width: 36px; height: 36px; border-radius: 8px; border: 2px solid transparent; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 0.5rem; color: #888; font-family: inherit; transition: border-color 0.15s; }
+.elem-btn:active { transform: scale(0.95); }
+.elem-btn.active { border-color: #fff; }
+.sep { width: 1px; height: 28px; background: #222; margin: 0 2px; }
+#brush-size { width: 60px; height: 4px; accent-color: #58a6ff; }
+#fps { font-size: 0.5rem; color: #333; font-family: monospace; min-width: 40px; text-align: right; }
+.clear-btn { padding: 4px 10px; background: transparent; border: 1px solid #222; color: #555; border-radius: 6px; font-size: 0.6rem; cursor: pointer; font-family: inherit; }
+.clear-btn:active { border-color: #444; color: #aaa; }
+</style>
+</head>
+<body>
+<div id="app">
+  <canvas id="c"></canvas>
+  <div id="toolbar">
+    <button class="elem-btn active" data-elem="1" style="background:#e0c060" title="Sand"></button>
+    <button class="elem-btn" data-elem="2" style="background:#2266cc" title="Water"></button>
+    <button class="elem-btn" data-elem="3" style="background:#555" title="Wall"></button>
+    <button class="elem-btn" data-elem="4" style="background:#ff6622" title="Fire"></button>
+    <button class="elem-btn" data-elem="5" style="background:#44ee44" title="Acid"></button>
+    <button class="elem-btn" data-elem="6" style="background:#cc6600" title="Oil"></button>
+    <button class="elem-btn" data-elem="7" style="background:#ee44aa" title="Plant"></button>
+    <button class="elem-btn" data-elem="0" style="background:#111; border-color:#333" title="Erase"></button>
+    <div class="sep"></div>
+    <input type="range" id="brush-size" min="1" max="12" value="3">
+    <div class="sep"></div>
+    <button class="clear-btn" id="btn-clear">Clear</button>
+    <span id="fps">0 fps</span>
+  </div>
+</div>
+
+<script>
+(function() {
+'use strict';
+
+// ============ CONSTANTS ============
+var EMPTY = 0, SAND = 1, WATER = 2, WALL = 3, FIRE = 4, ACID = 5, OIL = 6, PLANT = 7, STEAM = 8;
+
+// Colors as ABGR for Uint32Array (little-endian)
+var COLORS = [];
+COLORS[EMPTY] = 0xFF0A0A0A;
+COLORS[SAND]  = 0xFF50B8E0; // sandy yellow in ABGR
+COLORS[WATER] = 0xFFCC6622; // blue in ABGR
+COLORS[WALL]  = 0xFF555555;
+COLORS[FIRE]  = 0xFF2266FF; // orange-red in ABGR
+COLORS[ACID]  = 0xFF44EE44; // green
+COLORS[OIL]   = 0xFF0066CC; // dark orange in ABGR
+COLORS[PLANT] = 0xFFAA44EE; // magenta in ABGR
+COLORS[STEAM] = 0xFF888888;
+
+// Color variations for visual interest
+var COLOR_VARS = [];
+COLOR_VARS[SAND]  = [0xFF40A8D0, 0xFF50B8E0, 0xFF60C8F0, 0xFF45ADD5];
+COLOR_VARS[WATER] = [0xFFCC6622, 0xFFBB5511, 0xFFDD7733, 0xFFCC5500];
+COLOR_VARS[FIRE]  = [0xFF0044FF, 0xFF2266FF, 0xFF0088FF, 0xFF00CCFF];
+COLOR_VARS[ACID]  = [0xFF33DD33, 0xFF44EE44, 0xFF55FF55, 0xFF22CC22];
+COLOR_VARS[OIL]   = [0xFF0055BB, 0xFF0066CC, 0xFF0077DD, 0xFF004499];
+COLOR_VARS[PLANT] = [0xFF9933DD, 0xFFAA44EE, 0xFFBB55FF, 0xFF8822CC];
+COLOR_VARS[STEAM] = [0xFF777777, 0xFF888888, 0xFF999999, 0xFF666666];
+
+// Density: higher sinks below lower
+var DENSITY = [];
+DENSITY[EMPTY] = 0; DENSITY[SAND] = 4; DENSITY[WATER] = 2; DENSITY[WALL] = 99;
+DENSITY[FIRE] = -1; DENSITY[ACID] = 2; DENSITY[OIL] = 1; DENSITY[PLANT] = 99; DENSITY[STEAM] = -1;
+
+// ============ GRID ============
+var canvas = document.getElementById('c');
+var ctx = canvas.getContext('2d');
+var W, H, grid, imgData, pixels;
+var frame = 0;
+
+function initGrid() {
+  var rect = canvas.getBoundingClientRect();
+  var scale = 3;
+  var newW = Math.floor(rect.width / scale);
+  var newH = Math.floor(rect.height / scale);
+  var oldGrid = grid, oldW = W, oldH = H;
+  W = newW; H = newH;
+  canvas.width = W;
+  canvas.height = H;
+  grid = new Uint8Array(W * H);
+  imgData = ctx.createImageData(W, H);
+  pixels = new Uint32Array(imgData.data.buffer);
+  // Preserve simulation data on resize
+  if (oldGrid) {
+    var minW = Math.min(oldW, W), minH = Math.min(oldH, H);
+    for (var y = 0; y < minH; y++) {
+      for (var x = 0; x < minW; x++) {
+        grid[y * W + x] = oldGrid[y * oldW + x];
+      }
+    }
+  }
+}
+
+var MOVED = 128; // bit flag: cell was already processed this frame
+
+function idx(x, y) { return y * W + x; }
+function inBounds(x, y) { return x >= 0 && x < W && y >= 0 && y < H; }
+function get(x, y) { return inBounds(x, y) ? (grid[idx(x, y)] & 127) : WALL; }
+function getRaw(x, y) { return inBounds(x, y) ? grid[idx(x, y)] : (WALL | MOVED); }
+function set(x, y, v) { if (inBounds(x, y)) grid[idx(x, y)] = v | MOVED; }
+
+function swap(x1, y1, x2, y2) {
+  var i1 = idx(x1, y1), i2 = idx(x2, y2);
+  var a = grid[i1] & 127, b = grid[i2] & 127;
+  grid[i1] = b | MOVED;
+  grid[i2] = a | MOVED;
+}
+
+// ============ PHYSICS ============
+function updateCell(x, y) {
+  if (getRaw(x, y) & MOVED) return; // Already processed this frame
+  var cell = get(x, y);
+  if (cell === EMPTY || cell === WALL) return;
+
+  var below = get(x, y + 1);
+  var randDir = Math.random() > 0.5 ? 1 : -1;
+
+  if (cell === SAND) {
+    if (below === EMPTY) { swap(x, y, x, y + 1); return; }
+    if (DENSITY[below] < DENSITY[SAND] && below !== WALL && below !== PLANT) { swap(x, y, x, y + 1); return; }
+    var diagCell = get(x + randDir, y + 1);
+    if (diagCell === EMPTY || (DENSITY[diagCell] < DENSITY[SAND] && diagCell !== WALL && diagCell !== PLANT)) {
+      swap(x, y, x + randDir, y + 1); return;
+    }
+    diagCell = get(x - randDir, y + 1);
+    if (diagCell === EMPTY || (DENSITY[diagCell] < DENSITY[SAND] && diagCell !== WALL && diagCell !== PLANT)) {
+      swap(x, y, x - randDir, y + 1); return;
+    }
+  }
+
+  else if (cell === WATER) {
+    if (below === EMPTY) { swap(x, y, x, y + 1); return; }
+    if (DENSITY[below] < DENSITY[WATER] && below !== WALL && below !== PLANT) { swap(x, y, x, y + 1); return; }
+    var dg = get(x + randDir, y + 1);
+    if (dg === EMPTY) { swap(x, y, x + randDir, y + 1); return; }
+    dg = get(x - randDir, y + 1);
+    if (dg === EMPTY) { swap(x, y, x - randDir, y + 1); return; }
+    // Spread sideways
+    var side = get(x + randDir, y);
+    if (side === EMPTY) { swap(x, y, x + randDir, y); return; }
+    side = get(x - randDir, y);
+    if (side === EMPTY) { swap(x, y, x - randDir, y); return; }
+  }
+
+  else if (cell === OIL) {
+    if (below === EMPTY) { swap(x, y, x, y + 1); return; }
+    // Oil floats on water: swap if below is denser
+    if (DENSITY[below] > DENSITY[OIL] && below !== WALL && below !== PLANT) { swap(x, y, x, y + 1); return; }
+    var dg2 = get(x + randDir, y + 1);
+    if (dg2 === EMPTY) { swap(x, y, x + randDir, y + 1); return; }
+    dg2 = get(x - randDir, y + 1);
+    if (dg2 === EMPTY) { swap(x, y, x - randDir, y + 1); return; }
+    var s2 = get(x + randDir, y);
+    if (s2 === EMPTY) { swap(x, y, x + randDir, y); return; }
+    s2 = get(x - randDir, y);
+    if (s2 === EMPTY) { swap(x, y, x - randDir, y); return; }
+  }
+
+  else if (cell === FIRE) {
+    // Fire rises and dies
+    if (Math.random() < 0.08) { set(x, y, EMPTY); return; }
+    // Spread to neighbors
+    for (var dx = -1; dx <= 1; dx++) {
+      for (var dy = -1; dy <= 1; dy++) {
+        if (dx === 0 && dy === 0) continue;
+        var nb = get(x + dx, y + dy);
+        if (nb === OIL && Math.random() < 0.6) { set(x + dx, y + dy, FIRE); }
+        else if (nb === PLANT && Math.random() < 0.3) { set(x + dx, y + dy, FIRE); }
+        else if (nb === WATER) { set(x, y, STEAM); set(x + dx, y + dy, STEAM); return; }
+      }
+    }
+    // Rise
+    var above = get(x, y - 1);
+    if (above === EMPTY) { swap(x, y, x, y - 1); return; }
+    var rd = Math.random() > 0.5 ? 1 : -1;
+    if (get(x + rd, y - 1) === EMPTY) { swap(x, y, x + rd, y - 1); return; }
+    if (get(x - rd, y - 1) === EMPTY) { swap(x, y, x - rd, y - 1); return; }
+    // Drift sideways
+    if (get(x + rd, y) === EMPTY) { swap(x, y, x + rd, y); }
+  }
+
+  else if (cell === STEAM) {
+    if (Math.random() < 0.02) { set(x, y, WATER); return; } // Condense
+    if (Math.random() < 0.04) { set(x, y, EMPTY); return; } // Dissipate
+    var ab = get(x, y - 1);
+    if (ab === EMPTY) { swap(x, y, x, y - 1); return; }
+    var sd = Math.random() > 0.5 ? 1 : -1;
+    if (get(x + sd, y - 1) === EMPTY) { swap(x, y, x + sd, y - 1); return; }
+    if (get(x + sd, y) === EMPTY) { swap(x, y, x + sd, y); }
+  }
+
+  else if (cell === ACID) {
+    // Corrode neighbors
+    for (var ax = -1; ax <= 1; ax++) {
+      for (var ay = -1; ay <= 1; ay++) {
+        if (ax === 0 && ay === 0) continue;
+        var an = get(x + ax, y + ay);
+        if (an !== EMPTY && an !== ACID && an !== WALL && Math.random() < 0.04) {
+          set(x + ax, y + ay, EMPTY);
+          if (Math.random() < 0.3) { set(x, y, EMPTY); return; } // Acid consumed
+        }
+      }
+    }
+    // Flow like water
+    if (below === EMPTY) { swap(x, y, x, y + 1); return; }
+    var ad = get(x + randDir, y + 1);
+    if (ad === EMPTY) { swap(x, y, x + randDir, y + 1); return; }
+    ad = get(x - randDir, y + 1);
+    if (ad === EMPTY) { swap(x, y, x - randDir, y + 1); return; }
+    var as2 = get(x + randDir, y);
+    if (as2 === EMPTY) { swap(x, y, x + randDir, y); return; }
+    as2 = get(x - randDir, y);
+    if (as2 === EMPTY) { swap(x, y, x - randDir, y); return; }
+  }
+
+  else if (cell === PLANT) {
+    // Grow when water is adjacent
+    for (var px = -1; px <= 1; px++) {
+      for (var py = -1; py <= 1; py++) {
+        if (px === 0 && py === 0) continue;
+        var pn = get(x + px, y + py);
+        if (pn === WATER && Math.random() < 0.015) {
+          set(x + px, y + py, PLANT);
+        }
+      }
+    }
+  }
+}
+
+function simulate() {
+  frame++;
+  var leftToRight = frame % 2 === 0;
+  // Process bottom to top
+  for (var y = H - 1; y >= 0; y--) {
+    if (leftToRight) {
+      for (var x = 0; x < W; x++) updateCell(x, y);
+    } else {
+      for (var x = W - 1; x >= 0; x--) updateCell(x, y);
+    }
+  }
+}
+
+// ============ RENDERING ============
+function render() {
+  for (var i = 0, len = W * H; i < len; i++) {
+    grid[i] &= 127; // Clear MOVED flag for next frame
+    var cell = grid[i];
+    if (cell === EMPTY) {
+      pixels[i] = COLORS[EMPTY];
+    } else if (COLOR_VARS[cell]) {
+      pixels[i] = COLOR_VARS[cell][(i + frame) & 3];
+    } else {
+      pixels[i] = COLORS[cell];
+    }
+  }
+  ctx.putImageData(imgData, 0, 0);
+}
+
+// ============ INPUT ============
+var selectedElem = SAND;
+var brushSize = 3;
+var isDrawing = false;
+var lastX = -1, lastY = -1;
+
+function screenToGrid(sx, sy) {
+  var rect = canvas.getBoundingClientRect();
+  return {
+    x: Math.floor((sx - rect.left) / rect.width * W),
+    y: Math.floor((sy - rect.top) / rect.height * H)
+  };
+}
+
+function paintCircle(cx, cy, r, elem) {
+  for (var dy = -r; dy <= r; dy++) {
+    for (var dx = -r; dx <= r; dx++) {
+      if (dx * dx + dy * dy <= r * r) {
+        var px = cx + dx, py = cy + dy;
+        if (inBounds(px, py)) {
+          grid[idx(px, py)] = elem; // Direct write, no MOVED flag for user input
+        }
+      }
+    }
+  }
+}
+
+// Bresenham line for smooth drawing
+function drawLine(x0, y0, x1, y1, r, elem) {
+  var dx = Math.abs(x1 - x0), dy = Math.abs(y1 - y0);
+  var sx = x0 < x1 ? 1 : -1, sy = y0 < y1 ? 1 : -1;
+  var err = dx - dy;
+  while (true) {
+    paintCircle(x0, y0, r, elem);
+    if (x0 === x1 && y0 === y1) break;
+    var e2 = 2 * err;
+    if (e2 > -dy) { err -= dy; x0 += sx; }
+    if (e2 < dx) { err += dx; y0 += sy; }
+  }
+}
+
+canvas.addEventListener('pointerdown', function(e) {
+  e.preventDefault();
+  isDrawing = true;
+  var p = screenToGrid(e.clientX, e.clientY);
+  lastX = p.x; lastY = p.y;
+  paintCircle(p.x, p.y, brushSize, selectedElem);
+});
+
+canvas.addEventListener('pointermove', function(e) {
+  if (!isDrawing) return;
+  e.preventDefault();
+  var p = screenToGrid(e.clientX, e.clientY);
+  drawLine(lastX, lastY, p.x, p.y, brushSize, selectedElem);
+  lastX = p.x; lastY = p.y;
+});
+
+window.addEventListener('pointerup', function() { isDrawing = false; lastX = -1; lastY = -1; });
+window.addEventListener('pointercancel', function() { isDrawing = false; lastX = -1; lastY = -1; });
+
+// ============ TOOLBAR ============
+document.querySelectorAll('.elem-btn').forEach(function(btn) {
+  btn.addEventListener('click', function() {
+    document.querySelectorAll('.elem-btn').forEach(function(b) { b.classList.remove('active'); });
+    btn.classList.add('active');
+    selectedElem = parseInt(btn.dataset.elem);
+  });
+});
+
+document.getElementById('brush-size').addEventListener('input', function(e) {
+  brushSize = parseInt(e.target.value);
+});
+
+document.getElementById('btn-clear').addEventListener('click', function() {
+  grid.fill(EMPTY);
+});
+
+// ============ RESIZE ============
+window.addEventListener('resize', function() {
+  // Save state concept — just reinit for simplicity
+  initGrid();
+});
+
+// ============ MAIN LOOP ============
+var fpsFrames = 0, fpsTime = performance.now(), fpsDisplay = document.getElementById('fps');
+
+function loop() {
+  simulate();
+  render();
+  fpsFrames++;
+  var now = performance.now();
+  if (now - fpsTime >= 1000) {
+    fpsDisplay.textContent = fpsFrames + ' fps';
+    fpsFrames = 0;
+    fpsTime = now;
+  }
+  requestAnimationFrame(loop);
+}
+
+initGrid();
+requestAnimationFrame(loop);
+
+})();
+</script>
+</body>
+</html>

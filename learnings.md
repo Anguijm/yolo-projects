@@ -577,3 +577,25 @@ Persistent knowledge base. Read this before every build.
 - **DISCARD**: Shuffle button that resets intervals — since cards are already shown randomly, shuffling the array does nothing useful. Changed to a "Reset" button that only clears nextReview times
 - **INSIGHT**: When a data model has both user-editable content (front/back text) AND system-managed metadata (intervals, timestamps), editing must merge, not replace. This applies broadly: any editor that touches objects with hidden state needs a merge strategy.
 - **TEST CAUGHT**: No bugs caught by automated tests this build — all bugs were logic-level (data loss on edit) that require Gemini review to catch
+
+### elementa (2026-03-23) — PROJECT #70 (5-build review)
+- **KEEP**: Uint8Array grid + Uint32Array pixel buffer via ImageData — proven pattern for any cellular automata or pixel-level sim
+- **KEEP**: Alternating left-to-right / right-to-left scan direction — prevents directional bias in fluid flow
+- **KEEP**: Bottom-to-top processing for gravity — prevents particles teleporting downward in a single frame
+- **KEEP**: Bresenham line algorithm for brush input — eliminates gaps in fast strokes
+- **KEEP**: Density-based displacement (sand sinks through water, oil floats) — simple numeric comparison creates rich emergent behavior
+- **KEEP**: Probabilistic reactions (Math.random() < rate) — organic feel vs instant state changes
+- **IMPROVE**: Fire/steam teleported to top instantly — upward-moving cells were processed multiple times per frame. Fixed with bit-flag bitmask (high bit of Uint8Array cell value). Gemini caught this.
+- **IMPROVE**: Resize destroyed simulation — initGrid wiped grid. Fixed by copying old data into new grid. Gemini caught this.
+- **IMPROVE**: Brush couldn't overwrite existing elements — too restrictive. Removed the empty-cell check. Gemini caught this.
+- **INSIGHT**: For cellular automata with bidirectional movement (gravity + rising), use a "processed this frame" flag to prevent double-processing. The high bit of a Uint8Array is free when element IDs < 128 — elegant zero-cost flag.
+- **INSIGHT**: Any operation that reinitializes a data structure (resize, reset, mode change) must preserve user data. Copy first, then reinitialize.
+- **TEST CAUGHT**: No bugs caught by automated tests — all 3 bugs were physics/logic-level issues only visible through Gemini code review.
+
+#### 5-Build Review (Builds #66-70: tip-calc, sudoku, tic-tac-toe, flash-cards, elementa)
+- **All 5 shipped working.** Zero user-reported bugs in this batch.
+- **Gemini audit value**: Caught 12+ bugs across 5 builds. Most common: data integrity (progress wipe, ghost values), input timing (click spam), and physics correctness (teleportation).
+- **New accumulated principle**: When a data model has both user-editable content AND system-managed metadata (intervals, scores, timestamps), any edit/parse operation MUST merge with existing data rather than replacing it.
+- **New accumulated principle**: Typed array bit flags (using unused high bits) are an elegant way to track per-cell state without allocating a second array.
+- **No recurring Gemini critiques** — each build's bugs were unique. Process is healthy.
+- **Automated tests caught 0 bugs this batch** — all bugs were logic-level. Consider adding: physics simulation frame tests? Hard to automate for single-file HTML apps.
