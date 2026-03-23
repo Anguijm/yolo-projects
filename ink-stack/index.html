@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="theme-color" content="#000000">
+<title>Ink Stack</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { height: 100%; background: #0e0e0e; overflow: hidden; touch-action: manipulation; -webkit-tap-highlight-color: transparent; font-family: system-ui, sans-serif; }
+canvas { touch-action: none; }
+canvas { display: block; width: 100%; height: 100%; cursor: crosshair; }
+
+#toolbar { position: fixed; bottom: 12px; left: 50%; transform: translateX(-50%); display: flex; gap: 6px; align-items: center; padding: 8px 14px; background: rgba(14,14,14,0.92); border: 1px solid #1a1a1a; border-radius: 12px; backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); z-index: 5; }
+
+.palette-dot { width: 22px; height: 22px; border-radius: 50%; border: 2px solid transparent; cursor: pointer; }
+.palette-dot.active { border-color: #fff; }
+#color-pick { width: 22px; height: 22px; border: none; padding: 0; cursor: pointer; border-radius: 50%; background: none; }
+#color-pick::-webkit-color-swatch-wrapper { padding: 0; }
+#color-pick::-webkit-color-swatch { border: 1px solid #333; border-radius: 50%; }
+
+.sep { width: 1px; height: 22px; background: #222; }
+
+input[type="range"] { width: 50px; height: 3px; accent-color: #555; }
+
+.tb-btn { width: 28px; height: 28px; border: 1px solid #1a1a1a; background: transparent; color: #555; font-size: 0.7rem; cursor: pointer; border-radius: 6px; display: flex; align-items: center; justify-content: center; }
+.tb-btn:active { border-color: #555; color: #aaa; }
+.tb-btn.disabled { opacity: 0.25; pointer-events: none; }
+
+#stack-info { font-size: 0.4rem; color: #333; font-family: monospace; min-width: 30px; text-align: center; }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="toolbar">
+  <div class="palette-dot active" data-color="#ffffff" style="background:#ffffff"></div>
+  <div class="palette-dot" data-color="#58a6ff" style="background:#58a6ff"></div>
+  <div class="palette-dot" data-color="#f0883e" style="background:#f0883e"></div>
+  <div class="palette-dot" data-color="#3fb950" style="background:#3fb950"></div>
+  <div class="palette-dot" data-color="#f85149" style="background:#f85149"></div>
+  <div class="palette-dot" data-color="#bc8cff" style="background:#bc8cff"></div>
+  <div class="palette-dot" data-color="#ffe600" style="background:#ffe600"></div>
+  <input type="color" id="color-pick" value="#ffffff" title="Custom color">
+  <div class="sep"></div>
+  <input type="range" id="sl-size" min="1" max="30" value="3" title="Brush size">
+  <div class="sep"></div>
+  <button class="tb-btn disabled" id="btn-undo" title="Undo (Ctrl+Z)">&#x21A9;</button>
+  <button class="tb-btn disabled" id="btn-redo" title="Redo (Ctrl+Y)">&#x21AA;</button>
+  <span id="stack-info">0</span>
+  <div class="sep"></div>
+  <button class="tb-btn" id="btn-clear" title="Clear">&#x2716;</button>
+  <button class="tb-btn" id="btn-save" title="Save PNG">&#x2913;</button>
+</div>
+
+<script>
+(function() {
+'use strict';
+
+var canvas = document.getElementById('c');
+var ctx = canvas.getContext('2d');
+var W, H, dpr;
+
+// ============ STATE ============
+var strokes = [];     // completed strokes (the "document")
+var redoStack = [];   // strokes removed by undo
+var currentStroke = null; // stroke being drawn right now
+var brushColor = '#ffffff';
+var brushSize = 3;
+var MAX_HISTORY = 50;
+var bakedCanvas = document.createElement('canvas');
+var bakedCtx = bakedCanvas.getContext('2d');
+
+// ============ STROKE CLASS ============
+// Each stroke: { points: [{x,y}], color, size }
+
+// ============ CANVAS SETUP ============
+function resize() {
+  dpr = window.devicePixelRatio || 1;
+  W = window.innerWidth;
+  H = window.innerHeight;
+  canvas.width = W * dpr;
+  canvas.height = H * dpr;
+  canvas.style.width = W + 'px';
+  canvas.style.height = H + 'px';
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  bakedCanvas.width = W * dpr;
+  bakedCanvas.height = H * dpr;
+  bakedCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  bakedCtx.fillStyle = '#0e0e0e';
+  bakedCtx.fillRect(0, 0, W, H);
+  redrawAll();
+}
+
+// ============ DRAWING ============
+function redrawAll() {
+  ctx.clearRect(0, 0, W, H);
+  ctx.drawImage(bakedCanvas, 0, 0, W, H); // Baked permanent strokes
+  for (var i = 0; i < strokes.length; i++) {
+    drawStroke(strokes[i]);
+  }
+  if (currentStroke) drawStroke(currentStroke);
+}
+
+function drawStrokeTo(stroke, tctx) {
+  var pts = stroke.points;
+  if (pts.length === 0) return;
+  tctx.strokeStyle = stroke.color; tctx.lineWidth = stroke.size;
+  tctx.lineCap = 'round'; tctx.lineJoin = 'round';
+  if (pts.length === 1) {
+    tctx.fillStyle = stroke.color;
+    tctx.beginPath(); tctx.arc(pts[0].x, pts[0].y, stroke.size / 2, 0, Math.PI * 2); tctx.fill();
+    return;
+  }
+  tctx.beginPath(); tctx.moveTo(pts[0].x, pts[0].y);
+  for (var i = 1; i < pts.length - 1; i++) {
+    var mx = (pts[i].x + pts[i + 1].x) / 2;
+    var my = (pts[i].y + pts[i + 1].y) / 2;
+    tctx.quadraticCurveTo(pts[i].x, pts[i].y, mx, my);
+  }
+  tctx.lineTo(pts[pts.length - 1].x, pts[pts.length - 1].y);
+  tctx.stroke();
+}
+
+function drawStroke(stroke) {
+  var pts = stroke.points;
+  if (pts.length === 0) return;
+
+  ctx.strokeStyle = stroke.color;
+  ctx.lineWidth = stroke.size;
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+
+  if (pts.length === 1) {
+    // Single dot
+    ctx.fillStyle = stroke.color;
+    ctx.beginPath();
+    ctx.arc(pts[0].x, pts[0].y, stroke.size / 2, 0, Math.PI * 2);
+    ctx.fill();
+    return;
+  }
+
+  ctx.beginPath();
+  ctx.moveTo(pts[0].x, pts[0].y);
+
+  // Quadratic bezier smoothing
+  for (var i = 1; i < pts.length - 1; i++) {
+    var mx = (pts[i].x + pts[i + 1].x) / 2;
+    var my = (pts[i].y + pts[i + 1].y) / 2;
+    ctx.quadraticCurveTo(pts[i].x, pts[i].y, mx, my);
+  }
+  // Last segment
+  var last = pts[pts.length - 1];
+  ctx.lineTo(last.x, last.y);
+  ctx.stroke();
+}
+
+// ============ POINTER INPUT ============
+function getPos(e) {
+  var rect = canvas.getBoundingClientRect();
+  return {
+    x: e.clientX - rect.left,
+    y: e.clientY - rect.top
+  };
+}
+
+canvas.addEventListener('pointerdown', function(e) {
+  e.preventDefault();
+  canvas.setPointerCapture(e.pointerId);
+  var pos = getPos(e);
+  currentStroke = { points: [pos], color: brushColor, size: brushSize };
+  redrawAll();
+});
+
+canvas.addEventListener('pointermove', function(e) {
+  if (!currentStroke) return;
+  e.preventDefault();
+  currentStroke.points.push(getPos(e));
+  redrawAll();
+});
+
+window.addEventListener('pointerup', function(e) {
+  if (!currentStroke) return;
+  strokes.push(currentStroke);
+  currentStroke = null;
+  // Clear redo on new stroke (branching history)
+  redoStack = [];
+  // Cap history
+  // Bake oldest strokes to background when over limit (preserves visuals)
+  while (strokes.length > MAX_HISTORY) {
+    var old = strokes.shift();
+    drawStrokeTo(old, bakedCtx);
+  }
+  updateButtons();
+});
+
+window.addEventListener('pointercancel', function() {
+  if (currentStroke) {
+    currentStroke = null; // Discard interrupted stroke
+    redrawAll();
+  }
+});
+
+// ============ UNDO / REDO ============
+function undo() {
+  if (strokes.length === 0) return;
+  redoStack.push(strokes.pop());
+  redrawAll();
+  updateButtons();
+}
+
+function redo() {
+  if (redoStack.length === 0) return;
+  strokes.push(redoStack.pop());
+  redrawAll();
+  updateButtons();
+}
+
+function updateButtons() {
+  document.getElementById('btn-undo').classList.toggle('disabled', strokes.length === 0);
+  document.getElementById('btn-redo').classList.toggle('disabled', redoStack.length === 0);
+  document.getElementById('stack-info').textContent = strokes.length;
+}
+
+// ============ CONTROLS ============
+document.querySelectorAll('.palette-dot').forEach(function(dot) {
+  dot.addEventListener('click', function() {
+    brushColor = dot.dataset.color;
+    document.querySelectorAll('.palette-dot').forEach(function(d) { d.classList.remove('active'); });
+    dot.classList.add('active');
+    document.getElementById('color-pick').value = brushColor;
+  });
+});
+
+document.getElementById('color-pick').addEventListener('input', function(e) {
+  brushColor = e.target.value;
+  document.querySelectorAll('.palette-dot').forEach(function(d) { d.classList.remove('active'); });
+});
+
+document.getElementById('sl-size').addEventListener('input', function(e) {
+  brushSize = parseInt(e.target.value, 10);
+  if (isNaN(brushSize) || brushSize < 1) brushSize = 1;
+});
+
+document.getElementById('btn-undo').addEventListener('click', undo);
+document.getElementById('btn-redo').addEventListener('click', redo);
+
+document.getElementById('btn-clear').addEventListener('click', function() {
+  if (strokes.length === 0) return;
+  // Push all strokes to redo so clear is undoable? No — just clear.
+  strokes = [];
+  redoStack = [];
+  redrawAll();
+  updateButtons();
+});
+
+document.getElementById('btn-save').addEventListener('click', function() {
+  // Create a clean canvas without toolbar
+  var oc = document.createElement('canvas');
+  oc.width = W * dpr;
+  oc.height = H * dpr;
+  var octx = oc.getContext('2d');
+  octx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  octx.fillStyle = '#0e0e0e';
+  octx.fillRect(0, 0, W, H);
+  for (var i = 0; i < strokes.length; i++) {
+    // Redraw strokes on offscreen canvas
+    var pts = strokes[i].points;
+    if (pts.length === 0) continue;
+    octx.strokeStyle = strokes[i].color;
+    octx.lineWidth = strokes[i].size;
+    octx.lineCap = 'round';
+    octx.lineJoin = 'round';
+    if (pts.length === 1) {
+      octx.fillStyle = strokes[i].color;
+      octx.beginPath();
+      octx.arc(pts[0].x, pts[0].y, strokes[i].size / 2, 0, Math.PI * 2);
+      octx.fill();
+    } else {
+      octx.beginPath();
+      octx.moveTo(pts[0].x, pts[0].y);
+      for (var j = 1; j < pts.length - 1; j++) {
+        var mx = (pts[j].x + pts[j + 1].x) / 2;
+        var my = (pts[j].y + pts[j + 1].y) / 2;
+        octx.quadraticCurveTo(pts[j].x, pts[j].y, mx, my);
+      }
+      octx.lineTo(pts[pts.length - 1].x, pts[pts.length - 1].y);
+      octx.stroke();
+    }
+  }
+  oc.toBlob(function(blob) {
+    if (!blob) return;
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url;
+    a.download = 'ink-' + Date.now() + '.png';
+    a.click();
+    setTimeout(function() { URL.revokeObjectURL(url); }, 1000);
+  }, 'image/png');
+});
+
+// Keyboard shortcuts
+document.addEventListener('keydown', function(e) {
+  if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
+    e.preventDefault();
+    undo();
+  } else if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || (e.key === 'z' && e.shiftKey))) {
+    e.preventDefault();
+    redo();
+  }
+});
+
+// ============ RESIZE ============
+window.addEventListener('resize', resize);
+
+// ============ INIT ============
+resize();
+updateButtons();
+
+})();
+</script>
+</body>
+</html>

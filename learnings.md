@@ -911,3 +911,15 @@ Persistent knowledge base. Read this before every build.
 - **INSIGHT**: Async cancellation in recursive algorithms needs checks at EVERY level: before each recursive call, between sibling calls, and inside each inner loop. A single check at the top of the function is not enough.
 - **INSIGHT**: Web Audio nodes (oscillator, gain) persist in the audio graph even after stop(). Must explicitly disconnect via onended callback to prevent GC pressure during rapid creation.
 - **TEST CAUGHT**: No bugs caught by automated tests — all were async control flow and audio lifecycle issues
+
+### ink-stack (2026-03-24)
+- **KEEP**: Stroke-based undo/redo (array of {points, color, size} objects) — lighter than pixel snapshots, enables selective redo
+- **KEEP**: Quadratic bezier smoothing between points — eliminates jagged lines from discrete pointer events
+- **KEEP**: Baked canvas for oldest strokes — preserves visual history even when undo stack is capped
+- **KEEP**: Redo stack cleared on new stroke — correct branching history model
+- **KEEP**: setPointerCapture for smooth drawing beyond canvas edges
+- **IMPROVE**: MAX_HISTORY shift() deleted strokes from array, causing redrawAll to lose them visually — Gemini caught. Must bake to offscreen canvas before shifting.
+- **IMPROVE**: pointercancel saved partial strokes — should discard since the interaction was interrupted
+- **INSIGHT**: Any history system with a cap that redraws from the history array will LOSE data when shifting. If the array IS the source of truth for rendering, bake evicted entries to a persistent layer (offscreen canvas) before removing them.
+- **INSIGHT**: pointercancel means the OS interrupted the gesture (system dialog, orientation change). The partial data is unreliable and should be discarded, not committed.
+- **TEST CAUGHT**: Browser test timed out (transient Playwright issue, not a code bug). Non-browser checks all passed.
