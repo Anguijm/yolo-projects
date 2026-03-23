@@ -654,3 +654,27 @@ Persistent knowledge base. Read this before every build.
 - **INSIGHT**: Dead code is a bug signal. If you define a function and never call it, you either have an unused feature or a missing integration. Grep for all function definitions and verify each is called.
 - **INSIGHT**: Start screens that are plain divs (not buttons) may not be clicked by automated tests that look for button elements. Include a visible button for test compatibility.
 - **TEST CAUGHT (automated)**: Start screen (#start-screen div) wasn't dismissed by Playwright — test clicks buttons, not divs. Added a START button.
+
+### dice-oracle (2026-03-23) — PROJECT #75 (5-build review)
+- **KEEP**: Discrete convolution for exact dice probability distributions — mathematically correct, zero approximation for standard dice
+- **KEEP**: Monte Carlo fallback only for complex modifiers (keep-highest) — clean separation of exact vs approximate
+- **KEEP**: crypto.getRandomValues for dice rolls — proper entropy source
+- **KEEP**: Live preview distribution on input change (debounced 300ms) — user sees the shape before rolling
+- **KEEP**: Percentile + probability display — gives statistical context ("TOP 8% roll")
+- **KEEP**: Preset buttons that actually execute the action — don't just preview
+- **IMPROVE**: Chart axis labels invisible (#222 on #000) — always test text contrast against background
+- **IMPROVE**: Preset buttons only previewed without rolling — Gemini caught. Buttons that look like they DO something must DO it.
+- **IMPROVE**: Leading negatives silently dropped (-1d4 → +1d4) — parser must handle unary minus
+- **IMPROVE**: Rolls sampled from Monte Carlo distribution instead of true simulation — never derive randomness from approximated randomness. Always roll actual dice.
+- **IMPROVE**: for...in loop on objects vulnerable to prototype pollution — use Object.keys() always
+- **INSIGHT**: When you have both a distribution (for visualization) AND a roll (for the result), generate them independently. The roll must come from true simulation, not from sampling the precomputed graph.
+- **INSIGHT**: for...in is NEVER safe for iterating object keys in a single-file app where you can't control the global environment. Always use Object.keys().
+- **TEST CAUGHT**: No bugs caught by automated tests — all were logic-level
+
+#### 5-Build Review (Builds #71-75: memory-xray, neon-mandala, glitch-studio, morse-pulse, dice-oracle)
+- **All 5 shipped working.** Zero user-reported bugs. 10 consecutive working builds (66-75).
+- **Recurring: UI state desync** — appeared in glitch-studio and memory-xray. NEW ACCUMULATED PRINCIPLE: UI controls must always reflect the actual visual/data state. Never apply temp values then reset sliders.
+- **Recurring: High-DPI canvas** — neon-mandala forgot CSS dimensions (2nd occurrence across all builds). ADDED TO ACCUMULATED PRINCIPLES: High-DPI canvas requires BOTH canvas.width/height AND canvas.style.width/height.
+- **New pattern: Dead code = missing feature** — morse-pulse had Farnsworth function defined but never called. Consider adding a "defined but uncalled function" check to the test suite.
+- **Gemini audit value**: Caught 15+ bugs across 5 builds. Most valuable catches: architectural (roll-from-distribution), state management (cascading level-up), and visual (invisible text).
+- **No recurring Gemini critiques** — each build's bugs were unique. Process is healthy.

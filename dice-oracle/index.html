@@ -1,0 +1,435 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="theme-color" content="#000000">
+<title>Dice Oracle</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { height: 100%; background: #000; color: #ccc; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Courier New", monospace; overflow: hidden; touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+#app { height: 100%; display: flex; flex-direction: column; }
+
+/* Input area */
+#input-area { padding: 16px; text-align: center; }
+#dice-input { width: 100%; max-width: 400px; background: #000; border: none; border-bottom: 1px solid #1a1a1a; color: #0ff; font-family: inherit; font-size: clamp(1.4rem, 5vw, 2rem); text-align: center; outline: none; padding: 8px; letter-spacing: 0.1em; caret-color: #0ff; }
+#dice-input::placeholder { color: #111; }
+#result { font-size: clamp(2rem, 8vw, 4rem); color: #fff; margin-top: 8px; min-height: 1.2em; font-weight: 200; }
+#percentile { font-size: 0.6rem; color: #333; margin-top: 4px; min-height: 1em; letter-spacing: 0.15em; }
+#detail { font-size: 0.55rem; color: #1a1a1a; margin-top: 4px; min-height: 1em; }
+
+/* Chart */
+#chart-area { flex: 1; padding: 0 12px 4px; min-height: 0; }
+canvas { width: 100%; height: 100%; display: block; }
+
+/* History */
+#history { padding: 6px 12px; max-height: 80px; overflow-y: auto; border-top: 1px solid #0a0a0a; }
+#history-log { font-size: 0.45rem; color: #222; line-height: 1.6; }
+.hist-entry { display: inline-block; margin-right: 12px; }
+.hist-val { color: #555; }
+
+/* Presets */
+#presets { padding: 6px 12px; display: flex; gap: 4px; flex-wrap: wrap; justify-content: center; border-top: 1px solid #0a0a0a; }
+.preset-btn { padding: 4px 8px; background: transparent; border: 1px solid #111; color: #333; font-family: inherit; font-size: 0.5rem; cursor: pointer; letter-spacing: 0.05em; }
+.preset-btn:active { border-color: #0ff; color: #0ff; }
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="input-area">
+    <input type="text" id="dice-input" placeholder="2d6+3" autocomplete="off" spellcheck="false">
+    <div id="result"></div>
+    <div id="percentile"></div>
+    <div id="detail"></div>
+  </div>
+  <div id="chart-area">
+    <canvas id="chart"></canvas>
+  </div>
+  <div id="presets">
+    <button class="preset-btn" data-dice="d20">d20</button>
+    <button class="preset-btn" data-dice="2d6">2d6</button>
+    <button class="preset-btn" data-dice="4d6k3">4d6k3</button>
+    <button class="preset-btn" data-dice="d100">d100</button>
+    <button class="preset-btn" data-dice="3d8+5">3d8+5</button>
+    <button class="preset-btn" data-dice="8d6">8d6</button>
+  </div>
+  <div id="history">
+    <div id="history-log"></div>
+  </div>
+</div>
+
+<script>
+(function() {
+'use strict';
+
+// ============ ELEMENTS ============
+var input = document.getElementById('dice-input');
+var resultEl = document.getElementById('result');
+var percentileEl = document.getElementById('percentile');
+var detailEl = document.getElementById('detail');
+var canvas = document.getElementById('chart');
+var ctx = canvas.getContext('2d');
+var historyLog = document.getElementById('history-log');
+var audioCtx = null;
+
+// ============ STATE ============
+var currentDist = null; // {min, max, probs: {value: probability}}
+var lastRoll = null;
+
+// ============ AUDIO ============
+function initAudio() {
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  if (audioCtx.state === 'suspended') audioCtx.resume();
+}
+
+function playClick() {
+  if (!audioCtx) return;
+  var now = audioCtx.currentTime;
+  // White noise burst through bandpass
+  var bufferSize = 1024;
+  var buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+  var data = buffer.getChannelData(0);
+  for (var i = 0; i < bufferSize; i++) data[i] = Math.random() * 2 - 1;
+  var src = audioCtx.createBufferSource();
+  src.buffer = buffer;
+  var bp = audioCtx.createBiquadFilter();
+  bp.type = 'bandpass'; bp.frequency.value = 3000; bp.Q.value = 1.5;
+  var gain = audioCtx.createGain();
+  gain.gain.setValueAtTime(0.15, now);
+  gain.gain.exponentialRampToValueAtTime(0.001, now + 0.04);
+  src.connect(bp); bp.connect(gain); gain.connect(audioCtx.destination);
+  src.start(now); src.stop(now + 0.05);
+}
+
+// ============ DICE PARSER ============
+// Supports: NdX, NdXkH (keep highest H), NdX+M, NdX-M, plain numbers
+// Grammar: expr = term (('+' | '-') term)*
+//          term = dice | number
+//          dice = [N]'d'X['k'H]
+
+function parseDice(str) {
+  str = str.replace(/\s/g, '').toLowerCase();
+  if (!str) return null;
+
+  var tokens = [];
+  var re = /(\d*d\d+(?:k\d+)?)|([+\-])|(\d+)/g;
+  var m;
+  while ((m = re.exec(str)) !== null) {
+    if (m[1]) tokens.push({ type: 'dice', val: m[1] });
+    else if (m[2]) tokens.push({ type: 'op', val: m[2] });
+    else if (m[3]) tokens.push({ type: 'num', val: parseInt(m[3], 10) });
+  }
+
+  if (tokens.length === 0) return null;
+
+  // Build distribution by convolving terms
+  var dist = null;
+  var op = '+';
+
+  for (var i = 0; i < tokens.length; i++) {
+    var tok = tokens[i];
+    if (tok.type === 'op') { op = tok.val; continue; }
+
+    var termDist;
+    if (tok.type === 'num') {
+      termDist = {}; termDist[tok.val] = 1;
+    } else {
+      termDist = diceDistribution(tok.val);
+      if (!termDist) return null;
+    }
+
+    if (!dist) {
+      // Handle leading negative (e.g. -1d4)
+      if (op === '-') {
+        dist = convolve({'0': 1}, termDist, '-');
+      } else {
+        dist = termDist;
+      }
+    } else {
+      dist = convolve(dist, termDist, op);
+    }
+  }
+
+  return dist;
+}
+
+function diceDistribution(notation) {
+  // Parse NdXkH
+  var m = notation.match(/^(\d*)d(\d+)(?:k(\d+))?$/);
+  if (!m) return null;
+  var n = m[1] ? parseInt(m[1], 10) : 1;
+  var faces = parseInt(m[2], 10);
+  var keep = m[3] ? parseInt(m[3], 10) : n;
+
+  if (n < 1 || n > 20 || faces < 1 || faces > 100 || keep < 1 || keep > n) return null;
+
+  if (keep === n) {
+    // Simple: convolve single die n times
+    var single = {};
+    for (var f = 1; f <= faces; f++) single[f] = 1 / faces;
+    var dist = single;
+    for (var i = 1; i < n; i++) dist = convolve(dist, single, '+');
+    return dist;
+  }
+
+  // Keep highest: Monte Carlo for complex cases
+  return monteCarloKeep(n, faces, keep, 20000);
+}
+
+function monteCarloKeep(n, faces, keep, iterations) {
+  var counts = {};
+  for (var i = 0; i < iterations; i++) {
+    var rolls = [];
+    for (var j = 0; j < n; j++) rolls.push(cryptoRandInt(faces) + 1);
+    rolls.sort(function(a, b) { return b - a; });
+    var sum = 0;
+    for (var j = 0; j < keep; j++) sum += rolls[j];
+    counts[sum] = (counts[sum] || 0) + 1;
+  }
+  var dist = {};
+  for (var k in counts) dist[k] = counts[k] / iterations;
+  return dist;
+}
+
+function convolve(a, b, op) {
+  var result = {};
+  var keysA = Object.keys(a);
+  var keysB = Object.keys(b);
+  for (var i = 0; i < keysA.length; i++) {
+    for (var j = 0; j < keysB.length; j++) {
+      var va = parseInt(keysA[i], 10), vb = parseInt(keysB[j], 10);
+      var key = op === '+' ? va + vb : va - vb;
+      result[key] = (result[key] || 0) + a[keysA[i]] * b[keysB[j]];
+    }
+  }
+  return result;
+}
+
+// ============ CRYPTO RNG ============
+function cryptoRandInt(max) {
+  var arr = new Uint32Array(1);
+  crypto.getRandomValues(arr);
+  return arr[0] % max;
+}
+
+function rollFromNotation(notation) {
+  // Actually simulate the roll rather than sampling from precomputed distribution
+  notation = notation.replace(/\s/g, '').toLowerCase();
+  var tokens = [];
+  var re = /(\d*d\d+(?:k\d+)?)|([+\-])|(\d+)/g;
+  var m;
+  while ((m = re.exec(notation)) !== null) {
+    if (m[1]) tokens.push({ type: 'dice', val: m[1] });
+    else if (m[2]) tokens.push({ type: 'op', val: m[2] });
+    else if (m[3]) tokens.push({ type: 'num', val: parseInt(m[3], 10) });
+  }
+  var total = 0;
+  var op = 1; // +1 or -1
+  var details = [];
+  for (var i = 0; i < tokens.length; i++) {
+    var tok = tokens[i];
+    if (tok.type === 'op') { op = tok.val === '+' ? 1 : -1; continue; }
+    if (tok.type === 'num') { total += op * tok.val; continue; }
+    // Dice
+    var dm = tok.val.match(/^(\d*)d(\d+)(?:k(\d+))?$/);
+    if (!dm) continue;
+    var n = dm[1] ? parseInt(dm[1], 10) : 1;
+    var faces = parseInt(dm[2], 10);
+    var keep = dm[3] ? parseInt(dm[3], 10) : n;
+    var rolls = [];
+    for (var j = 0; j < n; j++) rolls.push(cryptoRandInt(faces) + 1);
+    rolls.sort(function(a, b) { return b - a; });
+    var sum = 0;
+    for (var j = 0; j < keep; j++) sum += rolls[j];
+    total += op * sum;
+    details.push(rolls.slice(0, keep).join(','));
+  }
+  return { total: total, details: details };
+}
+
+// ============ CHART ============
+function drawChart(dist, rollValue) {
+  var dpr = window.devicePixelRatio || 1;
+  var rect = canvas.getBoundingClientRect();
+  canvas.width = rect.width * dpr;
+  canvas.height = rect.height * dpr;
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  var W = rect.width, H = rect.height;
+
+  ctx.fillStyle = '#000';
+  ctx.fillRect(0, 0, W, H);
+
+  if (!dist) return;
+
+  var keys = Object.keys(dist).map(Number).sort(function(a, b) { return a - b; });
+  var maxProb = 0;
+  for (var i = 0; i < keys.length; i++) {
+    if (dist[keys[i]] > maxProb) maxProb = dist[keys[i]];
+  }
+
+  var minVal = keys[0], maxVal = keys[keys.length - 1];
+  var range = maxVal - minVal + 1;
+  var barW = Math.max(1, (W - 24) / range);
+  var chartH = H - 20;
+  var offsetX = 12;
+
+  // Draw bars
+  for (var i = 0; i < keys.length; i++) {
+    var val = keys[i];
+    var prob = dist[val];
+    var barH = (prob / maxProb) * chartH * 0.9;
+    var x = offsetX + (val - minVal) * barW;
+    var y = chartH - barH;
+
+    var isRoll = rollValue !== null && val === rollValue;
+    ctx.fillStyle = isRoll ? '#f0f' : 'rgba(0, 255, 255, 0.6)';
+    if (isRoll) {
+      ctx.shadowColor = '#f0f';
+      ctx.shadowBlur = 12;
+    }
+    ctx.fillRect(x, y, Math.max(1, barW - 1), barH);
+    ctx.shadowBlur = 0;
+  }
+
+  // Roll marker line
+  if (rollValue !== null && rollValue >= minVal && rollValue <= maxVal) {
+    var rx = offsetX + (rollValue - minVal) * barW + barW / 2;
+    ctx.strokeStyle = '#f0f';
+    ctx.lineWidth = 1;
+    ctx.setLineDash([3, 3]);
+    ctx.beginPath();
+    ctx.moveTo(rx, 0);
+    ctx.lineTo(rx, chartH);
+    ctx.stroke();
+    ctx.setLineDash([]);
+  }
+
+  // Axis labels (sparse)
+  ctx.fillStyle = '#555';
+  ctx.font = '9px monospace';
+  ctx.textAlign = 'center';
+  var labelStep = Math.max(1, Math.floor(range / 15));
+  for (var i = 0; i < keys.length; i += labelStep) {
+    var val = keys[i];
+    var x = offsetX + (val - minVal) * barW + barW / 2;
+    ctx.fillText(val, x, chartH + 12);
+  }
+}
+
+// ============ STATS ============
+function calcPercentile(dist, value) {
+  var keys = Object.keys(dist).map(Number).sort(function(a, b) { return a - b; });
+  var below = 0;
+  for (var i = 0; i < keys.length; i++) {
+    if (keys[i] < value) below += dist[keys[i]];
+    else break;
+  }
+  return Math.round(below * 100);
+}
+
+function calcMean(dist) {
+  var sum = 0;
+  for (var k in dist) sum += parseInt(k, 10) * dist[k];
+  return sum;
+}
+
+// ============ ROLL ============
+function doRoll() {
+  var notation = input.value.trim();
+  if (!notation) return;
+
+  initAudio();
+  var dist = parseDice(notation);
+  if (!dist) {
+    resultEl.textContent = '?';
+    resultEl.style.color = '#333';
+    percentileEl.textContent = 'INVALID NOTATION';
+    detailEl.textContent = '';
+    currentDist = null;
+    drawChart(null, null);
+    return;
+  }
+
+  currentDist = dist;
+  var rollResult = rollFromNotation(notation);
+  var roll = rollResult.total;
+  lastRoll = roll;
+
+  // Display
+  resultEl.textContent = roll;
+  resultEl.style.color = '#fff';
+
+  var pct = calcPercentile(dist, roll);
+  var mean = calcMean(dist);
+  percentileEl.textContent = 'TOP ' + (100 - pct) + '% | PERCENTILE ' + pct;
+
+  var keys = Object.keys(dist).map(Number).sort(function(a, b) { return a - b; });
+  detailEl.textContent = 'RANGE ' + keys[0] + '-' + keys[keys.length - 1] + ' | MEAN ' + mean.toFixed(1) + ' | P(' + roll + ') = ' + (dist[roll] * 100).toFixed(1) + '%';
+
+  drawChart(dist, roll);
+  playClick();
+
+  // Add to history
+  var entry = document.createElement('span');
+  entry.className = 'hist-entry';
+  entry.innerHTML = '<span style="color:#0ff">' + notation + '</span> <span class="hist-val">' + roll + '</span>';
+  historyLog.insertBefore(entry, historyLog.firstChild);
+
+  // Cap history
+  while (historyLog.children.length > 50) historyLog.removeChild(historyLog.lastChild);
+}
+
+// ============ EVENTS ============
+input.addEventListener('keydown', function(e) {
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    doRoll();
+  }
+});
+
+// Preview distribution on input change (debounced)
+var previewTimer = null;
+input.addEventListener('input', function() {
+  clearTimeout(previewTimer);
+  previewTimer = setTimeout(function() {
+    var notation = input.value.trim();
+    if (!notation) { drawChart(null, null); return; }
+    var dist = parseDice(notation);
+    if (dist) {
+      currentDist = dist;
+      drawChart(dist, null);
+      var keys = Object.keys(dist).map(Number).sort(function(a, b) { return a - b; });
+      var mean = calcMean(dist);
+      detailEl.textContent = 'RANGE ' + keys[0] + '-' + keys[keys.length - 1] + ' | MEAN ' + mean.toFixed(1);
+      percentileEl.textContent = '';
+      resultEl.textContent = '';
+    }
+  }, 300);
+});
+
+// Presets
+document.querySelectorAll('.preset-btn').forEach(function(btn) {
+  btn.addEventListener('click', function() {
+    input.value = btn.dataset.dice;
+    doRoll();
+    input.focus();
+  });
+});
+
+// Resize
+window.addEventListener('resize', function() {
+  if (currentDist) drawChart(currentDist, lastRoll);
+});
+
+// ============ INIT ============
+input.focus();
+// Show d20 distribution on load
+input.value = '2d6';
+input.dispatchEvent(new Event('input'));
+
+})();
+</script>
+</body>
+</html>
