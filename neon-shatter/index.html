@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="theme-color" content="#000000">
+<title>Neon Shatter</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { height: 100%; background: #050508; overflow: hidden; touch-action: none; -webkit-tap-highlight-color: transparent; }
+canvas { display: block; margin: 0 auto; }
+#ui { position: absolute; top: 0; left: 0; right: 0; display: flex; justify-content: space-between; padding: 8px 12px; font-family: system-ui, sans-serif; font-size: 0.65rem; color: #333; pointer-events: none; z-index: 2; }
+#overlay { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 8px; z-index: 3; cursor: pointer; }
+#overlay.hidden { display: none; }
+#ov-title { font-family: system-ui, sans-serif; font-size: 1.2rem; color: #0ff; font-weight: 300; letter-spacing: 0.3em; }
+#ov-sub { font-family: system-ui, sans-serif; font-size: 0.55rem; color: #333; letter-spacing: 0.15em; }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="ui">
+  <span id="ui-score">0</span>
+  <span id="ui-level">LVL 1</span>
+  <span id="ui-lives">♥♥♥</span>
+</div>
+<div id="overlay">
+  <div id="ov-title">NEON SHATTER</div>
+  <button id="btn-start" style="background:none;border:1px solid #1a1a1a;color:#333;padding:8px 20px;font-family:inherit;font-size:0.55rem;cursor:pointer;letter-spacing:0.2em;margin-top:8px">START</button>
+  <div id="ov-sub">TAP OR CLICK TO START</div>
+</div>
+
+<script>
+(function() {
+'use strict';
+
+// ============ CANVAS ============
+var canvas = document.getElementById('c');
+var ctx = canvas.getContext('2d');
+var W, H, scale;
+var GW = 400, GH = 600; // Game world dimensions
+
+function resize() {
+  var aspect = GW / GH;
+  var winW = window.innerWidth, winH = window.innerHeight;
+  if (winW / winH > aspect) {
+    H = winH; W = H * aspect;
+  } else {
+    W = winW; H = W / aspect;
+  }
+  canvas.width = W; canvas.height = H;
+  canvas.style.width = W + 'px';
+  canvas.style.height = H + 'px';
+  scale = W / GW;
+}
+
+// ============ AUDIO ============
+var audioCtx = null;
+
+function initAudio() {
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  if (audioCtx.state === 'suspended') audioCtx.resume();
+}
+
+function playBounce(freq) {
+  if (!audioCtx) return;
+  var t = audioCtx.currentTime;
+  var osc = audioCtx.createOscillator(), gain = audioCtx.createGain();
+  osc.type = 'sine'; osc.frequency.value = freq || 440;
+  gain.gain.setValueAtTime(0.08, t);
+  gain.gain.exponentialRampToValueAtTime(0.001, t + 0.1);
+  osc.connect(gain); gain.connect(audioCtx.destination);
+  osc.start(t); osc.stop(t + 0.12);
+}
+
+function playBreak() {
+  if (!audioCtx) return;
+  var t = audioCtx.currentTime;
+  var osc = audioCtx.createOscillator(), gain = audioCtx.createGain();
+  osc.type = 'square'; osc.frequency.setValueAtTime(600, t);
+  osc.frequency.exponentialRampToValueAtTime(100, t + 0.15);
+  gain.gain.setValueAtTime(0.06, t);
+  gain.gain.exponentialRampToValueAtTime(0.001, t + 0.2);
+  osc.connect(gain); gain.connect(audioCtx.destination);
+  osc.start(t); osc.stop(t + 0.25);
+}
+
+// ============ GAME STATE ============
+var BRICK_COLORS = ['#0ff', '#f0f', '#0f0', '#ff0', '#f80', '#f44'];
+var state = 'menu'; // menu, playing, gameover
+var score = 0, lives = 3, level = 1;
+
+// Paddle
+var paddle = { x: GW / 2, y: GH - 30, w: 70, h: 10 };
+var targetPaddleX = paddle.x;
+
+// Ball
+var ball = { x: GW / 2, y: GH - 50, r: 5, vx: 0, vy: 0, speed: 4.5 };
+var trail = []; // [{x, y, age}]
+var MAX_TRAIL = 12;
+
+// Bricks
+var bricks = [];
+var BRICK_ROWS = 5, BRICK_COLS = 8, BRICK_W, BRICK_H = 15, BRICK_PAD = 3, BRICK_TOP = 50;
+
+// Particles
+var particles = [];
+
+function buildBricks() {
+  bricks = [];
+  BRICK_W = (GW - BRICK_PAD * (BRICK_COLS + 1)) / BRICK_COLS;
+  var rows = BRICK_ROWS + Math.min(level - 1, 3);
+  for (var r = 0; r < rows; r++) {
+    for (var c = 0; c < BRICK_COLS; c++) {
+      bricks.push({
+        x: BRICK_PAD + c * (BRICK_W + BRICK_PAD),
+        y: BRICK_TOP + r * (BRICK_H + BRICK_PAD),
+        w: BRICK_W, h: BRICK_H,
+        color: BRICK_COLORS[r % BRICK_COLORS.length],
+        alive: true
+      });
+    }
+  }
+}
+
+function resetBall() {
+  ball.x = paddle.x;
+  ball.y = GH - 50;
+  ball.vx = 0;
+  ball.vy = 0;
+  trail = [];
+}
+
+function launchBall() {
+  var angle = -Math.PI / 2 + (Math.random() - 0.5) * 0.6;
+  var spd = ball.speed + level * 0.3;
+  ball.vx = Math.cos(angle) * spd;
+  ball.vy = Math.sin(angle) * spd;
+}
+
+// ============ PARTICLES ============
+function spawnParticles(x, y, color, count) {
+  for (var i = 0; i < count; i++) {
+    var angle = Math.random() * Math.PI * 2;
+    var spd = 1 + Math.random() * 3;
+    particles.push({
+      x: x, y: y,
+      vx: Math.cos(angle) * spd,
+      vy: Math.sin(angle) * spd,
+      life: 1,
+      color: color,
+      size: 2 + Math.random() * 3
+    });
+  }
+}
+
+// ============ UPDATE ============
+function update(dt) {
+  if (state !== 'playing') return;
+
+  // Ball not launched yet
+  if (ball.vx === 0 && ball.vy === 0) {
+    ball.x = paddle.x;
+    return;
+  }
+
+  // Move ball
+  ball.x += ball.vx * dt * 60;
+  ball.y += ball.vy * dt * 60;
+
+  // Trail
+  trail.push({ x: ball.x, y: ball.y });
+  if (trail.length > MAX_TRAIL) trail.shift();
+
+  // Wall collision
+  if (ball.x - ball.r < 0) { ball.x = ball.r; ball.vx = Math.abs(ball.vx); playBounce(300); }
+  if (ball.x + ball.r > GW) { ball.x = GW - ball.r; ball.vx = -Math.abs(ball.vx); playBounce(300); }
+  if (ball.y - ball.r < 0) { ball.y = ball.r; ball.vy = Math.abs(ball.vy); playBounce(400); }
+
+  // Bottom — lose life
+  if (ball.y + ball.r > GH) {
+    lives--;
+    updateUI();
+    if (lives <= 0) {
+      state = 'gameover';
+      document.getElementById('ov-title').textContent = 'GAME OVER';
+      document.getElementById('ov-sub').textContent = 'SCORE: ' + score + ' — TAP TO RESTART';
+      document.getElementById('overlay').classList.remove('hidden');
+    } else {
+      resetBall();
+    }
+    return;
+  }
+
+  // Paddle collision
+  if (ball.vy > 0 &&
+      ball.y + ball.r >= paddle.y &&
+      ball.y + ball.r <= paddle.y + paddle.h + 4 &&
+      ball.x >= paddle.x - paddle.w / 2 &&
+      ball.x <= paddle.x + paddle.w / 2) {
+    // Relative hit position: -1 (left edge) to +1 (right edge)
+    var rel = (ball.x - paddle.x) / (paddle.w / 2);
+    rel = Math.max(-0.9, Math.min(0.9, rel));
+    var angle = rel * Math.PI / 3; // ±60 degrees from vertical
+    var spd = Math.sqrt(ball.vx * ball.vx + ball.vy * ball.vy);
+    ball.vx = Math.sin(angle) * spd;
+    ball.vy = -Math.cos(angle) * spd;
+    ball.y = paddle.y - ball.r;
+    playBounce(500);
+  }
+
+  // Brick collision
+  for (var i = 0; i < bricks.length; i++) {
+    var b = bricks[i];
+    if (!b.alive) continue;
+
+    // AABB check
+    var closestX = Math.max(b.x, Math.min(ball.x, b.x + b.w));
+    var closestY = Math.max(b.y, Math.min(ball.y, b.y + b.h));
+    var dx = ball.x - closestX, dy = ball.y - closestY;
+    if (dx * dx + dy * dy < ball.r * ball.r) {
+      b.alive = false;
+      score += 10 * level;
+
+      // Determine bounce direction
+      var overlapX = ball.r - Math.abs(dx);
+      var overlapY = ball.r - Math.abs(dy);
+      // Force velocity away from brick center (prevents trapping)
+      if (overlapX < overlapY) {
+        ball.vx = Math.abs(ball.vx) * (dx > 0 ? 1 : -1);
+      } else {
+        ball.vy = Math.abs(ball.vy) * (dy > 0 ? 1 : -1);
+      }
+
+      spawnParticles(closestX, closestY, b.color, 8);
+      playBreak();
+      updateUI();
+      break; // One brick per frame
+    }
+  }
+
+  // Check level clear
+  var allDead = true;
+  for (var i = 0; i < bricks.length; i++) {
+    if (bricks[i].alive) { allDead = false; break; }
+  }
+  if (allDead) {
+    level++;
+    buildBricks();
+    resetBall();
+    updateUI();
+  }
+
+  // Keyboard held movement
+  if (keysHeld['ArrowLeft']) targetPaddleX -= 300 * dt;
+  if (keysHeld['ArrowRight']) targetPaddleX += 300 * dt;
+
+  // Paddle movement (lerp toward target)
+  paddle.x += (targetPaddleX - paddle.x) * 0.2;
+  paddle.x = Math.max(paddle.w / 2, Math.min(GW - paddle.w / 2, paddle.x));
+
+  // Update particles
+  for (var i = particles.length - 1; i >= 0; i--) {
+    var p = particles[i];
+    p.x += p.vx * dt * 60;
+    p.y += p.vy * dt * 60;
+    p.life -= dt * 3;
+    if (p.life <= 0) particles.splice(i, 1);
+  }
+}
+
+// ============ DRAW ============
+function draw() {
+  ctx.fillStyle = '#050508';
+  ctx.fillRect(0, 0, W, H);
+
+  ctx.save();
+  ctx.scale(scale, scale);
+
+  // Trail
+  for (var i = 0; i < trail.length; i++) {
+    var t = trail[i];
+    var ratio = (i + 1) / trail.length; // Newest = brightest
+    var alpha = ratio * 0.3;
+    ctx.fillStyle = 'rgba(0,255,255,' + alpha + ')';
+    ctx.beginPath();
+    ctx.arc(t.x, t.y, ball.r * ratio, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // Ball
+  ctx.fillStyle = '#fff';
+  ctx.shadowColor = '#0ff';
+  ctx.shadowBlur = 15;
+  ctx.beginPath();
+  ctx.arc(ball.x, ball.y, ball.r, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.shadowBlur = 0;
+
+  // Paddle
+  ctx.fillStyle = '#0ff';
+  ctx.shadowColor = '#0ff';
+  ctx.shadowBlur = 10;
+  ctx.fillRect(paddle.x - paddle.w / 2, paddle.y, paddle.w, paddle.h);
+  ctx.shadowBlur = 0;
+
+  // Bricks
+  for (var i = 0; i < bricks.length; i++) {
+    var b = bricks[i];
+    if (!b.alive) continue;
+    ctx.fillStyle = b.color;
+    ctx.shadowColor = b.color;
+    ctx.shadowBlur = 6;
+    ctx.fillRect(b.x, b.y, b.w, b.h);
+    ctx.shadowBlur = 0;
+  }
+
+  // Particles
+  for (var i = 0; i < particles.length; i++) {
+    var p = particles[i];
+    ctx.fillStyle = p.color;
+    ctx.globalAlpha = p.life;
+    ctx.fillRect(p.x - p.size / 2, p.y - p.size / 2, p.size, p.size);
+  }
+  ctx.globalAlpha = 1;
+
+  ctx.restore();
+}
+
+// ============ UI ============
+function updateUI() {
+  document.getElementById('ui-score').textContent = score;
+  document.getElementById('ui-level').textContent = 'LVL ' + level;
+  var hearts = '';
+  for (var i = 0; i < lives; i++) hearts += '♥';
+  document.getElementById('ui-lives').textContent = hearts;
+}
+
+// ============ INPUT ============
+function getGameX(clientX) {
+  var rect = canvas.getBoundingClientRect();
+  return (clientX - rect.left) / scale;
+}
+
+canvas.addEventListener('mousemove', function(e) {
+  targetPaddleX = getGameX(e.clientX);
+});
+
+canvas.addEventListener('touchmove', function(e) {
+  e.preventDefault();
+  targetPaddleX = getGameX(e.touches[0].clientX);
+}, { passive: false });
+
+var keysHeld = {};
+document.addEventListener('keydown', function(e) {
+  keysHeld[e.key] = true;
+  if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') e.preventDefault();
+});
+document.addEventListener('keyup', function(e) { keysHeld[e.key] = false; });
+
+// Start / restart
+function startGame() {
+  if (state === 'menu' || state === 'gameover') {
+    initAudio();
+    score = 0; lives = 3; level = 1;
+    buildBricks();
+    resetBall();
+    state = 'playing';
+    document.getElementById('overlay').classList.add('hidden');
+    updateUI();
+    return;
+  }
+  // Launch ball if not moving
+  if (state === 'playing' && ball.vx === 0 && ball.vy === 0) {
+    launchBall();
+  }
+}
+
+document.getElementById('overlay').addEventListener('click', startGame);
+canvas.addEventListener('click', function() {
+  if (state === 'playing' && ball.vx === 0 && ball.vy === 0) launchBall();
+});
+
+// ============ LOOP ============
+var lastTime = 0;
+
+function loop(time) {
+  var dt = Math.min((time - lastTime) / 1000, 0.05); // Cap dt
+  lastTime = time;
+  update(dt);
+  draw();
+  requestAnimationFrame(loop);
+}
+
+// ============ INIT ============
+resize();
+window.addEventListener('resize', resize);
+updateUI();
+requestAnimationFrame(loop);
+
+})();
+</script>
+</body>
+</html>

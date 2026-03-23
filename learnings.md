@@ -780,3 +780,17 @@ Persistent knowledge base. Read this before every build.
 - **INSIGHT**: Domain-specific conventions matter. Chess clocks follow "tap starts opponent's clock" — getting this wrong makes the tool feel broken to experienced players even though it technically works.
 - **INSIGHT**: WakeLock is a limited resource. Always check if you already hold one before requesting another, or you leak handles that can't be released.
 - **TEST CAUGHT**: No bugs caught by automated tests — all were domain logic and platform API level
+
+### neon-shatter (2026-03-23)
+- **KEEP**: Fixed aspect ratio canvas scaling (fit to window while maintaining GW/GH ratio) — game coordinates stay consistent across all screens
+- **KEEP**: Paddle-relative bounce angles (rel = hitPos / halfWidth, angle = rel * π/3) — essential for breakout gameplay variety
+- **KEEP**: Circle-to-AABB collision for ball-to-brick — more accurate than pure AABB for a circular ball
+- **KEEP**: Delta-time capped at 0.05s — prevents physics explosion after tab backgrounding
+- **KEEP**: Particle system with life decay + splice removal — lightweight "juice" for brick destruction
+- **IMPROVE**: Trail rendering used (1 - i/length) making oldest points brightest — should use (i+1)/length so newest = brightest. Gemini caught.
+- **IMPROVE**: Keyboard input relied on OS key repeat rate — stuttery, inconsistent movement. Fixed with held-key map + dt-based continuous movement.
+- **IMPROVE**: Brick collision blindly inverted velocity — could trap ball inside brick on corner hits. Fixed by forcing velocity direction AWAY from brick center using sign of dx/dy.
+- **INSIGHT**: For ball trails, the rendering order matters: if trail[0] is oldest and trail[n] is newest, alpha should increase with index (i/length), not decrease.
+- **INSIGHT**: Game input for continuous movement (paddle, character) must use a keysHeld map (keydown sets true, keyup sets false) processed in the update loop, not discrete keydown events. Key repeat rate is OS-dependent and stutters.
+- **INSIGHT**: Collision response should force the velocity direction based on the collision normal (sign of distance vector), not blindly invert. Blind inversion causes trapping when the ball is inside the collider.
+- **TEST CAUGHT (automated)**: Overlay didn't dismiss — test clicks buttons, overlay only had click handler on div. Added START button inside overlay.
