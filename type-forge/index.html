@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="theme-color" content="#000000">
+<title>Type Forge</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&family=Playfair+Display:wght@400..900&family=Space+Grotesk:wght@300..700&family=JetBrains+Mono:wght@100..800&family=Bebas+Neue&family=Merriweather:wght@300..900&family=Lora:wght@400..700&family=Syne:wght@400..800&family=DM+Sans:wght@100..900&family=IBM+Plex+Mono:wght@100..700&display=swap" rel="stylesheet">
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+:root {
+  --p-family: 'Inter', sans-serif;
+  --p-size: 32px;
+  --p-weight: 400;
+  --p-height: 1.5;
+  --p-spacing: 0em;
+  --p-bg: #0e0e0e;
+  --p-color: #e0e0e0;
+}
+html, body { height: 100%; background: #0a0a0a; color: #ccc; font-family: system-ui, sans-serif; overflow: hidden; touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+#app { height: 100%; display: flex; flex-direction: column; }
+
+/* Controls */
+#controls { padding: 8px 12px; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; background: #0a0a0a; border-bottom: 1px solid #111; overflow-x: auto; }
+.ctrl { display: flex; flex-direction: column; gap: 2px; }
+.ctrl-label { font-size: 0.4rem; color: #333; letter-spacing: 0.12em; text-transform: uppercase; }
+.ctrl-val { font-size: 0.45rem; color: #555; font-family: monospace; min-width: 30px; text-align: right; }
+.ctrl-row { display: flex; align-items: center; gap: 4px; }
+select { background: #111; border: 1px solid #1a1a1a; color: #888; padding: 4px 6px; font-family: inherit; font-size: 0.6rem; border-radius: 3px; outline: none; max-width: 140px; }
+select:focus { border-color: #444; }
+input[type="range"] { width: 70px; height: 3px; accent-color: #555; }
+.btn { padding: 4px 10px; background: transparent; border: 1px solid #1a1a1a; color: #444; font-family: inherit; font-size: 0.5rem; cursor: pointer; border-radius: 3px; letter-spacing: 0.1em; }
+.btn:active { border-color: #555; color: #888; }
+.btn.active { border-color: #58a6ff; color: #58a6ff; }
+.sep { width: 1px; height: 24px; background: #1a1a1a; flex-shrink: 0; }
+
+/* Preview */
+#preview-wrap { flex: 1; overflow-y: auto; background: var(--p-bg); transition: background 0.2s; }
+#preview {
+  padding: 24px;
+  min-height: 100%;
+  font-family: var(--p-family);
+  font-size: var(--p-size);
+  font-weight: var(--p-weight);
+  line-height: var(--p-height);
+  letter-spacing: var(--p-spacing);
+  color: var(--p-color);
+  outline: none;
+  transition: font-family 0.15s, color 0.2s;
+  word-break: break-word;
+}
+#preview:empty::before {
+  content: 'Type something...';
+  color: #222;
+}
+
+/* CSS output */
+#css-output { display: none; position: fixed; bottom: 8px; left: 50%; transform: translateX(-50%); background: #111; border: 1px solid #222; padding: 8px 16px; border-radius: 4px; font-family: monospace; font-size: 0.55rem; color: #888; white-space: pre; z-index: 10; max-width: 90vw; overflow-x: auto; }
+#css-output.show { display: block; }
+
+/* Toast */
+#toast { position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%); background: #222; color: #aaa; padding: 6px 16px; border-radius: 4px; font-size: 0.55rem; opacity: 0; transition: opacity 0.2s; pointer-events: none; z-index: 20; }
+#toast.show { opacity: 1; }
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="controls">
+    <div class="ctrl">
+      <span class="ctrl-label">Font</span>
+      <select id="sel-font"></select>
+    </div>
+    <div class="sep"></div>
+    <div class="ctrl">
+      <span class="ctrl-label">Size</span>
+      <div class="ctrl-row">
+        <input type="range" id="sl-size" min="12" max="120" value="32">
+        <span class="ctrl-val" id="v-size">32px</span>
+      </div>
+    </div>
+    <div class="ctrl">
+      <span class="ctrl-label">Weight</span>
+      <div class="ctrl-row">
+        <input type="range" id="sl-weight" min="100" max="900" step="1" value="400">
+        <span class="ctrl-val" id="v-weight">400</span>
+      </div>
+    </div>
+    <div class="ctrl">
+      <span class="ctrl-label">Height</span>
+      <div class="ctrl-row">
+        <input type="range" id="sl-height" min="0.8" max="3" step="0.05" value="1.5">
+        <span class="ctrl-val" id="v-height">1.5</span>
+      </div>
+    </div>
+    <div class="ctrl">
+      <span class="ctrl-label">Spacing</span>
+      <div class="ctrl-row">
+        <input type="range" id="sl-spacing" min="-0.1" max="0.5" step="0.01" value="0">
+        <span class="ctrl-val" id="v-spacing">0em</span>
+      </div>
+    </div>
+    <div class="sep"></div>
+    <button class="btn" id="btn-theme">Light</button>
+    <button class="btn" id="btn-css">Copy CSS</button>
+  </div>
+  <div id="preview-wrap">
+    <div id="preview" contenteditable="true">The quick brown fox jumps over the lazy dog. 0123456789</div>
+  </div>
+</div>
+<div id="toast">Copied!</div>
+
+<script>
+(function() {
+'use strict';
+
+// ============ FONTS ============
+var FONTS = [
+  { name: 'Inter', family: "'Inter', sans-serif" },
+  { name: 'Space Grotesk', family: "'Space Grotesk', sans-serif" },
+  { name: 'DM Sans', family: "'DM Sans', sans-serif" },
+  { name: 'Syne', family: "'Syne', sans-serif" },
+  { name: 'Playfair Display', family: "'Playfair Display', serif" },
+  { name: 'Merriweather', family: "'Merriweather', serif" },
+  { name: 'Lora', family: "'Lora', serif" },
+  { name: 'Bebas Neue', family: "'Bebas Neue', sans-serif" },
+  { name: 'JetBrains Mono', family: "'JetBrains Mono', monospace" },
+  { name: 'IBM Plex Mono', family: "'IBM Plex Mono', monospace" },
+  { name: 'System UI', family: "system-ui, -apple-system, sans-serif" },
+  { name: 'Serif', family: "Georgia, 'Times New Roman', serif" },
+  { name: 'Monospace', family: "ui-monospace, SFMono-Regular, Menlo, monospace" }
+];
+
+var root = document.documentElement;
+var isDark = true;
+var toastTimer = null;
+
+// ============ BUILD FONT SELECT ============
+var selFont = document.getElementById('sel-font');
+for (var i = 0; i < FONTS.length; i++) {
+  var opt = document.createElement('option');
+  opt.value = i;
+  opt.textContent = FONTS[i].name;
+  opt.style.fontFamily = FONTS[i].family;
+  selFont.appendChild(opt);
+}
+
+// ============ CONTROLS ============
+selFont.addEventListener('change', function() {
+  var font = FONTS[parseInt(selFont.value, 10)];
+  root.style.setProperty('--p-family', font.family);
+});
+
+document.getElementById('sl-size').addEventListener('input', function(e) {
+  var v = parseInt(e.target.value, 10);
+  if (isNaN(v)) v = 32;
+  root.style.setProperty('--p-size', v + 'px');
+  document.getElementById('v-size').textContent = v + 'px';
+});
+
+document.getElementById('sl-weight').addEventListener('input', function(e) {
+  var v = parseInt(e.target.value, 10);
+  if (isNaN(v)) v = 400;
+  root.style.setProperty('--p-weight', v);
+  document.getElementById('v-weight').textContent = v;
+});
+
+document.getElementById('sl-height').addEventListener('input', function(e) {
+  var v = parseFloat(e.target.value);
+  if (isNaN(v)) v = 1.5;
+  root.style.setProperty('--p-height', v);
+  document.getElementById('v-height').textContent = v.toFixed(2);
+});
+
+document.getElementById('sl-spacing').addEventListener('input', function(e) {
+  var v = parseFloat(e.target.value);
+  if (isNaN(v)) v = 0;
+  root.style.setProperty('--p-spacing', v + 'em');
+  document.getElementById('v-spacing').textContent = v.toFixed(2) + 'em';
+});
+
+// Theme toggle
+document.getElementById('btn-theme').addEventListener('click', function() {
+  isDark = !isDark;
+  root.style.setProperty('--p-bg', isDark ? '#0e0e0e' : '#fafafa');
+  root.style.setProperty('--p-color', isDark ? '#e0e0e0' : '#1a1a1a');
+  this.textContent = isDark ? 'Light' : 'Dark';
+});
+
+// Copy CSS
+document.getElementById('btn-css').addEventListener('click', function() {
+  var font = FONTS[parseInt(selFont.value, 10)];
+  var size = document.getElementById('sl-size').value;
+  var weight = document.getElementById('sl-weight').value;
+  var height = document.getElementById('sl-height').value;
+  var spacing = document.getElementById('sl-spacing').value;
+
+  var css = 'font-family: ' + font.family + ';\n' +
+    'font-size: ' + size + 'px;\n' +
+    'font-weight: ' + weight + ';\n' +
+    'line-height: ' + height + ';\n' +
+    'letter-spacing: ' + spacing + 'em;';
+
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(css).then(function() {
+      showToast('CSS copied!');
+    }).catch(function() { showToast('Copy failed'); });
+  } else {
+    var ta = document.createElement('textarea');
+    ta.value = css; ta.style.position = 'fixed'; ta.style.opacity = '0';
+    document.body.appendChild(ta); ta.select(); ta.setSelectionRange(0, 99999);
+    document.execCommand('copy'); document.body.removeChild(ta);
+    showToast('CSS copied!');
+  }
+});
+
+function showToast(msg) {
+  var toast = document.getElementById('toast');
+  toast.textContent = msg;
+  toast.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(function() { toast.classList.remove('show'); }, 1200);
+}
+
+})();
+</script>
+</body>
+</html>

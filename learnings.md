@@ -868,3 +868,14 @@ Persistent knowledge base. Read this before every build.
 - **INSIGHT**: e.repeat is CRITICAL for tap-based games. Key auto-repeat fires keydown events at 30Hz+ — without the guard, a held key will cycle through the entire game in under a second.
 - **INSIGHT**: "Play again" from a results screen should start the game directly, not return to a menu. Extra taps = friction = user abandonment.
 - **TEST CAUGHT**: No bugs caught by automated tests — all were input timing/UX flow issues
+
+### type-forge (2026-03-24)
+- **KEEP**: CSS variables (--p-size, --p-weight, etc.) driving preview styles — cleanest pattern for live typography manipulation
+- **KEEP**: Google variable fonts for smooth weight sliding — single font file, continuous weight range
+- **KEEP**: contenteditable for live text preview — users type directly in the styled area, no separate input
+- **KEEP**: Dark/light toggle for contrast testing — essential for font readability assessment
+- **KEEP**: Copy CSS with font-family + all properties — practical output designers need
+- **IMPROVE**: Used `|| default` for numeric parsing — 0 is falsy, so `parseFloat(v) || 0` never allows zero. Gemini caught. Use explicit `isNaN()` check instead.
+- **INSIGHT**: The `|| fallback` pattern for numbers is a JS anti-pattern when zero is a valid value. `parseInt(v) || 32` breaks for input value "0". Always use: `var v = parseInt(x); if (isNaN(v)) v = default;`
+- **INSIGHT**: For typography tools, CSS variables on :root are the optimal architecture — single source of truth, no inline style manipulation, and the preview automatically responds to any property change.
+- **TEST CAUGHT**: No bugs caught by automated tests — falsy zero is a logic-level issue
