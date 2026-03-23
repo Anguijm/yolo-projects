@@ -719,3 +719,15 @@ Persistent knowledge base. Read this before every build.
 - **INSIGHT**: Any UI that shows both "output" and "metadata about output" (entropy, stats, labels) MUST regenerate both in sync. Updating metadata without regenerating the output creates a dangerous UX desync.
 - **INSIGHT**: requestAnimationFrame-based animations that can be re-triggered need cancellation tracking. Store the frame ID and cancelAnimationFrame before starting a new sequence.
 - **TEST CAUGHT**: No bugs caught by automated tests — all were UX/logic level
+
+### crypt-lex (2026-03-23)
+- **KEEP**: Two-pass evaluation for Wordle-style games — Pass 1: exact matches (decrement target counts), Pass 2: partial matches against remaining counts. Handles duplicate letters correctly.
+- **KEEP**: Virtual keyboard state priority (absent=1, present=2, correct=3) — keys never downgrade, always show highest achieved state
+- **KEEP**: Split dictionary (small target list + large validation list) — keeps target pool curated while allowing broad guess vocabulary
+- **KEEP**: Only update active row on keystroke instead of full grid — avoids redundant evaluate() calls on every keypress
+- **KEEP**: void offsetWidth reflow trick to restart CSS animations — solves rapid-fire animation restart without setTimeout race conditions
+- **IMPROVE**: updateGrid re-evaluated ALL past guesses on every single keystroke — wasteful DOM+logic work. Gemini caught. Split into updateActiveRow (for typing) and direct render in submitGuess.
+- **IMPROVE**: Shake animation used setTimeout which raced on rapid Enter presses — reflow trick is the correct pattern for restartable CSS animations
+- **INSIGHT**: For any game with a grid of past+current state, separate the rendering: past rows are static (render once on submit), current row is dynamic (update on every keystroke). Never re-evaluate past rows.
+- **INSIGHT**: CSS animation restart: remove class → force reflow (void el.offsetWidth) → re-add class. This is the standard pattern; setTimeout-based removal races with rapid re-triggers.
+- **TEST CAUGHT**: No bugs caught by automated tests — all were performance/animation level
