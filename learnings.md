@@ -692,3 +692,17 @@ Persistent knowledge base. Read this before every build.
 - **INSIGHT**: Complex recursive algorithms can silently fail (return empty/wrong results) for edge-case inputs. Simpler mathematical approaches (modulo, Bresenham) are often more reliable AND faster.
 - **INSIGHT**: Algorithmic reverb (delay network + LP filters + cross-feedback) achieves convincing spatial audio with pure Web Audio nodes — no impulse response files needed.
 - **TEST CAUGHT**: No bugs caught by automated tests — all were algorithm/timing level
+
+### connect-four (2026-03-23)
+- **KEEP**: Minimax with alpha-beta pruning + center-first move ordering — effective AI for 7x6 grid
+- **KEEP**: Center-weighted heuristic array [0,1,2,3,2,1,0] — captures the most important Connect Four strategy
+- **KEEP**: Window scoring (all 4-cell windows for H/V/diag) — comprehensive board evaluation
+- **KEEP**: setTimeout(aiMove, 50) to yield to UI thread — prevents browser freeze during AI calculation
+- **KEEP**: Depth-aware terminal scoring (win + depth*100) — AI prefers faster wins and delays losses
+- **IMPROVE**: renderBoard used className = 'cell' which wiped ALL classes including 'dropping' animation — must only toggle player-specific classes with classList.remove/add
+- **IMPROVE**: CENTER_WEIGHT array defined but evaluate() used hardcoded b[r][3] check — dead variable = weaker AI. Gemini caught.
+- **IMPROVE**: Minimax scored all wins equally regardless of depth — AI would stall instead of winning immediately. Added depth bonus to terminal scores.
+- **INSIGHT**: When rendering board state, NEVER overwrite className entirely if elements can have additional state classes (animations, highlights, previews). Use classList.remove/add for the specific classes you manage.
+- **INSIGHT**: Minimax terminal scores MUST include depth to create urgency. Without it, the AI is "apathetic" — it knows it will win but doesn't care when. score += depth * factor for wins, score -= depth * factor for losses.
+- **INSIGHT**: Defined-but-unused variables are a recurring pattern (3rd occurrence: CENTER_WEIGHT, Farnsworth delay, stopScheduler). Must grep for unused definitions before shipping.
+- **TEST CAUGHT**: No bugs caught by automated tests — all were CSS/logic level

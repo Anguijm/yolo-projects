@@ -1,0 +1,443 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="theme-color" content="#000000">
+<title>Connect Four</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { height: 100%; background: #0a0a0a; color: #ccc; font-family: 'Segoe UI', system-ui, sans-serif; overflow: hidden; touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+#app { height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; padding: 12px; }
+
+#status { font-size: 0.85rem; color: #555; min-height: 1.5em; font-weight: 300; letter-spacing: 0.08em; text-align: center; }
+#status.win { color: #3fb950; }
+#status.lose { color: #f85149; }
+#status.draw { color: #d29922; }
+
+#board { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; width: min(90vw, 380px); background: #111; padding: 6px; border-radius: 10px; }
+.cell { aspect-ratio: 1; border-radius: 50%; background: #1a1a1a; cursor: pointer; transition: background 0.15s; position: relative; }
+.cell:hover { background: #222; }
+.cell.p1 { background: #e05555; }
+.cell.p2 { background: #e0c040; }
+.cell.win-cell { box-shadow: 0 0 12px 2px rgba(63, 185, 80, 0.6); }
+.cell.preview { background: rgba(224, 85, 85, 0.15); }
+
+/* Drop animation */
+@keyframes drop {
+  from { transform: translateY(-300%); opacity: 0.5; }
+  to { transform: translateY(0); opacity: 1; }
+}
+.cell.dropping { animation: drop 0.25s cubic-bezier(0.4, 0, 0.8, 0.6); }
+
+#controls { display: flex; gap: 8px; align-items: center; }
+.ctrl-btn { padding: 6px 14px; background: transparent; border: 1px solid #1a1a1a; color: #555; border-radius: 8px; font-size: 0.7rem; cursor: pointer; font-family: inherit; }
+.ctrl-btn:active { border-color: #444; color: #aaa; }
+.ctrl-btn.active { border-color: #58a6ff; color: #58a6ff; }
+
+#score { font-size: 0.55rem; color: #222; font-family: monospace; }
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="status">Your turn</div>
+  <div id="board"></div>
+  <div id="controls">
+    <button class="ctrl-btn" data-depth="2">Easy</button>
+    <button class="ctrl-btn active" data-depth="5">Medium</button>
+    <button class="ctrl-btn" data-depth="7">Hard</button>
+    <button class="ctrl-btn" id="btn-reset">New Game</button>
+  </div>
+  <div id="score"></div>
+</div>
+
+<script>
+(function() {
+'use strict';
+
+var ROWS = 6, COLS = 7;
+var EMPTY = 0, HUMAN = 1, AI = 2;
+var board = [];
+var gameOver = false;
+var aiThinking = false;
+var aiDepth = 5;
+var wins = 0, losses = 0, draws = 0;
+
+// Load score
+try {
+  var s = JSON.parse(localStorage.getItem('c4_score'));
+  if (s) { wins = s.w || 0; losses = s.l || 0; draws = s.d || 0; }
+} catch(e) {}
+
+// ============ BOARD ============
+function initBoard() {
+  board = [];
+  for (var r = 0; r < ROWS; r++) {
+    board[r] = [];
+    for (var c = 0; c < COLS; c++) board[r][c] = EMPTY;
+  }
+}
+
+function buildDOM() {
+  var el = document.getElementById('board');
+  el.innerHTML = '';
+  for (var r = 0; r < ROWS; r++) {
+    for (var c = 0; c < COLS; c++) {
+      var cell = document.createElement('div');
+      cell.className = 'cell';
+      cell.dataset.row = r;
+      cell.dataset.col = c;
+      el.appendChild(cell);
+    }
+  }
+}
+
+function renderBoard() {
+  var cells = document.getElementById('board').children;
+  for (var r = 0; r < ROWS; r++) {
+    for (var c = 0; c < COLS; c++) {
+      var cell = cells[r * COLS + c];
+      // Only toggle player classes — preserve 'dropping', 'preview', 'win-cell'
+      cell.classList.remove('p1', 'p2');
+      if (board[r][c] === HUMAN) cell.classList.add('p1');
+      else if (board[r][c] === AI) cell.classList.add('p2');
+    }
+  }
+}
+
+function getDropRow(col) {
+  for (var r = ROWS - 1; r >= 0; r--) {
+    if (board[r][col] === EMPTY) return r;
+  }
+  return -1; // column full
+}
+
+function dropPiece(col, player) {
+  var row = getDropRow(col);
+  if (row < 0) return -1;
+  board[row][col] = player;
+  // Animate
+  var cells = document.getElementById('board').children;
+  var cell = cells[row * COLS + col];
+  cell.classList.add(player === HUMAN ? 'p1' : 'p2', 'dropping');
+  setTimeout(function() { cell.classList.remove('dropping'); }, 300);
+  return row;
+}
+
+// ============ WIN DETECTION ============
+var DIRS = [[0,1],[1,0],[1,1],[1,-1]]; // horiz, vert, diag-down-right, diag-down-left
+
+function checkWin(player) {
+  for (var r = 0; r < ROWS; r++) {
+    for (var c = 0; c < COLS; c++) {
+      if (board[r][c] !== player) continue;
+      for (var d = 0; d < DIRS.length; d++) {
+        var dr = DIRS[d][0], dc = DIRS[d][1];
+        var count = 0;
+        var cells = [];
+        for (var i = 0; i < 4; i++) {
+          var nr = r + dr * i, nc = c + dc * i;
+          if (nr < 0 || nr >= ROWS || nc < 0 || nc >= COLS) break;
+          if (board[nr][nc] !== player) break;
+          count++;
+          cells.push([nr, nc]);
+        }
+        if (count === 4) return cells;
+      }
+    }
+  }
+  return null;
+}
+
+function isFull() {
+  for (var c = 0; c < COLS; c++) {
+    if (board[0][c] === EMPTY) return false;
+  }
+  return true;
+}
+
+function highlightWin(cells) {
+  var domCells = document.getElementById('board').children;
+  for (var i = 0; i < cells.length; i++) {
+    domCells[cells[i][0] * COLS + cells[i][1]].classList.add('win-cell');
+  }
+}
+
+// ============ AI: MINIMAX WITH ALPHA-BETA ============
+var CENTER_WEIGHT = [0, 1, 2, 3, 2, 1, 0];
+
+function evaluate(b) {
+  var score = 0;
+  // Center-weighted column preference
+  for (var r = 0; r < ROWS; r++) {
+    for (var c = 0; c < COLS; c++) {
+      if (b[r][c] === AI) score += CENTER_WEIGHT[c];
+      else if (b[r][c] === HUMAN) score -= CENTER_WEIGHT[c];
+    }
+  }
+  // Score all windows of 4
+  // Horizontal
+  for (var r = 0; r < ROWS; r++) {
+    for (var c = 0; c <= COLS - 4; c++) {
+      score += scoreWindow(b[r][c], b[r][c+1], b[r][c+2], b[r][c+3]);
+    }
+  }
+  // Vertical
+  for (var c = 0; c < COLS; c++) {
+    for (var r = 0; r <= ROWS - 4; r++) {
+      score += scoreWindow(b[r][c], b[r+1][c], b[r+2][c], b[r+3][c]);
+    }
+  }
+  // Diagonal down-right
+  for (var r = 0; r <= ROWS - 4; r++) {
+    for (var c = 0; c <= COLS - 4; c++) {
+      score += scoreWindow(b[r][c], b[r+1][c+1], b[r+2][c+2], b[r+3][c+3]);
+    }
+  }
+  // Diagonal down-left
+  for (var r = 0; r <= ROWS - 4; r++) {
+    for (var c = 3; c < COLS; c++) {
+      score += scoreWindow(b[r][c], b[r+1][c-1], b[r+2][c-2], b[r+3][c-3]);
+    }
+  }
+  return score;
+}
+
+function scoreWindow(a, b, c, d) {
+  var ai = 0, hu = 0, em = 0;
+  var w = [a, b, c, d];
+  for (var i = 0; i < 4; i++) {
+    if (w[i] === AI) ai++;
+    else if (w[i] === HUMAN) hu++;
+    else em++;
+  }
+  if (ai === 4) return 10000;
+  if (hu === 4) return -10000;
+  if (ai === 3 && em === 1) return 50;
+  if (hu === 3 && em === 1) return -50;
+  if (ai === 2 && em === 2) return 5;
+  if (hu === 2 && em === 2) return -5;
+  return 0;
+}
+
+function getValidCols(b) {
+  var cols = [];
+  // Check center first for move ordering
+  var order = [3, 2, 4, 1, 5, 0, 6];
+  for (var i = 0; i < order.length; i++) {
+    if (b[0][order[i]] === EMPTY) cols.push(order[i]);
+  }
+  return cols;
+}
+
+function isTerminal(b) {
+  // Check for any win
+  for (var r = 0; r < ROWS; r++) {
+    for (var c = 0; c < COLS; c++) {
+      if (b[r][c] === EMPTY) continue;
+      for (var d = 0; d < DIRS.length; d++) {
+        var dr = DIRS[d][0], dc = DIRS[d][1];
+        var count = 0;
+        for (var i = 0; i < 4; i++) {
+          var nr = r + dr * i, nc = c + dc * i;
+          if (nr < 0 || nr >= ROWS || nc < 0 || nc >= COLS) break;
+          if (b[nr][nc] !== b[r][c]) break;
+          count++;
+        }
+        if (count === 4) return true;
+      }
+    }
+  }
+  // Check full
+  for (var c = 0; c < COLS; c++) {
+    if (b[0][c] === EMPTY) return false;
+  }
+  return true;
+}
+
+function minimax(b, depth, alpha, beta, maximizing) {
+  if (depth === 0 || isTerminal(b)) {
+    var sc = evaluate(b);
+    // Prefer faster wins and slower losses
+    if (sc > 8000) sc += depth * 100;
+    if (sc < -8000) sc -= depth * 100;
+    return { score: sc, col: -1 };
+  }
+
+  var validCols = getValidCols(b);
+  if (validCols.length === 0) return { score: 0, col: -1 };
+
+  if (maximizing) {
+    var best = { score: -Infinity, col: validCols[0] };
+    for (var i = 0; i < validCols.length; i++) {
+      var col = validCols[i];
+      var row = -1;
+      for (var r = ROWS - 1; r >= 0; r--) { if (b[r][col] === EMPTY) { row = r; break; } }
+      b[row][col] = AI;
+      var result = minimax(b, depth - 1, alpha, beta, false);
+      b[row][col] = EMPTY;
+      if (result.score > best.score) { best.score = result.score; best.col = col; }
+      alpha = Math.max(alpha, best.score);
+      if (alpha >= beta) break;
+    }
+    return best;
+  } else {
+    var best = { score: Infinity, col: validCols[0] };
+    for (var i = 0; i < validCols.length; i++) {
+      var col = validCols[i];
+      var row = -1;
+      for (var r = ROWS - 1; r >= 0; r--) { if (b[r][col] === EMPTY) { row = r; break; } }
+      b[row][col] = HUMAN;
+      var result = minimax(b, depth - 1, alpha, beta, true);
+      b[row][col] = EMPTY;
+      if (result.score < best.score) { best.score = result.score; best.col = col; }
+      beta = Math.min(beta, best.score);
+      if (alpha >= beta) break;
+    }
+    return best;
+  }
+}
+
+// ============ GAME FLOW ============
+function aiMove() {
+  if (gameOver) return;
+  aiThinking = true;
+  document.getElementById('status').textContent = 'Thinking...';
+
+  setTimeout(function() {
+    var result = minimax(board, aiDepth, -Infinity, Infinity, true);
+    var col = result.col;
+    if (col < 0) { aiThinking = false; return; }
+    var row = dropPiece(col, AI);
+    renderBoard();
+
+    var win = checkWin(AI);
+    if (win) {
+      gameOver = true;
+      highlightWin(win);
+      losses++;
+      saveScore();
+      document.getElementById('status').textContent = 'AI wins';
+      document.getElementById('status').className = 'lose';
+    } else if (isFull()) {
+      gameOver = true;
+      draws++;
+      saveScore();
+      document.getElementById('status').textContent = 'Draw';
+      document.getElementById('status').className = 'draw';
+    } else {
+      document.getElementById('status').textContent = 'Your turn';
+      document.getElementById('status').className = '';
+    }
+    updateScore();
+    aiThinking = false;
+  }, 50); // Yield to UI thread
+}
+
+function clearPreviews() {
+  var all = document.getElementById('board').children;
+  for (var i = 0; i < all.length; i++) all[i].classList.remove('preview');
+}
+
+function handleClick(col) {
+  if (gameOver || aiThinking) return;
+  if (getDropRow(col) < 0) return; // Column full
+  clearPreviews();
+  var row = dropPiece(col, HUMAN);
+  renderBoard();
+
+  var win = checkWin(HUMAN);
+  if (win) {
+    gameOver = true;
+    highlightWin(win);
+    wins++;
+    saveScore();
+    document.getElementById('status').textContent = 'You win!';
+    document.getElementById('status').className = 'win';
+    updateScore();
+    return;
+  }
+  if (isFull()) {
+    gameOver = true;
+    draws++;
+    saveScore();
+    document.getElementById('status').textContent = 'Draw';
+    document.getElementById('status').className = 'draw';
+    updateScore();
+    return;
+  }
+
+  aiMove();
+}
+
+function resetGame() {
+  initBoard();
+  gameOver = false;
+  aiThinking = false;
+  // Clear all cell states including win highlights
+  var all = document.getElementById('board').children;
+  for (var i = 0; i < all.length; i++) {
+    all[i].className = 'cell';
+  }
+  renderBoard();
+  document.getElementById('status').textContent = 'Your turn';
+  document.getElementById('status').className = '';
+}
+
+function saveScore() {
+  try { localStorage.setItem('c4_score', JSON.stringify({ w: wins, l: losses, d: draws })); } catch(e) {}
+}
+
+function updateScore() {
+  document.getElementById('score').textContent = 'W:' + wins + ' L:' + losses + ' D:' + draws;
+}
+
+// ============ EVENTS ============
+document.getElementById('board').addEventListener('click', function(e) {
+  var cell = e.target.closest('.cell');
+  if (!cell) return;
+  handleClick(parseInt(cell.dataset.col, 10));
+});
+
+// Column hover preview
+document.getElementById('board').addEventListener('mouseover', function(e) {
+  var cell = e.target.closest('.cell');
+  if (!cell || gameOver || aiThinking) return;
+  var col = parseInt(cell.dataset.col, 10);
+  var row = getDropRow(col);
+  // Clear old previews
+  var all = document.getElementById('board').children;
+  for (var i = 0; i < all.length; i++) all[i].classList.remove('preview');
+  if (row >= 0) {
+    all[row * COLS + col].classList.add('preview');
+  }
+});
+
+document.getElementById('board').addEventListener('mouseleave', function() {
+  var all = document.getElementById('board').children;
+  for (var i = 0; i < all.length; i++) all[i].classList.remove('preview');
+});
+
+document.getElementById('btn-reset').addEventListener('click', resetGame);
+
+document.querySelectorAll('[data-depth]').forEach(function(btn) {
+  btn.addEventListener('click', function() {
+    aiDepth = parseInt(btn.dataset.depth, 10);
+    document.querySelectorAll('[data-depth]').forEach(function(b) { b.classList.remove('active'); });
+    btn.classList.add('active');
+    resetGame();
+  });
+});
+
+// ============ INIT ============
+initBoard();
+buildDOM();
+renderBoard();
+updateScore();
+
+})();
+</script>
+</body>
+</html>
