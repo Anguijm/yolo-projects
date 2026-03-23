@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="theme-color" content="#000000">
+<title>Entropy Forge</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { height: 100%; background: #0a0a0a; color: #ccc; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Courier New", monospace; overflow-y: auto; touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+#app { max-width: 480px; margin: 0 auto; padding: 16px 12px; }
+
+h1 { font-size: 0.8rem; color: #444; letter-spacing: 0.3em; font-weight: 300; margin-bottom: 12px; text-transform: uppercase; }
+
+/* Output */
+#output-wrap { border: 1px solid #1a1a1a; padding: 16px; margin-bottom: 8px; min-height: 60px; display: flex; align-items: center; justify-content: center; cursor: pointer; position: relative; }
+#output-wrap:active { background: #111; }
+#output { font-size: clamp(0.75rem, 3.5vw, 1.1rem); word-break: break-all; text-align: center; color: #fff; letter-spacing: 0.05em; line-height: 1.6; user-select: all; }
+#copy-hint { position: absolute; bottom: 4px; right: 8px; font-size: 0.4rem; color: #1a1a1a; letter-spacing: 0.1em; }
+#copy-flash { position: absolute; inset: 0; background: #fff; opacity: 0; pointer-events: none; transition: opacity 0.05s; }
+#copy-flash.flash { opacity: 0.15; }
+
+/* Entropy bar */
+#entropy-bar { height: 3px; background: #111; margin-bottom: 12px; }
+#entropy-fill { height: 100%; width: 0; transition: width 0.3s, background 0.3s; }
+#entropy-info { display: flex; justify-content: space-between; font-size: 0.45rem; color: #333; margin-bottom: 12px; letter-spacing: 0.1em; }
+
+/* Mode toggle */
+#mode-toggle { display: flex; gap: 0; margin-bottom: 12px; }
+.mode-btn { flex: 1; padding: 6px; background: transparent; border: 1px solid #1a1a1a; color: #333; font-family: inherit; font-size: 0.6rem; cursor: pointer; text-align: center; letter-spacing: 0.15em; text-transform: uppercase; }
+.mode-btn.active { border-color: #444; color: #aaa; background: #111; }
+
+/* Controls */
+.ctrl-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+.ctrl-label { font-size: 0.5rem; color: #333; min-width: 50px; letter-spacing: 0.1em; text-transform: uppercase; }
+.ctrl-val { font-size: 0.55rem; color: #555; min-width: 24px; text-align: right; }
+input[type="range"] { flex: 1; height: 3px; accent-color: #555; }
+
+/* Checkboxes */
+.checks { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
+.check-item { display: flex; align-items: center; gap: 4px; cursor: pointer; }
+.check-item input { accent-color: #555; }
+.check-item label { font-size: 0.5rem; color: #444; letter-spacing: 0.1em; cursor: pointer; }
+
+/* Buttons */
+#btn-gen { width: 100%; padding: 10px; background: #111; border: 1px solid #222; color: #666; font-family: inherit; font-size: 0.65rem; cursor: pointer; letter-spacing: 0.2em; text-transform: uppercase; margin-bottom: 8px; }
+#btn-gen:active { border-color: #555; color: #aaa; }
+
+/* Passphrase controls */
+#phrase-ctrls { display: none; }
+#string-ctrls { display: block; }
+</style>
+</head>
+<body>
+<div id="app">
+  <h1>Entropy Forge</h1>
+
+  <div id="output-wrap">
+    <div id="output">—</div>
+    <div id="copy-hint">TAP TO COPY</div>
+    <div id="copy-flash"></div>
+  </div>
+
+  <div id="entropy-bar"><div id="entropy-fill"></div></div>
+  <div id="entropy-info">
+    <span id="entropy-bits">0 bits</span>
+    <span id="entropy-label">—</span>
+  </div>
+
+  <div id="mode-toggle">
+    <button class="mode-btn active" data-mode="string">String</button>
+    <button class="mode-btn" data-mode="phrase">Passphrase</button>
+  </div>
+
+  <div id="string-ctrls">
+    <div class="ctrl-row">
+      <span class="ctrl-label">Length</span>
+      <input type="range" id="sl-len" min="8" max="64" value="20">
+      <span class="ctrl-val" id="v-len">20</span>
+    </div>
+    <div class="checks">
+      <div class="check-item"><input type="checkbox" id="ck-upper" checked><label for="ck-upper">A-Z</label></div>
+      <div class="check-item"><input type="checkbox" id="ck-lower" checked><label for="ck-lower">a-z</label></div>
+      <div class="check-item"><input type="checkbox" id="ck-num" checked><label for="ck-num">0-9</label></div>
+      <div class="check-item"><input type="checkbox" id="ck-sym" checked><label for="ck-sym">!@#$</label></div>
+    </div>
+  </div>
+
+  <div id="phrase-ctrls">
+    <div class="ctrl-row">
+      <span class="ctrl-label">Words</span>
+      <input type="range" id="sl-words" min="3" max="8" value="5">
+      <span class="ctrl-val" id="v-words">5</span>
+    </div>
+  </div>
+
+  <button id="btn-gen">Generate</button>
+</div>
+
+<script>
+(function() {
+'use strict';
+
+// ============ WORDLIST (EFF Short Wordlist subset - 1296 words) ============
+var WORDS = "acid,acme,acne,acre,acts,aged,agent,agile,aging,agony,ahead,aide,aim,ajar,alarm,album,alert,alias,alibi,alien,align,alive,alley,allot,allow,ally,alone,alpha,also,alter,amaze,amen,amid,ammo,among,ample,amuse,angel,anger,angle,ankle,annex,anvil,apart,apex,apple,apply,apron,arena,argue,arise,armor,army,aroma,array,arrow,arson,arts,ascot,ashen,aside,asked,asset,atlas,atom,attic,audio,audit,avoid,awake,award,aware,awful,awoke,axle,azure,baby,bacon,badge,badly,bagel,baggy,baker,balmy,banjo,barge,baron,basic,basin,batch,baton,bears,beast,began,begin,being,belly,below,bench,bet,bias,bible,biker,birth,black,blade,blame,blank,blast,blaze,bleak,blend,bless,blimp,blind,bliss,blitz,bloat,block,bloke,blond,blood,bloom,blown,blues,bluff,blunt,blurb,blurt,blush,board,boast,boat,body,bogus,boil,bold,bolt,bomb,bonus,book,boost,booth,boss,bound,boxer,brain,brand,brave,bravo,bread,break,breed,brew,brick,bride,brief,brine,bring,brink,brisk,broad,broil,broke,brook,broth,brush,buddy,budge,buggy,build,built,bulge,bulk,bully,bunch,bunny,burst,bush,buyer,cabin,cable,cadet,cage,cake,calm,camel,candy,cane,cape,card,cargo,carol,carry,carve,case,cash,cause,cedar,chain,chair,chalk,champ,chant,chaos,charm,chase,cheap,check,cheek,cheer,chess,chest,chief,child,chill,china,chip,chose,chunk,cinch,circa,civic,civil,claim,clamp,clap,clash,clasp,class,claw,clay,clean,clear,clerk,click,cliff,climb,cling,clip,cloak,clock,clone,close,cloth,cloud,clown,club,cluck,clue,clump,clung,coach,coast,cobra,cocoa,coil,cola,cold,comet,comic,comma,conch,coral,core,cork,corn,couch,could,count,coupe,court,cover,cozy,crack,craft,cramp,crane,crash,crate,crave,crawl,crazy,creed,creek,creep,crest,crew,crime,crisp,cross,crowd,crown,crush,cubic,cured,curly,curry,curse,curve,cycle,cynic,daddy,daily,dairy,dance,dated,dawn,dealt,death,debit,debug,decal,decay,decor,decoy,decry,delay,delta,delve,demon,denim,dense,depot,depth,derby,desk,devil,diary,dig,digit,dill,dimly,diner,dingy,dirt,disco,dish,ditch,diver,dizzy,dodge,doing,doll,donor,donut,doom,door,doubt,dough,dove,down,dozen,draft,drain,drama,drank,drape,draw,dream,dress,dried,drift,drill,drink,drive,drone,drool,droop,dross,drove,drum,drunk,dryer,dryly,ducal,dug,duke,dummy,dunce,dune,dusk,dusty,dutch,dwarf,dying,eager,eagle,earth,easel,eaten,eater,ebony,echo,edge,edict,eight,elder,elect,elfin,elite,elope,elude,email,ember,emoji,empty,ended,enemy,enjoy,enter,entry,envoy,epoch,equal,equip,erase,error,essay,evade,even,event,every,evict,evil,evoke,exact,exalt,exam,excel,exile,exist,extra,fable,faced,facet,facto,faint,fairy,faith,false,fancy,fatal,fatty,fault,feast,feign,ferry,fetch,fever,fiber,fiery,fifth,fifty,fight,final,finch,first,fixer,fizzy,flame,flap,flask,flesh,flick,fling,flint,float,flock,flood,floor,flora,floss,flour,flown,fluid,fluke,flung,flush,flute,foamy,focal,focus,foggy,foil,folly,font,forge,forgo,forte,forum,found,fox,foyer,frail,frame,frank,fraud,freak,freed,fresh,fried,frisk,front,frost,froze,fruit,fully,fungi,fury,fused,fussy,gable,gamma,gavel,gaze,gear,geek,gem,genre,ghost,giant,given,giver,gland,glass,glaze,gleam,glide,glint,globe,gloom,glory,gloss,glove,glow,glue,going,golf,goner,goody,goose,gorge,gown,grab,grace,grade,grain,grand,grant,grape,graph,grasp,grass,grave,gravy,graze,great,greed,green,greet,grief,grill,grim,grind,grip,gripe,groan,groom,grope,gross,group,grove,growl,grown,grub,gruel,grump,grunt,guard,guess,guide,guild,guilt,guise,gulch,gummy,guppy,gusto,gusty,habit,hairy,half,halt,happy,hardy,haste,hasty,hatch,haven,hazel,heave,heavy,hedge,hefty,hello,hence,herbs,heron,hiker,hilly,hinge,hippo,hitch,hoard,hobby,homer,honor,hound,house,hover,howdy,humid,humor,humus,hurry,hyena,hyper,icing,icon,ideal,idiot,igloo,image,impel,imply,inbox,index,inner,input,intro,ionic,ivory,jabat,jewel,jiffy,joker,jolly,jostle,judge,juice,juicy,jumbo,jumpy,junco,ivory,kayak,kebab,keyed,khaki,king,kiosk,kitty,knack,knead,kneel,knelt,knife,knit,knock,knoll,known,koala,label,labor,laced,laden,lance,lapse,large,laser,latch,later,lathe,latte,layer,leach,leafy,leaky,leapt,lease,least,ledge,legal,lemon,level,lever,light,lilac,limbo,limit,linen,liner,lingo,liver,llama,lobby,local,lofty,logic,loner,loose,lorry,lost,lotus,loved,lover,lower,loyal,lucid,lucky,lumpy,lunar,lunch,lunge,lurch,lured,lusty,lying,lynch,lyric,macaw,macho,macro,mafia,magic,major,maker,mango,manor,maple,march,marry,marsh,maven,maxed,mayor,mealy,media,mercy,merit,merry,messy,metal,midst,might,milky,mimic,mince,minor,minus,mirth,miser,misty,mixer,mocha,model,moist,molar,moldy,money,month,moody,moose,moral,morph,mossy,motel,motor,motto,mound,mouse,mouth,moved,mover,movie,mower,mucus,muddy,mural,murky,mushy,music,musky,musty,muted,mylar,nacho,naive,nanny,nasal,nasty,naval,nerve,never,newly,night,ninja,ninth,noble,noise,noted,novel,nudge,nurse,nutty,nylon,oasis,ocean,olive,omega,onset,opera,optic,orbit,organ,other,otter,ought,ounce,outer,ovary,ovoid,oxide,ozone,paddy,pagan,paint,panda,panel,panic,pants,paper,parka,party,pasta,patch,patio,pause,peach,pearl,pecan,pedal,penny,perch,peril,perky,petal,petty,phase,phone,photo,piano,picky,piece,piggy,pilot,pinch,pixel,pizza,place,plaid,plain,plane,plank,plant,plate,plaza,plead,pleat,plied,pluck,plumb,plume,plump,plunk,plush,point,poise,poker,polar,polyp,pooch,poppy,porch,poser,posse,pouch,power,prank,prawn,press,price,pride,prime,print,prior,prism,privy,probe,promo,prone,proof,prose,proud,prowl,prude,prune,psalm,pulse,punch,pupil,puppy,purge,pushy,putty,pygmy,quack,qualm,quart,queen,query,quest,quick,quiet,quirk,quota,quote,radar,radio,rainy,raise,rally,ramen,ranch,range,rapid,rarer,rash,raspy,ratio,raven,rayon,reach,react,ready,realm,reap,rebel,rebus,recap,refit,reign,relax,relay,relic,remit,renew,repay,repel,reply,rerun,reset,resin,retry,reuse,revel,ridge,rifle,right,rigid,rigor,rinse,risen,risky,rivet,roast,robin,robot,rocky,rodeo,rogue,roomy,roost,round,route,rover,royal,rugby,ruler,runny,rural,rusty,sadly,saint,salad,salon,salsa,salty,salve,sandy,satin,sauce,sauna,savor,scale,scary,scene,scent,scoff,scold,scone,scoop,scope,score,scout,scowl,scram,scrap,scrub,sedan,seize,sense,serve,setup,seven,sever,shade,shaft,shake,shall,shame,shape,share,sharp,shave,shawl,sheep,sheer,sheet,shelf,shell,shift,shiny,shire,shirt,shock,shore,short,shout,shove,shown,shrub,shrug,shrub,sight,sigma,silly,since,sixth,sixty,sized,skate,skier,skill,skimp,skull,skunk,slack,slain,slang,slant,slash,slate,sleek,sleep,sleet,slept,slice,slick,slide,slime,slimy,sling,slope,sloth,slug,slum,slurp,smack,small,smart,smash,smell,smelt,smile,smirk,smite,smith,smock,smoke,snack,snail,snake,snare,sneak,sneer,snide,sniff,snore,snort,snout,snowy,snuck,snuff,soapy,sober,solid,solve,sonic,sorry,south,space,spade,Spain,spare,spark,spawn,speak,spear,speed,spend,spent,spice,spicy,spied,spike,spill,spine,spoke,spoof,spook,spool,spoon,sport,spout,spray,spree,sprig,spud,spunk,squad,squat,squid,stack,staff,stage,stain,stair,stake,stale,stalk,stall,stamp,stand,stank,stare,start,stash,state,stays,steak,steal,steam,steel,steep,steer,stern,stick,stiff,still,sting,stink,stint,stock,stoic,stoke,stole,stomp,stone,stood,stool,stoop,store,stork,storm,story,stout,stove,straw,stray,strip,strum,strut,stuck,study,stuff,stump,stung,stunk,stunt,style,sugar,suite,sulky,sumac,sunny,super,surge,sushi,swamp,swarm,swear,sweat,sweep,sweet,swept,swift,swill,swine,swing,swipe,swirl,swoon,swoop,swore,sworn,swung,syrup,tabby,table,tacky,taffy,taken,tally,talon,tango,tangy,taper,tapir,taste,tasty,tatty,taunt,tease,teddy,teeth,tempo,tense,tenth,tepid,terra,theft,their,theme,there,thick,thief,thigh,thing,think,third,thorn,those,three,threw,throw,thud,thumb,thump,tiger,tight,tile,timer,timid,tipsy,titan,title,toast,today,token,toner,tonic,tooth,topaz,topic,torch,total,totem,touch,tough,towel,tower,toxic,trace,track,trade,trail,train,trait,trash,tread,treat,trend,trial,tribe,trick,tried,trike,trill,tripe,trite,troll,troop,truck,truly,trump,trunk,trust,truth,tulip,tumor,tuna,tunic,turf,tutor,tweed,tweet,twice,twill,twine,twist,tying,ulcer,ultra,umbra,uncle,uncut,under,undid,undue,unfed,unfit,unify,union,unite,unity,unlit,until,unwed,unzip,upper,upset,urban,usage,usher,using,usual,utter,valet,valid,valor,value,valve,vault,vegan,venue,verse,vigor,villa,vinyl,viola,viper,virus,visit,visor,vital,vivid,vocal,vodka,vogue,voice,voter,vouch,vowel,vulva,wacky,wager,wagon,waist,waive,waltz,warden,waste,watch,water,waver,wax,weary,weave,wedge,weedy,weird,whale,wheat,wheel,where,which,while,whiff,whirl,whole,whose,widen,widow,width,wield,wince,windy,witch,wives,woken,wolf,women,won,world,worry,worse,worst,worth,would,wound,wreck,wring,wrist,wrote,yacht,yearn,yeast,yield,young,youth,zebra,zilch,zippy".split(",");
+
+// ============ STATE ============
+var mode = 'string'; // 'string' or 'phrase'
+var strLen = 20;
+var wordCount = 5;
+var useUpper = true, useLower = true, useNum = true, useSym = true;
+var currentPassword = '';
+
+// ============ CRYPTO RNG ============
+function cryptoRandInt(max) {
+  if (max <= 0) return 0;
+  // Rejection sampling to avoid modulo bias
+  var limit = Math.floor(4294967296 / max) * max;
+  var arr = new Uint32Array(1);
+  do {
+    crypto.getRandomValues(arr);
+  } while (arr[0] >= limit);
+  return arr[0] % max;
+}
+
+// ============ GENERATION ============
+function buildPool() {
+  var pool = '';
+  if (useUpper) pool += 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+  if (useLower) pool += 'abcdefghijklmnopqrstuvwxyz';
+  if (useNum) pool += '0123456789';
+  if (useSym) pool += '!@#$%^&*()-_=+[]{}|;:,.<>?';
+  return pool;
+}
+
+function generateString() {
+  var pool = buildPool();
+  if (pool.length === 0) return '';
+  var result = '';
+  for (var i = 0; i < strLen; i++) {
+    result += pool[cryptoRandInt(pool.length)];
+  }
+  return result;
+}
+
+function generatePhrase() {
+  var words = [];
+  for (var i = 0; i < wordCount; i++) {
+    words.push(WORDS[cryptoRandInt(WORDS.length)]);
+  }
+  return words.join('-');
+}
+
+// ============ ENTROPY ============
+function calcEntropy() {
+  if (mode === 'string') {
+    var pool = buildPool();
+    if (pool.length === 0) return 0;
+    return Math.floor(strLen * Math.log2(pool.length));
+  } else {
+    return Math.floor(wordCount * Math.log2(WORDS.length));
+  }
+}
+
+function entropyLabel(bits) {
+  if (bits < 40) return 'WEAK';
+  if (bits < 60) return 'FAIR';
+  if (bits < 80) return 'STRONG';
+  if (bits < 100) return 'VERY STRONG';
+  return 'EXCELLENT';
+}
+
+function entropyColor(bits) {
+  if (bits < 40) return '#f85149';
+  if (bits < 60) return '#d29922';
+  if (bits < 80) return '#3fb950';
+  return '#58a6ff';
+}
+
+function updateEntropy() {
+  var bits = calcEntropy();
+  var fill = document.getElementById('entropy-fill');
+  var pct = Math.min(100, bits / 128 * 100);
+  fill.style.width = pct + '%';
+  fill.style.background = entropyColor(bits);
+  document.getElementById('entropy-bits').textContent = bits + ' bits';
+  document.getElementById('entropy-label').textContent = entropyLabel(bits);
+  document.getElementById('entropy-label').style.color = entropyColor(bits);
+}
+
+// ============ SCRAMBLE ANIMATION ============
+var scrambleAnimId = null;
+
+function scrambleReveal(finalStr, callback) {
+  if (scrambleAnimId) cancelAnimationFrame(scrambleAnimId);
+  var outputEl = document.getElementById('output');
+  var pool = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*';
+  var iterations = 8;
+  var step = 0;
+
+  function frame() {
+    if (step >= iterations) {
+      outputEl.textContent = finalStr;
+      if (callback) callback();
+      return;
+    }
+    // Progressive reveal: more chars settle each iteration
+    var settled = Math.floor((step / iterations) * finalStr.length);
+    var display = '';
+    for (var i = 0; i < finalStr.length; i++) {
+      if (i < settled) {
+        display += finalStr[i];
+      } else {
+        display += pool[Math.floor(Math.random() * pool.length)];
+      }
+    }
+    outputEl.textContent = display;
+    step++;
+    scrambleAnimId = requestAnimationFrame(frame);
+  }
+  // Store real password immediately for copy
+  currentPassword = finalStr;
+  frame();
+}
+
+// ============ GENERATE ============
+function generate() {
+  var pw = mode === 'string' ? generateString() : generatePhrase();
+  if (!pw) {
+    document.getElementById('output').textContent = 'Select character types';
+    currentPassword = '';
+    return;
+  }
+  scrambleReveal(pw);
+  updateEntropy();
+}
+
+// ============ COPY ============
+document.getElementById('output-wrap').addEventListener('click', function() {
+  if (!currentPassword) return;
+  var flash = document.getElementById('copy-flash');
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(currentPassword).then(function() {
+      flash.classList.add('flash');
+      setTimeout(function() { flash.classList.remove('flash'); }, 100);
+    });
+  } else {
+    // Fallback
+    var ta = document.createElement('textarea');
+    ta.value = currentPassword;
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    ta.setSelectionRange(0, 99999);
+    document.execCommand('copy');
+    document.body.removeChild(ta);
+    flash.classList.add('flash');
+    setTimeout(function() { flash.classList.remove('flash'); }, 100);
+  }
+});
+
+// ============ CONTROLS ============
+document.querySelectorAll('.mode-btn').forEach(function(btn) {
+  btn.addEventListener('click', function() {
+    mode = btn.dataset.mode;
+    document.querySelectorAll('.mode-btn').forEach(function(b) { b.classList.remove('active'); });
+    btn.classList.add('active');
+    document.getElementById('string-ctrls').style.display = mode === 'string' ? 'block' : 'none';
+    document.getElementById('phrase-ctrls').style.display = mode === 'phrase' ? 'block' : 'none';
+    generate();
+  });
+});
+
+document.getElementById('sl-len').addEventListener('input', function(e) {
+  strLen = parseInt(e.target.value, 10);
+  document.getElementById('v-len').textContent = strLen;
+  generate();
+});
+
+document.getElementById('sl-words').addEventListener('input', function(e) {
+  wordCount = parseInt(e.target.value, 10);
+  document.getElementById('v-words').textContent = wordCount;
+  generate();
+});
+
+document.getElementById('ck-upper').addEventListener('change', function() { useUpper = this.checked; generate(); });
+document.getElementById('ck-lower').addEventListener('change', function() { useLower = this.checked; generate(); });
+document.getElementById('ck-num').addEventListener('change', function() { useNum = this.checked; generate(); });
+document.getElementById('ck-sym').addEventListener('change', function() { useSym = this.checked; generate(); });
+
+document.getElementById('btn-gen').addEventListener('click', generate);
+
+// Keyboard shortcut
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Enter') generate();
+});
+
+// ============ INIT ============
+generate();
+
+})();
+</script>
+</body>
+</html>

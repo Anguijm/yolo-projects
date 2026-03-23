@@ -706,3 +706,16 @@ Persistent knowledge base. Read this before every build.
 - **INSIGHT**: Minimax terminal scores MUST include depth to create urgency. Without it, the AI is "apathetic" — it knows it will win but doesn't care when. score += depth * factor for wins, score -= depth * factor for losses.
 - **INSIGHT**: Defined-but-unused variables are a recurring pattern (3rd occurrence: CENTER_WEIGHT, Farnsworth delay, stopScheduler). Must grep for unused definitions before shipping.
 - **TEST CAUGHT**: No bugs caught by automated tests — all were CSS/logic level
+
+### entropy-forge (2026-03-23)
+- **KEEP**: crypto.getRandomValues with rejection sampling — eliminates modulo bias for cryptographically fair selection
+- **KEEP**: Embedded wordlist as comma-split string.split(",") — compact, no external assets, instant load
+- **KEEP**: Shannon entropy calculation (L × log2(R)) — gives users real security context, not just "weak/strong"
+- **KEEP**: Scramble reveal animation with progressive settling — satisfying visual feedback without blocking copy
+- **KEEP**: Clipboard API with textarea fallback for non-HTTPS contexts
+- **IMPROVE**: Rapid generate clicks caused multiple concurrent scramble animations — Gemini caught. Fixed with cancelAnimationFrame tracking.
+- **IMPROVE**: Settings changes (sliders, checkboxes) only updated entropy bar, not password — stale password displayed with mismatched entropy. Must regenerate on every setting change.
+- **IMPROVE**: cryptoRandInt(0) caused NaN/infinite loop — guard clause needed for edge case
+- **INSIGHT**: Any UI that shows both "output" and "metadata about output" (entropy, stats, labels) MUST regenerate both in sync. Updating metadata without regenerating the output creates a dangerous UX desync.
+- **INSIGHT**: requestAnimationFrame-based animations that can be re-triggered need cancellation tracking. Store the frame ID and cancelAnimationFrame before starting a new sequence.
+- **TEST CAUGHT**: No bugs caught by automated tests — all were UX/logic level
