@@ -794,3 +794,15 @@ Persistent knowledge base. Read this before every build.
 - **INSIGHT**: Game input for continuous movement (paddle, character) must use a keysHeld map (keydown sets true, keyup sets false) processed in the update loop, not discrete keydown events. Key repeat rate is OS-dependent and stutters.
 - **INSIGHT**: Collision response should force the velocity direction based on the collision normal (sign of distance vector), not blindly invert. Blind inversion causes trapping when the ball is inside the collider.
 - **TEST CAUGHT (automated)**: Overlay didn't dismiss — test clicks buttons, overlay only had click handler on div. Added START button inside overlay.
+
+### color-forge (2026-03-24)
+- **KEEP**: HSL color math for harmony generation — simple hue rotation (±30, ±120, ±150, +180) produces all standard harmony types
+- **KEEP**: Canvas HSL wheel drawn with 360 arc strokes — lightweight, no image assets
+- **KEEP**: Bidirectional input sync with source tracking (updateAll('hex'|'slider'|'picker')) — prevents circular update loops
+- **KEEP**: Dynamic text contrast via BT.601 luminance — white text on dark swatches, black on light
+- **KEEP**: CSS variable export block — practical output designers actually want
+- **IMPROVE**: Clipboard writeText toast fired synchronously regardless of async result — must put toast in .then() callback. Gemini caught.
+- **IMPROVE**: Hex input regex required # and exactly 6 chars — users paste without # and use 3-char shorthand. Relaxed to /^#?([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/
+- **INSIGHT**: navigator.clipboard.writeText returns a Promise. Any UI feedback (toast, flash, icon change) must go in .then(), never synchronously after the call. The operation can fail silently.
+- **INSIGHT**: Input validation for color codes should be permissive: accept with/without #, accept 3 or 6 hex chars. Strict validation frustrates users who paste from different sources.
+- **TEST CAUGHT**: No bugs caught by automated tests — all were async/UX level
