@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="theme-color" content="#000000">
+<title>Aura Keys</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { height: 100%; background: #0a0a0c; color: #ccc; font-family: system-ui, sans-serif; overflow: hidden; touch-action: none; user-select: none; -webkit-user-select: none; -webkit-tap-highlight-color: transparent; }
+#app { height: 100%; display: flex; flex-direction: column; }
+
+/* Controls */
+#controls { display: flex; gap: 6px; padding: 8px 12px; align-items: center; flex-wrap: wrap; justify-content: center; }
+.ctrl-btn { padding: 4px 10px; background: transparent; border: 1px solid #1a1a1a; color: #444; font-family: inherit; font-size: 0.55rem; cursor: pointer; letter-spacing: 0.1em; border-radius: 4px; }
+.ctrl-btn:active { border-color: #555; color: #888; }
+.ctrl-btn.active { border-color: #58a6ff; color: #58a6ff; }
+#octave-display { font-size: 0.55rem; color: #333; min-width: 30px; text-align: center; font-family: monospace; }
+.sep { width: 1px; height: 20px; background: #1a1a1a; }
+
+/* Keyboard */
+#keyboard { flex: 1; position: relative; display: flex; min-height: 0; }
+.white-key { flex: 1; background: #1a1a1e; border: 1px solid #111; border-radius: 0 0 4px 4px; position: relative; cursor: pointer; display: flex; align-items: flex-end; justify-content: center; padding-bottom: 8px; transition: none; }
+.white-key.pressed { background: #252530; box-shadow: inset 0 0 20px rgba(88,166,255,0.15); }
+.white-key .label { font-size: 0.4rem; color: #222; letter-spacing: 0.05em; }
+.white-key.pressed .label { color: #58a6ff; }
+
+.black-key { position: absolute; width: 8%; height: 55%; background: #0a0a0c; border: 1px solid #111; border-radius: 0 0 3px 3px; z-index: 2; cursor: pointer; display: flex; align-items: flex-end; justify-content: center; padding-bottom: 6px; }
+.black-key.pressed { background: #151520; box-shadow: inset 0 0 15px rgba(88,166,255,0.2); }
+.black-key .label { font-size: 0.35rem; color: #1a1a1a; }
+.black-key.pressed .label { color: #58a6ff; }
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="controls">
+    <button class="ctrl-btn" id="btn-oct-down">OCT −</button>
+    <span id="octave-display">C4</span>
+    <button class="ctrl-btn" id="btn-oct-up">OCT +</button>
+    <div class="sep"></div>
+    <button class="ctrl-btn active" data-wave="sine">Sine</button>
+    <button class="ctrl-btn" data-wave="triangle">Tri</button>
+    <button class="ctrl-btn" data-wave="sawtooth">Saw</button>
+    <button class="ctrl-btn" data-wave="square">Sq</button>
+    <div class="sep"></div>
+    <button class="ctrl-btn" id="btn-delay" data-on="0">Delay</button>
+  </div>
+  <div id="keyboard"></div>
+</div>
+
+<script>
+(function() {
+'use strict';
+
+// ============ NOTES & MAPPING ============
+// 2 octaves of notes (C to B, twice)
+var NOTE_NAMES = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+var WHITE_INDICES = [0, 2, 4, 5, 7, 9, 11]; // C D E F G A B
+var BLACK_INDICES = [1, 3, 6, 8, 10]; // C# D# F# G# A#
+var OCTAVES = 2;
+var TOTAL_WHITES = WHITE_INDICES.length * OCTAVES;
+
+// QWERTY mapping (2 octaves)
+var QWERTY_MAP = {
+  // First octave (lower)
+  'a': 0, 'w': 1, 's': 2, 'e': 3, 'd': 4, 'f': 5, 't': 6,
+  'g': 7, 'y': 8, 'h': 9, 'u': 10, 'j': 11,
+  // Second octave (upper)
+  'k': 12, 'o': 13, 'l': 14, 'p': 15, ';': 16, '\x27': 17
+};
+
+var baseOctave = 4;
+var waveType = 'sine';
+var delayOn = false;
+
+// ============ AUDIO ============
+var audioCtx = null;
+var masterGain = null;
+var delayNode = null;
+var delayGain = null;
+var activeNotes = {}; // noteIndex -> { osc, gain }
+
+function initAudio() {
+  if (audioCtx) return;
+  audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+  masterGain = audioCtx.createGain();
+  masterGain.gain.value = 0.5;
+
+  // Delay effect
+  delayNode = audioCtx.createDelay(1);
+  delayNode.delayTime.value = 0.3;
+  delayGain = audioCtx.createGain();
+  delayGain.gain.value = 0;
+
+  masterGain.connect(audioCtx.destination);
+  masterGain.connect(delayNode);
+  delayNode.connect(delayGain);
+  delayGain.connect(delayNode); // Feedback
+  delayGain.connect(audioCtx.destination);
+}
+
+function noteFrequency(noteIndex) {
+  // noteIndex 0 = C of baseOctave
+  var midiNote = (baseOctave + 1) * 12 + noteIndex; // MIDI: C4 = 60
+  return 440 * Math.pow(2, (midiNote - 69) / 12);
+}
+
+function playNote(noteIndex) {
+  if (activeNotes[noteIndex]) return; // Already playing
+  initAudio();
+  if (audioCtx.state === 'suspended') audioCtx.resume();
+
+  var freq = noteFrequency(noteIndex);
+  var osc = audioCtx.createOscillator();
+  var gain = audioCtx.createGain();
+
+  osc.type = waveType;
+  osc.frequency.value = freq;
+
+  // Attack
+  gain.gain.setValueAtTime(0, audioCtx.currentTime);
+  gain.gain.linearRampToValueAtTime(0.3, audioCtx.currentTime + 0.01);
+
+  osc.connect(gain);
+  gain.connect(masterGain);
+  osc.start();
+
+  activeNotes[noteIndex] = { osc: osc, gain: gain };
+
+  // Visual
+  var el = document.querySelector('[data-note="' + noteIndex + '"]');
+  if (el) el.classList.add('pressed');
+}
+
+function stopNote(noteIndex) {
+  var note = activeNotes[noteIndex];
+  if (!note) return;
+
+  // Release
+  var now = audioCtx.currentTime;
+  note.gain.gain.cancelScheduledValues(now);
+  note.gain.gain.setValueAtTime(note.gain.gain.value, now);
+  // setTargetAtTime safely approaches 0 (no exponential ramp crash from zero)
+  note.gain.gain.setTargetAtTime(0, now, 0.03);
+
+  var oscRef = note.osc;
+  var gainRef = note.gain;
+  setTimeout(function() {
+    try { oscRef.stop(); oscRef.disconnect(); gainRef.disconnect(); } catch(e) {}
+  }, 200);
+
+  delete activeNotes[noteIndex];
+
+  var el = document.querySelector('[data-note="' + noteIndex + '"]');
+  if (el) el.classList.remove('pressed');
+}
+
+// ============ BUILD KEYBOARD ============
+function buildKeyboard() {
+  var kb = document.getElementById('keyboard');
+  kb.innerHTML = '';
+
+  // White keys
+  for (var oct = 0; oct < OCTAVES; oct++) {
+    for (var i = 0; i < WHITE_INDICES.length; i++) {
+      var noteIdx = oct * 12 + WHITE_INDICES[i];
+      var key = document.createElement('div');
+      key.className = 'white-key';
+      key.dataset.note = noteIdx;
+      var noteName = NOTE_NAMES[WHITE_INDICES[i]];
+      // Find QWERTY label
+      var qLabel = '';
+      for (var q in QWERTY_MAP) {
+        if (QWERTY_MAP[q] === noteIdx) { qLabel = q.toUpperCase(); break; }
+      }
+      key.innerHTML = '<span class="label">' + qLabel + '</span>';
+      kb.appendChild(key);
+    }
+  }
+
+  // Black keys — position them absolutely
+  var totalWhites = TOTAL_WHITES;
+  var blackPositions = []; // {noteIdx, whiteIndex}
+
+  for (var oct = 0; oct < OCTAVES; oct++) {
+    var base = oct * 7; // white key offset
+    // C# between C(0) and D(1)
+    blackPositions.push({ noteIdx: oct * 12 + 1, after: base + 0 });
+    // D# between D(1) and E(2)
+    blackPositions.push({ noteIdx: oct * 12 + 3, after: base + 1 });
+    // F# between F(3) and G(4)
+    blackPositions.push({ noteIdx: oct * 12 + 6, after: base + 3 });
+    // G# between G(4) and A(5)
+    blackPositions.push({ noteIdx: oct * 12 + 8, after: base + 4 });
+    // A# between A(5) and B(6)
+    blackPositions.push({ noteIdx: oct * 12 + 10, after: base + 5 });
+  }
+
+  for (var i = 0; i < blackPositions.length; i++) {
+    var bp = blackPositions[i];
+    var key = document.createElement('div');
+    key.className = 'black-key';
+    key.dataset.note = bp.noteIdx;
+    // Position: center between the white keys
+    var leftPct = ((bp.after + 1) / totalWhites) * 100 - 4;
+    key.style.left = leftPct + '%';
+
+    var qLabel = '';
+    for (var q in QWERTY_MAP) {
+      if (QWERTY_MAP[q] === bp.noteIdx) { qLabel = q.toUpperCase(); break; }
+    }
+    key.innerHTML = '<span class="label">' + qLabel + '</span>';
+    kb.appendChild(key);
+  }
+}
+
+// ============ EVENTS ============
+// Pointer events on keyboard
+var pointerNotes = {}; // pointerId -> noteIndex
+
+document.getElementById('keyboard').addEventListener('pointerdown', function(e) {
+  e.preventDefault();
+  var key = e.target.closest('.white-key, .black-key');
+  if (!key) return;
+  var noteIdx = parseInt(key.dataset.note, 10);
+  pointerNotes[e.pointerId] = noteIdx;
+  playNote(noteIdx);
+});
+
+document.getElementById('keyboard').addEventListener('pointermove', function(e) {
+  if (pointerNotes[e.pointerId] === undefined) return;
+  e.preventDefault();
+  var key = document.elementFromPoint(e.clientX, e.clientY);
+  if (key) key = key.closest('.white-key, .black-key');
+  var newNote = key ? parseInt(key.dataset.note, 10) : -1;
+  var oldNote = pointerNotes[e.pointerId];
+  if (newNote !== oldNote) {
+    if (oldNote >= 0) stopNote(oldNote);
+    if (newNote >= 0) { playNote(newNote); pointerNotes[e.pointerId] = newNote; }
+    else { delete pointerNotes[e.pointerId]; }
+  }
+});
+
+window.addEventListener('pointerup', function(e) {
+  var noteIdx = pointerNotes[e.pointerId];
+  if (noteIdx !== undefined) {
+    stopNote(noteIdx);
+    delete pointerNotes[e.pointerId];
+  }
+});
+
+window.addEventListener('pointercancel', function(e) {
+  var noteIdx = pointerNotes[e.pointerId];
+  if (noteIdx !== undefined) {
+    stopNote(noteIdx);
+    delete pointerNotes[e.pointerId];
+  }
+});
+
+// Keyboard events
+document.addEventListener('keydown', function(e) {
+  if (e.repeat || e.ctrlKey || e.metaKey || e.altKey) return;
+  var key = e.key.toLowerCase();
+  if (QWERTY_MAP[key] !== undefined) {
+    e.preventDefault();
+    playNote(QWERTY_MAP[key]);
+  }
+});
+
+document.addEventListener('keyup', function(e) {
+  var key = e.key.toLowerCase();
+  if (QWERTY_MAP[key] !== undefined) {
+    stopNote(QWERTY_MAP[key]);
+  }
+});
+
+// Controls
+document.getElementById('btn-oct-down').addEventListener('click', function() {
+  if (baseOctave > 1) { baseOctave--; stopAll(); updateOctaveDisplay(); }
+});
+
+document.getElementById('btn-oct-up').addEventListener('click', function() {
+  if (baseOctave < 7) { baseOctave++; stopAll(); updateOctaveDisplay(); }
+});
+
+function updateOctaveDisplay() {
+  document.getElementById('octave-display').textContent = 'C' + baseOctave;
+}
+
+function stopAll() {
+  for (var k in activeNotes) stopNote(parseInt(k, 10));
+}
+
+document.querySelectorAll('[data-wave]').forEach(function(btn) {
+  btn.addEventListener('click', function() {
+    waveType = btn.dataset.wave;
+    document.querySelectorAll('[data-wave]').forEach(function(b) { b.classList.remove('active'); });
+    btn.classList.add('active');
+    stopAll();
+  });
+});
+
+document.getElementById('btn-delay').addEventListener('click', function() {
+  initAudio();
+  delayOn = !delayOn;
+  this.classList.toggle('active', delayOn);
+  this.dataset.on = delayOn ? '1' : '0';
+  delayGain.gain.setValueAtTime(delayOn ? 0.3 : 0, audioCtx.currentTime);
+});
+
+// Stop all notes on window blur (prevents stuck notes on tab switch)
+window.addEventListener('blur', stopAll);
+
+// ============ INIT ============
+buildKeyboard();
+updateOctaveDisplay();
+
+})();
+</script>
+</body>
+</html>

@@ -806,3 +806,25 @@ Persistent knowledge base. Read this before every build.
 - **INSIGHT**: navigator.clipboard.writeText returns a Promise. Any UI feedback (toast, flash, icon change) must go in .then(), never synchronously after the call. The operation can fail silently.
 - **INSIGHT**: Input validation for color codes should be permissive: accept with/without #, accept 3 or 6 hex chars. Strict validation frustrates users who paste from different sources.
 - **TEST CAUGHT**: No bugs caught by automated tests — all were async/UX level
+
+### aura-keys (2026-03-24) — PROJECT #85 (5-build review)
+- **KEEP**: QWERTY-to-note mapping with e.repeat guard — prevents note re-triggering on key hold
+- **KEEP**: Polyphonic activeNotes dictionary (noteIndex → {osc, gain}) — clean tracking of simultaneous notes
+- **KEEP**: setTargetAtTime(0, now, 0.03) for release — safely approaches zero without exponentialRamp crash
+- **KEEP**: Audio node disconnect on note stop — prevents memory leaks in long sessions
+- **KEEP**: Pointer glissando via elementFromPoint in pointermove — allows sliding across keys like a real keyboard
+- **IMPROVE**: exponentialRampToValueAtTime(0.001, now+0.15) crashes when gain.value is exactly 0 — Gemini caught. setTargetAtTime is the safe alternative.
+- **IMPROVE**: Notes stuck on tab switch (keyup never fires) — added window blur → stopAll. This is the 2nd occurrence (also chess-clock).
+- **IMPROVE**: Modifier keys (Ctrl+A) triggered notes and blocked browser shortcuts — must check e.ctrlKey/e.metaKey/e.altKey
+- **IMPROVE**: Touch glissando scrolled page instead of sliding — need preventDefault on pointermove when pointer is captured
+- **INSIGHT**: exponentialRampToValueAtTime requires the starting value to be > 0. If the attack hasn't completed (gain still at 0), it throws DOMException. setTargetAtTime has no such constraint — it's always safe for release envelopes.
+- **INSIGHT**: Any keyboard-driven app must ignore modifier key combos (Ctrl/Cmd/Alt). Otherwise the app steals browser shortcuts.
+- **INSIGHT**: Test regex for brace balance can be confused by quotes containing the opposite quote character (e.g., "'"). Use escape sequences (\x27) to avoid false failures.
+- **TEST CAUGHT (automated)**: Brace balance test confused by `"'"` in QWERTY_MAP — mixed quote characters tripped the string-stripping regex. Used \x27 escape.
+
+#### 5-Build Review (Builds #81-85: stellar-forge, chess-clock, neon-shatter, color-forge, aura-keys)
+- **All 5 shipped working.** 20 consecutive working builds (66-85). Zero user-reported bugs.
+- **Recurring: Window blur handling** — chess-clock (auto-pause timer) AND aura-keys (stop stuck notes). REINFORCED: ANY persistent-state app (audio, timers, animations) must handle window blur/visibilitychange.
+- **Recurring: Web Audio exponentialRamp from zero** — aura-keys. ADDED TO PRINCIPLES: always use setTargetAtTime for release, never exponentialRamp (crashes on 0).
+- **Recurring: Async clipboard feedback** — color-forge. REINFORCED: clipboard.writeText is a Promise; UI feedback in .then() only.
+- **Portfolio milestone**: 85 projects, 20 consecutive working. Process is highly mature. Gemini audits catching 3-5 bugs per build consistently.
