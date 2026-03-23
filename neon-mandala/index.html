@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="theme-color" content="#000000">
+<title>Neon Mandala</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { height: 100%; background: #050505; overflow: hidden; touch-action: none; -webkit-tap-highlight-color: transparent; }
+canvas { display: block; width: 100%; height: 100%; cursor: crosshair; }
+
+/* Controls panel */
+#controls {
+  position: fixed; bottom: 12px; left: 50%; transform: translateX(-50%);
+  display: flex; gap: 12px; align-items: center;
+  padding: 8px 16px; border-radius: 20px;
+  background: rgba(5,5,5,0.85); border: 1px solid rgba(255,255,255,0.06);
+  backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+  opacity: 0.3; transition: opacity 0.3s;
+  font-family: 'Segoe UI', system-ui, sans-serif;
+}
+#controls:hover, #controls:focus-within { opacity: 1; }
+.ctrl-group { display: flex; flex-direction: column; align-items: center; gap: 2px; }
+.ctrl-label { font-size: 0.45rem; color: #444; text-transform: uppercase; letter-spacing: 0.15em; }
+.ctrl-val { font-size: 0.6rem; color: #888; font-family: monospace; min-width: 2ch; text-align: center; }
+input[type="range"] { width: 70px; height: 3px; accent-color: #666; }
+.ctrl-btn { padding: 4px 10px; background: transparent; border: 1px solid #222; color: #444; border-radius: 12px; font-size: 0.5rem; cursor: pointer; font-family: inherit; letter-spacing: 0.1em; text-transform: uppercase; }
+.ctrl-btn:active { border-color: #666; color: #aaa; }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="controls">
+  <div class="ctrl-group">
+    <span class="ctrl-label">Segments</span>
+    <input type="range" id="seg-slider" min="2" max="24" value="8">
+    <span class="ctrl-val" id="seg-val">8</span>
+  </div>
+  <div class="ctrl-group">
+    <span class="ctrl-label">Glow</span>
+    <input type="range" id="glow-slider" min="0" max="40" value="20">
+  </div>
+  <div class="ctrl-group">
+    <span class="ctrl-label">Width</span>
+    <input type="range" id="width-slider" min="1" max="10" value="2">
+  </div>
+  <div class="ctrl-group">
+    <span class="ctrl-label">Fade</span>
+    <input type="range" id="fade-slider" min="0" max="20" value="3">
+  </div>
+  <button class="ctrl-btn" id="btn-clear">Clear</button>
+</div>
+
+<script>
+(function() {
+'use strict';
+
+var canvas = document.getElementById('c');
+var ctx = canvas.getContext('2d');
+var W, H, cx, cy;
+
+// Settings
+var segments = 8;
+var glowAmount = 20;
+var lineWidth = 2;
+var fadeSpeed = 3; // 0 = no fade, higher = faster
+
+// Drawing state
+var isDrawing = false;
+var prevX = 0, prevY = 0;
+var hue = 0;
+
+// ============ SIZING ============
+function resize() {
+  var dpr = window.devicePixelRatio || 1;
+  canvas.style.width = window.innerWidth + 'px';
+  canvas.style.height = window.innerHeight + 'px';
+  W = window.innerWidth * dpr;
+  H = window.innerHeight * dpr;
+  canvas.width = W;
+  canvas.height = H;
+  cx = W / 2;
+  cy = H / 2;
+  // Fill black
+  ctx.fillStyle = '#050505';
+  ctx.fillRect(0, 0, W, H);
+}
+
+// ============ DRAWING ============
+function drawSymmetricLine(x1, y1, x2, y2) {
+  // Convert to center-relative coordinates
+  var rx1 = x1 - cx, ry1 = y1 - cy;
+  var rx2 = x2 - cx, ry2 = y2 - cy;
+  var angleStep = (Math.PI * 2) / segments;
+
+  // Color cycles based on distance from center + time
+  var dist = Math.sqrt(rx2 * rx2 + ry2 * ry2);
+  var color = 'hsl(' + ((hue + dist * 0.3) % 360) + ', 90%, 60%)';
+
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.strokeStyle = color;
+  ctx.lineWidth = lineWidth;
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+
+  if (glowAmount > 0) {
+    ctx.shadowColor = color;
+    ctx.shadowBlur = glowAmount;
+  }
+
+  for (var i = 0; i < segments; i++) {
+    var angle = angleStep * i;
+
+    // Draw the line
+    ctx.save();
+    ctx.rotate(angle);
+    ctx.beginPath();
+    ctx.moveTo(rx1, ry1);
+    ctx.lineTo(rx2, ry2);
+    ctx.stroke();
+
+    // Mirror reflection
+    ctx.scale(1, -1);
+    ctx.beginPath();
+    ctx.moveTo(rx1, ry1);
+    ctx.lineTo(rx2, ry2);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  ctx.restore();
+}
+
+// ============ FADE LOOP ============
+function fadeLoop() {
+  if (fadeSpeed > 0) {
+    ctx.fillStyle = 'rgba(5, 5, 5, ' + (fadeSpeed * 0.005) + ')';
+    ctx.fillRect(0, 0, W, H);
+  }
+
+  // Cycle hue continuously
+  hue = (hue + 0.3) % 360;
+
+  requestAnimationFrame(fadeLoop);
+}
+
+// ============ INPUT ============
+function getPos(e) {
+  var rect = canvas.getBoundingClientRect();
+  var dpr = window.devicePixelRatio || 1;
+  return {
+    x: (e.clientX - rect.left) * dpr,
+    y: (e.clientY - rect.top) * dpr
+  };
+}
+
+canvas.addEventListener('pointerdown', function(e) {
+  e.preventDefault();
+  isDrawing = true;
+  var p = getPos(e);
+  prevX = p.x;
+  prevY = p.y;
+  canvas.setPointerCapture(e.pointerId);
+});
+
+canvas.addEventListener('pointermove', function(e) {
+  if (!isDrawing) return;
+  e.preventDefault();
+  var p = getPos(e);
+  drawSymmetricLine(prevX, prevY, p.x, p.y);
+  prevX = p.x;
+  prevY = p.y;
+});
+
+canvas.addEventListener('pointerup', function(e) {
+  isDrawing = false;
+  canvas.releasePointerCapture(e.pointerId);
+});
+
+canvas.addEventListener('pointercancel', function() {
+  isDrawing = false;
+});
+
+// Prevent context menu on long press
+canvas.addEventListener('contextmenu', function(e) { e.preventDefault(); });
+
+// ============ CONTROLS ============
+var segSlider = document.getElementById('seg-slider');
+var segVal = document.getElementById('seg-val');
+var glowSlider = document.getElementById('glow-slider');
+var widthSlider = document.getElementById('width-slider');
+var fadeSlider = document.getElementById('fade-slider');
+
+segSlider.addEventListener('input', function() {
+  segments = parseInt(segSlider.value, 10);
+  segVal.textContent = segments;
+});
+
+glowSlider.addEventListener('input', function() {
+  glowAmount = parseInt(glowSlider.value, 10);
+});
+
+widthSlider.addEventListener('input', function() {
+  lineWidth = parseInt(widthSlider.value, 10);
+});
+
+fadeSlider.addEventListener('input', function() {
+  fadeSpeed = parseInt(fadeSlider.value, 10);
+});
+
+document.getElementById('btn-clear').addEventListener('click', function() {
+  ctx.fillStyle = '#050505';
+  ctx.fillRect(0, 0, W, H);
+});
+
+// ============ RESIZE ============
+window.addEventListener('resize', resize);
+
+// ============ INIT ============
+resize();
+requestAnimationFrame(fadeLoop);
+
+})();
+</script>
+</body>
+</html>

@@ -612,3 +612,15 @@ Persistent knowledge base. Read this before every build.
 - **INSIGHT**: DataView endianness should be a READ/WRITE parameter, never a physical byte reorder. The buffer stays the same; interpretation changes.
 - **INSIGHT**: When a UI toggle changes data interpretation (not data itself), rebuild any derived visual elements (IEEE 754 labels, color coding) to match the new interpretation.
 - **TEST CAUGHT**: No bugs caught by automated tests — all bugs were logic-level (formatting, endianness semantics)
+
+### neon-mandala (2026-03-23)
+- **KEEP**: Canvas radial symmetry via translate(center) + rotate(angleStep*i) + scale(1,-1) mirror — elegant loop produces kaleidoscopic patterns
+- **KEEP**: Auto-cycling HSL hue based on time + distance from center — creates continuous rainbow gradients without user color selection
+- **KEEP**: Ephemeral fade via rgba(bg, low-alpha) fillRect each frame — creates ghost trails that naturally decay
+- **KEEP**: setPointerCapture for drawing — ensures strokes continue smoothly even when pointer leaves canvas bounds
+- **KEEP**: Glassmorphic controls with low opacity that increase on hover — keeps the canvas immersive
+- **IMPROVE**: High-DPI canvas set canvas.width but not canvas.style.width — caused 2x overflow on Retina. Must ALWAYS set both buffer size and CSS layout size.
+- **IMPROVE**: getPos used raw clientX without subtracting canvas bounding rect — drawing offset from cursor when any margin/padding exists
+- **INSIGHT**: High-DPI canvas rendering requires TWO size settings: canvas.width/height (buffer resolution) AND canvas.style.width/height (CSS layout). Missing either causes overflow or blurriness.
+- **INSIGHT**: CSS comments can trigger test regex patterns — the word "overlay" in a comment triggered the start-screen test. Be mindful of test heuristics.
+- **TEST CAUGHT (automated)**: CSS comment "Controls overlay" triggered overlay detection test. Renamed to "Controls panel".
