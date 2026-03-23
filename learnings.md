@@ -754,3 +754,14 @@ Persistent knowledge base. Read this before every build.
 - **Recurring: parseInt NaN from empty input** — beat-haus. ADDED TO PRINCIPLES: always || fallback.
 - **Gemini audit value**: Caught 14+ bugs across 5 builds. Most valuable: timing math (swing asymmetry), architectural (visual queue pattern), and state management (stale data on settings change).
 - **Portfolio milestone**: 80 projects, all working. Process is mature and consistent.
+
+### stellar-forge (2026-03-23)
+- **KEEP**: Unified rotation approach for 2048 slide logic — rotate grid to align direction, apply single slideRow, rotate back. 4 directions handled by 1 function.
+- **KEEP**: Element-themed progression with unique colors per tier — educational twist on 2048 mechanics
+- **KEEP**: slideRow with merge ceiling (filtered[i] < WIN_TIER) — prevents max-tier tiles from merging
+- **IMPROVE**: canMove() didn't respect merge ceiling — reported adjacent max-tier tiles as mergeable, causing infinite softlock. Gemini caught. Must add `if (v >= WIN_TIER) continue` in canMove.
+- **IMPROVE**: Win state (vibrate + status) triggered on EVERY move after winning — global `won` flag never gated. Added `winAlerted` one-time flag.
+- **IMPROVE**: No touchmove preventDefault — mobile page scrolled during gameplay swipes. Added scoped handler on #board.
+- **INSIGHT**: Any game with a "merge ceiling" (max tile that can't merge further) must ensure BOTH the merge logic AND the game-over detection agree on the ceiling. If slideRow refuses to merge max tiles but canMove says they can merge, the game softlocks.
+- **INSIGHT**: One-time game events (win alerts, achievement popups) need a dedicated boolean flag separate from the win condition itself. The win condition persists (player keeps playing), but the alert should fire exactly once.
+- **TEST CAUGHT**: No bugs caught by automated tests — all were game logic level

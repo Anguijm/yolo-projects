@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="theme-color" content="#000000">
+<title>Stellar Forge</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { height: 100%; background: #0a0a0a; color: #ccc; font-family: 'Segoe UI', system-ui, sans-serif; overflow: hidden; touch-action: none; -webkit-tap-highlight-color: transparent; }
+#app { height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; padding: 12px; }
+
+#header { display: flex; gap: 16px; align-items: baseline; }
+#title { font-size: 0.8rem; color: #444; letter-spacing: 0.2em; font-weight: 300; }
+.score-box { text-align: center; }
+.score-label { font-size: 0.4rem; color: #333; letter-spacing: 0.1em; text-transform: uppercase; }
+.score-val { font-size: 0.9rem; color: #888; font-family: monospace; }
+
+#board { position: relative; width: min(85vw, 340px); aspect-ratio: 1; background: #111; border-radius: 6px; padding: 6px; }
+#grid-bg { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; width: 100%; height: 100%; }
+.cell-bg { background: #1a1a1a; border-radius: 4px; }
+#tiles { position: absolute; inset: 6px; }
+
+.tile { position: absolute; width: calc(25% - 4.5px); height: calc(25% - 4.5px); border-radius: 4px; display: flex; flex-direction: column; align-items: center; justify-content: center; transition: left 0.12s ease, top 0.12s ease; font-family: 'Segoe UI', system-ui, sans-serif; }
+.tile .sym { font-size: clamp(1rem, 5vw, 1.6rem); font-weight: 600; line-height: 1; }
+.tile .name { font-size: clamp(0.35rem, 1.5vw, 0.45rem); opacity: 0.6; margin-top: 1px; }
+.tile .num { font-size: clamp(0.3rem, 1.2vw, 0.4rem); opacity: 0.4; position: absolute; top: 3px; left: 5px; }
+
+@keyframes pop { 0% { transform: scale(0); } 60% { transform: scale(1.1); } 100% { transform: scale(1); } }
+.tile.new { animation: pop 0.15s ease-out; }
+@keyframes merge-pop { 0% { transform: scale(1); } 50% { transform: scale(1.15); } 100% { transform: scale(1); } }
+.tile.merged { animation: merge-pop 0.15s ease-out; }
+
+#status { font-size: 0.6rem; color: #333; min-height: 1.5em; letter-spacing: 0.1em; text-align: center; }
+#status.win { color: #3fb950; }
+#status.lose { color: #f85149; }
+
+#controls { display: flex; gap: 6px; }
+.ctrl-btn { padding: 5px 14px; background: transparent; border: 1px solid #1a1a1a; color: #444; font-family: inherit; font-size: 0.6rem; cursor: pointer; border-radius: 6px; }
+.ctrl-btn:active { border-color: #555; color: #888; }
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="header">
+    <span id="title">STELLAR FORGE</span>
+    <div class="score-box"><div class="score-label">Score</div><div class="score-val" id="score">0</div></div>
+    <div class="score-box"><div class="score-label">Best</div><div class="score-val" id="best">0</div></div>
+  </div>
+  <div id="board">
+    <div id="grid-bg"></div>
+    <div id="tiles"></div>
+  </div>
+  <div id="status"></div>
+  <div id="controls">
+    <button class="ctrl-btn" id="btn-new">New Game</button>
+  </div>
+</div>
+
+<script>
+(function() {
+'use strict';
+
+// ============ ELEMENT TIERS ============
+var ELEMENTS = [
+  null, // index 0 unused
+  { sym: 'H',  name: 'Hydrogen',  num: 1,  bg: '#1a2a3a', color: '#58a6ff' },
+  { sym: 'He', name: 'Helium',    num: 2,  bg: '#2a1a3a', color: '#bc8cff' },
+  { sym: 'C',  name: 'Carbon',    num: 6,  bg: '#2a2a1a', color: '#d2a644' },
+  { sym: 'N',  name: 'Nitrogen',  num: 7,  bg: '#1a2a2a', color: '#3fb9a0' },
+  { sym: 'O',  name: 'Oxygen',    num: 8,  bg: '#1a1a2a', color: '#6699ff' },
+  { sym: 'Ne', name: 'Neon',      num: 10, bg: '#3a1a2a', color: '#ff6688' },
+  { sym: 'Mg', name: 'Magnesium', num: 12, bg: '#1a3a1a', color: '#44cc66' },
+  { sym: 'Si', name: 'Silicon',   num: 14, bg: '#2a2a2a', color: '#aaaacc' },
+  { sym: 'S',  name: 'Sulfur',    num: 16, bg: '#3a3a0a', color: '#eeee44' },
+  { sym: 'Ar', name: 'Argon',     num: 18, bg: '#2a0a2a', color: '#dd66ff' },
+  { sym: 'Fe', name: 'Iron',      num: 26, bg: '#3a2a1a', color: '#ff8844' }
+];
+var WIN_TIER = 11; // Fe = tier 11
+
+// ============ STATE ============
+var SIZE = 4;
+var grid = []; // 2D: grid[row][col] = tier (0=empty, 1=H, 2=He, ...)
+var score = 0;
+var bestScore = 0;
+var gameOver = false;
+var won = false;
+var winAlerted = false;
+var tileId = 0;
+var tiles = {}; // id -> {row, col, tier, el}
+
+try {
+  bestScore = parseInt(localStorage.getItem('sf_best'), 10) || 0;
+} catch(e) {}
+
+// ============ GRID LOGIC ============
+function initGrid() {
+  grid = [];
+  for (var r = 0; r < SIZE; r++) {
+    grid[r] = [];
+    for (var c = 0; c < SIZE; c++) grid[r][c] = 0;
+  }
+}
+
+function emptyPositions() {
+  var positions = [];
+  for (var r = 0; r < SIZE; r++) {
+    for (var c = 0; c < SIZE; c++) {
+      if (grid[r][c] === 0) positions.push([r, c]);
+    }
+  }
+  return positions;
+}
+
+function spawnTile() {
+  var empty = emptyPositions();
+  if (empty.length === 0) return;
+  var pos = empty[Math.floor(Math.random() * empty.length)];
+  var tier = Math.random() < 0.9 ? 1 : 2; // 90% H, 10% He
+  grid[pos[0]][pos[1]] = tier;
+  addTileDOM(pos[0], pos[1], tier, true);
+}
+
+function canMove() {
+  // Check for empty cells
+  for (var r = 0; r < SIZE; r++) {
+    for (var c = 0; c < SIZE; c++) {
+      if (grid[r][c] === 0) return true;
+    }
+  }
+  // Check for adjacent merges (only tiles below win tier can merge)
+  for (var r = 0; r < SIZE; r++) {
+    for (var c = 0; c < SIZE; c++) {
+      var v = grid[r][c];
+      if (v >= WIN_TIER) continue;
+      if (c < SIZE - 1 && grid[r][c + 1] === v) return true;
+      if (r < SIZE - 1 && grid[r + 1][c] === v) return true;
+    }
+  }
+  return false;
+}
+
+// ============ MOVE LOGIC ============
+// Slide left, then rotate grid for other directions
+function slideRow(row) {
+  // Remove zeros
+  var filtered = row.filter(function(v) { return v !== 0; });
+  var merged = [];
+  var moveScore = 0;
+  var i = 0;
+  while (i < filtered.length) {
+    if (i + 1 < filtered.length && filtered[i] === filtered[i + 1] && filtered[i] < WIN_TIER) {
+      var newTier = filtered[i] + 1;
+      merged.push(newTier);
+      moveScore += ELEMENTS[newTier] ? ELEMENTS[newTier].num * 2 : newTier * 10;
+      if (newTier >= WIN_TIER) won = true;
+      i += 2;
+    } else {
+      merged.push(filtered[i]);
+      i++;
+    }
+  }
+  while (merged.length < SIZE) merged.push(0);
+  return { row: merged, score: moveScore };
+}
+
+function rotateGrid(g, times) {
+  var result = g;
+  for (var t = 0; t < times; t++) {
+    var newG = [];
+    for (var r = 0; r < SIZE; r++) {
+      newG[r] = [];
+      for (var c = 0; c < SIZE; c++) {
+        newG[r][c] = result[SIZE - 1 - c][r];
+      }
+    }
+    result = newG;
+  }
+  return result;
+}
+
+function move(dir) {
+  if (gameOver) return false;
+  // dir: 0=left, 1=up, 2=right, 3=down
+  // Rotate so we always slide left
+  var rotations = [0, 1, 2, 3];
+  var rot = rotations[dir];
+  var rotated = rotateGrid(grid, rot);
+  var moved = false;
+  var moveScore = 0;
+
+  for (var r = 0; r < SIZE; r++) {
+    var result = slideRow(rotated[r]);
+    for (var c = 0; c < SIZE; c++) {
+      if (rotated[r][c] !== result.row[c]) moved = true;
+    }
+    rotated[r] = result.row;
+    moveScore += result.score;
+  }
+
+  if (!moved) return false;
+
+  // Rotate back
+  grid = rotateGrid(rotated, (4 - rot) % 4);
+  score += moveScore;
+  if (score > bestScore) {
+    bestScore = score;
+    try { localStorage.setItem('sf_best', bestScore); } catch(e) {}
+  }
+
+  rebuildTilesDOM();
+  spawnTile();
+  updateUI();
+
+  if (won && !gameOver && !winAlerted) {
+    winAlerted = true;
+    document.getElementById('status').textContent = 'Fe synthesized! Star goes supernova!';
+    document.getElementById('status').className = 'win';
+    if (navigator.vibrate) navigator.vibrate([30, 20, 30]);
+  }
+
+  if (!canMove()) {
+    gameOver = true;
+    document.getElementById('status').textContent = 'No moves left';
+    document.getElementById('status').className = 'lose';
+  }
+
+  return true;
+}
+
+// ============ DOM ============
+function buildBoard() {
+  var bg = document.getElementById('grid-bg');
+  bg.innerHTML = '';
+  for (var i = 0; i < SIZE * SIZE; i++) {
+    var cell = document.createElement('div');
+    cell.className = 'cell-bg';
+    bg.appendChild(cell);
+  }
+}
+
+function tilePos(row, col) {
+  var pct = 100 / SIZE;
+  var gap = 6; // px gap
+  return {
+    left: 'calc(' + (col * pct) + '% + ' + (col * gap / SIZE) + 'px)',
+    top: 'calc(' + (row * pct) + '% + ' + (row * gap / SIZE) + 'px)'
+  };
+}
+
+function addTileDOM(row, col, tier, isNew) {
+  var el = document.createElement('div');
+  el.className = 'tile' + (isNew ? ' new' : '');
+  var elem = ELEMENTS[tier] || ELEMENTS[1];
+  el.style.background = elem.bg;
+  el.style.color = elem.color;
+  var pos = tilePos(row, col);
+  el.style.left = pos.left;
+  el.style.top = pos.top;
+  el.innerHTML = '<span class="num">' + elem.num + '</span><span class="sym">' + elem.sym + '</span><span class="name">' + elem.name + '</span>';
+  document.getElementById('tiles').appendChild(el);
+  var id = ++tileId;
+  tiles[id] = { row: row, col: col, tier: tier, el: el };
+  if (isNew) {
+    setTimeout(function() { el.classList.remove('new'); }, 200);
+  }
+  return id;
+}
+
+function rebuildTilesDOM() {
+  // Clear all tile DOM elements
+  var container = document.getElementById('tiles');
+  container.innerHTML = '';
+  tiles = {};
+  for (var r = 0; r < SIZE; r++) {
+    for (var c = 0; c < SIZE; c++) {
+      if (grid[r][c] > 0) {
+        addTileDOM(r, c, grid[r][c], false);
+      }
+    }
+  }
+}
+
+function updateUI() {
+  document.getElementById('score').textContent = score;
+  document.getElementById('best').textContent = bestScore;
+}
+
+// ============ NEW GAME ============
+function newGame() {
+  initGrid();
+  score = 0;
+  gameOver = false;
+  won = false;
+  winAlerted = false;
+  document.getElementById('tiles').innerHTML = '';
+  tiles = {};
+  document.getElementById('status').textContent = 'Fuse elements. Reach Iron (Fe).';
+  document.getElementById('status').className = '';
+  spawnTile();
+  spawnTile();
+  updateUI();
+}
+
+// ============ INPUT ============
+document.addEventListener('keydown', function(e) {
+  var dir = -1;
+  if (e.key === 'ArrowLeft' || e.key === 'a') dir = 0;
+  else if (e.key === 'ArrowUp' || e.key === 'w') dir = 1;
+  else if (e.key === 'ArrowRight' || e.key === 'd') dir = 2;
+  else if (e.key === 'ArrowDown' || e.key === 's') dir = 3;
+  if (dir >= 0) { e.preventDefault(); move(dir); }
+});
+
+// Touch swipe
+var touchStartX = 0, touchStartY = 0;
+document.addEventListener('touchstart', function(e) {
+  touchStartX = e.touches[0].clientX;
+  touchStartY = e.touches[0].clientY;
+});
+
+document.addEventListener('touchmove', function(e) {
+  if (e.target.closest('#board')) e.preventDefault();
+}, { passive: false });
+
+document.addEventListener('touchend', function(e) {
+  var dx = e.changedTouches[0].clientX - touchStartX;
+  var dy = e.changedTouches[0].clientY - touchStartY;
+  var absDx = Math.abs(dx), absDy = Math.abs(dy);
+  if (Math.max(absDx, absDy) < 30) return; // Too small
+  if (absDx > absDy) {
+    move(dx > 0 ? 2 : 0);
+  } else {
+    move(dy > 0 ? 3 : 1);
+  }
+});
+
+document.getElementById('btn-new').addEventListener('click', newGame);
+
+// ============ INIT ============
+buildBoard();
+newGame();
+
+})();
+</script>
+</body>
+</html>
