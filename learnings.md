@@ -731,3 +731,26 @@ Persistent knowledge base. Read this before every build.
 - **INSIGHT**: For any game with a grid of past+current state, separate the rendering: past rows are static (render once on submit), current row is dynamic (update on every keystroke). Never re-evaluate past rows.
 - **INSIGHT**: CSS animation restart: remove class → force reflow (void el.offsetWidth) → re-add class. This is the standard pattern; setTimeout-based removal races with rapid re-triggers.
 - **TEST CAUGHT**: No bugs caught by automated tests — all were performance/animation level
+
+### beat-haus (2026-03-23) — PROJECT #80 (5-build review)
+- **KEEP**: Lookahead audio scheduler (setInterval 25ms + schedule 100ms ahead) — sample-accurate timing decoupled from UI thread
+- **KEEP**: Visual event queue — schedule visual updates at audio time, process in rAF when audioCtx.currentTime catches up
+- **KEEP**: WaveShaperNode with mathematical distortion curve — adjustable drive without external assets
+- **KEEP**: DynamicsCompressorNode as master limiter — prevents clipping when grid is fully active
+- **KEEP**: Programmatic noise buffer (AudioBuffer filled with Math.random) — reusable for snare and hat
+- **KEEP**: Acid track with 3-state cycling (off → lo → hi) — compact UI for pitch variation in a grid
+- **IMPROVE**: Swing math asymmetric (added 0.5x odd, subtracted 0.1x even) — Gemini caught. Tempo drifted upward with swing. Must be symmetric: +X even, -X odd.
+- **IMPROVE**: Visual playhead fired at schedule time, not audio time — lookahead causes 100ms visual lead. Fixed with visual event queue.
+- **IMPROVE**: parseInt('') on slider → NaN permanently broke scheduler — must use || fallback
+- **INSIGHT**: ANY audio scheduler with lookahead must decouple visuals. Push {step, time} into a queue, then in rAF check queue[0].time <= audioCtx.currentTime before triggering visual. This is the ONLY correct pattern.
+- **INSIGHT**: Swing timing must be perfectly symmetric: the time added to one step MUST equal the time subtracted from the next. Otherwise BPM physically changes with swing amount.
+- **INSIGHT**: parseInt on slider values ALWAYS needs a fallback (|| currentValue) because slider values pass through empty string during interaction.
+- **TEST CAUGHT**: No bugs caught by automated tests
+
+#### 5-Build Review (Builds #76-80: void-scape, connect-four, entropy-forge, crypt-lex, beat-haus)
+- **All 5 shipped working.** 15 consecutive working builds (66-80). Zero user-reported bugs.
+- **Recurring: Audio-visual lookahead desync** — appeared in void-scape AND beat-haus. ADDED TO PRINCIPLES: lookahead schedulers must use visual event queues.
+- **Recurring: CSS class overwrite** — connect-four wiped animation classes (2nd lifetime occurrence). REINFORCED: never set className directly; use classList.
+- **Recurring: parseInt NaN from empty input** — beat-haus. ADDED TO PRINCIPLES: always || fallback.
+- **Gemini audit value**: Caught 14+ bugs across 5 builds. Most valuable: timing math (swing asymmetry), architectural (visual queue pattern), and state management (stale data on settings change).
+- **Portfolio milestone**: 80 projects, all working. Process is mature and consistent.

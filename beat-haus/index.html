@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="theme-color" content="#000000">
+<title>Beat Haus</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { height: 100%; background: #0a0a0a; color: #fff; font-family: monospace, "Courier New", Courier; overflow: hidden; touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+#app { height: 100%; display: flex; flex-direction: column; padding: 8px; }
+
+#header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+#title { font-size: 0.7rem; letter-spacing: 0.4em; color: #333; font-weight: 400; }
+
+/* Grid */
+#grid { display: grid; grid-template-columns: 28px repeat(16, 1fr); gap: 2px; flex: 1; min-height: 0; }
+.track-label { display: flex; align-items: center; justify-content: center; font-size: 0.4rem; color: #333; letter-spacing: 0.1em; writing-mode: vertical-lr; text-orientation: mixed; transform: rotate(180deg); }
+.step { border: 1px solid #1a1a1a; cursor: pointer; position: relative; display: flex; align-items: center; justify-content: center; min-height: 0; }
+.step:active { opacity: 0.7; }
+.step.on { background: #ff003c; border-color: #ff003c; }
+.step.on.acid-hi { background: #ff003c; }
+.step.on.acid-lo { background: transparent; border-color: #ff003c; }
+.step.playhead { box-shadow: inset 0 0 0 1px rgba(255,255,255,0.3); }
+.step.flash { background: #fff !important; }
+
+/* Controls */
+#controls { display: flex; gap: 8px; align-items: center; padding-top: 8px; flex-wrap: wrap; }
+#btn-play { padding: 6px 16px; background: transparent; border: 1px solid #1a1a1a; color: #444; font-family: inherit; font-size: 0.6rem; cursor: pointer; letter-spacing: 0.2em; min-width: 60px; }
+#btn-play:active { border-color: #666; color: #888; }
+#btn-play.playing { border-color: #ff003c; color: #ff003c; }
+.ctrl-group { display: flex; align-items: center; gap: 4px; }
+.ctrl-label { font-size: 0.4rem; color: #333; letter-spacing: 0.1em; }
+.ctrl-val { font-size: 0.5rem; color: #555; min-width: 24px; text-align: right; }
+input[type="range"] { width: 60px; height: 2px; accent-color: #ff003c; }
+#btn-clear { padding: 4px 10px; background: transparent; border: 1px solid #1a1a1a; color: #333; font-family: inherit; font-size: 0.45rem; cursor: pointer; letter-spacing: 0.1em; }
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="header">
+    <span id="title">BEAT HAUS</span>
+  </div>
+  <div id="grid"></div>
+  <div id="controls">
+    <button id="btn-play">PLAY</button>
+    <div class="ctrl-group">
+      <span class="ctrl-label">BPM</span>
+      <input type="range" id="sl-bpm" min="60" max="200" value="120">
+      <span class="ctrl-val" id="v-bpm">120</span>
+    </div>
+    <div class="ctrl-group">
+      <span class="ctrl-label">DRIVE</span>
+      <input type="range" id="sl-drive" min="0" max="100" value="20">
+    </div>
+    <div class="ctrl-group">
+      <span class="ctrl-label">SWING</span>
+      <input type="range" id="sl-swing" min="0" max="80" value="0">
+      <span class="ctrl-val" id="v-swing">0</span>
+    </div>
+    <button id="btn-clear">CLR</button>
+  </div>
+</div>
+
+<script>
+(function() {
+'use strict';
+
+// ============ CONFIG ============
+var TRACKS = 4;
+var STEPS = 16;
+var TRACK_NAMES = ['KICK', 'SNARE', 'HAT', 'ACID'];
+var ACID_NOTES = [55, 73.42, 82.41, 110, 146.83]; // A1, D2, E2, A2, D3
+
+// ============ STATE ============
+var pattern = []; // [track][step] = 0 or 1 (for kick/snare/hat), 0/1/2 for acid
+var bpm = 120;
+var swing = 0; // percentage
+var drive = 20;
+var playing = false;
+var currentStep = 0;
+var nextStepTime = 0;
+var schedulerTimer = null;
+var LOOKAHEAD = 0.1;
+var SCHEDULE_MS = 25;
+
+// Audio
+var audioCtx = null;
+var masterGain = null;
+var compressor = null;
+var distortion = null;
+var noiseBuffer = null;
+
+// Init pattern
+for (var t = 0; t < TRACKS; t++) {
+  pattern[t] = [];
+  for (var s = 0; s < STEPS; s++) pattern[t][s] = 0;
+}
+
+// ============ BUILD UI ============
+function buildGrid() {
+  var grid = document.getElementById('grid');
+  grid.innerHTML = '';
+  for (var t = 0; t < TRACKS; t++) {
+    var label = document.createElement('div');
+    label.className = 'track-label';
+    label.textContent = TRACK_NAMES[t];
+    grid.appendChild(label);
+    for (var s = 0; s < STEPS; s++) {
+      var step = document.createElement('div');
+      step.className = 'step';
+      step.dataset.track = t;
+      step.dataset.step = s;
+      // Subtle beat grouping
+      if (s % 4 === 0) step.style.borderLeft = '1px solid #222';
+      grid.appendChild(step);
+    }
+  }
+}
+
+function renderGrid() {
+  var steps = document.querySelectorAll('.step');
+  steps.forEach(function(el) {
+    var t = parseInt(el.dataset.track, 10);
+    var s = parseInt(el.dataset.step, 10);
+    var val = pattern[t][s];
+    el.classList.remove('on', 'acid-lo', 'acid-hi');
+    if (t === 3) {
+      // Acid: 0=off, 1=lo, 2=hi
+      if (val === 1) { el.classList.add('on', 'acid-lo'); }
+      else if (val === 2) { el.classList.add('on', 'acid-hi'); }
+    } else {
+      if (val) el.classList.add('on');
+    }
+  });
+}
+
+// ============ AUDIO INIT ============
+function initAudio() {
+  if (audioCtx) return;
+  audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+  // Master chain: distortion -> compressor -> destination
+  distortion = audioCtx.createWaveShaper();
+  updateDistortion();
+
+  compressor = audioCtx.createDynamicsCompressor();
+  compressor.threshold.value = -6;
+  compressor.knee.value = 3;
+  compressor.ratio.value = 8;
+  compressor.attack.value = 0.002;
+  compressor.release.value = 0.1;
+
+  masterGain = audioCtx.createGain();
+  masterGain.gain.value = 0.7;
+
+  masterGain.connect(distortion);
+  distortion.connect(compressor);
+  compressor.connect(audioCtx.destination);
+
+  // Generate noise buffer
+  var bufferSize = audioCtx.sampleRate;
+  noiseBuffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+  var data = noiseBuffer.getChannelData(0);
+  for (var i = 0; i < bufferSize; i++) data[i] = Math.random() * 2 - 1;
+}
+
+function updateDistortion() {
+  if (!distortion) return;
+  var amount = drive / 100;
+  var samples = 256;
+  var curve = new Float32Array(samples);
+  for (var i = 0; i < samples; i++) {
+    var x = (i / samples) * 2 - 1;
+    if (amount < 0.01) {
+      curve[i] = x;
+    } else {
+      curve[i] = (Math.PI + amount * 50) * x / (Math.PI + amount * 50 * Math.abs(x));
+    }
+  }
+  distortion.curve = curve;
+  distortion.oversample = '2x';
+}
+
+// ============ SYNTHESIS ============
+function playKick(time) {
+  var osc = audioCtx.createOscillator();
+  var gain = audioCtx.createGain();
+  osc.type = 'sine';
+  osc.frequency.setValueAtTime(150, time);
+  osc.frequency.exponentialRampToValueAtTime(30, time + 0.12);
+  gain.gain.setValueAtTime(0.8, time);
+  gain.gain.exponentialRampToValueAtTime(0.001, time + 0.3);
+  osc.connect(gain);
+  gain.connect(masterGain);
+  osc.start(time);
+  osc.stop(time + 0.35);
+}
+
+function playSnare(time) {
+  // Noise component
+  var src = audioCtx.createBufferSource();
+  src.buffer = noiseBuffer;
+  var nGain = audioCtx.createGain();
+  var bp = audioCtx.createBiquadFilter();
+  bp.type = 'bandpass';
+  bp.frequency.value = 3000;
+  bp.Q.value = 0.8;
+  nGain.gain.setValueAtTime(0.4, time);
+  nGain.gain.exponentialRampToValueAtTime(0.001, time + 0.15);
+  src.connect(bp);
+  bp.connect(nGain);
+  nGain.connect(masterGain);
+  src.start(time);
+  src.stop(time + 0.2);
+
+  // Body
+  var osc = audioCtx.createOscillator();
+  var oGain = audioCtx.createGain();
+  osc.type = 'triangle';
+  osc.frequency.value = 180;
+  oGain.gain.setValueAtTime(0.3, time);
+  oGain.gain.exponentialRampToValueAtTime(0.001, time + 0.08);
+  osc.connect(oGain);
+  oGain.connect(masterGain);
+  osc.start(time);
+  osc.stop(time + 0.1);
+}
+
+function playHat(time) {
+  var src = audioCtx.createBufferSource();
+  src.buffer = noiseBuffer;
+  var gain = audioCtx.createGain();
+  var hp = audioCtx.createBiquadFilter();
+  hp.type = 'highpass';
+  hp.frequency.value = 8000;
+  gain.gain.setValueAtTime(0.2, time);
+  gain.gain.exponentialRampToValueAtTime(0.001, time + 0.06);
+  src.connect(hp);
+  hp.connect(gain);
+  gain.connect(masterGain);
+  src.start(time);
+  src.stop(time + 0.08);
+}
+
+function playAcid(time, noteLevel) {
+  var freq = noteLevel === 1 ? ACID_NOTES[0] : ACID_NOTES[3]; // lo=A1, hi=A2
+  var osc = audioCtx.createOscillator();
+  var filter = audioCtx.createBiquadFilter();
+  var gain = audioCtx.createGain();
+
+  osc.type = 'sawtooth';
+  osc.frequency.value = freq;
+
+  filter.type = 'lowpass';
+  filter.Q.value = 12;
+  filter.frequency.setValueAtTime(300, time);
+  filter.frequency.exponentialRampToValueAtTime(2000, time + 0.05);
+  filter.frequency.exponentialRampToValueAtTime(200, time + 0.2);
+
+  gain.gain.setValueAtTime(0.25, time);
+  gain.gain.exponentialRampToValueAtTime(0.001, time + 0.25);
+
+  osc.connect(filter);
+  filter.connect(gain);
+  gain.connect(masterGain);
+  osc.start(time);
+  osc.stop(time + 0.3);
+}
+
+var PLAY_FNS = [playKick, playSnare, playHat, null]; // acid handled separately
+
+// ============ SCHEDULER ============
+function getStepTime(step) {
+  var beatDuration = 60 / bpm / 4; // 16th notes
+  var swingFactor = (swing / 100) * 0.66; // max 66% swing
+  // Symmetric: even steps lengthen, odd steps shorten by same amount
+  if (step % 2 === 0) return beatDuration * (1 + swingFactor);
+  return beatDuration * (1 - swingFactor);
+}
+
+var visualQueue = [];
+
+function scheduleStep(step, time) {
+  for (var t = 0; t < TRACKS; t++) {
+    if (pattern[t][step]) {
+      if (t === 3) {
+        playAcid(time, pattern[t][step]);
+      } else {
+        PLAY_FNS[t](time);
+      }
+    }
+  }
+  // Queue visual update for when audio actually plays
+  visualQueue.push({ step: step, time: time });
+}
+
+function scheduler() {
+  var now = audioCtx.currentTime;
+  while (nextStepTime < now + LOOKAHEAD) {
+    scheduleStep(currentStep, Math.max(nextStepTime, now));
+    nextStepTime += getStepTime(currentStep);
+    currentStep = (currentStep + 1) % STEPS;
+  }
+}
+
+// ============ VISUAL PLAYHEAD ============
+var lastVisualStep = -1;
+
+function updatePlayhead() {
+  if (!playing) { requestAnimationFrame(updatePlayhead); return; }
+  var now = audioCtx.currentTime;
+  // Process queued visual events whose time has arrived
+  while (visualQueue.length && visualQueue[0].time <= now) {
+    var evt = visualQueue.shift();
+    if (evt.step !== lastVisualStep) {
+      var steps = document.querySelectorAll('.step');
+      steps.forEach(function(el) {
+        el.classList.remove('playhead');
+        if (parseInt(el.dataset.step, 10) === evt.step) el.classList.add('playhead');
+      });
+      lastVisualStep = evt.step;
+    }
+    flashStep(evt.step);
+  }
+  requestAnimationFrame(updatePlayhead);
+}
+
+function flashStep(step) {
+  var els = document.querySelectorAll('.step[data-step="' + step + '"]');
+  els.forEach(function(el) {
+    if (pattern[parseInt(el.dataset.track, 10)][step]) {
+      el.classList.add('flash');
+      setTimeout(function() { el.classList.remove('flash'); }, 50);
+    }
+  });
+}
+
+// ============ TRANSPORT ============
+function startPlaying() {
+  initAudio();
+  if (audioCtx.state === 'suspended') audioCtx.resume();
+  playing = true;
+  currentStep = 0;
+  nextStepTime = audioCtx.currentTime + 0.05;
+  schedulerTimer = setInterval(scheduler, SCHEDULE_MS);
+  requestAnimationFrame(updatePlayhead);
+  document.getElementById('btn-play').textContent = 'STOP';
+  document.getElementById('btn-play').classList.add('playing');
+}
+
+function stopPlaying() {
+  playing = false;
+  clearInterval(schedulerTimer);
+  lastVisualStep = -1;
+  visualQueue = [];
+  document.querySelectorAll('.step').forEach(function(el) {
+    el.classList.remove('playhead', 'flash');
+  });
+  document.getElementById('btn-play').textContent = 'PLAY';
+  document.getElementById('btn-play').classList.remove('playing');
+}
+
+// ============ EVENTS ============
+document.getElementById('grid').addEventListener('click', function(e) {
+  var step = e.target.closest('.step');
+  if (!step) return;
+  var t = parseInt(step.dataset.track, 10);
+  var s = parseInt(step.dataset.step, 10);
+  if (t === 3) {
+    // Acid: cycle 0 -> 1 -> 2 -> 0
+    pattern[t][s] = (pattern[t][s] + 1) % 3;
+  } else {
+    pattern[t][s] = pattern[t][s] ? 0 : 1;
+  }
+  renderGrid();
+});
+
+document.getElementById('btn-play').addEventListener('click', function() {
+  if (playing) stopPlaying();
+  else startPlaying();
+});
+
+document.getElementById('sl-bpm').addEventListener('input', function(e) {
+  bpm = parseInt(e.target.value, 10) || bpm;
+  document.getElementById('v-bpm').textContent = bpm;
+});
+
+document.getElementById('sl-drive').addEventListener('input', function(e) {
+  drive = parseInt(e.target.value, 10) || drive;
+  updateDistortion();
+});
+
+document.getElementById('sl-swing').addEventListener('input', function(e) {
+  swing = parseInt(e.target.value, 10) || 0;
+  document.getElementById('v-swing').textContent = swing;
+});
+
+document.getElementById('btn-clear').addEventListener('click', function() {
+  for (var t = 0; t < TRACKS; t++) {
+    for (var s = 0; s < STEPS; s++) pattern[t][s] = 0;
+  }
+  renderGrid();
+});
+
+// ============ INIT ============
+buildGrid();
+renderGrid();
+
+})();
+</script>
+</body>
+</html>
