@@ -678,3 +678,17 @@ Persistent knowledge base. Read this before every build.
 - **New pattern: Dead code = missing feature** — morse-pulse had Farnsworth function defined but never called. Consider adding a "defined but uncalled function" check to the test suite.
 - **Gemini audit value**: Caught 15+ bugs across 5 builds. Most valuable catches: architectural (roll-from-distribution), state management (cascading level-up), and visual (invisible text).
 - **No recurring Gemini critiques** — each build's bugs were unique. Process is healthy.
+
+### void-scape (2026-03-23)
+- **KEEP**: Euclidean rhythms via Bresenham/modulo — simple, reliable, produces correct patterns for all inputs
+- **KEEP**: FM synthesis (sine carrier + high-ratio sine modulator) — creates rich bell/marimba tones with just 2 oscillators
+- **KEEP**: Cross-fed ping-pong delay network with LP filters — creates spatial reverb from pure math, zero external assets
+- **KEEP**: Lookahead audio scheduler (setInterval 25ms + AudioContext.currentTime) — rock-solid timing decoupled from frame rate
+- **KEEP**: Frequency quantization to a musical scale — ensures all random note selections sound harmonious
+- **IMPROVE**: Recursive Bjorklund algorithm produced empty patterns for some inputs — Gemini caught. Replaced with Bresenham. Lesson: prefer simpler algorithms when correctness is critical.
+- **IMPROVE**: Visual flash fired before audio — lookahead scheduling sets trigger time in the future, but visual immediately started decaying. Fixed with `elapsed >= 0` clamp.
+- **IMPROVE**: Tab throttling caused scheduling in the past — Math.max(time, currentTime) prevents DOMException
+- **INSIGHT**: When audio scheduling uses lookahead (time in the future), visual effects must NOT trigger until that future time arrives. Always clamp `elapsed = now - scheduledTime` to >= 0.
+- **INSIGHT**: Complex recursive algorithms can silently fail (return empty/wrong results) for edge-case inputs. Simpler mathematical approaches (modulo, Bresenham) are often more reliable AND faster.
+- **INSIGHT**: Algorithmic reverb (delay network + LP filters + cross-feedback) achieves convincing spatial audio with pure Web Audio nodes — no impulse response files needed.
+- **TEST CAUGHT**: No bugs caught by automated tests — all were algorithm/timing level

@@ -1,0 +1,392 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="theme-color" content="#000000">
+<title>Void Scape</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { height: 100%; background: #0a0a0c; overflow: hidden; touch-action: manipulation; -webkit-tap-highlight-color: transparent; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; }
+canvas { display: block; width: 100%; height: 100%; position: absolute; inset: 0; }
+
+#start-screen { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; z-index: 10; cursor: pointer; }
+#start-screen .inner { text-align: center; }
+#start-screen .title { font-size: 1rem; color: #333; letter-spacing: 0.4em; font-weight: 300; }
+#btn-start { margin-top: 16px; background: none; border: 1px solid #222; color: #444; padding: 10px 28px; font-family: inherit; font-size: 0.6rem; cursor: pointer; letter-spacing: 0.3em; }
+#btn-start:active { border-color: #666; color: #888; }
+
+#controls { position: absolute; bottom: 8px; left: 8px; right: 8px; display: none; opacity: 0.2; transition: opacity 0.3s; z-index: 5; }
+#controls:hover { opacity: 0.9; }
+.ring-ctrl { display: flex; gap: 6px; align-items: center; margin-bottom: 4px; }
+.ring-label { font-size: 0.4rem; color: #333; min-width: 14px; text-align: center; }
+.ring-ctrl input[type="range"] { width: 55px; height: 2px; accent-color: #555; }
+.ring-val { font-size: 0.4rem; color: #222; min-width: 18px; }
+#tempo-ctrl { display: flex; gap: 6px; align-items: center; margin-top: 4px; }
+#tempo-ctrl label { font-size: 0.4rem; color: #333; letter-spacing: 0.1em; }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="start-screen">
+  <div class="inner">
+    <div class="title">VOID SCAPE</div>
+    <button id="btn-start">ENTER</button>
+  </div>
+</div>
+<div id="controls">
+  <div class="ring-ctrl" data-ring="0">
+    <span class="ring-label" style="color:#668">1</span>
+    <span class="ring-val">S</span><input type="range" class="sl-steps" min="3" max="16" value="8">
+    <span class="ring-val">P</span><input type="range" class="sl-pulses" min="1" max="16" value="3">
+  </div>
+  <div class="ring-ctrl" data-ring="1">
+    <span class="ring-label" style="color:#686">2</span>
+    <span class="ring-val">S</span><input type="range" class="sl-steps" min="3" max="16" value="5">
+    <span class="ring-val">P</span><input type="range" class="sl-pulses" min="1" max="16" value="3">
+  </div>
+  <div class="ring-ctrl" data-ring="2">
+    <span class="ring-label" style="color:#866">3</span>
+    <span class="ring-val">S</span><input type="range" class="sl-steps" min="3" max="16" value="7">
+    <span class="ring-val">P</span><input type="range" class="sl-pulses" min="1" max="16" value="4">
+  </div>
+  <div class="ring-ctrl" data-ring="3">
+    <span class="ring-label" style="color:#886">4</span>
+    <span class="ring-val">S</span><input type="range" class="sl-steps" min="3" max="16" value="12">
+    <span class="ring-val">P</span><input type="range" class="sl-pulses" min="1" max="16" value="5">
+  </div>
+  <div id="tempo-ctrl">
+    <label>BPM</label>
+    <input type="range" id="sl-bpm" min="40" max="180" value="72">
+    <span class="ring-val" id="v-bpm">72</span>
+  </div>
+</div>
+
+<script>
+(function() {
+'use strict';
+
+// ============ MUSICAL SCALE ============
+// C Lydian across 3 octaves (C D E F# G A B)
+var BASE_FREQS = [
+  130.81, 146.83, 164.81, 185.00, 196.00, 220.00, 246.94,
+  261.63, 293.66, 329.63, 369.99, 392.00, 440.00, 493.88,
+  523.25, 587.33, 659.25, 739.99, 783.99
+];
+
+// ============ BJORKLUND / EUCLIDEAN ============
+function euclidean(pulses, steps) {
+  if (pulses >= steps) { var a = []; for (var i = 0; i < steps; i++) a.push(1); return a; }
+  if (pulses <= 0) { var a = []; for (var i = 0; i < steps; i++) a.push(0); return a; }
+  // Bresenham/modulo approach — reliable for all inputs
+  var pattern = [];
+  var bucket = 0;
+  for (var i = 0; i < steps; i++) {
+    bucket += pulses;
+    if (bucket >= steps) { bucket -= steps; pattern.push(1); }
+    else { pattern.push(0); }
+  }
+  // Rotate so first beat is a pulse
+  var idx = pattern.indexOf(1);
+  if (idx > 0) pattern = pattern.slice(idx).concat(pattern.slice(0, idx));
+  return pattern;
+}
+
+// ============ RINGS STATE ============
+var rings = [
+  { steps: 8, pulses: 3, pattern: [], noteIdx: 0 },
+  { steps: 5, pulses: 3, pattern: [], noteIdx: 4 },
+  { steps: 7, pulses: 4, pattern: [], noteIdx: 8 },
+  { steps: 12, pulses: 5, pattern: [], noteIdx: 12 }
+];
+var RING_COLORS = ['#5566aa', '#55aa66', '#aa5555', '#aa8833'];
+
+for (var i = 0; i < rings.length; i++) {
+  rings[i].pattern = euclidean(rings[i].pulses, rings[i].steps);
+}
+
+var bpm = 72;
+var playing = false;
+
+// ============ AUDIO ============
+var audioCtx = null;
+var masterGain = null;
+var delayL = null, delayR = null, feedbackL = null, feedbackR = null;
+var analyser = null;
+var freqData = null;
+
+function initAudio() {
+  audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+  masterGain = audioCtx.createGain();
+  masterGain.gain.value = 0.4;
+
+  // Algorithmic ping-pong delay reverb
+  delayL = audioCtx.createDelay(2);
+  delayR = audioCtx.createDelay(2);
+  delayL.delayTime.value = 0.37;
+  delayR.delayTime.value = 0.53;
+
+  feedbackL = audioCtx.createGain();
+  feedbackR = audioCtx.createGain();
+  feedbackL.gain.value = 0.35;
+  feedbackR.gain.value = 0.3;
+
+  var filterL = audioCtx.createBiquadFilter();
+  filterL.type = 'lowpass'; filterL.frequency.value = 2000;
+  var filterR = audioCtx.createBiquadFilter();
+  filterR.type = 'lowpass'; filterR.frequency.value = 1800;
+
+  // Cross-feed delay network
+  masterGain.connect(delayL);
+  masterGain.connect(delayR);
+  delayL.connect(filterL);
+  filterL.connect(feedbackL);
+  feedbackL.connect(delayR);
+  delayR.connect(filterR);
+  filterR.connect(feedbackR);
+  feedbackR.connect(delayL);
+
+  delayL.connect(audioCtx.destination);
+  delayR.connect(audioCtx.destination);
+  masterGain.connect(audioCtx.destination);
+
+  // Analyser for visuals
+  analyser = audioCtx.createAnalyser();
+  analyser.fftSize = 256;
+  freqData = new Uint8Array(analyser.frequencyBinCount);
+  masterGain.connect(analyser);
+}
+
+function playPluck(freq, time) {
+  // Guard against scheduling in the past (tab throttle)
+  var t = Math.max(time, audioCtx.currentTime);
+  // FM synthesis pluck: carrier sine modulated by high-ratio sine
+  var carrier = audioCtx.createOscillator();
+  var modulator = audioCtx.createOscillator();
+  var modGain = audioCtx.createGain();
+  var env = audioCtx.createGain();
+
+  carrier.type = 'sine';
+  carrier.frequency.value = freq;
+
+  modulator.type = 'sine';
+  modulator.frequency.value = freq * 5.01; // High ratio for bell tone
+  modGain.gain.setValueAtTime(freq * 2, t);
+  modGain.gain.exponentialRampToValueAtTime(1, t + 0.3);
+
+  env.gain.setValueAtTime(0.25, t);
+  env.gain.exponentialRampToValueAtTime(0.001, t + 1.5);
+
+  modulator.connect(modGain);
+  modGain.connect(carrier.frequency);
+  carrier.connect(env);
+  env.connect(masterGain);
+
+  carrier.start(t);
+  modulator.start(t);
+  carrier.stop(t + 2);
+  modulator.stop(t + 2);
+}
+
+// ============ SCHEDULER ============
+var schedulerTimer = null;
+var currentStep = [0, 0, 0, 0];
+var nextStepTime = [0, 0, 0, 0];
+var LOOKAHEAD = 0.1; // seconds
+var SCHEDULE_INTERVAL = 25; // ms
+
+// Track last triggered step for visual flash
+var lastTrigger = [{ step: -1, time: 0 }, { step: -1, time: 0 }, { step: -1, time: 0 }, { step: -1, time: 0 }];
+
+function getStepDuration(ringIdx) {
+  // Each ring has its own step duration based on BPM
+  return 60 / bpm / 1; // One step = one beat subdivision
+}
+
+function scheduleNotes() {
+  var now = audioCtx.currentTime;
+  for (var r = 0; r < rings.length; r++) {
+    while (nextStepTime[r] < now + LOOKAHEAD) {
+      var ring = rings[r];
+      var step = currentStep[r] % ring.steps;
+      if (ring.pattern[step] === 1) {
+        var freq = BASE_FREQS[ring.noteIdx + (step % 5)];
+        if (freq) playPluck(freq, nextStepTime[r]);
+        lastTrigger[r] = { step: step, time: nextStepTime[r] };
+      }
+      nextStepTime[r] += getStepDuration(r);
+      currentStep[r]++;
+    }
+  }
+}
+
+function startScheduler() {
+  var now = audioCtx.currentTime + 0.1;
+  for (var i = 0; i < 4; i++) {
+    nextStepTime[i] = now;
+    currentStep[i] = 0;
+  }
+  schedulerTimer = setInterval(scheduleNotes, SCHEDULE_INTERVAL);
+}
+
+function stopScheduler() {
+  clearInterval(schedulerTimer);
+}
+
+// ============ CANVAS ============
+var canvas = document.getElementById('c');
+var ctx = canvas.getContext('2d');
+var W, H, cx, cy, maxR;
+
+function resizeCanvas() {
+  var dpr = window.devicePixelRatio || 1;
+  W = window.innerWidth;
+  H = window.innerHeight;
+  canvas.width = W * dpr;
+  canvas.height = H * dpr;
+  canvas.style.width = W + 'px';
+  canvas.style.height = H + 'px';
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  cx = W / 2;
+  cy = H / 2;
+  maxR = Math.min(W, H) * 0.38;
+}
+
+function renderFrame() {
+  ctx.fillStyle = 'rgba(10, 10, 12, 0.15)';
+  ctx.fillRect(0, 0, W, H);
+
+  if (!playing) { requestAnimationFrame(renderFrame); return; }
+
+  // Get audio data
+  if (analyser) analyser.getByteFrequencyData(freqData);
+  var avgLevel = 0;
+  if (freqData) {
+    for (var i = 0; i < freqData.length; i++) avgLevel += freqData[i];
+    avgLevel = avgLevel / freqData.length / 255;
+  }
+
+  var now = audioCtx.currentTime;
+
+  for (var r = 0; r < rings.length; r++) {
+    var ring = rings[r];
+    var radius = maxR * (0.3 + r * 0.2);
+    var steps = ring.steps;
+    var angleStep = (Math.PI * 2) / steps;
+
+    // Draw ring track
+    ctx.strokeStyle = 'rgba(255,255,255,0.04)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+    ctx.stroke();
+
+    // Draw nodes
+    for (var s = 0; s < steps; s++) {
+      var angle = angleStep * s - Math.PI / 2;
+      var nx = cx + Math.cos(angle) * radius;
+      var ny = cy + Math.sin(angle) * radius;
+      var active = ring.pattern[s] === 1;
+
+      // Flash effect
+      var flash = 0;
+      if (lastTrigger[r].step === s) {
+        var elapsed = now - lastTrigger[r].time;
+        if (elapsed >= 0 && elapsed < 0.4) flash = 1 - elapsed / 0.4;
+      }
+
+      if (active) {
+        var sz = 3 + flash * 6 + avgLevel * 2;
+        ctx.fillStyle = RING_COLORS[r];
+        ctx.globalAlpha = 0.5 + flash * 0.5;
+        if (flash > 0.1) {
+          ctx.shadowColor = RING_COLORS[r];
+          ctx.shadowBlur = 15 * flash;
+        }
+        ctx.beginPath();
+        ctx.arc(nx, ny, sz, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.shadowBlur = 0;
+        ctx.globalAlpha = 1;
+      } else {
+        ctx.fillStyle = 'rgba(255,255,255,0.06)';
+        ctx.beginPath();
+        ctx.arc(nx, ny, 2, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+
+    // Playhead position
+    var stepDur = getStepDuration(r);
+    var elapsed = (now - (nextStepTime[r] - stepDur)) / stepDur;
+    var currentStepFrac = ((currentStep[r] - 1 + elapsed) % steps);
+    if (currentStepFrac < 0) currentStepFrac += steps;
+    var headAngle = (currentStepFrac / steps) * Math.PI * 2 - Math.PI / 2;
+    var hx = cx + Math.cos(headAngle) * radius;
+    var hy = cy + Math.sin(headAngle) * radius;
+
+    ctx.fillStyle = 'rgba(255,255,255,0.3)';
+    ctx.beginPath();
+    ctx.arc(hx, hy, 1.5, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // Center dot
+  ctx.fillStyle = 'rgba(255,255,255,' + (0.03 + avgLevel * 0.1) + ')';
+  ctx.beginPath();
+  ctx.arc(cx, cy, 3 + avgLevel * 8, 0, Math.PI * 2);
+  ctx.fill();
+
+  requestAnimationFrame(renderFrame);
+}
+
+// ============ CONTROLS ============
+document.querySelectorAll('.ring-ctrl').forEach(function(el) {
+  var idx = parseInt(el.dataset.ring, 10);
+  var slSteps = el.querySelector('.sl-steps');
+  var slPulses = el.querySelector('.sl-pulses');
+
+  slSteps.addEventListener('input', function() {
+    var steps = parseInt(slSteps.value, 10);
+    rings[idx].steps = steps;
+    if (rings[idx].pulses > steps) {
+      rings[idx].pulses = steps;
+      slPulses.value = steps;
+    }
+    slPulses.max = steps;
+    rings[idx].pattern = euclidean(rings[idx].pulses, steps);
+  });
+
+  slPulses.addEventListener('input', function() {
+    var pulses = parseInt(slPulses.value, 10);
+    if (pulses > rings[idx].steps) pulses = rings[idx].steps;
+    rings[idx].pulses = pulses;
+    rings[idx].pattern = euclidean(pulses, rings[idx].steps);
+  });
+});
+
+document.getElementById('sl-bpm').addEventListener('input', function(e) {
+  bpm = parseInt(e.target.value, 10);
+  document.getElementById('v-bpm').textContent = bpm;
+});
+
+// ============ START ============
+document.getElementById('btn-start').addEventListener('click', function() {
+  document.getElementById('start-screen').style.display = 'none';
+  document.getElementById('controls').style.display = 'block';
+  initAudio();
+  playing = true;
+  startScheduler();
+});
+
+window.addEventListener('resize', resizeCanvas);
+resizeCanvas();
+requestAnimationFrame(renderFrame);
+
+})();
+</script>
+</body>
+</html>
