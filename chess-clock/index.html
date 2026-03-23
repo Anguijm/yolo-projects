@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="theme-color" content="#000000">
+<title>Chess Clock</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { height: 100%; background: #0a0a0a; overflow: hidden; touch-action: none; user-select: none; -webkit-user-select: none; -webkit-tap-highlight-color: transparent; font-family: system-ui, -apple-system, 'Segoe UI', sans-serif; }
+#app { height: 100%; display: flex; flex-direction: column; }
+
+.player-zone { flex: 1; display: flex; align-items: center; justify-content: center; cursor: pointer; position: relative; transition: none; }
+#p1-zone { transform: rotate(180deg); }
+
+/* States */
+.player-zone.active { background: #fff; color: #0a0a0a; }
+.player-zone.inactive { background: #0a0a0a; color: #222; }
+.player-zone.timeout { background: #1a0a0a; color: #f85149; }
+
+.time { font-size: clamp(3rem, 15vw, 7rem); font-weight: 900; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; font-feature-settings: 'tnum'; line-height: 1; }
+.moves { position: absolute; bottom: 8px; right: 12px; font-size: 0.5rem; opacity: 0.2; letter-spacing: 0.1em; }
+.player-zone.active .moves { opacity: 0.4; }
+
+/* Divider / pause zone */
+#divider { height: 2px; background: #222; position: relative; z-index: 5; }
+#pause-zone { position: absolute; top: -20px; bottom: -20px; left: 0; right: 0; z-index: 10; cursor: pointer; }
+
+/* Settings overlay */
+#settings { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.95); z-index: 20; flex-direction: column; align-items: center; justify-content: center; gap: 12px; }
+#settings.show { display: flex; }
+.preset { padding: 12px 28px; background: transparent; border: 1px solid #222; color: #555; font-family: inherit; font-size: 0.8rem; cursor: pointer; letter-spacing: 0.15em; min-width: 120px; text-align: center; }
+.preset:active { border-color: #666; color: #aaa; }
+.preset.selected { border-color: #fff; color: #fff; }
+#settings-title { font-size: 0.6rem; color: #333; letter-spacing: 0.3em; margin-bottom: 8px; }
+#btn-start-game { padding: 12px 36px; background: #fff; border: none; color: #000; font-family: inherit; font-size: 0.7rem; cursor: pointer; letter-spacing: 0.2em; font-weight: 700; margin-top: 12px; }
+.settings-row { font-size: 0.45rem; color: #333; letter-spacing: 0.1em; margin-top: 8px; }
+</style>
+</head>
+<body>
+<div id="app">
+  <div class="player-zone inactive" id="p1-zone">
+    <div class="time" id="p1-time">5:00</div>
+    <div class="moves" id="p1-moves">0 moves</div>
+  </div>
+  <div id="divider">
+    <div id="pause-zone"></div>
+  </div>
+  <div class="player-zone inactive" id="p2-zone">
+    <div class="time" id="p2-time">5:00</div>
+    <div class="moves" id="p2-moves">0 moves</div>
+  </div>
+</div>
+
+<div id="settings" class="show">
+  <div id="settings-title">CHESS CLOCK</div>
+  <button class="preset" data-base="60" data-inc="0">1 | 0</button>
+  <button class="preset" data-base="180" data-inc="2">3 | 2</button>
+  <button class="preset selected" data-base="300" data-inc="0">5 | 0</button>
+  <button class="preset" data-base="300" data-inc="5">5 | 5</button>
+  <button class="preset" data-base="600" data-inc="0">10 | 0</button>
+  <button class="preset" data-base="900" data-inc="10">15 | 10</button>
+  <div class="settings-row">MIN | INCREMENT (SEC)</div>
+  <button id="btn-start-game">START</button>
+</div>
+
+<script>
+(function() {
+'use strict';
+
+// ============ STATE ============
+var baseTime = 300; // seconds
+var increment = 0;  // seconds per move
+var timeLeft = [0, 0]; // ms remaining [p1, p2]
+var moves = [0, 0];
+var activePlayer = -1; // -1=not started, 0=p1, 1=p2
+var paused = true;
+var gameOver = false;
+var lastTick = 0;
+var wakeLock = null;
+
+// ============ DOM ============
+var p1Zone = document.getElementById('p1-zone');
+var p2Zone = document.getElementById('p2-zone');
+var p1Time = document.getElementById('p1-time');
+var p2Time = document.getElementById('p2-time');
+var p1Moves = document.getElementById('p1-moves');
+var p2Moves = document.getElementById('p2-moves');
+var settingsEl = document.getElementById('settings');
+
+// ============ FORMAT TIME ============
+function formatTime(ms) {
+  if (ms <= 0) return '0.00';
+  var totalSec = ms / 1000;
+  if (totalSec < 60) {
+    // Panic mode: SS.ms
+    var sec = Math.floor(totalSec);
+    var tenths = Math.floor((ms % 1000) / 10);
+    return sec + '.' + (tenths < 10 ? '0' : '') + tenths;
+  }
+  var min = Math.floor(totalSec / 60);
+  var sec = Math.floor(totalSec % 60);
+  return min + ':' + (sec < 10 ? '0' : '') + sec;
+}
+
+// ============ RENDER ============
+var lastDisplay = ['', ''];
+
+function render() {
+  var d0 = formatTime(timeLeft[0]);
+  var d1 = formatTime(timeLeft[1]);
+  if (d0 !== lastDisplay[0]) { p1Time.textContent = d0; lastDisplay[0] = d0; }
+  if (d1 !== lastDisplay[1]) { p2Time.textContent = d1; lastDisplay[1] = d1; }
+
+  // Active/inactive styling
+  p1Zone.classList.remove('active', 'inactive', 'timeout');
+  p2Zone.classList.remove('active', 'inactive', 'timeout');
+
+  if (timeLeft[0] <= 0) { p1Zone.classList.add('timeout'); }
+  else if (activePlayer === 0) { p1Zone.classList.add('active'); }
+  else { p1Zone.classList.add('inactive'); }
+
+  if (timeLeft[1] <= 0) { p2Zone.classList.add('timeout'); }
+  else if (activePlayer === 1) { p2Zone.classList.add('active'); }
+  else { p2Zone.classList.add('inactive'); }
+
+  p1Moves.textContent = moves[0] + ' moves';
+  p2Moves.textContent = moves[1] + ' moves';
+}
+
+// ============ GAME LOOP ============
+function tick() {
+  if (!paused && !gameOver && activePlayer >= 0) {
+    var now = performance.now();
+    var dt = now - lastTick;
+    lastTick = now;
+    timeLeft[activePlayer] -= dt;
+
+    if (timeLeft[activePlayer] <= 0) {
+      timeLeft[activePlayer] = 0;
+      gameOver = true;
+      if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
+    }
+  }
+  render();
+  requestAnimationFrame(tick);
+}
+
+// ============ SWITCH ============
+function switchPlayer(tappedPlayer) {
+  if (gameOver) return;
+  if (paused && activePlayer === -1) {
+    // First tap starts the game — tapped player's turn begins for opponent
+    activePlayer = 1 - tappedPlayer; // Start opponent's clock (chess convention)
+    paused = false;
+    lastTick = performance.now();
+    acquireWakeLock();
+    if (navigator.vibrate) navigator.vibrate([15]);
+    return;
+  }
+  if (paused) return;
+  // Only the active player can switch
+  if (tappedPlayer !== activePlayer) return;
+
+  // Add increment
+  timeLeft[activePlayer] += increment * 1000;
+  moves[activePlayer]++;
+
+  // Switch
+  activePlayer = 1 - activePlayer;
+  lastTick = performance.now();
+  if (navigator.vibrate) navigator.vibrate([15]);
+}
+
+// ============ PAUSE ============
+function togglePause() {
+  if (gameOver || activePlayer === -1) {
+    // Show settings
+    showSettings();
+    return;
+  }
+  paused = !paused;
+  if (!paused) lastTick = performance.now();
+}
+
+// ============ SETTINGS ============
+function showSettings() {
+  settingsEl.classList.add('show');
+  paused = true;
+  releaseWakeLock();
+}
+
+function startGame() {
+  timeLeft[0] = baseTime * 1000;
+  timeLeft[1] = baseTime * 1000;
+  moves = [0, 0];
+  activePlayer = -1;
+  paused = true;
+  gameOver = false;
+  lastDisplay = ['', ''];
+  settingsEl.classList.remove('show');
+  render();
+}
+
+// ============ WAKE LOCK ============
+function acquireWakeLock() {
+  if ('wakeLock' in navigator && !wakeLock) {
+    navigator.wakeLock.request('screen').then(function(wl) {
+      wakeLock = wl;
+      wl.addEventListener('release', function() { wakeLock = null; });
+    }).catch(function() {});
+  }
+}
+
+function releaseWakeLock() {
+  if (wakeLock) { wakeLock.release().catch(function() {}); wakeLock = null; }
+}
+
+// Re-acquire on visibility change
+document.addEventListener('visibilitychange', function() {
+  if (document.visibilityState === 'visible') {
+    if (!paused && !gameOver) {
+      lastTick = performance.now(); // Prevent massive dt on return
+      acquireWakeLock();
+    }
+  } else {
+    // Auto-pause when backgrounded to prevent invisible time loss
+    if (!paused && !gameOver && activePlayer >= 0) {
+      paused = true;
+    }
+  }
+});
+
+// ============ EVENTS ============
+p1Zone.addEventListener('pointerdown', function(e) {
+  e.preventDefault();
+  switchPlayer(0);
+});
+
+p2Zone.addEventListener('pointerdown', function(e) {
+  e.preventDefault();
+  switchPlayer(1);
+});
+
+document.getElementById('pause-zone').addEventListener('pointerdown', function(e) {
+  e.preventDefault();
+  e.stopPropagation();
+  togglePause();
+});
+
+// Presets
+document.querySelectorAll('.preset').forEach(function(btn) {
+  btn.addEventListener('click', function() {
+    baseTime = parseInt(btn.dataset.base, 10);
+    increment = parseInt(btn.dataset.inc, 10);
+    document.querySelectorAll('.preset').forEach(function(b) { b.classList.remove('selected'); });
+    btn.classList.add('selected');
+  });
+});
+
+document.getElementById('btn-start-game').addEventListener('click', startGame);
+
+// ============ INIT ============
+startGame(); // Initialize times so display shows correct values
+requestAnimationFrame(tick);
+
+})();
+</script>
+</body>
+</html>

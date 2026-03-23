@@ -765,3 +765,18 @@ Persistent knowledge base. Read this before every build.
 - **INSIGHT**: Any game with a "merge ceiling" (max tile that can't merge further) must ensure BOTH the merge logic AND the game-over detection agree on the ceiling. If slideRow refuses to merge max tiles but canMove says they can merge, the game softlocks.
 - **INSIGHT**: One-time game events (win alerts, achievement popups) need a dedicated boolean flag separate from the win condition itself. The win condition persists (player keeps playing), but the alert should fire exactly once.
 - **TEST CAUGHT**: No bugs caught by automated tests — all were game logic level
+
+### chess-clock (2026-03-23)
+- **KEEP**: performance.now() + requestAnimationFrame for precision timing — drift-free, frame-perfect countdown
+- **KEEP**: 50/50 split with transform: rotate(180deg) on top half — turns single device into 2-player tool
+- **KEEP**: Conditional time format (MM:SS above 60s, SS.ms below) — panic-inducing format shift
+- **KEEP**: Screen Wake Lock API with visibilitychange re-acquisition — essential for any long-running display app
+- **KEEP**: pointerdown instead of click for zero-latency input — critical for competitive timing tools
+- **IMPROVE**: First tap started YOUR clock instead of opponent's — chess convention is tap-to-start-opponent. Must use `1 - tappedPlayer` for initial activation. Gemini caught.
+- **IMPROVE**: Initial display showed 0.00 — timeLeft initialized to [0,0], startGame not called before first render. Must call startGame() at init.
+- **IMPROVE**: Background tab caused rAF throttling → massive dt on return → instant timeout. Must auto-pause on visibilitychange hidden AND reset lastTick on visible.
+- **IMPROVE**: WakeLock orphaning — multiple acquireWakeLock calls overwrote reference, leaking locks. Added !wakeLock guard.
+- **INSIGHT**: Any timer app using rAF MUST handle background tabs. rAF pauses but performance.now() keeps counting. The delta on return can be minutes. Auto-pause on hidden + reset lastTick on visible is the correct pattern.
+- **INSIGHT**: Domain-specific conventions matter. Chess clocks follow "tap starts opponent's clock" — getting this wrong makes the tool feel broken to experienced players even though it technically works.
+- **INSIGHT**: WakeLock is a limited resource. Always check if you already hold one before requesting another, or you leak handles that can't be released.
+- **TEST CAUGHT**: No bugs caught by automated tests — all were domain logic and platform API level
