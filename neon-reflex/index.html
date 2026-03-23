@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="theme-color" content="#000000">
+<title>Neon Reflex</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { height: 100%; background: #0a0a0c; overflow: hidden; touch-action: manipulation; user-select: none; -webkit-user-select: none; -webkit-tap-highlight-color: transparent; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; }
+#zone { height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; cursor: pointer; transition: background 0.05s; padding: 20px; }
+#zone.waiting { background: #0a0a0c; }
+#zone.ready { background: #39ff14; }
+#zone.false-start { background: #ff073a; }
+
+#title { font-size: 0.7rem; color: #333; letter-spacing: 0.3em; margin-bottom: 16px; }
+#main-text { font-size: clamp(1.5rem, 6vw, 3rem); color: #888; text-align: center; line-height: 1.4; font-weight: 200; }
+#sub-text { font-size: 0.6rem; color: #333; margin-top: 12px; letter-spacing: 0.1em; text-align: center; }
+#time-display { font-size: clamp(3rem, 12vw, 6rem); font-weight: 100; color: #fff; }
+.unit { font-size: 0.6em; color: #555; }
+
+/* Round dots */
+#rounds { display: flex; gap: 6px; margin-top: 16px; }
+.round-dot { width: 8px; height: 8px; border-radius: 50%; background: #1a1a1a; }
+.round-dot.done { background: #39ff14; }
+.round-dot.fail { background: #ff073a; }
+.round-dot.current { border: 1px solid #555; }
+
+/* Stats */
+#stats { display: none; text-align: center; }
+#stats.show { display: block; }
+.stat-row { margin-bottom: 8px; }
+.stat-label { font-size: 0.45rem; color: #333; letter-spacing: 0.15em; text-transform: uppercase; }
+.stat-val { font-size: 1.2rem; color: #888; }
+#grade { font-size: clamp(2rem, 8vw, 4rem); font-weight: 700; margin-bottom: 12px; }
+#grade.s { color: #39ff14; }
+#grade.a { color: #58a6ff; }
+#grade.b { color: #d29922; }
+#grade.c { color: #f0883e; }
+#grade.d { color: #f85149; }
+
+/* History bar */
+#history-bar { display: flex; gap: 3px; align-items: flex-end; height: 40px; margin-top: 12px; }
+.bar { width: 24px; border-radius: 2px 2px 0 0; background: #39ff14; min-height: 2px; }
+
+#best-display { font-size: 0.45rem; color: #1a1a1a; margin-top: 12px; letter-spacing: 0.1em; }
+
+@keyframes shake { 0%,100%{transform:translateX(0)} 25%{transform:translateX(-6px)} 75%{transform:translateX(6px)} }
+.shake { animation: shake 0.1s ease-in-out 3; }
+</style>
+</head>
+<body>
+<div id="zone" class="waiting">
+  <div id="title">NEON REFLEX</div>
+  <div id="main-text">Tap to start</div>
+  <div id="sub-text">5 rounds &middot; visual reaction test</div>
+  <div id="time-display"></div>
+  <div id="rounds"></div>
+  <div id="stats">
+    <div id="grade"></div>
+    <div class="stat-row"><div class="stat-label">Average</div><div class="stat-val" id="s-avg"></div></div>
+    <div class="stat-row"><div class="stat-label">Best</div><div class="stat-val" id="s-best"></div></div>
+    <div id="history-bar"></div>
+  </div>
+  <div id="best-display"></div>
+</div>
+
+<script>
+(function() {
+'use strict';
+
+var TOTAL_ROUNDS = 5;
+var MIN_DELAY = 2000;
+var MAX_DELAY = 5000;
+
+var state = 'idle'; // idle, waiting, ready, result, false-start, done
+var round = 0;
+var times = [];
+var triggerTime = 0;
+var waitTimer = null;
+var bestAll = 0;
+
+try { bestAll = parseInt(localStorage.getItem('nreflex_best'), 10) || 0; } catch(e) {}
+
+var zone = document.getElementById('zone');
+var mainText = document.getElementById('main-text');
+var subText = document.getElementById('sub-text');
+var timeDisplay = document.getElementById('time-display');
+var statsEl = document.getElementById('stats');
+
+function showBest() {
+  var el = document.getElementById('best-display');
+  el.textContent = bestAll ? 'ALL-TIME BEST: ' + bestAll + 'ms' : '';
+}
+
+function buildRoundDots() {
+  var el = document.getElementById('rounds');
+  el.innerHTML = '';
+  for (var i = 0; i < TOTAL_ROUNDS; i++) {
+    var dot = document.createElement('div');
+    dot.className = 'round-dot';
+    if (i < times.length) {
+      dot.classList.add(times[i] < 0 ? 'fail' : 'done');
+    } else if (i === times.length && state !== 'done' && state !== 'idle') {
+      dot.classList.add('current');
+    }
+    el.appendChild(dot);
+  }
+}
+
+function startRound() {
+  state = 'waiting';
+  round = times.length;
+  zone.className = 'waiting';
+  mainText.textContent = 'Wait...';
+  subText.textContent = 'Round ' + (round + 1) + ' of ' + TOTAL_ROUNDS;
+  timeDisplay.textContent = '';
+  statsEl.classList.remove('show');
+  buildRoundDots();
+
+  var delay = MIN_DELAY + Math.random() * (MAX_DELAY - MIN_DELAY);
+  waitTimer = setTimeout(function() {
+    state = 'ready';
+    zone.className = 'ready';
+    mainText.textContent = '';
+    mainText.style.color = '#000';
+    subText.textContent = '';
+    timeDisplay.textContent = 'TAP!';
+    timeDisplay.style.color = '#000';
+    triggerTime = performance.now();
+  }, delay);
+}
+
+var lastTapTime = 0;
+
+function handleTap() {
+  var now = performance.now();
+  if (now - lastTapTime < 100) return; // Prevent double-fire
+  lastTapTime = now;
+
+  if (state === 'idle') {
+    times = [];
+    startRound();
+    return;
+  }
+
+  if (state === 'waiting') {
+    // False start
+    clearTimeout(waitTimer);
+    state = 'false-start';
+    zone.className = 'false-start';
+    zone.classList.remove('shake');
+    void zone.offsetWidth; // Force reflow for animation restart
+    zone.classList.add('shake');
+    mainText.textContent = 'TOO EARLY';
+    mainText.style.color = '#fff';
+    subText.textContent = 'Tap to continue';
+    timeDisplay.textContent = '';
+    times.push(-1); // -1 = false start
+    buildRoundDots();
+    if (navigator.vibrate) navigator.vibrate([50]);
+    return;
+  }
+
+  if (state === 'ready') {
+    var elapsed = Math.round(performance.now() - triggerTime);
+    state = 'result';
+    times.push(elapsed);
+    zone.className = 'waiting';
+    mainText.textContent = '';
+    mainText.style.color = '#888';
+    subText.textContent = 'Round ' + (round + 1) + ' — Tap to continue';
+    timeDisplay.textContent = elapsed + 'ms';
+    timeDisplay.style.color = '#fff';
+    buildRoundDots();
+    return;
+  }
+
+  if (state === 'false-start' || state === 'result') {
+    if (times.length >= TOTAL_ROUNDS) {
+      showFinalStats();
+    } else {
+      startRound();
+    }
+    return;
+  }
+
+  if (state === 'done') {
+    // Start new game directly (no extra tap needed)
+    times = [];
+    statsEl.classList.remove('show');
+    startRound();
+    return;
+  }
+}
+
+function showFinalStats() {
+  state = 'done';
+  zone.className = 'waiting';
+  mainText.textContent = '';
+  subText.textContent = 'Tap to play again';
+
+  // Filter valid times
+  var valid = times.filter(function(t) { return t > 0; });
+  if (valid.length === 0) {
+    document.getElementById('grade').textContent = 'F';
+    document.getElementById('grade').className = 'd';
+    document.getElementById('s-avg').textContent = '---';
+    document.getElementById('s-best').textContent = '---';
+    timeDisplay.textContent = '';
+    statsEl.classList.add('show');
+    buildRoundDots();
+    return;
+  }
+
+  var avg = Math.round(valid.reduce(function(a, b) { return a + b; }, 0) / valid.length);
+  var best = Math.min.apply(null, valid);
+
+  // Update all-time best
+  if (!bestAll || best < bestAll) {
+    bestAll = best;
+    try { localStorage.setItem('nreflex_best', bestAll); } catch(e) {}
+  }
+
+  // Grade
+  var grade, gradeClass;
+  if (avg < 180) { grade = 'S'; gradeClass = 's'; }
+  else if (avg < 220) { grade = 'A'; gradeClass = 'a'; }
+  else if (avg < 280) { grade = 'B'; gradeClass = 'b'; }
+  else if (avg < 350) { grade = 'C'; gradeClass = 'c'; }
+  else { grade = 'D'; gradeClass = 'd'; }
+
+  document.getElementById('grade').textContent = grade;
+  document.getElementById('grade').className = gradeClass;
+  document.getElementById('s-avg').textContent = avg + 'ms';
+  document.getElementById('s-best').textContent = best + 'ms';
+  timeDisplay.textContent = '';
+
+  // History bars
+  var histBar = document.getElementById('history-bar');
+  histBar.innerHTML = '';
+  var maxTime = Math.max.apply(null, valid);
+  for (var i = 0; i < times.length; i++) {
+    var bar = document.createElement('div');
+    bar.className = 'bar';
+    if (times[i] < 0) {
+      bar.style.height = '40px';
+      bar.style.background = '#ff073a';
+    } else {
+      var h = Math.max(4, (times[i] / maxTime) * 36);
+      bar.style.height = h + 'px';
+    }
+    histBar.appendChild(bar);
+  }
+
+  statsEl.classList.add('show');
+  buildRoundDots();
+  showBest();
+}
+
+// ============ EVENTS ============
+zone.addEventListener('pointerdown', function(e) {
+  e.preventDefault();
+  handleTap();
+});
+
+// Keyboard support
+document.addEventListener('keydown', function(e) {
+  if (e.repeat) return; // Prevent auto-repeat speedrun
+  if (e.key === ' ' || e.key === 'Enter') {
+    e.preventDefault();
+    handleTap();
+  }
+});
+
+// ============ INIT ============
+buildRoundDots();
+showBest();
+
+})();
+</script>
+</body>
+</html>

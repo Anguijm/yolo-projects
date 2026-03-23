@@ -853,3 +853,18 @@ Persistent knowledge base. Read this before every build.
 - **INSIGHT**: Any input field with auto-formatting (commas, spaces, dashes) MUST track cursor position relative to meaningful data characters, not raw string index. The pattern: count non-format chars before cursor → reformat → walk new string counting non-format chars to find new cursor position.
 - **INSIGHT**: BigInt prefix strings ('0x', '0b', '0o') are the cleanest way to parse arbitrary-base strings in JS without writing custom parsers.
 - **TEST CAUGHT**: No bugs caught by automated tests — cursor jump is a UX issue only visible during interaction
+
+### neon-reflex (2026-03-24)
+- **KEEP**: performance.now() for sub-ms reaction timing — essential for competitive reflex tests
+- **KEEP**: 5-round structure with grade ranking (S/A/B/C/D) — gives statistical significance and gamification
+- **KEEP**: False start detection (tap during wait = penalty) — prevents cheating by tapping blindly
+- **KEEP**: Round progress dots with color coding — instant visual feedback of run status
+- **KEEP**: History bar chart in final stats — shows consistency at a glance
+- **IMPROVE**: Key auto-repeat cycled through all rounds instantly — e.repeat must be guarded in any tap-based game. Gemini caught.
+- **IMPROVE**: Simultaneous pointer+keyboard double-fired, skipping result display — added 100ms cooldown between handleTap calls.
+- **IMPROVE**: Play again required two taps (done→idle→start) — simplified to done→start. UX flow should minimize taps for common actions.
+- **IMPROVE**: Shake animation didn't restart on rapid false starts — need reflow trick (void offsetWidth)
+- **INSIGHT**: Any game accepting input from BOTH pointer AND keyboard must debounce with a cooldown timer. The two input sources can fire within the same event loop iteration, causing state to advance twice.
+- **INSIGHT**: e.repeat is CRITICAL for tap-based games. Key auto-repeat fires keydown events at 30Hz+ — without the guard, a held key will cycle through the entire game in under a second.
+- **INSIGHT**: "Play again" from a results screen should start the game directly, not return to a menu. Extra taps = friction = user abandonment.
+- **TEST CAUGHT**: No bugs caught by automated tests — all were input timing/UX flow issues
