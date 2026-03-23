@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="theme-color" content="#000000">
+<title>Memory X-Ray</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { height: 100%; background: #000; color: #aaa; font-family: 'Courier New', Courier, monospace; overflow-y: auto; touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+#app { max-width: 600px; margin: 0 auto; padding: 12px 8px; }
+
+h1 { font-size: 1rem; color: #0ff; letter-spacing: 0.2em; text-transform: uppercase; margin-bottom: 4px; font-weight: 400; }
+.sub { font-size: 0.55rem; color: #333; margin-bottom: 12px; letter-spacing: 0.1em; }
+
+/* Bit grid */
+#bit-grid { display: flex; flex-wrap: wrap; gap: 1px; margin-bottom: 2px; }
+.byte-group { display: flex; gap: 1px; margin-right: 6px; margin-bottom: 2px; }
+.bit { width: clamp(28px, 10vw, 38px); height: clamp(28px, 10vw, 38px); border: 1px solid #222; display: flex; align-items: center; justify-content: center; font-size: clamp(0.65rem, 2.5vw, 0.85rem); cursor: pointer; user-select: none; transition: none; color: #333; background: #000; }
+.bit.on { background: #0ff; color: #000; border-color: #0ff; }
+.bit.sign.on { background: #ff0; color: #000; border-color: #ff0; }
+.bit.exp.on { background: #f0f; color: #000; border-color: #f0f; }
+.bit.sign { border-color: #440; }
+.bit.exp { border-color: #404; }
+.bit.mant { border-color: #044; }
+
+/* IEEE 754 labels */
+#ieee-labels { display: flex; font-size: 0.45rem; margin-bottom: 12px; letter-spacing: 0.05em; color: #555; }
+.ieee-label { text-align: center; border-top: 1px solid; padding-top: 2px; }
+.ieee-label.s { color: #ff0; border-color: #660; flex: 0 0 calc(clamp(28px, 10vw, 38px) + 1px); margin-right: 5px; }
+.ieee-label.e { color: #f0f; border-color: #606; flex: 0 0 calc((clamp(28px, 10vw, 38px) + 1px) * 11 - 1px); margin-right: 7px; }
+.ieee-label.m { color: #0ff; border-color: #066; flex: 1; }
+
+/* Inspector panels */
+.panel { margin-bottom: 8px; padding: 6px 8px; border: 1px solid #111; }
+.panel-title { font-size: 0.5rem; color: #444; text-transform: uppercase; letter-spacing: 0.15em; margin-bottom: 4px; }
+.panel-value { font-size: 0.8rem; color: #0f0; word-break: break-all; min-height: 1.2em; }
+.panel-value.special { color: #f55; }
+
+/* Hex display */
+#hex-value { letter-spacing: 0.15em; }
+
+/* Text input */
+#text-input { width: 100%; background: #000; border: 1px solid #222; color: #0ff; padding: 6px 8px; font-family: inherit; font-size: 0.85rem; outline: none; letter-spacing: 0.1em; }
+#text-input:focus { border-color: #0ff; }
+#text-input::placeholder { color: #1a1a1a; }
+
+/* ASCII display */
+.ascii-char { display: inline-block; min-width: 1.1ch; text-align: center; }
+.ascii-char.invalid { color: #f00; }
+.ascii-char.control { color: #333; }
+
+/* Controls */
+#controls { display: flex; gap: 4px; margin-bottom: 10px; flex-wrap: wrap; }
+.ctrl-btn { padding: 5px 10px; background: #000; border: 1px solid #222; color: #555; font-family: inherit; font-size: 0.6rem; cursor: pointer; letter-spacing: 0.1em; text-transform: uppercase; }
+.ctrl-btn:active { border-color: #0ff; color: #0ff; }
+
+/* Number inputs */
+.num-input { width: 100%; background: #000; border: 1px solid #222; color: #0f0; padding: 4px 6px; font-family: inherit; font-size: 0.75rem; outline: none; }
+.num-input:focus { border-color: #0f0; }
+
+/* Endian toggle */
+.endian-toggle { font-size: 0.5rem; color: #333; cursor: pointer; }
+.endian-toggle:hover { color: #666; }
+.endian-active { color: #0ff; }
+</style>
+</head>
+<body>
+<div id="app">
+  <h1>Memory X-Ray</h1>
+  <div class="sub">64-bit binary explorer &middot; IEEE 754 &middot; click bits to toggle</div>
+
+  <div id="controls">
+    <button class="ctrl-btn" id="btn-clear">Clear</button>
+    <button class="ctrl-btn" id="btn-invert">Invert</button>
+    <button class="ctrl-btn" id="btn-random">Random</button>
+    <button class="ctrl-btn" id="btn-shift-l">&lt;&lt; Shift</button>
+    <button class="ctrl-btn" id="btn-shift-r">Shift &gt;&gt;</button>
+    <span class="endian-toggle" id="btn-endian">BE</span>
+  </div>
+
+  <div id="bit-grid"></div>
+  <div id="ieee-labels">
+    <div class="ieee-label s">SIGN</div>
+    <div class="ieee-label e">EXPONENT (11)</div>
+    <div class="ieee-label m">MANTISSA (52)</div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-title">Float64 (IEEE 754 Double)</div>
+    <div class="panel-value" id="val-float64">0</div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-title">Hex</div>
+    <div class="panel-value" id="hex-value">00 00 00 00 00 00 00 00</div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-title">Signed Int64 (Two's Complement)</div>
+    <div class="panel-value" id="val-int64">0</div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-title">Unsigned Int64</div>
+    <div class="panel-value" id="val-uint64">0</div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-title">Float32 &times; 2</div>
+    <div class="panel-value" id="val-float32">0, 0</div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-title">ASCII (8 chars)</div>
+    <div class="panel-value" id="val-ascii"></div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-title">Text &rarr; Buffer (type to inject bytes)</div>
+    <input type="text" id="text-input" maxlength="8" placeholder="Type up to 8 chars...">
+  </div>
+
+  <div class="panel">
+    <div class="panel-title">Float64 &rarr; Buffer (type a number)</div>
+    <input type="text" class="num-input" id="num-input" placeholder="e.g. 3.14, Infinity, NaN">
+  </div>
+</div>
+
+<script>
+(function() {
+'use strict';
+
+// ============ STATE ============
+var buffer = new ArrayBuffer(8);
+var view = new DataView(buffer);
+var bytes = new Uint8Array(buffer);
+var bigEndian = true; // display order
+var bitEls = [];
+
+// ============ DOM REFS ============
+var grid = document.getElementById('bit-grid');
+var valFloat64 = document.getElementById('val-float64');
+var valHex = document.getElementById('hex-value');
+var valInt64 = document.getElementById('val-int64');
+var valUint64 = document.getElementById('val-uint64');
+var valFloat32 = document.getElementById('val-float32');
+var valAscii = document.getElementById('val-ascii');
+var textInput = document.getElementById('text-input');
+var numInput = document.getElementById('num-input');
+
+// ============ BUILD BIT GRID ============
+function buildGrid() {
+  grid.innerHTML = '';
+  bitEls = [];
+  for (var byteIdx = 0; byteIdx < 8; byteIdx++) {
+    var group = document.createElement('div');
+    group.className = 'byte-group';
+    for (var bitIdx = 7; bitIdx >= 0; bitIdx--) {
+      var el = document.createElement('div');
+      el.className = 'bit';
+      var globalBit = byteIdx * 8 + (7 - bitIdx);
+      // IEEE 754 classification — remap for endianness
+      var mathBit = bigEndian ? globalBit : ((7 - byteIdx) * 8 + (7 - bitIdx));
+      if (mathBit === 0) el.classList.add('sign');
+      else if (mathBit <= 11) el.classList.add('exp');
+      else el.classList.add('mant');
+      el.dataset.byte = byteIdx;
+      el.dataset.bit = bitIdx;
+      el.textContent = '0';
+      group.appendChild(el);
+      bitEls.push({ el: el, byteIdx: byteIdx, bitIdx: bitIdx });
+    }
+    grid.appendChild(group);
+  }
+}
+
+// ============ UPDATE UI ============
+function updateAll() {
+  // Update bit display
+  for (var i = 0; i < bitEls.length; i++) {
+    var b = bitEls[i];
+    var val = (bytes[b.byteIdx] >> b.bitIdx) & 1;
+    b.el.textContent = val;
+    b.el.classList.toggle('on', val === 1);
+  }
+
+  // Float64
+  var f64 = view.getFloat64(0, !bigEndian);
+  var f64Str = formatFloat(f64);
+  valFloat64.textContent = f64Str;
+  valFloat64.classList.toggle('special', !isFinite(f64) || isNaN(f64));
+
+  // Hex
+  var hexParts = [];
+  for (var i = 0; i < 8; i++) hexParts.push(bytes[i].toString(16).toUpperCase().padStart(2, '0'));
+  valHex.textContent = hexParts.join(' ');
+
+  // Int64 / Uint64 (BigInt)
+  try {
+    var signed = view.getBigInt64(0, !bigEndian);
+    var unsigned = view.getBigUint64(0, !bigEndian);
+    valInt64.textContent = signed.toString();
+    valUint64.textContent = unsigned.toString();
+  } catch(e) {
+    valInt64.textContent = 'N/A';
+    valUint64.textContent = 'N/A';
+  }
+
+  // Float32 x 2
+  var f32a = view.getFloat32(0, !bigEndian);
+  var f32b = view.getFloat32(4, !bigEndian);
+  valFloat32.textContent = formatFloat(f32a) + ', ' + formatFloat(f32b);
+
+  // ASCII
+  var asciiHtml = '';
+  for (var i = 0; i < 8; i++) {
+    var c = bytes[i];
+    if (c >= 32 && c <= 126) {
+      asciiHtml += '<span class="ascii-char">' + escapeHtml(String.fromCharCode(c)) + '</span>';
+    } else if (c === 0) {
+      asciiHtml += '<span class="ascii-char control">&middot;</span>';
+    } else {
+      asciiHtml += '<span class="ascii-char invalid">\uFFFD</span>';
+    }
+  }
+  valAscii.innerHTML = asciiHtml;
+}
+
+function formatFloat(f) {
+  if (isNaN(f)) return 'NaN';
+  if (!isFinite(f)) return f > 0 ? '+Infinity' : '-Infinity';
+  if (Object.is(f, -0)) return '-0';
+  // Show full precision for small/large numbers
+  if (Math.abs(f) > 0 && (Math.abs(f) < 1e-6 || Math.abs(f) > 1e15)) {
+    return f.toExponential(15);
+  }
+  return Number(f.toPrecision(17)).toString();
+}
+
+function escapeHtml(s) {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+// ============ BIT MANIPULATION ============
+function toggleBit(byteIdx, bitIdx) {
+  bytes[byteIdx] ^= (1 << bitIdx);
+  updateAll();
+}
+
+// ============ EVENTS ============
+grid.addEventListener('click', function(e) {
+  var bit = e.target.closest('.bit');
+  if (!bit) return;
+  toggleBit(parseInt(bit.dataset.byte), parseInt(bit.dataset.bit));
+});
+
+document.getElementById('btn-clear').addEventListener('click', function() {
+  bytes.fill(0);
+  updateAll();
+});
+
+document.getElementById('btn-invert').addEventListener('click', function() {
+  for (var i = 0; i < 8; i++) bytes[i] = ~bytes[i] & 0xFF;
+  updateAll();
+});
+
+document.getElementById('btn-random').addEventListener('click', function() {
+  for (var i = 0; i < 8; i++) bytes[i] = Math.floor(Math.random() * 256);
+  updateAll();
+});
+
+document.getElementById('btn-shift-l').addEventListener('click', function() {
+  // Shift all 64 bits left by 1
+  var carry = 0;
+  for (var i = 7; i >= 0; i--) {
+    var newCarry = (bytes[i] >> 7) & 1;
+    bytes[i] = ((bytes[i] << 1) | carry) & 0xFF;
+    carry = newCarry;
+  }
+  updateAll();
+});
+
+document.getElementById('btn-shift-r').addEventListener('click', function() {
+  // Shift all 64 bits right by 1
+  var carry = 0;
+  for (var i = 0; i < 8; i++) {
+    var newCarry = bytes[i] & 1;
+    bytes[i] = ((bytes[i] >> 1) | (carry << 7)) & 0xFF;
+    carry = newCarry;
+  }
+  updateAll();
+});
+
+// Endianness toggle
+document.getElementById('btn-endian').addEventListener('click', function() {
+  bigEndian = !bigEndian;
+  this.textContent = bigEndian ? 'BE' : 'LE';
+  this.classList.toggle('endian-active', !bigEndian);
+  // Rebuild grid to update IEEE 754 highlighting, then refresh values
+  buildGrid();
+  updateAll();
+});
+
+// Text injection
+textInput.addEventListener('input', function() {
+  var text = textInput.value;
+  bytes.fill(0);
+  for (var i = 0; i < Math.min(text.length, 8); i++) {
+    bytes[i] = text.charCodeAt(i) & 0xFF;
+  }
+  updateAll();
+});
+
+// Number injection
+numInput.addEventListener('keydown', function(e) {
+  if (e.key !== 'Enter') return;
+  var val = numInput.value.trim();
+  if (val === 'Infinity' || val === '+Infinity') {
+    view.setFloat64(0, Infinity, !bigEndian);
+  } else if (val === '-Infinity') {
+    view.setFloat64(0, -Infinity, !bigEndian);
+  } else if (val === 'NaN') {
+    view.setFloat64(0, NaN, !bigEndian);
+  } else if (val === '-0') {
+    view.setFloat64(0, -0, !bigEndian);
+  } else {
+    var num = Number(val);
+    if (!isNaN(num)) {
+      view.setFloat64(0, num, !bigEndian);
+    }
+  }
+  updateAll();
+});
+
+// ============ INIT ============
+buildGrid();
+updateAll();
+
+})();
+</script>
+</body>
+</html>

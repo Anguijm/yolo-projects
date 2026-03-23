@@ -599,3 +599,16 @@ Persistent knowledge base. Read this before every build.
 - **New accumulated principle**: Typed array bit flags (using unused high bits) are an elegant way to track per-cell state without allocating a second array.
 - **No recurring Gemini critiques** — each build's bugs were unique. Process is healthy.
 - **Automated tests caught 0 bugs this batch** — all bugs were logic-level. Consider adding: physics simulation frame tests? Hard to automate for single-file HTML apps.
+
+### memory-xray (2026-03-23)
+- **KEEP**: ArrayBuffer + DataView + Uint8Array trifecta — one buffer, three views for different access patterns (bit manipulation, typed reads, raw bytes)
+- **KEEP**: IEEE 754 color-coding (sign/exponent/mantissa) with CSS classes — immediate visual understanding of float structure
+- **KEEP**: Number() instead of parseFloat() for strict parsing — rejects "123abc", accepts hex "0x1A"
+- **KEEP**: Brutalist terminal aesthetic (monospace, zero border-radius, neon on black) — strong visual identity for technical tools
+- **IMPROVE**: formatFloat regex `/\.?0+$/` stripped trailing zeros from integers (100→"1") — Gemini caught. Fix: Number(toPrecision(17)).toString()
+- **IMPROVE**: Endian toggle physically reversed bytes — should change DataView interpretation flag instead. Physical reversal desyncs writes.
+- **IMPROVE**: IEEE 754 bit classification was hardcoded for big-endian — must remap with `(7 - byteIdx) * 8 + (7 - bitIdx)` for little-endian
+- **INSIGHT**: Regex for stripping trailing zeros from formatted numbers is DANGEROUS. The optional dot `\.?` makes `0+$` match integer trailing zeros. Always use Number() round-trip instead.
+- **INSIGHT**: DataView endianness should be a READ/WRITE parameter, never a physical byte reorder. The buffer stays the same; interpretation changes.
+- **INSIGHT**: When a UI toggle changes data interpretation (not data itself), rebuild any derived visual elements (IEEE 754 labels, color coding) to match the new interpretation.
+- **TEST CAUGHT**: No bugs caught by automated tests — all bugs were logic-level (formatting, endianness semantics)
