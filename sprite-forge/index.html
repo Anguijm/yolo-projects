@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="theme-color" content="#000000">
+<title>Sprite Forge</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { height: 100%; background: #0c0c0f; color: #ccc; font-family: system-ui, sans-serif; overflow: hidden; touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+#app { height: 100%; display: flex; flex-direction: column; padding: 6px; gap: 6px; }
+
+/* Top: tools + canvas + preview */
+#workspace { flex: 1; display: flex; gap: 6px; min-height: 0; }
+
+/* Tools sidebar */
+#tools { display: flex; flex-direction: column; gap: 4px; padding: 4px; }
+.tool-btn { width: 32px; height: 32px; border: 1px solid #1a1a1a; background: #111; color: #555; display: flex; align-items: center; justify-content: center; cursor: pointer; font-size: 0.8rem; border-radius: 3px; }
+.tool-btn:active { border-color: #555; }
+.tool-btn.active { border-color: #58a6ff; color: #58a6ff; }
+#color-input { width: 32px; height: 32px; border: none; padding: 0; cursor: pointer; border-radius: 3px; background: none; }
+#color-input::-webkit-color-swatch-wrapper { padding: 0; }
+#color-input::-webkit-color-swatch { border: 1px solid #333; border-radius: 3px; }
+
+/* Drawing canvas */
+#canvas-wrap { flex: 1; display: flex; align-items: center; justify-content: center; background: #0a0a0c; border-radius: 4px; min-width: 0; min-height: 0; position: relative; }
+#draw-canvas { image-rendering: pixelated; image-rendering: crisp-edges; cursor: crosshair; }
+
+/* Preview */
+#preview-area { display: flex; flex-direction: column; gap: 4px; align-items: center; }
+#preview-canvas { width: 80px; height: 80px; image-rendering: pixelated; image-rendering: crisp-edges; background: #111; border: 1px solid #1a1a1a; border-radius: 3px; }
+.preview-label { font-size: 0.4rem; color: #333; letter-spacing: 0.1em; }
+#fps-slider { width: 70px; height: 3px; accent-color: #555; }
+#fps-val { font-size: 0.4rem; color: #444; font-family: monospace; }
+
+/* Timeline */
+#timeline { display: flex; gap: 4px; padding: 4px 0; overflow-x: auto; align-items: center; min-height: 52px; }
+.frame-thumb { width: 40px; height: 40px; image-rendering: pixelated; image-rendering: crisp-edges; border: 2px solid #1a1a1a; border-radius: 3px; cursor: pointer; flex-shrink: 0; background: #111; }
+.frame-thumb.active { border-color: #58a6ff; }
+.timeline-btn { width: 28px; height: 28px; border: 1px solid #1a1a1a; background: #111; color: #444; font-size: 0.7rem; cursor: pointer; border-radius: 3px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.timeline-btn:active { border-color: #555; color: #888; }
+
+/* Controls row */
+#ctrl-row { display: flex; gap: 4px; align-items: center; }
+.ctrl-btn { padding: 4px 10px; background: transparent; border: 1px solid #1a1a1a; color: #444; font-family: inherit; font-size: 0.5rem; cursor: pointer; border-radius: 3px; letter-spacing: 0.1em; }
+.ctrl-btn:active { border-color: #555; color: #888; }
+.onion-label { font-size: 0.4rem; color: #333; }
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="workspace">
+    <div id="tools">
+      <button class="tool-btn active" data-tool="pencil" title="Pencil">&#x270E;</button>
+      <button class="tool-btn" data-tool="eraser" title="Eraser">&#x2716;</button>
+      <button class="tool-btn" data-tool="fill" title="Fill">&#x25A7;</button>
+      <input type="color" id="color-input" value="#58a6ff" title="Color">
+    </div>
+    <div id="canvas-wrap">
+      <canvas id="draw-canvas"></canvas>
+    </div>
+    <div id="preview-area">
+      <span class="preview-label">PREVIEW</span>
+      <canvas id="preview-canvas" width="80" height="80"></canvas>
+      <input type="range" id="fps-slider" min="1" max="24" value="8">
+      <span id="fps-val">8 fps</span>
+    </div>
+  </div>
+  <div id="timeline">
+    <button class="timeline-btn" id="btn-add" title="Add frame">+</button>
+    <button class="timeline-btn" id="btn-dup" title="Duplicate">&#x29C9;</button>
+    <button class="timeline-btn" id="btn-del" title="Delete">&#x2212;</button>
+  </div>
+  <div id="ctrl-row">
+    <label class="onion-label"><input type="checkbox" id="ck-onion" checked> Onion</label>
+    <button class="ctrl-btn" id="btn-export">Export Sprite Sheet</button>
+  </div>
+</div>
+
+<script>
+(function() {
+'use strict';
+
+var GRID = 16;
+var frames = []; // each frame: Uint32Array of GRID*GRID
+var activeFrame = 0;
+var tool = 'pencil';
+var color = '#58a6ff';
+var fps = 8;
+var onionSkin = true;
+var isDrawing = false;
+
+var drawCanvas = document.getElementById('draw-canvas');
+var drawCtx = drawCanvas.getContext('2d');
+var previewCanvas = document.getElementById('preview-canvas');
+var previewCtx = previewCanvas.getContext('2d');
+
+// ============ FRAME MANAGEMENT ============
+function createEmptyFrame() {
+  return new Array(GRID * GRID).fill(0); // 0 = transparent
+}
+
+function colorToInt(hex) {
+  var r = parseInt(hex.substr(1, 2), 16);
+  var g = parseInt(hex.substr(3, 2), 16);
+  var b = parseInt(hex.substr(5, 2), 16);
+  return (255 << 24) | (b << 16) | (g << 8) | r; // ABGR for Uint32
+}
+
+function intToHex(val) {
+  if (val === 0) return null; // transparent
+  var r = val & 0xFF;
+  var g = (val >> 8) & 0xFF;
+  var b = (val >> 16) & 0xFF;
+  return '#' + ((1 << 24) | (r << 16) | (g << 8) | b).toString(16).slice(1);
+}
+
+// ============ CANVAS SIZING ============
+var cellSize = 0;
+
+function resizeDrawCanvas() {
+  var wrap = document.getElementById('canvas-wrap');
+  var maxW = wrap.clientWidth - 8;
+  var maxH = wrap.clientHeight - 8;
+  cellSize = Math.floor(Math.min(maxW, maxH) / GRID);
+  cellSize = Math.max(cellSize, 8);
+  drawCanvas.width = GRID * cellSize;
+  drawCanvas.height = GRID * cellSize;
+  renderDrawCanvas();
+}
+
+// ============ RENDERING ============
+function renderDrawCanvas() {
+  var w = drawCanvas.width, h = drawCanvas.height;
+  drawCtx.fillStyle = '#111';
+  drawCtx.fillRect(0, 0, w, h);
+
+  // Checkerboard for transparency
+  for (var r = 0; r < GRID; r++) {
+    for (var c = 0; c < GRID; c++) {
+      if ((r + c) % 2 === 0) {
+        drawCtx.fillStyle = '#151518';
+        drawCtx.fillRect(c * cellSize, r * cellSize, cellSize, cellSize);
+      }
+    }
+  }
+
+  // Onion skin
+  if (onionSkin && activeFrame > 0) {
+    var prev = frames[activeFrame - 1];
+    drawCtx.globalAlpha = 0.15;
+    for (var i = 0; i < GRID * GRID; i++) {
+      if (prev[i]) {
+        var hex = intToHex(prev[i]);
+        if (hex) {
+          drawCtx.fillStyle = hex;
+          drawCtx.fillRect((i % GRID) * cellSize, Math.floor(i / GRID) * cellSize, cellSize, cellSize);
+        }
+      }
+    }
+    drawCtx.globalAlpha = 1;
+  }
+
+  // Current frame
+  var frame = frames[activeFrame];
+  for (var i = 0; i < GRID * GRID; i++) {
+    if (frame[i]) {
+      var hex = intToHex(frame[i]);
+      if (hex) {
+        drawCtx.fillStyle = hex;
+        drawCtx.fillRect((i % GRID) * cellSize, Math.floor(i / GRID) * cellSize, cellSize, cellSize);
+      }
+    }
+  }
+
+  // Grid lines
+  drawCtx.strokeStyle = 'rgba(255,255,255,0.03)';
+  drawCtx.lineWidth = 0.5;
+  for (var i = 0; i <= GRID; i++) {
+    drawCtx.beginPath();
+    drawCtx.moveTo(i * cellSize, 0); drawCtx.lineTo(i * cellSize, h);
+    drawCtx.stroke();
+    drawCtx.beginPath();
+    drawCtx.moveTo(0, i * cellSize); drawCtx.lineTo(w, i * cellSize);
+    drawCtx.stroke();
+  }
+}
+
+function renderFrameToCanvas(ctx, frame, size) {
+  ctx.clearRect(0, 0, size, size);
+  var px = size / GRID;
+  for (var i = 0; i < GRID * GRID; i++) {
+    if (frame[i]) {
+      var hex = intToHex(frame[i]);
+      if (hex) {
+        ctx.fillStyle = hex;
+        ctx.fillRect((i % GRID) * px, Math.floor(i / GRID) * px, px, px);
+      }
+    }
+  }
+}
+
+// ============ TIMELINE ============
+function renderTimeline() {
+  var tl = document.getElementById('timeline');
+  // Remove old thumbs
+  var thumbs = tl.querySelectorAll('.frame-thumb');
+  thumbs.forEach(function(t) { t.remove(); });
+
+  // Add thumbs after the buttons
+  var lastBtn = document.getElementById('btn-del');
+  for (var i = 0; i < frames.length; i++) {
+    var thumb = document.createElement('canvas');
+    thumb.width = 40; thumb.height = 40;
+    thumb.className = 'frame-thumb' + (i === activeFrame ? ' active' : '');
+    thumb.dataset.frame = i;
+    renderFrameToCanvas(thumb.getContext('2d'), frames[i], 40);
+    tl.appendChild(thumb);
+  }
+}
+
+function updateActiveThumb() {
+  var thumbs = document.querySelectorAll('.frame-thumb');
+  if (thumbs[activeFrame]) {
+    renderFrameToCanvas(thumbs[activeFrame].getContext('2d'), frames[activeFrame], 40);
+  }
+}
+
+// ============ DRAWING INPUT ============
+function getCellFromEvent(e) {
+  var rect = drawCanvas.getBoundingClientRect();
+  var x = e.clientX - rect.left;
+  var y = e.clientY - rect.top;
+  var col = Math.floor(x / cellSize);
+  var row = Math.floor(y / cellSize);
+  if (col < 0 || col >= GRID || row < 0 || row >= GRID) return -1;
+  return row * GRID + col;
+}
+
+function applyTool(idx) {
+  if (idx < 0) return;
+  var frame = frames[activeFrame];
+  if (tool === 'pencil') {
+    frame[idx] = colorToInt(color);
+  } else if (tool === 'eraser') {
+    frame[idx] = 0;
+  } else if (tool === 'fill') {
+    floodFill(frame, idx, colorToInt(color));
+  }
+  renderDrawCanvas();
+  updateActiveThumb(); // Only update active frame thumbnail, not rebuild all
+}
+
+function floodFill(frame, startIdx, newColor) {
+  var targetColor = frame[startIdx];
+  if (targetColor === newColor) return;
+  var stack = [startIdx];
+  while (stack.length > 0) {
+    var idx = stack.pop();
+    if (idx < 0 || idx >= GRID * GRID) continue;
+    if (frame[idx] !== targetColor) continue;
+    frame[idx] = newColor;
+    var col = idx % GRID, row = Math.floor(idx / GRID);
+    if (col > 0) stack.push(idx - 1);
+    if (col < GRID - 1) stack.push(idx + 1);
+    if (row > 0) stack.push(idx - GRID);
+    if (row < GRID - 1) stack.push(idx + GRID);
+  }
+}
+
+drawCanvas.addEventListener('pointerdown', function(e) {
+  e.preventDefault();
+  isDrawing = true;
+  drawCanvas.setPointerCapture(e.pointerId);
+  applyTool(getCellFromEvent(e));
+});
+
+drawCanvas.addEventListener('pointermove', function(e) {
+  if (!isDrawing) return;
+  if (tool === 'fill') return; // Don't drag-fill
+  applyTool(getCellFromEvent(e));
+});
+
+window.addEventListener('pointerup', function() { isDrawing = false; });
+window.addEventListener('pointercancel', function() { isDrawing = false; });
+
+// ============ TOOLS ============
+document.querySelectorAll('.tool-btn').forEach(function(btn) {
+  btn.addEventListener('click', function() {
+    tool = btn.dataset.tool;
+    document.querySelectorAll('.tool-btn').forEach(function(b) { b.classList.remove('active'); });
+    btn.classList.add('active');
+  });
+});
+
+document.getElementById('color-input').addEventListener('input', function(e) {
+  color = e.target.value;
+});
+
+// ============ TIMELINE EVENTS ============
+document.getElementById('btn-add').addEventListener('click', function() {
+  frames.push(createEmptyFrame());
+  activeFrame = frames.length - 1;
+  renderDrawCanvas();
+  renderTimeline();
+});
+
+document.getElementById('btn-dup').addEventListener('click', function() {
+  frames.push(frames[activeFrame].slice());
+  activeFrame = frames.length - 1;
+  renderDrawCanvas();
+  renderTimeline();
+});
+
+document.getElementById('btn-del').addEventListener('click', function() {
+  if (frames.length <= 1) return;
+  frames.splice(activeFrame, 1);
+  if (activeFrame >= frames.length) activeFrame = frames.length - 1;
+  renderDrawCanvas();
+  renderTimeline();
+});
+
+document.getElementById('timeline').addEventListener('click', function(e) {
+  var thumb = e.target.closest('.frame-thumb');
+  if (!thumb) return;
+  activeFrame = parseInt(thumb.dataset.frame, 10);
+  renderDrawCanvas();
+  renderTimeline();
+});
+
+// ============ PREVIEW PLAYBACK ============
+var previewFrame = 0;
+var lastPreviewTime = 0;
+
+function previewLoop(time) {
+  if (frames.length > 1) {
+    var interval = 1000 / fps;
+    if (time - lastPreviewTime >= interval) {
+      previewFrame = (previewFrame + 1) % frames.length;
+      renderFrameToCanvas(previewCtx, frames[previewFrame], 80);
+      lastPreviewTime = time;
+    }
+  } else {
+    renderFrameToCanvas(previewCtx, frames[0], 80);
+  }
+  requestAnimationFrame(previewLoop);
+}
+
+document.getElementById('fps-slider').addEventListener('input', function(e) {
+  fps = parseInt(e.target.value, 10);
+  if (isNaN(fps) || fps <= 0) fps = 1;
+  document.getElementById('fps-val').textContent = fps + ' fps';
+});
+
+document.getElementById('ck-onion').addEventListener('change', function() {
+  onionSkin = this.checked;
+  renderDrawCanvas();
+});
+
+// ============ EXPORT ============
+document.getElementById('btn-export').addEventListener('click', function() {
+  var sheetWidth = GRID * frames.length;
+  var oc = document.createElement('canvas');
+  oc.width = sheetWidth; oc.height = GRID;
+  var octx = oc.getContext('2d');
+  for (var f = 0; f < frames.length; f++) {
+    for (var i = 0; i < GRID * GRID; i++) {
+      if (frames[f][i]) {
+        var hex = intToHex(frames[f][i]);
+        if (hex) {
+          octx.fillStyle = hex;
+          octx.fillRect(f * GRID + (i % GRID), Math.floor(i / GRID), 1, 1);
+        }
+      }
+    }
+  }
+  oc.toBlob(function(blob) {
+    if (!blob) return;
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url; a.download = 'spritesheet-' + Date.now() + '.png';
+    a.click();
+    setTimeout(function() { URL.revokeObjectURL(url); }, 1000);
+  }, 'image/png');
+});
+
+// ============ RESIZE ============
+window.addEventListener('resize', resizeDrawCanvas);
+
+// ============ INIT ============
+frames.push(createEmptyFrame());
+resizeDrawCanvas();
+renderTimeline();
+requestAnimationFrame(previewLoop);
+
+})();
+</script>
+</body>
+</html>

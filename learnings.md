@@ -879,3 +879,22 @@ Persistent knowledge base. Read this before every build.
 - **INSIGHT**: The `|| fallback` pattern for numbers is a JS anti-pattern when zero is a valid value. `parseInt(v) || 32` breaks for input value "0". Always use: `var v = parseInt(x); if (isNaN(v)) v = default;`
 - **INSIGHT**: For typography tools, CSS variables on :root are the optimal architecture — single source of truth, no inline style manipulation, and the preview automatically responds to any property change.
 - **TEST CAUGHT**: No bugs caught by automated tests — falsy zero is a logic-level issue
+
+### sprite-forge (2026-03-24) — PROJECT #90 (5-build review)
+- **KEEP**: Frame array of pixel arrays — simple, efficient state for multi-frame animation
+- **KEEP**: Onion skinning via 15% globalAlpha rendering of previous frame — essential animation feature
+- **KEEP**: Stack-based flood fill — simple BFS with boundary checks, handles all shapes
+- **KEEP**: Sprite sheet export via offscreen canvas + toBlob — clean, no-library approach
+- **KEEP**: Optimized thumb update (only active frame during drawing) — prevents DOM thrash
+- **IMPROVE**: Timeline rebuilt ALL canvas thumbnails on every pixel paint — massive DOM thrash at 60fps. Gemini caught. Only update the active frame's thumbnail during painting.
+- **IMPROVE**: Dead conditional in fill tool (tool === 'eraser' inside tool === 'fill' branch) — impossible condition. Simplified.
+- **IMPROVE**: FPS 0 caused Infinity interval — clamped to minimum 1
+- **INSIGHT**: During high-frequency events (pointermove, drag), minimize DOM manipulation. Only update the specific element that changed, never rebuild the entire list/grid.
+- **INSIGHT**: Dead conditionals (checking a variable that's guaranteed to be a specific value by the enclosing if/else) are logic errors. They indicate the code was refactored and a branch wasn't cleaned up.
+
+#### 5-Build Review (Builds #86-90: neon-tetra, base-sync, neon-reflex, type-forge, sprite-forge)
+- **All 5 shipped working.** 25 consecutive working builds (66-90). Zero user-reported bugs.
+- **Recurring: falsy zero (|| operator)** — type-forge (3rd lifetime occurrence). REINFORCED: always isNaN() for numeric parsing.
+- **Recurring: DOM thrash during high-frequency events** — sprite-forge. NEW PRINCIPLE: during pointermove/drag, update only the affected DOM element.
+- **Recurring: e.repeat guard** — neon-reflex. Now a standard check for all keyboard-driven games.
+- **Portfolio milestone**: 90 projects, 25 consecutive working. Process mature, bugs caught at audit stage.
