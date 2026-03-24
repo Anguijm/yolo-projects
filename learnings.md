@@ -1134,3 +1134,24 @@ Persistent knowledge base. Read this before every build.
 - **IMPROVE**: Rotation angles grew infinitely with auto-spin — eventual float precision jitter. Wrap with modulo 2π.
 - **INSIGHT**: Z-depth mapping is easy to get backwards. The natural `(z-min)/range` gives 0=near, 1=far — but for rendering, you usually want 1=near (bright). Always invert: `t = 1 - normalized_z`.
 - **INSIGHT**: Painter's algorithm sorts far-to-near (DESCENDING z). The name "painter's" is the clue — a painter covers background first, foreground last.
+
+### tower-siege (2026-03-25) — PROJECT #110 (5-build review)
+- **KEEP**: Path-following via waypoint linear interpolation — simple, flexible path design
+- **KEEP**: Tower auto-targeting with range check — classic TD mechanic
+- **KEEP**: Wave economy (kill gold + wave bonus) — natural difficulty/resource curve
+- **KEEP**: Splash damage via distance check against all enemies — clean AoE implementation
+- **KEEP**: Shop UI with cost gating (disabled when gold < cost) — prevents confusion
+- **IMPROVE**: Projectile movement and lifetime were per-frame, not dt-based — frame-rate dependent. Gemini caught. ALL movement/timers must use dt.
+- **IMPROVE**: Towers targeted dead enemies (hp<=0 not filtered) — wasted shots. Check hp before targeting.
+- **IMPROVE**: Zero-distance targeting (tower at enemy position) caused NaN velocity — Math.max(0.001, d) guard.
+- **INSIGHT**: ANY value that changes per frame (position, lifetime, cooldown) MUST be multiplied by dt. Per-frame increments are frame-rate dependent — 144Hz monitors get double speed.
+- **INSIGHT**: Targeting/selection loops must ALWAYS filter out dead/invalid entities. The entity may have been "killed" earlier in the same frame but not yet removed from the array.
+
+#### 5-Build Review (Builds #106-110: graph-forge, dither-forge, bezier-forge, wire-forge, tower-siege)
+- **All 5 shipped working.** Quality maintained post-100.
+- **Variety:** force graph, image dithering, CSS easing editor, 3D wireframe, tower defense — five completely different categories.
+- **Recurring: dt-based movement** — tower-siege. FUNDAMENTAL: all movement uses dt, never per-frame.
+- **Recurring: Zero-distance division** — graph-forge AND tower-siege. PATTERN: always clamp distance to Math.max(epsilon, d).
+- **New: Depth mapping inversion** — wire-forge. Natural normalized_z gives 0=near, rendering wants 1=near. Always invert.
+- **New: Uint8ClampedArray truncation** — dither-forge. Error diffusion needs Float32 buffer.
+- **Portfolio: 110 projects.** Post-100 quality consistently high.
