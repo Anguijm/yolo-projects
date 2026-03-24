@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="theme-color" content="#000000">
+<title>Cyber Breach</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { height: 100%; background: #0a0a0c; color: #ccc; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; overflow-y: auto; touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+#app { max-width: 440px; margin: 0 auto; padding: 16px 12px; display: flex; flex-direction: column; align-items: center; gap: 12px; min-height: 100%; }
+
+h1 { font-size: 0.7rem; color: #333; letter-spacing: 0.3em; font-weight: 300; }
+
+/* Trace bar */
+#trace-wrap { width: 100%; }
+.trace-label { display: flex; justify-content: space-between; font-size: 0.4rem; color: #333; letter-spacing: 0.1em; margin-bottom: 3px; }
+#trace-bar { width: 100%; height: 6px; background: #111; border-radius: 3px; overflow: hidden; }
+#trace-fill { height: 100%; width: 0; background: #f85149; transition: width 0.3s; border-radius: 3px; }
+
+/* Word display */
+#word { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; margin: 8px 0; }
+.letter-slot { width: 32px; height: 40px; border-bottom: 2px solid #222; display: flex; align-items: center; justify-content: center; font-size: 1.4rem; font-weight: 600; color: #3fb950; text-transform: uppercase; }
+.letter-slot.hidden { color: transparent; }
+
+/* Category hint */
+#hint { font-size: 0.45rem; color: #222; letter-spacing: 0.15em; }
+
+/* Keyboard */
+#keyboard { display: flex; flex-direction: column; gap: 4px; align-items: center; width: 100%; }
+.kb-row { display: flex; gap: 3px; justify-content: center; }
+.kb-key { width: clamp(26px, 8vw, 34px); height: clamp(32px, 9vw, 40px); border: 1px solid #1a1a1a; background: #111; color: #666; display: flex; align-items: center; justify-content: center; font-size: 0.75rem; cursor: pointer; border-radius: 3px; text-transform: uppercase; font-family: inherit; transition: none; }
+.kb-key:active { background: #1a1a1a; }
+.kb-key.correct { background: #0a2a0a; border-color: #1a3a1a; color: #3fb950; }
+.kb-key.wrong { background: #1a0a0a; border-color: #2a1a1a; color: #444; }
+.kb-key.disabled { pointer-events: none; opacity: 0.3; }
+
+/* Message overlay */
+#msg { display: none; text-align: center; padding: 16px; }
+#msg.show { display: block; }
+#msg-text { font-size: 1rem; letter-spacing: 0.2em; margin-bottom: 4px; }
+#msg-text.win { color: #3fb950; }
+#msg-text.lose { color: #f85149; }
+#msg-word { font-size: 0.6rem; color: #555; margin-bottom: 8px; letter-spacing: 0.15em; }
+#btn-again { padding: 6px 16px; background: transparent; border: 1px solid #222; color: #444; font-family: inherit; font-size: 0.55rem; cursor: pointer; border-radius: 4px; letter-spacing: 0.15em; }
+
+/* Wrong guesses display */
+#wrong-letters { font-size: 0.5rem; color: #f85149; min-height: 1.2em; letter-spacing: 0.2em; }
+
+@keyframes shake { 0%,100%{transform:translateX(0)} 25%{transform:translateX(-3px)} 75%{transform:translateX(3px)} }
+.shake { animation: shake 0.1s ease-in-out 2; }
+</style>
+</head>
+<body>
+<div id="app">
+  <h1>CYBER BREACH</h1>
+
+  <div id="trace-wrap">
+    <div class="trace-label"><span>SYSTEM TRACE</span><span id="trace-count">0/6</span></div>
+    <div id="trace-bar"><div id="trace-fill"></div></div>
+  </div>
+
+  <div id="word"></div>
+  <div id="hint"></div>
+  <div id="wrong-letters"></div>
+
+  <div id="keyboard"></div>
+
+  <div id="msg">
+    <div id="msg-text"></div>
+    <div id="msg-word"></div>
+    <button id="btn-again">REBOOT</button>
+  </div>
+</div>
+
+<script>
+(function() {
+'use strict';
+
+// ============ WORD LIST ============
+var WORDS = [
+  { word: 'ALGORITHM', cat: 'Computer Science' },
+  { word: 'FIREWALL', cat: 'Security' },
+  { word: 'PROTOCOL', cat: 'Networking' },
+  { word: 'COMPILER', cat: 'Programming' },
+  { word: 'DATABASE', cat: 'Storage' },
+  { word: 'TERMINAL', cat: 'Interface' },
+  { word: 'FUNCTION', cat: 'Programming' },
+  { word: 'VARIABLE', cat: 'Programming' },
+  { word: 'DEBUGGER', cat: 'Tools' },
+  { word: 'PIPELINE', cat: 'DevOps' },
+  { word: 'REGISTRY', cat: 'System' },
+  { word: 'OVERFLOW', cat: 'Memory' },
+  { word: 'CALLBACK', cat: 'JavaScript' },
+  { word: 'ITERATOR', cat: 'Patterns' },
+  { word: 'CHECKOUT', cat: 'Git' },
+  { word: 'FRONTEND', cat: 'Web Dev' },
+  { word: 'ABSTRACT', cat: 'OOP' },
+  { word: 'MUTATION', cat: 'State' },
+  { word: 'ENDPOINT', cat: 'API' },
+  { word: 'ASSEMBLY', cat: 'Low Level' },
+  { word: 'GRAPHICS', cat: 'Rendering' },
+  { word: 'SCRIPTED', cat: 'Automation' },
+  { word: 'INDEXING', cat: 'Database' },
+  { word: 'KEYBOARD', cat: 'Hardware' },
+  { word: 'DECRYPTS', cat: 'Crypto' },
+  { word: 'HASHCODE', cat: 'Data Structure' },
+  { word: 'DISPATCH', cat: 'Events' },
+  { word: 'RESOLVER', cat: 'DNS' },
+  { word: 'SNAPSHOT', cat: 'Version Control' },
+  { word: 'PLATFORM', cat: 'Infrastructure' }
+];
+
+var MAX_WRONG = 6;
+var KB_ROWS = ['QWERTYUIOP', 'ASDFGHJKL', 'ZXCVBNM'];
+
+// ============ STATE ============
+var currentWord = '';
+var currentCat = '';
+var guessed = {}; // letter -> true
+var wrongCount = 0;
+var gameOver = false;
+
+// ============ INIT GAME ============
+function newGame() {
+  var entry = WORDS[Math.floor(Math.random() * WORDS.length)];
+  currentWord = entry.word;
+  currentCat = entry.cat;
+  guessed = {};
+  wrongCount = 0;
+  gameOver = false;
+
+  document.getElementById('msg').classList.remove('show');
+  document.getElementById('hint').textContent = currentCat;
+  buildWord();
+  buildKeyboard();
+  updateTrace();
+  document.getElementById('wrong-letters').textContent = '';
+}
+
+// ============ WORD DISPLAY ============
+function buildWord() {
+  var container = document.getElementById('word');
+  container.innerHTML = '';
+  for (var i = 0; i < currentWord.length; i++) {
+    var slot = document.createElement('div');
+    slot.className = 'letter-slot hidden';
+    slot.dataset.letter = currentWord[i];
+    slot.textContent = currentWord[i];
+    container.appendChild(slot);
+  }
+}
+
+function revealLetter(letter) {
+  var slots = document.querySelectorAll('.letter-slot');
+  slots.forEach(function(slot) {
+    if (slot.dataset.letter === letter) {
+      slot.classList.remove('hidden');
+    }
+  });
+}
+
+function revealAll() {
+  document.querySelectorAll('.letter-slot').forEach(function(s) {
+    s.classList.remove('hidden');
+  });
+}
+
+function checkWin() {
+  var allRevealed = true;
+  for (var i = 0; i < currentWord.length; i++) {
+    if (!guessed[currentWord[i]]) { allRevealed = false; break; }
+  }
+  return allRevealed;
+}
+
+// ============ KEYBOARD ============
+function buildKeyboard() {
+  var kb = document.getElementById('keyboard');
+  kb.innerHTML = '';
+  for (var r = 0; r < KB_ROWS.length; r++) {
+    var row = document.createElement('div');
+    row.className = 'kb-row';
+    for (var c = 0; c < KB_ROWS[r].length; c++) {
+      var key = document.createElement('div');
+      key.className = 'kb-key';
+      key.dataset.letter = KB_ROWS[r][c];
+      key.textContent = KB_ROWS[r][c];
+      row.appendChild(key);
+    }
+    kb.appendChild(row);
+  }
+}
+
+function disableKey(letter, isCorrect) {
+  var keys = document.querySelectorAll('.kb-key');
+  keys.forEach(function(k) {
+    if (k.dataset.letter === letter) {
+      k.classList.add(isCorrect ? 'correct' : 'wrong');
+      k.classList.add('disabled');
+    }
+  });
+}
+
+// ============ TRACE BAR ============
+function updateTrace() {
+  var pct = (wrongCount / MAX_WRONG) * 100;
+  document.getElementById('trace-fill').style.width = pct + '%';
+  document.getElementById('trace-count').textContent = wrongCount + '/' + MAX_WRONG;
+}
+
+// ============ GUESS ============
+function handleGuess(letter) {
+  if (gameOver) return;
+  if (guessed[letter]) return;
+  guessed[letter] = true;
+
+  if (currentWord.indexOf(letter) >= 0) {
+    // Correct
+    revealLetter(letter);
+    disableKey(letter, true);
+    if (checkWin()) {
+      gameOver = true;
+      var mt = document.getElementById('msg-text');
+      mt.textContent = 'ACCESS GRANTED';
+      mt.classList.remove('lose'); mt.classList.add('win');
+      document.getElementById('msg-word').textContent = currentWord;
+      document.getElementById('msg').classList.add('show');
+      if (navigator.vibrate) navigator.vibrate([30, 20, 30]);
+    }
+  } else {
+    // Wrong
+    wrongCount++;
+    disableKey(letter, false);
+    updateTrace();
+
+    // Update wrong letters display
+    var wrongLetters = Object.keys(guessed).filter(function(k) {
+      return currentWord.indexOf(k) < 0;
+    });
+    document.getElementById('wrong-letters').textContent = wrongLetters.join(' ');
+
+    // Shake
+    var wordEl = document.getElementById('word');
+    wordEl.classList.remove('shake');
+    void wordEl.offsetWidth;
+    wordEl.classList.add('shake');
+
+    if (wrongCount >= MAX_WRONG) {
+      gameOver = true;
+      revealAll();
+      var mt2 = document.getElementById('msg-text');
+      mt2.textContent = 'SYSTEM LOCKED';
+      mt2.classList.remove('win'); mt2.classList.add('lose');
+      document.getElementById('msg-word').textContent = currentWord;
+      document.getElementById('msg').classList.add('show');
+    }
+  }
+}
+
+// ============ EVENTS ============
+document.getElementById('keyboard').addEventListener('click', function(e) {
+  var key = e.target.closest('.kb-key');
+  if (!key || key.classList.contains('disabled')) return;
+  handleGuess(key.dataset.letter);
+});
+
+document.addEventListener('keydown', function(e) {
+  if (e.ctrlKey || e.metaKey || e.altKey) return;
+  var letter = e.key.toUpperCase();
+  if (/^[A-Z]$/.test(letter)) {
+    handleGuess(letter);
+  }
+});
+
+document.getElementById('btn-again').addEventListener('click', newGame);
+
+// ============ INIT ============
+newGame();
+
+})();
+</script>
+</body>
+</html>

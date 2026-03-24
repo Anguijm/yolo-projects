@@ -963,3 +963,13 @@ Persistent knowledge base. Read this before every build.
 - **Recurring: Collision snap** — neon-pong. Fixed-offset push fails at high speed. Snap to boundary is correct.
 - **Test suite limitation**: raw-md brace balance false positive (regex quantifiers), ink-stack transient Playwright timeout. Known issues.
 - **Portfolio milestone**: 95 projects, 30 consecutive working. Approaching 100.
+
+### cyber-breach (2026-03-24)
+- **KEEP**: Category hints next to word blanks — helps player without giving away the answer
+- **KEEP**: Trace bar (progress bar for wrong guesses) — cleaner visual than traditional hangman drawing
+- **KEEP**: On-screen keyboard with correct/wrong/disabled states — essential for mobile, visual feedback
+- **KEEP**: Reflow trick for shake animation restart (void offsetWidth)
+- **IMPROVE**: className = 'win' wiped all other classes — 4th occurrence of className overwrite pattern. Must ALWAYS use classList.add/remove. Gemini caught.
+- **IMPROVE**: for...in on guessed object — Object.keys().filter() is safer and more predictable
+- **INSIGHT**: el.className = value is DESTRUCTIVE — it replaces ALL classes. This is now the 4th occurrence (connect-four renderBoard, and now twice in this project). classList is the ONLY safe way to toggle state classes.
+- **TEST CAUGHT**: No bugs caught by automated tests — all were class management and iteration safety
