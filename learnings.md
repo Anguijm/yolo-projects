@@ -1200,3 +1200,21 @@ Persistent knowledge base. Read this before every build.
 - **KEEP**: Drawing with minimum distance threshold — smooth line segments without excessive points
 - **INSIGHT**: Custom 2D physics engines are viable for simple interactions (circles + lines + boxes). Circle-line collision is the core building block: project point onto segment, check distance, push out along normal, reflect velocity. Everything else builds on this.
 - **INSIGHT**: Physics playgrounds need a demo scene on load. A blank canvas with no objects gives no feedback about what the tool does. Pre-draw ramps + drop balls so physics is visible on first frame.
+
+### automata-lab (2026-03-25) — PROJECT #115 (5-build review)
+- **KEEP**: Multi-state CA engine (2-state B/S + 3-state Brian's Brain in same framework) — flexible state handling
+- **KEEP**: B/S rule string parser — users can type any rule and explore custom automata
+- **KEEP**: Cell aging via Uint16Array → HSL heatmap — stunning visual distinction between stable/chaotic regions
+- **KEEP**: Double-buffered Uint8Array grid with swap — essential for correct CA simulation
+- **KEEP**: Toroidal edge wrapping — patterns that exit one side enter the opposite
+- **KEEP**: Pattern library loaded on click (glider gun, pulsar, R-pentomino) — immediate engagement
+- **KEEP**: Draw/erase while running — deeply interactive sandbox feel
+- **INSIGHT**: We dodged this project for 20+ builds because it seemed like "just another simulation." In reality, the generalized rule engine + custom B/S parser + cell aging visuals make it fundamentally different from life-canvas (Conway-only). The lesson: don't let category labels prevent building genuinely interesting projects.
+- **INSIGHT**: Multi-state automata (Brian's Brain) need completely different transition logic from binary B/S rules. The engine must branch on rule type, not try to generalize everything into birth/survival sets.
+
+#### 5-Build Review (Builds #111-115: rhythm-type, maze-lab, ascii-forge, gravity-sketch, automata-lab)
+- **All 5 shipped working.** Quality maintained post-100.
+- **Variety:** rhythm game, algorithm viz, image processing, physics sandbox, CA sandbox — five distinct categories.
+- **Key patterns:** Audio-time anchoring (rhythm-type), HTML entity escaping (ascii-forge), per-entity frozen params (rhythm-type), Union-Find optimization (maze-lab).
+- **Milestone:** Finally built the CA sandbox after 20+ builds of dodging. The "too cool critic" kept vetoing it as "another simulation" but the generalized engine + custom rules + cell aging proved it worthy.
+- **Portfolio: 115 projects.** Post-100 quality consistently high.

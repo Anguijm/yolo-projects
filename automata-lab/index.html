@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="theme-color" content="#000000">
+<title>Automata Lab</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{height:100%;background:#060610;overflow:hidden;font-family:system-ui,sans-serif;touch-action:none;-webkit-tap-highlight-color:transparent;color:#ccc}
+canvas{display:block;position:absolute;inset:0;cursor:crosshair}
+#panel{position:fixed;top:8px;left:8px;width:200px;background:rgba(6,6,16,0.92);border:1px solid rgba(255,255,255,0.06);border-radius:10px;padding:10px;z-index:5;backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);opacity:0.35;transition:opacity 0.3s;max-height:calc(100vh - 16px);overflow-y:auto}
+#panel:hover{opacity:1}
+.p-title{font-size:0.6rem;color:#555;letter-spacing:0.2em;margin-bottom:6px;font-weight:300}
+.p-row{display:flex;align-items:center;gap:4px;margin-bottom:4px}
+.p-label{font-size:0.4rem;color:#444;min-width:42px;letter-spacing:0.05em}
+.p-val{font-size:0.4rem;color:#555;font-family:monospace;min-width:20px;text-align:right}
+select,input[type="text"]{width:100%;background:#111;border:1px solid #1a1a1a;color:#888;padding:3px 5px;font-family:inherit;font-size:0.5rem;border-radius:3px;outline:none;margin-bottom:4px}
+input[type="range"]{flex:1;height:2px;accent-color:#555}
+.p-btn{padding:3px 7px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);color:#555;font-family:inherit;font-size:0.4rem;cursor:pointer;border-radius:3px;letter-spacing:0.05em}
+.p-btn:active{border-color:rgba(255,255,255,0.2);color:#aaa}
+.p-btn.active{border-color:#58a6ff;color:#58a6ff}
+.p-btns{display:flex;gap:3px;flex-wrap:wrap;margin-bottom:4px}
+.p-sep{height:1px;background:rgba(255,255,255,0.04);margin:5px 0}
+#stats{font-size:0.4rem;color:#333;font-family:monospace}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="panel">
+  <div class="p-title">AUTOMATA LAB</div>
+  <select id="sel-rule">
+    <option value="conway">Conway's Life (B3/S23)</option>
+    <option value="highlife">HighLife (B36/S23)</option>
+    <option value="seeds">Seeds (B2/S)</option>
+    <option value="daynight">Day & Night (B3678/S34678)</option>
+    <option value="diamoeba">Diamoeba (B35678/S5678)</option>
+    <option value="brain">Brian's Brain (3-state)</option>
+    <option value="custom">Custom B/S Rule</option>
+  </select>
+  <input type="text" id="custom-rule" placeholder="e.g. B3/S23" style="display:none">
+  <div class="p-sep"></div>
+  <div class="p-btns">
+    <button class="p-btn active" id="btn-play">Play</button>
+    <button class="p-btn" id="btn-pause">Pause</button>
+    <button class="p-btn" id="btn-step">Step</button>
+  </div>
+  <div class="p-btns">
+    <button class="p-btn" id="btn-random">Random</button>
+    <button class="p-btn" id="btn-clear">Clear</button>
+  </div>
+  <div class="p-sep"></div>
+  <div class="p-label" style="margin-bottom:2px">PATTERNS</div>
+  <div class="p-btns">
+    <button class="p-btn" data-pat="glider">Glider</button>
+    <button class="p-btn" data-pat="gun">Glider Gun</button>
+    <button class="p-btn" data-pat="pulsar">Pulsar</button>
+    <button class="p-btn" data-pat="rpento">R-pentomino</button>
+  </div>
+  <div class="p-sep"></div>
+  <div class="p-row"><span class="p-label">Speed</span><input type="range" id="sl-speed" min="1" max="60" value="15"><span class="p-val" id="v-speed">15</span></div>
+  <div class="p-row"><span class="p-label">Brush</span><input type="range" id="sl-brush" min="1" max="5" value="1"><span class="p-val" id="v-brush">1</span></div>
+  <div id="stats"></div>
+</div>
+
+<script>
+(function(){
+'use strict';
+
+var canvas=document.getElementById('c'),ctx=canvas.getContext('2d');
+var W,H,COLS,ROWS,CELL=5;
+var grid,nextGrid,ageGrid; // Uint8Array
+var playing=true,speed=15,generation=0;
+var brushSize=1,painting=false,paintState=1;
+var ruleType='conway';
+var birthSet=new Set([3]),surviveSet=new Set([2,3]);
+var isBrain=false;
+var lastTick=0;
+
+// ============ GRID ============
+function initGrid(){
+  COLS=Math.floor(W/CELL);ROWS=Math.floor(H/CELL);
+  grid=new Uint8Array(COLS*ROWS);
+  nextGrid=new Uint8Array(COLS*ROWS);
+  ageGrid=new Uint16Array(COLS*ROWS); // age for color mapping
+  generation=0;
+}
+
+function idx(x,y){
+  // Toroidal wrap
+  x=((x%COLS)+COLS)%COLS;
+  y=((y%ROWS)+ROWS)%ROWS;
+  return y*COLS+x;
+}
+
+function get(x,y){return grid[idx(x,y)]}
+
+// ============ RULES ============
+function setRule(name){
+  ruleType=name;isBrain=false;
+  if(name==='conway'){birthSet=new Set([3]);surviveSet=new Set([2,3])}
+  else if(name==='highlife'){birthSet=new Set([3,6]);surviveSet=new Set([2,3])}
+  else if(name==='seeds'){birthSet=new Set([2]);surviveSet=new Set()}
+  else if(name==='daynight'){birthSet=new Set([3,6,7,8]);surviveSet=new Set([3,4,6,7,8])}
+  else if(name==='diamoeba'){birthSet=new Set([3,5,6,7,8]);surviveSet=new Set([5,6,7,8])}
+  else if(name==='brain'){isBrain=true}
+  else if(name==='custom'){parseCustomRule(document.getElementById('custom-rule').value)}
+}
+
+function parseCustomRule(str){
+  // Parse B.../S... format
+  var m=str.match(/B([0-8]*)\/?S([0-8]*)/i);
+  if(!m)return;
+  birthSet=new Set();surviveSet=new Set();
+  for(var i=0;i<m[1].length;i++)birthSet.add(parseInt(m[1][i],10));
+  for(var i=0;i<m[2].length;i++)surviveSet.add(parseInt(m[2][i],10));
+}
+
+// ============ SIMULATION ============
+function tick(){
+  for(var y=0;y<ROWS;y++){
+    for(var x=0;x<COLS;x++){
+      var i=y*COLS+x;
+      var cell=grid[i];
+
+      if(isBrain){
+        // Brian's Brain: 0=off, 1=on, 2=dying
+        if(cell===1){nextGrid[i]=2;ageGrid[i]=0} // on → dying
+        else if(cell===2){nextGrid[i]=0;ageGrid[i]=0} // dying → off
+        else{
+          // Count live (state=1) neighbors
+          var alive=0;
+          for(var dy=-1;dy<=1;dy++)for(var dx=-1;dx<=1;dx++){
+            if(dx===0&&dy===0)continue;
+            if(get(x+dx,y+dy)===1)alive++;
+          }
+          nextGrid[i]=alive===2?1:0;
+          if(nextGrid[i]===1)ageGrid[i]=1;
+        }
+      }else{
+        // Standard 2-state B/S rules
+        var neighbors=0;
+        for(var dy=-1;dy<=1;dy++)for(var dx=-1;dx<=1;dx++){
+          if(dx===0&&dy===0)continue;
+          if(get(x+dx,y+dy)>0)neighbors++;
+        }
+        if(cell===0){
+          nextGrid[i]=birthSet.has(neighbors)?1:0;
+          if(nextGrid[i])ageGrid[i]=1;
+        }else{
+          nextGrid[i]=surviveSet.has(neighbors)?1:0;
+          if(nextGrid[i])ageGrid[i]=Math.min(65535,ageGrid[i]+1);
+          else ageGrid[i]=0;
+        }
+      }
+    }
+  }
+  // Swap buffers
+  var tmp=grid;grid=nextGrid;nextGrid=tmp;
+  generation++;
+}
+
+// ============ RENDER ============
+function draw(){
+  ctx.fillStyle='#060610';ctx.fillRect(0,0,W,H);
+
+  for(var y=0;y<ROWS;y++){
+    for(var x=0;x<COLS;x++){
+      var i=y*COLS+x;
+      var cell=grid[i];
+      if(cell===0)continue;
+
+      if(isBrain){
+        if(cell===1)ctx.fillStyle='#0ff'; // on
+        else if(cell===2)ctx.fillStyle='#334'; // dying
+      }else{
+        // Age-based coloring
+        var age=Math.min(ageGrid[i],200);
+        var t=age/200; // 0=new, 1=old
+        // New = bright cyan, old = deep purple
+        var hue=180-t*120; // 180 (cyan) → 60 (yellow-ish) → stays warm
+        var sat=90-t*20;
+        var light=60-t*30;
+        ctx.fillStyle='hsl('+hue+','+sat+'%,'+light+'%)';
+      }
+      ctx.fillRect(x*CELL,y*CELL,CELL-0.5,CELL-0.5);
+    }
+  }
+}
+
+// ============ PATTERNS ============
+var PATTERNS={
+  glider:[[0,1,0],[0,0,1],[1,1,1]],
+  rpento:[[0,1,1],[1,1,0],[0,1,0]],
+  pulsar:[
+    [0,0,1,1,1,0,0,0,1,1,1,0,0],
+    [0,0,0,0,0,0,0,0,0,0,0,0,0],
+    [1,0,0,0,0,1,0,1,0,0,0,0,1],
+    [1,0,0,0,0,1,0,1,0,0,0,0,1],
+    [1,0,0,0,0,1,0,1,0,0,0,0,1],
+    [0,0,1,1,1,0,0,0,1,1,1,0,0],
+    [0,0,0,0,0,0,0,0,0,0,0,0,0],
+    [0,0,1,1,1,0,0,0,1,1,1,0,0],
+    [1,0,0,0,0,1,0,1,0,0,0,0,1],
+    [1,0,0,0,0,1,0,1,0,0,0,0,1],
+    [1,0,0,0,0,1,0,1,0,0,0,0,1],
+    [0,0,0,0,0,0,0,0,0,0,0,0,0],
+    [0,0,1,1,1,0,0,0,1,1,1,0,0]
+  ],
+  gun:[
+    [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0],
+    [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,1,0,0,0,0,0,0,0,0,0,0,0],
+    [0,0,0,0,0,0,0,0,0,0,0,0,1,1,0,0,0,0,0,0,1,1,0,0,0,0,0,0,0,0,0,0,0,0,1,1],
+    [0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,1,0,0,0,0,1,1,0,0,0,0,0,0,0,0,0,0,0,0,1,1],
+    [1,1,0,0,0,0,0,0,0,0,1,0,0,0,0,0,1,0,0,0,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+    [1,1,0,0,0,0,0,0,0,0,1,0,0,0,1,0,1,1,0,0,0,0,1,0,1,0,0,0,0,0,0,0,0,0,0,0],
+    [0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,1,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0],
+    [0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+    [0,0,0,0,0,0,0,0,0,0,0,0,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]
+  ]
+};
+
+function placePattern(name){
+  var pat=PATTERNS[name];if(!pat)return;
+  var cx=Math.floor(COLS/2-pat[0].length/2);
+  var cy=Math.floor(ROWS/2-pat.length/2);
+  for(var r=0;r<pat.length;r++){
+    for(var c=0;c<pat[r].length;c++){
+      if(pat[r][c]){
+        var i=idx(cx+c,cy+r);
+        grid[i]=1;ageGrid[i]=1;
+      }
+    }
+  }
+}
+
+// ============ INPUT ============
+function getCellCoords(e){
+  return{x:Math.floor(e.clientX/CELL),y:Math.floor(e.clientY/CELL)};
+}
+
+function paintCell(cx,cy){
+  var r=brushSize-1;
+  for(var dy=-r;dy<=r;dy++)for(var dx=-r;dx<=r;dx++){
+    var i=idx(cx+dx,cy+dy);
+    grid[i]=paintState;
+    ageGrid[i]=paintState?1:0;
+  }
+}
+
+canvas.addEventListener('pointerdown',function(e){
+  e.preventDefault();painting=true;
+  var c=getCellCoords(e);
+  paintState=grid[idx(c.x,c.y)]?0:1; // Toggle
+  paintCell(c.x,c.y);
+});
+canvas.addEventListener('pointermove',function(e){
+  if(!painting)return;
+  var c=getCellCoords(e);paintCell(c.x,c.y);
+});
+window.addEventListener('pointerup',function(){painting=false});
+
+// ============ CONTROLS ============
+document.getElementById('sel-rule').addEventListener('change',function(e){
+  var val=e.target.value;
+  document.getElementById('custom-rule').style.display=val==='custom'?'block':'none';
+  setRule(val);
+});
+document.getElementById('custom-rule').addEventListener('input',function(e){
+  parseCustomRule(e.target.value);
+});
+document.getElementById('btn-play').addEventListener('click',function(){playing=true;this.classList.add('active');document.getElementById('btn-pause').classList.remove('active')});
+document.getElementById('btn-pause').addEventListener('click',function(){playing=false;this.classList.add('active');document.getElementById('btn-play').classList.remove('active')});
+document.getElementById('btn-step').addEventListener('click',function(){tick();draw();updateStats()});
+document.getElementById('btn-random').addEventListener('click',function(){
+  for(var i=0;i<grid.length;i++){grid[i]=Math.random()<0.3?1:0;ageGrid[i]=grid[i]?1:0}
+  generation=0;
+});
+document.getElementById('btn-clear').addEventListener('click',function(){
+  grid.fill(0);ageGrid.fill(0);generation=0;
+});
+document.getElementById('sl-speed').addEventListener('input',function(e){
+  speed=parseInt(e.target.value,10);if(isNaN(speed))speed=15;
+  document.getElementById('v-speed').textContent=speed;
+});
+document.getElementById('sl-brush').addEventListener('input',function(e){
+  brushSize=parseInt(e.target.value,10);if(isNaN(brushSize))brushSize=1;
+  document.getElementById('v-brush').textContent=brushSize;
+});
+document.querySelectorAll('[data-pat]').forEach(function(btn){
+  btn.addEventListener('click',function(){
+    grid.fill(0);ageGrid.fill(0);generation=0;
+    placePattern(btn.dataset.pat);
+  });
+});
+
+function updateStats(){
+  var alive=0;for(var i=0;i<grid.length;i++)if(grid[i])alive++;
+  document.getElementById('stats').textContent='Gen: '+generation+' | Alive: '+alive+' | '+COLS+'x'+ROWS;
+}
+
+// ============ LOOP ============
+function loop(time){
+  if(playing){
+    var interval=1000/speed;
+    if(time-lastTick>=interval){
+      tick();lastTick=time;
+    }
+  }
+  draw();updateStats();
+  requestAnimationFrame(loop);
+}
+
+// ============ RESIZE ============
+function resize(){
+  W=window.innerWidth;H=window.innerHeight;
+  canvas.width=W;canvas.height=H;
+  initGrid();
+}
+
+// ============ INIT ============
+resize();window.addEventListener('resize',resize);
+placePattern('gun'); // Start with glider gun demo
+setRule('conway');
+requestAnimationFrame(loop);
+
+})();
+</script>
+</body>
+</html>
