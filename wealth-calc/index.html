@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="theme-color" content="#000000">
+<title>Wealth Calc</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { height: 100%; background: #0a0a0a; color: #c9d1d9; font-family: system-ui, -apple-system, sans-serif; overflow-y: auto; touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+#app { max-width: 520px; margin: 0 auto; padding: 16px 12px; }
+
+h1 { font-size: 0.75rem; color: #484f58; letter-spacing: 0.25em; font-weight: 300; margin-bottom: 12px; }
+
+/* Inputs */
+.input-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+.input-label { font-size: 0.5rem; color: #484f58; letter-spacing: 0.08em; min-width: 90px; }
+.input-field { flex: 1; background: #161b22; border: 1px solid #21262d; color: #c9d1d9; padding: 8px 10px; font-family: monospace; font-size: 0.85rem; border-radius: 0; outline: none; }
+.input-field:focus { border-color: #388bfd; }
+.input-unit { font-size: 0.5rem; color: #30363d; min-width: 20px; }
+
+/* Toggle */
+.toggle-row { display: flex; align-items: center; gap: 6px; margin-bottom: 12px; margin-top: 4px; }
+.toggle-row label { font-size: 0.5rem; color: #484f58; cursor: pointer; }
+.toggle-row input { accent-color: #484f58; }
+
+/* Result */
+#result { text-align: center; margin-bottom: 12px; padding: 16px; background: #161b22; border: 1px solid #21262d; }
+#total { font-size: clamp(1.8rem, 7vw, 3rem); font-weight: 200; color: #3fb950; font-family: monospace; }
+#total.inflation { color: #d29922; }
+.result-label { font-size: 0.45rem; color: #30363d; letter-spacing: 0.15em; margin-top: 4px; }
+#breakdown { font-size: 0.5rem; color: #484f58; margin-top: 6px; font-family: monospace; }
+
+/* Chart */
+#chart-label { font-size: 0.4rem; color: #30363d; letter-spacing: 0.1em; margin-bottom: 4px; }
+#chart { display: flex; align-items: flex-end; gap: 2px; height: 120px; padding: 0; margin-bottom: 8px; }
+.bar-wrap { flex: 1; display: flex; flex-direction: column; align-items: center; height: 100%; justify-content: flex-end; }
+.bar { width: 100%; min-height: 1px; border-radius: 1px 1px 0 0; transition: height 0.2s; }
+.bar.principal { background: #388bfd; }
+.bar.interest { background: #3fb950; }
+.bar.inflation { background: #d29922; }
+.bar-year { font-size: 0.35rem; color: #21262d; margin-top: 2px; }
+
+/* Legend */
+#legend { display: flex; gap: 12px; justify-content: center; margin-bottom: 8px; }
+.legend-item { display: flex; align-items: center; gap: 4px; font-size: 0.4rem; color: #484f58; }
+.legend-dot { width: 8px; height: 8px; border-radius: 1px; }
+</style>
+</head>
+<body>
+<div id="app">
+  <h1>WEALTH CALC</h1>
+
+  <div class="input-row">
+    <span class="input-label">Initial amount</span>
+    <input type="number" class="input-field" id="in-principal" value="10000" min="0" step="100">
+    <span class="input-unit">$</span>
+  </div>
+  <div class="input-row">
+    <span class="input-label">Monthly add</span>
+    <input type="number" class="input-field" id="in-monthly" value="500" min="0" step="50">
+    <span class="input-unit">$</span>
+  </div>
+  <div class="input-row">
+    <span class="input-label">Annual return</span>
+    <input type="number" class="input-field" id="in-rate" value="7" min="0" max="50" step="0.1">
+    <span class="input-unit">%</span>
+  </div>
+  <div class="input-row">
+    <span class="input-label">Time horizon</span>
+    <input type="number" class="input-field" id="in-years" value="20" min="1" max="60" step="1">
+    <span class="input-unit">yr</span>
+  </div>
+
+  <div class="toggle-row">
+    <input type="checkbox" id="ck-inflation">
+    <label for="ck-inflation">Adjust for inflation (3% avg)</label>
+  </div>
+
+  <div id="result">
+    <div class="result-label">PROJECTED VALUE</div>
+    <div id="total">$0</div>
+    <div id="breakdown"></div>
+  </div>
+
+  <div id="chart-label">GROWTH BY YEAR</div>
+  <div id="chart"></div>
+  <div id="legend">
+    <div class="legend-item"><div class="legend-dot" style="background:#388bfd"></div>Contributions</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#3fb950"></div>Interest</div>
+  </div>
+</div>
+
+<script>
+(function() {
+'use strict';
+
+var INFLATION_RATE = 0.03;
+
+var inPrincipal = document.getElementById('in-principal');
+var inMonthly = document.getElementById('in-monthly');
+var inRate = document.getElementById('in-rate');
+var inYears = document.getElementById('in-years');
+var ckInflation = document.getElementById('ck-inflation');
+var totalEl = document.getElementById('total');
+var breakdownEl = document.getElementById('breakdown');
+var chartEl = document.getElementById('chart');
+
+function calculate() {
+  var principal = parseFloat(inPrincipal.value) || 0;
+  var monthly = parseFloat(inMonthly.value) || 0;
+  var annualRate = (parseFloat(inRate.value) || 0) / 100;
+  var years = parseInt(inYears.value, 10);
+  if (isNaN(years) || years < 1) years = 1;
+  if (years > 60) years = 60;
+  var adjustInflation = ckInflation.checked;
+
+  var monthlyRate = annualRate / 12;
+  var yearData = []; // [{year, contributions, total}]
+
+  var balance = principal;
+  var totalContributions = principal;
+  var realContributions = principal;
+
+  for (var y = 1; y <= years; y++) {
+    for (var m = 0; m < 12; m++) {
+      balance = balance * (1 + monthlyRate) + monthly;
+    }
+    totalContributions += monthly * 12;
+    realContributions += (monthly * 12) / Math.pow(1 + INFLATION_RATE, y);
+
+    var total = balance;
+    var realTotal = total;
+    if (adjustInflation) {
+      realTotal = total / Math.pow(1 + INFLATION_RATE, y);
+    }
+
+    yearData.push({
+      year: y,
+      contributions: totalContributions,
+      realContributions: realContributions,
+      total: total,
+      realTotal: realTotal
+    });
+  }
+
+  // Display final result
+  var final = yearData[yearData.length - 1];
+  var displayTotal = adjustInflation ? final.realTotal : final.total;
+  totalEl.textContent = '$' + formatNum(Math.round(displayTotal));
+  totalEl.classList.toggle('inflation', adjustInflation);
+
+  var dispContrib = adjustInflation ? final.realContributions : totalContributions;
+  var interestEarned = displayTotal - dispContrib;
+  breakdownEl.textContent = '$' + formatNum(Math.round(dispContrib)) + ' contributed \u00b7 $' + formatNum(Math.round(interestEarned)) + ' interest';
+  if (adjustInflation) {
+    breakdownEl.textContent += ' \u00b7 inflation-adjusted';
+  }
+
+  // Render chart
+  renderChart(yearData, adjustInflation);
+}
+
+function formatNum(n) {
+  return n.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+}
+
+function renderChart(data, adjustInflation) {
+  chartEl.innerHTML = '';
+  if (data.length === 0) return;
+
+  var maxVal = 0;
+  for (var i = 0; i < data.length; i++) {
+    var val = adjustInflation ? data[i].realTotal : data[i].total;
+    if (val > maxVal) maxVal = val;
+  }
+  if (maxVal <= 0) maxVal = 1;
+
+  // Show every bar if <= 30 years, otherwise sample
+  var step = data.length > 30 ? Math.ceil(data.length / 30) : 1;
+
+  for (var i = 0; i < data.length; i += step) {
+    var d = data[i];
+    var total = adjustInflation ? d.realTotal : d.total;
+    var contrib = adjustInflation ? d.realContributions : d.contributions;
+    var interest = total - contrib;
+    if (interest < 0) interest = 0;
+    if (contrib > total) contrib = total;
+
+    var contribH = (contrib / maxVal) * 100;
+    var interestH = (interest / maxVal) * 100;
+
+    var wrap = document.createElement('div');
+    wrap.className = 'bar-wrap';
+
+    var iBar = document.createElement('div');
+    iBar.className = 'bar interest';
+    iBar.style.height = interestH + '%';
+
+    var cBar = document.createElement('div');
+    cBar.className = 'bar principal';
+    cBar.style.height = contribH + '%';
+
+    var label = document.createElement('div');
+    label.className = 'bar-year';
+    label.textContent = d.year;
+
+    wrap.appendChild(iBar);
+    wrap.appendChild(cBar);
+    wrap.appendChild(label);
+    chartEl.appendChild(wrap);
+  }
+}
+
+// ============ EVENTS ============
+inPrincipal.addEventListener('input', calculate);
+inMonthly.addEventListener('input', calculate);
+inRate.addEventListener('input', calculate);
+inYears.addEventListener('input', calculate);
+ckInflation.addEventListener('change', calculate);
+
+// ============ INIT ============
+calculate();
+
+})();
+</script>
+</body>
+</html>

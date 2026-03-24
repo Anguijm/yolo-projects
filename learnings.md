@@ -982,3 +982,12 @@ Persistent knowledge base. Read this before every build.
 - **IMPROVE**: Generated sentence then immediately overwrote with CLASSIC_START — wasted computation. Push the fixed value directly, loop from index 1.
 - **INSIGHT**: navigator.clipboard.writeText().catch() must ALWAYS have a functional fallback, not an empty handler. The modern API can fail for many reasons (permissions, security context, browser policy).
 - **TEST CAUGHT**: No bugs caught by automated tests
+
+### wealth-calc (2026-03-24)
+- **KEEP**: CSS bar chart with stacked bars (contributions + interest) — lightweight, no charting library needed
+- **KEEP**: Inflation toggle with per-year discounting — shows real purchasing power
+- **KEEP**: Real-time calculation on every input change — zero-friction UX
+- **KEEP**: Chart auto-sampling for large year counts — prevents DOM overload
+- **IMPROVE**: Inflation-adjusted breakdown mixed nominal contributions with real total — numbers didn't add up. Must track realContributions separately with per-year inflation discounting. Gemini caught.
+- **INSIGHT**: When displaying inflation-adjusted financial data, ALL components must be consistently adjusted. Mixing nominal contributions with real total creates a mathematical impossibility (interest = total - contributions gives wrong number). Track both nominal and real values in parallel.
+- **TEST CAUGHT**: No bugs caught by automated tests — financial math consistency is logic-level
