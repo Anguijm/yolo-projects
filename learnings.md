@@ -944,3 +944,22 @@ Persistent knowledge base. Read this before every build.
 - **INSIGHT**: Any game with delayed state changes (setTimeout for animations, reveals, transitions) MUST track all timeout IDs and clear them when the game resets. Otherwise the callbacks fire on the new game's state, causing corruption or crashes.
 - **INSIGHT**: This is now the 2nd occurrence of "stale timeout on reset" (also neon-tetra had instant restart issue). PATTERN: every newGame/reset function must clear ALL pending timers.
 - **TEST CAUGHT**: No bugs caught by automated tests — timeout leak is a state management issue
+
+### neon-pong (2026-03-24) — PROJECT #95 (5-build review)
+- **KEEP**: Fixed aspect ratio canvas with scale factor — consistent game coordinates across devices
+- **KEEP**: Ball trail via position history array — simple, visually effective
+- **KEEP**: Screen shake via ctx.translate with random offset — instant tactile feedback
+- **KEEP**: AI lerp with max speed — beatable but challenging
+- **KEEP**: Collision snap to paddle edge — prevents tunneling and sticking
+- **IMPROVE**: Paddle collision used narrow coordinate window + fixed push offset — ball tunneled through at high speed, or got stuck vibrating. Snap ball.x to paddle edge is correct pattern. Gemini caught.
+- **IMPROVE**: Keyboard used targetY offset per keydown — mushy, inconsistent. 3rd occurrence of this pattern (neon-shatter, neon-reflex). Held-key map is the ONLY correct approach.
+- **INSIGHT**: For any AABB collision where the moving object can skip the collision zone in one frame, snap the object to the collision boundary (not push by a fixed offset). Snapping guarantees the object is outside the collider.
+- **INSIGHT**: This is now the 3rd time held-key tracking has been needed. It's a FUNDAMENTAL pattern: keydown sets flag, keyup clears flag, update loop reads flags. This must be the default for ALL game keyboard input.
+
+#### 5-Build Review (Builds #91-95: algo-vision, ink-stack, raw-md, neon-node, neon-pong)
+- **All 5 shipped working.** 30 consecutive working builds (66-95). Zero user-reported bugs.
+- **Recurring: Held-key tracking** — 3rd lifetime occurrence. NOW FUNDAMENTAL: all game keyboard input uses keydown/keyup flag map.
+- **Recurring: Stale timeout on reset** — neon-node (2nd occurrence). REINFORCED: every reset function must clear ALL pending timers.
+- **Recurring: Collision snap** — neon-pong. Fixed-offset push fails at high speed. Snap to boundary is correct.
+- **Test suite limitation**: raw-md brace balance false positive (regex quantifiers), ink-stack transient Playwright timeout. Known issues.
+- **Portfolio milestone**: 95 projects, 30 consecutive working. Approaching 100.
