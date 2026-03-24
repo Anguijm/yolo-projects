@@ -1048,3 +1048,14 @@ Persistent knowledge base. Read this before every build.
 - **IMPROVE**: Coastline shadows harsh — hillshade used deep water elevation creating dark edges. Clamp water neighbor elevations to seaLevel.
 - **INSIGHT**: Multiplicative PRNGs (like Lehmer/Park-Miller: s = s*16807 % 2147483647) have a fatal fixed point at 0. Seed must NEVER be 0.
 - **INSIGHT**: When computing terrain hillshading near water boundaries, water elevations are much lower than land. The slope calculation sees a massive drop, casting unnaturally dark shadows on coastlines. Fix: clamp all neighbor lookups to max(seaLevel, elevation) for land pixels.
+
+### flock-mind (2026-03-24) — PROJECT #103
+- **KEEP**: Two-pass boid update (calc all forces → apply all) — prevents directional drift from sequential in-place modification
+- **KEEP**: Inverse-distance separation (dx/d² not dx/d) — stronger repulsion when closer, natural behavior
+- **KEEP**: Group-specific alignment+cohesion with universal separation — creates distinct flocks that avoid each other
+- **KEEP**: Oriented triangles (atan2 velocity) batched per group — boids look alive, efficient rendering
+- **KEEP**: Minimum speed enforcement with random nudge at speed=0 — prevents dead boids
+- **IMPROVE**: In-place update (modify position in same loop that reads positions) caused directional drift — Gemini caught. Two-pass is essential for N-body systems.
+- **IMPROVE**: Mouse sentinel value (-9999) wrapped to visible position via toroidal distance math — guard with mouseX > -1 check.
+- **INSIGHT**: Any N-body simulation where entity A reads entity B's state while B may already be updated THIS frame needs a two-pass architecture. This is the same principle as double-buffering in Game of Life.
+- **INSIGHT**: Sentinel values (like -9999 for "no mouse") can become valid values through mathematical transforms (wrapping, normalization). Always guard with an explicit boolean or range check, not just the sentinel itself.
