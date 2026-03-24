@@ -113,8 +113,10 @@ TEMPLATE = r'''<!DOCTYPE html>
   <div class="pill-group" id="cat-pills"></div>
   <div class="pill-group" id="status-pills"></div>
   <div class="pill-group" id="vote-pills"></div>
+  <div class="pill-group" id="range-pills"></div>
   <select class="sort-select" id="sort-select">
-    <option value="date">Sort: Newest</option>
+    <option value="newest">Sort: Newest</option>
+    <option value="date">Sort: By Category</option>
     <option value="opens">Sort: Most Opened</option>
     <option value="liked">Sort: Liked First</option>
     <option value="name">Sort: A-Z</option>
@@ -200,9 +202,10 @@ LOG_DATA.forEach(e => { e.category = getCategory(e.project); });
 let activeCategory = 'all';
 let activeStatus = 'all';
 let activeVote = 'all';
+let activeRange = 10; // show last N (0 = all)
 let searchQuery = '';
 let viewMode = 'grid';
-let sortMode = 'date';
+let sortMode = 'newest';
 
 function render() {
   const metrics = loadMetrics();
@@ -218,6 +221,7 @@ function render() {
 
   // Filter
   let filtered = data;
+  if (activeRange > 0) filtered = filtered.slice(0, activeRange);
   if (activeCategory !== 'all') filtered = filtered.filter(e => e.category === activeCategory);
   if (activeStatus !== 'all') filtered = filtered.filter(e => e.status === activeStatus);
   if (activeVote === 'up') filtered = filtered.filter(e => e._vote === 'up');
@@ -236,7 +240,7 @@ function render() {
   if (sortMode === 'opens') filtered.sort((a, b) => b._opens - a._opens);
   else if (sortMode === 'liked') filtered.sort((a, b) => (b._vote === 'up' ? 1 : 0) - (a._vote === 'up' ? 1 : 0));
   else if (sortMode === 'name') filtered.sort((a, b) => a.project.localeCompare(b.project));
-  // 'date' is already reverse-chronological
+  // 'newest' and 'date' are already reverse-chronological
 
   // Stats
   const total = data.length;
@@ -294,12 +298,19 @@ function render() {
     `<button class="pill ${val === activeVote ? 'active' : ''}" onclick="setVote('${val}')">${label}</button>`
   ).join('');
 
+  // Range pills
+  document.getElementById('range-pills').innerHTML = [
+    [10, 'Last 10'],[25, 'Last 25'],[50, 'Last 50'],[0, 'All']
+  ].map(([val, label]) =>
+    `<button class="pill ${val === activeRange ? 'active' : ''}" onclick="setRange(${val})">${label}</button>`
+  ).join('');
+
   if (filtered.length === 0) {
     document.getElementById('feed').innerHTML = `<div class="empty">${total === 0 ? 'No builds yet.' : 'No projects match your filters.'}</div>`;
     return;
   }
 
-  // Group by category (skip grouping if sorted by non-date)
+  // Group by category only in category sort mode
   const useGroups = sortMode === 'date';
 
   if (useGroups) {
@@ -397,6 +408,7 @@ function timeAgo(isoStr) {
 window.setCat = function(c) { activeCategory = c; render(); };
 window.setStatus = function(s) { activeStatus = s; render(); };
 window.setVote = function(v) { activeVote = v; render(); };
+window.setRange = function(n) { activeRange = n; render(); };
 
 document.getElementById('search').addEventListener('input', function() {
   searchQuery = this.value; render();
