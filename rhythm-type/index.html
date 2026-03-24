@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="theme-color" content="#000000">
+<title>Rhythm Type</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{height:100%;background:#060610;overflow:hidden;font-family:system-ui,sans-serif;touch-action:manipulation;-webkit-tap-highlight-color:transparent;color:#ccc}
+#app{height:100%;display:flex;flex-direction:column}
+canvas{display:block;flex:1;min-height:0}
+#hud{display:flex;justify-content:space-between;padding:4px 10px;font-size:0.55rem;color:#444;background:#050510;border-top:1px solid #111;font-family:monospace}
+#start{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;z-index:5;background:rgba(6,6,16,0.95)}
+#start.hidden{display:none}
+#start .title{font-size:1.2rem;color:#0ff;letter-spacing:0.3em;font-weight:300}
+#start .sub{font-size:0.5rem;color:#333;letter-spacing:0.15em}
+#btn-start{background:none;border:1px solid #1a1a2e;color:#555;padding:8px 24px;font-family:inherit;font-size:0.6rem;cursor:pointer;letter-spacing:0.2em;border-radius:4px;margin-top:8px}
+</style>
+</head>
+<body>
+<div id="app">
+  <canvas id="c"></canvas>
+  <div id="hud">
+    <span>Score: <b id="h-score">0</b></span>
+    <span>Combo: <b id="h-combo">0</b></span>
+    <span>WPM: <b id="h-wpm">0</b></span>
+    <span>Best: <b id="h-best">0</b></span>
+  </div>
+</div>
+<div id="start">
+  <div class="title">RHYTHM TYPE</div>
+  <div class="sub">Type words to the beat</div>
+  <button id="btn-start">START</button>
+</div>
+
+<script>
+(function(){
+'use strict';
+
+var canvas=document.getElementById('c'),ctx=canvas.getContext('2d');
+var W,H;
+
+// ============ WORDS ============
+var WORDS='code type flow beat sync loop push pull hash node data byte file port host read scan link path test send echo call make step move jump load save quit hack ping fork exec spec'.split(' ');
+var LONG_WORDS='debug parse fetch array stack queue merge patch render module socket stream cursor filter lambda struct import export signal thread buffer'.split(' ');
+
+// ============ AUDIO ============
+var audioCtx=null,masterGain=null;
+var BPM=120,beatInterval=60/BPM;
+var nextBeatTime=0,currentBeat=0;
+var SCHEDULE_AHEAD=0.1,SCHEDULE_MS=25;
+var schedulerTimer=null;
+
+function initAudio(){
+  audioCtx=new(window.AudioContext||window.webkitAudioContext)();
+  masterGain=audioCtx.createGain();masterGain.gain.value=0.3;
+  masterGain.connect(audioCtx.destination);
+}
+
+function playKick(time){
+  var osc=audioCtx.createOscillator(),gain=audioCtx.createGain();
+  osc.type='sine';osc.frequency.setValueAtTime(150,time);
+  osc.frequency.exponentialRampToValueAtTime(30,time+0.1);
+  gain.gain.setValueAtTime(0.5,time);gain.gain.exponentialRampToValueAtTime(0.001,time+0.2);
+  osc.connect(gain);gain.connect(masterGain);osc.start(time);osc.stop(time+0.25);
+  osc.onended=function(){osc.disconnect();gain.disconnect()};
+}
+
+function playHat(time){
+  var buf=audioCtx.createBuffer(1,1024,audioCtx.sampleRate);
+  var d=buf.getChannelData(0);for(var i=0;i<1024;i++)d[i]=Math.random()*2-1;
+  var src=audioCtx.createBufferSource();src.buffer=buf;
+  var hp=audioCtx.createBiquadFilter();hp.type='highpass';hp.frequency.value=8000;
+  var gain=audioCtx.createGain();
+  gain.gain.setValueAtTime(0.1,time);gain.gain.exponentialRampToValueAtTime(0.001,time+0.05);
+  src.connect(hp);hp.connect(gain);gain.connect(masterGain);
+  src.start(time);src.stop(time+0.06);
+  src.onended=function(){src.disconnect();hp.disconnect();gain.disconnect()};
+}
+
+function playSnare(time){
+  var buf=audioCtx.createBuffer(1,2048,audioCtx.sampleRate);
+  var d=buf.getChannelData(0);for(var i=0;i<2048;i++)d[i]=Math.random()*2-1;
+  var src=audioCtx.createBufferSource();src.buffer=buf;
+  var bp=audioCtx.createBiquadFilter();bp.type='bandpass';bp.frequency.value=3000;bp.Q.value=0.8;
+  var gain=audioCtx.createGain();
+  gain.gain.setValueAtTime(0.2,time);gain.gain.exponentialRampToValueAtTime(0.001,time+0.12);
+  src.connect(bp);bp.connect(gain);gain.connect(masterGain);
+  src.start(time);src.stop(time+0.15);
+  src.onended=function(){src.disconnect();bp.disconnect();gain.disconnect()};
+}
+
+function playMelody(time){
+  var freqs=[330,392,440,523,587];
+  var f=freqs[Math.floor(Math.random()*freqs.length)];
+  var osc=audioCtx.createOscillator(),gain=audioCtx.createGain();
+  osc.type='triangle';osc.frequency.value=f;
+  gain.gain.setValueAtTime(0.08,time);gain.gain.exponentialRampToValueAtTime(0.001,time+0.15);
+  osc.connect(gain);gain.connect(masterGain);osc.start(time);osc.stop(time+0.2);
+  osc.onended=function(){osc.disconnect();gain.disconnect()};
+}
+
+// ============ GAME STATE ============
+var playing=false,gameOver=false;
+var notes=[];  // {word, typed, x, y, targetTime, scored}
+var score=0,combo=0,maxCombo=0,wordsTyped=0;
+var particles=[];
+var popups=[]; // {text, x, y, life, color}
+var startTime=0;
+var FALL_SPEED=0; // pixels per second, set on resize
+var HIT_Y=0;
+var shakeFrames=0;
+var bestScore=0;
+try{bestScore=parseInt(localStorage.getItem('rtype_best'),10)||0}catch(e){}
+
+// ============ BEAT SCHEDULER ============
+function scheduler(){
+  var now=audioCtx.currentTime;
+  while(nextBeatTime<now+SCHEDULE_AHEAD){
+    var beat=currentBeat%8;
+    // Kick on 1,5 ; Snare on 3,7 ; Hat on all
+    if(beat===0||beat===4)playKick(nextBeatTime);
+    if(beat===2||beat===6)playSnare(nextBeatTime);
+    playHat(nextBeatTime);
+
+    // Spawn word every 2 beats
+    if(currentBeat%2===0){
+      spawnNote(nextBeatTime);
+    }
+
+    currentBeat++;
+    nextBeatTime+=beatInterval;
+  }
+}
+
+function spawnNote(beatTime){
+  var speed=120+wordsTyped*2; // Lock speed for this note
+  var pool=wordsTyped>15?LONG_WORDS:WORDS;
+  var word=pool[Math.floor(Math.random()*pool.length)];
+  var x=60+Math.random()*(W-120);
+  notes.push({word:word,typed:0,x:x,y:0,targetTime:beatTime,scored:false,missed:false,fallSpeed:speed});
+}
+
+// ============ INPUT ============
+var inputBuffer='';
+
+document.addEventListener('keydown',function(e){
+  if(!playing||gameOver)return;
+  if(e.ctrlKey||e.metaKey||e.altKey)return;
+  if(e.key.length!==1)return;
+  var ch=e.key.toLowerCase();
+  if(!/[a-z]/.test(ch))return;
+  e.preventDefault();
+
+  // Find the lowest active note (closest to hit line)
+  var target=null,bestY=-1;
+  for(var i=0;i<notes.length;i++){
+    var n=notes[i];
+    if(n.scored||n.missed)continue;
+    if(n.y>bestY){bestY=n.y;target=n}
+  }
+  if(!target)return;
+
+  var expected=target.word[target.typed];
+  if(ch===expected){
+    target.typed++;
+    playMelody(audioCtx.currentTime);
+
+    if(target.typed>=target.word.length){
+      // Word complete — score based on timing
+      var now=audioCtx.currentTime;
+      var delta=Math.abs(now-target.targetTime)*1000; // ms
+      target.scored=true;
+      wordsTyped++;
+
+      var grade,color,pts;
+      if(delta<50){grade='PERFECT';color='#0ff';pts=100}
+      else if(delta<120){grade='GOOD';color='#3fb950';pts=50}
+      else{grade='OK';color='#d29922';pts=25}
+
+      score+=pts*(1+Math.floor(combo/5));
+      combo++;
+      if(combo>maxCombo)maxCombo=combo;
+
+      popups.push({text:grade,x:target.x,y:target.y,life:1,color:color});
+      // Particles
+      for(var p=0;p<8;p++){
+        particles.push({x:target.x,y:target.y,vx:(Math.random()-0.5)*4,vy:(Math.random()-0.5)*4,life:1,color:color});
+      }
+
+      updateHUD();
+    }
+  }else{
+    // Wrong key — break combo
+    combo=0;
+    shakeFrames=3;
+    updateHUD();
+  }
+});
+
+// ============ UPDATE ============
+function update(dt){
+  if(!playing||gameOver)return;
+
+  var now=audioCtx?audioCtx.currentTime:0;
+  // Position notes based on audio time (perfectly synced)
+  for(var i=notes.length-1;i>=0;i--){
+    var n=notes[i];
+    if(n.scored){
+      n.y-=200*dt;
+      if(n.y<-50)notes.splice(i,1);
+      continue;
+    }
+    if(n.missed){
+      n.y+=300*dt; // Fall off screen
+      if(n.y>H+50)notes.splice(i,1);
+      continue;
+    }
+    // Anchor Y to audio clock: note arrives at HIT_Y when now===targetTime
+    var timeRemaining=n.targetTime-now;
+    var fallDuration=HIT_Y/n.fallSpeed;
+    n.y=HIT_Y-(timeRemaining/fallDuration)*HIT_Y;
+
+    // Miss — 400ms past target
+    if(timeRemaining<-0.4){
+      n.missed=true;combo=0;
+      popups.push({text:'MISS',x:n.x,y:HIT_Y,life:1,color:'#f85149'});
+      shakeFrames=3;updateHUD();
+    }
+  }
+
+  // Particles
+  for(var i=particles.length-1;i>=0;i--){
+    var p=particles[i];
+    p.x+=p.vx;p.y+=p.vy;p.vy+=0.1;p.life-=dt*3;
+    if(p.life<=0)particles.splice(i,1);
+  }
+  // Popups
+  for(var i=popups.length-1;i>=0;i--){
+    popups[i].y-=40*dt;popups[i].life-=dt*2;
+    if(popups[i].life<=0)popups.splice(i,1);
+  }
+
+  if(shakeFrames>0)shakeFrames--;
+
+  // FALL_SPEED now locked per-note at spawn time
+}
+
+// ============ DRAW ============
+function draw(){
+  ctx.fillStyle='#060610';ctx.fillRect(0,0,W,H);
+
+  ctx.save();
+  if(shakeFrames>0)ctx.translate((Math.random()-0.5)*4,(Math.random()-0.5)*4);
+
+  // Hit line
+  ctx.strokeStyle='#1a1a2e';ctx.lineWidth=1;
+  ctx.beginPath();ctx.moveTo(0,HIT_Y);ctx.lineTo(W,HIT_Y);ctx.stroke();
+  ctx.fillStyle='#0a0a1a';ctx.font='9px monospace';ctx.textAlign='center';
+  ctx.fillText('TYPE HERE',W/2,HIT_Y+14);
+
+  // Beat pulse on hit line
+  if(audioCtx){
+    var beatPhase=(audioCtx.currentTime%beatInterval)/beatInterval;
+    var pulse=Math.max(0,1-beatPhase*4);
+    if(pulse>0){
+      ctx.strokeStyle='rgba(0,255,255,'+pulse*0.15+')';ctx.lineWidth=2;
+      ctx.beginPath();ctx.moveTo(0,HIT_Y);ctx.lineTo(W,HIT_Y);ctx.stroke();
+    }
+  }
+
+  // Notes
+  ctx.textAlign='center';ctx.textBaseline='middle';
+  for(var i=0;i<notes.length;i++){
+    var n=notes[i];
+    if(n.scored){
+      ctx.globalAlpha=Math.max(0,n.life||0.5);
+      ctx.fillStyle='#3fb950';ctx.font='bold 14px monospace';
+      ctx.fillText(n.word,n.x,n.y);
+      ctx.globalAlpha=1;
+      continue;
+    }
+    // Draw word with typed/untyped coloring
+    var fullW=ctx.measureText(n.word).width||0;
+    ctx.font='bold 16px monospace';
+    var charW=ctx.measureText('m').width;
+    var startX=n.x-n.word.length*charW/2;
+
+    for(var c=0;c<n.word.length;c++){
+      var cx=startX+c*charW+charW/2;
+      if(c<n.typed){
+        ctx.fillStyle='#0ff';
+      }else{
+        ctx.fillStyle='#888';
+      }
+      ctx.fillText(n.word[c],cx,n.y);
+    }
+
+    // Proximity glow when near hit line
+    var dist=Math.abs(n.y-HIT_Y);
+    if(dist<60){
+      var glow=(1-dist/60)*0.3;
+      ctx.fillStyle='rgba(0,255,255,'+glow+')';
+      ctx.fillRect(n.x-40,HIT_Y-1,80,2);
+    }
+  }
+
+  // Particles
+  for(var i=0;i<particles.length;i++){
+    var p=particles[i];
+    ctx.fillStyle=p.color;ctx.globalAlpha=Math.max(0,p.life);
+    ctx.fillRect(p.x-1,p.y-1,2,2);
+  }
+  ctx.globalAlpha=1;
+
+  // Popups
+  for(var i=0;i<popups.length;i++){
+    var pp=popups[i];
+    ctx.fillStyle=pp.color;ctx.globalAlpha=Math.max(0,pp.life);
+    ctx.font='bold 12px system-ui';ctx.textAlign='center';
+    ctx.fillText(pp.text,pp.x,pp.y);
+  }
+  ctx.globalAlpha=1;
+
+  ctx.restore();
+}
+
+// ============ HUD ============
+function updateHUD(){
+  document.getElementById('h-score').textContent=score;
+  document.getElementById('h-combo').textContent=combo;
+  var elapsed=(Date.now()-startTime)/60000; // minutes
+  var wpm=elapsed>0?Math.round(wordsTyped/elapsed):0;
+  document.getElementById('h-wpm').textContent=wpm;
+  document.getElementById('h-best').textContent=Math.max(bestScore,score);
+}
+
+// ============ GAME LOOP ============
+var lastTime=0;
+function loop(time){
+  var dt=Math.min((time-lastTime)/1000,0.05);
+  lastTime=time;
+  update(dt);draw();
+  requestAnimationFrame(loop);
+}
+
+// ============ START ============
+document.getElementById('btn-start').addEventListener('click',function(){
+  initAudio();
+  playing=true;gameOver=false;
+  notes=[];particles=[];popups=[];
+  score=0;combo=0;maxCombo=0;wordsTyped=0;
+  currentBeat=0;
+  nextBeatTime=audioCtx.currentTime+0.3;
+  startTime=Date.now();
+  FALL_SPEED=120;
+  schedulerTimer=setInterval(scheduler,SCHEDULE_MS);
+  document.getElementById('start').classList.add('hidden');
+  updateHUD();
+});
+
+// ============ RESIZE ============
+function resize(){
+  W=canvas.clientWidth;H=canvas.clientHeight;
+  canvas.width=W;canvas.height=H;
+  HIT_Y=H*0.8;
+  FALL_SPEED=120;
+}
+
+// ============ INIT ============
+resize();window.addEventListener('resize',resize);
+requestAnimationFrame(loop);
+
+})();
+</script>
+</body>
+</html>

@@ -1155,3 +1155,16 @@ Persistent knowledge base. Read this before every build.
 - **New: Depth mapping inversion** — wire-forge. Natural normalized_z gives 0=near, rendering wants 1=near. Always invert.
 - **New: Uint8ClampedArray truncation** — dither-forge. Error diffusion needs Float32 buffer.
 - **Portfolio: 110 projects.** Post-100 quality consistently high.
+
+### rhythm-type (2026-03-25) — PROJECT #111
+- **KEEP**: Note Y position anchored to audioCtx.currentTime — perfect audio-visual sync regardless of frame rate
+- **KEEP**: Fall speed locked per-note at spawn — prevents in-flight desync when global speed changes
+- **KEEP**: Lookahead audio scheduler for procedural drum beat — sample-accurate timing
+- **KEEP**: Melodic synth stab on keystroke — makes typing feel musical
+- **KEEP**: Distinct missed state (falls off screen) vs completed (floats up) — clear visual feedback
+- **KEEP**: Progressive difficulty via word pool + speed scaling — natural engagement curve
+- **IMPROVE**: Note movement was dt-based (FALL_SPEED*dt) — desynced from audio on frame drops. Gemini caught. Must anchor to audio clock: y = HIT_Y - (timeRemaining/fallDuration) * HIT_Y.
+- **IMPROVE**: FALL_SPEED changed globally, invalidating all in-flight notes — speed must be locked per-note at spawn time.
+- **IMPROVE**: Missed notes flew upward like completed notes — confusing. Added n.missed flag with distinct fall-off behavior.
+- **INSIGHT**: In rhythm games, visual position = f(audioTime), NEVER f(dt). The audio clock is the single source of truth. Calculate where a note SHOULD be based on its target time minus current audio time, not by accumulating frame deltas.
+- **INSIGHT**: Any per-entity parameter that affects timing (speed, duration) must be FROZEN at entity creation time. If you change it globally, all existing entities desync.
