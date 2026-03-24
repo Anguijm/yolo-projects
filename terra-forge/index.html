@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="theme-color" content="#000000">
+<title>Terra Forge</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{height:100%;background:#0a0a0c;overflow:hidden;font-family:system-ui,sans-serif;touch-action:manipulation;-webkit-tap-highlight-color:transparent}
+canvas{display:block;position:absolute;inset:0;cursor:crosshair}
+#panel{position:fixed;top:10px;right:10px;width:210px;background:rgba(8,8,14,0.9);border:1px solid rgba(255,255,255,0.06);border-radius:10px;padding:10px;z-index:5;backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);opacity:0.4;transition:opacity 0.3s;max-height:calc(100vh - 20px);overflow-y:auto}
+#panel:hover{opacity:1}
+.p-title{font-size:0.6rem;color:#555;letter-spacing:0.2em;margin-bottom:8px;font-weight:300}
+.p-row{display:flex;align-items:center;gap:4px;margin-bottom:5px}
+.p-label{font-size:0.4rem;color:#444;min-width:58px;letter-spacing:0.05em}
+.p-val{font-size:0.4rem;color:#555;font-family:monospace;min-width:28px;text-align:right}
+input[type="range"]{flex:1;height:2px;accent-color:#555}
+.p-btn{padding:4px 8px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);color:#666;font-family:inherit;font-size:0.45rem;cursor:pointer;border-radius:4px;letter-spacing:0.08em}
+.p-btn:active{border-color:rgba(255,255,255,0.2);color:#aaa}
+.p-btns{display:flex;gap:3px;margin-bottom:6px}
+.p-sep{height:1px;background:rgba(255,255,255,0.04);margin:6px 0}
+#tooltip{position:fixed;background:rgba(8,8,14,0.92);border:1px solid rgba(255,255,255,0.08);border-radius:6px;padding:5px 8px;font-size:0.45rem;color:#888;pointer-events:none;z-index:10;display:none;font-family:monospace;line-height:1.5;backdrop-filter:blur(8px)}
+#seed-display{font-size:0.4rem;color:#333;font-family:monospace;margin-top:4px}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="panel">
+  <div class="p-title">TERRA FORGE</div>
+  <div class="p-btns">
+    <button class="p-btn" id="btn-regen">New Seed</button>
+    <button class="p-btn" id="btn-island">Island</button>
+    <button class="p-btn" id="btn-continent">Continent</button>
+  </div>
+  <div id="seed-display"></div>
+  <div class="p-sep"></div>
+  <div class="p-row"><span class="p-label">Sea Level</span><input type="range" id="sl-sea" min="0.2" max="0.7" step="0.01" value="0.4"><span class="p-val" id="v-sea">0.40</span></div>
+  <div class="p-row"><span class="p-label">Frequency</span><input type="range" id="sl-freq" min="1" max="8" step="0.2" value="3"><span class="p-val" id="v-freq">3.0</span></div>
+  <div class="p-row"><span class="p-label">Octaves</span><input type="range" id="sl-oct" min="1" max="8" step="1" value="5"><span class="p-val" id="v-oct">5</span></div>
+  <div class="p-row"><span class="p-label">Moisture</span><input type="range" id="sl-moist" min="-0.3" max="0.3" step="0.02" value="0"><span class="p-val" id="v-moist">0.00</span></div>
+  <div class="p-row"><span class="p-label">Hillshade</span><input type="range" id="sl-shade" min="0" max="1" step="0.05" value="0.5"><span class="p-val" id="v-shade">0.50</span></div>
+</div>
+<div id="tooltip"></div>
+
+<script>
+(function(){
+'use strict';
+
+var canvas=document.getElementById('c'),ctx=canvas.getContext('2d');
+var W,H,imgData,pixels;
+var seed=Math.max(1,Math.random()*1e6|0);
+var seaLevel=0.4,freq=3,octaves=5,moistBias=0,shadePower=0.5;
+var islandMode=true;
+var elevMap,moistMap; // Float32Arrays
+var renderTimer=null;
+
+// ============ SIMPLEX NOISE ============
+// Adapted from Stefan Gustavson's implementation
+var F2=0.5*(Math.sqrt(3)-1),G2=(3-Math.sqrt(3))/6;
+var perm=new Uint8Array(512),grad=[[1,1],[-1,1],[1,-1],[-1,-1],[1,0],[-1,0],[0,1],[0,-1]];
+
+function seedNoise(s){
+  var p=new Uint8Array(256);
+  for(var i=0;i<256;i++)p[i]=i;
+  // Fisher-Yates with seeded random
+  for(var i=255;i>0;i--){
+    s=(s*16807+0)%2147483647;
+    var j=s%i;
+    var t=p[i];p[i]=p[j];p[j]=t;
+  }
+  for(var i=0;i<512;i++)perm[i]=p[i&255];
+}
+
+function noise2d(x,y){
+  var s=(x+y)*F2;
+  var i=Math.floor(x+s),j=Math.floor(y+s);
+  var t=(i+j)*G2;
+  var X0=i-t,Y0=j-t;
+  var x0=x-X0,y0=y-Y0;
+  var i1,j1;
+  if(x0>y0){i1=1;j1=0}else{i1=0;j1=1}
+  var x1=x0-i1+G2,y1=y0-j1+G2;
+  var x2=x0-1+2*G2,y2=y0-1+2*G2;
+  var ii=i&255,jj=j&255;
+  var n0=0,n1=0,n2=0;
+  var t0=0.5-x0*x0-y0*y0;
+  if(t0>0){t0*=t0;var gi=perm[ii+perm[jj]]%8;n0=t0*t0*(grad[gi][0]*x0+grad[gi][1]*y0)}
+  var t1=0.5-x1*x1-y1*y1;
+  if(t1>0){t1*=t1;var gi=perm[ii+i1+perm[jj+j1]]%8;n1=t1*t1*(grad[gi][0]*x1+grad[gi][1]*y1)}
+  var t2=0.5-x2*x2-y2*y2;
+  if(t2>0){t2*=t2;var gi=perm[ii+1+perm[jj+1]]%8;n2=t2*t2*(grad[gi][0]*x2+grad[gi][1]*y2)}
+  return 70*(n0+n1+n2);
+}
+
+function fbm(x,y,oct){
+  var val=0,amp=1,f=1,maxAmp=0;
+  for(var i=0;i<oct;i++){
+    val+=noise2d(x*f,y*f)*amp;
+    maxAmp+=amp;amp*=0.5;f*=2;
+  }
+  return val/maxAmp;
+}
+
+// ============ BIOME COLORS ============
+var BIOMES=[
+  {name:'Deep Ocean',   color:[15,20,60]},   // 0
+  {name:'Ocean',        color:[30,50,120]},   // 1
+  {name:'Shallow',      color:[50,80,160]},   // 2
+  {name:'Beach',        color:[194,178,128]}, // 3
+  {name:'Grassland',    color:[80,140,50]},   // 4
+  {name:'Forest',       color:[40,100,30]},   // 5
+  {name:'Rainforest',   color:[20,80,20]},    // 6
+  {name:'Desert',       color:[200,180,100]}, // 7
+  {name:'Savanna',      color:[160,160,60]},  // 8
+  {name:'Taiga',        color:[50,80,50]},    // 9
+  {name:'Tundra',       color:[180,190,190]}, // 10
+  {name:'Snow',         color:[240,245,250]}, // 11
+  {name:'Mountain',     color:[120,110,100]}, // 12
+];
+
+function getBiome(elev,moist){
+  if(elev<seaLevel-0.15)return 0; // deep ocean
+  if(elev<seaLevel-0.05)return 1; // ocean
+  if(elev<seaLevel)return 2; // shallow
+  if(elev<seaLevel+0.03)return 3; // beach
+  if(elev>0.85)return 11; // snow
+  if(elev>0.72)return elev>0.8?12:10; // mountain/tundra
+  if(elev>0.55)return moist>0.3?9:moist>0?8:7; // taiga/savanna/desert
+  // Low-mid elevation
+  if(moist>0.4)return 6; // rainforest
+  if(moist>0.1)return 5; // forest
+  if(moist>-0.1)return 4; // grassland
+  if(moist>-0.3)return 8; // savanna
+  return 7; // desert
+}
+
+// ============ GENERATE ============
+function generate(){
+  seedNoise(seed);
+  var scaleX=freq/W*200,scaleY=freq/H*200;
+  elevMap=new Float32Array(W*H);
+  moistMap=new Float32Array(W*H);
+
+  for(var y=0;y<H;y++){
+    for(var x=0;x<W;x++){
+      var idx=y*W+x;
+      var e=(fbm(x*scaleX,y*scaleY,octaves)+1)*0.5;
+      var m=(fbm(x*scaleX+100,y*scaleY+100,Math.max(1,octaves-1))+1)*0.5-0.5+moistBias;
+
+      // Island mask — fade edges to ocean
+      if(islandMode){
+        var nx=x/W*2-1,ny=y/H*2-1;
+        var d=Math.sqrt(nx*nx+ny*ny)*1.2;
+        e=e*(1-d*d);
+        e=Math.max(0,e);
+      }
+
+      elevMap[idx]=e;
+      moistMap[idx]=m;
+    }
+  }
+
+  render();
+}
+
+function render(){
+  imgData=ctx.createImageData(W,H);
+  var data=imgData.data;
+
+  for(var y=0;y<H;y++){
+    for(var x=0;x<W;x++){
+      var idx=y*W+x;
+      var e=elevMap[idx];
+      var m=moistMap[idx];
+      var biome=getBiome(e,m);
+      var c=BIOMES[biome].color;
+      var r=c[0],g=c[1],b=c[2];
+
+      // Hillshading
+      if(shadePower>0&&e>=seaLevel){
+        // Clamp water neighbors to seaLevel to prevent harsh coastline shadows
+        var left=x>0?Math.max(seaLevel,elevMap[idx-1]):e;
+        var right=x<W-1?Math.max(seaLevel,elevMap[idx+1]):e;
+        var up=y>0?Math.max(seaLevel,elevMap[idx-W]):e;
+        var down=y<H-1?Math.max(seaLevel,elevMap[idx+W]):e;
+        var slope=((left-right)+(up-down))*shadePower*8;
+        var shade=Math.max(0.5,Math.min(1.5,1+slope));
+        r=Math.min(255,r*shade|0);
+        g=Math.min(255,g*shade|0);
+        b=Math.min(255,b*shade|0);
+      }
+
+      var pi=idx*4;
+      data[pi]=r;data[pi+1]=g;data[pi+2]=b;data[pi+3]=255;
+    }
+  }
+
+  ctx.putImageData(imgData,0,0);
+}
+
+// ============ RESIZE ============
+function resize(){
+  // Render at half resolution for performance, CSS scales up
+  var dpr=1;
+  W=Math.floor(window.innerWidth*0.5);
+  H=Math.floor(window.innerHeight*0.5);
+  canvas.width=W;canvas.height=H;
+  canvas.style.width=window.innerWidth+'px';
+  canvas.style.height=window.innerHeight+'px';
+  canvas.style.imageRendering='pixelated';
+  generate();
+}
+
+// ============ TOOLTIP ============
+var tooltip=document.getElementById('tooltip');
+canvas.addEventListener('mousemove',function(e){
+  var rect=canvas.getBoundingClientRect();
+  var mx=Math.floor((e.clientX-rect.left)/rect.width*W);
+  var my=Math.floor((e.clientY-rect.top)/rect.height*H);
+  if(mx<0||mx>=W||my<0||my>=H){tooltip.style.display='none';return}
+  var idx=my*W+mx;
+  var elev=elevMap[idx];
+  var moist=moistMap[idx];
+  var biome=BIOMES[getBiome(elev,moist)].name;
+  tooltip.style.display='block';
+  tooltip.style.left=(e.clientX+14)+'px';
+  tooltip.style.top=(e.clientY+14)+'px';
+  tooltip.innerHTML=biome+'<br>elev: '+(elev*100|0)+'%<br>moist: '+(moist*100|0)+'%';
+});
+canvas.addEventListener('mouseleave',function(){tooltip.style.display='none'});
+
+// ============ CONTROLS ============
+function bindSlider(id,vid,fmt,setter){
+  document.getElementById(id).addEventListener('input',function(e){
+    var v=parseFloat(e.target.value);if(isNaN(v))return;
+    setter(v);
+    document.getElementById(vid).textContent=fmt(v);
+    clearTimeout(renderTimer);
+    renderTimer=setTimeout(generate,80);
+  });
+}
+bindSlider('sl-sea','v-sea',function(v){return v.toFixed(2)},function(v){seaLevel=v});
+bindSlider('sl-freq','v-freq',function(v){return v.toFixed(1)},function(v){freq=v});
+bindSlider('sl-oct','v-oct',function(v){return v.toFixed(0)},function(v){octaves=Math.round(v)});
+bindSlider('sl-moist','v-moist',function(v){return v.toFixed(2)},function(v){moistBias=v});
+bindSlider('sl-shade','v-shade',function(v){return v.toFixed(2)},function(v){shadePower=v});
+
+document.getElementById('btn-regen').addEventListener('click',function(){
+  seed=Math.max(1,Math.random()*1e6|0);
+  document.getElementById('seed-display').textContent='seed: '+seed;
+  generate();
+});
+
+document.getElementById('btn-island').addEventListener('click',function(){
+  islandMode=true;generate();
+});
+document.getElementById('btn-continent').addEventListener('click',function(){
+  islandMode=false;generate();
+});
+
+// ============ INIT ============
+resize();
+window.addEventListener('resize',function(){resize()});
+document.getElementById('seed-display').textContent='seed: '+seed;
+
+})();
+</script>
+</body>
+</html>

@@ -1035,3 +1035,16 @@ Persistent knowledge base. Read this before every build.
 - **IMPROVE**: Tension rendering divided by zero when tearDist=1 — Math.max guard added.
 - **INSIGHT**: Interactive physics sims need pin state management. Points that are structurally pinned must retain that state through user interaction cycles. A basePinned/originalPinned pattern handles this cleanly.
 - **INSIGHT**: Constraint relaxation weighting: when one end is fixed, the other must absorb 100% of the correction. The standard 50/50 split makes anchored cloth too stretchy.
+
+### terra-forge (2026-03-24) — PROJECT #102
+- **KEEP**: Custom Simplex noise + fBm — no external libs, full control over terrain character
+- **KEEP**: Dual noise layers (elevation + moisture) for biome determination — creates realistic biome distribution
+- **KEEP**: Hillshading from neighbor elevation gradients — transforms flat 2D map into convincing topographic display
+- **KEEP**: Island mode with radial falloff mask — guarantees water borders for pleasing island shapes
+- **KEEP**: ImageData pixel buffer with half-resolution + CSS upscale — smooth real-time slider interaction
+- **KEEP**: Debounced regeneration on slider input — prevents lag during rapid parameter changes
+- **KEEP**: Hover tooltip with biome name + stats — makes exploration engaging
+- **IMPROVE**: Zero seed broke PRNG — Lehmer multiplicative PRNG produces 0*16807=0 forever. Gemini caught. Clamp seed to min 1.
+- **IMPROVE**: Coastline shadows harsh — hillshade used deep water elevation creating dark edges. Clamp water neighbor elevations to seaLevel.
+- **INSIGHT**: Multiplicative PRNGs (like Lehmer/Park-Miller: s = s*16807 % 2147483647) have a fatal fixed point at 0. Seed must NEVER be 0.
+- **INSIGHT**: When computing terrain hillshading near water boundaries, water elevations are much lower than land. The slope calculation sees a massive drop, casting unnaturally dark shadows on coastlines. Fix: clamp all neighbor lookups to max(seaLevel, elevation) for land pixels.
