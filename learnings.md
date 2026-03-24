@@ -1218,3 +1218,13 @@ Persistent knowledge base. Read this before every build.
 - **Key patterns:** Audio-time anchoring (rhythm-type), HTML entity escaping (ascii-forge), per-entity frozen params (rhythm-type), Union-Find optimization (maze-lab).
 - **Milestone:** Finally built the CA sandbox after 20+ builds of dodging. The "too cool critic" kept vetoing it as "another simulation" but the generalized engine + custom rules + cell aging proved it worthy.
 - **Portfolio: 115 projects.** Post-100 quality consistently high.
+
+### voronoi-forge (2026-03-25) — PROJECT #116
+- **KEEP**: Brute-force Voronoi (nearest seed per pixel) — simple, correct, no complex Fortune's algorithm needed
+- **KEEP**: Edge detection via distance differential (|d2-d1| < threshold) — clean cell boundaries without line-drawing
+- **KEEP**: 2x downscale + imageSmoothingEnabled=false upscale — 4x fewer pixels to compute, still looks sharp
+- **KEEP**: ctx.fillStyle normalization trick for color parsing — set fillStyle to any CSS color, read back as #rrggbb
+- **KEEP**: Multiple color modes (vivid/pastel/mono/distance) — same diagram, different aesthetics
+- **KEEP**: Real-time drag with debounced render — responsive interaction without frame drops
+- **INSIGHT**: Brute-force Voronoi is O(pixels × seeds). At 2x downscale on a 1920×1080 screen (480K pixels) with 20 seeds, that's ~10M distance comparisons per frame. Fast enough for interactive use with debouncing.
+- **INSIGHT**: Edge detection in Voronoi doesn't need explicit edge computation. The difference between distance-to-nearest and distance-to-second-nearest naturally identifies pixels on cell boundaries.

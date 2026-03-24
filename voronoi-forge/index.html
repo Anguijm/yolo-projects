@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="theme-color" content="#000000">
+<title>Voronoi Forge</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{height:100%;background:#060610;overflow:hidden;touch-action:none;-webkit-tap-highlight-color:transparent;font-family:system-ui,sans-serif}
+canvas{display:block;position:absolute;inset:0;cursor:crosshair}
+#toolbar{position:fixed;bottom:10px;left:50%;transform:translateX(-50%);display:flex;gap:4px;z-index:5;padding:6px 10px;background:rgba(6,6,16,0.9);border:1px solid rgba(255,255,255,0.06);border-radius:10px;backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);opacity:0.4;transition:opacity 0.3s}
+#toolbar:hover{opacity:1}
+.tb{padding:4px 10px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);color:#555;font-family:inherit;font-size:0.45rem;cursor:pointer;border-radius:4px;letter-spacing:0.06em}
+.tb:active{border-color:rgba(255,255,255,0.2);color:#aaa}
+.tb.active{border-color:#58a6ff;color:#58a6ff}
+select{background:#111;border:1px solid rgba(255,255,255,0.08);color:#888;padding:3px 6px;font-family:inherit;font-size:0.45rem;border-radius:4px;outline:none}
+#hint{position:fixed;top:8px;left:50%;transform:translateX(-50%);font-size:0.4rem;color:#1a1a1a;z-index:2}
+#count{position:fixed;top:8px;right:8px;font-size:0.4rem;color:#1a1a1a;font-family:monospace;z-index:2}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="toolbar">
+  <button class="tb" id="btn-random">Random 20</button>
+  <button class="tb" id="btn-clear">Clear</button>
+  <select id="sel-color">
+    <option value="vivid">Vivid Colors</option>
+    <option value="pastel">Pastel</option>
+    <option value="mono">Monochrome</option>
+    <option value="distance">Distance Shade</option>
+  </select>
+  <label style="font-size:0.4rem;color:#444;display:flex;align-items:center;gap:3px">
+    <input type="checkbox" id="ck-edges" checked style="accent-color:#555"> Edges
+  </label>
+  <label style="font-size:0.4rem;color:#444;display:flex;align-items:center;gap:3px">
+    <input type="checkbox" id="ck-dots" checked style="accent-color:#555"> Dots
+  </label>
+</div>
+<div id="hint">click: add point &middot; drag: move &middot; right-click: delete</div>
+<div id="count"></div>
+
+<script>
+(function(){
+'use strict';
+
+var canvas=document.getElementById('c'),ctx=canvas.getContext('2d');
+var W,H;
+var seeds=[]; // [{x,y,color}]
+var colorMode='vivid';
+var showEdges=true,showDots=true;
+var dragging=null,dragIdx=-1;
+var renderTimer=null;
+var imgData,pixels;
+
+// ============ COLORS ============
+function randomColor(mode,idx){
+  if(mode==='vivid'){
+    var hues=[0,30,60,120,180,210,270,300,340];
+    return 'hsl('+(hues[idx%hues.length]+Math.random()*20)+',70%,55%)';
+  }
+  if(mode==='pastel')return 'hsl('+Math.floor(Math.random()*360)+',60%,75%)';
+  if(mode==='mono'){
+    var l=30+Math.floor(Math.random()*40);
+    return 'hsl(220,30%,'+l+'%)';
+  }
+  return '#fff'; // distance mode uses computed colors
+}
+
+function parseColor(css){
+  // Convert CSS color to [r,g,b]
+  ctx.fillStyle=css;
+  var hex=ctx.fillStyle; // browser normalizes to #rrggbb
+  return[parseInt(hex.substr(1,2),16),parseInt(hex.substr(3,2),16),parseInt(hex.substr(5,2),16)];
+}
+
+// ============ VORONOI RENDERING ============
+function render(){
+  if(seeds.length===0){
+    ctx.fillStyle='#060610';ctx.fillRect(0,0,W,H);
+    ctx.fillStyle='#1a1a1a';ctx.font='14px system-ui';ctx.textAlign='center';
+    ctx.fillText('Click to add points',W/2,H/2);
+    return;
+  }
+
+  // Downscale for performance
+  var scale=2;
+  var sw=Math.floor(W/scale),sh=Math.floor(H/scale);
+
+  // Parse seed colors to RGB
+  var seedRGB=[];
+  for(var i=0;i<seeds.length;i++){
+    seedRGB.push(parseColor(seeds[i].color));
+  }
+
+  imgData=ctx.createImageData(sw,sh);
+  var data=imgData.data;
+
+  for(var py=0;py<sh;py++){
+    for(var px=0;px<sw;px++){
+      var wx=px*scale,wy=py*scale;
+      var bestDist=Infinity,bestIdx=0,secondDist=Infinity;
+
+      for(var s=0;s<seeds.length;s++){
+        var dx=wx-seeds[s].x,dy=wy-seeds[s].y;
+        var d=dx*dx+dy*dy;
+        if(d<bestDist){secondDist=bestDist;bestDist=d;bestIdx=s}
+        else if(d<secondDist){secondDist=d}
+      }
+
+      var i=(py*sw+px)*4;
+
+      if(colorMode==='distance'){
+        var d=Math.sqrt(bestDist);
+        var maxD=Math.min(W,H)*0.3;
+        var t=Math.min(1,d/maxD);
+        var rgb=seedRGB[bestIdx];
+        data[i]=Math.floor(rgb[0]*(1-t*0.7));
+        data[i+1]=Math.floor(rgb[1]*(1-t*0.7));
+        data[i+2]=Math.floor(rgb[2]*(1-t*0.7));
+      }else{
+        var rgb=seedRGB[bestIdx];
+        data[i]=rgb[0];data[i+1]=rgb[1];data[i+2]=rgb[2];
+      }
+
+      // Edge detection: if distance to nearest and second-nearest are close
+      if(showEdges){
+        var edgeDist=Math.sqrt(secondDist)-Math.sqrt(bestDist);
+        if(edgeDist<scale*1.5){
+          data[i]=Math.floor(data[i]*0.3);
+          data[i+1]=Math.floor(data[i+1]*0.3);
+          data[i+2]=Math.floor(data[i+2]*0.3);
+        }
+      }
+
+      data[i+3]=255;
+    }
+  }
+
+  // Draw scaled up
+  var tmpCanvas=document.createElement('canvas');
+  tmpCanvas.width=sw;tmpCanvas.height=sh;
+  tmpCanvas.getContext('2d').putImageData(imgData,0,0);
+  ctx.imageSmoothingEnabled=false;
+  ctx.drawImage(tmpCanvas,0,0,W,H);
+
+  // Draw seed dots
+  if(showDots){
+    for(var i=0;i<seeds.length;i++){
+      ctx.fillStyle='#fff';
+      ctx.beginPath();ctx.arc(seeds[i].x,seeds[i].y,3,0,Math.PI*2);ctx.fill();
+      ctx.fillStyle='rgba(0,0,0,0.5)';
+      ctx.beginPath();ctx.arc(seeds[i].x,seeds[i].y,1.5,0,Math.PI*2);ctx.fill();
+    }
+  }
+
+  document.getElementById('count').textContent=seeds.length+' points';
+}
+
+function debouncedRender(){
+  clearTimeout(renderTimer);
+  renderTimer=setTimeout(render,16);
+}
+
+// ============ SEEDS ============
+function addSeed(x,y){
+  seeds.push({x:x,y:y,color:randomColor(colorMode,seeds.length)});
+  debouncedRender();
+}
+
+function recolorAll(){
+  for(var i=0;i<seeds.length;i++){
+    seeds[i].color=randomColor(colorMode,i);
+  }
+}
+
+function findSeed(x,y){
+  for(var i=0;i<seeds.length;i++){
+    var dx=seeds[i].x-x,dy=seeds[i].y-y;
+    if(dx*dx+dy*dy<400)return i; // 20px radius
+  }
+  return-1;
+}
+
+function randomSeeds(n){
+  seeds=[];
+  for(var i=0;i<n;i++){
+    seeds.push({x:40+Math.random()*(W-80),y:40+Math.random()*(H-80),color:randomColor(colorMode,i)});
+  }
+  debouncedRender();
+}
+
+// ============ INPUT ============
+canvas.addEventListener('pointerdown',function(e){
+  e.preventDefault();
+  var x=e.clientX,y=e.clientY;
+
+  if(e.button===2){
+    // Right-click: delete nearest
+    var idx=findSeed(x,y);
+    if(idx>=0){seeds.splice(idx,1);debouncedRender()}
+    return;
+  }
+
+  var idx=findSeed(x,y);
+  if(idx>=0){
+    // Start dragging
+    dragging=true;dragIdx=idx;
+  }else{
+    // Add new seed
+    addSeed(x,y);
+  }
+});
+
+canvas.addEventListener('pointermove',function(e){
+  if(!dragging)return;
+  seeds[dragIdx].x=e.clientX;
+  seeds[dragIdx].y=e.clientY;
+  debouncedRender();
+});
+
+window.addEventListener('pointerup',function(){dragging=false;dragIdx=-1});
+canvas.addEventListener('contextmenu',function(e){e.preventDefault()});
+
+// ============ CONTROLS ============
+document.getElementById('btn-random').addEventListener('click',function(){randomSeeds(20)});
+document.getElementById('btn-clear').addEventListener('click',function(){seeds=[];render()});
+document.getElementById('sel-color').addEventListener('change',function(e){
+  colorMode=e.target.value;recolorAll();debouncedRender();
+});
+document.getElementById('ck-edges').addEventListener('change',function(){showEdges=this.checked;debouncedRender()});
+document.getElementById('ck-dots').addEventListener('change',function(){showDots=this.checked;debouncedRender()});
+
+// ============ RESIZE ============
+function resize(){W=window.innerWidth;H=window.innerHeight;canvas.width=W;canvas.height=H;debouncedRender()}
+
+// ============ INIT ============
+resize();window.addEventListener('resize',resize);
+randomSeeds(12);
+
+})();
+</script>
+</body>
+</html>
