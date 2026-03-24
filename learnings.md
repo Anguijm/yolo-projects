@@ -1072,3 +1072,23 @@ Persistent knowledge base. Read this before every build.
 - **INSIGHT**: When rendering a camera-offset view of a 2D array, the viewport coordinates can go negative or beyond array bounds. ALWAYS check row existence (arr[y] !== undefined) before column access.
 - **INSIGHT**: Roguelikes are perfect for single-file HTML — ASCII rendering needs zero assets, turn-based means no animation loop, and procedural generation gives infinite replayability.
 - **TEST CAUGHT (automated)**: Console error from undefined array access in draw loop. Comment keyword triggered overlay test.
+
+### wave-draw (2026-03-24) — PROJECT #105 (5-build review)
+- **KEEP**: DFT to extract Fourier coefficients from drawn waveform → createPeriodicWave — turns any shape into a playable sound
+- **KEEP**: Interpolated drawing (fill gaps between pointer samples) — continuous waveform from discrete events
+- **KEEP**: osc.stop(time) on audio thread instead of setTimeout — reliable in background tabs
+- **KEEP**: onended with reference comparison for cleanup — prevents rapid-retrigger bugs
+- **KEEP**: Feedback delay with LP filter for spatial sound — makes any synth patch sound better
+- **IMPROVE**: playNote checked `!audioCtx` before calling `initAudio()` — first note silently failed. Must init first, then check. Gemini caught.
+- **IMPROVE**: setTimeout for oscillator cleanup — unreliable when tab backgrounded. Use osc.stop(audioCtx.currentTime + duration) instead.
+- **INSIGHT**: When a function both initializes a resource AND uses it, init MUST come before the existence check. `if(!resource) return; init();` is backwards — should be `init(); if(!resource) return;`
+- **INSIGHT**: Web Audio osc.stop(time) is the ONLY reliable way to stop oscillators — it runs on the audio thread which isn't throttled like setTimeout. Use onended for cleanup.
+
+#### 5-Build Review (Builds #101-105: tension-matrix, terra-forge, flock-mind, dungeon-descent, wave-draw)
+- **All 5 shipped working.** Post-100 quality bar maintained.
+- **Variety achieved:** cloth physics, terrain gen, boid flocking, roguelike game, waveform synth — five completely different categories.
+- **Recurring: Two-pass N-body updates** — flock-mind. Established pattern: any system where entities read each other's state needs double-buffered updates.
+- **Recurring: Sentinel values as positions** — flock-mind. NEW: sentinel values (-9999) can wrap to valid coordinates via toroidal math. Always guard with explicit boolean.
+- **Recurring: Audio init ordering** — wave-draw. Pattern: init before check, not check before init.
+- **New: Camera-offset array access** — dungeon-descent. Viewport rendering of 2D arrays must bounds-check row existence.
+- **Portfolio status**: 105 projects. Quality consistently high post-100.

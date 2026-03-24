@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="theme-color" content="#000000">
+<title>Wave Draw</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{height:100%;background:#080810;overflow:hidden;font-family:system-ui,sans-serif;touch-action:none;-webkit-tap-highlight-color:transparent;color:#ccc}
+#app{height:100%;display:flex;flex-direction:column;padding:8px;gap:6px}
+.section-label{font-size:0.4rem;color:#333;letter-spacing:0.15em;margin-bottom:2px}
+
+/* Wave canvas */
+#wave-wrap{position:relative;height:140px;background:#0a0a14;border:1px solid #1a1a2e;border-radius:6px;cursor:crosshair;flex-shrink:0}
+#wave-canvas{width:100%;height:100%;display:block}
+#wave-hint{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:0.5rem;color:#1a1a2e;pointer-events:none}
+
+/* Controls */
+#controls{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.ctrl-row{display:flex;align-items:center;gap:4px}
+.ctrl-label{font-size:0.4rem;color:#444;min-width:40px;letter-spacing:0.05em}
+.ctrl-val{font-size:0.4rem;color:#555;font-family:monospace;min-width:24px;text-align:right}
+input[type="range"]{width:55px;height:2px;accent-color:#555}
+.p-btn{padding:3px 7px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);color:#555;font-family:inherit;font-size:0.4rem;cursor:pointer;border-radius:3px;letter-spacing:0.06em}
+.p-btn:active{border-color:rgba(255,255,255,0.2);color:#aaa}
+.p-btn.active{border-color:#58a6ff;color:#58a6ff}
+
+/* Keyboard */
+#keyboard{display:flex;height:80px;position:relative;flex-shrink:0}
+.white-key{flex:1;background:#1a1a20;border:1px solid #111;border-radius:0 0 4px 4px;cursor:pointer;position:relative;display:flex;align-items:flex-end;justify-content:center;padding-bottom:4px;transition:none}
+.white-key.pressed{background:#252535}
+.white-key .kl{font-size:0.35rem;color:#222}
+.black-key{position:absolute;width:7%;height:55%;background:#0a0a0c;border:1px solid #111;border-radius:0 0 3px 3px;z-index:2;cursor:pointer}
+.black-key.pressed{background:#151520}
+
+/* Scope */
+#scope{height:50px;background:#0a0a14;border:1px solid #1a1a2e;border-radius:4px;flex-shrink:0}
+</style>
+</head>
+<body>
+<div id="app">
+  <div class="section-label">DRAW YOUR WAVEFORM</div>
+  <div id="wave-wrap">
+    <canvas id="wave-canvas"></canvas>
+    <div id="wave-hint">Draw a shape here</div>
+  </div>
+
+  <div id="controls">
+    <div class="ctrl-row">
+      <span class="ctrl-label">Attack</span>
+      <input type="range" id="sl-atk" min="0.005" max="0.5" step="0.005" value="0.01">
+    </div>
+    <div class="ctrl-row">
+      <span class="ctrl-label">Release</span>
+      <input type="range" id="sl-rel" min="0.05" max="2" step="0.05" value="0.3">
+    </div>
+    <div class="ctrl-row">
+      <span class="ctrl-label">Delay</span>
+      <input type="range" id="sl-delay" min="0" max="0.6" step="0.05" value="0.2">
+    </div>
+    <div style="display:flex;gap:3px">
+      <button class="p-btn" id="btn-sine">Sine</button>
+      <button class="p-btn" id="btn-square">Square</button>
+      <button class="p-btn" id="btn-saw">Saw</button>
+      <button class="p-btn" id="btn-clear">Clear</button>
+    </div>
+  </div>
+
+  <div class="section-label">PLAY (keyboard: A-K or click)</div>
+  <div id="keyboard"></div>
+
+  <canvas id="scope"></canvas>
+</div>
+
+<script>
+(function(){
+'use strict';
+
+// ============ AUDIO ============
+var audioCtx=null, masterGain, delayNode, delayGain, analyser, analyserData;
+var customWave=null;
+var attackTime=0.01, releaseTime=0.3, delayAmount=0.2;
+var activeNotes={};
+
+function initAudio(){
+  if(audioCtx)return;
+  audioCtx=new(window.AudioContext||window.webkitAudioContext)();
+  masterGain=audioCtx.createGain();masterGain.gain.value=0.3;
+  delayNode=audioCtx.createDelay(1);delayNode.delayTime.value=0.25;
+  delayGain=audioCtx.createGain();delayGain.gain.value=delayAmount;
+  var delayFilter=audioCtx.createBiquadFilter();delayFilter.type='lowpass';delayFilter.frequency.value=2000;
+  masterGain.connect(audioCtx.destination);
+  masterGain.connect(delayNode);
+  delayNode.connect(delayFilter);delayFilter.connect(delayGain);
+  delayGain.connect(delayNode); // feedback
+  delayGain.connect(audioCtx.destination);
+  // Analyser for scope
+  analyser=audioCtx.createAnalyser();analyser.fftSize=512;
+  analyserData=new Uint8Array(analyser.frequencyBinCount);
+  masterGain.connect(analyser);
+  // Default sine wave
+  buildWaveFromPreset('sine');
+}
+
+// ============ WAVEFORM → PERIODICWAVE ============
+var WAVE_SIZE=256;
+var waveformData=new Float32Array(WAVE_SIZE); // -1 to 1
+
+function buildPeriodicWave(){
+  if(!audioCtx)return;
+  // DFT: extract Fourier coefficients from drawn waveform
+  var real=new Float32Array(WAVE_SIZE/2);
+  var imag=new Float32Array(WAVE_SIZE/2);
+  real[0]=0;imag[0]=0;
+  for(var k=1;k<WAVE_SIZE/2;k++){
+    var re=0,im=0;
+    for(var n=0;n<WAVE_SIZE;n++){
+      var angle=2*Math.PI*k*n/WAVE_SIZE;
+      re+=waveformData[n]*Math.cos(angle);
+      im-=waveformData[n]*Math.sin(angle);
+    }
+    real[k]=re/WAVE_SIZE;
+    imag[k]=im/WAVE_SIZE;
+  }
+  customWave=audioCtx.createPeriodicWave(real,imag,{disableNormalization:false});
+}
+
+function buildWaveFromPreset(type){
+  for(var i=0;i<WAVE_SIZE;i++){
+    var t=i/WAVE_SIZE;
+    if(type==='sine')waveformData[i]=Math.sin(t*Math.PI*2);
+    else if(type==='square')waveformData[i]=t<0.5?1:-1;
+    else if(type==='saw')waveformData[i]=2*t-1;
+  }
+  buildPeriodicWave();
+  renderWaveCanvas();
+}
+
+// ============ PLAY NOTE ============
+function playNote(freq){
+  initAudio(); // Init first, then check
+  if(!audioCtx||activeNotes[freq])return;
+  if(audioCtx.state==='suspended')audioCtx.resume();
+  var osc=audioCtx.createOscillator();
+  var gain=audioCtx.createGain();
+  if(customWave)osc.setPeriodicWave(customWave);
+  else osc.type='sine';
+  osc.frequency.value=freq;
+  gain.gain.setValueAtTime(0,audioCtx.currentTime);
+  gain.gain.linearRampToValueAtTime(0.3,audioCtx.currentTime+attackTime);
+  osc.connect(gain);gain.connect(masterGain);
+  osc.start();
+  activeNotes[freq]={osc:osc,gain:gain};
+}
+
+function stopNote(freq){
+  var n=activeNotes[freq];if(!n)return;
+  var now=audioCtx.currentTime;
+  n.gain.gain.cancelScheduledValues(now);
+  n.gain.gain.setValueAtTime(n.gain.gain.value,now);
+  n.gain.gain.setTargetAtTime(0,now,releaseTime*0.3);
+  // Schedule stop on audio thread, not main thread
+  n.osc.stop(now+releaseTime+0.1);
+  var noteRef=n;
+  n.osc.onended=function(){
+    try{noteRef.osc.disconnect();noteRef.gain.disconnect()}catch(e){}
+    if(activeNotes[freq]===noteRef)delete activeNotes[freq];
+  };
+}
+
+// ============ WAVE CANVAS ============
+var waveCanvas=document.getElementById('wave-canvas');
+var waveCtx=waveCanvas.getContext('2d');
+var drawing=false;
+
+function resizeWaveCanvas(){
+  var wrap=document.getElementById('wave-wrap');
+  waveCanvas.width=wrap.clientWidth;waveCanvas.height=wrap.clientHeight;
+  renderWaveCanvas();
+}
+
+function renderWaveCanvas(){
+  var w=waveCanvas.width,h=waveCanvas.height;
+  waveCtx.fillStyle='#0a0a14';waveCtx.fillRect(0,0,w,h);
+  // Center line
+  waveCtx.strokeStyle='#111';waveCtx.lineWidth=1;
+  waveCtx.beginPath();waveCtx.moveTo(0,h/2);waveCtx.lineTo(w,h/2);waveCtx.stroke();
+  // Waveform
+  waveCtx.strokeStyle='#0ff';waveCtx.lineWidth=2;
+  waveCtx.beginPath();
+  for(var i=0;i<WAVE_SIZE;i++){
+    var x=i/WAVE_SIZE*w;
+    var y=h/2-waveformData[i]*(h/2-4);
+    if(i===0)waveCtx.moveTo(x,y);else waveCtx.lineTo(x,y);
+  }
+  waveCtx.stroke();
+}
+
+function getWavePos(e){
+  var rect=waveCanvas.getBoundingClientRect();
+  var x=(e.clientX-rect.left)/rect.width;
+  var y=(e.clientY-rect.top)/rect.height;
+  return{x:Math.max(0,Math.min(1,x)),y:Math.max(0,Math.min(1,y))};
+}
+
+var lastDrawIdx=-1;
+waveCanvas.addEventListener('pointerdown',function(e){
+  e.preventDefault();drawing=true;
+  waveCanvas.setPointerCapture(e.pointerId);
+  document.getElementById('wave-hint').style.display='none';
+  var p=getWavePos(e);
+  var idx=Math.floor(p.x*WAVE_SIZE);
+  waveformData[idx]=1-p.y*2;
+  lastDrawIdx=idx;
+  renderWaveCanvas();
+});
+waveCanvas.addEventListener('pointermove',function(e){
+  if(!drawing)return;
+  var p=getWavePos(e);
+  var idx=Math.floor(p.x*WAVE_SIZE);
+  var val=1-p.y*2;
+  // Interpolate between last and current to fill gaps
+  if(lastDrawIdx>=0){
+    var start=Math.min(lastDrawIdx,idx),end=Math.max(lastDrawIdx,idx);
+    var startVal=waveformData[lastDrawIdx],endVal=val;
+    for(var i=start;i<=end;i++){
+      var t=(end===start)?0:(i-start)/(end-start);
+      waveformData[i]=startVal+(endVal-startVal)*t;
+    }
+  }else{
+    waveformData[Math.min(idx,WAVE_SIZE-1)]=val;
+  }
+  lastDrawIdx=idx;
+  renderWaveCanvas();
+});
+window.addEventListener('pointerup',function(){
+  if(drawing){drawing=false;lastDrawIdx=-1;buildPeriodicWave()}
+});
+
+// ============ KEYBOARD ============
+var NOTES=[
+  {note:'C4',freq:261.63,key:'a',black:false},
+  {note:'C#4',freq:277.18,key:'w',black:true},
+  {note:'D4',freq:293.66,key:'s',black:false},
+  {note:'D#4',freq:311.13,key:'e',black:true},
+  {note:'E4',freq:329.63,key:'d',black:false},
+  {note:'F4',freq:349.23,key:'f',black:false},
+  {note:'F#4',freq:369.99,key:'t',black:true},
+  {note:'G4',freq:392.00,key:'g',black:false},
+  {note:'G#4',freq:415.30,key:'y',black:true},
+  {note:'A4',freq:440.00,key:'h',black:false},
+  {note:'A#4',freq:466.16,key:'u',black:true},
+  {note:'B4',freq:493.88,key:'j',black:false},
+  {note:'C5',freq:523.25,key:'k',black:false}
+];
+
+function buildKeyboard(){
+  var kb=document.getElementById('keyboard');kb.innerHTML='';
+  var whites=NOTES.filter(function(n){return!n.black});
+  var totalW=whites.length;
+  // White keys
+  for(var i=0;i<whites.length;i++){
+    var key=document.createElement('div');
+    key.className='white-key';key.dataset.freq=whites[i].freq;
+    key.innerHTML='<span class="kl">'+whites[i].key.toUpperCase()+'</span>';
+    kb.appendChild(key);
+  }
+  // Black keys
+  var blackPositions=[0,1,null,3,4,5,null,7,8,9,null,11]; // map to white index
+  var whiteIdx=0;
+  for(var i=0;i<NOTES.length;i++){
+    if(!NOTES[i].black){whiteIdx++;continue}
+    var left=((whiteIdx-0.5)/totalW)*100;
+    var key=document.createElement('div');
+    key.className='black-key';key.dataset.freq=NOTES[i].freq;
+    key.style.left=left+'%';key.style.width=(100/totalW*0.6)+'%';
+    kb.appendChild(key);
+  }
+}
+
+// Pointer events on keyboard
+var pointerNotes={};
+document.getElementById('keyboard').addEventListener('pointerdown',function(e){
+  e.preventDefault();initAudio();
+  var key=e.target.closest('.white-key,.black-key');if(!key)return;
+  var freq=parseFloat(key.dataset.freq);
+  pointerNotes[e.pointerId]=freq;
+  playNote(freq);key.classList.add('pressed');
+});
+document.getElementById('keyboard').addEventListener('pointermove',function(e){
+  if(!pointerNotes[e.pointerId])return;
+  var key=document.elementFromPoint(e.clientX,e.clientY);
+  if(key)key=key.closest('.white-key,.black-key');
+  var newFreq=key?parseFloat(key.dataset.freq):0;
+  var oldFreq=pointerNotes[e.pointerId];
+  if(newFreq!==oldFreq){
+    stopNote(oldFreq);
+    document.querySelectorAll('.pressed').forEach(function(k){k.classList.remove('pressed')});
+    if(newFreq>0){playNote(newFreq);key.classList.add('pressed');pointerNotes[e.pointerId]=newFreq}
+  }
+});
+window.addEventListener('pointerup',function(e){
+  var freq=pointerNotes[e.pointerId];
+  if(freq){stopNote(freq);delete pointerNotes[e.pointerId];
+    document.querySelectorAll('.pressed').forEach(function(k){k.classList.remove('pressed')})}
+});
+
+// Keyboard mapping
+var keyMap={};NOTES.forEach(function(n){keyMap[n.key]=n.freq});
+document.addEventListener('keydown',function(e){
+  if(e.repeat||e.ctrlKey||e.metaKey||e.altKey)return;
+  var freq=keyMap[e.key.toLowerCase()];
+  if(freq){e.preventDefault();initAudio();playNote(freq)}
+});
+document.addEventListener('keyup',function(e){
+  var freq=keyMap[e.key.toLowerCase()];
+  if(freq)stopNote(freq);
+});
+
+// ============ CONTROLS ============
+document.getElementById('sl-atk').addEventListener('input',function(e){attackTime=parseFloat(e.target.value)});
+document.getElementById('sl-rel').addEventListener('input',function(e){releaseTime=parseFloat(e.target.value)});
+document.getElementById('sl-delay').addEventListener('input',function(e){
+  delayAmount=parseFloat(e.target.value);
+  if(delayGain)delayGain.gain.setValueAtTime(delayAmount,audioCtx.currentTime);
+});
+document.getElementById('btn-sine').addEventListener('click',function(){buildWaveFromPreset('sine')});
+document.getElementById('btn-square').addEventListener('click',function(){buildWaveFromPreset('square')});
+document.getElementById('btn-saw').addEventListener('click',function(){buildWaveFromPreset('saw')});
+document.getElementById('btn-clear').addEventListener('click',function(){
+  waveformData.fill(0);renderWaveCanvas();buildPeriodicWave();
+});
+
+// ============ SCOPE ============
+var scopeCanvas=document.getElementById('scope');
+var scopeCtx=scopeCanvas.getContext('2d');
+
+function drawScope(){
+  var w=scopeCanvas.width,h=scopeCanvas.height;
+  scopeCtx.fillStyle='#0a0a14';scopeCtx.fillRect(0,0,w,h);
+  if(analyser){
+    analyser.getByteTimeDomainData(analyserData);
+    scopeCtx.strokeStyle='#0ff';scopeCtx.lineWidth=1;
+    scopeCtx.beginPath();
+    for(var i=0;i<analyserData.length;i++){
+      var x=i/analyserData.length*w;
+      var y=(analyserData[i]/255)*h;
+      if(i===0)scopeCtx.moveTo(x,y);else scopeCtx.lineTo(x,y);
+    }
+    scopeCtx.stroke();
+  }
+  requestAnimationFrame(drawScope);
+}
+
+function resizeScope(){
+  scopeCanvas.width=scopeCanvas.clientWidth;scopeCanvas.height=scopeCanvas.clientHeight;
+}
+
+// ============ INIT ============
+function resize(){resizeWaveCanvas();resizeScope()}
+resize();window.addEventListener('resize',resize);
+buildKeyboard();
+requestAnimationFrame(drawScope);
+
+})();
+</script>
+</body>
+</html>
