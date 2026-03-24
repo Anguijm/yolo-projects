@@ -1179,3 +1179,14 @@ Persistent knowledge base. Read this before every build.
 - **IMPROVE**: unionSets used O(N) flat scan (iterated entire grid) instead of O(1) tree linking — Gemini caught. Must link root to root, not scan and replace.
 - **INSIGHT**: Union-Find has two optimizations: path compression (in find) and union by rank/tree linking (in union). Using path compression WITHOUT proper tree union creates an inconsistent data structure that works but is O(N) instead of O(α(N)).
 - **INSIGHT**: Algorithm visualizers are deeply engaging when they have: 1) step-by-step mode, 2) speed control, 3) multiple algorithms to compare, 4) color-coded state. All four are essential.
+
+### ascii-forge (2026-03-25) — PROJECT #113
+- **KEEP**: Luminance-based character mapping with BT.601 weights — perceptually accurate brightness
+- **KEEP**: Aspect ratio correction (0.5x height) — monospace fonts are ~2x taller than wide
+- **KEEP**: Multiple character sets (standard/minimal/blocks/binary/braille) — different aesthetics from same image
+- **KEEP**: Color mode via inline spans — each character colored by source pixel
+- **KEEP**: Brightness/contrast pre-processing — essential for making details pop in text form
+- **IMPROVE**: HTML entities in charset (<, >, &) broke DOM in color mode — Gemini caught. Must escape before innerHTML insertion.
+- **IMPROVE**: Character index distribution biased — lum/255*(length-1) with Math.floor means last char only selected at lum=255. Use lum/256*length for even buckets.
+- **INSIGHT**: When inserting user-controlled or data-derived characters into innerHTML, ALWAYS escape HTML entities. Even "safe" charsets can contain <, >, &, " which the browser interprets as markup.
+- **INSIGHT**: Mapping a continuous range (0-255) to discrete buckets (charset indices) needs careful math. `floor(value / (max+1) * bucketCount)` gives even distribution. Using `floor(value / max * (bucketCount-1))` biases the last bucket.

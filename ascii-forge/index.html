@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="theme-color" content="#000000">
+<title>ASCII Forge</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{height:100%;background:#0a0a0c;overflow-y:auto;font-family:system-ui,sans-serif;touch-action:manipulation;-webkit-tap-highlight-color:transparent;color:#ccc}
+#app{max-width:900px;margin:0 auto;padding:12px}
+h1{font-size:0.7rem;color:#444;letter-spacing:0.25em;font-weight:300;margin-bottom:10px}
+#drop-zone{border:2px dashed #1a1a2e;border-radius:8px;padding:30px;text-align:center;cursor:pointer;margin-bottom:8px}
+#drop-zone.active{border-color:#58a6ff}
+.dz-text{font-size:0.55rem;color:#222;letter-spacing:0.1em}
+input[type="file"]{display:none}
+#controls{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px;align-items:center}
+.ctrl-group{display:flex;flex-direction:column;gap:2px;min-width:100px}
+.ctrl-label{font-size:0.4rem;color:#444;letter-spacing:0.08em}
+select,input[type="range"]{width:100%;background:#111;border:1px solid #1a1a1a;color:#888;padding:3px 5px;font-family:inherit;font-size:0.5rem;border-radius:3px;outline:none}
+input[type="range"]{height:3px;accent-color:#555;padding:0}
+.check-row{display:flex;align-items:center;gap:4px;font-size:0.4rem;color:#444}
+#actions{display:flex;gap:4px;margin-bottom:8px}
+.act-btn{padding:4px 10px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);color:#555;font-family:inherit;font-size:0.45rem;cursor:pointer;border-radius:4px;letter-spacing:0.06em}
+.act-btn:active{border-color:rgba(255,255,255,0.2);color:#aaa}
+#output{background:#080810;border:1px solid #111;border-radius:4px;padding:8px;overflow:auto;max-height:60vh;min-height:80px}
+#ascii-pre{font-family:'Courier New',Courier,monospace;font-size:6px;line-height:1;white-space:pre;letter-spacing:0.5px}
+#toast{position:fixed;bottom:12px;left:50%;transform:translateX(-50%);background:#222;color:#aaa;padding:6px 16px;border-radius:4px;font-size:0.55rem;opacity:0;transition:opacity 0.2s;pointer-events:none;z-index:10}
+#toast.show{opacity:1}
+</style>
+</head>
+<body>
+<div id="app">
+  <h1>ASCII FORGE</h1>
+  <div id="drop-zone">
+    <div class="dz-text">Drop image here or click to upload</div>
+    <input type="file" id="file-input" accept="image/*">
+  </div>
+  <div id="controls">
+    <div class="ctrl-group">
+      <span class="ctrl-label">Characters</span>
+      <select id="sel-chars">
+        <option value="standard">Standard</option>
+        <option value="minimal">Minimal</option>
+        <option value="blocks">Blocks</option>
+        <option value="binary">Binary</option>
+        <option value="braille">Braille</option>
+      </select>
+    </div>
+    <div class="ctrl-group">
+      <span class="ctrl-label">Width (chars)</span>
+      <input type="range" id="sl-width" min="30" max="200" value="100">
+    </div>
+    <div class="ctrl-group">
+      <span class="ctrl-label">Brightness</span>
+      <input type="range" id="sl-bright" min="-80" max="80" value="0">
+    </div>
+    <div class="ctrl-group">
+      <span class="ctrl-label">Contrast</span>
+      <input type="range" id="sl-contrast" min="0.5" max="3" step="0.1" value="1.2">
+    </div>
+    <label class="check-row"><input type="checkbox" id="ck-color"> Color mode</label>
+    <label class="check-row"><input type="checkbox" id="ck-invert"> Invert</label>
+  </div>
+  <div id="actions">
+    <button class="act-btn" id="btn-sample">Sample</button>
+    <button class="act-btn" id="btn-copy">Copy Text</button>
+    <button class="act-btn" id="btn-download">Download PNG</button>
+  </div>
+  <div id="output">
+    <pre id="ascii-pre"></pre>
+  </div>
+</div>
+<div id="toast">Copied!</div>
+
+<script>
+(function(){
+'use strict';
+
+var srcCanvas=document.createElement('canvas');
+var srcCtx=srcCanvas.getContext('2d');
+var loaded=false;
+var toastTimer=null,renderTimer=null;
+
+var CHARSETS={
+  standard:' .\'`^",:;Il!i><~+_-?][}{1)(|/tfjrxnuvczXYUJCLQ0OZmwqpdbkhao*#MW&8%B@$',
+  minimal:' .-:=+*#%@',
+  blocks:' \u2591\u2592\u2593\u2588',
+  binary:' 01',
+  braille:' \u2801\u2803\u2807\u280F\u281F\u283F\u287F\u28FF'
+};
+
+var charWidth=100,brightness=0,contrast=1.2,colorMode=false,invertMode=false;
+var charsetKey='standard';
+
+// ============ IMAGE LOADING ============
+function loadImage(src){
+  var img=new Image();
+  img.onload=function(){
+    var w=img.width,h=img.height;
+    var MAX=800;
+    if(w>MAX||h>MAX){var s=MAX/Math.max(w,h);w=Math.floor(w*s);h=Math.floor(h*s)}
+    srcCanvas.width=w;srcCanvas.height=h;
+    srcCtx.drawImage(img,0,0,w,h);
+    loaded=true;
+    convert();
+  };
+  img.src=src;
+}
+
+function generateSample(){
+  var w=200,h=150;
+  srcCanvas.width=w;srcCanvas.height=h;
+  var grad=srcCtx.createLinearGradient(0,0,w,h);
+  grad.addColorStop(0,'#2d1b69');grad.addColorStop(0.5,'#e94560');grad.addColorStop(1,'#0f3460');
+  srcCtx.fillStyle=grad;srcCtx.fillRect(0,0,w,h);
+  srcCtx.fillStyle='#fff';srcCtx.beginPath();srcCtx.arc(70,50,35,0,Math.PI*2);srcCtx.fill();
+  srcCtx.fillStyle='#16213e';srcCtx.beginPath();srcCtx.arc(140,100,30,0,Math.PI*2);srcCtx.fill();
+  srcCtx.fillStyle='#e94560';srcCtx.font='bold 40px sans-serif';srcCtx.fillText('A',85,95);
+  loaded=true;
+  convert();
+}
+
+// ============ CONVERSION ============
+function convert(){
+  if(!loaded)return;
+  clearTimeout(renderTimer);
+  renderTimer=setTimeout(doConvert,60);
+}
+
+function doConvert(){
+  var charset=CHARSETS[charsetKey]||CHARSETS.standard;
+  if(invertMode)charset=charset.split('').reverse().join('');
+  var sw=srcCanvas.width,sh=srcCanvas.height;
+
+  // Aspect ratio correction: chars are ~2x taller than wide
+  var aspectCorrection=0.5;
+  var cols=charWidth;
+  var cellW=sw/cols;
+  var cellH=cellW/aspectCorrection;
+  var rows=Math.floor(sh/cellH);
+
+  var imgData=srcCtx.getImageData(0,0,sw,sh).data;
+  var pre=document.getElementById('ascii-pre');
+
+  if(colorMode){
+    // Build HTML with colored spans
+    var html='';
+    for(var r=0;r<rows;r++){
+      for(var c=0;c<cols;c++){
+        var px=Math.floor(c*cellW);
+        var py=Math.floor(r*cellH);
+        var i=(py*sw+px)*4;
+        var red=imgData[i],green=imgData[i+1],blue=imgData[i+2];
+        var lum=adjustedLum(red,green,blue);
+        var ci=Math.floor((lum/256)*charset.length);
+        ci=Math.max(0,Math.min(charset.length-1,ci));
+        var ch=charset[ci];
+        // Escape HTML entities to prevent DOM corruption
+        if(ch===' ')ch='&nbsp;';
+        else if(ch==='<')ch='&lt;';
+        else if(ch==='>')ch='&gt;';
+        else if(ch==='&')ch='&amp;';
+        else if(ch==='"')ch='&quot;';
+        html+='<span style="color:rgb('+red+','+green+','+blue+')">'+ch+'</span>';
+      }
+      html+='\n';
+    }
+    pre.innerHTML=html;
+  }else{
+    // Plain text (monochrome)
+    var lines=[];
+    for(var r=0;r<rows;r++){
+      var line='';
+      for(var c=0;c<cols;c++){
+        var px=Math.floor(c*cellW);
+        var py=Math.floor(r*cellH);
+        var i=(py*sw+px)*4;
+        var lum=adjustedLum(imgData[i],imgData[i+1],imgData[i+2]);
+        var ci=Math.floor((lum/256)*charset.length);
+        ci=Math.max(0,Math.min(charset.length-1,ci));
+        line+=charset[ci];
+      }
+      lines.push(line);
+    }
+    pre.textContent=lines.join('\n');
+    pre.style.color='#3fb950';
+  }
+}
+
+function adjustedLum(r,g,b){
+  var lum=0.299*r+0.587*g+0.114*b;
+  lum+=brightness;
+  lum=((lum-128)*contrast)+128;
+  return Math.max(0,Math.min(255,lum));
+}
+
+// ============ FILE INPUT ============
+var dropZone=document.getElementById('drop-zone');
+var fileInput=document.getElementById('file-input');
+dropZone.addEventListener('click',function(){fileInput.click()});
+dropZone.addEventListener('dragenter',function(e){e.preventDefault()});
+dropZone.addEventListener('dragover',function(e){e.preventDefault();dropZone.classList.add('active')});
+dropZone.addEventListener('dragleave',function(){dropZone.classList.remove('active')});
+dropZone.addEventListener('drop',function(e){
+  e.preventDefault();dropZone.classList.remove('active');
+  if(e.dataTransfer.files[0])readFile(e.dataTransfer.files[0]);
+});
+fileInput.addEventListener('change',function(){if(fileInput.files[0])readFile(fileInput.files[0])});
+
+function readFile(file){
+  if(!file.type.startsWith('image/'))return;
+  var reader=new FileReader();
+  reader.onload=function(e){loadImage(e.target.result)};
+  reader.readAsDataURL(file);
+}
+
+// ============ CONTROLS ============
+document.getElementById('sl-width').addEventListener('input',function(e){
+  charWidth=parseInt(e.target.value,10);if(isNaN(charWidth)||charWidth<10)charWidth=10;convert()});
+document.getElementById('sl-bright').addEventListener('input',function(e){
+  brightness=parseInt(e.target.value,10);if(isNaN(brightness))brightness=0;convert()});
+document.getElementById('sl-contrast').addEventListener('input',function(e){
+  contrast=parseFloat(e.target.value);if(isNaN(contrast))contrast=1;convert()});
+document.getElementById('sel-chars').addEventListener('change',function(e){charsetKey=e.target.value;convert()});
+document.getElementById('ck-color').addEventListener('change',function(){colorMode=this.checked;convert()});
+document.getElementById('ck-invert').addEventListener('change',function(){invertMode=this.checked;convert()});
+
+// ============ EXPORT ============
+document.getElementById('btn-copy').addEventListener('click',function(){
+  var pre=document.getElementById('ascii-pre');
+  var text=pre.textContent||pre.innerText;
+  if(navigator.clipboard&&navigator.clipboard.writeText){
+    navigator.clipboard.writeText(text).then(function(){showToast('Copied!')}).catch(function(){showToast('Copy failed')});
+  }else{
+    var ta=document.createElement('textarea');ta.value=text;ta.style.position='fixed';ta.style.opacity='0';
+    document.body.appendChild(ta);ta.select();ta.setSelectionRange(0,99999);
+    document.execCommand('copy');document.body.removeChild(ta);showToast('Copied!');
+  }
+});
+
+document.getElementById('btn-download').addEventListener('click',function(){
+  var pre=document.getElementById('ascii-pre');
+  // Render text to canvas for PNG export
+  var lines=(pre.textContent||pre.innerText).split('\n');
+  var fontSize=8;
+  var oc=document.createElement('canvas');
+  var octx=oc.getContext('2d');
+  octx.font=fontSize+'px Courier New, monospace';
+  var maxW=0;
+  for(var i=0;i<lines.length;i++){
+    var w=octx.measureText(lines[i]).width;
+    if(w>maxW)maxW=w;
+  }
+  oc.width=Math.ceil(maxW)+8;
+  oc.height=lines.length*fontSize+8;
+  octx.fillStyle='#0a0a0c';octx.fillRect(0,0,oc.width,oc.height);
+  octx.font=fontSize+'px Courier New, monospace';
+  octx.fillStyle='#3fb950';
+  for(var i=0;i<lines.length;i++){
+    octx.fillText(lines[i],4,4+(i+1)*fontSize);
+  }
+  oc.toBlob(function(blob){
+    if(!blob)return;
+    var url=URL.createObjectURL(blob);
+    var a=document.createElement('a');a.href=url;a.download='ascii-art-'+Date.now()+'.png';
+    a.click();setTimeout(function(){URL.revokeObjectURL(url)},1000);
+  },'image/png');
+});
+
+document.getElementById('btn-sample').addEventListener('click',generateSample);
+
+function showToast(msg){
+  var t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');
+  clearTimeout(toastTimer);toastTimer=setTimeout(function(){t.classList.remove('show')},1200);
+}
+
+// ============ INIT ============
+generateSample();
+
+})();
+</script>
+</body>
+</html>
