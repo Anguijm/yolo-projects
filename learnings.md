@@ -1092,3 +1092,13 @@ Persistent knowledge base. Read this before every build.
 - **Recurring: Audio init ordering** — wave-draw. Pattern: init before check, not check before init.
 - **New: Camera-offset array access** — dungeon-descent. Viewport rendering of 2D arrays must bounds-check row existence.
 - **Portfolio status**: 105 projects. Quality consistently high post-100.
+
+### graph-forge (2026-03-24) — PROJECT #106
+- **KEEP**: Coulomb repulsion + Hooke spring + centering gravity — classic force-directed layout that self-organizes beautifully
+- **KEEP**: Drag-to-connect interaction (drag from node A to node B creates edge) — intuitive edge creation
+- **KEEP**: Inline label editing via hidden HTML input positioned over canvas — seamless text input
+- **KEEP**: localStorage auto-save on every graph change — zero-friction persistence
+- **KEEP**: Terminal velocity cap (15px/frame) — prevents explosion from high repulsion settings
+- **IMPROVE**: Overlapping nodes (dx=dy=0) produced zero repulsion force — Gemini caught. `dx/d*f` = `0/1*f` = 0. Must add random jitter to break symmetry.
+- **INSIGHT**: Force-directed graphs have a degenerate case when nodes perfectly overlap: the normalized direction vector is (0,0), so no force is applied regardless of magnitude. The fix is trivial — add tiny random displacement — but the bug is invisible until it happens.
+- **INSIGHT**: Any N-body repulsion system needs a terminal velocity cap. Without it, two nodes spawned at the same position experience near-infinite force in one frame and fly to Infinity.

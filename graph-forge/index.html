@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="theme-color" content="#000000">
+<title>Graph Forge</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{height:100%;background:#080810;overflow:hidden;font-family:system-ui,sans-serif;touch-action:none;-webkit-tap-highlight-color:transparent}
+canvas{display:block;position:absolute;inset:0;cursor:default}
+#panel{position:fixed;top:10px;left:10px;width:190px;background:rgba(8,8,14,0.9);border:1px solid rgba(255,255,255,0.06);border-radius:10px;padding:10px;z-index:5;backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);opacity:0.35;transition:opacity 0.3s}
+#panel:hover{opacity:1}
+.p-title{font-size:0.6rem;color:#555;letter-spacing:0.2em;margin-bottom:8px;font-weight:300}
+.p-row{display:flex;align-items:center;gap:4px;margin-bottom:5px}
+.p-label{font-size:0.4rem;color:#444;min-width:55px;letter-spacing:0.05em}
+.p-val{font-size:0.4rem;color:#555;font-family:monospace;min-width:24px;text-align:right}
+input[type="range"]{flex:1;height:2px;accent-color:#555}
+.p-btn{padding:4px 8px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);color:#666;font-family:inherit;font-size:0.45rem;cursor:pointer;border-radius:4px;letter-spacing:0.08em}
+.p-btn:active{border-color:rgba(255,255,255,0.2);color:#aaa}
+.p-btns{display:flex;gap:3px;flex-wrap:wrap;margin-bottom:6px}
+.p-sep{height:1px;background:rgba(255,255,255,0.04);margin:6px 0}
+#hint{position:fixed;bottom:6px;left:50%;transform:translateX(-50%);font-size:0.4rem;color:#1a1a1a;z-index:2;text-align:center}
+#label-input{position:fixed;background:#111;border:1px solid #333;color:#ccc;padding:4px 8px;font-family:inherit;font-size:0.75rem;border-radius:4px;outline:none;z-index:10;display:none;min-width:80px;text-align:center}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<input type="text" id="label-input" maxlength="20" spellcheck="false">
+<div id="panel">
+  <div class="p-title">GRAPH FORGE</div>
+  <div class="p-btns">
+    <button class="p-btn" id="btn-sample">Sample Graph</button>
+    <button class="p-btn" id="btn-clear">Clear</button>
+  </div>
+  <div class="p-sep"></div>
+  <div class="p-row"><span class="p-label">Repulsion</span><input type="range" id="sl-rep" min="500" max="5000" step="100" value="2000"><span class="p-val" id="v-rep">2000</span></div>
+  <div class="p-row"><span class="p-label">Spring</span><input type="range" id="sl-spring" min="0.005" max="0.1" step="0.005" value="0.03"><span class="p-val" id="v-spring">0.03</span></div>
+  <div class="p-row"><span class="p-label">Friction</span><input type="range" id="sl-fric" min="0.8" max="0.99" step="0.01" value="0.92"><span class="p-val" id="v-fric">0.92</span></div>
+  <div class="p-row"><span class="p-label">Link Len</span><input type="range" id="sl-len" min="60" max="250" step="10" value="120"><span class="p-val" id="v-len">120</span></div>
+  <div class="p-sep"></div>
+  <div style="font-size:0.4rem;color:#333">Nodes: <span id="v-nodes">0</span> &middot; Edges: <span id="v-edges">0</span></div>
+</div>
+<div id="hint">double-click: add node &middot; drag node→node: connect &middot; click node: edit label</div>
+
+<script>
+(function(){
+'use strict';
+
+var canvas=document.getElementById('c'),ctx=canvas.getContext('2d');
+var W,H;
+var nodes=[],edges=[];
+var nextId=1;
+var repulsion=2000,springK=0.03,friction=0.92,linkLen=120;
+var NODE_RADIUS=20;
+var COLORS=['#58a6ff','#3fb950','#f0883e','#bc8cff','#f85149','#0ff','#ffcc33','#ff6688'];
+
+// ============ NODE / EDGE ============
+function createNode(x,y,label){
+  return{id:nextId++,x:x,y:y,vx:0,vy:0,label:label||'Node',color:COLORS[nodes.length%COLORS.length],dragged:false};
+}
+
+function addEdge(a,b){
+  if(a===b)return;
+  for(var i=0;i<edges.length;i++){
+    if((edges[i].a===a&&edges[i].b===b)||(edges[i].a===b&&edges[i].b===a))return;
+  }
+  edges.push({a:a,b:b});
+}
+
+function findNode(x,y){
+  for(var i=nodes.length-1;i>=0;i--){
+    var dx=nodes[i].x-x,dy=nodes[i].y-y;
+    if(dx*dx+dy*dy<NODE_RADIUS*NODE_RADIUS)return nodes[i];
+  }
+  return null;
+}
+
+function nodeById(id){
+  for(var i=0;i<nodes.length;i++)if(nodes[i].id===id)return nodes[i];
+  return null;
+}
+
+// ============ PHYSICS ============
+function simulate(){
+  // Repulsion (Coulomb)
+  for(var i=0;i<nodes.length;i++){
+    for(var j=i+1;j<nodes.length;j++){
+      var dx=nodes[j].x-nodes[i].x,dy=nodes[j].y-nodes[i].y;
+      if(dx===0&&dy===0){dx=(Math.random()-0.5)*0.2;dy=(Math.random()-0.5)*0.2}
+      var d2=dx*dx+dy*dy;
+      if(d2<1)d2=1;
+      var d=Math.sqrt(d2);
+      var f=repulsion/d2;
+      var fx=dx/d*f,fy=dy/d*f;
+      if(!nodes[i].dragged){nodes[i].vx-=fx;nodes[i].vy-=fy}
+      if(!nodes[j].dragged){nodes[j].vx+=fx;nodes[j].vy+=fy}
+    }
+  }
+
+  // Spring attraction (Hooke)
+  for(var i=0;i<edges.length;i++){
+    var a=nodeById(edges[i].a),b=nodeById(edges[i].b);
+    if(!a||!b)continue;
+    var dx=b.x-a.x,dy=b.y-a.y;
+    var d=Math.sqrt(dx*dx+dy*dy);
+    if(d<1)d=1;
+    var f=(d-linkLen)*springK;
+    var fx=dx/d*f,fy=dy/d*f;
+    if(!a.dragged){a.vx+=fx;a.vy+=fy}
+    if(!b.dragged){b.vx-=fx;b.vy-=fy}
+  }
+
+  // Centering gravity
+  var cx=W/2,cy=H/2;
+  for(var i=0;i<nodes.length;i++){
+    if(nodes[i].dragged)continue;
+    nodes[i].vx+=(cx-nodes[i].x)*0.0005;
+    nodes[i].vy+=(cy-nodes[i].y)*0.0005;
+  }
+
+  // Integrate + friction
+  for(var i=0;i<nodes.length;i++){
+    if(nodes[i].dragged)continue;
+    nodes[i].vx*=friction;nodes[i].vy*=friction;
+    // Terminal velocity prevents explosion
+    var spd=Math.sqrt(nodes[i].vx*nodes[i].vx+nodes[i].vy*nodes[i].vy);
+    if(spd>15){nodes[i].vx=nodes[i].vx/spd*15;nodes[i].vy=nodes[i].vy/spd*15}
+    nodes[i].x+=nodes[i].vx;nodes[i].y+=nodes[i].vy;
+  }
+}
+
+// ============ RENDER ============
+function draw(){
+  ctx.fillStyle='#080810';ctx.fillRect(0,0,W,H);
+
+  // Edges
+  ctx.lineWidth=1.5;
+  for(var i=0;i<edges.length;i++){
+    var a=nodeById(edges[i].a),b=nodeById(edges[i].b);
+    if(!a||!b)continue;
+    ctx.strokeStyle='rgba(88,166,255,0.2)';
+    ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y);ctx.stroke();
+  }
+
+  // Drawing edge preview
+  if(edgeStart&&mouseX>0){
+    ctx.strokeStyle='rgba(88,166,255,0.4)';ctx.setLineDash([4,4]);
+    ctx.beginPath();ctx.moveTo(edgeStart.x,edgeStart.y);ctx.lineTo(mouseX,mouseY);ctx.stroke();
+    ctx.setLineDash([]);
+  }
+
+  // Nodes
+  for(var i=0;i<nodes.length;i++){
+    var n=nodes[i];
+    ctx.fillStyle=n.color;
+    ctx.shadowColor=n.color;ctx.shadowBlur=8;
+    ctx.beginPath();ctx.arc(n.x,n.y,NODE_RADIUS,0,Math.PI*2);ctx.fill();
+    ctx.shadowBlur=0;
+    // Label
+    ctx.fillStyle='#fff';ctx.font='10px system-ui';ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.fillText(n.label,n.x,n.y);
+  }
+}
+
+// ============ INTERACTION ============
+var dragNode=null,edgeStart=null,mouseX=0,mouseY=0;
+var clickTime=0,clickNode=null;
+
+canvas.addEventListener('pointerdown',function(e){
+  e.preventDefault();
+  mouseX=e.clientX;mouseY=e.clientY;
+  var hit=findNode(mouseX,mouseY);
+
+  if(hit){
+    // Start dragging or edge creation
+    dragNode=hit;hit.dragged=true;
+    edgeStart=hit;
+    clickTime=Date.now();clickNode=hit;
+  }
+});
+
+canvas.addEventListener('pointermove',function(e){
+  mouseX=e.clientX;mouseY=e.clientY;
+  if(dragNode){
+    dragNode.x=mouseX;dragNode.y=mouseY;
+    dragNode.vx=0;dragNode.vy=0;
+  }
+});
+
+window.addEventListener('pointerup',function(e){
+  if(dragNode){
+    var target=findNode(e.clientX,e.clientY);
+    // If released on a different node → create edge
+    if(target&&target!==dragNode&&edgeStart){
+      addEdge(edgeStart.id,target.id);
+    }
+    dragNode.dragged=false;dragNode=null;
+    edgeStart=null;
+    saveGraph();
+    updateStats();
+  }
+
+  // Single click on node → edit label
+  if(clickNode&&Date.now()-clickTime<300){
+    var moved=Math.abs(e.clientX-clickNode.x)+Math.abs(e.clientY-clickNode.y);
+    if(moved<10)editLabel(clickNode);
+  }
+  clickNode=null;
+});
+
+// Double-click → add node
+canvas.addEventListener('dblclick',function(e){
+  e.preventDefault();
+  var hit=findNode(e.clientX,e.clientY);
+  if(!hit){
+    nodes.push(createNode(e.clientX,e.clientY,'Node '+nextId));
+    saveGraph();updateStats();
+  }
+});
+
+// Right-click → delete node
+canvas.addEventListener('contextmenu',function(e){
+  e.preventDefault();
+  var hit=findNode(e.clientX,e.clientY);
+  if(hit){
+    nodes=nodes.filter(function(n){return n.id!==hit.id});
+    edges=edges.filter(function(ed){return ed.a!==hit.id&&ed.b!==hit.id});
+    saveGraph();updateStats();
+  }
+});
+
+// ============ LABEL EDITING ============
+var editingNode=null;
+var labelInput=document.getElementById('label-input');
+
+function editLabel(node){
+  editingNode=node;
+  labelInput.value=node.label;
+  labelInput.style.left=(node.x-40)+'px';
+  labelInput.style.top=(node.y-12)+'px';
+  labelInput.style.display='block';
+  labelInput.focus();labelInput.select();
+}
+
+labelInput.addEventListener('keydown',function(e){
+  if(e.key==='Enter'){finishEdit()}
+  if(e.key==='Escape'){labelInput.style.display='none';editingNode=null}
+});
+labelInput.addEventListener('blur',finishEdit);
+
+function finishEdit(){
+  if(!editingNode)return;
+  editingNode.label=labelInput.value||'Node';
+  labelInput.style.display='none';
+  editingNode=null;
+  saveGraph();
+}
+
+// ============ PERSISTENCE ============
+var STORAGE_KEY='graph_forge_data';
+
+function saveGraph(){
+  try{
+    var data={nodes:nodes.map(function(n){return{id:n.id,x:n.x,y:n.y,label:n.label,color:n.color}}),edges:edges,nextId:nextId};
+    localStorage.setItem(STORAGE_KEY,JSON.stringify(data));
+  }catch(e){}
+}
+
+function loadGraph(){
+  try{
+    var raw=localStorage.getItem(STORAGE_KEY);
+    if(!raw)return false;
+    var data=JSON.parse(raw);
+    if(!data.nodes)return false;
+    nodes=data.nodes.map(function(n){return{id:n.id,x:n.x,y:n.y,vx:0,vy:0,label:n.label,color:n.color,dragged:false}});
+    edges=data.edges||[];
+    nextId=data.nextId||nodes.length+1;
+    return nodes.length>0;
+  }catch(e){return false}
+}
+
+// ============ SAMPLE GRAPH ============
+function createSample(){
+  nodes=[];edges=[];nextId=1;
+  var names=['Start','Design','Build','Test','Ship','Learn','Iterate','Deploy'];
+  var cx=W/2,cy=H/2;
+  for(var i=0;i<names.length;i++){
+    var angle=i/names.length*Math.PI*2;
+    var r=150;
+    nodes.push(createNode(cx+Math.cos(angle)*r+Math.random()*30,cy+Math.sin(angle)*r+Math.random()*30,names[i]));
+  }
+  // Connect sequentially + some cross-links
+  for(var i=0;i<nodes.length-1;i++)addEdge(nodes[i].id,nodes[i+1].id);
+  addEdge(nodes[nodes.length-1].id,nodes[0].id);
+  addEdge(nodes[0].id,nodes[4].id);
+  addEdge(nodes[2].id,nodes[5].id);
+  addEdge(nodes[3].id,nodes[6].id);
+  saveGraph();updateStats();
+}
+
+function updateStats(){
+  document.getElementById('v-nodes').textContent=nodes.length;
+  document.getElementById('v-edges').textContent=edges.length;
+}
+
+// ============ CONTROLS ============
+function bindSlider(id,vid,fmt,setter){
+  document.getElementById(id).addEventListener('input',function(e){
+    var v=parseFloat(e.target.value);if(isNaN(v))return;
+    setter(v);document.getElementById(vid).textContent=fmt(v);
+  });
+}
+bindSlider('sl-rep','v-rep',function(v){return v|0},function(v){repulsion=v});
+bindSlider('sl-spring','v-spring',function(v){return v.toFixed(3)},function(v){springK=v});
+bindSlider('sl-fric','v-fric',function(v){return v.toFixed(2)},function(v){friction=v});
+bindSlider('sl-len','v-len',function(v){return v|0},function(v){linkLen=v});
+
+document.getElementById('btn-sample').addEventListener('click',createSample);
+document.getElementById('btn-clear').addEventListener('click',function(){
+  nodes=[];edges=[];nextId=1;saveGraph();updateStats();
+});
+
+// ============ LOOP ============
+function loop(){
+  simulate();draw();requestAnimationFrame(loop);
+}
+
+// ============ RESIZE ============
+function resize(){W=window.innerWidth;H=window.innerHeight;canvas.width=W;canvas.height=H}
+
+// ============ INIT ============
+resize();window.addEventListener('resize',resize);
+if(!loadGraph())createSample();
+updateStats();
+requestAnimationFrame(loop);
+
+})();
+</script>
+</body>
+</html>
