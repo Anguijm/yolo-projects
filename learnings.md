@@ -1122,3 +1122,15 @@ Persistent knowledge base. Read this before every build.
 - **KEEP**: Presets with auto-play — user sees the effect instantly
 - **INSIGHT**: CSS cubic-bezier has strict rules: X values MUST be 0-1 (time is always forward), but Y values CAN exceed 0-1 (property can overshoot). The editor must enforce this asymmetry.
 - **INSIGHT**: Dev tools that show the OUTPUT of what you're building (animation preview) are infinitely more useful than those that just show the INPUT (raw numbers). Always include a live preview.
+
+### wire-forge (2026-03-25) — PROJECT #109
+- **KEEP**: Pure math 3D (rotation matrices + perspective projection) on Canvas2D — no WebGL needed for impressive wireframe rendering
+- **KEEP**: Z-depth coloring (HSL hue + lightness + alpha mapped to depth) — creates convincing atmospheric perspective
+- **KEEP**: Painter's algorithm for edge z-sorting — simple and effective for wireframe
+- **KEEP**: Golden ratio (φ) for icosahedron/dodecahedron vertices — mathematically elegant
+- **KEEP**: Parametric torus/sphere generation (nested loops over u,v angles) — infinite shape variety from simple math
+- **IMPROVE**: Depth coloring mapped t=0 to near and t=1 to far — BACKWARDS. Near must be bright/opaque, far must be dim/transparent. Gemini caught.
+- **IMPROVE**: Painter's algorithm sorted ascending Z — drew near edges first, then far on top. Must sort DESCENDING (far first). Gemini caught.
+- **IMPROVE**: Rotation angles grew infinitely with auto-spin — eventual float precision jitter. Wrap with modulo 2π.
+- **INSIGHT**: Z-depth mapping is easy to get backwards. The natural `(z-min)/range` gives 0=near, 1=far — but for rendering, you usually want 1=near (bright). Always invert: `t = 1 - normalized_z`.
+- **INSIGHT**: Painter's algorithm sorts far-to-near (DESCENDING z). The name "painter's" is the clue — a painter covers background first, foreground last.

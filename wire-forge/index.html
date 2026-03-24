@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="theme-color" content="#000000">
+<title>Wire Forge</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{height:100%;background:#050508;overflow:hidden;touch-action:none;-webkit-tap-highlight-color:transparent;font-family:system-ui,sans-serif}
+canvas{display:block;position:absolute;inset:0;cursor:grab}
+canvas:active{cursor:grabbing}
+#panel{position:fixed;top:10px;right:10px;width:180px;background:rgba(5,5,12,0.9);border:1px solid rgba(255,255,255,0.06);border-radius:10px;padding:10px;z-index:5;backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);opacity:0.35;transition:opacity 0.3s}
+#panel:hover{opacity:1}
+.p-title{font-size:0.6rem;color:#555;letter-spacing:0.2em;margin-bottom:8px;font-weight:300}
+.p-row{display:flex;align-items:center;gap:4px;margin-bottom:5px}
+.p-label{font-size:0.4rem;color:#444;min-width:45px;letter-spacing:0.05em}
+.p-val{font-size:0.4rem;color:#555;font-family:monospace;min-width:24px;text-align:right}
+input[type="range"]{flex:1;height:2px;accent-color:#555}
+select{width:100%;background:#111;border:1px solid #1a1a1a;color:#888;padding:3px 6px;font-family:inherit;font-size:0.5rem;border-radius:3px;outline:none;margin-bottom:5px}
+.p-sep{height:1px;background:rgba(255,255,255,0.04);margin:6px 0}
+.p-check{display:flex;align-items:center;gap:4px;font-size:0.4rem;color:#444;cursor:pointer;margin-bottom:4px}
+.p-check input{accent-color:#555}
+#fps{position:fixed;bottom:6px;left:8px;font-size:0.4rem;color:#1a1a1a;font-family:monospace;z-index:2}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="panel">
+  <div class="p-title">WIRE FORGE</div>
+  <select id="sel-shape">
+    <option value="cube">Cube</option>
+    <option value="tetra">Tetrahedron</option>
+    <option value="octa">Octahedron</option>
+    <option value="icosa" selected>Icosahedron</option>
+    <option value="dodeca">Dodecahedron</option>
+    <option value="torus">Torus</option>
+    <option value="sphere">Sphere</option>
+  </select>
+  <div class="p-sep"></div>
+  <div class="p-row"><span class="p-label">FOV</span><input type="range" id="sl-fov" min="100" max="600" value="300"><span class="p-val" id="v-fov">300</span></div>
+  <div class="p-row"><span class="p-label">Speed</span><input type="range" id="sl-speed" min="0" max="3" step="0.1" value="0.5"><span class="p-val" id="v-speed">0.5</span></div>
+  <label class="p-check"><input type="checkbox" id="ck-spin" checked> Auto-spin</label>
+  <label class="p-check"><input type="checkbox" id="ck-verts"> Show vertices</label>
+  <label class="p-check"><input type="checkbox" id="ck-depth" checked> Depth coloring</label>
+</div>
+<div id="fps">0 fps</div>
+
+<script>
+(function(){
+'use strict';
+
+var canvas=document.getElementById('c'),ctx=canvas.getContext('2d');
+var W,H;
+var fov=300,autoSpin=true,spinSpeed=0.5,showVerts=false,depthColor=true;
+var rotX=0.3,rotY=0.5,rotZ=0;
+var dragging=false,lastMX=0,lastMY=0;
+
+// ============ SHAPES ============
+var PHI=(1+Math.sqrt(5))/2; // Golden ratio
+
+var SHAPES={
+  cube:{
+    verts:[[-1,-1,-1],[1,-1,-1],[1,1,-1],[-1,1,-1],[-1,-1,1],[1,-1,1],[1,1,1],[-1,1,1]],
+    edges:[[0,1],[1,2],[2,3],[3,0],[4,5],[5,6],[6,7],[7,4],[0,4],[1,5],[2,6],[3,7]]
+  },
+  tetra:{
+    verts:[[1,1,1],[-1,-1,1],[-1,1,-1],[1,-1,-1]],
+    edges:[[0,1],[0,2],[0,3],[1,2],[1,3],[2,3]]
+  },
+  octa:{
+    verts:[[1,0,0],[-1,0,0],[0,1,0],[0,-1,0],[0,0,1],[0,0,-1]],
+    edges:[[0,2],[0,3],[0,4],[0,5],[1,2],[1,3],[1,4],[1,5],[2,4],[2,5],[3,4],[3,5]]
+  },
+  icosa:(function(){
+    var v=[],e=[];
+    var a=1,b=PHI;
+    var raw=[[-a,b,0],[a,b,0],[-a,-b,0],[a,-b,0],[0,-a,b],[0,a,b],[0,-a,-b],[0,a,-b],[b,0,-a],[b,0,a],[-b,0,-a],[-b,0,a]];
+    raw.forEach(function(p){v.push([p[0]/b,p[1]/b,p[2]/b])});
+    var faces=[[0,11,5],[0,5,1],[0,1,7],[0,7,10],[0,10,11],[1,5,9],[5,11,4],[11,10,2],[10,7,6],[7,1,8],[3,9,4],[3,4,2],[3,2,6],[3,6,8],[3,8,9],[4,9,5],[2,4,11],[6,2,10],[8,6,7],[9,8,1]];
+    var edgeSet={};
+    faces.forEach(function(f){
+      for(var i=0;i<3;i++){
+        var a2=f[i],b2=f[(i+1)%3];
+        var key=Math.min(a2,b2)+'-'+Math.max(a2,b2);
+        if(!edgeSet[key]){edgeSet[key]=true;e.push([a2,b2])}
+      }
+    });
+    return{verts:v,edges:e};
+  })(),
+  dodeca:(function(){
+    var v=[],e=[];
+    var a=1,b=PHI,c=1/PHI;
+    var raw=[[1,1,1],[1,1,-1],[1,-1,1],[1,-1,-1],[-1,1,1],[-1,1,-1],[-1,-1,1],[-1,-1,-1],[0,c,b],[0,c,-b],[0,-c,b],[0,-c,-b],[c,b,0],[c,-b,0],[-c,b,0],[-c,-b,0],[b,0,c],[b,0,-c],[-b,0,c],[-b,0,-c]];
+    raw.forEach(function(p){var l=Math.sqrt(p[0]*p[0]+p[1]*p[1]+p[2]*p[2]);v.push([p[0]/l,p[1]/l,p[2]/l])});
+    var faces=[[0,8,4,14,12],[0,12,1,17,16],[0,16,2,10,8],[1,12,14,5,9],[1,9,11,3,17],[2,16,17,3,13],[2,13,15,6,10],[4,8,10,6,18],[4,18,19,5,14],[3,11,7,15,13],[5,19,7,11,9],[6,15,7,19,18]];
+    var edgeSet={};
+    faces.forEach(function(f){
+      for(var i=0;i<f.length;i++){
+        var a2=f[i],b2=f[(i+1)%f.length];
+        var key=Math.min(a2,b2)+'-'+Math.max(a2,b2);
+        if(!edgeSet[key]){edgeSet[key]=true;e.push([a2,b2])}
+      }
+    });
+    return{verts:v,edges:e};
+  })()
+};
+
+// Generate parametric shapes
+function genTorus(R,r,segs,rings){
+  var v=[],e=[];
+  for(var i=0;i<rings;i++){
+    var theta=i/rings*Math.PI*2;
+    for(var j=0;j<segs;j++){
+      var phi=j/segs*Math.PI*2;
+      var x=(R+r*Math.cos(phi))*Math.cos(theta);
+      var y=r*Math.sin(phi);
+      var z=(R+r*Math.cos(phi))*Math.sin(theta);
+      v.push([x/2,y/2,z/2]);
+      // Connect along ring
+      var cur=i*segs+j;
+      var next=i*segs+(j+1)%segs;
+      e.push([cur,next]);
+      // Connect between rings
+      var nextRing=((i+1)%rings)*segs+j;
+      e.push([cur,nextRing]);
+    }
+  }
+  return{verts:v,edges:e};
+}
+
+function genSphere(segs,rings){
+  var v=[],e=[];
+  for(var i=0;i<=rings;i++){
+    var lat=Math.PI*i/rings-Math.PI/2;
+    for(var j=0;j<segs;j++){
+      var lon=Math.PI*2*j/segs;
+      v.push([Math.cos(lat)*Math.cos(lon),Math.sin(lat),Math.cos(lat)*Math.sin(lon)]);
+      var cur=i*segs+j;
+      if(j<segs-1)e.push([cur,cur+1]);else e.push([cur,i*segs]);
+      if(i<rings)e.push([cur,cur+segs]);
+    }
+  }
+  return{verts:v,edges:e};
+}
+
+SHAPES.torus=genTorus(0.7,0.3,12,20);
+SHAPES.sphere=genSphere(16,10);
+
+var currentShape='icosa';
+
+// ============ 3D MATH ============
+function rotateVertex(x,y,z){
+  // Rotate X
+  var cy=Math.cos(rotX),sy=Math.sin(rotX);
+  var y1=y*cy-z*sy,z1=y*sy+z*cy;
+  // Rotate Y
+  var cx=Math.cos(rotY),sx=Math.sin(rotY);
+  var x1=x*cx+z1*sx,z2=-x*sx+z1*cx;
+  // Rotate Z
+  var cz=Math.cos(rotZ),sz=Math.sin(rotZ);
+  var x2=x1*cz-y1*sz,y2=x1*sz+y1*cz;
+  return{x:x2,y:y2,z:z2};
+}
+
+function project(v){
+  var dist=3;
+  var scale=fov/(v.z+dist);
+  return{x:v.x*scale+W/2,y:-v.y*scale+H/2,z:v.z,scale:scale};
+}
+
+// ============ RENDER ============
+function draw(){
+  ctx.fillStyle='#050508';ctx.fillRect(0,0,W,H);
+
+  var shape=SHAPES[currentShape];
+  if(!shape)return;
+
+  // Transform all vertices
+  var projected=[];
+  var minZ=Infinity,maxZ=-Infinity;
+  for(var i=0;i<shape.verts.length;i++){
+    var v=shape.verts[i];
+    var r=rotateVertex(v[0],v[1],v[2]);
+    var p=project(r);
+    projected.push(p);
+    if(p.z<minZ)minZ=p.z;
+    if(p.z>maxZ)maxZ=p.z;
+  }
+
+  // Sort edges by average z-depth (painter's algorithm — far first)
+  var sortedEdges=shape.edges.slice().sort(function(a,b){
+    var za=(projected[a[0]].z+projected[a[1]].z)/2;
+    var zb=(projected[b[0]].z+projected[b[1]].z)/2;
+    return zb-za; // far first (painter's algorithm)
+  });
+
+  // Draw edges
+  var zRange=maxZ-minZ||1;
+  for(var i=0;i<sortedEdges.length;i++){
+    var e=sortedEdges[i];
+    var a=projected[e[0]],b=projected[e[1]];
+    var avgZ=(a.z+b.z)/2;
+    var t=1-(avgZ-minZ)/zRange; // 1=near (bright), 0=far (dim)
+
+    if(depthColor){
+      // Far = deep purple, near = bright cyan
+      var hue=200+t*80; // 200 (blue) → 280 (purple flip to cyan)
+      var light=20+t*50;
+      var alpha=0.3+t*0.7;
+      ctx.strokeStyle='hsla('+hue+',80%,'+light+'%,'+alpha+')';
+      ctx.lineWidth=0.5+t*1.5;
+    }else{
+      ctx.strokeStyle='rgba(0,255,255,0.6)';
+      ctx.lineWidth=1;
+    }
+
+    ctx.beginPath();
+    ctx.moveTo(a.x,a.y);
+    ctx.lineTo(b.x,b.y);
+    ctx.stroke();
+  }
+
+  // Draw vertices
+  if(showVerts){
+    for(var i=0;i<projected.length;i++){
+      var p=projected[i];
+      var t=1-(p.z-minZ)/zRange;
+      ctx.fillStyle='hsla(180,80%,'+(40+t*40)+'%,'+(0.4+t*0.6)+')';
+      ctx.beginPath();
+      ctx.arc(p.x,p.y,1+t*2,0,Math.PI*2);
+      ctx.fill();
+    }
+  }
+}
+
+// ============ ANIMATION LOOP ============
+var fpsFrames=0,fpsTime=performance.now();
+
+function loop(){
+  if(autoSpin){
+    rotY=(rotY+spinSpeed*0.01)%(Math.PI*2);
+    rotX=(rotX+spinSpeed*0.005)%(Math.PI*2);
+  }
+  draw();
+  fpsFrames++;
+  var now=performance.now();
+  if(now-fpsTime>=1000){
+    document.getElementById('fps').textContent=fpsFrames+' fps';
+    fpsFrames=0;fpsTime=now;
+  }
+  requestAnimationFrame(loop);
+}
+
+// ============ INTERACTION ============
+canvas.addEventListener('pointerdown',function(e){
+  e.preventDefault();dragging=true;lastMX=e.clientX;lastMY=e.clientY;
+  canvas.setPointerCapture(e.pointerId);
+});
+canvas.addEventListener('pointermove',function(e){
+  if(!dragging)return;
+  var dx=e.clientX-lastMX,dy=e.clientY-lastMY;
+  rotY+=dx*0.005;rotX+=dy*0.005;
+  lastMX=e.clientX;lastMY=e.clientY;
+});
+window.addEventListener('pointerup',function(){dragging=false});
+
+// Scroll to zoom
+canvas.addEventListener('wheel',function(e){
+  e.preventDefault();
+  fov=Math.max(50,Math.min(800,fov-e.deltaY*0.5));
+  document.getElementById('sl-fov').value=fov;
+  document.getElementById('v-fov').textContent=fov|0;
+},{passive:false});
+
+// ============ CONTROLS ============
+document.getElementById('sel-shape').addEventListener('change',function(e){currentShape=e.target.value});
+document.getElementById('sl-fov').addEventListener('input',function(e){
+  fov=parseInt(e.target.value,10);if(isNaN(fov))fov=300;
+  document.getElementById('v-fov').textContent=fov;
+});
+document.getElementById('sl-speed').addEventListener('input',function(e){
+  spinSpeed=parseFloat(e.target.value);if(isNaN(spinSpeed))spinSpeed=0.5;
+  document.getElementById('v-speed').textContent=spinSpeed.toFixed(1);
+});
+document.getElementById('ck-spin').addEventListener('change',function(){autoSpin=this.checked});
+document.getElementById('ck-verts').addEventListener('change',function(){showVerts=this.checked});
+document.getElementById('ck-depth').addEventListener('change',function(){depthColor=this.checked});
+
+// ============ RESIZE ============
+function resize(){W=window.innerWidth;H=window.innerHeight;canvas.width=W;canvas.height=H}
+
+// ============ INIT ============
+resize();window.addEventListener('resize',resize);
+requestAnimationFrame(loop);
+
+})();
+</script>
+</body>
+</html>
