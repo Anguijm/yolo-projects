@@ -1059,3 +1059,16 @@ Persistent knowledge base. Read this before every build.
 - **IMPROVE**: Mouse sentinel value (-9999) wrapped to visible position via toroidal distance math — guard with mouseX > -1 check.
 - **INSIGHT**: Any N-body simulation where entity A reads entity B's state while B may already be updated THIS frame needs a two-pass architecture. This is the same principle as double-buffering in Game of Life.
 - **INSIGHT**: Sentinel values (like -9999 for "no mouse") can become valid values through mathematical transforms (wrapping, normalization). Always guard with an explicit boolean or range check, not just the sentinel itself.
+
+### dungeon-descent (2026-03-24) — PROJECT #104
+- **KEEP**: Procedural room placement with overlap rejection + L-shaped corridors — reliable dungeon layout
+- **KEEP**: Raycasting FOV with explored/visible/hidden states — creates tension and exploration reward
+- **KEEP**: Bump-to-attack (walk into enemy = combat) — simplest possible combat input
+- **KEEP**: Turn-based loop (player acts → enemies act → rerender) — no continuous animation needed
+- **KEEP**: Enemies scale with floor depth — natural difficulty progression
+- **KEEP**: Camera centered on player — essential for maps larger than viewport
+- **IMPROVE**: Draw loop accessed visible[my][mx] without checking if visible[my] exists — camera offset puts my outside map bounds. Added row existence check.
+- **IMPROVE**: Comment "Game over overlay" triggered test's overlay regex — renamed to "screen"
+- **INSIGHT**: When rendering a camera-offset view of a 2D array, the viewport coordinates can go negative or beyond array bounds. ALWAYS check row existence (arr[y] !== undefined) before column access.
+- **INSIGHT**: Roguelikes are perfect for single-file HTML — ASCII rendering needs zero assets, turn-based means no animation loop, and procedural generation gives infinite replayability.
+- **TEST CAUGHT (automated)**: Console error from undefined array access in draw loop. Comment keyword triggered overlay test.

@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="theme-color" content="#000000">
+<title>Dungeon Descent</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{height:100%;background:#0a0a0c;overflow:hidden;font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;touch-action:manipulation;-webkit-tap-highlight-color:transparent;color:#ccc}
+#app{height:100%;display:flex;flex-direction:column}
+canvas{display:block;flex:1;min-height:0}
+#hud{display:flex;justify-content:space-between;padding:4px 8px;font-size:0.55rem;color:#555;background:#080810;border-top:1px solid #111}
+#log{height:60px;overflow-y:auto;padding:4px 8px;font-size:0.5rem;color:#555;background:#060610;border-top:1px solid #0a0a14;line-height:1.5}
+.log-combat{color:#f85149}.log-item{color:#3fb950}.log-info{color:#58a6ff}
+#touch{display:none;position:fixed;bottom:70px;right:10px;z-index:3}
+@media(pointer:coarse){#touch{display:grid;grid-template-columns:repeat(3,40px);grid-template-rows:repeat(3,40px);gap:2px}}
+.t-btn{background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);color:#333;display:flex;align-items:center;justify-content:center;font-size:1rem;border-radius:4px;cursor:pointer;user-select:none;-webkit-user-select:none}
+.t-btn:active{background:rgba(255,255,255,0.08);color:#888}
+</style>
+</head>
+<body>
+<div id="app">
+  <canvas id="c"></canvas>
+  <div id="hud">
+    <span id="h-hp">HP: 20/20</span>
+    <span id="h-atk">ATK: 3</span>
+    <span id="h-floor">Floor: 1</span>
+    <span id="h-kills">Kills: 0</span>
+  </div>
+  <div id="log"></div>
+</div>
+<div id="touch">
+  <div></div><div class="t-btn" data-dx="0" data-dy="-1">&uarr;</div><div></div>
+  <div class="t-btn" data-dx="-1" data-dy="0">&larr;</div><div class="t-btn" data-dx="0" data-dy="0">&#x2981;</div><div class="t-btn" data-dx="1" data-dy="0">&rarr;</div>
+  <div></div><div class="t-btn" data-dx="0" data-dy="1">&darr;</div><div></div>
+</div>
+
+<script>
+(function(){
+'use strict';
+
+var canvas=document.getElementById('c'),ctx=canvas.getContext('2d');
+var MW=50,MH=30; // Map size
+var TILE_WALL=0,TILE_FLOOR=1,TILE_STAIR=2;
+var map=[];
+var visible=[],explored=[];
+var VIEW_RADIUS=7;
+
+var player={x:0,y:0,hp:20,maxHp:20,atk:3,floor:1,kills:0};
+var entities=[];
+var gameOver=false;
+
+var CELL=0; // pixel size per cell, computed on resize
+
+// ============ DUNGEON GENERATION ============
+function generateDungeon(){
+  // Fill with walls
+  map=[];visible=[];explored=[];
+  for(var y=0;y<MH;y++){
+    map[y]=[];visible[y]=[];explored[y]=[];
+    for(var x=0;x<MW;x++){map[y][x]=TILE_WALL;visible[y][x]=false;explored[y][x]=false}
+  }
+
+  // Place random rooms
+  var rooms=[];
+  for(var attempt=0;attempt<80;attempt++){
+    var rw=4+Math.floor(Math.random()*6);
+    var rh=3+Math.floor(Math.random()*4);
+    var rx=1+Math.floor(Math.random()*(MW-rw-2));
+    var ry=1+Math.floor(Math.random()*(MH-rh-2));
+
+    // Check overlap
+    var overlap=false;
+    for(var r=0;r<rooms.length;r++){
+      var o=rooms[r];
+      if(rx<o.x+o.w+1&&rx+rw+1>o.x&&ry<o.y+o.h+1&&ry+rh+1>o.y){overlap=true;break}
+    }
+    if(overlap)continue;
+
+    // Carve room
+    for(var y=ry;y<ry+rh;y++)for(var x=rx;x<rx+rw;x++)map[y][x]=TILE_FLOOR;
+    rooms.push({x:rx,y:ry,w:rw,h:rh,cx:rx+Math.floor(rw/2),cy:ry+Math.floor(rh/2)});
+  }
+
+  // Connect rooms with corridors
+  for(var i=1;i<rooms.length;i++){
+    var a=rooms[i-1],b=rooms[i];
+    var cx=a.cx,cy=a.cy,tx=b.cx,ty=b.cy;
+    // L-shaped corridor
+    if(Math.random()<0.5){
+      carveH(cy,cx,tx);carveV(tx,cy,ty);
+    }else{
+      carveV(cx,cy,ty);carveH(ty,cx,tx);
+    }
+  }
+
+  // Place player in first room
+  player.x=rooms[0].cx;player.y=rooms[0].cy;
+
+  // Place stairs in last room
+  var last=rooms[rooms.length-1];
+  map[last.cy][last.cx]=TILE_STAIR;
+
+  // Spawn entities
+  entities=[];
+  var numEnemies=3+player.floor*2;
+  for(var e=0;e<numEnemies;e++){
+    var room=rooms[1+Math.floor(Math.random()*(rooms.length-1))];
+    var ex=room.x+Math.floor(Math.random()*room.w);
+    var ey=room.y+Math.floor(Math.random()*room.h);
+    if(ex===player.x&&ey===player.y)continue;
+    var tier=Math.random()<0.3+player.floor*0.05?'ogre':Math.random()<0.5?'goblin':'rat';
+    var stats={rat:{ch:'r',color:'#888',hp:3,atk:1,name:'Rat'},goblin:{ch:'g',color:'#3fb950',hp:6,atk:2,name:'Goblin'},ogre:{ch:'O',color:'#f0883e',hp:12,atk:4,name:'Ogre'}};
+    var s=stats[tier];
+    entities.push({x:ex,y:ey,ch:s.ch,color:s.color,hp:s.hp+player.floor,maxHp:s.hp+player.floor,atk:s.atk+Math.floor(player.floor/2),name:s.name});
+  }
+
+  // Spawn health potions
+  var numPotions=2+Math.floor(Math.random()*2);
+  for(var p=0;p<numPotions;p++){
+    var room=rooms[1+Math.floor(Math.random()*(rooms.length-1))];
+    var px=room.x+Math.floor(Math.random()*room.w);
+    var py=room.y+Math.floor(Math.random()*room.h);
+    entities.push({x:px,y:py,ch:'+',color:'#f85149',hp:0,atk:0,name:'Potion',isItem:true,heal:5+player.floor});
+  }
+
+  computeFOV();
+}
+
+function carveH(y,x1,x2){
+  var s=Math.min(x1,x2),e=Math.max(x1,x2);
+  for(var x=s;x<=e;x++)if(y>=0&&y<MH&&x>=0&&x<MW)map[y][x]=TILE_FLOOR;
+}
+function carveV(x,y1,y2){
+  var s=Math.min(y1,y2),e=Math.max(y1,y2);
+  for(var y=s;y<=e;y++)if(y>=0&&y<MH&&x>=0&&x<MW)map[y][x]=TILE_FLOOR;
+}
+
+// ============ FIELD OF VIEW ============
+function computeFOV(){
+  for(var y=0;y<MH;y++)for(var x=0;x<MW;x++)visible[y][x]=false;
+  // Simple raycasting FOV
+  for(var angle=0;angle<360;angle+=1){
+    var rad=angle*Math.PI/180;
+    var dx=Math.cos(rad)*0.3;
+    var dy=Math.sin(rad)*0.3;
+    var cx=player.x+0.5,cy=player.y+0.5;
+    for(var step=0;step<VIEW_RADIUS*3;step++){
+      var mx=Math.floor(cx),my=Math.floor(cy);
+      if(mx<0||mx>=MW||my<0||my>=MH)break;
+      var dist=Math.sqrt((mx-player.x)*(mx-player.x)+(my-player.y)*(my-player.y));
+      if(dist>VIEW_RADIUS)break;
+      visible[my][mx]=true;explored[my][mx]=true;
+      if(map[my][mx]===TILE_WALL)break;
+      cx+=dx;cy+=dy;
+    }
+  }
+}
+
+// ============ GAME LOGIC ============
+function entityAt(x,y){
+  for(var i=0;i<entities.length;i++){
+    if(entities[i].x===x&&entities[i].y===y&&entities[i].hp>0)return entities[i];
+  }
+  return null;
+}
+
+function tryMove(dx,dy){
+  if(gameOver)return;
+  var nx=player.x+dx,ny=player.y+dy;
+  if(nx<0||nx>=MW||ny<0||ny>=MH)return;
+  if(map[ny][nx]===TILE_WALL)return;
+
+  // Check for entity
+  var ent=entityAt(nx,ny);
+  if(ent&&!ent.isItem){
+    // Attack
+    var dmg=player.atk+Math.floor(Math.random()*2);
+    ent.hp-=dmg;
+    addLog('You hit '+ent.name+' for '+dmg+' damage.','log-combat');
+    if(ent.hp<=0){
+      addLog(ent.name+' defeated!','log-item');
+      player.kills++;
+    }
+  }else{
+    // Move
+    player.x=nx;player.y=ny;
+    // Pick up items
+    var item=entityAt(nx,ny);
+    if(item&&item.isItem){
+      player.hp=Math.min(player.maxHp,player.hp+item.heal);
+      addLog('Healed '+item.heal+' HP!','log-item');
+      item.hp=-1; // Remove
+    }
+    // Stairs
+    if(map[ny][nx]===TILE_STAIR){
+      player.floor++;
+      addLog('Descended to floor '+player.floor+'!','log-info');
+      generateDungeon();
+      updateHUD();
+      return;
+    }
+  }
+
+  // Enemy turns
+  enemyTurns();
+  // Clean dead
+  entities=entities.filter(function(e){return e.hp>0||e.isItem});
+  computeFOV();
+  updateHUD();
+  draw();
+
+  if(player.hp<=0){
+    gameOver=true;
+    addLog('You died on floor '+player.floor+' with '+player.kills+' kills.','log-combat');
+  }
+}
+
+function enemyTurns(){
+  for(var i=0;i<entities.length;i++){
+    var e=entities[i];
+    if(e.hp<=0||e.isItem)continue;
+    // Only act if visible
+    if(e.y<0||e.y>=MH||e.x<0||e.x>=MW||!visible[e.y]||!visible[e.y][e.x])continue;
+    var dx=player.x-e.x,dy=player.y-e.y;
+    var dist=Math.abs(dx)+Math.abs(dy);
+    if(dist<=1){
+      // Attack player
+      var dmg=e.atk+Math.floor(Math.random()*2);
+      player.hp-=dmg;
+      addLog(e.name+' hits you for '+dmg+'!','log-combat');
+    }else if(dist<10){
+      // Chase — move one step toward player
+      var mx=0,my=0;
+      if(Math.abs(dx)>Math.abs(dy))mx=dx>0?1:-1;
+      else my=dy>0?1:-1;
+      var tx=e.x+mx,ty=e.y+my;
+      if(tx>=0&&tx<MW&&ty>=0&&ty<MH&&map[ty][tx]!==TILE_WALL&&!entityAt(tx,ty)){
+        e.x=tx;e.y=ty;
+      }
+    }
+  }
+}
+
+// ============ RENDERING ============
+function draw(){
+  var w=canvas.width,h=canvas.height;
+  ctx.fillStyle='#0a0a0c';ctx.fillRect(0,0,w,h);
+
+  // Center camera on player
+  var camX=player.x-Math.floor(w/CELL/2);
+  var camY=player.y-Math.floor(h/CELL/2);
+
+  ctx.font=CELL+'px monospace';ctx.textAlign='center';ctx.textBaseline='middle';
+
+  for(var sy=0;sy<Math.ceil(h/CELL);sy++){
+    for(var sx=0;sx<Math.ceil(w/CELL);sx++){
+      var mx=camX+sx,my=camY+sy;
+      if(mx<0||mx>=MW||my<0||my>=MH)continue;
+      var px=sx*CELL+CELL/2,py=sy*CELL+CELL/2;
+
+      if(visible[my]&&visible[my][mx]){
+        if(map[my][mx]===TILE_WALL){ctx.fillStyle='#2a2a3a';ctx.fillText('#',px,py)}
+        else if(map[my][mx]===TILE_STAIR){ctx.fillStyle='#58a6ff';ctx.fillText('>',px,py)}
+        else{ctx.fillStyle='#1a1a1a';ctx.fillText('.',px,py)}
+      }else if(explored[my]&&explored[my][mx]){
+        ctx.fillStyle='#111';
+        ctx.fillText(map[my][mx]===TILE_WALL?'#':'.',px,py);
+      }
+    }
+  }
+
+  // Draw entities
+  for(var i=0;i<entities.length;i++){
+    var e=entities[i];
+    if(e.hp<=0&&!e.isItem)continue;
+    if(e.y<0||e.y>=MH||e.x<0||e.x>=MW||!visible[e.y]||!visible[e.y][e.x])continue;
+    var ex=(e.x-camX)*CELL+CELL/2,ey=(e.y-camY)*CELL+CELL/2;
+    ctx.fillStyle=e.color;ctx.fillText(e.ch,ex,ey);
+  }
+
+  // Draw player
+  var ppx=(player.x-camX)*CELL+CELL/2,ppy=(player.y-camY)*CELL+CELL/2;
+  ctx.fillStyle='#0ff';ctx.fillText('@',ppx,ppy);
+
+  // Game over screen
+  if(gameOver){
+    ctx.fillStyle='rgba(10,10,12,0.8)';ctx.fillRect(0,0,w,h);
+    ctx.fillStyle='#f85149';ctx.font='20px monospace';ctx.textAlign='center';
+    ctx.fillText('YOU DIED',w/2,h/2-20);
+    ctx.fillStyle='#555';ctx.font='10px monospace';
+    ctx.fillText('Floor '+player.floor+' \u00b7 '+player.kills+' kills',w/2,h/2+5);
+    ctx.fillText('Press R to restart',w/2,h/2+22);
+  }
+}
+
+// ============ HUD ============
+function updateHUD(){
+  document.getElementById('h-hp').textContent='HP: '+player.hp+'/'+player.maxHp;
+  document.getElementById('h-atk').textContent='ATK: '+player.atk;
+  document.getElementById('h-floor').textContent='Floor: '+player.floor;
+  document.getElementById('h-kills').textContent='Kills: '+player.kills;
+  // Color HP
+  var hpEl=document.getElementById('h-hp');
+  hpEl.style.color=player.hp<player.maxHp*0.3?'#f85149':player.hp<player.maxHp*0.6?'#d29922':'#3fb950';
+}
+
+function addLog(msg,cls){
+  var log=document.getElementById('log');
+  var line=document.createElement('div');
+  line.className=cls||'';line.textContent='> '+msg;
+  log.appendChild(line);
+  log.scrollTop=log.scrollHeight;
+  // Cap log
+  while(log.children.length>50)log.removeChild(log.firstChild);
+}
+
+// ============ INPUT ============
+document.addEventListener('keydown',function(e){
+  if(e.ctrlKey||e.metaKey||e.altKey)return;
+  if(gameOver&&(e.key==='r'||e.key==='R')){restart();return}
+  if(gameOver)return;
+  var dx=0,dy=0;
+  if(e.key==='ArrowUp'||e.key==='w')dy=-1;
+  else if(e.key==='ArrowDown'||e.key==='s')dy=1;
+  else if(e.key==='ArrowLeft'||e.key==='a')dx=-1;
+  else if(e.key==='ArrowRight'||e.key==='d')dx=1;
+  else if(e.key==='.'){/* wait turn */enemyTurns();computeFOV();updateHUD();draw();return}
+  else return;
+  e.preventDefault();
+  tryMove(dx,dy);
+});
+
+// Touch controls
+document.getElementById('touch').addEventListener('pointerdown',function(e){
+  var btn=e.target.closest('.t-btn');if(!btn)return;e.preventDefault();
+  var dx=parseInt(btn.dataset.dx,10),dy=parseInt(btn.dataset.dy,10);
+  if(gameOver){if(dx===0&&dy===0)restart();return}
+  if(dx===0&&dy===0){enemyTurns();computeFOV();updateHUD();draw();return} // Wait
+  tryMove(dx,dy);
+});
+
+function restart(){
+  player.hp=20;player.maxHp=20;player.atk=3;player.floor=1;player.kills=0;
+  gameOver=false;
+  document.getElementById('log').innerHTML='';
+  addLog('You descend into the dungeon...','log-info');
+  generateDungeon();updateHUD();draw();
+}
+
+// ============ RESIZE ============
+function resize(){
+  canvas.width=canvas.clientWidth;canvas.height=canvas.clientHeight;
+  CELL=Math.max(12,Math.min(20,Math.floor(Math.min(canvas.width/30,canvas.height/20))));
+  draw();
+}
+
+// ============ INIT ============
+resize();window.addEventListener('resize',resize);
+addLog('You descend into the dungeon...','log-info');
+generateDungeon();updateHUD();draw();
+
+})();
+</script>
+</body>
+</html>
