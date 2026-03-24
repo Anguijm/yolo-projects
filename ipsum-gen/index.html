@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="theme-color" content="#000000">
+<title>Ipsum Gen</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { height: 100%; background: #0e0e0e; color: #c9d1d9; font-family: system-ui, -apple-system, sans-serif; overflow-y: auto; touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+#app { max-width: 600px; margin: 0 auto; padding: 16px 12px; }
+
+h1 { font-size: 0.75rem; color: #484f58; letter-spacing: 0.25em; font-weight: 300; margin-bottom: 12px; }
+
+/* Controls */
+#controls { display: flex; gap: 8px; align-items: center; margin-bottom: 12px; flex-wrap: wrap; }
+.mode-btn { padding: 5px 12px; background: transparent; border: 1px solid #21262d; color: #484f58; font-family: inherit; font-size: 0.6rem; cursor: pointer; border-radius: 4px; letter-spacing: 0.08em; }
+.mode-btn.active { border-color: #388bfd; color: #388bfd; }
+.sep { width: 1px; height: 22px; background: #21262d; }
+input[type="range"] { width: 80px; height: 3px; accent-color: #484f58; }
+.qty-val { font-size: 0.6rem; color: #484f58; font-family: monospace; min-width: 20px; }
+
+/* Output */
+#output-wrap { position: relative; margin-bottom: 8px; }
+#output { background: #161b22; border: 1px solid #21262d; border-radius: 6px; padding: 14px; font-size: 0.85rem; line-height: 1.8; color: #c9d1d9; min-height: 120px; max-height: 50vh; overflow-y: auto; white-space: pre-wrap; word-wrap: break-word; }
+
+/* Stats + actions */
+#footer { display: flex; justify-content: space-between; align-items: center; }
+#stats { font-size: 0.45rem; color: #30363d; font-family: monospace; letter-spacing: 0.05em; }
+#btn-copy { padding: 5px 14px; background: #161b22; border: 1px solid #21262d; color: #484f58; font-family: inherit; font-size: 0.55rem; cursor: pointer; border-radius: 4px; letter-spacing: 0.1em; transition: border-color 0.2s, color 0.2s; }
+#btn-copy:active { border-color: #388bfd; color: #388bfd; }
+#btn-copy.copied { border-color: #3fb950; color: #3fb950; }
+
+/* Toast */
+#toast { position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%); background: #21262d; color: #c9d1d9; padding: 6px 16px; border-radius: 4px; font-size: 0.55rem; opacity: 0; transition: opacity 0.2s; pointer-events: none; z-index: 10; }
+#toast.show { opacity: 1; }
+</style>
+</head>
+<body>
+<div id="app">
+  <h1>IPSUM GEN</h1>
+
+  <div id="controls">
+    <button class="mode-btn active" data-mode="paragraphs">Paragraphs</button>
+    <button class="mode-btn" data-mode="sentences">Sentences</button>
+    <button class="mode-btn" data-mode="words">Words</button>
+    <div class="sep"></div>
+    <input type="range" id="sl-qty" min="1" max="50" value="3">
+    <span class="qty-val" id="v-qty">3</span>
+  </div>
+
+  <div id="output-wrap">
+    <div id="output"></div>
+  </div>
+
+  <div id="footer">
+    <span id="stats"></span>
+    <button id="btn-copy">COPY</button>
+  </div>
+</div>
+<div id="toast">Copied!</div>
+
+<script>
+(function() {
+'use strict';
+
+// ============ LATIN DICTIONARY ============
+var WORDS_LIST = 'lorem ipsum dolor sit amet consectetur adipiscing elit sed do eiusmod tempor incididunt ut labore et dolore magna aliqua enim ad minim veniam quis nostrud exercitation ullamco laboris nisi aliquip ex ea commodo consequat duis aute irure in reprehenderit voluptate velit esse cillum fugiat nulla pariatur excepteur sint occaecat cupidatat non proident sunt culpa qui officia deserunt mollit anim id est laborum ab accusamus alias aperiam aspernatur atque autem beatae blanditiis corporis cumque debitis deleniti dicta distinctio ducimus earum eius eligendi error eveniet expedita explicabo facere facilis fuga harum hic illo impedit inventore ipsa ipsam iure iusto laudantium libero magnam magni maiores maxime minima minus modi mollitia nam natus necessitatibus nemo nihil nobis nostrum numquam odit omnis optio porro possimus praesentium quasi quibusdam quisquam quo ratione recusandae reiciendis rem repellat repellendus repudiandae rerum saepe sapiente sequi similique soluta tempora temporibus tenetur totam ullam unde vel vitae voluptas voluptatem voluptatum'.split(' ');
+
+var CLASSIC_START = 'Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.';
+
+var mode = 'paragraphs';
+var qty = 3;
+var toastTimer = null;
+
+// ============ GENERATION ============
+function randomWord() {
+  return WORDS_LIST[Math.floor(Math.random() * WORDS_LIST.length)];
+}
+
+function generateSentence(minWords, maxWords) {
+  var len = minWords + Math.floor(Math.random() * (maxWords - minWords + 1));
+  var words = [];
+  for (var i = 0; i < len; i++) words.push(randomWord());
+  words[0] = words[0][0].toUpperCase() + words[0].slice(1);
+  return words.join(' ') + '.';
+}
+
+function generateParagraph(minSentences, maxSentences) {
+  var len = minSentences + Math.floor(Math.random() * (maxSentences - minSentences + 1));
+  var sentences = [];
+  for (var i = 0; i < len; i++) sentences.push(generateSentence(6, 14));
+  return sentences.join(' ');
+}
+
+function generate() {
+  var result = '';
+
+  if (mode === 'words') {
+    var words = [];
+    for (var i = 0; i < qty; i++) words.push(randomWord());
+    result = words.join(' ');
+  } else if (mode === 'sentences') {
+    var sentences = [];
+    // Start with classic, then generate remaining
+    if (qty >= 1) sentences.push(CLASSIC_START);
+    for (var i = 1; i < qty; i++) sentences.push(generateSentence(6, 14));
+    result = sentences.join(' ');
+  } else {
+    // Paragraphs
+    var paras = [];
+    for (var i = 0; i < qty; i++) paras.push(generateParagraph(3, 7));
+    // Start first paragraph with classic
+    if (qty >= 1) {
+      paras[0] = CLASSIC_START + ' ' + paras[0];
+    }
+    result = paras.join('\n\n');
+  }
+
+  document.getElementById('output').textContent = result;
+  updateStats(result);
+}
+
+function updateStats(text) {
+  var words = text.trim() ? text.trim().split(/\s+/).length : 0;
+  var chars = text.length;
+  document.getElementById('stats').textContent = words + ' words \u00b7 ' + chars + ' chars';
+}
+
+// ============ CONTROLS ============
+document.querySelectorAll('.mode-btn').forEach(function(btn) {
+  btn.addEventListener('click', function() {
+    mode = btn.dataset.mode;
+    document.querySelectorAll('.mode-btn').forEach(function(b) { b.classList.remove('active'); });
+    btn.classList.add('active');
+    generate();
+  });
+});
+
+document.getElementById('sl-qty').addEventListener('input', function(e) {
+  qty = parseInt(e.target.value, 10);
+  if (isNaN(qty) || qty < 1) qty = 1;
+  document.getElementById('v-qty').textContent = qty;
+  generate();
+});
+
+// ============ COPY ============
+document.getElementById('btn-copy').addEventListener('click', function() {
+  var text = document.getElementById('output').textContent;
+  if (!text) return;
+  var btn = this;
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).then(function() {
+      flashCopy(btn);
+    }).catch(function() { fallbackCopy(text, btn); });
+  } else {
+    fallbackCopy(text, btn);
+  }
+});
+
+function fallbackCopy(text, btn) {
+  var ta = document.createElement('textarea');
+  ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+  document.body.appendChild(ta); ta.select(); ta.setSelectionRange(0, 99999);
+  document.execCommand('copy'); document.body.removeChild(ta);
+  flashCopy(btn);
+}
+
+function flashCopy(btn) {
+  btn.textContent = 'COPIED';
+  btn.classList.add('copied');
+  showToast('Copied to clipboard');
+  setTimeout(function() {
+    btn.textContent = 'COPY';
+    btn.classList.remove('copied');
+  }, 1200);
+}
+
+function showToast(msg) {
+  var toast = document.getElementById('toast');
+  toast.textContent = msg;
+  toast.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(function() { toast.classList.remove('show'); }, 1200);
+}
+
+// ============ INIT ============
+generate();
+
+})();
+</script>
+</body>
+</html>

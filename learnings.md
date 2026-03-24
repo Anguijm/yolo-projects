@@ -973,3 +973,12 @@ Persistent knowledge base. Read this before every build.
 - **IMPROVE**: for...in on guessed object — Object.keys().filter() is safer and more predictable
 - **INSIGHT**: el.className = value is DESTRUCTIVE — it replaces ALL classes. This is now the 4th occurrence (connect-four renderBoard, and now twice in this project). classList is the ONLY safe way to toggle state classes.
 - **TEST CAUGHT**: No bugs caught by automated tests — all were class management and iteration safety
+
+### ipsum-gen (2026-03-24)
+- **KEEP**: Real-time generation on slider/mode change — zero-friction UX
+- **KEEP**: Classic "Lorem ipsum..." opening for authenticity — always start with the standard text
+- **KEEP**: Word and character count display — practical metadata
+- **IMPROVE**: Clipboard API .catch() was empty — modern API can reject (permissions, non-HTTPS). Must fall back to execCommand in the catch handler, not just swallow the error. Gemini caught.
+- **IMPROVE**: Generated sentence then immediately overwrote with CLASSIC_START — wasted computation. Push the fixed value directly, loop from index 1.
+- **INSIGHT**: navigator.clipboard.writeText().catch() must ALWAYS have a functional fallback, not an empty handler. The modern API can fail for many reasons (permissions, security context, browser policy).
+- **TEST CAUGHT**: No bugs caught by automated tests
