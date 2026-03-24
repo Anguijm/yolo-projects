@@ -991,3 +991,16 @@ Persistent knowledge base. Read this before every build.
 - **IMPROVE**: Inflation-adjusted breakdown mixed nominal contributions with real total — numbers didn't add up. Must track realContributions separately with per-year inflation discounting. Gemini caught.
 - **INSIGHT**: When displaying inflation-adjusted financial data, ALL components must be consistently adjusted. Mixing nominal contributions with real total creates a mathematical impossibility (interest = total - contributions gives wrong number). Track both nominal and real values in parallel.
 - **TEST CAUGHT**: No bugs caught by automated tests — financial math consistency is logic-level
+
+### particle-life (2026-03-24) — PROJECT #99
+- **KEEP**: Float32Array SoA (Structure of Arrays) layout for particles — cache-friendly, no GC pressure
+- **KEEP**: Batch rendering by color (one fillStyle change per color, not per particle) — massive Canvas2D speedup
+- **KEEP**: fillRect instead of arc for tiny particles — 3x+ rendering performance
+- **KEEP**: Toroidal wrap with half-width distance check — prevents edge clumping, creates infinite-feeling space
+- **KEEP**: Close-range repulsion (d < radius*0.3) — prevents particle collapse into singularities
+- **KEEP**: Pre-calculated constants outside inner loop (frictionMult, repulseR, invD) — reduces per-iteration overhead
+- **KEEP**: Clickable matrix cells for live rule editing — deeply interactive
+- **KEEP**: Presets (Cells, Worms, Swarm, Ecosystem) — demonstrates the system's range immediately
+- **KEEP**: Glassmorphism panel that auto-hides — keeps the visual experience immersive
+- **INSIGHT**: Emergent complexity from simple rules is the most visually impressive pattern in single-file apps. Particle Life, Elementa, Life-Canvas — these are the projects people actually play with.
+- **INSIGHT**: For N-body simulations, the render loop is often the bottleneck, not the physics. Optimizing draw calls (batch by color, use simpler primitives) has more impact than optimizing math.

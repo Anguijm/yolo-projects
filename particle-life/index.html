@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="theme-color" content="#000000">
+<title>Particle Life</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { height: 100%; background: #080810; overflow: hidden; touch-action: none; -webkit-tap-highlight-color: transparent; font-family: system-ui, sans-serif; }
+canvas { display: block; position: absolute; inset: 0; }
+
+#panel {
+  position: fixed; top: 10px; right: 10px; width: 220px;
+  background: rgba(10,10,18,0.88); border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 10px; padding: 10px; z-index: 5;
+  backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
+  opacity: 0.4; transition: opacity 0.3s;
+  max-height: calc(100vh - 20px); overflow-y: auto;
+}
+#panel:hover { opacity: 1; }
+.p-title { font-size: 0.6rem; color: #555; letter-spacing: 0.2em; margin-bottom: 8px; font-weight: 300; }
+.p-row { display: flex; align-items: center; gap: 4px; margin-bottom: 5px; }
+.p-label { font-size: 0.4rem; color: #444; min-width: 55px; letter-spacing: 0.05em; }
+.p-val { font-size: 0.4rem; color: #555; font-family: monospace; min-width: 24px; text-align: right; }
+input[type="range"] { flex: 1; height: 2px; accent-color: #555; }
+.p-btn { padding: 4px 8px; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); color: #666; font-family: inherit; font-size: 0.45rem; cursor: pointer; border-radius: 4px; letter-spacing: 0.08em; }
+.p-btn:active { border-color: rgba(255,255,255,0.2); color: #aaa; }
+.p-btns { display: flex; gap: 3px; flex-wrap: wrap; margin-bottom: 6px; }
+.p-sep { height: 1px; background: rgba(255,255,255,0.04); margin: 6px 0; }
+
+/* Matrix */
+#matrix { display: grid; gap: 2px; margin-bottom: 6px; }
+.m-cell { width: 100%; aspect-ratio: 1; border-radius: 2px; cursor: pointer; border: none; padding: 0; font-size: 0.35rem; font-family: monospace; color: rgba(255,255,255,0.4); display: flex; align-items: center; justify-content: center; }
+.m-header { font-size: 0.35rem; display: flex; align-items: center; justify-content: center; }
+
+#fps { position: fixed; bottom: 6px; left: 8px; font-size: 0.45rem; color: #222; font-family: monospace; z-index: 2; }
+#hint { position: fixed; bottom: 6px; right: 8px; font-size: 0.4rem; color: #1a1a1a; z-index: 2; }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+
+<div id="panel">
+  <div class="p-title">PARTICLE LIFE</div>
+  <div class="p-btns">
+    <button class="p-btn" id="btn-random">Randomize</button>
+    <button class="p-btn" data-preset="cells">Cells</button>
+    <button class="p-btn" data-preset="worms">Worms</button>
+    <button class="p-btn" data-preset="swarm">Swarm</button>
+    <button class="p-btn" data-preset="ecosystem">Ecosystem</button>
+  </div>
+  <div class="p-row">
+    <span class="p-label">Particles</span>
+    <input type="range" id="sl-count" min="200" max="3000" step="100" value="1500">
+    <span class="p-val" id="v-count">1500</span>
+  </div>
+  <div class="p-row">
+    <span class="p-label">Friction</span>
+    <input type="range" id="sl-friction" min="0.01" max="0.2" step="0.005" value="0.05">
+    <span class="p-val" id="v-friction">0.05</span>
+  </div>
+  <div class="p-row">
+    <span class="p-label">Radius</span>
+    <input type="range" id="sl-radius" min="30" max="200" step="5" value="80">
+    <span class="p-val" id="v-radius">80</span>
+  </div>
+  <div class="p-row">
+    <span class="p-label">Force</span>
+    <input type="range" id="sl-force" min="0.1" max="2" step="0.05" value="0.5">
+    <span class="p-val" id="v-force">0.5</span>
+  </div>
+  <div class="p-sep"></div>
+  <div class="p-label" style="margin-bottom:3px">INTERACTION MATRIX</div>
+  <div id="matrix"></div>
+</div>
+
+<div id="fps">0 fps</div>
+<div id="hint">click: attract &middot; right-click: repel</div>
+
+<script>
+(function() {
+'use strict';
+
+// ============ CONFIG ============
+var NUM_COLORS = 6;
+var COLORS = ['#ff3366', '#33ff99', '#3399ff', '#ffcc33', '#cc33ff', '#33ffee'];
+var COLOR_NAMES = ['R', 'G', 'B', 'Y', 'M', 'C'];
+
+// ============ STATE ============
+var canvas = document.getElementById('c');
+var ctx = canvas.getContext('2d');
+var W, H;
+var count = 1500;
+var friction = 0.05;
+var radius = 80;
+var forceMul = 0.5;
+
+// Particle data (SoA for cache performance)
+var px, py, pvx, pvy, pcolor; // Float32Array / Uint8Array
+var matrix = []; // NUM_COLORS x NUM_COLORS attraction values (-1 to 1)
+
+// Mouse
+var mouseX = -9999, mouseY = -9999, mouseDown = false, mouseRepel = false;
+
+// ============ INIT ============
+function resize() {
+  W = window.innerWidth;
+  H = window.innerHeight;
+  canvas.width = W;
+  canvas.height = H;
+}
+
+function initParticles() {
+  px = new Float32Array(count);
+  py = new Float32Array(count);
+  pvx = new Float32Array(count);
+  pvy = new Float32Array(count);
+  pcolor = new Uint8Array(count);
+  for (var i = 0; i < count; i++) {
+    px[i] = Math.random() * W;
+    py[i] = Math.random() * H;
+    pvx[i] = 0;
+    pvy[i] = 0;
+    pcolor[i] = Math.floor(Math.random() * NUM_COLORS);
+  }
+}
+
+function randomMatrix() {
+  matrix = [];
+  for (var i = 0; i < NUM_COLORS; i++) {
+    matrix[i] = [];
+    for (var j = 0; j < NUM_COLORS; j++) {
+      matrix[i][j] = Math.random() * 2 - 1; // -1 to 1
+    }
+  }
+  renderMatrix();
+}
+
+// ============ PRESETS ============
+var PRESETS = {
+  cells: function() {
+    for (var i = 0; i < NUM_COLORS; i++) for (var j = 0; j < NUM_COLORS; j++) {
+      matrix[i][j] = (i === j) ? 0.3 : -0.2;
+    }
+  },
+  worms: function() {
+    for (var i = 0; i < NUM_COLORS; i++) for (var j = 0; j < NUM_COLORS; j++) {
+      matrix[i][j] = ((j - i + NUM_COLORS) % NUM_COLORS === 1) ? 0.6 : -0.1;
+    }
+  },
+  swarm: function() {
+    for (var i = 0; i < NUM_COLORS; i++) for (var j = 0; j < NUM_COLORS; j++) {
+      matrix[i][j] = 0.15 + (i === j ? 0.3 : 0);
+    }
+  },
+  ecosystem: function() {
+    var vals = [
+      [ 0.1, -0.5,  0.3, -0.1,  0.0,  0.2],
+      [ 0.4,  0.1, -0.3,  0.5, -0.2,  0.0],
+      [-0.2,  0.3,  0.2,  0.0,  0.4, -0.3],
+      [ 0.0, -0.1,  0.1,  0.3, -0.4,  0.5],
+      [ 0.3,  0.2, -0.5,  0.4,  0.1, -0.1],
+      [-0.3,  0.0,  0.2, -0.2,  0.5,  0.2]
+    ];
+    for (var i = 0; i < NUM_COLORS; i++) for (var j = 0; j < NUM_COLORS; j++) {
+      matrix[i][j] = vals[i][j];
+    }
+  }
+};
+
+// ============ PHYSICS ============
+function update() {
+  var r2 = radius * radius;
+  var halfW = W / 2, halfH = H / 2;
+  var repulseR = radius * 0.3;
+  var invRepulseR = 1 / repulseR;
+  var frictionMult = 1 - friction;
+
+  for (var i = 0; i < count; i++) {
+    var fx = 0, fy = 0;
+    var ci = pcolor[i];
+    var xi = px[i], yi = py[i];
+
+    for (var j = 0; j < count; j++) {
+      if (i === j) continue;
+      var dx = px[j] - xi;
+      var dy = py[j] - yi;
+
+      if (dx > halfW) dx -= W; else if (dx < -halfW) dx += W;
+      if (dy > halfH) dy -= H; else if (dy < -halfH) dy += H;
+
+      var d2 = dx * dx + dy * dy;
+      if (d2 > r2 || d2 < 1) continue;
+
+      var d = Math.sqrt(d2);
+      var invD = 1 / d;
+      var f = matrix[ci][pcolor[j]] * forceMul;
+
+      if (d < repulseR) {
+        f = (d * invRepulseR - 1) * 0.5;
+      }
+
+      fx += dx * invD * f;
+      fy += dy * invD * f;
+    }
+
+    pvx[i] = (pvx[i] + fx) * frictionMult;
+    pvy[i] = (pvy[i] + fy) * frictionMult;
+
+    // Mouse interaction
+    if (mouseDown) {
+      var mdx = mouseX - xi, mdy = mouseY - yi;
+      if (mdx > halfW) mdx -= W; else if (mdx < -halfW) mdx += W;
+      if (mdy > halfH) mdy -= H; else if (mdy < -halfH) mdy += H;
+      var md2 = mdx * mdx + mdy * mdy;
+      if (md2 < 40000 && md2 > 1) { // within ~200px
+        var md = Math.sqrt(md2);
+        var mf = mouseRepel ? -2 : 2;
+        pvx[i] += (mdx / md) * mf;
+        pvy[i] += (mdy / md) * mf;
+      }
+    }
+
+    // Clamp velocity
+    var speed = Math.sqrt(pvx[i] * pvx[i] + pvy[i] * pvy[i]);
+    if (speed > 4) { pvx[i] = (pvx[i] / speed) * 4; pvy[i] = (pvy[i] / speed) * 4; }
+
+    px[i] += pvx[i];
+    py[i] += pvy[i];
+
+    // Toroidal wrap
+    if (px[i] < 0) px[i] += W; else if (px[i] >= W) px[i] -= W;
+    if (py[i] < 0) py[i] += H; else if (py[i] >= H) py[i] -= H;
+  }
+}
+
+// ============ RENDER ============
+function draw() {
+  // Trail effect — semi-transparent clear
+  ctx.fillStyle = 'rgba(8, 8, 16, 0.25)';
+  ctx.fillRect(0, 0, W, H);
+
+  // Batch render by color — minimize fillStyle changes
+  for (var c = 0; c < NUM_COLORS; c++) {
+    ctx.fillStyle = COLORS[c];
+    for (var i = 0; i < count; i++) {
+      if (pcolor[i] === c) {
+        ctx.fillRect(px[i] - 1.5, py[i] - 1.5, 3, 3);
+      }
+    }
+  }
+}
+
+// ============ MATRIX UI ============
+function renderMatrix() {
+  var container = document.getElementById('matrix');
+  container.innerHTML = '';
+  container.style.gridTemplateColumns = 'auto ' + 'repeat(' + NUM_COLORS + ', 1fr)';
+
+  // Header row
+  var corner = document.createElement('div');
+  corner.className = 'm-header';
+  container.appendChild(corner);
+  for (var j = 0; j < NUM_COLORS; j++) {
+    var h = document.createElement('div');
+    h.className = 'm-header';
+    h.style.color = COLORS[j];
+    h.textContent = COLOR_NAMES[j];
+    container.appendChild(h);
+  }
+
+  // Data rows
+  for (var i = 0; i < NUM_COLORS; i++) {
+    var rowLabel = document.createElement('div');
+    rowLabel.className = 'm-header';
+    rowLabel.style.color = COLORS[i];
+    rowLabel.textContent = COLOR_NAMES[i];
+    container.appendChild(rowLabel);
+
+    for (var j = 0; j < NUM_COLORS; j++) {
+      var cell = document.createElement('button');
+      cell.className = 'm-cell';
+      cell.dataset.i = i;
+      cell.dataset.j = j;
+      updateCellStyle(cell, matrix[i][j]);
+      container.appendChild(cell);
+    }
+  }
+}
+
+function updateCellStyle(cell, val) {
+  var r = Math.round(Math.max(0, -val) * 200);
+  var g = Math.round(Math.max(0, val) * 200);
+  cell.style.background = 'rgba(' + r + ',' + g + ',40,0.3)';
+  cell.textContent = val.toFixed(1);
+}
+
+// Click matrix cells to cycle values
+document.getElementById('matrix').addEventListener('click', function(e) {
+  var cell = e.target.closest('.m-cell');
+  if (!cell) return;
+  var i = parseInt(cell.dataset.i, 10);
+  var j = parseInt(cell.dataset.j, 10);
+  matrix[i][j] = Math.round((matrix[i][j] + 0.3) * 10) / 10;
+  if (matrix[i][j] > 1) matrix[i][j] = -1;
+  updateCellStyle(cell, matrix[i][j]);
+});
+
+// ============ CONTROLS ============
+document.getElementById('sl-count').addEventListener('input', function(e) {
+  count = parseInt(e.target.value, 10) || 1500;
+  document.getElementById('v-count').textContent = count;
+  initParticles();
+});
+
+document.getElementById('sl-friction').addEventListener('input', function(e) {
+  friction = parseFloat(e.target.value) || 0.05;
+  document.getElementById('v-friction').textContent = friction.toFixed(2);
+});
+
+document.getElementById('sl-radius').addEventListener('input', function(e) {
+  radius = parseInt(e.target.value, 10) || 80;
+  document.getElementById('v-radius').textContent = radius;
+});
+
+document.getElementById('sl-force').addEventListener('input', function(e) {
+  forceMul = parseFloat(e.target.value) || 0.5;
+  document.getElementById('v-force').textContent = forceMul.toFixed(1);
+});
+
+document.getElementById('btn-random').addEventListener('click', function() {
+  randomMatrix();
+});
+
+document.querySelectorAll('[data-preset]').forEach(function(btn) {
+  btn.addEventListener('click', function() {
+    randomMatrix(); // Init structure
+    PRESETS[btn.dataset.preset]();
+    renderMatrix();
+  });
+});
+
+// Mouse
+canvas.addEventListener('pointerdown', function(e) {
+  mouseDown = true;
+  mouseRepel = e.button === 2;
+  mouseX = e.clientX;
+  mouseY = e.clientY;
+});
+canvas.addEventListener('pointermove', function(e) {
+  mouseX = e.clientX;
+  mouseY = e.clientY;
+});
+window.addEventListener('pointerup', function() { mouseDown = false; });
+canvas.addEventListener('contextmenu', function(e) { e.preventDefault(); });
+
+// ============ GAME LOOP ============
+var fpsFrames = 0, fpsTime = performance.now();
+
+function loop() {
+  update();
+  draw();
+
+  fpsFrames++;
+  var now = performance.now();
+  if (now - fpsTime >= 1000) {
+    document.getElementById('fps').textContent = fpsFrames + ' fps';
+    fpsFrames = 0;
+    fpsTime = now;
+  }
+
+  requestAnimationFrame(loop);
+}
+
+// ============ INIT ============
+resize();
+window.addEventListener('resize', function() { resize(); initParticles(); });
+randomMatrix();
+initParticles();
+requestAnimationFrame(loop);
+
+})();
+</script>
+</body>
+</html>
