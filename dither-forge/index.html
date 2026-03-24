@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="theme-color" content="#000000">
+<title>Dither Forge</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{height:100%;background:#0a0a0c;overflow-y:auto;font-family:system-ui,sans-serif;touch-action:manipulation;-webkit-tap-highlight-color:transparent;color:#ccc}
+#app{max-width:800px;margin:0 auto;padding:12px}
+h1{font-size:0.7rem;color:#444;letter-spacing:0.25em;font-weight:300;margin-bottom:10px}
+
+#drop-zone{border:2px dashed #1a1a2e;border-radius:8px;padding:40px;text-align:center;cursor:pointer;margin-bottom:10px;transition:border-color 0.2s}
+#drop-zone.active{border-color:#58a6ff}
+#drop-zone .dz-text{font-size:0.6rem;color:#222;letter-spacing:0.1em}
+input[type="file"]{display:none}
+
+#output{position:relative;margin-bottom:10px;text-align:center;background:#080810;border-radius:6px;overflow:hidden;min-height:100px;display:flex;align-items:center;justify-content:center}
+#result-canvas{max-width:100%;image-rendering:pixelated;image-rendering:crisp-edges;display:block;margin:0 auto}
+
+#controls{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px}
+.ctrl-group{flex:1;min-width:140px}
+.ctrl-label{font-size:0.4rem;color:#444;letter-spacing:0.1em;margin-bottom:3px}
+select,input[type="range"]{width:100%;background:#111;border:1px solid #1a1a1a;color:#888;padding:4px 6px;font-family:inherit;font-size:0.55rem;border-radius:3px;outline:none}
+select:focus,input[type="range"]:focus{border-color:#333}
+input[type="range"]{height:3px;accent-color:#555;padding:0}
+
+#actions{display:flex;gap:6px}
+.act-btn{padding:5px 12px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);color:#666;font-family:inherit;font-size:0.5rem;cursor:pointer;border-radius:4px;letter-spacing:0.08em}
+.act-btn:active{border-color:rgba(255,255,255,0.2);color:#aaa}
+</style>
+</head>
+<body>
+<div id="app">
+  <h1>DITHER FORGE</h1>
+
+  <div id="drop-zone">
+    <div class="dz-text">Drop image here or click to upload</div>
+    <input type="file" id="file-input" accept="image/*">
+  </div>
+
+  <div id="output">
+    <canvas id="result-canvas"></canvas>
+  </div>
+
+  <div id="controls">
+    <div class="ctrl-group">
+      <div class="ctrl-label">ALGORITHM</div>
+      <select id="sel-algo">
+        <option value="threshold">Threshold</option>
+        <option value="floyd" selected>Floyd-Steinberg</option>
+        <option value="atkinson">Atkinson</option>
+        <option value="bayer4">Bayer 4x4</option>
+        <option value="bayer8">Bayer 8x8</option>
+      </select>
+    </div>
+    <div class="ctrl-group">
+      <div class="ctrl-label">PALETTE</div>
+      <select id="sel-palette">
+        <option value="bw" selected>1-Bit B&W</option>
+        <option value="gameboy">GameBoy</option>
+        <option value="cga">CGA</option>
+        <option value="amber">Amber CRT</option>
+        <option value="cyber">Cyberpunk</option>
+      </select>
+    </div>
+    <div class="ctrl-group">
+      <div class="ctrl-label">PIXEL SCALE</div>
+      <input type="range" id="sl-scale" min="1" max="6" step="1" value="2">
+    </div>
+    <div class="ctrl-group">
+      <div class="ctrl-label">BRIGHTNESS</div>
+      <input type="range" id="sl-bright" min="-50" max="50" step="5" value="0">
+    </div>
+    <div class="ctrl-group">
+      <div class="ctrl-label">CONTRAST</div>
+      <input type="range" id="sl-contrast" min="0.5" max="2" step="0.1" value="1">
+    </div>
+  </div>
+
+  <div id="actions">
+    <button class="act-btn" id="btn-sample">Sample Image</button>
+    <button class="act-btn" id="btn-download">Download PNG</button>
+  </div>
+</div>
+
+<script>
+(function(){
+'use strict';
+
+var resultCanvas=document.getElementById('result-canvas');
+var resultCtx=resultCanvas.getContext('2d');
+var srcCanvas=document.createElement('canvas');
+var srcCtx=srcCanvas.getContext('2d');
+var sourceLoaded=false;
+var MAX_DIM=400;
+
+var algo='floyd',palette='bw',pixelScale=2,brightness=0,contrast=1;
+
+// ============ PALETTES ============
+var PALETTES={
+  bw:[[0,0,0],[255,255,255]],
+  gameboy:[[15,56,15],[48,98,48],[139,172,15],[155,188,15]],
+  cga:[[0,0,0],[0,170,170],[170,0,170],[170,170,170]],
+  amber:[[0,0,0],[255,176,0],[255,204,0],[255,255,204]],
+  cyber:[[10,0,20],[200,0,100],[0,200,255],[255,255,255]]
+};
+
+// ============ IMAGE LOADING ============
+function loadImage(src){
+  var img=new Image();
+  img.onload=function(){
+    var w=img.width,h=img.height;
+    if(w>MAX_DIM||h>MAX_DIM){
+      var s=MAX_DIM/Math.max(w,h);
+      w=Math.floor(w*s);h=Math.floor(h*s);
+    }
+    srcCanvas.width=w;srcCanvas.height=h;
+    srcCtx.drawImage(img,0,0,w,h);
+    sourceLoaded=true;
+    applyDither();
+  };
+  img.src=src;
+}
+
+function generateSample(){
+  // Procedural gradient + shapes
+  var w=200,h=150;
+  srcCanvas.width=w;srcCanvas.height=h;
+  // Gradient background
+  var grad=srcCtx.createLinearGradient(0,0,w,h);
+  grad.addColorStop(0,'#1a1a2e');grad.addColorStop(0.5,'#e94560');grad.addColorStop(1,'#0f3460');
+  srcCtx.fillStyle=grad;srcCtx.fillRect(0,0,w,h);
+  // Circles
+  srcCtx.fillStyle='#fff';srcCtx.beginPath();srcCtx.arc(60,50,30,0,Math.PI*2);srcCtx.fill();
+  srcCtx.fillStyle='#16213e';srcCtx.beginPath();srcCtx.arc(140,100,40,0,Math.PI*2);srcCtx.fill();
+  srcCtx.fillStyle='#e94560';srcCtx.fillRect(80,20,50,30);
+  sourceLoaded=true;
+  applyDither();
+}
+
+// ============ PRE-PROCESSING ============
+function preprocess(data){
+  var factor=(259*(contrast*128+255))/(255*(259-contrast*128));
+  for(var i=0;i<data.length;i+=4){
+    for(var c=0;c<3;c++){
+      var v=data[i+c]+brightness;
+      v=Math.round(factor*(v-128)+128);
+      data[i+c]=Math.max(0,Math.min(255,v));
+    }
+  }
+}
+
+// ============ DITHERING ALGORITHMS ============
+function luminance(r,g,b){return 0.299*r+0.587*g+0.114*b}
+
+function nearestColor(r,g,b,pal){
+  var best=0,bestDist=Infinity;
+  for(var i=0;i<pal.length;i++){
+    var dr=r-pal[i][0],dg=g-pal[i][1],db=b-pal[i][2];
+    var d=dr*dr+dg*dg+db*db;
+    if(d<bestDist){bestDist=d;best=i}
+  }
+  return pal[best];
+}
+
+function ditherThreshold(data,w,h,pal){
+  for(var y=0;y<h;y++)for(var x=0;x<w;x++){
+    var i=(y*w+x)*4;
+    var nc=nearestColor(data[i],data[i+1],data[i+2],pal);
+    data[i]=nc[0];data[i+1]=nc[1];data[i+2]=nc[2];
+  }
+}
+
+// Error diffusion uses Float32Array buffer to avoid Uint8ClampedArray truncation
+function ditherFloydSteinberg(data,w,h,pal){
+  var buf=new Float32Array(data.length);
+  for(var i=0;i<data.length;i++)buf[i]=data[i];
+  for(var y=0;y<h;y++)for(var x=0;x<w;x++){
+    var i=(y*w+x)*4;
+    var or=Math.max(0,Math.min(255,buf[i])),og=Math.max(0,Math.min(255,buf[i+1])),ob=Math.max(0,Math.min(255,buf[i+2]));
+    var nc=nearestColor(or,og,ob,pal);
+    data[i]=nc[0];data[i+1]=nc[1];data[i+2]=nc[2];
+    var er=or-nc[0],eg=og-nc[1],eb=ob-nc[2];
+    diffBuf(buf,w,h,x+1,y,er,eg,eb,7/16);
+    diffBuf(buf,w,h,x-1,y+1,er,eg,eb,3/16);
+    diffBuf(buf,w,h,x,y+1,er,eg,eb,5/16);
+    diffBuf(buf,w,h,x+1,y+1,er,eg,eb,1/16);
+  }
+}
+
+function ditherAtkinson(data,w,h,pal){
+  var buf=new Float32Array(data.length);
+  for(var i=0;i<data.length;i++)buf[i]=data[i];
+  for(var y=0;y<h;y++)for(var x=0;x<w;x++){
+    var i=(y*w+x)*4;
+    var or=Math.max(0,Math.min(255,buf[i])),og=Math.max(0,Math.min(255,buf[i+1])),ob=Math.max(0,Math.min(255,buf[i+2]));
+    var nc=nearestColor(or,og,ob,pal);
+    data[i]=nc[0];data[i+1]=nc[1];data[i+2]=nc[2];
+    var er=(or-nc[0])/8,eg=(og-nc[1])/8,eb=(ob-nc[2])/8;
+    diffBuf(buf,w,h,x+1,y,er,eg,eb,1);
+    diffBuf(buf,w,h,x+2,y,er,eg,eb,1);
+    diffBuf(buf,w,h,x-1,y+1,er,eg,eb,1);
+    diffBuf(buf,w,h,x,y+1,er,eg,eb,1);
+    diffBuf(buf,w,h,x+1,y+1,er,eg,eb,1);
+    diffBuf(buf,w,h,x,y+2,er,eg,eb,1);
+  }
+}
+
+function diffBuf(buf,w,h,x,y,er,eg,eb,weight){
+  if(x<0||x>=w||y<0||y>=h)return;
+  var i=(y*w+x)*4;
+  buf[i]+=er*weight;buf[i+1]+=eg*weight;buf[i+2]+=eb*weight;
+}
+
+// Bayer matrices
+var BAYER4=[
+  [0,8,2,10],[12,4,14,6],[3,11,1,9],[15,7,13,5]
+];
+var BAYER8=[];
+(function(){
+  for(var y=0;y<8;y++){BAYER8[y]=[];for(var x=0;x<8;x++){
+    var i=y*8+x;
+    // Standard 8x8 Bayer threshold map
+    var v=0,xc=x^y,yc=y;
+    for(var bit=0;bit<6;bit++){v=(v<<1)|((xc>>bit)&1);v=(v<<1)|((yc>>bit)&1)}
+    BAYER8[y][x]=(v/64);
+  }}
+})();
+
+function ditherBayer(data,w,h,pal,matrix,size){
+  for(var y=0;y<h;y++)for(var x=0;x<w;x++){
+    var i=(y*w+x)*4;
+    var threshold=(matrix[y%size][x%size]-0.5)*128;
+    var r=Math.max(0,Math.min(255,data[i]+threshold));
+    var g=Math.max(0,Math.min(255,data[i+1]+threshold));
+    var b=Math.max(0,Math.min(255,data[i+2]+threshold));
+    var nc=nearestColor(r,g,b,pal);
+    data[i]=nc[0];data[i+1]=nc[1];data[i+2]=nc[2];
+  }
+}
+
+// ============ APPLY ============
+var renderTimer=null;
+
+function applyDither(){
+  if(!sourceLoaded)return;
+  clearTimeout(renderTimer);
+  renderTimer=setTimeout(function(){
+    var sw=srcCanvas.width,sh=srcCanvas.height;
+    // Scale down for pixel effect
+    var dw=Math.max(10,Math.floor(sw/pixelScale));
+    var dh=Math.max(10,Math.floor(sh/pixelScale));
+
+    // Draw scaled down
+    var workCanvas=document.createElement('canvas');
+    workCanvas.width=dw;workCanvas.height=dh;
+    var wctx=workCanvas.getContext('2d');
+    wctx.drawImage(srcCanvas,0,0,dw,dh);
+
+    var imgData=wctx.getImageData(0,0,dw,dh);
+    var data=imgData.data;
+
+    // Pre-process
+    preprocess(data);
+
+    // Dither
+    var pal=PALETTES[palette]||PALETTES.bw;
+    if(algo==='threshold')ditherThreshold(data,dw,dh,pal);
+    else if(algo==='floyd')ditherFloydSteinberg(data,dw,dh,pal);
+    else if(algo==='atkinson')ditherAtkinson(data,dw,dh,pal);
+    else if(algo==='bayer4'){
+      var b4n=BAYER4.map(function(r){return r.map(function(v){return v/16})});
+      ditherBayer(data,dw,dh,pal,b4n,4);
+    }
+    else if(algo==='bayer8')ditherBayer(data,dw,dh,pal,BAYER8,8);
+
+    wctx.putImageData(imgData,0,0);
+
+    // Scale up to result canvas
+    resultCanvas.width=sw;resultCanvas.height=sh;
+    resultCtx.imageSmoothingEnabled=false;
+    resultCtx.drawImage(workCanvas,0,0,sw,sh);
+  },50);
+}
+
+// ============ FILE INPUT ============
+var dropZone=document.getElementById('drop-zone');
+var fileInput=document.getElementById('file-input');
+
+dropZone.addEventListener('click',function(){fileInput.click()});
+dropZone.addEventListener('dragover',function(e){e.preventDefault();dropZone.classList.add('active')});
+dropZone.addEventListener('dragleave',function(){dropZone.classList.remove('active')});
+dropZone.addEventListener('drop',function(e){
+  e.preventDefault();dropZone.classList.remove('active');
+  if(e.dataTransfer.files[0])readFile(e.dataTransfer.files[0]);
+});
+dropZone.addEventListener('dragenter',function(e){e.preventDefault()});
+fileInput.addEventListener('change',function(){if(fileInput.files[0])readFile(fileInput.files[0])});
+
+function readFile(file){
+  if(!file.type.startsWith('image/'))return;
+  var reader=new FileReader();
+  reader.onload=function(e){loadImage(e.target.result)};
+  reader.readAsDataURL(file);
+}
+
+// ============ CONTROLS ============
+document.getElementById('sel-algo').addEventListener('change',function(e){algo=e.target.value;applyDither()});
+document.getElementById('sel-palette').addEventListener('change',function(e){palette=e.target.value;applyDither()});
+document.getElementById('sl-scale').addEventListener('input',function(e){
+  pixelScale=parseInt(e.target.value,10);if(isNaN(pixelScale)||pixelScale<1)pixelScale=1;applyDither()});
+document.getElementById('sl-bright').addEventListener('input',function(e){
+  brightness=parseInt(e.target.value,10);if(isNaN(brightness))brightness=0;applyDither()});
+document.getElementById('sl-contrast').addEventListener('input',function(e){
+  contrast=parseFloat(e.target.value);if(isNaN(contrast))contrast=1;applyDither()});
+
+document.getElementById('btn-sample').addEventListener('click',generateSample);
+document.getElementById('btn-download').addEventListener('click',function(){
+  resultCanvas.toBlob(function(blob){
+    if(!blob)return;
+    var url=URL.createObjectURL(blob);
+    var a=document.createElement('a');a.href=url;a.download='dither-'+Date.now()+'.png';
+    a.click();setTimeout(function(){URL.revokeObjectURL(url)},1000);
+  },'image/png');
+});
+
+// ============ INIT ============
+generateSample();
+
+})();
+</script>
+</body>
+</html>

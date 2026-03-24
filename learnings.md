@@ -1102,3 +1102,14 @@ Persistent knowledge base. Read this before every build.
 - **IMPROVE**: Overlapping nodes (dx=dy=0) produced zero repulsion force — Gemini caught. `dx/d*f` = `0/1*f` = 0. Must add random jitter to break symmetry.
 - **INSIGHT**: Force-directed graphs have a degenerate case when nodes perfectly overlap: the normalized direction vector is (0,0), so no force is applied regardless of magnitude. The fix is trivial — add tiny random displacement — but the bug is invisible until it happens.
 - **INSIGHT**: Any N-body repulsion system needs a terminal velocity cap. Without it, two nodes spawned at the same position experience near-infinite force in one frame and fly to Infinity.
+
+### dither-forge (2026-03-24) — PROJECT #107
+- **KEEP**: Float32Array buffer for error diffusion — prevents Uint8ClampedArray truncation of accumulated error
+- **KEEP**: Nearest-color matching via Euclidean RGB distance — works with any palette size
+- **KEEP**: Multiple dithering algorithms (threshold, Floyd-Steinberg, Atkinson, Bayer 4x4/8x8) — users can compare approaches
+- **KEEP**: Pixel scale slider with imageSmoothingEnabled=false upscale — crisp retro pixel art from any image
+- **KEEP**: Pre-processing (brightness/contrast) before dither — critical for good results on dark/light images
+- **KEEP**: Procedural sample image — tool works immediately without upload
+- **IMPROVE**: Error diffusion on Uint8ClampedArray truncated accumulated values — Gemini caught. Float32Array intermediate buffer is REQUIRED for correct Floyd-Steinberg/Atkinson. Read from buffer, write final to uint8 output.
+- **INSIGHT**: Uint8ClampedArray (from getImageData) silently clamps values to 0-255 on write. Error diffusion algorithms RELY on temporarily exceeding these bounds. Any algorithm that accumulates error into neighbor pixels must use an unclamped buffer (Float32Array or Int16Array).
+- **INSIGHT**: This is the same class of bug as "data structure silently destroys data" — seen before with history.shift() in ink-stack. The container's behavior modifies the data without throwing an error.
