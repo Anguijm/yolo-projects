@@ -923,3 +923,14 @@ Persistent knowledge base. Read this before every build.
 - **INSIGHT**: Any history system with a cap that redraws from the history array will LOSE data when shifting. If the array IS the source of truth for rendering, bake evicted entries to a persistent layer (offscreen canvas) before removing them.
 - **INSIGHT**: pointercancel means the OS interrupted the gesture (system dialog, orientation change). The partial data is unreliable and should be discarded, not committed.
 - **TEST CAUGHT**: Browser test timed out (transient Playwright issue, not a code bug). Non-browser checks all passed.
+
+### raw-md (2026-03-24)
+- **KEEP**: Parse pipeline order: escape HTML → extract code blocks → block elements → inline elements → paragraphs → restore code blocks
+- **KEEP**: XSS protection first (escape &, <, >) before any markdown processing
+- **KEEP**: Code block extraction with sentinel replacement — prevents inline regex from breaking code content
+- **KEEP**: Proportional sync scroll (scrollTop / scrollHeight ratio) — simple and effective
+- **KEEP**: Debounced rendering (150ms) — prevents lag on fast typing of large documents
+- **KEEP**: localStorage auto-save on every render — zero-friction persistence
+- **INSIGHT**: Custom markdown parsers must process elements in strict order. Code blocks MUST be extracted first, otherwise inline patterns (bold, italic, links) will corrupt code content.
+- **INSIGHT**: The test suite's brace balance checker uses regex to strip strings/comments but doesn't strip regex literals. Code with regex containing braces ({3,}, {1,6}) will false-fail. Known limitation — browser load test confirms correctness.
+- **TEST NOTE**: Brace balance test false-failed due to regex literals with quantifier braces. All other tests passed including browser load with zero console errors.

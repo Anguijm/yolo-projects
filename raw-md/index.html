@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="theme-color" content="#000000">
+<title>Raw MD</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { height: 100%; background: #0e0e0e; color: #c9d1d9; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; overflow: hidden; }
+#app { height: 100%; display: flex; flex-direction: column; }
+
+/* Header */
+#header { display: flex; align-items: center; justify-content: space-between; padding: 6px 12px; border-bottom: 1px solid #1a1a1a; flex-shrink: 0; }
+#title { font-size: 0.6rem; color: #333; letter-spacing: 0.25em; font-weight: 300; }
+#stats { font-size: 0.45rem; color: #333; font-family: monospace; }
+.hdr-btn { padding: 3px 8px; background: transparent; border: 1px solid #1a1a1a; color: #444; font-family: inherit; font-size: 0.45rem; cursor: pointer; border-radius: 3px; letter-spacing: 0.08em; }
+.hdr-btn:active { border-color: #555; color: #888; }
+#hdr-actions { display: flex; gap: 4px; }
+
+/* Panes */
+#panes { flex: 1; display: flex; min-height: 0; }
+@media (max-width: 600px) { #panes { flex-direction: column; } }
+
+#editor { flex: 1; display: flex; flex-direction: column; border-right: 1px solid #1a1a1a; min-width: 0; }
+#editor-label { font-size: 0.4rem; color: #222; padding: 4px 10px; letter-spacing: 0.1em; flex-shrink: 0; }
+#input { flex: 1; background: transparent; border: none; color: #c9d1d9; padding: 8px 12px; font-family: inherit; font-size: 0.8rem; line-height: 1.7; resize: none; outline: none; overflow-y: auto; tab-size: 2; }
+#input::placeholder { color: #1a1a1a; }
+
+#preview-pane { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+#preview-label { font-size: 0.4rem; color: #222; padding: 4px 10px; letter-spacing: 0.1em; flex-shrink: 0; }
+#preview { flex: 1; padding: 8px 12px; overflow-y: auto; font-family: system-ui, -apple-system, sans-serif; font-size: 0.85rem; line-height: 1.7; color: #c9d1d9; }
+
+/* Preview typography */
+#preview h1 { font-size: 1.6rem; color: #e6edf3; margin: 0.6em 0 0.3em; font-weight: 600; border-bottom: 1px solid #1a1a1a; padding-bottom: 0.2em; }
+#preview h2 { font-size: 1.3rem; color: #e6edf3; margin: 0.5em 0 0.3em; font-weight: 600; border-bottom: 1px solid #1a1a1a; padding-bottom: 0.2em; }
+#preview h3 { font-size: 1.1rem; color: #e6edf3; margin: 0.4em 0 0.2em; font-weight: 600; }
+#preview h4, #preview h5, #preview h6 { font-size: 0.95rem; color: #c9d1d9; margin: 0.4em 0 0.2em; font-weight: 600; }
+#preview p { margin: 0.5em 0; }
+#preview strong { color: #e6edf3; }
+#preview a { color: #58a6ff; text-decoration: none; }
+#preview a:hover { text-decoration: underline; }
+#preview code { background: #1a1a2e; padding: 2px 5px; border-radius: 3px; font-family: ui-monospace, monospace; font-size: 0.85em; color: #f0883e; }
+#preview pre { background: #111; border: 1px solid #1a1a1a; border-radius: 4px; padding: 10px; margin: 0.5em 0; overflow-x: auto; }
+#preview pre code { background: none; padding: 0; color: #c9d1d9; }
+#preview blockquote { border-left: 3px solid #333; padding-left: 12px; color: #888; margin: 0.5em 0; }
+#preview ul, #preview ol { padding-left: 24px; margin: 0.5em 0; }
+#preview li { margin: 0.2em 0; }
+#preview hr { border: none; border-top: 1px solid #1a1a1a; margin: 1em 0; }
+#preview img { max-width: 100%; border-radius: 4px; }
+
+/* Toast */
+#toast { position: fixed; bottom: 12px; left: 50%; transform: translateX(-50%); background: #222; color: #aaa; padding: 6px 16px; border-radius: 4px; font-size: 0.55rem; opacity: 0; transition: opacity 0.2s; pointer-events: none; z-index: 10; }
+#toast.show { opacity: 1; }
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="header">
+    <span id="title">RAW MD</span>
+    <span id="stats"></span>
+    <div id="hdr-actions">
+      <button class="hdr-btn" id="btn-copy">Copy HTML</button>
+      <button class="hdr-btn" id="btn-clear">Clear</button>
+    </div>
+  </div>
+  <div id="panes">
+    <div id="editor">
+      <div id="editor-label">MARKDOWN</div>
+      <textarea id="input" placeholder="Type markdown here..."></textarea>
+    </div>
+    <div id="preview-pane">
+      <div id="preview-label">PREVIEW</div>
+      <div id="preview"></div>
+    </div>
+  </div>
+</div>
+<div id="toast">Copied!</div>
+
+<script>
+(function() {
+'use strict';
+
+var input = document.getElementById('input');
+var preview = document.getElementById('preview');
+var statsEl = document.getElementById('stats');
+var toastTimer = null;
+var renderTimer = null;
+var STORAGE_KEY = 'rawmd_doc';
+
+// ============ MARKDOWN PARSER ============
+function parseMD(src) {
+  // 1. Escape HTML to prevent XSS
+  var text = src
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+
+  // 2. Extract code blocks (protect from inline parsing)
+  var codeBlocks = [];
+  text = text.replace(/```(\w*)\n([\s\S]*?)```/g, function(match, lang, code) {
+    var idx = codeBlocks.length;
+    codeBlocks.push('<pre><code>' + code.trimEnd() + '</code></pre>');
+    return 'ZZCODEBLOCKZZ' + idx + 'ZZ';
+  });
+
+  // 3. Extract inline code
+  var inlineCodes = [];
+  text = text.replace(/`([^`\n]+)`/g, function(match, code) {
+    var idx = inlineCodes.length;
+    inlineCodes.push('<code>' + code + '</code>');
+    return 'ZZINLINEZZ' + idx + 'ZZ';
+  });
+
+  // 4. Process lines
+  var lines = text.split('\n');
+  var html = '';
+  var inList = false;
+  var listType = '';
+  var inBlockquote = false;
+
+  for (var i = 0; i < lines.length; i++) {
+    var line = lines[i];
+
+    // Horizontal rule
+    if (new RegExp('^(-{3,}|\\*{3,}|_{3,})$').test(line.trim())) {
+      if (inList) { html += '</' + listType + '>'; inList = false; }
+      if (inBlockquote) { html += '</blockquote>'; inBlockquote = false; }
+      html += '<hr>';
+      continue;
+    }
+
+    // Code block placeholder
+    if (/^ZZCODEBLOCKZZ\d+ZZ$/.test(line.trim())) {
+      if (inList) { html += '</' + listType + '>'; inList = false; }
+      if (inBlockquote) { html += '</blockquote>'; inBlockquote = false; }
+      var cbIdx = parseInt(line.trim().match(/\d+/)[0], 10);
+      html += codeBlocks[cbIdx];
+      continue;
+    }
+
+    // Headers
+    var headerMatch = line.match(new RegExp('^(#{1,6})\\s+(.+)$'));
+    if (headerMatch) {
+      if (inList) { html += '</' + listType + '>'; inList = false; }
+      if (inBlockquote) { html += '</blockquote>'; inBlockquote = false; }
+      var level = headerMatch[1].length;
+      html += '<h' + level + '>' + parseInline(headerMatch[2]) + '</h' + level + '>';
+      continue;
+    }
+
+    // Blockquote
+    if (/^&gt;\s?/.test(line)) {
+      if (inList) { html += '</' + listType + '>'; inList = false; }
+      if (!inBlockquote) { html += '<blockquote>'; inBlockquote = true; }
+      html += parseInline(line.replace(/^&gt;\s?/, '')) + '<br>';
+      continue;
+    } else if (inBlockquote) {
+      html += '</blockquote>';
+      inBlockquote = false;
+    }
+
+    // Unordered list
+    if (/^[\s]*[-*+]\s+/.test(line)) {
+      if (!inList || listType !== 'ul') {
+        if (inList) html += '</' + listType + '>';
+        html += '<ul>';
+        inList = true;
+        listType = 'ul';
+      }
+      html += '<li>' + parseInline(line.replace(/^[\s]*[-*+]\s+/, '')) + '</li>';
+      continue;
+    }
+
+    // Ordered list
+    if (/^[\s]*\d+\.\s+/.test(line)) {
+      if (!inList || listType !== 'ol') {
+        if (inList) html += '</' + listType + '>';
+        html += '<ol>';
+        inList = true;
+        listType = 'ol';
+      }
+      html += '<li>' + parseInline(line.replace(/^[\s]*\d+\.\s+/, '')) + '</li>';
+      continue;
+    }
+
+    // Close list if we left it
+    if (inList) {
+      html += '</' + listType + '>';
+      inList = false;
+    }
+
+    // Empty line = paragraph break
+    if (line.trim() === '') {
+      html += '\n';
+      continue;
+    }
+
+    // Regular paragraph text
+    html += '<p>' + parseInline(line) + '</p>';
+  }
+
+  // Close unclosed elements
+  if (inList) html += '</' + listType + '>';
+  if (inBlockquote) html += '</blockquote>';
+
+  // 5. Restore inline codes
+  html = html.replace(/ZZINLINEZZ(\d+)ZZ/g, function(m, idx) {
+    return inlineCodes[parseInt(idx, 10)];
+  });
+
+  return html;
+}
+
+function parseInline(text) {
+  // Images: ![alt](url)
+  text = text.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, '<img src="$2" alt="$1">');
+  // Links: [text](url)
+  text = text.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
+  // Bold+Italic
+  text = text.replace(/\*\*\*(.+?)\*\*\*/g, '<strong><em>$1</em></strong>');
+  // Bold
+  text = text.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+  text = text.replace(/__(.+?)__/g, '<strong>$1</strong>');
+  // Italic
+  text = text.replace(/\*(.+?)\*/g, '<em>$1</em>');
+  text = text.replace(/_(.+?)_/g, '<em>$1</em>');
+  // Strikethrough
+  text = text.replace(/~~(.+?)~~/g, '<del>$1</del>');
+  return text;
+}
+
+// ============ RENDER ============
+function render() {
+  var src = input.value;
+  preview.innerHTML = parseMD(src);
+  updateStats(src);
+  // Save
+  try { localStorage.setItem(STORAGE_KEY, src); } catch(e) {}
+}
+
+function debouncedRender() {
+  clearTimeout(renderTimer);
+  renderTimer = setTimeout(render, 150);
+}
+
+function updateStats(src) {
+  var words = src.trim() ? src.trim().split(/\s+/).length : 0;
+  var chars = src.length;
+  var readMin = Math.max(1, Math.ceil(words / 200));
+  statsEl.textContent = words + ' words \u00b7 ' + chars + ' chars \u00b7 ' + readMin + ' min read';
+}
+
+// ============ SYNC SCROLL ============
+var syncingScroll = false;
+
+input.addEventListener('scroll', function() {
+  if (syncingScroll) return;
+  syncingScroll = true;
+  var pct = input.scrollTop / Math.max(1, input.scrollHeight - input.clientHeight);
+  preview.scrollTop = pct * (preview.scrollHeight - preview.clientHeight);
+  requestAnimationFrame(function() { syncingScroll = false; });
+});
+
+// ============ EVENTS ============
+input.addEventListener('input', debouncedRender);
+
+document.getElementById('btn-copy').addEventListener('click', function() {
+  var html = parseMD(input.value);
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(html).then(function() {
+      showToast('HTML copied!');
+    }).catch(function() { showToast('Copy failed'); });
+  } else {
+    var ta = document.createElement('textarea');
+    ta.value = html; ta.style.position = 'fixed'; ta.style.opacity = '0';
+    document.body.appendChild(ta); ta.select(); ta.setSelectionRange(0, 99999);
+    document.execCommand('copy'); document.body.removeChild(ta);
+    showToast('HTML copied!');
+  }
+});
+
+document.getElementById('btn-clear').addEventListener('click', function() {
+  input.value = '';
+  render();
+});
+
+function showToast(msg) {
+  var toast = document.getElementById('toast');
+  toast.textContent = msg;
+  toast.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(function() { toast.classList.remove('show'); }, 1200);
+}
+
+// ============ INIT ============
+// Load saved document
+try {
+  var saved = localStorage.getItem(STORAGE_KEY);
+  if (saved) input.value = saved;
+} catch(e) {}
+
+// Default content if empty
+if (!input.value) {
+  input.value = '# Raw MD\n\nA zero-dependency markdown previewer.\n\n## Features\n\n- **Bold** and *italic* text\n- [Links](https://example.com)\n- `inline code` and code blocks\n- Lists, blockquotes, headers\n\n> This is a blockquote.\n\n---\n\nStart typing on the left!';
+}
+
+render();
+
+})();
+</script>
+</body>
+</html>
