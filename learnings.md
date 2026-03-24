@@ -1190,3 +1190,13 @@ Persistent knowledge base. Read this before every build.
 - **IMPROVE**: Character index distribution biased — lum/255*(length-1) with Math.floor means last char only selected at lum=255. Use lum/256*length for even buckets.
 - **INSIGHT**: When inserting user-controlled or data-derived characters into innerHTML, ALWAYS escape HTML entities. Even "safe" charsets can contain <, >, &, " which the browser interprets as markup.
 - **INSIGHT**: Mapping a continuous range (0-255) to discrete buckets (charset indices) needs careful math. `floor(value / (max+1) * bucketCount)` gives even distribution. Using `floor(value / max * (bucketCount-1))` biases the last bucket.
+
+### gravity-sketch (2026-03-25) — PROJECT #114
+- **KEEP**: Circle-to-line-segment collision (project onto segment → closest point → push out → reflect) — simple, reliable
+- **KEEP**: Circle-to-circle collision (overlap resolution + velocity exchange along normal) — clean elastic-ish bounce
+- **KEEP**: Demo scene on load (pre-drawn ramps + spawned balls) — user sees physics immediately
+- **KEEP**: Grab-and-throw with mouse velocity on release — deeply satisfying interaction
+- **KEEP**: Body cap (MAX_BODIES) with oldest-first removal — prevents memory issues
+- **KEEP**: Drawing with minimum distance threshold — smooth line segments without excessive points
+- **INSIGHT**: Custom 2D physics engines are viable for simple interactions (circles + lines + boxes). Circle-line collision is the core building block: project point onto segment, check distance, push out along normal, reflect velocity. Everything else builds on this.
+- **INSIGHT**: Physics playgrounds need a demo scene on load. A blank canvas with no objects gives no feedback about what the tool does. Pre-draw ramps + drop balls so physics is visible on first frame.

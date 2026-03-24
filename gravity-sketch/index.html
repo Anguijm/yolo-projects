@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="theme-color" content="#000000">
+<title>Gravity Sketch</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{height:100%;background:#060610;overflow:hidden;font-family:system-ui,sans-serif;touch-action:none;-webkit-tap-highlight-color:transparent}
+canvas{display:block;position:absolute;inset:0;cursor:crosshair}
+#toolbar{position:fixed;bottom:10px;left:50%;transform:translateX(-50%);display:flex;gap:4px;z-index:5;padding:6px 10px;background:rgba(6,6,16,0.9);border:1px solid rgba(255,255,255,0.06);border-radius:10px;backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px)}
+.tb{padding:4px 10px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);color:#555;font-family:inherit;font-size:0.45rem;cursor:pointer;border-radius:4px;letter-spacing:0.06em;white-space:nowrap}
+.tb:active{border-color:rgba(255,255,255,0.2);color:#aaa}
+.tb.active{border-color:#58a6ff;color:#58a6ff}
+#hint{position:fixed;top:8px;left:50%;transform:translateX(-50%);font-size:0.4rem;color:#1a1a1a;z-index:2}
+#count{position:fixed;top:8px;right:8px;font-size:0.4rem;color:#1a1a1a;font-family:monospace;z-index:2}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="toolbar">
+  <button class="tb active" data-tool="draw">Draw Ramp</button>
+  <button class="tb" data-tool="ball">Drop Ball</button>
+  <button class="tb" data-tool="box">Drop Box</button>
+  <button class="tb" id="btn-clear">Clear</button>
+  <button class="tb" id="btn-gravity">Gravity: On</button>
+</div>
+<div id="hint">draw ramps, drop balls, watch physics</div>
+<div id="count"></div>
+
+<script>
+(function(){
+'use strict';
+
+var canvas=document.getElementById('c'),ctx=canvas.getContext('2d');
+var W,H;
+var GRAVITY=0.4,BOUNCE=0.6,FRICTION=0.99,MAX_BODIES=80;
+var gravityOn=true;
+
+// ============ BODIES ============
+var lines=[]; // static: [{x1,y1,x2,y2}]
+var balls=[]; // dynamic: [{x,y,vx,vy,r,color}]
+var boxes=[]; // dynamic: [{x,y,vx,vy,w,h,angle,va,color}]
+
+// Drawing state
+var tool='draw';
+var drawing=false;
+var drawPoints=[];
+var draggingBall=null;
+var dragOffX=0,dragOffY=0;
+
+// ============ RESIZE ============
+function resize(){W=window.innerWidth;H=window.innerHeight;canvas.width=W;canvas.height=H}
+
+// ============ PHYSICS ============
+function update(){
+  // Balls
+  for(var i=0;i<balls.length;i++){
+    var b=balls[i];
+    if(b===draggingBall)continue;
+    if(gravityOn)b.vy+=GRAVITY;
+    b.vx*=FRICTION;b.vy*=FRICTION;
+    b.x+=b.vx;b.y+=b.vy;
+
+    // Floor
+    if(b.y+b.r>H){b.y=H-b.r;b.vy*=-BOUNCE;if(Math.abs(b.vy)<0.5)b.vy=0}
+    // Walls
+    if(b.x-b.r<0){b.x=b.r;b.vx*=-BOUNCE}
+    if(b.x+b.r>W){b.x=W-b.r;b.vx*=-BOUNCE}
+    // Ceiling
+    if(b.y-b.r<0){b.y=b.r;b.vy*=-BOUNCE}
+
+    // Line collisions
+    for(var j=0;j<lines.length;j++){
+      collideBallLine(b,lines[j]);
+    }
+
+    // Ball-ball collisions
+    for(var j=i+1;j<balls.length;j++){
+      collideBallBall(b,balls[j]);
+    }
+  }
+
+  // Boxes (simplified — treat as circles for collision, draw as rectangles)
+  for(var i=0;i<boxes.length;i++){
+    var bx=boxes[i];
+    if(gravityOn)bx.vy+=GRAVITY;
+    bx.vx*=FRICTION;bx.vy*=FRICTION;
+    bx.x+=bx.vx;bx.y+=bx.vy;
+    bx.angle+=bx.va;bx.va*=0.98;
+    var hr=Math.max(bx.w,bx.h)/2;
+    if(bx.y+hr>H){bx.y=H-hr;bx.vy*=-BOUNCE;bx.va+=(Math.random()-0.5)*0.02;if(Math.abs(bx.vy)<0.5)bx.vy=0}
+    if(bx.x-hr<0){bx.x=hr;bx.vx*=-BOUNCE}
+    if(bx.x+hr>W){bx.x=W-hr;bx.vx*=-BOUNCE}
+    // Line collisions (approximate as circle)
+    for(var j=0;j<lines.length;j++){
+      collideBallLine({x:bx.x,y:bx.y,vx:bx.vx,vy:bx.vy,r:hr},lines[j]);
+      bx.vx=arguments[0]?bx.vx:bx.vx; // workaround — use temp
+    }
+  }
+  // Actually apply box-line collision properly
+  for(var i=0;i<boxes.length;i++){
+    var bx=boxes[i];
+    var hr=Math.max(bx.w,bx.h)/2;
+    for(var j=0;j<lines.length;j++){
+      var tmp={x:bx.x,y:bx.y,vx:bx.vx,vy:bx.vy,r:hr};
+      collideBallLine(tmp,lines[j]);
+      bx.x=tmp.x;bx.y=tmp.y;bx.vx=tmp.vx;bx.vy=tmp.vy;
+    }
+  }
+
+  // Remove out-of-bounds
+  balls=balls.filter(function(b){return b.y<H+100&&b.x>-100&&b.x<W+100});
+  boxes=boxes.filter(function(b){return b.y<H+100});
+
+  document.getElementById('count').textContent=balls.length+boxes.length+' bodies / '+lines.length+' lines';
+}
+
+function collideBallLine(ball,line){
+  // Project ball center onto line segment, find closest point
+  var dx=line.x2-line.x1,dy=line.y2-line.y1;
+  var len2=dx*dx+dy*dy;
+  if(len2<0.001)return;
+  var t=Math.max(0,Math.min(1,((ball.x-line.x1)*dx+(ball.y-line.y1)*dy)/len2));
+  var closestX=line.x1+t*dx,closestY=line.y1+t*dy;
+  var distX=ball.x-closestX,distY=ball.y-closestY;
+  var dist=Math.sqrt(distX*distX+distY*distY);
+  if(dist<ball.r&&dist>0.001){
+    // Push out
+    var nx=distX/dist,ny=distY/dist;
+    ball.x=closestX+nx*ball.r;
+    ball.y=closestY+ny*ball.r;
+    // Reflect velocity
+    var dot=ball.vx*nx+ball.vy*ny;
+    ball.vx-=2*dot*nx*BOUNCE;
+    ball.vy-=2*dot*ny*BOUNCE;
+    // Friction along surface
+    var tx=-ny,ty=nx;
+    var tdot=ball.vx*tx+ball.vy*ty;
+    ball.vx-=tdot*0.05;ball.vy-=tdot*0.05;
+  }
+}
+
+function collideBallBall(a,b){
+  var dx=b.x-a.x,dy=b.y-a.y;
+  var dist=Math.sqrt(dx*dx+dy*dy);
+  var minDist=a.r+b.r;
+  if(dist<minDist&&dist>0.001){
+    var nx=dx/dist,ny=dy/dist;
+    var overlap=(minDist-dist)/2;
+    a.x-=nx*overlap;a.y-=ny*overlap;
+    b.x+=nx*overlap;b.y+=ny*overlap;
+    var dvx=a.vx-b.vx,dvy=a.vy-b.vy;
+    var dot=dvx*nx+dvy*ny;
+    if(dot>0){
+      a.vx-=dot*nx*BOUNCE;a.vy-=dot*ny*BOUNCE;
+      b.vx+=dot*nx*BOUNCE;b.vy+=dot*ny*BOUNCE;
+    }
+  }
+}
+
+// ============ DRAW ============
+function draw(){
+  ctx.fillStyle='#060610';ctx.fillRect(0,0,W,H);
+
+  // Grid
+  ctx.strokeStyle='#0a0a14';ctx.lineWidth=0.5;
+  for(var x=0;x<W;x+=40){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,H);ctx.stroke()}
+  for(var y=0;y<H;y+=40){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W,y);ctx.stroke()}
+
+  // Lines (ramps)
+  ctx.strokeStyle='#2a3a5a';ctx.lineWidth=3;ctx.lineCap='round';
+  for(var i=0;i<lines.length;i++){
+    var l=lines[i];
+    ctx.beginPath();ctx.moveTo(l.x1,l.y1);ctx.lineTo(l.x2,l.y2);ctx.stroke();
+  }
+
+  // Drawing preview
+  if(drawing&&drawPoints.length>1){
+    ctx.strokeStyle='rgba(88,166,255,0.4)';ctx.lineWidth=2;
+    ctx.beginPath();ctx.moveTo(drawPoints[0].x,drawPoints[0].y);
+    for(var i=1;i<drawPoints.length;i++)ctx.lineTo(drawPoints[i].x,drawPoints[i].y);
+    ctx.stroke();
+  }
+
+  // Balls
+  for(var i=0;i<balls.length;i++){
+    var b=balls[i];
+    ctx.fillStyle=b.color;
+    ctx.shadowColor=b.color;ctx.shadowBlur=6;
+    ctx.beginPath();ctx.arc(b.x,b.y,b.r,0,Math.PI*2);ctx.fill();
+    ctx.shadowBlur=0;
+  }
+
+  // Boxes
+  for(var i=0;i<boxes.length;i++){
+    var bx=boxes[i];
+    ctx.save();
+    ctx.translate(bx.x,bx.y);ctx.rotate(bx.angle);
+    ctx.fillStyle=bx.color;
+    ctx.shadowColor=bx.color;ctx.shadowBlur=4;
+    ctx.fillRect(-bx.w/2,-bx.h/2,bx.w,bx.h);
+    ctx.shadowBlur=0;
+    ctx.restore();
+  }
+
+  // Floor indicator
+  ctx.strokeStyle='#1a1a2e';ctx.lineWidth=1;
+  ctx.beginPath();ctx.moveTo(0,H-1);ctx.lineTo(W,H-1);ctx.stroke();
+}
+
+// ============ INPUT ============
+var mouseX=0,mouseY=0,pmouseX=0,pmouseY=0;
+
+canvas.addEventListener('pointerdown',function(e){
+  e.preventDefault();mouseX=e.clientX;mouseY=e.clientY;
+
+  if(tool==='draw'){
+    drawing=true;
+    drawPoints=[{x:mouseX,y:mouseY}];
+  }else if(tool==='ball'){
+    spawnBall(mouseX,mouseY);
+  }else if(tool==='box'){
+    spawnBox(mouseX,mouseY);
+  }
+
+  // Check if clicking a ball to drag
+  for(var i=balls.length-1;i>=0;i--){
+    var dx=balls[i].x-mouseX,dy=balls[i].y-mouseY;
+    if(dx*dx+dy*dy<balls[i].r*balls[i].r){
+      draggingBall=balls[i];
+      dragOffX=dx;dragOffY=dy;
+      break;
+    }
+  }
+});
+
+canvas.addEventListener('pointermove',function(e){
+  pmouseX=mouseX;pmouseY=mouseY;
+  mouseX=e.clientX;mouseY=e.clientY;
+
+  if(drawing){
+    var last=drawPoints[drawPoints.length-1];
+    var dx=mouseX-last.x,dy=mouseY-last.y;
+    if(dx*dx+dy*dy>100){ // Min distance between points
+      drawPoints.push({x:mouseX,y:mouseY});
+    }
+  }
+
+  if(draggingBall){
+    draggingBall.x=mouseX+dragOffX;
+    draggingBall.y=mouseY+dragOffY;
+    draggingBall.vx=0;draggingBall.vy=0;
+  }
+});
+
+window.addEventListener('pointerup',function(e){
+  if(drawing){
+    drawing=false;
+    // Convert draw points to line segments
+    for(var i=0;i<drawPoints.length-1;i++){
+      lines.push({x1:drawPoints[i].x,y1:drawPoints[i].y,x2:drawPoints[i+1].x,y2:drawPoints[i+1].y});
+    }
+    drawPoints=[];
+  }
+
+  if(draggingBall){
+    // Throw velocity from mouse movement
+    draggingBall.vx=(mouseX-pmouseX)*0.5;
+    draggingBall.vy=(mouseY-pmouseY)*0.5;
+    draggingBall=null;
+  }
+});
+
+function spawnBall(x,y){
+  if(balls.length+boxes.length>=MAX_BODIES){balls.shift()}
+  var colors=['#0ff','#f0f','#3fb950','#ffcc33','#f85149','#58a6ff'];
+  balls.push({x:x,y:y,vx:(Math.random()-0.5)*2,vy:0,r:8+Math.random()*8,
+    color:colors[Math.floor(Math.random()*colors.length)]});
+}
+
+function spawnBox(x,y){
+  if(balls.length+boxes.length>=MAX_BODIES){boxes.shift()}
+  var colors=['#bc8cff','#f0883e','#58a6ff','#3fb950'];
+  boxes.push({x:x,y:y,vx:(Math.random()-0.5)*2,vy:0,
+    w:12+Math.random()*16,h:12+Math.random()*16,
+    angle:Math.random()*0.5,va:0,
+    color:colors[Math.floor(Math.random()*colors.length)]});
+}
+
+// ============ TOOLBAR ============
+document.getElementById('toolbar').addEventListener('click',function(e){
+  var btn=e.target.closest('.tb');if(!btn)return;
+  if(btn.dataset.tool){
+    tool=btn.dataset.tool;
+    document.querySelectorAll('.tb[data-tool]').forEach(function(b){b.classList.remove('active')});
+    btn.classList.add('active');
+  }
+});
+
+document.getElementById('btn-clear').addEventListener('click',function(){
+  lines=[];balls=[];boxes=[];
+});
+
+document.getElementById('btn-gravity').addEventListener('click',function(){
+  gravityOn=!gravityOn;
+  this.textContent='Gravity: '+(gravityOn?'On':'Off');
+});
+
+// ============ LOOP ============
+function loop(){
+  update();draw();requestAnimationFrame(loop);
+}
+
+// ============ INIT ============
+resize();window.addEventListener('resize',resize);
+
+// Demo scene
+lines.push({x1:100,y1:H-200,x2:300,y2:H-100});
+lines.push({x1:300,y1:H-100,x2:500,y2:H-150});
+lines.push({x1:W-300,y1:H-250,x2:W-100,y2:H-150});
+spawnBall(150,H-300);spawnBall(180,H-350);spawnBall(200,H-280);
+
+requestAnimationFrame(loop);
+
+})();
+</script>
+</body>
+</html>
