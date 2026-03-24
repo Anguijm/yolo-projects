@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="theme-color" content="#000000">
+<title>Bezier Forge</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{height:100%;background:#0a0a0c;overflow-y:auto;font-family:system-ui,sans-serif;touch-action:manipulation;-webkit-tap-highlight-color:transparent;color:#ccc}
+#app{max-width:600px;margin:0 auto;padding:12px;display:flex;flex-direction:column;gap:10px}
+h1{font-size:0.7rem;color:#444;letter-spacing:0.25em;font-weight:300}
+
+/* Curve editor */
+#editor{position:relative;width:100%;aspect-ratio:1;background:#0a0a14;border:1px solid #1a1a2e;border-radius:6px;cursor:crosshair;touch-action:none}
+svg{width:100%;height:100%;display:block}
+.grid-line{stroke:#111;stroke-width:0.5}
+.curve-path{fill:none;stroke:#0ff;stroke-width:2}
+.handle-line{stroke:#333;stroke-width:1;stroke-dasharray:4 3}
+.handle-dot{fill:#0ff;stroke:#fff;stroke-width:1.5;cursor:grab;r:7}
+.handle-dot:hover{r:9}
+.start-dot,.end-dot{fill:#555;r:4}
+.linear-path{fill:none;stroke:#222;stroke-width:1;stroke-dasharray:2 2}
+
+/* Presets */
+#presets{display:flex;gap:3px;flex-wrap:wrap}
+.pre-btn{padding:3px 7px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);color:#555;font-family:inherit;font-size:0.4rem;cursor:pointer;border-radius:3px;letter-spacing:0.06em}
+.pre-btn:active{border-color:rgba(255,255,255,0.2);color:#aaa}
+
+/* CSS output */
+#css-out{background:#111;border:1px solid #1a1a1a;border-radius:4px;padding:8px;font-family:monospace;font-size:0.65rem;color:#0ff;cursor:pointer;text-align:center;letter-spacing:0.03em}
+
+/* Preview */
+#preview-area{position:relative;height:50px;background:#0a0a14;border:1px solid #1a1a2e;border-radius:6px;overflow:hidden}
+#preview-ball{position:absolute;top:50%;left:10px;width:16px;height:16px;margin-top:-8px;background:#0ff;border-radius:50%;box-shadow:0 0 8px #0ff}
+#preview-ghost{position:absolute;top:50%;left:10px;width:12px;height:12px;margin-top:-6px;background:#333;border-radius:50%;opacity:0.4}
+#preview-track{position:absolute;top:50%;left:10px;right:10px;height:1px;background:#111}
+
+#play-row{display:flex;gap:4px;align-items:center}
+.play-btn{padding:4px 12px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);color:#666;font-family:inherit;font-size:0.5rem;cursor:pointer;border-radius:4px;letter-spacing:0.08em}
+.play-btn:active{border-color:rgba(255,255,255,0.2);color:#aaa}
+#duration-val{font-size:0.4rem;color:#444;font-family:monospace}
+
+/* Coords display */
+#coords{font-size:0.45rem;color:#333;font-family:monospace;text-align:center}
+
+/* Toast */
+#toast{position:fixed;bottom:12px;left:50%;transform:translateX(-50%);background:#222;color:#aaa;padding:6px 16px;border-radius:4px;font-size:0.55rem;opacity:0;transition:opacity 0.2s;pointer-events:none;z-index:10}
+#toast.show{opacity:1}
+</style>
+</head>
+<body>
+<div id="app">
+  <h1>BEZIER FORGE</h1>
+
+  <div id="editor">
+    <svg id="svg" viewBox="0 0 300 300"></svg>
+  </div>
+
+  <div id="coords"></div>
+
+  <div id="presets">
+    <button class="pre-btn" data-p="0.25,0.1,0.25,1">ease</button>
+    <button class="pre-btn" data-p="0.42,0,1,1">ease-in</button>
+    <button class="pre-btn" data-p="0,0,0.58,1">ease-out</button>
+    <button class="pre-btn" data-p="0.42,0,0.58,1">ease-in-out</button>
+    <button class="pre-btn" data-p="0.68,-0.55,0.27,1.55">back</button>
+    <button class="pre-btn" data-p="0.5,1.8,0.4,0.8">bounce-ish</button>
+    <button class="pre-btn" data-p="0.95,0.05,0.8,0.04">snap</button>
+    <button class="pre-btn" data-p="0,0,1,1">linear</button>
+  </div>
+
+  <div id="css-out">cubic-bezier(0.25, 0.10, 0.25, 1.00)</div>
+
+  <div id="play-row">
+    <button class="play-btn" id="btn-play">Play</button>
+    <input type="range" id="sl-dur" min="200" max="3000" step="100" value="800" style="flex:1;height:2px;accent-color:#555">
+    <span id="duration-val">800ms</span>
+  </div>
+
+  <div id="preview-area">
+    <div id="preview-track"></div>
+    <div id="preview-ghost"></div>
+    <div id="preview-ball"></div>
+  </div>
+</div>
+<div id="toast">Copied!</div>
+
+<script>
+(function(){
+'use strict';
+
+var SVG_SIZE=300;
+var PADDING=20;
+var RANGE=SVG_SIZE-PADDING*2;
+
+// Control points (0-1 space, y can exceed 0-1 for bounce)
+var x1=0.25,y1=0.1,x2=0.25,y2=1.0;
+var duration=800;
+var toastTimer=null;
+var animFrame=null;
+
+var svg=document.getElementById('svg');
+var NS='http://www.w3.org/2000/svg';
+
+// ============ SVG ELEMENTS ============
+function svgEl(tag,attrs){
+  var el=document.createElementNS(NS,tag);
+  for(var k in attrs)el.setAttribute(k,attrs[k]);
+  return el;
+}
+
+// Grid
+for(var i=0;i<=4;i++){
+  var pos=PADDING+i*(RANGE/4);
+  svg.appendChild(svgEl('line',{x1:PADDING,y1:pos,x2:PADDING+RANGE,y2:pos,class:'grid-line'}));
+  svg.appendChild(svgEl('line',{x1:pos,y1:PADDING,x2:pos,y2:PADDING+RANGE,class:'grid-line'}));
+}
+
+// Linear reference
+var linearPath=svgEl('line',{x1:PADDING,y1:PADDING+RANGE,x2:PADDING+RANGE,y2:PADDING,class:'linear-path'});
+svg.appendChild(linearPath);
+
+// Bezier curve
+var curvePath=svgEl('path',{class:'curve-path'});
+svg.appendChild(curvePath);
+
+// Handle lines
+var line1=svgEl('line',{class:'handle-line'});
+var line2=svgEl('line',{class:'handle-line'});
+svg.appendChild(line1);svg.appendChild(line2);
+
+// Start/end dots
+var startDot=svgEl('circle',{cx:PADDING,cy:PADDING+RANGE,class:'start-dot'});
+var endDot=svgEl('circle',{cx:PADDING+RANGE,cy:PADDING,class:'end-dot'});
+svg.appendChild(startDot);svg.appendChild(endDot);
+
+// Draggable handles
+var handle1=svgEl('circle',{class:'handle-dot'});
+var handle2=svgEl('circle',{class:'handle-dot'});
+svg.appendChild(handle1);svg.appendChild(handle2);
+
+// ============ COORDINATE MAPPING ============
+function toSvgX(v){return PADDING+v*RANGE}
+function toSvgY(v){return PADDING+RANGE-v*RANGE} // Y inverted
+function fromSvgX(px){return Math.max(0,Math.min(1,(px-PADDING)/RANGE))}
+function fromSvgY(py){return (PADDING+RANGE-py)/RANGE} // Allow outside 0-1
+
+// ============ RENDER ============
+function render(){
+  var sx1=toSvgX(x1),sy1=toSvgY(y1);
+  var sx2=toSvgX(x2),sy2=toSvgY(y2);
+
+  // Curve path
+  curvePath.setAttribute('d',
+    'M '+PADDING+' '+(PADDING+RANGE)+
+    ' C '+sx1+' '+sy1+' '+sx2+' '+sy2+
+    ' '+(PADDING+RANGE)+' '+PADDING);
+
+  // Handle positions
+  handle1.setAttribute('cx',sx1);handle1.setAttribute('cy',sy1);
+  handle2.setAttribute('cx',sx2);handle2.setAttribute('cy',sy2);
+
+  // Lines from endpoints to handles
+  line1.setAttribute('x1',PADDING);line1.setAttribute('y1',PADDING+RANGE);
+  line1.setAttribute('x2',sx1);line1.setAttribute('y2',sy1);
+  line2.setAttribute('x1',PADDING+RANGE);line2.setAttribute('y1',PADDING);
+  line2.setAttribute('x2',sx2);line2.setAttribute('y2',sy2);
+
+  // CSS output
+  var css='cubic-bezier('+x1.toFixed(2)+', '+y1.toFixed(2)+', '+x2.toFixed(2)+', '+y2.toFixed(2)+')';
+  document.getElementById('css-out').textContent=css;
+  document.getElementById('coords').textContent='P1('+x1.toFixed(2)+', '+y1.toFixed(2)+')  P2('+x2.toFixed(2)+', '+y2.toFixed(2)+')';
+}
+
+// ============ DRAG INTERACTION ============
+var dragging=null; // 1 or 2
+
+function getSvgPoint(e){
+  var rect=svg.getBoundingClientRect();
+  return{
+    x:(e.clientX-rect.left)/rect.width*SVG_SIZE,
+    y:(e.clientY-rect.top)/rect.height*SVG_SIZE
+  };
+}
+
+handle1.addEventListener('pointerdown',function(e){e.preventDefault();e.stopPropagation();dragging=1;svg.setPointerCapture(e.pointerId)});
+handle2.addEventListener('pointerdown',function(e){e.preventDefault();e.stopPropagation();dragging=2;svg.setPointerCapture(e.pointerId)});
+
+svg.addEventListener('pointermove',function(e){
+  if(!dragging)return;
+  var p=getSvgPoint(e);
+  if(dragging===1){x1=fromSvgX(p.x);y1=fromSvgY(p.y)}
+  else{x2=fromSvgX(p.x);y2=fromSvgY(p.y)}
+  // Clamp X to 0-1 (required by CSS spec)
+  x1=Math.max(0,Math.min(1,x1));x2=Math.max(0,Math.min(1,x2));
+  // Y can go outside 0-1 for bounce effects, but clamp to reasonable range
+  y1=Math.max(-1,Math.min(2,y1));y2=Math.max(-1,Math.min(2,y2));
+  render();
+});
+
+svg.addEventListener('pointerup',function(){dragging=null});
+svg.addEventListener('pointercancel',function(){dragging=null});
+
+// ============ ANIMATION PREVIEW ============
+function playPreview(){
+  var ball=document.getElementById('preview-ball');
+  var ghost=document.getElementById('preview-ghost');
+  var area=document.getElementById('preview-area');
+  var trackW=area.clientWidth-20-16; // account for padding + ball size
+
+  // Reset
+  cancelAnimationFrame(animFrame);
+  ball.style.transition='none';ghost.style.transition='none';
+  ball.style.left='10px';ghost.style.left='10px';
+
+  // Force reflow
+  void ball.offsetWidth;
+
+  // Apply transitions
+  ball.style.transition='left '+duration+'ms cubic-bezier('+x1+','+y1+','+x2+','+y2+')';
+  ghost.style.transition='left '+duration+'ms linear';
+
+  // Trigger
+  requestAnimationFrame(function(){
+    ball.style.left=(10+trackW)+'px';
+    ghost.style.left=(10+trackW)+'px';
+  });
+}
+
+// ============ PRESETS ============
+document.getElementById('presets').addEventListener('click',function(e){
+  var btn=e.target.closest('.pre-btn');if(!btn)return;
+  var vals=btn.dataset.p.split(',').map(Number);
+  x1=vals[0];y1=vals[1];x2=vals[2];y2=vals[3];
+  render();playPreview();
+});
+
+// ============ CONTROLS ============
+document.getElementById('btn-play').addEventListener('click',playPreview);
+
+document.getElementById('sl-dur').addEventListener('input',function(e){
+  duration=parseInt(e.target.value,10);
+  if(isNaN(duration))duration=800;
+  document.getElementById('duration-val').textContent=duration+'ms';
+});
+
+// Copy CSS on click
+document.getElementById('css-out').addEventListener('click',function(){
+  var text=this.textContent;
+  if(navigator.clipboard&&navigator.clipboard.writeText){
+    navigator.clipboard.writeText(text).then(function(){showToast('Copied!')}).catch(function(){});
+  }else{
+    var ta=document.createElement('textarea');ta.value=text;ta.style.position='fixed';ta.style.opacity='0';
+    document.body.appendChild(ta);ta.select();ta.setSelectionRange(0,99999);
+    document.execCommand('copy');document.body.removeChild(ta);showToast('Copied!');
+  }
+});
+
+function showToast(msg){
+  var toast=document.getElementById('toast');toast.textContent=msg;toast.classList.add('show');
+  clearTimeout(toastTimer);toastTimer=setTimeout(function(){toast.classList.remove('show')},1200);
+}
+
+// ============ INIT ============
+render();
+
+})();
+</script>
+</body>
+</html>

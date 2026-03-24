@@ -1113,3 +1113,12 @@ Persistent knowledge base. Read this before every build.
 - **IMPROVE**: Error diffusion on Uint8ClampedArray truncated accumulated values — Gemini caught. Float32Array intermediate buffer is REQUIRED for correct Floyd-Steinberg/Atkinson. Read from buffer, write final to uint8 output.
 - **INSIGHT**: Uint8ClampedArray (from getImageData) silently clamps values to 0-255 on write. Error diffusion algorithms RELY on temporarily exceeding these bounds. Any algorithm that accumulates error into neighbor pixels must use an unclamped buffer (Float32Array or Int16Array).
 - **INSIGHT**: This is the same class of bug as "data structure silently destroys data" — seen before with history.shift() in ink-stack. The container's behavior modifies the data without throwing an error.
+
+### bezier-forge (2026-03-25) — PROJECT #108
+- **KEEP**: SVG for interactive curve editors — crisp at any scale, native draggable elements, easy path commands
+- **KEEP**: CSS transition on preview elements (not JS animation) — leverages browser's native timing implementation
+- **KEEP**: Y-axis allows values outside 0-1 for overshoot/bounce while X clamped to 0-1 per CSS spec
+- **KEEP**: Ghost comparison (linear alongside custom curve) — immediate visual context
+- **KEEP**: Presets with auto-play — user sees the effect instantly
+- **INSIGHT**: CSS cubic-bezier has strict rules: X values MUST be 0-1 (time is always forward), but Y values CAN exceed 0-1 (property can overshoot). The editor must enforce this asymmetry.
+- **INSIGHT**: Dev tools that show the OUTPUT of what you're building (animation preview) are infinitely more useful than those that just show the INPUT (raw numbers). Always include a live preview.
