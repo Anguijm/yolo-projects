@@ -1168,3 +1168,14 @@ Persistent knowledge base. Read this before every build.
 - **IMPROVE**: Missed notes flew upward like completed notes — confusing. Added n.missed flag with distinct fall-off behavior.
 - **INSIGHT**: In rhythm games, visual position = f(audioTime), NEVER f(dt). The audio clock is the single source of truth. Calculate where a note SHOULD be based on its target time minus current audio time, not by accumulating frame deltas.
 - **INSIGHT**: Any per-entity parameter that affects timing (speed, duration) must be FROZEN at entity creation time. If you change it globally, all existing entities desync.
+
+### maze-lab (2026-03-25) — PROJECT #112
+- **KEEP**: Animated step-by-step algorithm visualization — mesmerizing and educational
+- **KEEP**: Multiple generation algorithms (Backtracker/Prim/Kruskal) — each creates visually distinct mazes
+- **KEEP**: BFS vs DFS solver comparison — BFS guarantees shortest path, DFS is dramatic
+- **KEEP**: Path compression in findSet for Kruskal's — near O(1) amortized set operations
+- **KEEP**: Step button for single-step mode — essential for studying algorithm behavior
+- **KEEP**: Batch stepping (speed slider controls steps per frame) — fast or slow animation
+- **IMPROVE**: unionSets used O(N) flat scan (iterated entire grid) instead of O(1) tree linking — Gemini caught. Must link root to root, not scan and replace.
+- **INSIGHT**: Union-Find has two optimizations: path compression (in find) and union by rank/tree linking (in union). Using path compression WITHOUT proper tree union creates an inconsistent data structure that works but is O(N) instead of O(α(N)).
+- **INSIGHT**: Algorithm visualizers are deeply engaging when they have: 1) step-by-step mode, 2) speed control, 3) multiple algorithms to compare, 4) color-coded state. All four are essential.

@@ -1,0 +1,392 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="theme-color" content="#000000">
+<title>Maze Lab</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{height:100%;background:#060610;overflow:hidden;font-family:system-ui,sans-serif;touch-action:manipulation;-webkit-tap-highlight-color:transparent;color:#ccc}
+#app{height:100%;display:flex;flex-direction:column;align-items:center;padding:8px;gap:6px}
+canvas{display:block;border:1px solid #111;border-radius:4px}
+#controls{display:flex;gap:6px;flex-wrap:wrap;justify-content:center;align-items:center}
+select,input[type="range"]{background:#111;border:1px solid #1a1a1a;color:#888;padding:3px 6px;font-family:inherit;font-size:0.5rem;border-radius:3px;outline:none}
+input[type="range"]{width:60px;height:2px;accent-color:#555}
+.ctrl-label{font-size:0.4rem;color:#444;letter-spacing:0.05em}
+.ctrl-btn{padding:4px 10px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);color:#555;font-family:inherit;font-size:0.45rem;cursor:pointer;border-radius:4px;letter-spacing:0.06em}
+.ctrl-btn:active{border-color:rgba(255,255,255,0.2);color:#aaa}
+.ctrl-btn.active{border-color:#58a6ff;color:#58a6ff}
+#status{font-size:0.45rem;color:#333;font-family:monospace;min-height:1.2em}
+</style>
+</head>
+<body>
+<div id="app">
+  <canvas id="c"></canvas>
+  <div id="controls">
+    <span class="ctrl-label">Generate:</span>
+    <select id="sel-gen">
+      <option value="backtrack">Recursive Backtracker</option>
+      <option value="prim">Prim's</option>
+      <option value="kruskal">Kruskal's</option>
+    </select>
+    <span class="ctrl-label">Solve:</span>
+    <select id="sel-solve">
+      <option value="bfs">BFS (Shortest)</option>
+      <option value="dfs">DFS</option>
+    </select>
+    <span class="ctrl-label">Size:</span>
+    <input type="range" id="sl-size" min="5" max="40" value="20">
+    <span class="ctrl-label">Speed:</span>
+    <input type="range" id="sl-speed" min="1" max="50" value="10">
+    <button class="ctrl-btn" id="btn-gen">Generate</button>
+    <button class="ctrl-btn" id="btn-solve">Solve</button>
+    <button class="ctrl-btn" id="btn-step">Step</button>
+  </div>
+  <div id="status"></div>
+</div>
+
+<script>
+(function(){
+'use strict';
+
+var canvas=document.getElementById('c'),ctx=canvas.getContext('2d');
+var COLS=20,ROWS=20,CELL=0;
+var grid=[]; // grid[r][c] = {walls:[top,right,bottom,left], visited, inMaze, set}
+var genAlgo='backtrack',solveAlgo='bfs';
+var speed=10; // steps per frame
+var animating=false,phase='idle'; // idle, generating, solving, done
+var genState=null,solveState=null;
+var solution=[];
+
+// ============ GRID ============
+function initGrid(){
+  grid=[];
+  for(var r=0;r<ROWS;r++){
+    grid[r]=[];
+    for(var c=0;c<COLS;c++){
+      grid[r][c]={walls:[true,true,true,true],visited:false,inMaze:false,set:r*COLS+c,
+        genVisit:false,solveVisit:false,frontier:false,path:false};
+    }
+  }
+  solution=[];
+}
+
+function removeWall(r1,c1,r2,c2){
+  if(r2<r1){grid[r1][c1].walls[0]=false;grid[r2][c2].walls[2]=false}
+  else if(r2>r1){grid[r1][c1].walls[2]=false;grid[r2][c2].walls[0]=false}
+  else if(c2<c1){grid[r1][c1].walls[3]=false;grid[r2][c2].walls[1]=false}
+  else if(c2>c1){grid[r1][c1].walls[1]=false;grid[r2][c2].walls[3]=false}
+}
+
+function neighbors(r,c){
+  var n=[];
+  if(r>0)n.push([r-1,c]);
+  if(r<ROWS-1)n.push([r+1,c]);
+  if(c>0)n.push([r,c-1]);
+  if(c<COLS-1)n.push([r,c+1]);
+  return n;
+}
+
+function canPass(r1,c1,r2,c2){
+  if(r2<r1)return!grid[r1][c1].walls[0];
+  if(r2>r1)return!grid[r1][c1].walls[2];
+  if(c2<c1)return!grid[r1][c1].walls[3];
+  if(c2>c1)return!grid[r1][c1].walls[1];
+  return false;
+}
+
+// ============ GENERATION ALGORITHMS ============
+function initBacktrack(){
+  var stack=[[0,0]];
+  grid[0][0].genVisit=true;grid[0][0].inMaze=true;
+  return{type:'backtrack',stack:stack,done:false};
+}
+
+function stepBacktrack(state){
+  if(state.stack.length===0){state.done=true;return}
+  var cur=state.stack[state.stack.length-1];
+  var r=cur[0],c=cur[1];
+  var unvisited=neighbors(r,c).filter(function(n){return!grid[n[0]][n[1]].genVisit});
+  if(unvisited.length>0){
+    var next=unvisited[Math.floor(Math.random()*unvisited.length)];
+    removeWall(r,c,next[0],next[1]);
+    grid[next[0]][next[1]].genVisit=true;grid[next[0]][next[1]].inMaze=true;
+    state.stack.push(next);
+  }else{
+    state.stack.pop();
+  }
+}
+
+function initPrim(){
+  grid[0][0].inMaze=true;grid[0][0].genVisit=true;
+  var frontier=[];
+  neighbors(0,0).forEach(function(n){frontier.push({r:n[0],c:n[1],fr:0,fc:0});grid[n[0]][n[1]].frontier=true});
+  return{type:'prim',frontier:frontier,done:false};
+}
+
+function stepPrim(state){
+  if(state.frontier.length===0){state.done=true;return}
+  var idx=Math.floor(Math.random()*state.frontier.length);
+  var f=state.frontier[idx];
+  state.frontier.splice(idx,1);
+  grid[f.r][f.c].frontier=false;
+  if(grid[f.r][f.c].inMaze){return} // already added
+  grid[f.r][f.c].inMaze=true;grid[f.r][f.c].genVisit=true;
+  removeWall(f.fr,f.fc,f.r,f.c);
+  neighbors(f.r,f.c).forEach(function(n){
+    if(!grid[n[0]][n[1]].inMaze&&!grid[n[0]][n[1]].frontier){
+      state.frontier.push({r:n[0],c:n[1],fr:f.r,fc:f.c});
+      grid[n[0]][n[1]].frontier=true;
+    }
+  });
+}
+
+function initKruskal(){
+  var edges=[];
+  for(var r=0;r<ROWS;r++)for(var c=0;c<COLS;c++){
+    if(c<COLS-1)edges.push([r,c,r,c+1]);
+    if(r<ROWS-1)edges.push([r,c,r+1,c]);
+  }
+  // Shuffle
+  for(var i=edges.length-1;i>0;i--){
+    var j=Math.floor(Math.random()*(i+1));
+    var t=edges[i];edges[i]=edges[j];edges[j]=t;
+  }
+  return{type:'kruskal',edges:edges,idx:0,done:false};
+}
+
+function findSet(r,c){
+  var cell=grid[r][c];
+  if(cell.set!==r*COLS+c){
+    // Path compression
+    var pr=Math.floor(cell.set/COLS),pc=cell.set%COLS;
+    cell.set=findSet(pr,pc);
+  }
+  return cell.set;
+}
+
+function unionSets(s1,s2){
+  // Link root of s2 to s1 (tree-based, works with path compression in findSet)
+  var r2=Math.floor(s2/COLS),c2=s2%COLS;
+  grid[r2][c2].set=s1;
+}
+
+function stepKruskal(state){
+  while(state.idx<state.edges.length){
+    var e=state.edges[state.idx++];
+    var s1=findSet(e[0],e[1]),s2=findSet(e[2],e[3]);
+    if(s1!==s2){
+      unionSets(s1,s2);
+      removeWall(e[0],e[1],e[2],e[3]);
+      grid[e[0]][e[1]].inMaze=true;grid[e[0]][e[1]].genVisit=true;
+      grid[e[2]][e[3]].inMaze=true;grid[e[2]][e[3]].genVisit=true;
+      return;
+    }
+  }
+  state.done=true;
+}
+
+// ============ SOLVING ALGORITHMS ============
+function initBFS(){
+  var queue=[[0,0]];
+  grid[0][0].solveVisit=true;
+  var parent={};parent['0,0']=null;
+  return{type:'bfs',queue:queue,parent:parent,done:false,found:false};
+}
+
+function stepBFS(state){
+  if(state.queue.length===0){state.done=true;return}
+  var cur=state.queue.shift();
+  var r=cur[0],c=cur[1];
+  if(r===ROWS-1&&c===COLS-1){state.done=true;state.found=true;tracePath(state.parent);return}
+  var nb=neighbors(r,c);
+  for(var i=0;i<nb.length;i++){
+    var nr=nb[i][0],nc=nb[i][1];
+    if(!grid[nr][nc].solveVisit&&canPass(r,c,nr,nc)){
+      grid[nr][nc].solveVisit=true;
+      state.parent[nr+','+nc]=r+','+c;
+      state.queue.push([nr,nc]);
+    }
+  }
+}
+
+function initDFS(){
+  var stack=[[0,0]];
+  grid[0][0].solveVisit=true;
+  var parent={};parent['0,0']=null;
+  return{type:'dfs',stack:stack,parent:parent,done:false,found:false};
+}
+
+function stepDFS(state){
+  if(state.stack.length===0){state.done=true;return}
+  var cur=state.stack.pop();
+  var r=cur[0],c=cur[1];
+  if(r===ROWS-1&&c===COLS-1){state.done=true;state.found=true;tracePath(state.parent);return}
+  var nb=neighbors(r,c);
+  for(var i=0;i<nb.length;i++){
+    var nr=nb[i][0],nc=nb[i][1];
+    if(!grid[nr][nc].solveVisit&&canPass(r,c,nr,nc)){
+      grid[nr][nc].solveVisit=true;
+      state.parent[nr+','+nc]=r+','+c;
+      state.stack.push([nr,nc]);
+    }
+  }
+}
+
+function tracePath(parent){
+  solution=[];
+  var key=(ROWS-1)+','+(COLS-1);
+  while(key){
+    var parts=key.split(',');
+    var r=parseInt(parts[0],10),c=parseInt(parts[1],10);
+    solution.push([r,c]);grid[r][c].path=true;
+    key=parent[key];
+  }
+  solution.reverse();
+}
+
+// ============ DRAW ============
+function draw(){
+  var w=COLS*CELL,h=ROWS*CELL;
+  ctx.fillStyle='#060610';ctx.fillRect(0,0,canvas.width,canvas.height);
+
+  for(var r=0;r<ROWS;r++){
+    for(var c=0;c<COLS;c++){
+      var cell=grid[r][c];
+      var x=c*CELL,y=r*CELL;
+
+      // Cell fill
+      if(cell.path){ctx.fillStyle='#58a6ff33'}
+      else if(cell.solveVisit){ctx.fillStyle='#3fb95015'}
+      else if(cell.frontier){ctx.fillStyle='#f0883e15'}
+      else if(cell.genVisit){ctx.fillStyle='#0a0a18'}
+      else{ctx.fillStyle='#0e0e1a'}
+      ctx.fillRect(x,y,CELL,CELL);
+
+      // Walls
+      ctx.strokeStyle='#1a1a2e';ctx.lineWidth=1;
+      if(cell.walls[0]){ctx.beginPath();ctx.moveTo(x,y);ctx.lineTo(x+CELL,y);ctx.stroke()}
+      if(cell.walls[1]){ctx.beginPath();ctx.moveTo(x+CELL,y);ctx.lineTo(x+CELL,y+CELL);ctx.stroke()}
+      if(cell.walls[2]){ctx.beginPath();ctx.moveTo(x,y+CELL);ctx.lineTo(x+CELL,y+CELL);ctx.stroke()}
+      if(cell.walls[3]){ctx.beginPath();ctx.moveTo(x,y);ctx.lineTo(x,y+CELL);ctx.stroke()}
+    }
+  }
+
+  // Solution path
+  if(solution.length>1){
+    ctx.strokeStyle='#58a6ff';ctx.lineWidth=2;ctx.beginPath();
+    for(var i=0;i<solution.length;i++){
+      var sx=solution[i][1]*CELL+CELL/2,sy=solution[i][0]*CELL+CELL/2;
+      if(i===0)ctx.moveTo(sx,sy);else ctx.lineTo(sx,sy);
+    }
+    ctx.stroke();
+  }
+
+  // Start/end markers
+  ctx.fillStyle='#3fb950';ctx.fillRect(2,2,CELL-4,CELL-4);
+  ctx.fillStyle='#f85149';ctx.fillRect((COLS-1)*CELL+2,(ROWS-1)*CELL+2,CELL-4,CELL-4);
+
+  // Generation cursor
+  if(phase==='generating'&&genState){
+    var cursor=null;
+    if(genState.type==='backtrack'&&genState.stack.length>0)cursor=genState.stack[genState.stack.length-1];
+    if(cursor){
+      ctx.fillStyle='rgba(0,255,255,0.3)';
+      ctx.fillRect(cursor[1]*CELL,cursor[0]*CELL,CELL,CELL);
+    }
+  }
+}
+
+// ============ ANIMATION ============
+function animate(){
+  if(!animating){draw();return}
+
+  for(var s=0;s<speed;s++){
+    if(phase==='generating'&&genState&&!genState.done){
+      if(genState.type==='backtrack')stepBacktrack(genState);
+      else if(genState.type==='prim')stepPrim(genState);
+      else if(genState.type==='kruskal')stepKruskal(genState);
+      if(genState.done){phase='idle';animating=false;setStatus('Generated! Click Solve.')}
+    }else if(phase==='solving'&&solveState&&!solveState.done){
+      if(solveState.type==='bfs')stepBFS(solveState);
+      else if(solveState.type==='dfs')stepDFS(solveState);
+      if(solveState.done){phase='done';animating=false;setStatus('Solved! Path: '+solution.length+' cells')}
+    }
+  }
+  draw();
+  if(animating)requestAnimationFrame(animate);
+}
+
+// ============ CONTROLS ============
+function startGenerate(){
+  COLS=parseInt(document.getElementById('sl-size').value,10)||20;
+  ROWS=COLS;
+  resize();initGrid();
+  genAlgo=document.getElementById('sel-gen').value;
+  if(genAlgo==='backtrack')genState=initBacktrack();
+  else if(genAlgo==='prim')genState=initPrim();
+  else if(genAlgo==='kruskal')genState=initKruskal();
+  phase='generating';animating=true;solveState=null;solution=[];
+  setStatus('Generating...');
+  requestAnimationFrame(animate);
+}
+
+function startSolve(){
+  if(phase!=='idle'&&phase!=='done')return;
+  // Clear solve state
+  for(var r=0;r<ROWS;r++)for(var c=0;c<COLS;c++){
+    grid[r][c].solveVisit=false;grid[r][c].path=false;
+  }
+  solution=[];
+  solveAlgo=document.getElementById('sel-solve').value;
+  if(solveAlgo==='bfs')solveState=initBFS();
+  else solveState=initDFS();
+  phase='solving';animating=true;
+  setStatus('Solving...');
+  requestAnimationFrame(animate);
+}
+
+function stepOnce(){
+  if(phase==='generating'&&genState&&!genState.done){
+    if(genState.type==='backtrack')stepBacktrack(genState);
+    else if(genState.type==='prim')stepPrim(genState);
+    else if(genState.type==='kruskal')stepKruskal(genState);
+    if(genState.done){phase='idle';setStatus('Generated!')}
+  }else if(phase==='solving'&&solveState&&!solveState.done){
+    if(solveState.type==='bfs')stepBFS(solveState);
+    else stepDFS(solveState);
+    if(solveState.done){phase='done';setStatus('Solved! Path: '+solution.length)}
+  }
+  draw();
+}
+
+function setStatus(t){document.getElementById('status').textContent=t}
+
+document.getElementById('btn-gen').addEventListener('click',startGenerate);
+document.getElementById('btn-solve').addEventListener('click',startSolve);
+document.getElementById('btn-step').addEventListener('click',function(){animating=false;stepOnce()});
+document.getElementById('sl-speed').addEventListener('input',function(e){
+  speed=parseInt(e.target.value,10);if(isNaN(speed)||speed<1)speed=1;
+});
+
+// ============ RESIZE ============
+function resize(){
+  var maxW=window.innerWidth-16;
+  var maxH=window.innerHeight-100;
+  CELL=Math.floor(Math.min(maxW/COLS,maxH/ROWS));
+  CELL=Math.max(CELL,6);
+  canvas.width=COLS*CELL;canvas.height=ROWS*CELL;
+}
+
+// ============ INIT ============
+resize();initGrid();
+window.addEventListener('resize',function(){resize();draw()});
+startGenerate();
+
+})();
+</script>
+</body>
+</html>
