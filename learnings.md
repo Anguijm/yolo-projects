@@ -1021,3 +1021,17 @@ Persistent knowledge base. Read this before every build.
 
 ## THE 100-PROJECT MILESTONE
 100 single-file HTML apps. Zero external dependencies. Every one tested, audited by Gemini, and shipped to GitHub Pages. The learnings file grew from empty to 500+ insights. The process evolved from ad-hoc to a rigorous build pipeline with automated tests, code audits, and 5-build continuous improvement reviews. 30+ consecutive working builds to close out the series.
+
+### tension-matrix (2026-03-24) — PROJECT #101
+- **KEEP**: Verlet integration (position-based, no velocity storage) — elegant, stable, perfect for cloth
+- **KEEP**: Structural constraints with iterative relaxation — more iterations = stiffer cloth
+- **KEEP**: Tension-based HSL coloring (hue 200→320 mapped to constraint stress) — makes invisible physics visible
+- **KEEP**: basePinned property on points — remembers structural pin state through drag/release cycle
+- **KEEP**: Weighted constraint relaxation (free point takes full correction when neighbor pinned) — prevents stretchy anchors
+- **KEEP**: Line intersection test for cutting (shift+drag severs constraints along path)
+- **KEEP**: Toss mechanics (apply mouse delta as velocity on release) — deeply satisfying
+- **IMPROVE**: Drag release set pinned=false unconditionally — curtain detached from support. Must restore basePinned. Gemini caught.
+- **IMPROVE**: Constraint relaxation used 0.5 weight for both points — when one is pinned, the free point should take full correction. Fixed with pin-aware weighting.
+- **IMPROVE**: Tension rendering divided by zero when tearDist=1 — Math.max guard added.
+- **INSIGHT**: Interactive physics sims need pin state management. Points that are structurally pinned must retain that state through user interaction cycles. A basePinned/originalPinned pattern handles this cleanly.
+- **INSIGHT**: Constraint relaxation weighting: when one end is fixed, the other must absorb 100% of the correction. The standard 50/50 split makes anchored cloth too stretchy.
