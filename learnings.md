@@ -1004,3 +1004,20 @@ Persistent knowledge base. Read this before every build.
 - **KEEP**: Glassmorphism panel that auto-hides — keeps the visual experience immersive
 - **INSIGHT**: Emergent complexity from simple rules is the most visually impressive pattern in single-file apps. Particle Life, Elementa, Life-Canvas — these are the projects people actually play with.
 - **INSIGHT**: For N-body simulations, the render loop is often the bottleneck, not the physics. Optimizing draw calls (batch by color, use simpler primitives) has more impact than optimizing math.
+
+### neon-runner (2026-03-24) — PROJECT #100: THE GRAND FINALE
+- **KEEP**: Separate X/Y axis collision resolution — prevents corner snagging, the foundation of tile-based platformer physics
+- **KEEP**: Coyote time (5 frames after leaving ledge) + jump buffering (5 frames before landing) — invisible mechanics that make platformers feel "right"
+- **KEEP**: Variable jump height via velocity cap (not continuous damping) — clean short/long hop distinction
+- **KEEP**: Squash/stretch rendering based on velocity events — makes a rectangle feel alive
+- **KEEP**: Parallax background with multiple scroll rates — depth from simple math
+- **KEEP**: Synthesized audio per game event (jump/coin/death) with onended cleanup
+- **KEEP**: Fixed game resolution scaled to viewport — consistent physics across all screen sizes
+- **IMPROVE**: Variable jump continuous damping (vy *= 0.5 every frame) caused jerky halt — Gemini caught. Single cap (vy = -3) is cleaner.
+- **IMPROVE**: Collision direction resolved via vx sign — fails at vx=0. Must use previous position comparison.
+- **IMPROVE**: inputJump() called twice per frame — cached to single variable.
+- **INSIGHT**: Platformer "feel" is 90% invisible mechanics (coyote time, jump buffer, variable height, acceleration curves) and 10% visible game. Without these, even perfect collision code feels wrong.
+- **INSIGHT**: Collision resolution direction must NEVER depend on velocity sign. Velocity can be zero while a collision exists (pushed by other forces, floating-point drift). Always compare current vs previous position.
+
+## THE 100-PROJECT MILESTONE
+100 single-file HTML apps. Zero external dependencies. Every one tested, audited by Gemini, and shipped to GitHub Pages. The learnings file grew from empty to 500+ insights. The process evolved from ad-hoc to a rigorous build pipeline with automated tests, code audits, and 5-build continuous improvement reviews. 30+ consecutive working builds to close out the series.
