@@ -934,3 +934,13 @@ Persistent knowledge base. Read this before every build.
 - **INSIGHT**: Custom markdown parsers must process elements in strict order. Code blocks MUST be extracted first, otherwise inline patterns (bold, italic, links) will corrupt code content.
 - **INSIGHT**: The test suite's brace balance checker uses regex to strip strings/comments but doesn't strip regex literals. Code with regex containing braces ({3,}, {1,6}) will false-fail. Known limitation — browser load test confirms correctness.
 - **TEST NOTE**: Brace balance test false-failed due to regex literals with quantifier braces. All other tests passed including browser load with zero console errors.
+
+### neon-node (2026-03-24)
+- **KEEP**: CSS 3D card flip (transform-style: preserve-3d, backface-visibility: hidden, rotateY(180deg)) — clean, performant card flip
+- **KEEP**: Fisher-Yates shuffle for card randomization — correct, unbiased
+- **KEEP**: Board lock during mismatch display — prevents click spam
+- **KEEP**: Timer starts on first flip, not on page load — accurate game timing
+- **IMPROVE**: Mismatch setTimeout fired on stale cards after reset — Gemini caught. Must track timeout IDs and clearTimeout on newGame. Also add null guards in the callback.
+- **INSIGHT**: Any game with delayed state changes (setTimeout for animations, reveals, transitions) MUST track all timeout IDs and clear them when the game resets. Otherwise the callbacks fire on the new game's state, causing corruption or crashes.
+- **INSIGHT**: This is now the 2nd occurrence of "stale timeout on reset" (also neon-tetra had instant restart issue). PATTERN: every newGame/reset function must clear ALL pending timers.
+- **TEST CAUGHT**: No bugs caught by automated tests — timeout leak is a state management issue
