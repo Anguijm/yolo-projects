@@ -1249,3 +1249,14 @@ Persistent knowledge base. Read this before every build.
 - **INSIGHT**: Interactive fiction MUST ship with a playable story. An empty engine is useless — the story IS the product. The engine is invisible infrastructure.
 - **INSIGHT**: Conditional choices (locked + visible requirement) are more engaging than hidden choices. Seeing "Requires: flashlight" teaches the player to explore and backtrack. Hidden conditions just feel random.
 - **INSIGHT**: Pure text/DOM projects are a complete technical and visual break from Canvas-heavy builds. No rAF loop, no pixel manipulation — just JSON traversal and DOM updates. Valuable for portfolio variety.
+
+### fractal-forge (2026-03-25) — PROJECT #119
+- **KEEP**: Two-pass rendering (dry-run bounding box → scaled drawing) — fractal always fits perfectly in viewport
+- **KEEP**: String length cap (500K) — prevents exponential L-system growth from crashing browser
+- **KEEP**: Gradient coloring mapped to draw progress (hue = drawCount/totalF × 300) — stunning visual on complex fractals
+- **KEEP**: Multiple presets with fundamentally different visual character (snowflake, fern, dragon, tree, hilbert, sierpinski)
+- **KEEP**: Custom axiom + rules editor — users can discover their own fractals
+- **KEEP**: Turtle graphics with stack-based branching ([/]) — essential for organic plant-like L-systems
+- **INSIGHT**: L-system rendering MUST auto-fit. Without bounding box calculation, fractals draw off-screen at most angles/iterations. The dry-run (simulate turtle without drawing) → calculate scale/offset → render pattern solves this cleanly.
+- **INSIGHT**: L-system strings grow exponentially. A simple rule like F=FF doubles length each iteration. 20 iterations = 2^20 = 1M+ characters. Hard cap on string length is essential safety measure.
+- **INSIGHT**: This is the THIRD project we've dodged for 20+ builds and then finally shipped (after automata-lab and the original life-canvas Conway's expansion). Lesson: if an idea keeps coming up in brainstorms, just build it.

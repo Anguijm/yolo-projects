@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="theme-color" content="#000000">
+<title>Fractal Forge</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{height:100%;background:#060610;overflow:hidden;font-family:system-ui,sans-serif;touch-action:manipulation;-webkit-tap-highlight-color:transparent;color:#ccc}
+canvas{display:block;position:absolute;inset:0}
+#panel{position:fixed;top:8px;right:8px;width:210px;background:rgba(6,6,16,0.92);border:1px solid rgba(255,255,255,0.06);border-radius:10px;padding:10px;z-index:5;backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);opacity:0.35;transition:opacity 0.3s;max-height:calc(100vh - 16px);overflow-y:auto}
+#panel:hover{opacity:1}
+.p-title{font-size:0.6rem;color:#555;letter-spacing:0.2em;margin-bottom:6px;font-weight:300}
+.p-row{display:flex;align-items:center;gap:4px;margin-bottom:4px}
+.p-label{font-size:0.4rem;color:#444;min-width:45px;letter-spacing:0.05em}
+.p-val{font-size:0.4rem;color:#555;font-family:monospace;min-width:20px;text-align:right}
+select,input[type="text"]{width:100%;background:#111;border:1px solid #1a1a1a;color:#888;padding:3px 5px;font-family:monospace;font-size:0.5rem;border-radius:3px;outline:none;margin-bottom:3px}
+input[type="range"]{flex:1;height:2px;accent-color:#555}
+.p-btn{padding:3px 7px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);color:#555;font-family:inherit;font-size:0.4rem;cursor:pointer;border-radius:3px;letter-spacing:0.05em}
+.p-btn:active{border-color:rgba(255,255,255,0.2);color:#aaa}
+.p-btns{display:flex;gap:3px;flex-wrap:wrap;margin-bottom:4px}
+.p-sep{height:1px;background:rgba(255,255,255,0.04);margin:5px 0}
+#rules-area{width:100%;background:#0a0a14;border:1px solid #1a1a1a;color:#888;padding:4px;font-family:monospace;font-size:0.5rem;border-radius:3px;outline:none;resize:vertical;min-height:40px;line-height:1.5}
+#stats{font-size:0.4rem;color:#333;font-family:monospace}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="panel">
+  <div class="p-title">FRACTAL FORGE</div>
+  <select id="sel-preset">
+    <option value="koch">Koch Snowflake</option>
+    <option value="dragon">Dragon Curve</option>
+    <option value="sierpinski">Sierpinski Triangle</option>
+    <option value="fern" selected>Barnsley Fern</option>
+    <option value="tree">Fractal Tree</option>
+    <option value="hilbert">Hilbert Curve</option>
+    <option value="custom">Custom</option>
+  </select>
+  <div class="p-sep"></div>
+  <div class="p-label">AXIOM</div>
+  <input type="text" id="in-axiom" value="X">
+  <div class="p-label">RULES (one per line: X=...)</div>
+  <textarea id="rules-area">X=F+[[X]-X]-F[-FX]+X
+F=FF</textarea>
+  <div class="p-sep"></div>
+  <div class="p-row"><span class="p-label">Angle</span><input type="range" id="sl-angle" min="1" max="180" value="25"><span class="p-val" id="v-angle">25</span></div>
+  <div class="p-row"><span class="p-label">Iterations</span><input type="range" id="sl-iter" min="1" max="10" value="5"><span class="p-val" id="v-iter">5</span></div>
+  <div class="p-btns">
+    <button class="p-btn" id="btn-draw">Draw</button>
+    <button class="p-btn" id="btn-less">Iter -</button>
+    <button class="p-btn" id="btn-more">Iter +</button>
+  </div>
+  <label style="font-size:0.4rem;color:#444;display:flex;align-items:center;gap:3px">
+    <input type="checkbox" id="ck-gradient" checked style="accent-color:#555"> Gradient color
+  </label>
+  <div id="stats"></div>
+</div>
+
+<script>
+(function(){
+'use strict';
+
+var canvas=document.getElementById('c'),ctx=canvas.getContext('2d');
+var W,H;
+var MAX_STRING=500000;
+
+// ============ PRESETS ============
+var PRESETS={
+  koch:{axiom:'F--F--F',rules:'F=F+F--F+F',angle:60,iter:4},
+  dragon:{axiom:'FX',rules:'X=X+YF+\nY=-FX-Y',angle:90,iter:10},
+  sierpinski:{axiom:'F-G-G',rules:'F=F-G+F+G-F\nG=GG',angle:120,iter:6},
+  fern:{axiom:'X',rules:'X=F+[[X]-X]-F[-FX]+X\nF=FF',angle:25,iter:5},
+  tree:{axiom:'F',rules:'F=FF+[+F-F-F]-[-F+F+F]',angle:22,iter:4},
+  hilbert:{axiom:'A',rules:'A=-BF+AFA+FB-\nB=+AF-BFB-FA+',angle:90,iter:5}
+};
+
+var axiom='X',rulesText='X=F+[[X]-X]-F[-FX]+X\nF=FF',angle=25,iterations=5;
+var useGradient=true;
+
+// ============ L-SYSTEM ENGINE ============
+function parseRules(text){
+  var rules={};
+  text.split('\n').forEach(function(line){
+    line=line.trim();
+    var eq=line.indexOf('=');
+    if(eq>0){
+      var key=line.substring(0,eq).trim();
+      var val=line.substring(eq+1).trim();
+      rules[key]=val;
+    }
+  });
+  return rules;
+}
+
+function generate(axiom,rules,n){
+  var str=axiom;
+  for(var i=0;i<n;i++){
+    var next='';
+    for(var j=0;j<str.length;j++){
+      var ch=str[j];
+      next+=rules[ch]!==undefined?rules[ch]:ch;
+    }
+    str=next;
+    if(str.length>MAX_STRING){
+      str=str.substring(0,MAX_STRING);
+      break;
+    }
+  }
+  return str;
+}
+
+// ============ BOUNDING BOX (DRY RUN) ============
+function getBounds(str,angleDeg){
+  var rad=angleDeg*Math.PI/180;
+  var x=0,y=0,dir=-Math.PI/2;
+  var minX=0,maxX=0,minY=0,maxY=0;
+  var stack=[];
+  for(var i=0;i<str.length;i++){
+    var ch=str[i];
+    if(ch==='F'||ch==='G'){
+      x+=Math.cos(dir);y+=Math.sin(dir);
+      if(x<minX)minX=x;if(x>maxX)maxX=x;
+      if(y<minY)minY=y;if(y>maxY)maxY=y;
+    }else if(ch==='+'){dir+=rad}
+    else if(ch==='-'){dir-=rad}
+    else if(ch==='['){stack.push({x:x,y:y,dir:dir})}
+    else if(ch===']'&&stack.length>0){var s=stack.pop();x=s.x;y=s.y;dir=s.dir}
+  }
+  return{minX:minX,maxX:maxX,minY:minY,maxY:maxY};
+}
+
+// ============ RENDER ============
+function render(){
+  var rules=parseRules(rulesText);
+  var str=generate(axiom,rules,iterations);
+
+  document.getElementById('stats').textContent='String: '+str.length.toLocaleString()+' chars';
+
+  // Bounding box
+  var bounds=getBounds(str,angle);
+  var bw=bounds.maxX-bounds.minX||1;
+  var bh=bounds.maxY-bounds.minY||1;
+  var pad=40;
+  var scale=Math.min((W-pad*2)/bw,(H-pad*2)/bh);
+  var offsetX=-bounds.minX*scale+(W-bw*scale)/2;
+  var offsetY=-bounds.minY*scale+(H-bh*scale)/2;
+
+  // Clear
+  ctx.fillStyle='#060610';ctx.fillRect(0,0,W,H);
+
+  // Draw
+  var rad=angle*Math.PI/180;
+  var x=0,y=0,dir=-Math.PI/2;
+  var stack=[];
+  var totalF=0;
+  for(var i=0;i<str.length;i++){if(str[i]==='F'||str[i]==='G')totalF++}
+  var drawCount=0;
+
+  ctx.lineWidth=Math.max(0.5,Math.min(2,1000/totalF));
+  ctx.lineCap='round';
+
+  for(var i=0;i<str.length;i++){
+    var ch=str[i];
+    if(ch==='F'||ch==='G'){
+      var nx=x+Math.cos(dir),ny=y+Math.sin(dir);
+
+      if(useGradient){
+        var t=drawCount/Math.max(1,totalF);
+        var hue=t*300; // 0 → 300 (red → blue spectrum)
+        ctx.strokeStyle='hsl('+hue+',75%,55%)';
+      }else{
+        ctx.strokeStyle='#0ff';
+      }
+
+      ctx.beginPath();
+      ctx.moveTo(x*scale+offsetX,y*scale+offsetY);
+      ctx.lineTo(nx*scale+offsetX,ny*scale+offsetY);
+      ctx.stroke();
+
+      x=nx;y=ny;drawCount++;
+    }else if(ch==='+'){dir+=rad}
+    else if(ch==='-'){dir-=rad}
+    else if(ch==='['){stack.push({x:x,y:y,dir:dir})}
+    else if(ch===']'&&stack.length>0){var s=stack.pop();x=s.x;y=s.y;dir=s.dir}
+  }
+}
+
+// ============ CONTROLS ============
+function loadPreset(name){
+  var p=PRESETS[name];if(!p)return;
+  axiom=p.axiom;rulesText=p.rules;angle=p.angle;iterations=p.iter;
+  document.getElementById('in-axiom').value=axiom;
+  document.getElementById('rules-area').value=rulesText;
+  document.getElementById('sl-angle').value=angle;
+  document.getElementById('v-angle').textContent=angle;
+  document.getElementById('sl-iter').value=iterations;
+  document.getElementById('v-iter').textContent=iterations;
+  render();
+}
+
+document.getElementById('sel-preset').addEventListener('change',function(e){
+  if(e.target.value==='custom')return;
+  loadPreset(e.target.value);
+});
+
+document.getElementById('btn-draw').addEventListener('click',function(){
+  axiom=document.getElementById('in-axiom').value;
+  rulesText=document.getElementById('rules-area').value;
+  render();
+});
+
+document.getElementById('sl-angle').addEventListener('input',function(e){
+  angle=parseInt(e.target.value,10);if(isNaN(angle))angle=25;
+  document.getElementById('v-angle').textContent=angle;
+  render();
+});
+
+document.getElementById('sl-iter').addEventListener('input',function(e){
+  iterations=parseInt(e.target.value,10);if(isNaN(iterations))iterations=1;
+  document.getElementById('v-iter').textContent=iterations;
+  render();
+});
+
+document.getElementById('btn-less').addEventListener('click',function(){
+  if(iterations>1){iterations--;document.getElementById('sl-iter').value=iterations;
+    document.getElementById('v-iter').textContent=iterations;render()}
+});
+document.getElementById('btn-more').addEventListener('click',function(){
+  if(iterations<10){iterations++;document.getElementById('sl-iter').value=iterations;
+    document.getElementById('v-iter').textContent=iterations;render()}
+});
+
+document.getElementById('ck-gradient').addEventListener('change',function(){
+  useGradient=this.checked;render();
+});
+
+// ============ RESIZE ============
+function resize(){W=window.innerWidth;H=window.innerHeight;canvas.width=W;canvas.height=H;render()}
+
+// ============ INIT ============
+resize();window.addEventListener('resize',resize);
+loadPreset('fern');
+
+})();
+</script>
+</body>
+</html>
