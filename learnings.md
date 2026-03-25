@@ -1390,3 +1390,16 @@ Persistent knowledge base. Read this before every build.
 - **INSIGHT**: Web Audio createBuffer requires integer length — always Math.floor any sampleRate multiplication
 - **INSIGHT**: Any scheduled visual effect (setTimeout) must be cancellable. Track IDs in an array, clear on state change
 - **TEST CAUGHT**: Nothing — all bugs found by Gemini
+
+### solitaire (2026-03-26)
+- **KEEP**: Smart-tap auto-move (tap card → auto-place to best valid destination) — far superior to drag-and-drop on mobile
+- **KEEP**: CSS-only card rendering with Unicode suits (♠♥♦♣) — zero images, crisp at any DPI, tiny file size
+- **KEEP**: Responsive card sizing via CSS variables recalculated on resize — cards fit any screen width
+- **KEEP**: Deep undo via JSON-serialized state snapshots — simple, reliable, no inverse-operation complexity
+- **IMPROVE**: Gemini caught "teleporting card" bug — smartTap validated a middle card but moveCard did .pop() which grabs the TOP card. Must check isExposed (card is last in array) before allowing foundation moves
+- **IMPROVE**: getComputedStyle inside calcTop loop caused 50+ synchronous reflows per render. Cache CSS variable values in JS variables on resize, use cached values in calcTop
+- **IMPROVE**: Undo didn't reset gameWon flag — undoing a winning move left game locked. Must reset gameWon and restart timer on undo
+- **IMPROVE**: Empty stock+waste still incremented move counter — guard with early return
+- **INSIGHT**: In any card game, the card you VALIDATE must be the exact card you MOVE. Never validate one card and pop() a different one
+- **INSIGHT**: Never call getComputedStyle inside a render loop — cache computed values on resize/init
+- **TEST CAUGHT**: Nothing — all bugs found by Gemini
