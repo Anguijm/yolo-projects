@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="theme-color" content="#000000">
+<title>Type Racer</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{height:100%;background:#0a0a0c;overflow-y:auto;font-family:system-ui,sans-serif;touch-action:manipulation;-webkit-tap-highlight-color:transparent;color:#ccc}
+#app{max-width:600px;margin:0 auto;padding:16px 12px}
+h1{font-size:0.7rem;color:#444;letter-spacing:0.25em;font-weight:300;margin-bottom:12px}
+
+/* Race tracks */
+.track{margin-bottom:8px}
+.track-label{font-size:0.45rem;color:#444;margin-bottom:2px;display:flex;justify-content:space-between}
+.track-bar{height:8px;background:#111;border-radius:4px;overflow:hidden;position:relative}
+.track-fill{height:100%;border-radius:4px;transition:width 0.1s}
+.player-fill{background:#0ff}
+.ghost-fill{background:#f0883e}
+
+/* Text display */
+#text-display{background:#0a0a14;border:1px solid #1a1a2e;border-radius:6px;padding:14px;font-family:'Courier New',monospace;font-size:1rem;line-height:1.8;margin-bottom:12px;min-height:80px}
+#text-display .done{color:#3fb950}
+#text-display .current{background:#1a2a4a;color:#fff;border-bottom:2px solid #0ff}
+#text-display .wrong{background:#2a0a0a;color:#f85149;border-bottom:2px solid #f85149}
+#text-display .pending{color:#333}
+
+/* Input */
+#type-input{width:100%;background:#111;border:1px solid #1a1a1a;color:#ccc;padding:10px;font-family:'Courier New',monospace;font-size:1rem;border-radius:6px;outline:none;margin-bottom:8px}
+#type-input:focus{border-color:#58a6ff}
+#type-input:disabled{opacity:0.3}
+
+/* Stats */
+#stats{display:flex;gap:16px;justify-content:center;font-family:monospace;font-size:0.6rem;color:#555;margin-bottom:10px}
+.stat b{color:#888}
+
+/* Controls */
+#controls{display:flex;gap:4px;justify-content:center}
+.btn{padding:5px 12px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);color:#555;font-family:inherit;font-size:0.5rem;cursor:pointer;border-radius:4px}
+.btn:active{color:#aaa}
+select{background:#111;border:1px solid #1a1a1a;color:#888;padding:4px;font-size:0.5rem;border-radius:4px;outline:none}
+
+/* Result */
+#result{display:none;text-align:center;padding:16px;margin-top:8px}
+#result h2{font-size:1rem;font-weight:300;margin-bottom:4px}
+#result.win h2{color:#3fb950}
+#result.lose h2{color:#f85149}
+#result p{font-size:0.65rem;color:#555}
+</style>
+</head>
+<body>
+<div id="app">
+  <h1>TYPE RACER</h1>
+  <div class="track">
+    <div class="track-label"><span>You</span><span id="player-wpm">0 WPM</span></div>
+    <div class="track-bar"><div class="track-fill player-fill" id="player-bar" style="width:0%"></div></div>
+  </div>
+  <div class="track">
+    <div class="track-label"><span>Ghost</span><span id="ghost-wpm"></span></div>
+    <div class="track-bar"><div class="track-fill ghost-fill" id="ghost-bar" style="width:0%"></div></div>
+  </div>
+  <div id="text-display"></div>
+  <input type="text" id="type-input" placeholder="Type here when ready..." autocomplete="off" spellcheck="false" autocapitalize="off">
+  <div id="stats">
+    <span>WPM: <b id="s-wpm">0</b></span>
+    <span>Acc: <b id="s-acc">100%</b></span>
+    <span>Time: <b id="s-time">0.0s</b></span>
+  </div>
+  <div id="controls">
+    <select id="sel-ghost"><option value="30">Ghost: 30 WPM</option><option value="45" selected>Ghost: 45 WPM</option><option value="60">Ghost: 60 WPM</option><option value="80">Ghost: 80 WPM</option></select>
+    <button class="btn" id="btn-new">New Race</button>
+  </div>
+  <div id="result"><h2 id="res-title"></h2><p id="res-detail"></p></div>
+</div>
+
+<script>
+(function(){
+'use strict';
+
+var TEXTS=[
+  'The quick brown fox jumps over the lazy dog near the river bank on a warm summer evening.',
+  'Code is like humor. When you have to explain it, it is bad. Write clean code that speaks for itself.',
+  'In the middle of difficulty lies opportunity. Every challenge is a chance to learn something new.',
+  'The best way to predict the future is to invent it. Start building today what you want tomorrow.',
+  'A journey of a thousand miles begins with a single step. Keep moving forward no matter what.',
+  'Simple things should be simple and complex things should be possible in any good design system.',
+  'The only way to do great work is to love what you do. Find your passion and pursue it daily.',
+  'Practice does not make perfect. Only perfect practice makes perfect. Focus on quality each time.'
+];
+
+var text='',charIdx=0,errors=0,totalTyped=0;
+var startTime=0,racing=false,finished=false;
+var ghostWPM=45,ghostProgress=0;
+var ghostTimer=null;
+
+function newRace(){
+  text=TEXTS[Math.floor(Math.random()*TEXTS.length)];
+  charIdx=0;errors=0;totalTyped=0;
+  startTime=0;racing=false;finished=false;
+  ghostProgress=0;
+  clearInterval(ghostTimer);
+  document.getElementById('type-input').value='';
+  document.getElementById('type-input').disabled=false;
+  document.getElementById('type-input').focus();
+  document.getElementById('result').style.display='none';
+  document.getElementById('player-bar').style.width='0%';
+  document.getElementById('ghost-bar').style.width='0%';
+  document.getElementById('ghost-wpm').textContent=ghostWPM+' WPM';
+  renderText();
+  updateStats();
+}
+
+function renderText(){
+  var html='';
+  for(var i=0;i<text.length;i++){
+    var ch=text[i]===' '?'&nbsp;':text[i];
+    if(i<charIdx)html+='<span class="done">'+ch+'</span>';
+    else if(i===charIdx)html+='<span class="current">'+ch+'</span>';
+    else html+='<span class="pending">'+ch+'</span>';
+  }
+  document.getElementById('text-display').innerHTML=html;
+  document.getElementById('player-bar').style.width=(charIdx/text.length*100)+'%';
+}
+
+function startGhost(){
+  // Ghost types at fixed WPM. Average word = 5 chars
+  var charsPerSec=ghostWPM*5/60;
+  ghostTimer=setInterval(function(){
+    if(finished)return;
+    ghostProgress+=charsPerSec*0.1; // 100ms interval
+    var pct=Math.min(100,ghostProgress/text.length*100);
+    document.getElementById('ghost-bar').style.width=pct+'%';
+    if(ghostProgress>=text.length){
+      finishRace(false);
+    }
+  },100);
+}
+
+function updateStats(){
+  var elapsed=racing?(Date.now()-startTime)/1000:0;
+  var words=charIdx/5;
+  var wpm=elapsed>0?Math.round(words/(elapsed/60)):0;
+  var acc=totalTyped>0?Math.round((totalTyped-errors)/totalTyped*100):100;
+  document.getElementById('s-wpm').textContent=wpm;
+  document.getElementById('s-acc').textContent=acc+'%';
+  document.getElementById('s-time').textContent=elapsed.toFixed(1)+'s';
+  document.getElementById('player-wpm').textContent=wpm+' WPM';
+}
+
+function finishRace(playerWon){
+  finished=true;racing=false;
+  clearInterval(ghostTimer);
+  document.getElementById('type-input').disabled=true;
+  var elapsed=(Date.now()-startTime)/1000;
+  var wpm=Math.round((text.length/5)/(elapsed/60));
+  var acc=totalTyped>0?Math.round((totalTyped-errors)/totalTyped*100):100;
+
+  var res=document.getElementById('result');
+  res.style.display='block';
+  res.className=playerWon?'win':'lose';
+  document.getElementById('res-title').textContent=playerWon?'YOU WIN!':'GHOST WINS';
+  document.getElementById('res-detail').textContent=wpm+' WPM \u00b7 '+acc+'% accuracy \u00b7 '+elapsed.toFixed(1)+'s';
+  updateStats();
+}
+
+// Input handling
+document.getElementById('type-input').addEventListener('input',function(e){
+  if(finished)return;
+  var val=e.target.value;
+
+  if(!racing&&val.length>0){
+    racing=true;startTime=Date.now();
+    startGhost();
+  }
+
+  // Check last typed character
+  var lastChar=val[val.length-1];
+  var expected=text[charIdx];
+  totalTyped++;
+
+  if(lastChar===expected){
+    charIdx++;
+    e.target.value=''; // Clear for next char
+    renderText();
+
+    if(charIdx>=text.length){
+      document.getElementById('player-bar').style.width='100%';
+      finishRace(true);
+    }
+  }else{
+    errors++;
+    e.target.value=''; // Clear wrong char
+    // Flash current char red briefly
+    var spans=document.getElementById('text-display').children;
+    if(spans[charIdx])spans[charIdx].className='wrong';
+    setTimeout(function(){renderText()},200);
+  }
+
+  updateStats();
+});
+
+// Prevent paste
+document.getElementById('type-input').addEventListener('paste',function(e){e.preventDefault()});
+
+document.getElementById('sel-ghost').addEventListener('change',function(e){
+  ghostWPM=parseInt(e.target.value,10);newRace();
+});
+document.getElementById('btn-new').addEventListener('click',newRace);
+
+newRace();
+})();
+</script>
+</body>
+</html>
