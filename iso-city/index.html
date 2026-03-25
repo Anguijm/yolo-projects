@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="theme-color" content="#000000">
+<title>Iso City</title>
+<style>
+:root{--bg:#0a0f14;--panel:rgba(10,15,20,0.94);--border:rgba(255,255,255,0.06);--accent:#4af}
+*{margin:0;padding:0;box-sizing:border-box;-webkit-user-select:none;user-select:none}
+html,body{height:100%;background:var(--bg);overflow:hidden;touch-action:none;-webkit-tap-highlight-color:transparent;font-family:system-ui,sans-serif}
+canvas{display:block;position:absolute;inset:0;cursor:pointer}
+#hud{position:fixed;top:8px;left:8px;z-index:5;display:flex;gap:10px;font-size:0.4rem;color:#8aa;font-family:monospace}
+.hud-item{background:var(--panel);border:1px solid var(--border);padding:4px 8px;border-radius:6px;backdrop-filter:blur(8px)}
+.hud-item b{color:#cdd}
+#bar{position:fixed;bottom:8px;left:50%;transform:translateX(-50%);display:flex;gap:4px;padding:6px 10px;background:var(--panel);border:1px solid var(--border);border-radius:12px;z-index:5;backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);align-items:center;flex-wrap:wrap;justify-content:center}
+.tool{width:40px;height:40px;border:2px solid var(--border);border-radius:8px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:1px;font-size:0.25rem;color:#667;background:rgba(255,255,255,0.02);transition:all 0.12s}
+.tool.sel{border-color:var(--accent);color:var(--accent);background:rgba(68,170,255,0.08)}
+.tool:active{transform:scale(0.95)}
+.tool-icon{font-size:0.55rem;line-height:1}
+.tool-label{font-size:0.22rem;letter-spacing:0.04em}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="hud">
+  <div class="hud-item">Pop: <b id="h-pop">0</b></div>
+  <div class="hud-item">$<b id="h-money">500</b></div>
+  <div class="hud-item">Score: <b id="h-score">0</b></div>
+</div>
+<div id="bar">
+  <div class="tool sel" id="t-road"><span class="tool-icon">═</span><span class="tool-label">Road</span></div>
+  <div class="tool" id="t-house"><span class="tool-icon">⌂</span><span class="tool-label">House</span></div>
+  <div class="tool" id="t-shop"><span class="tool-icon">■</span><span class="tool-label">Shop</span></div>
+  <div class="tool" id="t-park"><span class="tool-icon">♣</span><span class="tool-label">Park</span></div>
+  <div class="tool" id="t-clear"><span class="tool-icon">✕</span><span class="tool-label">Clear</span></div>
+</div>
+
+<script>
+(function(){
+'use strict';
+
+// ---- Config ----
+var GRID=12;
+var TW=48,TH=24; // tile width/height in iso
+var COSTS={road:10,house:50,shop:80,park:40};
+
+// ---- State ----
+var canvas=document.getElementById('c'),ctx=canvas.getContext('2d');
+var W,H;
+var camX=0,camY=0;
+var map=[]; // [r][c] = {type:'empty'|'road'|'house'|'shop'|'park', level:0}
+var money=500,population=0,score=0;
+var tool='road';
+var tickTimer=0;
+var floatingTexts=[]; // {x,y,text,life,color}
+
+// Pan state
+var isPanning=false,panStartX=0,panStartY=0,camStartX=0,camStartY=0;
+var hasMoved=false;
+
+// Init map
+for(var r=0;r<GRID;r++){
+  map.push([]);
+  for(var c=0;c<GRID;c++){
+    map[r].push({type:'empty',level:0});
+  }
+}
+
+// ---- Iso math ----
+function gridToScreen(r,c){
+  var sx=(c-r)*TW/2+camX+W/2;
+  var sy=(c+r)*TH/2+camY+H/3;
+  return[sx,sy];
+}
+function screenToGrid(sx,sy){
+  var rx=sx-camX-W/2;
+  var ry=sy-camY-H/3;
+  var c=(rx/TW+ry/TH);
+  var r=(ry/TH-rx/TW);
+  return[Math.round(r),Math.round(c)];
+}
+
+// ---- Drawing helpers ----
+function drawTile(x,y,top,left,right){
+  // Top face
+  ctx.fillStyle=top;
+  ctx.beginPath();
+  ctx.moveTo(x,y);ctx.lineTo(x+TW/2,y+TH/2);ctx.lineTo(x,y+TH);ctx.lineTo(x-TW/2,y+TH/2);
+  ctx.closePath();ctx.fill();
+  ctx.strokeStyle='rgba(0,0,0,0.15)';ctx.lineWidth=0.5;ctx.stroke();
+}
+
+function drawBlock(x,y,h,top,left,right){
+  // Left face
+  ctx.fillStyle=left;
+  ctx.beginPath();
+  ctx.moveTo(x-TW/2,y+TH/2);ctx.lineTo(x,y+TH);ctx.lineTo(x,y+TH+h);ctx.lineTo(x-TW/2,y+TH/2+h);
+  ctx.closePath();ctx.fill();
+  // Right face
+  ctx.fillStyle=right;
+  ctx.beginPath();
+  ctx.moveTo(x+TW/2,y+TH/2);ctx.lineTo(x,y+TH);ctx.lineTo(x,y+TH+h);ctx.lineTo(x+TW/2,y+TH/2+h);
+  ctx.closePath();ctx.fill();
+  // Top face
+  ctx.fillStyle=top;
+  ctx.beginPath();
+  ctx.moveTo(x,y);ctx.lineTo(x+TW/2,y+TH/2);ctx.lineTo(x,y+TH);ctx.lineTo(x-TW/2,y+TH/2);
+  ctx.closePath();ctx.fill();
+}
+
+function drawRoof(x,y,color){
+  ctx.fillStyle=color;
+  ctx.beginPath();
+  ctx.moveTo(x,y-8);ctx.lineTo(x+TW/2-4,y+TH/2-2);ctx.lineTo(x,y+TH-4);ctx.lineTo(x-TW/2+4,y+TH/2-2);
+  ctx.closePath();ctx.fill();
+}
+
+// ---- Draw buildings ----
+function drawBuilding(r,c){
+  var t=map[r][c];
+  var s=gridToScreen(r,c);
+  var x=s[0],y=s[1];
+
+  if(t.type==='empty'){
+    drawTile(x,y,'#1a2a20','#152218','#0f1a14');
+    return;
+  }
+  if(t.type==='road'){
+    drawTile(x,y,'#2a2a30','#222228','#1a1a20');
+    // Road markings
+    ctx.fillStyle='#44444a';
+    ctx.fillRect(x-2,y+TH/2-1,4,2);
+    return;
+  }
+  if(t.type==='house'){
+    var lvl=t.level;
+    var h=8+lvl*6;
+    drawBlock(x,y-h,h,
+      lvl>=2?'#e8d8a0':lvl>=1?'#c8a870':'#a89070',
+      lvl>=2?'#b8a870':'#907050',
+      lvl>=2?'#988850':'#785840');
+    drawRoof(x,y-h,lvl>=2?'#d04030':lvl>=1?'#b83828':'#983020');
+    return;
+  }
+  if(t.type==='shop'){
+    var lvl=t.level;
+    var h=12+lvl*8;
+    drawBlock(x,y-h,h,
+      lvl>=2?'#70a0d0':lvl>=1?'#5888b8':'#4070a0',
+      lvl>=2?'#4878a8':'#385888',
+      lvl>=2?'#385898':'#284870');
+    // Windows
+    if(h>12){
+      ctx.fillStyle='rgba(255,255,200,0.3)';
+      ctx.fillRect(x-4,y-2,3,3);
+      ctx.fillRect(x+1,y-2,3,3);
+    }
+    return;
+  }
+  if(t.type==='park'){
+    drawTile(x,y,'#1a3a20','#153218','#102a14');
+    // Tree trunk
+    ctx.fillStyle='#5a3a20';
+    ctx.fillRect(x-1,y+TH/2-10,3,10);
+    // Canopy
+    ctx.fillStyle='#2a8a30';
+    ctx.beginPath();ctx.arc(x,y+TH/2-14,7,0,Math.PI*2);ctx.fill();
+    ctx.fillStyle='#3aaa40';
+    ctx.beginPath();ctx.arc(x+3,y+TH/2-12,5,0,Math.PI*2);ctx.fill();
+    return;
+  }
+}
+
+// ---- Render ----
+function draw(){
+  ctx.fillStyle=var_bg;ctx.fillRect(0,0,W,H);
+
+  // Draw grid sorted by depth (r+c) for correct isometric overlap
+  var renderList=[];
+  for(var r=0;r<GRID;r++){
+    for(var c=0;c<GRID;c++){
+      renderList.push({r:r,c:c,depth:r+c});
+    }
+  }
+  renderList.sort(function(a,b){return a.depth-b.depth});
+  for(var i=0;i<renderList.length;i++){
+    drawBuilding(renderList[i].r,renderList[i].c);
+    // Draw hover highlight in z-order so it gets occluded by closer buildings
+    if(renderList[i].r===hoverR&&renderList[i].c===hoverC){
+      var hs=gridToScreen(hoverR,hoverC);
+      ctx.strokeStyle='rgba(68,170,255,0.4)';ctx.lineWidth=1.5;
+      ctx.beginPath();
+      ctx.moveTo(hs[0],hs[1]);ctx.lineTo(hs[0]+TW/2,hs[1]+TH/2);
+      ctx.lineTo(hs[0],hs[1]+TH);ctx.lineTo(hs[0]-TW/2,hs[1]+TH/2);
+      ctx.closePath();ctx.stroke();
+    }
+  }
+
+  // Floating texts (anchored to grid coordinates)
+  ctx.font='bold 10px monospace';
+  ctx.textAlign='center';
+  for(var i=floatingTexts.length-1;i>=0;i--){
+    var ft=floatingTexts[i];
+    ft.life-=0.02;
+    if(ft.life<=0){floatingTexts.splice(i,1);continue}
+    var fs=gridToScreen(ft.r,ft.c);
+    var floatY=fs[1]-((1-ft.life)*25);
+    ctx.fillStyle=ft.color.replace('A',ft.life.toFixed(2));
+    ctx.fillText(ft.text,fs[0],floatY);
+  }
+}
+var var_bg='#0a0f14';
+var hoverR=-1,hoverC=-1;
+
+// ---- Game logic ----
+function getNeighbors(r,c){
+  var n=[];
+  if(r>0)n.push(map[r-1][c]);
+  if(r<GRID-1)n.push(map[r+1][c]);
+  if(c>0)n.push(map[r][c-1]);
+  if(c<GRID-1)n.push(map[r][c+1]);
+  return n;
+}
+
+// Update levels + population (no money generation — safe to call anytime)
+function updateStats(){
+  var newPop=0;
+  for(var r=0;r<GRID;r++){
+    for(var c=0;c<GRID;c++){
+      var t=map[r][c];
+      var nb=getNeighbors(r,c);
+      var hasRoad=false,hasPark=false;
+      for(var i=0;i<nb.length;i++){
+        if(nb[i].type==='road')hasRoad=true;
+        if(nb[i].type==='park')hasPark=true;
+      }
+      if(t.type==='house'){
+        if(hasPark&&t.level<1)t.level=1;
+        if(hasPark&&hasRoad&&t.level<2)t.level=2;
+        newPop+=2+t.level*3;
+      }
+      if(t.type==='shop'){
+        if(hasRoad&&t.level<1)t.level=1;
+        if(hasRoad&&hasPark&&t.level<2)t.level=2;
+      }
+    }
+  }
+  population=newPop;
+  score=population*10+money;
+  updateHUD();
+}
+
+// Timer-based revenue generation only
+function gameTick(){
+  var rev=0;
+  for(var r=0;r<GRID;r++){
+    for(var c=0;c<GRID;c++){
+      if(map[r][c].type==='shop')rev+=3+map[r][c].level*4;
+    }
+  }
+  money+=rev;
+  updateStats();
+}
+
+function updateHUD(){
+  document.getElementById('h-pop').textContent=population;
+  document.getElementById('h-money').textContent=money;
+  document.getElementById('h-score').textContent=score;
+}
+
+function placeTile(r,c){
+  if(r<0||r>=GRID||c<0||c>=GRID)return;
+  var cur=map[r][c];
+
+  if(tool==='clear'){
+    if(cur.type!=='empty'){
+      cur.type='empty';cur.level=0;
+      floatingTexts.push({r:r,c:c,text:'cleared',life:1,color:'rgba(255,100,100,A)'});
+      updateStats();
+    }
+    return;
+  }
+
+  if(cur.type!=='empty')return; // can't build on occupied
+
+  var cost=COSTS[tool]||0;
+  if(money<cost){
+    floatingTexts.push({r:r,c:c,text:'need $'+cost,life:1,color:'rgba(255,100,100,A)'});
+    return;
+  }
+
+  money-=cost;
+  cur.type=tool;
+  cur.level=0;
+
+  floatingTexts.push({r:r,c:c,text:'-$'+cost,life:1,color:'rgba(255,200,100,A)'});
+
+  // Update levels and population (no money generation)
+  updateStats();
+}
+
+// ---- Input ----
+canvas.addEventListener('pointerdown',function(e){
+  e.preventDefault();
+  isPanning=true;hasMoved=false;
+  panStartX=e.clientX;panStartY=e.clientY;
+  camStartX=camX;camStartY=camY;
+});
+canvas.addEventListener('pointermove',function(e){
+  // Update hover
+  var gc=screenToGrid(e.clientX,e.clientY);
+  hoverR=gc[0];hoverC=gc[1];
+
+  if(!isPanning)return;
+  var dx=e.clientX-panStartX,dy=e.clientY-panStartY;
+  if(Math.abs(dx)+Math.abs(dy)>5)hasMoved=true;
+  camX=camStartX+dx;
+  camY=camStartY+dy;
+});
+canvas.addEventListener('pointerleave',function(){hoverR=-1;hoverC=-1;isPanning=false});
+window.addEventListener('pointerup',function(e){
+  if(isPanning&&!hasMoved){
+    // Tap — place building
+    var gc=screenToGrid(e.clientX,e.clientY);
+    placeTile(gc[0],gc[1]);
+  }
+  isPanning=false;
+});
+
+// ---- Tool selection ----
+var toolIds={road:'t-road',house:'t-house',shop:'t-shop',park:'t-park',clear:'t-clear'};
+var toolKeys=Object.keys(toolIds);
+for(var i=0;i<toolKeys.length;i++){
+  (function(t){
+    document.getElementById(toolIds[t]).addEventListener('click',function(e){
+      e.stopPropagation();
+      tool=t;
+      for(var k=0;k<toolKeys.length;k++){
+        document.getElementById(toolIds[toolKeys[k]]).classList.remove('sel');
+      }
+      this.classList.add('sel');
+    });
+  })(toolKeys[i]);
+}
+
+// Keyboard shortcuts
+document.addEventListener('keydown',function(e){
+  if(e.key==='1')selectTool('road');
+  else if(e.key==='2')selectTool('house');
+  else if(e.key==='3')selectTool('shop');
+  else if(e.key==='4')selectTool('park');
+  else if(e.key==='5'||e.key==='x')selectTool('clear');
+});
+function selectTool(t){
+  tool=t;
+  for(var k=0;k<toolKeys.length;k++){
+    document.getElementById(toolIds[toolKeys[k]]).classList.toggle('sel',toolKeys[k]===t);
+  }
+}
+
+// ---- Resize ----
+function resize(){
+  W=window.innerWidth;H=window.innerHeight;
+  canvas.width=W;canvas.height=H;
+}
+
+// ---- Main loop ----
+var lastTick=0;
+function loop(ts){
+  // Game tick every 2 seconds
+  if(ts-lastTick>2000){gameTick();lastTick=ts}
+  draw();
+  requestAnimationFrame(loop);
+}
+
+// ---- Init ----
+resize();
+window.addEventListener('resize',resize);
+updateHUD();
+requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>

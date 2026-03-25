@@ -1341,3 +1341,26 @@ Persistent knowledge base. Read this before every build.
 - **INSIGHT**: For any game with win/loss states: (1) set gameState flag, (2) check it in every input handler, (3) clear all pending timeouts on restart
 - **INSIGHT**: Event listeners should be attached once, not inside renderBoard which runs on every level start. Same-reference listeners are safely deduplicated by browsers but it's fragile
 - **TEST CAUGHT**: Nothing — all bugs found by Gemini
+
+### iso-city (2026-03-25)
+- **KEEP**: Procedural isometric buildings with 3-shade lighting (top=bright, left=mid, right=dark) — looks convincingly 3D with zero sprites
+- **KEEP**: Adjacency-based leveling system — simple rules create emergent strategy (place parks next to houses, roads next to shops)
+- **KEEP**: Separated pan vs tap detection (hasMoved threshold) — prevents accidental builds while dragging camera
+- **IMPROVE**: Gemini caught infinite money exploit — calling gameTick (which adds revenue) on every tile placement let players spam-build for free money. Fix: separate updateStats (safe, no money) from gameTick (timer-only revenue)
+- **IMPROVE**: Isometric z-sorting was wrong — nested for-loops don't sort by depth (r+c). Must sort renderList by r+c ascending for correct painter's algorithm
+- **IMPROVE**: Floating text stored screen coords — drifts when camera pans. Store grid coords (r,c) and recalculate screen position each frame
+- **IMPROVE**: Hover highlight drawn after all buildings — appears on top of closer buildings. Draw highlight in z-order pass instead
+- **INSIGHT**: In any game with a tick-based economy, NEVER let manual actions trigger the economy tick. Separate "update display" from "generate resources"
+- **INSIGHT**: Isometric depth = r+c for standard diamond grids. Always sort by this before drawing, don't rely on loop iteration order
+- **TEST CAUGHT**: Nothing — all bugs found by Gemini
+
+### 5-Build Review: #126-#130
+**Builds:** neuro-forge, fluid-type, sonic-sight, picross, iso-city
+**Pattern analysis:**
+- **Gemini consistently catches 4-6 bugs per build** — the audit process is working well
+- **Recurring theme: state management** — picross needed gameState lock, iso-city needed separated stat/revenue updates. Any game needs explicit state machines
+- **Recurring theme: mobile UX** — hover opacity, touch-action, pointer events, getBoundingClientRect. These are now well-internalized
+- **New category coverage:** AI/ML (neuro-forge), audio/education (sonic-sight), puzzle game (picross), strategy/city builder (iso-city), fluid sim (fluid-type) — excellent diversity
+- **No user-reported bugs** in this stretch — the testing + Gemini audit pipeline continues to work
+- **createElement in render loop** was the most dangerous bug caught (fluid-type) — would have crashed the browser. Added to permanent checklist
+- **Test infrastructure note:** Browser test had transient Playwright timeout on sonic-sight. Not a code bug. Known issue with audio-heavy projects and headless browser
