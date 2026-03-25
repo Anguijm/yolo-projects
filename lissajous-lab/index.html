@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="theme-color" content="#000000">
+<title>Lissajous Lab</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{height:100%;background:#000;overflow:hidden;touch-action:manipulation;-webkit-tap-highlight-color:transparent;font-family:system-ui,sans-serif}
+canvas{display:block;position:absolute;inset:0}
+#panel{position:fixed;bottom:10px;left:50%;transform:translateX(-50%);display:flex;gap:8px;align-items:center;padding:8px 14px;background:rgba(0,0,0,0.85);border:1px solid rgba(255,255,255,0.06);border-radius:12px;z-index:5;backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);opacity:0.3;transition:opacity 0.3s;flex-wrap:wrap;justify-content:center;max-width:95vw}
+#panel:hover{opacity:1}
+.ctrl{display:flex;flex-direction:column;align-items:center;gap:1px}
+.cl{font-size:0.35rem;color:#444;letter-spacing:0.1em}
+.cv{font-size:0.4rem;color:#666;font-family:monospace}
+input[type="range"]{width:60px;height:2px;accent-color:#0f0}
+select{background:#111;border:1px solid #1a1a1a;color:#888;padding:2px 4px;font-size:0.4rem;border-radius:3px;outline:none}
+.tb{padding:3px 8px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);color:#444;font-size:0.4rem;cursor:pointer;border-radius:3px;font-family:inherit}
+.tb:active{color:#aaa}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="panel">
+  <div class="ctrl"><span class="cl">FREQ X</span><input type="range" id="sl-fx" min="1" max="12" step="0.1" value="3"><span class="cv" id="v-fx">3</span></div>
+  <div class="ctrl"><span class="cl">FREQ Y</span><input type="range" id="sl-fy" min="1" max="12" step="0.1" value="2"><span class="cv" id="v-fy">2</span></div>
+  <div class="ctrl"><span class="cl">PHASE</span><input type="range" id="sl-phase" min="0" max="6.28" step="0.01" value="1.57"><span class="cv" id="v-phase">1.57</span></div>
+  <div class="ctrl"><span class="cl">DECAY</span><input type="range" id="sl-decay" min="0.01" max="0.15" step="0.005" value="0.04"><span class="cv" id="v-decay">0.04</span></div>
+  <select id="sel-color"><option value="green">Phosphor Green</option><option value="amber">Amber</option><option value="cyan">Cyan</option><option value="rainbow">Rainbow</option></select>
+  <label style="font-size:0.35rem;color:#444;display:flex;align-items:center;gap:2px"><input type="checkbox" id="ck-auto" checked style="accent-color:#0a0"> Auto-phase</label>
+  <button class="tb" id="btn-clear">Clear</button>
+</div>
+
+<script>
+(function(){
+'use strict';
+var canvas=document.getElementById('c'),ctx=canvas.getContext('2d');
+var W,H,cx,cy,amp;
+var freqX=3,freqY=2,phase=Math.PI/2,decay=0.04,autoPhase=true;
+var colorMode='green';
+var t=0;
+var COLORS={green:'#0f0',amber:'#ffa000',cyan:'#0ff'};
+
+function resize(){
+  W=window.innerWidth;H=window.innerHeight;
+  canvas.width=W;canvas.height=H;
+  cx=W/2;cy=H/2;amp=Math.min(W,H)*0.38;
+  ctx.fillStyle='#000';ctx.fillRect(0,0,W,H);
+}
+
+function draw(){
+  // Fade trail
+  ctx.fillStyle='rgba(0,0,0,'+decay+')';
+  ctx.fillRect(0,0,W,H);
+
+  // Auto-animate phase
+  if(autoPhase)phase+=0.003;
+
+  // Draw multiple points per frame for smooth curve
+  var steps=300;
+  var dt=0.02;
+  ctx.lineWidth=1.5;ctx.lineCap='round';
+
+  ctx.beginPath();
+  for(var i=0;i<steps;i++){
+    var tt=t+i*dt;
+    var x=cx+amp*Math.sin(freqX*tt+phase);
+    var y=cy+amp*Math.sin(freqY*tt);
+    if(i===0)ctx.moveTo(x,y);else ctx.lineTo(x,y);
+  }
+
+  if(colorMode==='rainbow'){
+    var hue=(t*20)%360;
+    ctx.strokeStyle='hsl('+hue+',80%,55%)';
+    ctx.shadowColor='hsl('+hue+',80%,55%)';
+  }else{
+    ctx.strokeStyle=COLORS[colorMode]||'#0f0';
+    ctx.shadowColor=COLORS[colorMode]||'#0f0';
+  }
+  ctx.shadowBlur=8;
+  ctx.stroke();
+  ctx.shadowBlur=0;
+
+  // Draw dot at current position
+  var px=cx+amp*Math.sin(freqX*t+phase);
+  var py=cy+amp*Math.sin(freqY*t);
+  ctx.fillStyle='#fff';
+  ctx.beginPath();ctx.arc(px,py,3,0,Math.PI*2);ctx.fill();
+
+  t+=dt*steps;
+  requestAnimationFrame(draw);
+}
+
+// Controls
+document.getElementById('sl-fx').addEventListener('input',function(e){freqX=parseFloat(e.target.value);document.getElementById('v-fx').textContent=freqX.toFixed(1)});
+document.getElementById('sl-fy').addEventListener('input',function(e){freqY=parseFloat(e.target.value);document.getElementById('v-fy').textContent=freqY.toFixed(1)});
+document.getElementById('sl-phase').addEventListener('input',function(e){phase=parseFloat(e.target.value);document.getElementById('v-phase').textContent=phase.toFixed(2)});
+document.getElementById('sl-decay').addEventListener('input',function(e){decay=parseFloat(e.target.value);document.getElementById('v-decay').textContent=decay.toFixed(2)});
+document.getElementById('sel-color').addEventListener('change',function(e){colorMode=e.target.value});
+document.getElementById('ck-auto').addEventListener('change',function(){autoPhase=this.checked});
+document.getElementById('btn-clear').addEventListener('click',function(){ctx.fillStyle='#000';ctx.fillRect(0,0,W,H)});
+
+resize();window.addEventListener('resize',resize);
+requestAnimationFrame(draw);
+})();
+</script>
+</body>
+</html>
