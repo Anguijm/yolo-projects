@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="theme-color" content="#000000">
+<title>Palette Pull</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{height:100%;background:#0a0a0c;overflow-y:auto;font-family:system-ui,sans-serif;touch-action:manipulation;-webkit-tap-highlight-color:transparent;color:#ccc}
+#app{max-width:500px;margin:0 auto;padding:12px}
+h1{font-size:0.7rem;color:#444;letter-spacing:0.25em;font-weight:300;margin-bottom:10px}
+#drop{border:2px dashed #1a1a2e;border-radius:8px;padding:30px;text-align:center;cursor:pointer;margin-bottom:8px}
+#drop.active{border-color:#58a6ff}
+.dz-text{font-size:0.55rem;color:#222}
+input[type="file"]{display:none}
+#preview{max-width:100%;border-radius:6px;margin-bottom:8px;display:none;background:#080810}
+#palette{display:flex;gap:4px;flex-wrap:wrap;margin-bottom:8px}
+.swatch{width:100%;height:60px;border-radius:6px;cursor:pointer;display:flex;align-items:flex-end;justify-content:center;padding:6px;transition:transform 0.1s}
+.swatch:active{transform:scale(0.96)}
+.swatch-hex{font-size:0.55rem;font-family:monospace;padding:2px 6px;border-radius:3px}
+#controls{display:flex;gap:6px;align-items:center;margin-bottom:8px;flex-wrap:wrap}
+.ctrl-label{font-size:0.4rem;color:#444}
+select{background:#111;border:1px solid #1a1a1a;color:#888;padding:3px 6px;font-size:0.5rem;border-radius:3px;outline:none}
+.btn{padding:4px 10px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);color:#555;font-size:0.45rem;cursor:pointer;border-radius:4px;font-family:inherit}
+#css-out{background:#111;border:1px solid #1a1a1a;border-radius:4px;padding:8px;font-family:monospace;font-size:0.55rem;color:#888;cursor:pointer;white-space:pre;display:none}
+#toast{position:fixed;bottom:12px;left:50%;transform:translateX(-50%);background:#222;color:#aaa;padding:6px 16px;border-radius:4px;font-size:0.55rem;opacity:0;transition:opacity 0.2s;pointer-events:none;z-index:10}
+#toast.show{opacity:1}
+</style>
+</head>
+<body>
+<div id="app">
+  <h1>PALETTE PULL</h1>
+  <div id="drop"><div class="dz-text">Drop image or click to upload</div><input type="file" id="file-input" accept="image/*"></div>
+  <img id="preview">
+  <div id="controls">
+    <span class="ctrl-label">Colors:</span>
+    <select id="sel-count"><option value="4">4</option><option value="5" selected>5</option><option value="6">6</option><option value="8">8</option></select>
+    <button class="btn" id="btn-sample">Sample</button>
+    <button class="btn" id="btn-extract">Re-extract</button>
+  </div>
+  <div id="palette"></div>
+  <div id="css-out"></div>
+</div>
+<div id="toast">Copied!</div>
+
+<script>
+(function(){
+'use strict';
+
+var canvas=document.createElement('canvas'),ctxC=canvas.getContext('2d');
+var loaded=false,colorCount=5,toastTimer=null;
+var MAX_SAMPLE=100; // Sample grid for speed
+
+// ============ IMAGE LOADING ============
+function loadImage(src){
+  var img=new Image();
+  img.onload=function(){
+    var w=img.width,h=img.height;
+    if(w>400||h>400){var s=400/Math.max(w,h);w=Math.floor(w*s);h=Math.floor(h*s)}
+    canvas.width=w;canvas.height=h;
+    ctxC.drawImage(img,0,0,w,h);
+    document.getElementById('preview').src=src;
+    document.getElementById('preview').style.display='block';
+    loaded=true;
+    extract();
+  };
+  img.src=src;
+}
+
+function generateSample(){
+  var w=200,h=150;canvas.width=w;canvas.height=h;
+  var grad=ctxC.createLinearGradient(0,0,w,h);
+  grad.addColorStop(0,'#1a1a2e');grad.addColorStop(0.3,'#e94560');grad.addColorStop(0.6,'#0f3460');grad.addColorStop(1,'#16213e');
+  ctxC.fillStyle=grad;ctxC.fillRect(0,0,w,h);
+  ctxC.fillStyle='#f5c518';ctxC.beginPath();ctxC.arc(50,40,25,0,Math.PI*2);ctxC.fill();
+  ctxC.fillStyle='#2ecc71';ctxC.fillRect(120,80,60,50);
+  document.getElementById('preview').src=canvas.toDataURL();
+  document.getElementById('preview').style.display='block';
+  loaded=true;extract();
+}
+
+// ============ K-MEANS COLOR EXTRACTION ============
+function samplePixels(){
+  var w=canvas.width,h=canvas.height;
+  var data=ctxC.getImageData(0,0,w,h).data;
+  var pixels=[];
+  var stepX=Math.max(1,Math.floor(w/MAX_SAMPLE));
+  var stepY=Math.max(1,Math.floor(h/MAX_SAMPLE));
+  for(var y=0;y<h;y+=stepY){
+    for(var x=0;x<w;x+=stepX){
+      var i=(y*w+x)*4;
+      if(data[i+3]<128)continue; // Skip transparent
+      pixels.push([data[i],data[i+1],data[i+2]]);
+    }
+  }
+  return pixels;
+}
+
+function kMeans(pixels,k,maxIter){
+  // Initialize centroids randomly from pixels
+  var centroids=[];
+  var used={};
+  for(var i=0;i<k;i++){
+    var idx;
+    do{idx=Math.floor(Math.random()*pixels.length)}while(used[idx]);
+    used[idx]=true;
+    centroids.push(pixels[idx].slice());
+  }
+
+  for(var iter=0;iter<maxIter;iter++){
+    // Assign pixels to nearest centroid
+    var clusters=[];
+    for(var i=0;i<k;i++)clusters.push([]);
+    for(var i=0;i<pixels.length;i++){
+      var best=0,bestDist=Infinity;
+      for(var j=0;j<k;j++){
+        var dr=pixels[i][0]-centroids[j][0];
+        var dg=pixels[i][1]-centroids[j][1];
+        var db=pixels[i][2]-centroids[j][2];
+        var d=dr*dr+dg*dg+db*db;
+        if(d<bestDist){bestDist=d;best=j}
+      }
+      clusters[best].push(pixels[i]);
+    }
+
+    // Update centroids
+    var moved=false;
+    for(var j=0;j<k;j++){
+      if(clusters[j].length===0)continue;
+      var sr=0,sg=0,sb=0;
+      for(var i=0;i<clusters[j].length;i++){
+        sr+=clusters[j][i][0];sg+=clusters[j][i][1];sb+=clusters[j][i][2];
+      }
+      var nr=Math.round(sr/clusters[j].length);
+      var ng=Math.round(sg/clusters[j].length);
+      var nb=Math.round(sb/clusters[j].length);
+      if(nr!==centroids[j][0]||ng!==centroids[j][1]||nb!==centroids[j][2])moved=true;
+      centroids[j]=[nr,ng,nb];
+    }
+    if(!moved)break;
+  }
+
+  // Sort by luminance
+  centroids.sort(function(a,b){
+    return(0.299*a[0]+0.587*a[1]+0.114*a[2])-(0.299*b[0]+0.587*b[1]+0.114*b[2]);
+  });
+  return centroids;
+}
+
+function rgbToHex(r,g,b){
+  return'#'+((1<<24)|(r<<16)|(g<<8)|b).toString(16).slice(1);
+}
+
+function luminance(r,g,b){return 0.299*r+0.587*g+0.114*b}
+
+// ============ EXTRACT & DISPLAY ============
+function extract(){
+  if(!loaded)return;
+  var pixels=samplePixels();
+  if(pixels.length<colorCount)return;
+  var colors=kMeans(pixels,colorCount,20);
+
+  var palEl=document.getElementById('palette');
+  palEl.innerHTML='';
+  var cssLines=':root {\n';
+
+  colors.forEach(function(c,i){
+    var hex=rgbToHex(c[0],c[1],c[2]);
+    var textColor=luminance(c[0],c[1],c[2])>128?'rgba(0,0,0,0.6)':'rgba(255,255,255,0.6)';
+    var swatch=document.createElement('div');
+    swatch.className='swatch';
+    swatch.style.background=hex;
+    swatch.style.flex='1';
+    swatch.innerHTML='<span class="swatch-hex" style="color:'+textColor+'">'+hex+'</span>';
+    swatch.dataset.hex=hex;
+    palEl.appendChild(swatch);
+    cssLines+='  --color-'+(i+1)+': '+hex+';\n';
+  });
+  cssLines+='}';
+
+  var cssEl=document.getElementById('css-out');
+  cssEl.textContent=cssLines;cssEl.style.display='block';
+}
+
+// ============ FILE INPUT ============
+var dropEl=document.getElementById('drop'),fileInput=document.getElementById('file-input');
+dropEl.addEventListener('click',function(){fileInput.click()});
+dropEl.addEventListener('dragenter',function(e){e.preventDefault()});
+dropEl.addEventListener('dragover',function(e){e.preventDefault();dropEl.classList.add('active')});
+dropEl.addEventListener('dragleave',function(){dropEl.classList.remove('active')});
+dropEl.addEventListener('drop',function(e){e.preventDefault();dropEl.classList.remove('active');if(e.dataTransfer.files[0])readFile(e.dataTransfer.files[0])});
+fileInput.addEventListener('change',function(){if(fileInput.files[0])readFile(fileInput.files[0])});
+
+function readFile(file){
+  if(!file.type.startsWith('image/'))return;
+  var reader=new FileReader();
+  reader.onload=function(e){loadImage(e.target.result)};
+  reader.readAsDataURL(file);
+}
+
+// ============ CONTROLS ============
+document.getElementById('sel-count').addEventListener('change',function(e){
+  colorCount=parseInt(e.target.value,10);extract();
+});
+document.getElementById('btn-sample').addEventListener('click',generateSample);
+document.getElementById('btn-extract').addEventListener('click',extract);
+
+// Copy on swatch click
+document.getElementById('palette').addEventListener('click',function(e){
+  var sw=e.target.closest('.swatch');if(!sw)return;
+  copyText(sw.dataset.hex);
+});
+document.getElementById('css-out').addEventListener('click',function(){
+  copyText(this.textContent);
+});
+
+function copyText(text){
+  if(navigator.clipboard&&navigator.clipboard.writeText){
+    navigator.clipboard.writeText(text).then(function(){showToast('Copied!')}).catch(function(){});
+  }else{
+    var ta=document.createElement('textarea');ta.value=text;ta.style.position='fixed';ta.style.opacity='0';
+    document.body.appendChild(ta);ta.select();document.execCommand('copy');document.body.removeChild(ta);
+    showToast('Copied!');
+  }
+}
+
+function showToast(msg){
+  var t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');
+  clearTimeout(toastTimer);toastTimer=setTimeout(function(){t.classList.remove('show')},1200);
+}
+
+// ============ INIT ============
+generateSample();
+
+})();
+</script>
+</body>
+</html>
