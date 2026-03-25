@@ -1,0 +1,420 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="theme-color" content="#000000">
+<title>Crypto Lens</title>
+<style>
+:root{--bg:#080810;--panel:#0c0c18;--border:rgba(255,255,255,0.06);--accent:#0f0;--text:#888;--dim:#444;--mono:ui-monospace,'Courier New',monospace}
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{height:100%;background:var(--bg);overflow-y:auto;touch-action:manipulation;-webkit-tap-highlight-color:transparent;font-family:system-ui,sans-serif;color:var(--text)}
+#app{max-width:520px;margin:0 auto;padding:10px 8px}
+h1{font-size:0.55rem;font-weight:200;color:#aaa;letter-spacing:0.2em;text-align:center;margin-bottom:8px}
+
+.card{background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:10px;margin-bottom:6px}
+.card-title{font-size:0.32rem;color:var(--dim);letter-spacing:0.1em;text-transform:uppercase;margin-bottom:6px}
+
+/* Tabs */
+.tabs{display:flex;gap:4px;margin-bottom:6px;justify-content:center}
+.tab{padding:5px 12px;background:rgba(255,255,255,0.03);border:1px solid var(--border);color:var(--dim);font-size:0.38rem;cursor:pointer;border-radius:5px;font-family:inherit;transition:all 0.12s}
+.tab.sel{border-color:var(--accent);color:var(--accent)}
+.tab:active{color:#aaa}
+
+/* Inputs */
+textarea{width:100%;background:var(--bg);border:1px solid var(--border);color:#ccc;padding:8px;font-family:var(--mono);font-size:0.42rem;border-radius:6px;outline:none;resize:vertical;min-height:50px}
+textarea:focus{border-color:var(--accent)}
+.key-row{display:flex;gap:6px;align-items:center;margin-top:6px}
+.key-row label{font-size:0.35rem;color:var(--dim);min-width:28px}
+.key-row input{flex:1;background:var(--bg);border:1px solid var(--border);color:#ccc;padding:6px 8px;font-family:var(--mono);font-size:0.42rem;border-radius:6px;outline:none}
+.key-row input:focus{border-color:var(--accent)}
+input[type="number"]{width:60px}
+
+/* Direction toggle */
+.dir-toggle{display:flex;gap:4px;justify-content:center;margin-bottom:6px}
+
+/* Lens visualization */
+#lens{min-height:80px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;font-family:var(--mono);padding:8px}
+.lens-row{display:flex;gap:2px;align-items:center;font-size:0.4rem}
+.lens-char{width:22px;height:26px;display:flex;align-items:center;justify-content:center;border-radius:3px;font-weight:700;transition:all 0.15s}
+.lens-label{font-size:0.28rem;color:var(--dim);min-width:36px;text-align:right;padding-right:4px}
+.lens-op{font-size:0.3rem;color:var(--accent);margin:2px 0}
+.c-plain{background:rgba(100,150,255,0.1);color:#8af}
+.c-key{background:rgba(255,200,50,0.1);color:#fa0}
+.c-result{background:rgba(0,255,0,0.1);color:var(--accent)}
+.c-active{box-shadow:0 0 8px rgba(0,255,0,0.3);transform:scale(1.1)}
+.c-dim{opacity:0.3}
+.bit{width:12px;text-align:center;font-size:0.35rem}
+
+/* Output */
+#output{width:100%;background:var(--bg);border:1px solid var(--border);color:var(--accent);padding:8px;font-family:var(--mono);font-size:0.42rem;border-radius:6px;min-height:50px;word-break:break-all}
+
+/* Controls */
+.controls{display:flex;gap:4px;justify-content:center;align-items:center;margin-top:6px}
+.btn{padding:4px 10px;background:rgba(255,255,255,0.04);border:1px solid var(--border);color:var(--dim);font-size:0.38rem;cursor:pointer;border-radius:4px;font-family:inherit}
+.btn:active{color:#aaa}
+.btn.active{border-color:var(--accent);color:var(--accent)}
+#step-info{font-size:0.32rem;color:var(--dim);font-family:monospace;min-width:50px;text-align:center}
+</style>
+</head>
+<body>
+<div id="app">
+  <h1>CRYPTO LENS</h1>
+
+  <div class="tabs">
+    <button class="tab sel" id="tab-caesar">Caesar</button>
+    <button class="tab" id="tab-vigenere">Vigenere</button>
+    <button class="tab" id="tab-xor">XOR</button>
+  </div>
+
+  <div class="dir-toggle">
+    <button class="tab sel" id="dir-enc">Encrypt</button>
+    <button class="tab" id="dir-dec">Decrypt</button>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Input</div>
+    <textarea id="input" placeholder="Type your message...">HELLO WORLD</textarea>
+    <div class="key-row" id="key-row-caesar">
+      <label>Shift</label>
+      <input type="number" id="key-caesar" value="3" min="1" max="25">
+    </div>
+    <div class="key-row" id="key-row-vigenere" style="display:none">
+      <label>Key</label>
+      <input type="text" id="key-vigenere" value="LEMON" placeholder="Keyword">
+    </div>
+    <div class="key-row" id="key-row-xor" style="display:none">
+      <label>Key</label>
+      <input type="text" id="key-xor" value="KEY" placeholder="XOR key">
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Lens — Step-by-Step</div>
+    <div id="lens"></div>
+    <div class="controls">
+      <button class="btn" id="btn-prev">Prev</button>
+      <button class="btn" id="btn-play">Play</button>
+      <button class="btn" id="btn-next">Next</button>
+      <span id="step-info">0/0</span>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Output</div>
+    <div id="output"></div>
+  </div>
+</div>
+
+<script>
+(function(){
+'use strict';
+
+// ---- State ----
+var cipher='caesar'; // caesar, vigenere, xor
+var direction='encrypt';
+var stepIdx=0;
+var playTimer=null;
+
+// ---- Cipher implementations ----
+function caesarChar(ch,shift,decrypt){
+  var code=ch.charCodeAt(0);
+  var isLower=code>=97&&code<=122;
+  var isUpper=code>=65&&code<=90;
+  if(!isLower&&!isUpper)return ch;
+  var base=isLower?97:65;
+  var s=decrypt?-shift:shift;
+  return String.fromCharCode(((code-base+s%26+26)%26)+base);
+}
+
+function caesarFull(text,shift,decrypt){
+  var result='';
+  for(var i=0;i<text.length;i++)result+=caesarChar(text[i],shift,decrypt);
+  return result;
+}
+
+function vigenereChar(ch,keyChar,decrypt){
+  var code=ch.charCodeAt(0);
+  var isLower=code>=97&&code<=122;
+  var isUpper=code>=65&&code<=90;
+  if(!isLower&&!isUpper)return ch;
+  var base=isLower?97:65;
+  var k=keyChar.toUpperCase().charCodeAt(0)-65;
+  var s=decrypt?-k:k;
+  return String.fromCharCode(((code-base+s+26)%26)+base);
+}
+
+function vigenereFull(text,key,decrypt){
+  if(!key)return text;
+  var result='',ki=0;
+  var cleanKey=key.toUpperCase().replace(/[^A-Z]/g,'');
+  if(!cleanKey)return text;
+  for(var i=0;i<text.length;i++){
+    var ch=text[i];
+    var chUp=ch.toUpperCase();
+    if(chUp>='A'&&chUp<='Z'){
+      result+=vigenereChar(ch,cleanKey[ki%cleanKey.length],decrypt);
+      ki++;
+    }else{
+      result+=ch;
+    }
+  }
+  return result;
+}
+
+function xorChar(ch,keyChar){
+  return String.fromCharCode(ch.charCodeAt(0)^keyChar.charCodeAt(0));
+}
+
+function xorFull(text,key){
+  if(!key)return text;
+  var result='';
+  for(var i=0;i<text.length;i++){
+    result+=xorChar(text[i],key[i%key.length]);
+  }
+  return result;
+}
+
+// ---- Get current state ----
+function getInput(){return document.getElementById('input').value}
+function getKey(){
+  if(cipher==='caesar')return parseInt(document.getElementById('key-caesar').value,10)||3;
+  if(cipher==='vigenere')return document.getElementById('key-vigenere').value||'LEMON';
+  return document.getElementById('key-xor').value||'KEY';
+}
+
+function getStepCount(){
+  var text=getInput();
+  return text.length;
+}
+
+// ---- Full computation ----
+function computeFull(){
+  var text=getInput();
+  var key=getKey();
+  var dec=direction==='decrypt';
+  if(cipher==='caesar')return caesarFull(text,key,dec);
+  if(cipher==='vigenere')return vigenereFull(text,key,dec);
+  if(cipher==='xor')return xorFull(text,typeof key==='string'?key:'');
+  return text;
+}
+
+// ---- Render output ----
+function renderOutput(){
+  var result=computeFull();
+  var el=document.getElementById('output');
+  if(cipher==='xor'){
+    // Show as hex for readability
+    var hex='';
+    for(var i=0;i<result.length;i++){
+      var h=result.charCodeAt(i).toString(16).toUpperCase();
+      hex+=(h.length<2?'0':'')+h+' ';
+    }
+    el.textContent=hex.trim()+'\n'+result;
+  }else{
+    el.textContent=result;
+  }
+}
+
+// ---- Lens visualization ----
+function renderLens(){
+  var text=getInput();
+  var key=getKey();
+  var lens=document.getElementById('lens');
+  lens.innerHTML='';
+  var total=text.length;
+  if(total===0){lens.innerHTML='<span style="color:var(--dim);font-size:0.35rem">Type a message above</span>';updateStepInfo();return}
+
+  var idx=Math.min(stepIdx,total-1);
+  var ch=text[idx].toUpperCase();
+  var dec=direction==='decrypt';
+
+  if(cipher==='caesar'){
+    var shift=key;
+    var shifted=caesarChar(ch,shift,dec);
+    var charCode=ch.charCodeAt(0);
+    var isAlpha=charCode>=65&&charCode<=90;
+
+    // Show character strip with active position
+    var stripHTML='<div class="lens-row"><span class="lens-label">Plain</span>';
+    for(var i=Math.max(0,idx-4);i<Math.min(total,idx+5);i++){
+      var active=i===idx;
+      stripHTML+='<span class="lens-char c-plain'+(active?' c-active':' c-dim')+'">'+text[i].toUpperCase()+'</span>';
+    }
+    stripHTML+='</div>';
+    lens.innerHTML+=stripHTML;
+
+    if(isAlpha){
+      lens.innerHTML+='<div class="lens-op">'+(dec?'− ':'+ ')+shift+' (mod 26)</div>';
+      lens.innerHTML+='<div class="lens-row"><span class="lens-label"></span><span class="lens-char c-plain c-active">'+ch+'</span><span style="color:var(--dim);font-size:0.3rem;padding:0 4px">→ ('+(charCode-65)+(dec?' − ':' + ')+shift+') mod 26 = '+((charCode-65+(dec?-shift:shift)%26+26)%26)+'</span><span class="lens-char c-result c-active">'+shifted+'</span></div>';
+    }else{
+      lens.innerHTML+='<div class="lens-op">non-alpha → pass through</div>';
+    }
+
+    // Output strip
+    var outHTML='<div class="lens-row"><span class="lens-label">Cipher</span>';
+    for(var i=Math.max(0,idx-4);i<Math.min(total,idx+5);i++){
+      var active=i===idx;
+      var oc=caesarChar(text[i],shift,dec);
+      outHTML+='<span class="lens-char c-result'+(active?' c-active':(i<=idx?' ':' c-dim'))+'">'+oc+'</span>';
+    }
+    outHTML+='</div>';
+    lens.innerHTML+=outHTML;
+
+  }else if(cipher==='vigenere'){
+    var cleanKey=(typeof key==='string'?key:'').toUpperCase().replace(/[^A-Z]/g,'')||'A';
+    // Count alpha chars before idx to get key position
+    var alphaCount=0;
+    for(var i=0;i<idx;i++){var c=text[i].toUpperCase();if(c>='A'&&c<='Z')alphaCount++}
+    var keyChar=cleanKey[alphaCount%cleanKey.length];
+    var isAlpha=ch>='A'&&ch<='Z';
+    var result=vigenereChar(ch,keyChar,dec);
+
+    lens.innerHTML+='<div class="lens-row"><span class="lens-label">Plain</span><span class="lens-char c-plain c-active">'+ch+'</span><span style="color:var(--dim);font-size:0.3rem;padding:0 4px">('+( isAlpha?(ch.charCodeAt(0)-65):'—')+')</span></div>';
+    lens.innerHTML+='<div class="lens-row"><span class="lens-label">Key</span><span class="lens-char c-key c-active">'+keyChar+'</span><span style="color:var(--dim);font-size:0.3rem;padding:0 4px">('+(keyChar.charCodeAt(0)-65)+')</span></div>';
+    if(isAlpha){
+      lens.innerHTML+='<div class="lens-op">'+(dec?'(P − K + 26)':'(P + K)')+' mod 26</div>';
+    }else{
+      lens.innerHTML+='<div class="lens-op">non-alpha → pass through</div>';
+    }
+    lens.innerHTML+='<div class="lens-row"><span class="lens-label">Result</span><span class="lens-char c-result c-active">'+result+'</span><span style="color:var(--dim);font-size:0.3rem;padding:0 4px">('+(isAlpha?(result.charCodeAt(0)-65):'—')+')</span></div>';
+
+    // Show key alignment
+    var keyHTML='<div class="lens-row" style="margin-top:4px"><span class="lens-label">Key:</span>';
+    var ka=0;
+    for(var i=Math.max(0,idx-4);i<Math.min(total,idx+5);i++){
+      var c2=text[i].toUpperCase();
+      var active=i===idx;
+      if(c2>='A'&&c2<='Z'){
+        var kc2=cleanKey[(ka+(i<idx?0:0))%cleanKey.length];
+        // Need to properly track key index for each position
+        keyHTML+='<span class="lens-char c-key'+(active?' c-active':' c-dim')+'">'+cleanKey[ka%cleanKey.length]+'</span>';
+        ka++;
+      }else{
+        keyHTML+='<span class="lens-char c-dim">·</span>';
+      }
+    }
+    keyHTML+='</div>';
+    // Recalculate ka properly
+    lens.innerHTML+=keyHTML;
+
+  }else if(cipher==='xor'){
+    var xKey=typeof key==='string'?key:'K';
+    if(!xKey)xKey='K';
+    var keyChar=xKey[idx%xKey.length];
+    var plainBin=ch.charCodeAt(0).toString(2);
+    while(plainBin.length<8)plainBin='0'+plainBin;
+    var keyBin=keyChar.charCodeAt(0).toString(2);
+    while(keyBin.length<8)keyBin='0'+keyBin;
+    var resultCode=ch.charCodeAt(0)^keyChar.charCodeAt(0);
+    var resBin=resultCode.toString(2);
+    while(resBin.length<8)resBin='0'+resBin;
+
+    lens.innerHTML+='<div class="lens-row"><span class="lens-label">Plain</span><span class="lens-char c-plain c-active">'+ch+'</span>';
+    for(var b=0;b<8;b++)lens.innerHTML+='<span class="bit c-plain">'+plainBin[b]+'</span>';
+    lens.innerHTML+='</div>';
+
+    lens.innerHTML+='<div class="lens-row"><span class="lens-label">Key</span><span class="lens-char c-key c-active">'+keyChar+'</span>';
+    for(var b=0;b<8;b++)lens.innerHTML+='<span class="bit c-key">'+keyBin[b]+'</span>';
+    lens.innerHTML+='</div>';
+
+    lens.innerHTML+='<div class="lens-op">XOR (each bit)</div>';
+
+    lens.innerHTML+='<div class="lens-row"><span class="lens-label">Result</span><span class="lens-char c-result c-active">'+(resultCode>=32&&resultCode<127?String.fromCharCode(resultCode):'?')+'</span>';
+    for(var b=0;b<8;b++){
+      var match=plainBin[b]===keyBin[b];
+      lens.innerHTML+='<span class="bit c-result" style="color:'+(match?'var(--accent)':'#f44')+'">'+resBin[b]+'</span>';
+    }
+    lens.innerHTML+='</div>';
+
+    lens.innerHTML+='<div style="font-size:0.28rem;color:var(--dim);margin-top:4px">0x'+resultCode.toString(16).toUpperCase().padStart(2,'0')+' (decimal '+resultCode+')</div>';
+  }
+
+  updateStepInfo();
+}
+
+function updateStepInfo(){
+  var total=getInput().length;
+  document.getElementById('step-info').textContent=(total>0?stepIdx+1:0)+'/'+total;
+}
+
+// ---- Step controls ----
+function stepPrev(){
+  if(stepIdx>0){stepIdx--;renderLens()}
+}
+function stepNext(){
+  var total=getInput().length;
+  if(stepIdx<total-1){stepIdx++;renderLens()}
+}
+
+function togglePlay(){
+  if(playTimer){
+    clearInterval(playTimer);playTimer=null;
+    document.getElementById('btn-play').classList.remove('active');
+    document.getElementById('btn-play').textContent='Play';
+  }else{
+    var total=getInput().length;
+    if(stepIdx>=total-1)stepIdx=0;
+    playTimer=setInterval(function(){
+      var total=getInput().length;
+      if(stepIdx>=total-1){
+        clearInterval(playTimer);playTimer=null;
+        document.getElementById('btn-play').classList.remove('active');
+        document.getElementById('btn-play').textContent='Play';
+        return;
+      }
+      stepIdx++;renderLens();
+    },300);
+    document.getElementById('btn-play').classList.add('active');
+    document.getElementById('btn-play').textContent='Stop';
+    renderLens();
+  }
+}
+
+// ---- Event listeners ----
+document.getElementById('input').addEventListener('input',function(){stepIdx=0;renderOutput();renderLens()});
+document.getElementById('key-caesar').addEventListener('input',function(){renderOutput();renderLens()});
+document.getElementById('key-vigenere').addEventListener('input',function(){renderOutput();renderLens()});
+document.getElementById('key-xor').addEventListener('input',function(){renderOutput();renderLens()});
+
+document.getElementById('btn-prev').addEventListener('click',stepPrev);
+document.getElementById('btn-next').addEventListener('click',stepNext);
+document.getElementById('btn-play').addEventListener('click',togglePlay);
+
+// Cipher tabs
+var CIPHER_TABS={caesar:'tab-caesar',vigenere:'tab-vigenere',xor:'tab-xor'};
+var cipherKeys=Object.keys(CIPHER_TABS);
+for(var i=0;i<cipherKeys.length;i++){
+  (function(c){
+    document.getElementById(CIPHER_TABS[c]).addEventListener('click',function(){
+      cipher=c;stepIdx=0;
+      if(playTimer){clearInterval(playTimer);playTimer=null;document.getElementById('btn-play').classList.remove('active');document.getElementById('btn-play').textContent='Play'}
+      for(var k=0;k<cipherKeys.length;k++)document.getElementById(CIPHER_TABS[cipherKeys[k]]).classList.remove('sel');
+      this.classList.add('sel');
+      document.getElementById('key-row-caesar').style.display=c==='caesar'?'flex':'none';
+      document.getElementById('key-row-vigenere').style.display=c==='vigenere'?'flex':'none';
+      document.getElementById('key-row-xor').style.display=c==='xor'?'flex':'none';
+      renderOutput();renderLens();
+    });
+  })(cipherKeys[i]);
+}
+
+// Direction toggle
+document.getElementById('dir-enc').addEventListener('click',function(){
+  direction='encrypt';this.classList.add('sel');document.getElementById('dir-dec').classList.remove('sel');
+  renderOutput();renderLens();
+});
+document.getElementById('dir-dec').addEventListener('click',function(){
+  direction='decrypt';this.classList.add('sel');document.getElementById('dir-enc').classList.remove('sel');
+  renderOutput();renderLens();
+});
+
+// ---- Init ----
+renderOutput();
+renderLens();
+})();
+</script>
+</body>
+</html>

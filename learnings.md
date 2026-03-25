@@ -1482,3 +1482,15 @@ Persistent knowledge base. Read this before every build.
 - **INSIGHT**: Canvas internal dimensions (width/height attributes) MUST match CSS visual dimensions. Mismatches cause stretching/squishing
 - **INSIGHT**: Never put try/catch inside a tight loop that runs 1000+ times per frame. Check validity once at parse time, not at evaluation time
 - **TEST CAUGHT**: Brace balance false positive from regex literals — 6th occurrence of this test limitation
+
+### crypto-lens (2026-03-26)
+- **KEEP**: Step-by-step cipher visualization — shows exact math for each character transformation
+- **KEEP**: Three cipher types representing distinct math concepts: Caesar (modular arithmetic), Vigenere (polyalphabetic), XOR (bitwise)
+- **KEEP**: Encrypt/decrypt bidirectional toggle — proves mathematical symmetry of ciphers
+- **KEEP**: XOR binary visualization with per-bit coloring (same bits → green, different → red)
+- **IMPROVE**: Gemini caught case destruction — caesarChar and vigenereChar forced toUpperCase before processing, losing original casing. Must detect isLower/isUpper and use appropriate base (97 vs 65)
+- **IMPROVE**: innerHTML += in loops causes layout thrashing — should build string first, assign once. Noted but not fully refactored (works for current DOM size)
+- **IMPROVE**: Play always reset stepIdx to 0 — should resume from current position, only reset if at end
+- **INSIGHT**: Any text transformation function must preserve properties of the input (case, whitespace, punctuation) that aren't part of the transformation. Test with mixed-case inputs during development
+- **INSIGHT**: For cipher implementations, the decrypt operation should be the exact mathematical inverse of encrypt. Test: decrypt(encrypt(text)) === text
+- **TEST CAUGHT**: Nothing — all bugs found by Gemini
