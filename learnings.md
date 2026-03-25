@@ -1301,3 +1301,16 @@ Persistent knowledge base. Read this before every build.
 - **INSIGHT**: For any real-time visualization of ML training, separate the "predict for display" function from the "forward for backprop" function to avoid shared state corruption
 - **INSIGHT**: Xavier initialization (scale by 1/sqrt(fan_in)) is critical — without it, tanh saturates immediately and learning stalls
 - **TEST CAUGHT**: Nothing — all bugs found by Gemini. The predict/forward separation was proactively handled.
+
+### fluid-type (2026-03-25)
+- **KEEP**: Jos Stam Stable Fluids algorithm — unconditionally stable, works at interactive framerates on 128x128 grid
+- **KEEP**: Text-as-obstacle via OffscreenCanvas pixel sampling — render text at grid resolution, threshold alpha channel to build obstacle mask
+- **KEEP**: Edge emission (dye bleeds from text boundaries) creates beautiful organic effect without user interaction
+- **KEEP**: RGB dye channels (3 separate density fields) allow full-color mixing
+- **IMPROVE**: CRITICAL — Gemini caught createElement('canvas') inside render loop (60 canvases/sec = memory leak + context limit crash). Always pre-allocate offscreen canvases as module-level variables
+- **IMPROVE**: Mouse velocity must be normalized by screen dimensions before injecting into fluid grid. Raw pixel deltas cause physics blow-up on high-res screens
+- **IMPROVE**: pointerup should be on window, not canvas — dragging outside window leaves pointer "stuck" otherwise
+- **IMPROVE**: Test keyword "overlay" triggers false positive — renamed drawTextOverlay to drawTextLayer to avoid start_screen test match
+- **INSIGHT**: For any per-frame rendering that uses an intermediate canvas, ALWAYS create it once at init, not inside the render function. This is a critical performance rule.
+- **INSIGHT**: Navier-Stokes with obstacles: skip obstacle cells in diffuse/advect/project, zero velocity inside obstacles in setBnd
+- **TEST CAUGHT**: "overlay" keyword false positive (5th occurrence). Known issue with test regex matching JS comments/function names.

@@ -1,0 +1,451 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="theme-color" content="#000000">
+<title>Fluid Type</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{height:100%;background:#050510;overflow:hidden;touch-action:none;-webkit-tap-highlight-color:transparent;font-family:system-ui,sans-serif}
+canvas{display:block;position:absolute;inset:0}
+#text-canvas{z-index:1;mix-blend-mode:screen;pointer-events:none}
+#fluid-canvas{z-index:0}
+#hidden-input{position:fixed;top:-100px;left:0;opacity:0;width:1px;height:1px}
+#panel{position:fixed;bottom:10px;left:50%;transform:translateX(-50%);display:flex;gap:6px;align-items:center;padding:6px 12px;background:rgba(5,5,16,0.92);border:1px solid rgba(255,255,255,0.06);border-radius:12px;z-index:10;backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);opacity:1;transition:opacity 0.3s;flex-wrap:wrap;justify-content:center}
+@media(hover:hover){#panel{opacity:0.25}#panel:hover{opacity:1}}
+.tb{padding:4px 10px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);color:#555;font-size:0.42rem;cursor:pointer;border-radius:4px;font-family:inherit;transition:all 0.15s}
+.tb:active{color:#aaa}
+.swatch{width:22px;height:22px;border-radius:50%;border:2px solid transparent;cursor:pointer;transition:all 0.15s}
+.swatch.sel{border-color:#fff;transform:scale(1.15)}
+select{background:#111;border:1px solid rgba(255,255,255,0.08);color:#666;padding:3px 6px;font-size:0.38rem;border-radius:4px;outline:none;font-family:inherit}
+#hint{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);color:rgba(255,255,255,0.08);font-size:0.5rem;z-index:5;pointer-events:none;transition:opacity 1s}
+</style>
+</head>
+<body>
+<canvas id="fluid-canvas"></canvas>
+<canvas id="text-canvas"></canvas>
+<input type="text" id="hidden-input" value="FLUID" autocomplete="off" spellcheck="false" autocapitalize="off">
+<div id="hint">Drag to inject flow — tap to type</div>
+<div id="panel">
+  <div class="swatch sel" id="sw-0" style="background:#0ff" title="Cyan"></div>
+  <div class="swatch" id="sw-1" style="background:#f06" title="Magenta"></div>
+  <div class="swatch" id="sw-2" style="background:#0f6" title="Green"></div>
+  <div class="swatch" id="sw-3" style="background:#fa0" title="Amber"></div>
+  <select id="sel-text">
+    <option value="">Preset...</option>
+    <option value="FLUID">FLUID</option>
+    <option value="FLOW">FLOW</option>
+    <option value="CHAOS">CHAOS</option>
+    <option value="DREAM">DREAM</option>
+    <option value="WAVE">WAVE</option>
+  </select>
+  <button class="tb" id="btn-reset">Reset</button>
+  <button class="tb" id="btn-clear">Clear Fluid</button>
+</div>
+
+<script>
+(function(){
+'use strict';
+
+// ---- Config ----
+var N=128; // Grid resolution
+var SIZE=(N+2)*(N+2);
+var DT=0.15;
+var DIFF=0.00001;
+var VISC=0.00001;
+var ITER=4; // Jacobi iterations
+
+// ---- Canvases ----
+var fluidCanvas=document.getElementById('fluid-canvas');
+var textCanvas=document.getElementById('text-canvas');
+var fctx=fluidCanvas.getContext('2d');
+var tctx=textCanvas.getContext('2d');
+var W,H;
+
+// ---- Fluid arrays ----
+var u=new Float32Array(SIZE),v=new Float32Array(SIZE); // velocity
+var u0=new Float32Array(SIZE),v0=new Float32Array(SIZE);
+var dens=new Float32Array(SIZE); // dye R
+var dens0=new Float32Array(SIZE);
+var densG=new Float32Array(SIZE); // dye G
+var densG0=new Float32Array(SIZE);
+var densB=new Float32Array(SIZE); // dye B
+var densB0=new Float32Array(SIZE);
+var obstacle=new Uint8Array(SIZE); // text boundary mask
+
+// ---- State ----
+var currentText='FLUID';
+var dyeColor=[0,1,1]; // RGB normalized
+var COLORS=[[0,1,1],[1,0,0.4],[0,1,0.4],[1,0.67,0]];
+var colorIdx=0;
+var prevPx=-1,prevPy=-1;
+var hintShown=true;
+
+// ---- Index helper ----
+function IX(i,j){return i+(N+2)*j}
+
+// ---- Fluid solver (Jos Stam Stable Fluids) ----
+function addSource(x,s){
+  for(var i=0;i<SIZE;i++)x[i]+=DT*s[i];
+}
+
+function setBnd(b,x){
+  for(var i=1;i<=N;i++){
+    x[IX(0,i)]=b===1?-x[IX(1,i)]:x[IX(1,i)];
+    x[IX(N+1,i)]=b===1?-x[IX(N,i)]:x[IX(N,i)];
+    x[IX(i,0)]=b===2?-x[IX(i,1)]:x[IX(i,1)];
+    x[IX(i,N+1)]=b===2?-x[IX(i,N)]:x[IX(i,N)];
+  }
+  x[IX(0,0)]=0.5*(x[IX(1,0)]+x[IX(0,1)]);
+  x[IX(0,N+1)]=0.5*(x[IX(1,N+1)]+x[IX(0,N)]);
+  x[IX(N+1,0)]=0.5*(x[IX(N,0)]+x[IX(N+1,1)]);
+  x[IX(N+1,N+1)]=0.5*(x[IX(N,N+1)]+x[IX(N+1,N)]);
+  // Enforce obstacles
+  for(var j=1;j<=N;j++){
+    for(var i=1;i<=N;i++){
+      if(obstacle[IX(i,j)]){
+        if(b===1||b===2)x[IX(i,j)]=0;
+      }
+    }
+  }
+}
+
+function diffuse(b,x,x0,diff){
+  var a=DT*diff*N*N;
+  for(var k=0;k<ITER;k++){
+    for(var j=1;j<=N;j++){
+      for(var i=1;i<=N;i++){
+        if(obstacle[IX(i,j)])continue;
+        x[IX(i,j)]=(x0[IX(i,j)]+a*(x[IX(i-1,j)]+x[IX(i+1,j)]+x[IX(i,j-1)]+x[IX(i,j+1)]))/(1+4*a);
+      }
+    }
+    setBnd(b,x);
+  }
+}
+
+function advect(b,d,d0,uu,vv){
+  var dt0=DT*N;
+  for(var j=1;j<=N;j++){
+    for(var i=1;i<=N;i++){
+      if(obstacle[IX(i,j)])continue;
+      var x=i-dt0*uu[IX(i,j)];
+      var y=j-dt0*vv[IX(i,j)];
+      if(x<0.5)x=0.5;if(x>N+0.5)x=N+0.5;
+      var i0=~~x,i1=i0+1;
+      if(y<0.5)y=0.5;if(y>N+0.5)y=N+0.5;
+      var j0=~~y,j1=j0+1;
+      var s1=x-i0,s0=1-s1;
+      var t1=y-j0,t0=1-t1;
+      d[IX(i,j)]=s0*(t0*d0[IX(i0,j0)]+t1*d0[IX(i0,j1)])+s1*(t0*d0[IX(i1,j0)]+t1*d0[IX(i1,j1)]);
+    }
+  }
+  setBnd(b,d);
+}
+
+function project(){
+  var h=1.0/N;
+  for(var j=1;j<=N;j++){
+    for(var i=1;i<=N;i++){
+      v0[IX(i,j)]=-0.5*h*(u[IX(i+1,j)]-u[IX(i-1,j)]+v[IX(i,j+1)]-v[IX(i,j-1)]);
+      u0[IX(i,j)]=0;
+    }
+  }
+  setBnd(0,v0);setBnd(0,u0);
+  for(var k=0;k<ITER;k++){
+    for(var j=1;j<=N;j++){
+      for(var i=1;i<=N;i++){
+        if(obstacle[IX(i,j)])continue;
+        u0[IX(i,j)]=(v0[IX(i,j)]+u0[IX(i-1,j)]+u0[IX(i+1,j)]+u0[IX(i,j-1)]+u0[IX(i,j+1)])/4;
+      }
+    }
+    setBnd(0,u0);
+  }
+  for(var j=1;j<=N;j++){
+    for(var i=1;i<=N;i++){
+      if(obstacle[IX(i,j)])continue;
+      u[IX(i,j)]-=0.5*(u0[IX(i+1,j)]-u0[IX(i-1,j)])*N;
+      v[IX(i,j)]-=0.5*(u0[IX(i,j+1)]-u0[IX(i,j-1)])*N;
+    }
+  }
+  setBnd(1,u);setBnd(2,v);
+}
+
+function fluidStep(){
+  // Velocity step
+  addSource(u,u0);
+  addSource(v,v0);
+  var tmp;
+  tmp=u0;u0=u;u=tmp;
+  diffuse(1,u,u0,VISC);
+  tmp=v0;v0=v;v=tmp;
+  diffuse(2,v,v0,VISC);
+  project();
+  tmp=u0;u0=u;u=tmp;
+  tmp=v0;v0=v;v=tmp;
+  advect(1,u,u0,u0,v0);
+  advect(2,v,v0,u0,v0);
+  project();
+
+  // Density step (R)
+  addSource(dens,dens0);
+  tmp=dens0;dens0=dens;dens=tmp;
+  diffuse(0,dens,dens0,DIFF);
+  tmp=dens0;dens0=dens;dens=tmp;
+  advect(0,dens,dens0,u,v);
+
+  // Density step (G)
+  addSource(densG,densG0);
+  tmp=densG0;densG0=densG;densG=tmp;
+  diffuse(0,densG,densG0,DIFF);
+  tmp=densG0;densG0=densG;densG=tmp;
+  advect(0,densG,densG0,u,v);
+
+  // Density step (B)
+  addSource(densB,densB0);
+  tmp=densB0;densB0=densB;densB=tmp;
+  diffuse(0,densB,densB0,DIFF);
+  tmp=densB0;densB0=densB;densB=tmp;
+  advect(0,densB,densB0,u,v);
+
+  // Clear source arrays
+  u0.fill(0);v0.fill(0);
+  dens0.fill(0);densG0.fill(0);densB0.fill(0);
+
+  // Emit dye from text edges
+  emitFromText();
+
+  // Dampen density slightly
+  for(var i=0;i<SIZE;i++){
+    dens[i]*=0.995;
+    densG[i]*=0.995;
+    densB[i]*=0.995;
+  }
+}
+
+// ---- Text rendering & obstacle map ----
+var textPixels=null;
+
+function renderTextToObstacle(){
+  var offCanvas=document.createElement('canvas');
+  offCanvas.width=N+2;offCanvas.height=N+2;
+  var octx=offCanvas.getContext('2d');
+  octx.fillStyle='#000';
+  octx.fillRect(0,0,N+2,N+2);
+
+  // Size text to fit
+  var fontSize=Math.floor(N*0.45);
+  octx.font='900 '+fontSize+'px system-ui, sans-serif';
+  octx.textAlign='center';
+  octx.textBaseline='middle';
+  octx.fillStyle='#fff';
+  octx.fillText(currentText,(N+2)/2,(N+2)/2);
+
+  var imgData=octx.getImageData(0,0,N+2,N+2);
+  textPixels=imgData.data;
+  obstacle.fill(0);
+  for(var j=0;j<N+2;j++){
+    for(var i=0;i<N+2;i++){
+      var idx=(j*(N+2)+i)*4;
+      if(textPixels[idx]>128){
+        obstacle[IX(i,j)]=1;
+      }
+    }
+  }
+}
+
+function emitFromText(){
+  // Emit dye from edges of text obstacles
+  var emitRate=0.3;
+  for(var j=1;j<=N;j++){
+    for(var i=1;i<=N;i++){
+      if(!obstacle[IX(i,j)])continue;
+      // Check if this is an edge cell (has non-obstacle neighbor)
+      var isEdge=!obstacle[IX(i-1,j)]||!obstacle[IX(i+1,j)]||!obstacle[IX(i,j-1)]||!obstacle[IX(i,j+1)];
+      if(!isEdge)continue;
+      // Emit into neighboring non-obstacle cells
+      var neighbors=[[i-1,j],[i+1,j],[i,j-1],[i,j+1]];
+      for(var n=0;n<4;n++){
+        var ni=neighbors[n][0],nj=neighbors[n][1];
+        if(ni>=1&&ni<=N&&nj>=1&&nj<=N&&!obstacle[IX(ni,nj)]){
+          dens[IX(ni,nj)]+=emitRate*dyeColor[0];
+          densG[IX(ni,nj)]+=emitRate*dyeColor[1];
+          densB[IX(ni,nj)]+=emitRate*dyeColor[2];
+        }
+      }
+    }
+  }
+}
+
+// ---- Render text on screen (crisp) ----
+function drawTextLayer(){
+  tctx.clearRect(0,0,W,H);
+  var fontSize=Math.floor(Math.min(W,H)*0.18);
+  tctx.font='900 '+fontSize+'px system-ui, sans-serif';
+  tctx.textAlign='center';
+  tctx.textBaseline='middle';
+  tctx.fillStyle='rgba(255,255,255,0.06)';
+  tctx.fillText(currentText,W/2,H/2);
+}
+
+// ---- Render fluid ----
+var fluidImg=null;
+var offC=document.createElement('canvas');
+offC.width=N;offC.height=N;
+var offCtx=offC.getContext('2d');
+
+function drawFluid(){
+  if(!fluidImg)fluidImg=fctx.createImageData(N,N);
+  var data=fluidImg.data;
+  for(var j=1;j<=N;j++){
+    for(var i=1;i<=N;i++){
+      var idx=IX(i,j);
+      var off=((j-1)*N+(i-1))*4;
+      data[off]=dens[idx]*255;
+      data[off+1]=densG[idx]*255;
+      data[off+2]=densB[idx]*255;
+      data[off+3]=255;
+    }
+  }
+  offCtx.putImageData(fluidImg,0,0);
+  fctx.imageSmoothingEnabled=true;
+  fctx.drawImage(offC,0,0,W,H);
+}
+
+// ---- Resize ----
+function resize(){
+  W=window.innerWidth;H=window.innerHeight;
+  fluidCanvas.width=W;fluidCanvas.height=H;
+  textCanvas.width=W;textCanvas.height=H;
+  drawTextLayer();
+}
+
+// ---- Input ----
+function screenToGrid(sx,sy){
+  return[1+(sx/W)*N, 1+(sy/H)*N];
+}
+
+function injectForce(sx,sy){
+  if(prevPx<0){prevPx=sx;prevPy=sy;return}
+  var g=screenToGrid(sx,sy);
+  var gi=~~g[0],gj=~~g[1];
+  if(gi<1||gi>N||gj<1||gj>N){prevPx=sx;prevPy=sy;return}
+
+  var dx=(sx-prevPx)/W,dy=(sy-prevPy)/H;
+  var force=5000.0;
+
+  // Inject velocity
+  var rad=3;
+  for(var dj=-rad;dj<=rad;dj++){
+    for(var di=-rad;di<=rad;di++){
+      var ci=gi+di,cj=gj+dj;
+      if(ci<1||ci>N||cj<1||cj>N)continue;
+      if(obstacle[IX(ci,cj)])continue;
+      var dist=Math.sqrt(di*di+dj*dj);
+      if(dist>rad)continue;
+      var falloff=1-dist/rad;
+      u0[IX(ci,cj)]+=dx*force*falloff;
+      v0[IX(ci,cj)]+=dy*force*falloff;
+      // Inject dye
+      dens0[IX(ci,cj)]+=falloff*0.8*dyeColor[0];
+      densG0[IX(ci,cj)]+=falloff*0.8*dyeColor[1];
+      densB0[IX(ci,cj)]+=falloff*0.8*dyeColor[2];
+    }
+  }
+  prevPx=sx;prevPy=sy;
+}
+
+fluidCanvas.addEventListener('pointerdown',function(e){
+  e.preventDefault();
+  prevPx=e.clientX;prevPy=e.clientY;
+  if(hintShown){document.getElementById('hint').style.opacity='0';hintShown=false}
+});
+fluidCanvas.addEventListener('pointermove',function(e){
+  if(e.buttons===0)return;
+  e.preventDefault();
+  injectForce(e.clientX,e.clientY);
+});
+window.addEventListener('pointerup',function(){prevPx=-1;prevPy=-1});
+window.addEventListener('pointercancel',function(){prevPx=-1;prevPy=-1});
+
+// Tap to focus text input
+fluidCanvas.addEventListener('click',function(){
+  document.getElementById('hidden-input').focus();
+});
+
+// ---- Text input ----
+var hiddenInput=document.getElementById('hidden-input');
+hiddenInput.addEventListener('input',function(){
+  var val=this.value.toUpperCase().replace(/[^A-Z0-9 ]/g,'');
+  if(val.length>8)val=val.substring(0,8);
+  this.value=val;
+  currentText=val.trim()||'FLUID';
+  renderTextToObstacle();
+  drawTextLayer();
+});
+
+// ---- Controls ----
+var swatches=document.querySelectorAll('.swatch');
+for(var si=0;si<swatches.length;si++){
+  (function(idx){
+    swatches[idx].addEventListener('click',function(e){
+      e.stopPropagation();
+      colorIdx=idx;
+      dyeColor=COLORS[idx];
+      for(var k=0;k<swatches.length;k++)swatches[k].classList.remove('sel');
+      this.classList.add('sel');
+    });
+  })(si);
+}
+
+document.getElementById('sel-text').addEventListener('change',function(e){
+  if(!e.target.value)return;
+  currentText=e.target.value;
+  hiddenInput.value=currentText;
+  renderTextToObstacle();
+  drawTextLayer();
+  e.target.value='';
+});
+
+document.getElementById('btn-reset').addEventListener('click',function(e){
+  e.stopPropagation();
+  u.fill(0);v.fill(0);u0.fill(0);v0.fill(0);
+  dens.fill(0);densG.fill(0);densB.fill(0);
+  dens0.fill(0);densG0.fill(0);densB0.fill(0);
+  currentText='FLUID';hiddenInput.value='FLUID';
+  renderTextToObstacle();drawTextLayer();
+});
+
+document.getElementById('btn-clear').addEventListener('click',function(e){
+  e.stopPropagation();
+  u.fill(0);v.fill(0);u0.fill(0);v0.fill(0);
+  dens.fill(0);densG.fill(0);densB.fill(0);
+  dens0.fill(0);densG0.fill(0);densB0.fill(0);
+});
+
+// ---- Keyboard shortcuts ----
+document.addEventListener('keydown',function(e){
+  if(document.activeElement===hiddenInput)return;
+  if(e.key==='r'){
+    u.fill(0);v.fill(0);dens.fill(0);densG.fill(0);densB.fill(0);
+  }
+});
+
+// ---- Main loop ----
+function loop(){
+  fluidStep();
+  drawFluid();
+  requestAnimationFrame(loop);
+}
+
+// ---- Init ----
+resize();
+window.addEventListener('resize',function(){resize();renderTextToObstacle()});
+renderTextToObstacle();
+requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>
