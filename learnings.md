@@ -1469,3 +1469,16 @@ Persistent knowledge base. Read this before every build.
 - **INSIGHT**: Trajectory preview must use IDENTICAL physics to the actual simulation. Any discrepancy makes the game feel unfair
 - **INSIGHT**: Resize handler must distinguish "recalculate layout" from "reset game state" — never reset progress on resize
 - **TEST CAUGHT**: Nothing — all bugs found by Gemini
+
+### graph-calc (2026-03-26)
+- **KEEP**: Custom math parser via regex replacement + new Function — handles implicit multiplication, trig functions, powers
+- **KEEP**: niceStep() algorithm for dynamic grid spacing — 1/2/5 steps based on visible range, adapts beautifully to zoom
+- **KEEP**: Asymptote detection via y-jump threshold — breaks line at discontinuities in tan(x), 1/x
+- **KEEP**: Coordinate cursor display — shows math (x,y) at pointer position
+- **IMPROVE**: Gemini caught canvas aspect ratio distortion — canvas.height was set to full window height but CSS clipped it to panelTop(). Must set canvas.height = panelTop() so internal resolution matches visual size
+- **IMPROVE**: try/catch inside per-pixel render loop de-optimizes V8. Math functions return NaN for domain errors (sqrt(-1)), no throw needed. Use typeof check instead
+- **IMPROVE**: log() should map to Math.log10 (base-10) for math convention, ln() to Math.log (natural). Users typing log(100) expect 2, not 4.6
+- **IMPROVE**: Regex literals with character classes (e.g., /[a-zA-Z(]/) cause false positive in test's brace checker. Use RegExp constructor for complex patterns
+- **INSIGHT**: Canvas internal dimensions (width/height attributes) MUST match CSS visual dimensions. Mismatches cause stretching/squishing
+- **INSIGHT**: Never put try/catch inside a tight loop that runs 1000+ times per frame. Check validity once at parse time, not at evaluation time
+- **TEST CAUGHT**: Brace balance false positive from regex literals — 6th occurrence of this test limitation

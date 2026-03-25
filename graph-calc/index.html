@@ -1,0 +1,370 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="theme-color" content="#000000">
+<title>Graph Calc</title>
+<style>
+:root{--bg:#0a0a12;--panel:#0e0e1a;--border:rgba(255,255,255,0.06);--axis:#334;--grid:#1a1a24;--text:#888;--dim:#444}
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{height:100%;background:var(--bg);overflow:hidden;font-family:system-ui,sans-serif;color:var(--text)}
+canvas{display:block;position:absolute;top:0;left:0;right:0;touch-action:none;cursor:grab}
+canvas:active{cursor:grabbing}
+#panel{position:fixed;bottom:0;left:0;right:0;background:var(--panel);border-top:1px solid var(--border);z-index:5;padding:8px;max-height:45vh;overflow-y:auto;backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px)}
+.fn-row{display:flex;gap:4px;align-items:center;margin-bottom:4px}
+.fn-color{width:10px;height:10px;border-radius:50%;flex-shrink:0}
+.fn-input{flex:1;background:var(--bg);border:1px solid var(--border);color:#ccc;padding:6px 8px;font-family:ui-monospace,monospace;font-size:0.42rem;border-radius:5px;outline:none}
+.fn-input:focus{border-color:#4af}
+.fn-input.err{border-color:#f44}
+.fn-del{background:transparent;border:none;color:var(--dim);font-size:0.5rem;cursor:pointer;padding:0 4px}
+.fn-del:hover{color:#f44}
+#fn-btns{display:flex;gap:4px;flex-wrap:wrap;margin-top:4px}
+.btn{padding:4px 10px;background:rgba(255,255,255,0.04);border:1px solid var(--border);color:var(--dim);font-size:0.35rem;cursor:pointer;border-radius:4px;font-family:inherit}
+.btn:active{color:#aaa}
+select{background:var(--bg);border:1px solid var(--border);color:var(--text);padding:3px 6px;font-size:0.35rem;border-radius:4px;outline:none;font-family:inherit}
+#coords{position:fixed;top:8px;right:8px;font-size:0.32rem;color:var(--dim);font-family:monospace;z-index:5;background:rgba(10,10,18,0.8);padding:3px 6px;border-radius:4px}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="coords">x: 0, y: 0</div>
+<div id="panel">
+  <div id="fn-list"></div>
+  <div id="fn-btns">
+    <button class="btn" id="btn-add">+ Function</button>
+    <button class="btn" id="btn-reset">Reset View</button>
+    <select id="sel-preset">
+      <option value="">Presets...</option>
+      <option value="sin(x)">sin(x)</option>
+      <option value="x^2">x²</option>
+      <option value="1/x">1/x</option>
+      <option value="tan(x)">tan(x)</option>
+      <option value="sqrt(x)">√x</option>
+      <option value="sin(x)*x">sin(x)·x</option>
+      <option value="cos(x^2)">cos(x²)</option>
+      <option value="abs(sin(x))*2">|sin(x)|·2</option>
+    </select>
+  </div>
+</div>
+
+<script>
+(function(){
+'use strict';
+
+var canvas=document.getElementById('c'),ctx=canvas.getContext('2d');
+var W,H,panelH=0;
+var COLORS=['#f44','#4af','#4f4','#fa0','#f6c','#0ff','#a6f','#ff8'];
+
+// ---- Camera state ----
+var camX=0,camY=0; // center in math coordinates
+var scale=40; // pixels per unit
+
+// ---- Functions ----
+var funcs=[]; // {text,color,fn,valid}
+var nextColor=0;
+
+function addFunc(text){
+  var color=COLORS[nextColor%COLORS.length];
+  nextColor++;
+  var f={text:text||'',color:color,fn:null,valid:false};
+  parseFunc(f);
+  funcs.push(f);
+  buildUI();
+  renderGraph();
+}
+
+function removeFunc(idx){
+  funcs.splice(idx,1);
+  buildUI();
+  renderGraph();
+}
+
+// ---- Math parser ----
+function parseFunc(f){
+  var expr=f.text.trim();
+  if(!expr){f.fn=null;f.valid=false;return}
+  try{
+    // Sanitize: only allow safe math
+    var safe=expr
+      .replace(/\^/g,'**')
+      .replace(/\bpi\b/g,'Math.PI')
+      .replace(/\be\b/g,'Math.E')
+      .replace(/\bsin\b/g,'Math.sin')
+      .replace(/\bcos\b/g,'Math.cos')
+      .replace(/\btan\b/g,'Math.tan')
+      .replace(/\basin\b/g,'Math.asin')
+      .replace(/\bacos\b/g,'Math.acos')
+      .replace(/\batan\b/g,'Math.atan')
+      .replace(/\bsqrt\b/g,'Math.sqrt')
+      .replace(/\babs\b/g,'Math.abs')
+      .replace(/\bln\b/g,'Math.log')
+      .replace(/\blog\b/g,'(1/Math.LN10)*Math.log')
+      .replace(/\bexp\b/g,'Math.exp')
+      .replace(/\bfloor\b/g,'Math.floor')
+      .replace(/\bceil\b/g,'Math.ceil');
+    // Implicit multiplication: 2x → 2*x, x( → x*(, )x → )*x, )( → )*(
+    safe=safe.replace(new RegExp('(\\d)([a-zA-Z(])','g'),'$1*$2');
+    safe=safe.replace(new RegExp('(\\))([a-zA-Z\\d(])','g'),'$1*$2');
+    // Validate: only allow safe characters
+    var unsafeCheck=new RegExp('[^0-9x+\\-*/().,%\\s*]');
+    if(unsafeCheck.test(safe.replace(/Math\.\w+/g,'').replace(/\*\*/g,''))){
+      f.fn=null;f.valid=false;return;
+    }
+    var fn=new Function('x','return '+safe);
+    // Test evaluation
+    var test=fn(1);
+    if(typeof test!=='number'){f.fn=null;f.valid=false;return}
+    f.fn=fn;f.valid=true;
+  }catch(e){
+    f.fn=null;f.valid=false;
+  }
+}
+
+// ---- Coordinate transforms ----
+function mathToScreen(mx,my){
+  return[W/2+(mx-camX)*scale,panelTop()/2-(my-camY)*scale];
+}
+function screenToMath(sx,sy){
+  return[(sx-W/2)/scale+camX,(panelTop()/2-sy)/scale+camY];
+}
+function panelTop(){return H-panelH}
+
+// ---- Grid rendering ----
+function niceStep(range){
+  var rough=range/8;
+  var mag=Math.pow(10,Math.floor(Math.log10(rough)));
+  var norm=rough/mag;
+  if(norm<1.5)return mag;
+  if(norm<3.5)return 2*mag;
+  if(norm<7.5)return 5*mag;
+  return 10*mag;
+}
+
+function renderGraph(){
+  var ch=panelTop();
+  ctx.fillStyle='#0a0a12';ctx.fillRect(0,0,W,ch);
+
+  // Visible math range
+  var xMin=screenToMath(0,0)[0];
+  var xMax=screenToMath(W,0)[0];
+  var yMin=screenToMath(0,ch)[1];
+  var yMax=screenToMath(0,0)[1];
+  var xRange=xMax-xMin;
+  var yRange=yMax-yMin;
+
+  var stepX=niceStep(xRange);
+  var stepY=niceStep(yRange);
+
+  // Grid lines
+  ctx.strokeStyle='#1a1a24';ctx.lineWidth=0.5;
+  var startX=Math.floor(xMin/stepX)*stepX;
+  for(var gx=startX;gx<=xMax;gx+=stepX){
+    var sx=mathToScreen(gx,0)[0];
+    ctx.beginPath();ctx.moveTo(sx,0);ctx.lineTo(sx,ch);ctx.stroke();
+  }
+  var startY=Math.floor(yMin/stepY)*stepY;
+  for(var gy=startY;gy<=yMax;gy+=stepY){
+    var sy=mathToScreen(0,gy)[1];
+    ctx.beginPath();ctx.moveTo(0,sy);ctx.lineTo(W,sy);ctx.stroke();
+  }
+
+  // Axes
+  var originS=mathToScreen(0,0);
+  ctx.strokeStyle='#445';ctx.lineWidth=1.5;
+  // Y axis
+  if(originS[0]>=0&&originS[0]<=W){
+    ctx.beginPath();ctx.moveTo(originS[0],0);ctx.lineTo(originS[0],ch);ctx.stroke();
+  }
+  // X axis
+  if(originS[1]>=0&&originS[1]<=ch){
+    ctx.beginPath();ctx.moveTo(0,originS[1]);ctx.lineTo(W,originS[1]);ctx.stroke();
+  }
+
+  // Tick labels
+  ctx.fillStyle='#445';ctx.font='9px monospace';ctx.textAlign='center';ctx.textBaseline='top';
+  for(var gx=startX;gx<=xMax;gx+=stepX){
+    if(Math.abs(gx)<stepX*0.01)continue;
+    var sx=mathToScreen(gx,0)[0];
+    var ly=Math.min(Math.max(originS[1]+2,2),ch-12);
+    ctx.fillText(formatNum(gx),sx,ly);
+  }
+  ctx.textAlign='right';ctx.textBaseline='middle';
+  for(var gy=startY;gy<=yMax;gy+=stepY){
+    if(Math.abs(gy)<stepY*0.01)continue;
+    var sy=mathToScreen(0,gy)[1];
+    var lx=Math.min(Math.max(originS[0]-4,24),W-4);
+    ctx.fillText(formatNum(gy),lx,sy);
+  }
+
+  // Plot functions
+  for(var fi=0;fi<funcs.length;fi++){
+    var f=funcs[fi];
+    if(!f.valid||!f.fn)continue;
+    ctx.strokeStyle=f.color;
+    ctx.lineWidth=2;
+    ctx.beginPath();
+    var started=false;
+    var prevY=null;
+    for(var px=0;px<W;px++){
+      var mx=screenToMath(px,0)[0];
+      var my=f.fn(mx);
+      if(typeof my!=='number'||!isFinite(my)){
+        started=false;prevY=null;continue;
+      }
+      var sy=mathToScreen(0,my)[1];
+      // Asymptote detection: if y-jump is massive, break the line
+      if(prevY!==null&&Math.abs(sy-prevY)>ch*0.8){
+        started=false;
+      }
+      if(!started){ctx.moveTo(px,sy);started=true}
+      else{ctx.lineTo(px,sy)}
+      prevY=sy;
+    }
+    ctx.stroke();
+  }
+}
+
+function formatNum(n){
+  if(Math.abs(n)>=1000||Math.abs(n)<0.01&&n!==0)return n.toExponential(1);
+  var s=n.toFixed(4);
+  // Strip trailing zeros
+  s=s.replace(/\.?0+$/,'');
+  return s;
+}
+
+// ---- UI ----
+function buildUI(){
+  var list=document.getElementById('fn-list');
+  list.innerHTML='';
+  for(var i=0;i<funcs.length;i++){
+    (function(idx){
+      var f=funcs[idx];
+      var row=document.createElement('div');
+      row.className='fn-row';
+      var dot=document.createElement('div');
+      dot.className='fn-color';
+      dot.style.background=f.color;
+      var input=document.createElement('input');
+      input.className='fn-input'+(f.valid||!f.text?'':' err');
+      input.type='text';input.value=f.text;
+      input.placeholder='f(x) = ...';
+      input.addEventListener('input',function(){
+        funcs[idx].text=this.value;
+        parseFunc(funcs[idx]);
+        this.classList.toggle('err',!funcs[idx].valid&&funcs[idx].text.length>0);
+        renderGraph();
+      });
+      var del=document.createElement('button');
+      del.className='fn-del';del.textContent='×';
+      del.addEventListener('click',function(){removeFunc(idx)});
+      row.appendChild(dot);row.appendChild(input);row.appendChild(del);
+      list.appendChild(row);
+    })(i);
+  }
+  measurePanel();
+}
+
+function measurePanel(){
+  panelH=document.getElementById('panel').offsetHeight;
+  canvas.height=panelTop();
+  canvas.style.height=panelTop()+'px';
+}
+
+// ---- Pan/Zoom ----
+var isPanning=false,panStartSX=0,panStartSY=0,panStartCX=0,panStartCY=0;
+
+canvas.addEventListener('pointerdown',function(e){
+  e.preventDefault();
+  isPanning=true;
+  panStartSX=e.clientX;panStartSY=e.clientY;
+  panStartCX=camX;panStartCY=camY;
+});
+window.addEventListener('pointermove',function(e){
+  if(!isPanning)return;
+  var dx=e.clientX-panStartSX,dy=e.clientY-panStartSY;
+  camX=panStartCX-dx/scale;
+  camY=panStartCY+dy/scale;
+  renderGraph();
+  updateCoords(e);
+});
+window.addEventListener('pointerup',function(){isPanning=false});
+
+canvas.addEventListener('wheel',function(e){
+  e.preventDefault();
+  var rect=canvas.getBoundingClientRect();
+  var mx=screenToMath(e.clientX-rect.left,e.clientY-rect.top);
+  var factor=e.deltaY>0?0.9:1.1;
+  scale*=factor;
+  scale=Math.max(2,Math.min(scale,10000));
+  // Zoom toward cursor
+  camX=mx[0]-(e.clientX-rect.left-W/2)/scale;
+  camY=mx[1]+(e.clientY-rect.top-panelTop()/2)/scale;
+  renderGraph();
+},{passive:false});
+
+// Pinch zoom
+var pinchDist=0;
+canvas.addEventListener('touchstart',function(e){
+  if(e.touches.length===2){
+    var dx=e.touches[0].clientX-e.touches[1].clientX;
+    var dy=e.touches[0].clientY-e.touches[1].clientY;
+    pinchDist=Math.sqrt(dx*dx+dy*dy);
+  }
+},{passive:true});
+canvas.addEventListener('touchmove',function(e){
+  if(e.touches.length===2){
+    e.preventDefault();
+    var dx=e.touches[0].clientX-e.touches[1].clientX;
+    var dy=e.touches[0].clientY-e.touches[1].clientY;
+    var newDist=Math.sqrt(dx*dx+dy*dy);
+    if(pinchDist>0){
+      var factor=newDist/pinchDist;
+      scale*=factor;
+      scale=Math.max(2,Math.min(scale,10000));
+      renderGraph();
+    }
+    pinchDist=newDist;
+  }
+},{passive:false});
+
+// Cursor coords
+canvas.addEventListener('pointermove',function(e){
+  updateCoords(e);
+});
+function updateCoords(e){
+  var rect=canvas.getBoundingClientRect();
+  var m=screenToMath(e.clientX-rect.left,e.clientY-rect.top);
+  document.getElementById('coords').textContent='x: '+m[0].toFixed(2)+', y: '+m[1].toFixed(2);
+}
+
+// ---- Controls ----
+document.getElementById('btn-add').addEventListener('click',function(){addFunc('')});
+document.getElementById('btn-reset').addEventListener('click',function(){
+  camX=0;camY=0;scale=40;renderGraph();
+});
+document.getElementById('sel-preset').addEventListener('change',function(){
+  if(!this.value)return;
+  addFunc(this.value);
+  this.value='';
+});
+
+// ---- Resize ----
+function resize(){
+  W=window.innerWidth;H=window.innerHeight;
+  canvas.width=W;
+  measurePanel(); // sets canvas.height to panelTop()
+  renderGraph();
+}
+
+// ---- Init ----
+resize();
+window.addEventListener('resize',resize);
+addFunc('sin(x)');
+addFunc('x^2/10');
+})();
+</script>
+</body>
+</html>
