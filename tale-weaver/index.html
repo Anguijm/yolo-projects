@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="theme-color" content="#000000">
+<title>Tale Weaver</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{height:100%;background:#0c0c10;color:#c9d1d9;font-family:Georgia,'Times New Roman',serif;overflow-y:auto;touch-action:manipulation;-webkit-tap-highlight-color:transparent}
+#app{max-width:600px;margin:0 auto;padding:20px 16px;min-height:100%}
+
+h1{font-size:0.65rem;color:#333;letter-spacing:0.3em;font-weight:300;font-family:system-ui,sans-serif;margin-bottom:16px}
+
+/* Story text */
+#story{font-size:1rem;line-height:1.8;margin-bottom:20px;color:#c9d1d9}
+#story p{margin-bottom:12px}
+#story em{color:#58a6ff;font-style:italic}
+#story strong{color:#e6edf3}
+
+/* Choices */
+#choices{display:flex;flex-direction:column;gap:6px;margin-bottom:20px}
+.choice{padding:10px 14px;background:#111;border:1px solid #1a1a2e;border-radius:6px;color:#8b949e;cursor:pointer;font-family:inherit;font-size:0.85rem;text-align:left;line-height:1.5;transition:border-color 0.15s,color 0.15s}
+.choice:hover{border-color:#58a6ff;color:#c9d1d9}
+.choice:active{background:#0d1b2e}
+.choice.locked{opacity:0.35;cursor:not-allowed;border-color:#1a1a1a}
+.choice .req{font-size:0.65rem;color:#f85149;font-family:system-ui,sans-serif;display:block;margin-top:2px}
+
+/* Sidebar */
+#sidebar{display:flex;gap:12px;padding:12px;background:#0a0a12;border:1px solid #111;border-radius:6px;margin-bottom:16px;flex-wrap:wrap}
+.sidebar-section{flex:1;min-width:100px}
+.sidebar-title{font-size:0.5rem;color:#333;letter-spacing:0.15em;font-family:system-ui,sans-serif;margin-bottom:4px;text-transform:uppercase}
+.sidebar-content{font-size:0.7rem;color:#555;font-family:system-ui,sans-serif;line-height:1.6}
+.stat-row{display:flex;justify-content:space-between}
+.item{display:inline-block;padding:2px 6px;background:#111;border:1px solid #1a1a1a;border-radius:3px;font-size:0.6rem;color:#58a6ff;margin:1px}
+
+/* Controls */
+#controls{display:flex;gap:4px;margin-bottom:12px}
+.ctrl{padding:3px 8px;background:transparent;border:1px solid #1a1a1a;color:#333;font-family:system-ui,sans-serif;font-size:0.45rem;cursor:pointer;border-radius:3px;letter-spacing:0.06em}
+.ctrl:active{color:#888}
+
+/* End screen */
+#ending{display:none;text-align:center;padding:24px}
+#ending h2{font-size:1.2rem;color:#58a6ff;font-weight:300;margin-bottom:8px}
+#ending p{color:#555;font-size:0.8rem;line-height:1.6;margin-bottom:12px}
+</style>
+</head>
+<body>
+<div id="app">
+  <h1>TALE WEAVER</h1>
+  <div id="controls">
+    <button class="ctrl" id="btn-restart">Restart</button>
+    <span class="ctrl" id="step-count" style="border:none;cursor:default">Step 0</span>
+  </div>
+  <div id="sidebar">
+    <div class="sidebar-section"><div class="sidebar-title">Stats</div><div class="sidebar-content" id="stats-panel"></div></div>
+    <div class="sidebar-section"><div class="sidebar-title">Inventory</div><div class="sidebar-content" id="inv-panel"></div></div>
+  </div>
+  <div id="story"></div>
+  <div id="choices"></div>
+  <div id="ending"><h2 id="end-title"></h2><p id="end-text"></p><button class="ctrl" id="btn-replay">Play Again</button></div>
+</div>
+
+<script>
+(function(){
+'use strict';
+
+// ============ STORY DATA ============
+var STORY={
+  start:'station_wake',
+  nodes:{
+    station_wake:{
+      text:'You wake in a dimly lit corridor. Red emergency lights pulse overhead. The air tastes metallic.\n\nThe last thing you remember is the alarms. *Station Erebos* — the deep space research outpost where you\'ve been stationed for six months.\n\nA fractured display on the wall reads: **HULL BREACH — DECK 7. EVACUATION PROTOCOL ACTIVE.**\n\nThe corridor splits in two directions.',
+      choices:[
+        {text:'Head left toward the Medical Bay',target:'medbay',actions:[{type:'set',key:'visited_med',val:true}]},
+        {text:'Head right toward the Command Center',target:'command'},
+        {text:'Check the emergency locker beside you',target:'locker'}
+      ]
+    },
+    locker:{
+      text:'You pry open the emergency locker. Inside: a *flashlight*, a first-aid patch, and a crumpled maintenance schedule.\n\nThe schedule shows someone had been working on **Airlock 3** last night — the same airlock connected to Deck 7.',
+      choices:[
+        {text:'Take the flashlight and head to Medical Bay',target:'medbay',actions:[{type:'item',key:'flashlight'},{type:'stat',key:'health',val:10},{type:'set',key:'visited_med',val:true}]},
+        {text:'Take the flashlight and head to Command Center',target:'command',actions:[{type:'item',key:'flashlight'}]},
+        {text:'Head directly to Airlock 3',target:'airlock_dark'}
+      ]
+    },
+    medbay:{
+      text:'The Medical Bay is trashed. Cabinets hang open, glass scattered across the floor. But the automated med-station still hums.\n\nYou find Dr. Vasquez slumped against the wall, conscious but pale. "They didn\'t listen," she whispers. "The readings were clear — something got *in* through the hull breach."\n\nShe presses a **keycard** into your hand. "Command Center. Lock it down before it reaches the core systems."',
+      choices:[
+        {text:'Take the keycard and rush to the Command Center',target:'command',actions:[{type:'item',key:'command_keycard'}]},
+        {text:'Ask her what "something" means',target:'medbay_explain',actions:[{type:'item',key:'command_keycard'}]},
+        {text:'Use the med-station to heal first',target:'medbay_heal',actions:[{type:'item',key:'command_keycard'},{type:'stat',key:'health',val:20}]}
+      ]
+    },
+    medbay_explain:{
+      text:'Dr. Vasquez grabs your arm. "The anomaly readings from the asteroid samples — they weren\'t geological. They were *biological.* A crystalline organism. It dissolves metal on contact."\n\nHer eyes widen. "If it reaches the reactor core, it will breach containment. The whole station goes."\n\nYour **trust** in the station protocols drops.',
+      choices:[
+        {text:'Head to the Command Center immediately',target:'command',actions:[{type:'stat',key:'trust',val:-15}]},
+        {text:'Head to Airlock 3 to seal the breach yourself',target:'airlock',actions:[{type:'stat',key:'trust',val:-15}]}
+      ]
+    },
+    medbay_heal:{
+      text:'The med-station patches your cuts and injects a stim. You feel sharper, steadier. +20 health.\n\nDr. Vasquez nods weakly. "Go. There\'s no more time."',
+      choices:[
+        {text:'Head to Command Center',target:'command'},
+        {text:'Head to Airlock 3',target:'airlock'}
+      ]
+    },
+    command:{
+      text:'The Command Center doors are sealed. A biometric panel blinks red.\n\nThrough the reinforced window, you can see the main console — still active, still controllable. If you can get inside, you could trigger a station-wide lockdown or send a distress signal.',
+      choices:[
+        {text:'Use the command keycard',target:'command_inside',condition:{type:'item',key:'command_keycard'}},
+        {text:'Try to force the door open',target:'command_force'},
+        {text:'Head back and find another way',target:'station_wake'}
+      ]
+    },
+    command_force:{
+      text:'You slam your shoulder against the reinforced door. It doesn\'t budge. The impact sends pain shooting through your arm.\n\nYou\'ll need that **keycard** from Dr. Vasquez in Medical Bay.',
+      choices:[
+        {text:'Head to the Medical Bay',target:'medbay',actions:[{type:'stat',key:'health',val:-10},{type:'set',key:'visited_med',val:true}]},
+        {text:'Give up on Command and head to Airlock 3',target:'airlock',actions:[{type:'stat',key:'health',val:-10}]}
+      ]
+    },
+    command_inside:{
+      text:'The keycard works. The doors hiss open.\n\nInside, the holographic display shows a station schematic. Deck 7 is highlighted in angry red — the breach is spreading. Something is eating through the structural supports.\n\nTwo options glow on the console:\n\n**OPTION A:** Station-wide lockdown. Seals all decks. Traps the organism — but also traps anyone still in the affected areas.\n\n**OPTION B:** Emergency distress beacon. Calls for rescue — but the signal takes 4 hours to reach the nearest relay.',
+      choices:[
+        {text:'Trigger the lockdown (sacrifice Deck 7 crew)',target:'ending_lockdown',actions:[{type:'stat',key:'trust',val:-20}]},
+        {text:'Send the distress signal and head to Airlock 3 yourself',target:'airlock',actions:[{type:'set',key:'signal_sent',val:true},{type:'stat',key:'trust',val:10}]},
+        {text:'Do both — lockdown + signal',target:'ending_both'}
+      ]
+    },
+    airlock_dark:{
+      text:'The corridor to Airlock 3 is pitch black. Without a light source, you can barely see your hands.\n\nYou hear something ahead — a low, grinding sound, like metal being slowly dissolved.',
+      choices:[
+        {text:'Use your flashlight to investigate',target:'airlock',condition:{type:'item',key:'flashlight'}},
+        {text:'Turn back — this is suicide without light',target:'station_wake'}
+      ]
+    },
+    airlock:{
+      text:'Airlock 3. The outer door is mangled — crystalline growths spread across the metal like frost. Beautiful and terrifying.\n\nThe emergency seal is still functional, but the manual override requires someone to stay behind and hold the lever while it cycles.\n\nThrough the damaged hull, you can see stars. And something else — translucent tendrils, reaching inward.',
+      choices:[
+        {text:'Seal the airlock manually (sacrifice yourself)',target:'ending_sacrifice'},
+        {text:'Rig the lever with your belt and run',target:'ending_escape',condition:{type:'stat',key:'health',min:15}},
+        {text:'Retreat and trigger lockdown from Command instead',target:'command'}
+      ]
+    },
+    ending_lockdown:{
+      text:'__ENDING__',
+      ending:{title:'The Cold Calculus',text:'You triggered the lockdown. Deck 7 sealed. The organism was contained.\n\nBut the screams on the comm channel told you what it cost. Three crew members didn\'t make it out.\n\nRescue arrived 47 hours later. They called you a hero. You know better.'}
+    },
+    ending_sacrifice:{
+      text:'__ENDING__',
+      ending:{title:'The Last Light',text:'You held the lever. The airlock cycled. The crystalline tendrils shattered in the vacuum.\n\nAs the cold took you, you saw the station\'s lights stabilize through the viewport. Everyone else would live.\n\nThey named the memorial garden after you.'}
+    },
+    ending_escape:{
+      text:'__ENDING__',
+      ending:{title:'Against All Odds',text:'Your belt held. The lever stayed down. The airlock sealed as you sprinted down the corridor, lungs burning.\n\nYou collapsed in the Medical Bay. Dr. Vasquez patched you up, shaking her head. "That was the stupidest, bravest thing I\'ve ever seen."\n\nRescue found a station full of survivors and one very tired engineer.'}
+    },
+    ending_both:{
+      text:'__ENDING__',
+      ending:{title:'The Strategist',text:'Lockdown and distress signal — the optimal play. The organism was trapped. The crew was warned. Help was on the way.\n\nYou watched the containment hold from the Command Center, monitoring every seal, every pressure reading. No casualties.\n\nSometimes the best heroism is just making the right call.'}
+    }
+  }
+};
+
+// ============ STATE ============
+var state={
+  currentNode:'',
+  inventory:[],
+  stats:{health:50,trust:70},
+  steps:0,
+  history:[]
+};
+
+// ============ ENGINE ============
+function startGame(){
+  state.currentNode=STORY.start;
+  state.inventory=[];
+  state.stats={health:50,trust:70};
+  state.steps=0;
+  state.history=[];
+  document.getElementById('ending').style.display='none';
+  renderNode();
+}
+
+function renderNode(){
+  var node=STORY.nodes[state.currentNode];
+  if(!node)return;
+
+  // Check for ending
+  if(node.ending){
+    document.getElementById('story').innerHTML='';
+    document.getElementById('choices').innerHTML='';
+    document.getElementById('ending').style.display='block';
+    document.getElementById('end-title').textContent=node.ending.title;
+    document.getElementById('end-text').textContent=node.ending.text;
+    updateSidebar();
+    return;
+  }
+
+  // Render story text (simple markdown: *italic*, **bold**, \n\n = paragraphs)
+  var html=node.text.split('\n\n').map(function(para){
+    para=para.replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>');
+    para=para.replace(/\*(.+?)\*/g,'<em>$1</em>');
+    return'<p>'+para+'</p>';
+  }).join('');
+  document.getElementById('story').innerHTML=html;
+
+  // Render choices
+  var choicesEl=document.getElementById('choices');
+  choicesEl.innerHTML='';
+  node.choices.forEach(function(ch){
+    var btn=document.createElement('button');
+    btn.className='choice';
+
+    // Check condition
+    var locked=false;
+    if(ch.condition){
+      if(ch.condition.type==='item'&&state.inventory.indexOf(ch.condition.key)<0)locked=true;
+      if(ch.condition.type==='stat'&&(state.stats[ch.condition.key]||0)<(ch.condition.min||0))locked=true;
+    }
+
+    btn.textContent=ch.text;
+    if(locked){
+      btn.classList.add('locked');
+      var req=document.createElement('span');
+      req.className='req';
+      if(ch.condition.type==='item')req.textContent='Requires: '+ch.condition.key.replace(/_/g,' ');
+      if(ch.condition.type==='stat')req.textContent='Requires: '+ch.condition.key+' \u2265 '+ch.condition.min;
+      btn.appendChild(req);
+    }
+
+    btn.addEventListener('click',function(){
+      if(locked)return;
+      makeChoice(ch);
+    });
+    choicesEl.appendChild(btn);
+  });
+
+  updateSidebar();
+  // Scroll to top
+  window.scrollTo(0,0);
+}
+
+function makeChoice(choice){
+  // Apply actions
+  if(choice.actions){
+    choice.actions.forEach(function(act){
+      if(act.type==='item')state.inventory.push(act.key);
+      if(act.type==='stat')state.stats[act.key]=(state.stats[act.key]||0)+act.val;
+      if(act.type==='set')state.stats[act.key]=act.val;
+    });
+  }
+
+  state.history.push(state.currentNode);
+  state.currentNode=choice.target;
+  state.steps++;
+  document.getElementById('step-count').textContent='Step '+state.steps;
+  renderNode();
+}
+
+function updateSidebar(){
+  // Stats
+  var statsHtml='';
+  for(var key in state.stats){
+    if(typeof state.stats[key]==='number'){
+      var color=state.stats[key]<30?'#f85149':state.stats[key]<60?'#d29922':'#3fb950';
+      statsHtml+='<div class="stat-row"><span>'+key+'</span><span style="color:'+color+'">'+state.stats[key]+'</span></div>';
+    }
+  }
+  document.getElementById('stats-panel').innerHTML=statsHtml;
+
+  // Inventory
+  var invHtml='';
+  state.inventory.forEach(function(item){
+    invHtml+='<span class="item">'+item.replace(/_/g,' ')+'</span>';
+  });
+  document.getElementById('inv-panel').innerHTML=invHtml||'<span style="color:#222">empty</span>';
+}
+
+// ============ CONTROLS ============
+document.getElementById('btn-restart').addEventListener('click',startGame);
+document.getElementById('btn-replay').addEventListener('click',startGame);
+
+// ============ INIT ============
+startGame();
+
+})();
+</script>
+</body>
+</html>

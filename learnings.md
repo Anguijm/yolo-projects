@@ -1238,3 +1238,14 @@ Persistent knowledge base. Read this before every build.
 - **KEEP**: DOM-based UI (no Canvas) — total visual/technical break from recent Canvas-heavy projects
 - **INSIGHT**: Music theory tools must be CREATION tools, not reference charts. A static Circle of Fifths holds attention for 15 seconds. A progression builder that plays back your creation holds attention for 10+ minutes.
 - **INSIGHT**: The difference between "beepy" and "musical" synth is: 1) strum delay between chord tones, 2) dual oscillators with slight detune, 3) smooth ADSR envelope. All three together transform harsh beeps into pleasant chords.
+
+### tale-weaver (2026-03-25) — PROJECT #118
+- **KEEP**: JSON node graph for interactive fiction (nodes with text, choices with targets, actions, conditions) — clean, extensible
+- **KEEP**: Action system: item (add to inventory), stat (modify numeric value), set (flag boolean) — covers all common IF state changes
+- **KEEP**: Conditional choices: locked with visible requirement text (item/stat) — teaches player what to look for
+- **KEEP**: Pre-loaded compelling story (~15 nodes, 4 endings) — immediate engagement without authoring overhead
+- **KEEP**: Typography-focused UI (Georgia serif, 1.8 line-height, generous paragraph spacing) — makes reading comfortable
+- **KEEP**: Sidebar with live stats + inventory — player always knows their state
+- **INSIGHT**: Interactive fiction MUST ship with a playable story. An empty engine is useless — the story IS the product. The engine is invisible infrastructure.
+- **INSIGHT**: Conditional choices (locked + visible requirement) are more engaging than hidden choices. Seeing "Requires: flashlight" teaches the player to explore and backtrack. Hidden conditions just feel random.
+- **INSIGHT**: Pure text/DOM projects are a complete technical and visual break from Canvas-heavy builds. No rAF loop, no pixel manipulation — just JSON traversal and DOM updates. Valuable for portfolio variety.
