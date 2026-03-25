@@ -1377,3 +1377,16 @@ Persistent knowledge base. Read this before every build.
 - **INSIGHT**: For hex color validation, never use {3,6} range — only {3} or {6} are valid lengths. Use /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/
 - **INSIGHT**: Any binary search that outputs to a quantized space (integer RGB) needs a small buffer on the target to survive rounding
 - **TEST CAUGHT**: Nothing — all bugs found by Gemini
+
+### beat-forge (2026-03-26)
+- **KEEP**: Lookahead scheduling (setInterval polls, Web Audio clock schedules) — rock-solid timing independent of UI jank
+- **KEEP**: Procedural drum synthesis — kick=sine sweep, snare=noise+triangle, hat=highpass noise, clap=multiple short noise bursts, bass=lowpass square
+- **KEEP**: URL-encoded pattern state — encodes 96 bits as base64-like string, enables sharing without backend
+- **KEEP**: Weighted random beat generation — kick on downbeats, snare on 5/13, hats frequent — produces musically sensible patterns
+- **KEEP**: Sound preview on cell toggle — immediate feedback makes interaction satisfying
+- **IMPROVE**: Gemini caught float buffer sizes — sampleRate*0.15 can be non-integer, crashes createBuffer(). Must Math.floor ALL buffer size calculations
+- **IMPROVE**: Ghost highlight timeouts — setTimeout for visual sync persists after stop. Must track all timeout IDs and clear them on stop
+- **IMPROVE**: Swing value missing from URL encoding — any shared state must include ALL user-configurable parameters
+- **INSIGHT**: Web Audio createBuffer requires integer length — always Math.floor any sampleRate multiplication
+- **INSIGHT**: Any scheduled visual effect (setTimeout) must be cancellable. Track IDs in an array, clear on state change
+- **TEST CAUGHT**: Nothing — all bugs found by Gemini

@@ -1,0 +1,453 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="theme-color" content="#000000">
+<title>Beat Forge</title>
+<style>
+:root{--bg:#08080f;--panel:#0c0c18;--border:rgba(255,255,255,0.05);--cell-off:#111118;--cell-on:#1a3a5a;--cell-hit:#0af;--head:#0af;--text:#777;--dim:#444}
+*{margin:0;padding:0;box-sizing:border-box;-webkit-user-select:none;user-select:none}
+html,body{height:100%;background:var(--bg);overflow-y:auto;touch-action:manipulation;-webkit-tap-highlight-color:transparent;font-family:system-ui,sans-serif;color:var(--text)}
+#app{max-width:640px;margin:0 auto;padding:8px 6px}
+h1{font-size:0.55rem;font-weight:200;color:#aaa;letter-spacing:0.2em;text-align:center;margin-bottom:8px}
+
+/* Grid */
+#seq{display:grid;gap:3px;margin-bottom:8px}
+.track{display:contents}
+.track-label{font-size:0.3rem;color:var(--dim);font-family:monospace;display:flex;align-items:center;justify-content:flex-end;padding-right:4px;min-width:36px}
+.step{width:100%;aspect-ratio:1;background:var(--cell-off);border-radius:3px;cursor:pointer;transition:background 0.08s;border:1px solid transparent;min-width:0}
+.step.on{background:var(--cell-on)}
+.step.on.playing{background:var(--cell-hit);box-shadow:0 0 8px rgba(0,170,255,0.4)}
+.step.playing{border-color:rgba(0,170,255,0.2)}
+
+/* Playhead row */
+#head-row{display:grid;gap:3px;margin-bottom:6px}
+.head-cell{height:3px;border-radius:1px;background:transparent}
+.head-cell.active{background:var(--head)}
+
+/* Controls */
+.controls{display:flex;gap:6px;align-items:center;justify-content:center;flex-wrap:wrap;margin-bottom:8px}
+.btn{padding:5px 12px;background:rgba(255,255,255,0.04);border:1px solid var(--border);color:var(--dim);font-size:0.4rem;cursor:pointer;border-radius:5px;font-family:inherit;transition:all 0.12s}
+.btn:active{color:#aaa}
+.btn.active{border-color:var(--head);color:var(--head)}
+.ctrl-group{display:flex;align-items:center;gap:4px;font-size:0.35rem;color:var(--dim)}
+.ctrl-group input[type="range"]{width:60px;height:3px;accent-color:var(--head)}
+.ctrl-group b{color:var(--text);font-family:monospace;min-width:24px}
+
+/* Presets */
+#share-url{width:100%;background:var(--panel);border:1px solid var(--border);color:#666;padding:6px 8px;font-family:ui-monospace,monospace;font-size:0.32rem;border-radius:5px;outline:none;text-align:center;margin-top:6px}
+</style>
+</head>
+<body>
+<div id="app">
+  <h1>BEAT FORGE</h1>
+  <div id="head-row"></div>
+  <div id="seq"></div>
+  <div class="controls">
+    <button class="btn" id="btn-play">Play</button>
+    <button class="btn" id="btn-stop">Stop</button>
+    <button class="btn" id="btn-random">Random</button>
+    <button class="btn" id="btn-clear">Clear</button>
+  </div>
+  <div class="controls">
+    <span class="ctrl-group">BPM <input type="range" id="sl-bpm" min="60" max="200" value="120"><b id="v-bpm">120</b></span>
+    <span class="ctrl-group">Swing <input type="range" id="sl-swing" min="0" max="50" value="0"><b id="v-swing">0%</b></span>
+  </div>
+  <input type="text" id="share-url" readonly>
+</div>
+
+<script>
+(function(){
+'use strict';
+
+// ---- Config ----
+var STEPS=16;
+var TRACKS=[
+  {name:'Kick', color:'#f44'},
+  {name:'Snare',color:'#fa0'},
+  {name:'CHat', color:'#4f8'},
+  {name:'OHat', color:'#0af'},
+  {name:'Clap', color:'#f6c'},
+  {name:'Bass', color:'#84f'}
+];
+var TRACK_COUNT=TRACKS.length;
+
+// ---- State ----
+var grid=[]; // [track][step] = 0|1
+for(var t=0;t<TRACK_COUNT;t++){
+  grid.push(new Array(STEPS).fill(0));
+}
+var bpm=120,swing=0;
+var playing=false;
+var currentStep=-1;
+var actx=null;
+
+// ---- Audio Context ----
+function ensureAudio(){
+  if(!actx){
+    actx=new(window.AudioContext||window.webkitAudioContext)();
+  }
+  if(actx.state==='suspended')actx.resume();
+}
+
+// ---- Synthesized drums ----
+function playKick(time){
+  var osc=actx.createOscillator();
+  var gain=actx.createGain();
+  osc.type='sine';
+  osc.frequency.setValueAtTime(150,time);
+  osc.frequency.exponentialRampToValueAtTime(30,time+0.12);
+  gain.gain.setValueAtTime(0.8,time);
+  gain.gain.exponentialRampToValueAtTime(0.001,time+0.3);
+  osc.connect(gain);gain.connect(actx.destination);
+  osc.start(time);osc.stop(time+0.3);
+}
+
+function playSnare(time){
+  // Noise
+  var bufSize=Math.floor(actx.sampleRate*0.15);
+  var buf=actx.createBuffer(1,bufSize,actx.sampleRate);
+  var data=buf.getChannelData(0);
+  for(var i=0;i<bufSize;i++)data[i]=(Math.random()*2-1);
+  var noise=actx.createBufferSource();
+  noise.buffer=buf;
+  var nGain=actx.createGain();
+  nGain.gain.setValueAtTime(0.6,time);
+  nGain.gain.exponentialRampToValueAtTime(0.001,time+0.15);
+  var filt=actx.createBiquadFilter();
+  filt.type='highpass';filt.frequency.value=2000;
+  noise.connect(filt);filt.connect(nGain);nGain.connect(actx.destination);
+  noise.start(time);noise.stop(time+0.15);
+  // Body
+  var osc=actx.createOscillator();
+  var oGain=actx.createGain();
+  osc.type='triangle';
+  osc.frequency.setValueAtTime(180,time);
+  osc.frequency.exponentialRampToValueAtTime(80,time+0.06);
+  oGain.gain.setValueAtTime(0.5,time);
+  oGain.gain.exponentialRampToValueAtTime(0.001,time+0.1);
+  osc.connect(oGain);oGain.connect(actx.destination);
+  osc.start(time);osc.stop(time+0.1);
+}
+
+function playHihatClosed(time){
+  var bufSize=Math.floor(actx.sampleRate*0.05);
+  var buf=actx.createBuffer(1,bufSize,actx.sampleRate);
+  var data=buf.getChannelData(0);
+  for(var i=0;i<bufSize;i++)data[i]=(Math.random()*2-1);
+  var noise=actx.createBufferSource();
+  noise.buffer=buf;
+  var gain=actx.createGain();
+  gain.gain.setValueAtTime(0.3,time);
+  gain.gain.exponentialRampToValueAtTime(0.001,time+0.05);
+  var filt=actx.createBiquadFilter();
+  filt.type='highpass';filt.frequency.value=8000;
+  noise.connect(filt);filt.connect(gain);gain.connect(actx.destination);
+  noise.start(time);noise.stop(time+0.05);
+}
+
+function playHihatOpen(time){
+  var bufSize=Math.floor(actx.sampleRate*0.2);
+  var buf=actx.createBuffer(1,bufSize,actx.sampleRate);
+  var data=buf.getChannelData(0);
+  for(var i=0;i<bufSize;i++)data[i]=(Math.random()*2-1);
+  var noise=actx.createBufferSource();
+  noise.buffer=buf;
+  var gain=actx.createGain();
+  gain.gain.setValueAtTime(0.25,time);
+  gain.gain.exponentialRampToValueAtTime(0.001,time+0.2);
+  var filt=actx.createBiquadFilter();
+  filt.type='highpass';filt.frequency.value=6000;
+  noise.connect(filt);filt.connect(gain);gain.connect(actx.destination);
+  noise.start(time);noise.stop(time+0.2);
+}
+
+function playClap(time){
+  // Multiple short noise bursts
+  for(var b=0;b<3;b++){
+    var t2=time+b*0.012;
+    var bufSize=Math.floor(actx.sampleRate*0.02);
+    var buf=actx.createBuffer(1,bufSize,actx.sampleRate);
+    var data=buf.getChannelData(0);
+    for(var i=0;i<bufSize;i++)data[i]=(Math.random()*2-1);
+    var noise=actx.createBufferSource();
+    noise.buffer=buf;
+    var gain=actx.createGain();
+    gain.gain.setValueAtTime(0.4,t2);
+    gain.gain.exponentialRampToValueAtTime(0.001,t2+0.08);
+    var filt=actx.createBiquadFilter();
+    filt.type='bandpass';filt.frequency.value=1200;filt.Q.value=2;
+    noise.connect(filt);filt.connect(gain);gain.connect(actx.destination);
+    noise.start(t2);noise.stop(t2+0.08);
+  }
+}
+
+function playBass(time){
+  var osc=actx.createOscillator();
+  var gain=actx.createGain();
+  osc.type='square';
+  osc.frequency.setValueAtTime(55,time);
+  gain.gain.setValueAtTime(0.3,time);
+  gain.gain.exponentialRampToValueAtTime(0.001,time+0.2);
+  var filt=actx.createBiquadFilter();
+  filt.type='lowpass';filt.frequency.value=200;
+  osc.connect(filt);filt.connect(gain);gain.connect(actx.destination);
+  osc.start(time);osc.stop(time+0.2);
+}
+
+var PLAY_FNS=[playKick,playSnare,playHihatClosed,playHihatOpen,playClap,playBass];
+
+// ---- Scheduler (lookahead) ----
+var scheduleAheadTime=0.1;
+var nextStepTime=0;
+var schedulerTimer=null;
+var highlightTimeouts=[];
+
+function scheduler(){
+  while(nextStepTime<actx.currentTime+scheduleAheadTime){
+    scheduleStep(currentStep,nextStepTime);
+    advanceStep();
+  }
+}
+
+function scheduleStep(step,time){
+  for(var t=0;t<TRACK_COUNT;t++){
+    if(grid[t][step]){
+      PLAY_FNS[t](time);
+    }
+  }
+  // Schedule visual update
+  var delay=(time-actx.currentTime)*1000;
+  if(delay<0)delay=0;
+  highlightTimeouts.push(setTimeout(function(){highlightStep(step)},delay));
+}
+
+function advanceStep(){
+  currentStep=(currentStep+1)%STEPS;
+  var secondsPerStep=60/(bpm*4);
+  // Apply swing to even steps (every other 16th note)
+  if(currentStep%2===1){
+    nextStepTime+=secondsPerStep*(1+swing/100);
+  }else{
+    nextStepTime+=secondsPerStep*(1-swing/100);
+  }
+}
+
+function startPlayback(){
+  ensureAudio();
+  playing=true;
+  currentStep=0;
+  nextStepTime=actx.currentTime+0.05;
+  schedulerTimer=setInterval(scheduler,25);
+  document.getElementById('btn-play').classList.add('active');
+}
+
+function stopPlayback(){
+  playing=false;
+  clearInterval(schedulerTimer);
+  schedulerTimer=null;
+  // Clear pending visual highlights
+  for(var i=0;i<highlightTimeouts.length;i++)clearTimeout(highlightTimeouts[i]);
+  highlightTimeouts=[];
+  currentStep=-1;
+  document.getElementById('btn-play').classList.remove('active');
+  clearHighlight();
+}
+
+// ---- UI ----
+function buildGrid(){
+  var seq=document.getElementById('seq');
+  seq.innerHTML='';
+  seq.style.gridTemplateColumns='36px repeat('+STEPS+',1fr)';
+
+  for(var t=0;t<TRACK_COUNT;t++){
+    // Label
+    var label=document.createElement('div');
+    label.className='track-label';
+    label.textContent=TRACKS[t].name;
+    label.style.color=TRACKS[t].color;
+    seq.appendChild(label);
+    // Steps
+    for(var s=0;s<STEPS;s++){
+      var cell=document.createElement('div');
+      cell.className='step'+(grid[t][s]?' on':'');
+      cell.dataset.t=t;
+      cell.dataset.s=s;
+      if(grid[t][s])cell.style.background=TRACKS[t].color;
+      // Visual grouping: every 4 steps
+      if(s%4===0&&s>0)cell.style.marginLeft='2px';
+      seq.appendChild(cell);
+    }
+  }
+
+  // Build playhead row
+  var headRow=document.getElementById('head-row');
+  headRow.innerHTML='';
+  headRow.style.gridTemplateColumns='36px repeat('+STEPS+',1fr)';
+  var spacer=document.createElement('div');
+  headRow.appendChild(spacer);
+  for(var s=0;s<STEPS;s++){
+    var hc=document.createElement('div');
+    hc.className='head-cell';
+    hc.id='hc-'+s;
+    if(s%4===0&&s>0)hc.style.marginLeft='2px';
+    headRow.appendChild(hc);
+  }
+}
+
+function highlightStep(step){
+  // Clear previous
+  var prev=document.querySelectorAll('.step.playing');
+  for(var i=0;i<prev.length;i++)prev[i].classList.remove('playing');
+  var prevH=document.querySelectorAll('.head-cell.active');
+  for(var i=0;i<prevH.length;i++)prevH[i].classList.remove('active');
+
+  if(step<0)return;
+  // Highlight column
+  var cells=document.querySelectorAll('.step[data-s="'+step+'"]');
+  for(var i=0;i<cells.length;i++)cells[i].classList.add('playing');
+  var hc=document.getElementById('hc-'+step);
+  if(hc)hc.classList.add('active');
+}
+
+function clearHighlight(){
+  var all=document.querySelectorAll('.step.playing,.head-cell.active');
+  for(var i=0;i<all.length;i++)all[i].classList.remove('playing','active');
+}
+
+function toggleCell(t,s){
+  grid[t][s]=grid[t][s]?0:1;
+  var cell=document.querySelector('.step[data-t="'+t+'"][data-s="'+s+'"]');
+  if(cell){
+    cell.classList.toggle('on',!!grid[t][s]);
+    cell.style.background=grid[t][s]?TRACKS[t].color:'';
+  }
+  updateURL();
+  // Preview sound on toggle-on
+  if(grid[t][s]){
+    ensureAudio();
+    PLAY_FNS[t](actx.currentTime);
+  }
+}
+
+// ---- Grid interaction ----
+document.getElementById('seq').addEventListener('pointerdown',function(e){
+  var cell=e.target.closest('.step');
+  if(!cell)return;
+  e.preventDefault();
+  toggleCell(parseInt(cell.dataset.t,10),parseInt(cell.dataset.s,10));
+});
+
+// ---- Controls ----
+document.getElementById('btn-play').addEventListener('click',function(){
+  if(playing)stopPlayback();
+  else startPlayback();
+});
+document.getElementById('btn-stop').addEventListener('click',stopPlayback);
+
+document.getElementById('btn-random').addEventListener('click',function(){
+  // Weighted random — kick on 1/5/9/13, snare on 5/13, hats more frequent
+  for(var t=0;t<TRACK_COUNT;t++)grid[t].fill(0);
+  for(var s=0;s<STEPS;s++){
+    // Kick
+    if(s%4===0)grid[0][s]=1;
+    else if(Math.random()<0.15)grid[0][s]=1;
+    // Snare
+    if(s%8===4)grid[1][s]=1;
+    else if(Math.random()<0.1)grid[1][s]=1;
+    // Closed hat
+    if(Math.random()<0.5)grid[2][s]=1;
+    // Open hat
+    if(Math.random()<0.1)grid[3][s]=1;
+    // Clap
+    if(s%8===4&&Math.random()<0.5)grid[4][s]=1;
+    // Bass
+    if(s%4===0&&Math.random()<0.4)grid[5][s]=1;
+    else if(Math.random()<0.08)grid[5][s]=1;
+  }
+  buildGrid();
+  updateURL();
+});
+
+document.getElementById('btn-clear').addEventListener('click',function(){
+  for(var t=0;t<TRACK_COUNT;t++)grid[t].fill(0);
+  buildGrid();
+  updateURL();
+});
+
+document.getElementById('sl-bpm').addEventListener('input',function(){
+  bpm=parseInt(this.value,10);
+  document.getElementById('v-bpm').textContent=bpm;
+});
+
+document.getElementById('sl-swing').addEventListener('input',function(){
+  swing=parseInt(this.value,10);
+  document.getElementById('v-swing').textContent=swing+'%';
+});
+
+// ---- URL state encoding/decoding ----
+function encodeState(){
+  // Pack 6 tracks x 16 steps = 96 bits = 12 bytes → base64
+  var bits='';
+  for(var t=0;t<TRACK_COUNT;t++){
+    for(var s=0;s<STEPS;s++){
+      bits+=grid[t][s]?'1':'0';
+    }
+  }
+  // Pad to multiple of 6 for base64
+  while(bits.length%6!==0)bits+='0';
+  var chars='ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
+  var str='';
+  for(var i=0;i<bits.length;i+=6){
+    var n=parseInt(bits.substring(i,i+6),2);
+    str+=chars[n];
+  }
+  return str+'|'+bpm+'|'+swing;
+}
+
+function decodeState(str){
+  var parts=str.split('|');
+  var encoded=parts[0];
+  if(parts[1])bpm=parseInt(parts[1],10)||120;
+  if(parts[2]){swing=parseInt(parts[2],10)||0;document.getElementById('sl-swing').value=swing;document.getElementById('v-swing').textContent=swing+'%'}
+  var chars='ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
+  var bits='';
+  for(var i=0;i<encoded.length;i++){
+    var idx=chars.indexOf(encoded[i]);
+    if(idx<0)continue;
+    var b=idx.toString(2);
+    while(b.length<6)b='0'+b;
+    bits+=b;
+  }
+  for(var t=0;t<TRACK_COUNT;t++){
+    for(var s=0;s<STEPS;s++){
+      var bi=t*STEPS+s;
+      grid[t][s]=bi<bits.length&&bits[bi]==='1'?1:0;
+    }
+  }
+  document.getElementById('sl-bpm').value=bpm;
+  document.getElementById('v-bpm').textContent=bpm;
+}
+
+function updateURL(){
+  var hash=encodeState();
+  history.replaceState(null,null,'#'+hash);
+  document.getElementById('share-url').value=location.href;
+}
+
+function loadFromURL(){
+  var hash=location.hash.substring(1);
+  if(hash)decodeState(hash);
+}
+
+// ---- Init ----
+loadFromURL();
+buildGrid();
+updateURL();
+})();
+</script>
+</body>
+</html>
