@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="theme-color" content="#000000">
+<title>Sprite Studio</title>
+<style>
+:root{--bg:#0a0a12;--panel:#0e0e1a;--border:rgba(255,255,255,0.06);--accent:#f80;--text:#888;--dim:#444}
+*{margin:0;padding:0;box-sizing:border-box;-webkit-user-select:none;user-select:none}
+html,body{height:100%;background:var(--bg);overflow-y:auto;touch-action:manipulation;-webkit-tap-highlight-color:transparent;font-family:system-ui,sans-serif;color:var(--text)}
+#app{max-width:500px;margin:0 auto;padding:8px 6px}
+
+/* Preview */
+#preview-row{display:flex;gap:8px;align-items:center;justify-content:center;margin-bottom:6px}
+#preview-canvas{width:64px;height:64px;border:1px solid var(--border);border-radius:4px;image-rendering:pixelated;background:#111}
+.preview-ctrl{display:flex;gap:4px;align-items:center}
+.btn{padding:4px 10px;background:rgba(255,255,255,0.04);border:1px solid var(--border);color:var(--dim);font-size:0.38rem;cursor:pointer;border-radius:4px;font-family:inherit;transition:all 0.12s}
+.btn:active{color:#aaa}
+.btn.active{border-color:var(--accent);color:var(--accent)}
+.ctrl-sm{font-size:0.32rem;color:var(--dim);display:flex;align-items:center;gap:3px}
+.ctrl-sm input[type="range"]{width:50px;height:3px;accent-color:var(--accent)}
+.ctrl-sm b{color:var(--text);font-family:monospace}
+
+/* Main canvas */
+#canvas-wrap{display:flex;justify-content:center;margin-bottom:6px;position:relative}
+#draw-canvas{border:1px solid var(--border);border-radius:4px;image-rendering:pixelated;touch-action:none;cursor:crosshair}
+
+/* Tools */
+#tools{display:flex;gap:4px;justify-content:center;align-items:center;margin-bottom:6px;flex-wrap:wrap}
+.tool-btn{width:34px;height:34px;border:1px solid var(--border);border-radius:6px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:0.5rem;background:rgba(255,255,255,0.02);transition:all 0.12s;color:var(--dim)}
+.tool-btn.sel{border-color:var(--accent);color:var(--accent);background:rgba(255,136,0,0.08)}
+.tool-btn:active{transform:scale(0.95)}
+#color-pick{width:34px;height:34px;border:1px solid var(--border);border-radius:6px;cursor:pointer;padding:2px;background:transparent}
+select{background:var(--panel);border:1px solid var(--border);color:var(--text);padding:3px 6px;font-size:0.35rem;border-radius:4px;outline:none;font-family:inherit}
+
+/* Timeline */
+#timeline-label{font-size:0.32rem;color:var(--dim);text-align:center;margin-bottom:3px}
+#timeline{display:flex;gap:4px;overflow-x:auto;padding:4px;margin-bottom:6px;-webkit-overflow-scrolling:touch}
+.frame-thumb{width:40px;height:40px;border:2px solid var(--border);border-radius:4px;cursor:pointer;flex-shrink:0;image-rendering:pixelated;background:#111;transition:border-color 0.12s}
+.frame-thumb.sel{border-color:var(--accent)}
+#timeline-btns{display:flex;gap:4px;justify-content:center;margin-bottom:6px}
+</style>
+</head>
+<body>
+<div id="app">
+  <!-- Preview -->
+  <div id="preview-row">
+    <canvas id="preview-canvas"></canvas>
+    <div class="preview-ctrl">
+      <button class="btn" id="btn-play">Play</button>
+      <span class="ctrl-sm">FPS<input type="range" id="sl-fps" min="1" max="24" value="8"><b id="v-fps">8</b></span>
+    </div>
+    <span class="ctrl-sm">
+      <select id="sel-size">
+        <option value="8">8x8</option>
+        <option value="16" selected>16x16</option>
+        <option value="32">32x32</option>
+      </select>
+    </span>
+  </div>
+
+  <!-- Drawing canvas -->
+  <div id="canvas-wrap">
+    <canvas id="draw-canvas"></canvas>
+  </div>
+
+  <!-- Tools -->
+  <div id="tools">
+    <input type="color" id="color-pick" value="#ff8800">
+    <button class="tool-btn sel" id="t-pen" title="Pen">✏</button>
+    <button class="tool-btn" id="t-eraser" title="Eraser">◻</button>
+    <button class="tool-btn" id="t-fill" title="Fill">◆</button>
+    <button class="btn" id="btn-clear-frame">Clear</button>
+    <span class="ctrl-sm"><input type="checkbox" id="cb-onion"> Onion</span>
+    <button class="btn" id="btn-export">Export</button>
+  </div>
+
+  <!-- Timeline -->
+  <div id="timeline-label">Frame <b id="frame-num">1</b>/<b id="frame-total">1</b></div>
+  <div id="timeline"></div>
+  <div id="timeline-btns">
+    <button class="btn" id="btn-add-frame">+ Frame</button>
+    <button class="btn" id="btn-dup-frame">Duplicate</button>
+    <button class="btn" id="btn-del-frame">Delete</button>
+  </div>
+</div>
+
+<script>
+(function(){
+'use strict';
+
+// ---- State ----
+var gridSize=16;
+var frames=[]; // array of 1D arrays (gridSize*gridSize), null=transparent, '#hex'=color
+var currentFrame=0;
+var currentColor='#ff8800';
+var currentTool='pen'; // pen, eraser, fill
+var isDrawing=false;
+var lastPixel=-1; // prevent re-drawing same pixel on drag
+var playbackTimer=null;
+var playbackFrame=0;
+var fps=8;
+var onionSkin=false;
+
+// ---- Canvas refs ----
+var drawCanvas=document.getElementById('draw-canvas');
+var drawCtx=drawCanvas.getContext('2d');
+var previewCanvas=document.getElementById('preview-canvas');
+var previewCtx=previewCanvas.getContext('2d');
+
+// ---- Init ----
+function initFrames(){
+  frames=[createEmptyFrame()];
+  currentFrame=0;
+}
+
+function createEmptyFrame(){
+  return new Array(gridSize*gridSize).fill(null);
+}
+
+function resetCanvas(){
+  var maxW=Math.min(window.innerWidth-20,460);
+  var cellSize=Math.floor(maxW/gridSize);
+  cellSize=Math.max(8,cellSize);
+  drawCanvas.width=gridSize*cellSize;
+  drawCanvas.height=gridSize*cellSize;
+  drawCanvas.dataset.cellSize=cellSize;
+  previewCanvas.width=gridSize;
+  previewCanvas.height=gridSize;
+  renderDrawCanvas();
+  renderTimeline();
+  renderPreviewFrame(currentFrame);
+}
+
+// ---- Render drawing canvas ----
+function renderDrawCanvas(){
+  var cs=parseInt(drawCanvas.dataset.cellSize,10);
+  drawCtx.clearRect(0,0,drawCanvas.width,drawCanvas.height);
+
+  // Checkerboard background (transparency indicator)
+  for(var y=0;y<gridSize;y++){
+    for(var x=0;x<gridSize;x++){
+      drawCtx.fillStyle=(x+y)%2===0?'#181820':'#141418';
+      drawCtx.fillRect(x*cs,y*cs,cs,cs);
+    }
+  }
+
+  // Onion skin (previous frame at low opacity)
+  if(onionSkin&&currentFrame>0){
+    var prev=frames[currentFrame-1];
+    drawCtx.globalAlpha=0.2;
+    for(var i=0;i<prev.length;i++){
+      if(prev[i]){
+        var x=i%gridSize,y=Math.floor(i/gridSize);
+        drawCtx.fillStyle=prev[i];
+        drawCtx.fillRect(x*cs,y*cs,cs,cs);
+      }
+    }
+    drawCtx.globalAlpha=1;
+  }
+
+  // Current frame
+  var frame=frames[currentFrame];
+  for(var i=0;i<frame.length;i++){
+    if(frame[i]){
+      var x=i%gridSize,y=Math.floor(i/gridSize);
+      drawCtx.fillStyle=frame[i];
+      drawCtx.fillRect(x*cs,y*cs,cs,cs);
+    }
+  }
+
+  // Grid lines
+  drawCtx.strokeStyle='rgba(255,255,255,0.04)';
+  drawCtx.lineWidth=0.5;
+  for(var i=0;i<=gridSize;i++){
+    drawCtx.beginPath();drawCtx.moveTo(i*cs,0);drawCtx.lineTo(i*cs,gridSize*cs);drawCtx.stroke();
+    drawCtx.beginPath();drawCtx.moveTo(0,i*cs);drawCtx.lineTo(gridSize*cs,i*cs);drawCtx.stroke();
+  }
+
+  updateFrameInfo();
+}
+
+// ---- Render preview ----
+function renderPreviewFrame(frameIdx){
+  previewCtx.clearRect(0,0,gridSize,gridSize);
+  var frame=frames[frameIdx];
+  for(var i=0;i<frame.length;i++){
+    if(frame[i]){
+      previewCtx.fillStyle=frame[i];
+      previewCtx.fillRect(i%gridSize,Math.floor(i/gridSize),1,1);
+    }
+  }
+}
+
+// ---- Timeline ----
+function renderTimeline(){
+  var container=document.getElementById('timeline');
+  container.innerHTML='';
+  for(var f=0;f<frames.length;f++){
+    var thumb=document.createElement('canvas');
+    thumb.width=gridSize;thumb.height=gridSize;
+    thumb.className='frame-thumb'+(f===currentFrame?' sel':'');
+    // Draw frame onto thumb
+    var tc=thumb.getContext('2d');
+    tc.fillStyle='#111';
+    tc.fillRect(0,0,gridSize,gridSize);
+    var frame=frames[f];
+    for(var i=0;i<frame.length;i++){
+      if(frame[i]){
+        tc.fillStyle=frame[i];
+        tc.fillRect(i%gridSize,Math.floor(i/gridSize),1,1);
+      }
+    }
+    thumb.dataset.idx=f;
+    (function(idx){
+      thumb.addEventListener('pointerdown',function(e){
+        e.stopPropagation();
+        currentFrame=idx;
+        renderDrawCanvas();
+        renderTimeline();
+      });
+    })(f);
+    container.appendChild(thumb);
+  }
+  // Scroll to current
+  var sel=container.querySelector('.sel');
+  if(sel)sel.scrollIntoView({block:'nearest',inline:'center'});
+}
+
+function updateFrameInfo(){
+  document.getElementById('frame-num').textContent=currentFrame+1;
+  document.getElementById('frame-total').textContent=frames.length;
+}
+
+// ---- Drawing ----
+function getPixelFromEvent(e){
+  var rect=drawCanvas.getBoundingClientRect();
+  var cs=parseInt(drawCanvas.dataset.cellSize,10);
+  var x=Math.floor((e.clientX-rect.left)/cs);
+  var y=Math.floor((e.clientY-rect.top)/cs);
+  if(x<0||x>=gridSize||y<0||y>=gridSize)return-1;
+  return y*gridSize+x;
+}
+
+function applyTool(idx){
+  if(idx<0||idx>=gridSize*gridSize)return;
+  if(idx===lastPixel)return;
+  lastPixel=idx;
+  var frame=frames[currentFrame];
+
+  if(currentTool==='pen'){
+    frame[idx]=currentColor;
+  }else if(currentTool==='eraser'){
+    frame[idx]=null;
+  }else if(currentTool==='fill'){
+    floodFill(frame,idx,currentColor);
+  }
+  renderDrawCanvas();
+  if(!playbackTimer)renderPreviewFrame(currentFrame);
+}
+
+function floodFill(frame,idx,color){
+  var target=frame[idx];
+  if(target===color)return;
+  var stack=[idx];
+  var visited=new Uint8Array(gridSize*gridSize);
+  while(stack.length>0){
+    var i=stack.pop();
+    if(i<0||i>=gridSize*gridSize)continue;
+    if(visited[i])continue;
+    if(frame[i]!==target)continue;
+    visited[i]=1;
+    frame[i]=color;
+    var x=i%gridSize,y=Math.floor(i/gridSize);
+    if(x>0)stack.push(i-1);
+    if(x<gridSize-1)stack.push(i+1);
+    if(y>0)stack.push(i-gridSize);
+    if(y<gridSize-1)stack.push(i+gridSize);
+  }
+}
+
+drawCanvas.addEventListener('pointerdown',function(e){
+  e.preventDefault();
+  isDrawing=true;
+  lastPixel=-1;
+  applyTool(getPixelFromEvent(e));
+});
+drawCanvas.addEventListener('pointermove',function(e){
+  if(!isDrawing)return;
+  e.preventDefault();
+  applyTool(getPixelFromEvent(e));
+});
+window.addEventListener('pointerup',function(){
+  if(isDrawing){isDrawing=false;lastPixel=-1;renderTimeline()}
+});
+
+// ---- Playback ----
+function startPlayback(){
+  if(frames.length<2)return;
+  stopPlayback();
+  playbackFrame=currentFrame;
+  playbackTimer=setInterval(function(){
+    if(frames.length<1)return;
+    playbackFrame=playbackFrame%frames.length;
+    renderPreviewFrame(playbackFrame);
+    playbackFrame++;
+  },1000/fps);
+  document.getElementById('btn-play').classList.add('active');
+  document.getElementById('btn-play').textContent='Stop';
+}
+
+function stopPlayback(){
+  clearInterval(playbackTimer);
+  playbackTimer=null;
+  renderPreviewFrame(currentFrame);
+  document.getElementById('btn-play').classList.remove('active');
+  document.getElementById('btn-play').textContent='Play';
+}
+
+// ---- Export spritesheet ----
+function exportSpritesheet(){
+  var exportCanvas=document.createElement('canvas');
+  exportCanvas.width=gridSize*frames.length;
+  exportCanvas.height=gridSize;
+  var ectx=exportCanvas.getContext('2d');
+  for(var f=0;f<frames.length;f++){
+    var frame=frames[f];
+    for(var i=0;i<frame.length;i++){
+      if(frame[i]){
+        ectx.fillStyle=frame[i];
+        ectx.fillRect(f*gridSize+i%gridSize,Math.floor(i/gridSize),1,1);
+      }
+    }
+  }
+  var link=document.createElement('a');
+  link.download='spritesheet_'+gridSize+'x'+gridSize+'_'+frames.length+'f.png';
+  link.href=exportCanvas.toDataURL('image/png');
+  link.click();
+}
+
+// ---- Tool selection ----
+var TOOLS={pen:'t-pen',eraser:'t-eraser',fill:'t-fill'};
+function selectTool(t){
+  currentTool=t;
+  var keys=Object.keys(TOOLS);
+  for(var i=0;i<keys.length;i++){
+    document.getElementById(TOOLS[keys[i]]).classList.toggle('sel',keys[i]===t);
+  }
+}
+
+document.getElementById('t-pen').addEventListener('click',function(){selectTool('pen')});
+document.getElementById('t-eraser').addEventListener('click',function(){selectTool('eraser')});
+document.getElementById('t-fill').addEventListener('click',function(){selectTool('fill')});
+document.getElementById('color-pick').addEventListener('input',function(){currentColor=this.value});
+
+document.getElementById('btn-play').addEventListener('click',function(){
+  if(playbackTimer)stopPlayback();
+  else startPlayback();
+});
+
+document.getElementById('sl-fps').addEventListener('input',function(){
+  fps=parseInt(this.value,10);
+  document.getElementById('v-fps').textContent=fps;
+  if(playbackTimer){stopPlayback();startPlayback()}
+});
+
+document.getElementById('btn-clear-frame').addEventListener('click',function(){
+  frames[currentFrame]=createEmptyFrame();
+  renderDrawCanvas();renderTimeline();
+});
+
+document.getElementById('btn-add-frame').addEventListener('click',function(){
+  frames.splice(currentFrame+1,0,createEmptyFrame());
+  currentFrame++;
+  renderDrawCanvas();renderTimeline();
+});
+
+document.getElementById('btn-dup-frame').addEventListener('click',function(){
+  frames.splice(currentFrame+1,0,frames[currentFrame].slice());
+  currentFrame++;
+  renderDrawCanvas();renderTimeline();
+});
+
+document.getElementById('btn-del-frame').addEventListener('click',function(){
+  if(frames.length<=1)return;
+  if(playbackTimer)stopPlayback();
+  frames.splice(currentFrame,1);
+  if(currentFrame>=frames.length)currentFrame=frames.length-1;
+  renderDrawCanvas();renderTimeline();
+});
+
+document.getElementById('cb-onion').addEventListener('change',function(){
+  onionSkin=this.checked;
+  renderDrawCanvas();
+});
+
+document.getElementById('btn-export').addEventListener('click',exportSpritesheet);
+
+document.getElementById('sel-size').addEventListener('change',function(){
+  var newSize=parseInt(this.value,10);
+  if(newSize===gridSize)return;
+  if(playbackTimer)stopPlayback();
+  gridSize=newSize;
+  initFrames();
+  resetCanvas();
+});
+
+// ---- Init ----
+initFrames();
+resetCanvas();
+window.addEventListener('resize',resetCanvas);
+})();
+</script>
+</body>
+</html>

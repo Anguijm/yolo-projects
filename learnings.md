@@ -1403,3 +1403,16 @@ Persistent knowledge base. Read this before every build.
 - **INSIGHT**: In any card game, the card you VALIDATE must be the exact card you MOVE. Never validate one card and pop() a different one
 - **INSIGHT**: Never call getComputedStyle inside a render loop — cache computed values on resize/init
 - **TEST CAUGHT**: Nothing — all bugs found by Gemini
+
+### sprite-studio (2026-03-26)
+- **KEEP**: Checkerboard background for transparency indication — standard pixel art editor pattern
+- **KEEP**: Onion skinning via globalAlpha=0.2 on previous frame before drawing current — simple and effective
+- **KEEP**: PNG spritesheet export (stitch frames horizontally on hidden canvas + toDataURL) — zero-dependency animated output
+- **KEEP**: Flood fill with visited array + stack — iterative, no recursion depth limit
+- **IMPROVE**: Gemini caught preview not updating during draw — must call renderPreviewFrame after every applyTool
+- **IMPROVE**: Playback crash on frame delete/grid resize — timer's frame index goes out of bounds. Fix: stop playback before destructive operations, bound index with modulo before accessing frames array
+- **IMPROVE**: FPS change restarted animation from frame 0 — use module-scoped playbackFrame variable that persists across timer restarts
+- **IMPROVE**: renderTimeline on every pointerup was unnecessary DOM churn — only rebuild when isDrawing was true
+- **INSIGHT**: Any setInterval animation that references an external array MUST bounds-check the index BEFORE accessing the array, because the array can be modified between ticks
+- **INSIGHT**: Canvas .width/.height assignment clears the context — always re-render after resize
+- **TEST CAUGHT**: Nothing — all bugs found by Gemini
