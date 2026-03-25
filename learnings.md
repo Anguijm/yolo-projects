@@ -1364,3 +1364,16 @@ Persistent knowledge base. Read this before every build.
 - **No user-reported bugs** in this stretch — the testing + Gemini audit pipeline continues to work
 - **createElement in render loop** was the most dangerous bug caught (fluid-type) — would have crashed the browser. Added to permanent checklist
 - **Test infrastructure note:** Browser test had transient Playwright timeout on sonic-sight. Not a code bug. Known issue with audio-heavy projects and headless browser
+
+### contrast-check (2026-03-26)
+- **KEEP**: WCAG contrast ratio formula (relative luminance with sRGB linearization) is well-standardized and straightforward to implement
+- **KEEP**: Color blindness simulation via Brettel/Vienot matrices with proper sRGB linearize→transform→gamma pipeline
+- **KEEP**: Palette contrast matrix — cross-referencing all colors pairwise is a powerful visualization for design systems
+- **KEEP**: Auto-fix via binary search on HSL lightness preserves hue/saturation while finding accessible contrast
+- **IMPROVE**: Gemini caught hex regex {3,6} accepts 4 and 5 char hex which are invalid — must use alternation (3|6) for strict matching
+- **IMPROVE**: Auto-fix tested lightness 5/95 instead of 0/100 — missed cases requiring pure black or white
+- **IMPROVE**: Integer rounding in rgbToHex can drop contrast ratio below threshold — add 0.05 buffer to target ratio
+- **IMPROVE**: hexToRgb should substring(0,6) to safely ignore alpha channel if 8-char hex is passed
+- **INSIGHT**: For hex color validation, never use {3,6} range — only {3} or {6} are valid lengths. Use /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/
+- **INSIGHT**: Any binary search that outputs to a quantized space (integer RGB) needs a small buffer on the target to survive rounding
+- **TEST CAUGHT**: Nothing — all bugs found by Gemini
