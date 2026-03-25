@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="theme-color" content="#000000">
+<title>Chaos Pendulum</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{height:100%;background:#050508;overflow:hidden;touch-action:none;-webkit-tap-highlight-color:transparent;font-family:system-ui,sans-serif}
+canvas{display:block;position:absolute;inset:0}
+#panel{position:fixed;bottom:10px;left:50%;transform:translateX(-50%);display:flex;gap:6px;align-items:center;padding:6px 12px;background:rgba(5,5,12,0.9);border:1px solid rgba(255,255,255,0.06);border-radius:10px;z-index:5;backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);opacity:0.3;transition:opacity 0.3s;flex-wrap:wrap;justify-content:center}
+#panel:hover{opacity:1}
+.ctrl{display:flex;flex-direction:column;align-items:center;gap:1px}
+.cl{font-size:0.35rem;color:#444;letter-spacing:0.08em}
+.cv{font-size:0.38rem;color:#555;font-family:monospace}
+input[type="range"]{width:55px;height:2px;accent-color:#555}
+.tb{padding:3px 8px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);color:#444;font-size:0.4rem;cursor:pointer;border-radius:3px;font-family:inherit}
+.tb:active{color:#aaa}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="panel">
+  <div class="ctrl"><span class="cl">Length 1</span><input type="range" id="sl-l1" min="50" max="200" value="120"><span class="cv" id="v-l1">120</span></div>
+  <div class="ctrl"><span class="cl">Length 2</span><input type="range" id="sl-l2" min="50" max="200" value="100"><span class="cv" id="v-l2">100</span></div>
+  <div class="ctrl"><span class="cl">Mass 1</span><input type="range" id="sl-m1" min="1" max="20" value="10"><span class="cv" id="v-m1">10</span></div>
+  <div class="ctrl"><span class="cl">Mass 2</span><input type="range" id="sl-m2" min="1" max="20" value="10"><span class="cv" id="v-m2">10</span></div>
+  <div class="ctrl"><span class="cl">Trail</span><input type="range" id="sl-trail" min="0" max="500" value="200"><span class="cv" id="v-trail">200</span></div>
+  <button class="tb" id="btn-reset">Reset</button>
+  <button class="tb" id="btn-dual">Dual</button>
+</div>
+
+<script>
+(function(){
+'use strict';
+var canvas=document.getElementById('c'),ctx=canvas.getContext('2d');
+var W,H,ox,oy;
+var G=1;
+var L1=120,L2=100,M1=10,M2=10;
+var a1=Math.PI/2*1.2,a2=Math.PI/2*1.5,v1=0,v2=0;
+// Second pendulum for butterfly effect comparison
+var b1,b2,bv1,bv2,showDual=false;
+var trail=[],trail2=[],maxTrail=200;
+
+function resize(){W=window.innerWidth;H=window.innerHeight;canvas.width=W;canvas.height=H;ox=W/2;oy=H*0.35}
+
+function resetPendulum(){
+  a1=Math.PI/2+Math.random()*0.4;a2=Math.PI/2+Math.random()*0.6;v1=0;v2=0;
+  b1=a1+0.001;b2=a2;bv1=0;bv2=0; // Tiny difference for chaos
+  trail=[];trail2=[];
+}
+
+function step(aa1,aa2,av1,av2){
+  // Double pendulum equations of motion (Lagrangian)
+  var da=aa1-aa2;
+  var den1=2*M1+M2-M2*Math.cos(2*da);
+  var num1=-G*(2*M1+M2)*Math.sin(aa1)-M2*G*Math.sin(aa1-2*aa2)-2*Math.sin(da)*M2*(av2*av2*L2+av1*av1*L1*Math.cos(da));
+  var acc1=num1/(L1*den1);
+  var num2=2*Math.sin(da)*(av1*av1*L1*(M1+M2)+G*(M1+M2)*Math.cos(aa1)+av2*av2*L2*M2*Math.cos(da));
+  var acc2=num2/(L2*den1);
+  return{acc1:acc1,acc2:acc2};
+}
+
+function update(){
+  var dt=0.5;
+  for(var i=0;i<3;i++){
+    // Primary pendulum
+    var s=step(a1,a2,v1,v2);
+    v1+=s.acc1*dt;v2+=s.acc2*dt;
+    a1+=v1*dt;a2+=v2*dt;
+    v1*=0.9999;v2*=0.9999; // Tiny friction
+
+    // Secondary (butterfly effect)
+    if(showDual){
+      var s2=step(b1,b2,bv1,bv2);
+      bv1+=s2.acc1*dt;bv2+=s2.acc2*dt;
+      b1+=bv1*dt;b2+=bv2*dt;
+      bv1*=0.9999;bv2*=0.9999;
+    }
+  }
+
+  // Trail (tip of second arm)
+  var x2=ox+L1*Math.sin(a1)+L2*Math.sin(a2);
+  var y2=oy+L1*Math.cos(a1)+L2*Math.cos(a2);
+  trail.push({x:x2,y:y2});
+  if(trail.length>maxTrail)trail.shift();
+
+  if(showDual){
+    var bx2=ox+L1*Math.sin(b1)+L2*Math.sin(b2);
+    var by2=oy+L1*Math.cos(b1)+L2*Math.cos(b2);
+    trail2.push({x:bx2,y:by2});
+    if(trail2.length>maxTrail)trail2.shift();
+  }
+}
+
+function draw(){
+  ctx.fillStyle='#050508';ctx.fillRect(0,0,W,H);
+
+  // Trail
+  function drawTrail(t,color){
+    if(t.length<2)return;
+    for(var i=1;i<t.length;i++){
+      var alpha=i/t.length;
+      ctx.strokeStyle=color.replace('A',alpha.toFixed(2));
+      ctx.lineWidth=1;ctx.beginPath();
+      ctx.moveTo(t[i-1].x,t[i-1].y);ctx.lineTo(t[i].x,t[i].y);ctx.stroke();
+    }
+  }
+  drawTrail(trail,'rgba(0,255,255,A)');
+  if(showDual)drawTrail(trail2,'rgba(255,100,200,A)');
+
+  // Primary pendulum
+  var x1=ox+L1*Math.sin(a1),y1=oy+L1*Math.cos(a1);
+  var x2=x1+L2*Math.sin(a2),y2=y1+L2*Math.cos(a2);
+
+  ctx.strokeStyle='#333';ctx.lineWidth=2;
+  ctx.beginPath();ctx.moveTo(ox,oy);ctx.lineTo(x1,y1);ctx.lineTo(x2,y2);ctx.stroke();
+
+  ctx.fillStyle='#0ff';ctx.shadowColor='#0ff';ctx.shadowBlur=8;
+  ctx.beginPath();ctx.arc(x1,y1,M1*0.5+3,0,Math.PI*2);ctx.fill();
+  ctx.beginPath();ctx.arc(x2,y2,M2*0.5+3,0,Math.PI*2);ctx.fill();
+  ctx.shadowBlur=0;
+
+  // Pivot
+  ctx.fillStyle='#555';ctx.beginPath();ctx.arc(ox,oy,3,0,Math.PI*2);ctx.fill();
+
+  // Dual pendulum
+  if(showDual){
+    var bx1=ox+L1*Math.sin(b1),by1=oy+L1*Math.cos(b1);
+    var bx2=bx1+L2*Math.sin(b2),by2=by1+L2*Math.cos(b2);
+    ctx.strokeStyle='rgba(255,100,200,0.3)';ctx.lineWidth=1;
+    ctx.beginPath();ctx.moveTo(ox,oy);ctx.lineTo(bx1,by1);ctx.lineTo(bx2,by2);ctx.stroke();
+    ctx.fillStyle='#f6c';ctx.beginPath();ctx.arc(bx1,by1,M1*0.3+2,0,Math.PI*2);ctx.fill();
+    ctx.beginPath();ctx.arc(bx2,by2,M2*0.3+2,0,Math.PI*2);ctx.fill();
+  }
+}
+
+function loop(){update();draw();requestAnimationFrame(loop)}
+
+// Controls
+document.getElementById('sl-l1').addEventListener('input',function(e){L1=parseInt(e.target.value,10);document.getElementById('v-l1').textContent=L1});
+document.getElementById('sl-l2').addEventListener('input',function(e){L2=parseInt(e.target.value,10);document.getElementById('v-l2').textContent=L2});
+document.getElementById('sl-m1').addEventListener('input',function(e){M1=parseInt(e.target.value,10);document.getElementById('v-m1').textContent=M1});
+document.getElementById('sl-m2').addEventListener('input',function(e){M2=parseInt(e.target.value,10);document.getElementById('v-m2').textContent=M2});
+document.getElementById('sl-trail').addEventListener('input',function(e){maxTrail=parseInt(e.target.value,10);document.getElementById('v-trail').textContent=maxTrail});
+document.getElementById('btn-reset').addEventListener('click',resetPendulum);
+document.getElementById('btn-dual').addEventListener('click',function(){
+  showDual=!showDual;this.style.color=showDual?'#f6c':'#444';
+  if(showDual){b1=a1+0.001;b2=a2;bv1=v1;bv2=v2;trail2=[]}
+});
+
+resize();window.addEventListener('resize',resize);
+resetPendulum();
+requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>
