@@ -1416,3 +1416,29 @@ Persistent knowledge base. Read this before every build.
 - **INSIGHT**: Any setInterval animation that references an external array MUST bounds-check the index BEFORE accessing the array, because the array can be modified between ticks
 - **INSIGHT**: Canvas .width/.height assignment clears the context — always re-render after resize
 - **TEST CAUGHT**: Nothing — all bugs found by Gemini
+
+### fourier-draw (2026-03-26)
+- **KEEP**: DFT on complex path points (x+yi) — standard formula, sort by amplitude descending for best visual
+- **KEEP**: Path resampling to fixed N points before DFT — even spacing is critical for accurate frequency extraction
+- **KEEP**: Epicycles drawn as chain of rotating circles with connecting arms — mesmerizing visual output
+- **KEEP**: Neon trace with shadowBlur + semi-transparent canvas clear for trail effect
+- **KEEP**: Preset shapes (heart parametric equation, lemniscate) for instant demo without drawing
+- **IMPROVE**: Gemini caught numCircles permanent downgrade — setting global to min(global, dftLength) persisted across drawings. drawFrame already uses Math.min, so don't also clobber the global
+- **IMPROVE**: Speed 0 causes infinite tracePath growth (60 points/sec, never cleared). Cap array length at 2000
+- **IMPROVE**: Preset setTimeout race — clearing during 300ms delay still fires animation. Store timeout ID, clear in stopAnimation
+- **IMPROVE**: Canvas coords must use getBoundingClientRect for offset safety
+- **IMPROVE**: Short paths (<10 points) left canvas dirty — call stopAnimation to properly clean up
+- **INSIGHT**: When a variable is already bounded at USE site (Math.min in drawFrame), don't also bound it at SET site — this permanently downgrades the original value
+- **INSIGHT**: Any unbounded array that grows per frame MUST have a cap. Even 60 pushes/sec = 3600/min = crash in minutes
+- **TEST CAUGHT**: Nothing — all bugs found by Gemini
+
+### 5-Build Review: #131-#135
+**Builds:** contrast-check, beat-forge, solitaire, sprite-studio, fourier-draw
+**Pattern analysis:**
+- **Category explosion:** Design tool, music sequencer, card game, animation editor, math visualization — 5 builds spanning 5 completely different categories
+- **Gemini consistently finding 4-6 bugs per build** — audit process remains the strongest quality gate
+- **Recurring theme: state management across time** — playback timers in beat-forge/sprite-studio, animation frames in fourier-draw, game state in solitaire. All need careful lifecycle management (stop timers on state transitions, clear timeouts, bound growing arrays)
+- **Recurring theme: global state pollution** — numCircles downgrade in fourier-draw, gameWon lock in solitaire. Prefer local bounds over global mutations
+- **New insight patterns:** setTimeout race conditions (fourier-draw presets, picross error flash), canvas coordinate offsets (now in 3+ projects — should be default pattern)
+- **Zero user-reported bugs** — pipeline continues to work
+- **Milestone #135** demonstrates mastery: complex math (DFT), interactive drawing, real-time animation, all in single file

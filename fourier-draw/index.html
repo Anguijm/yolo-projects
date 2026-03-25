@@ -1,0 +1,370 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="theme-color" content="#000000">
+<title>Fourier Draw</title>
+<style>
+:root{--bg:#060610;--accent:#0ff;--trace:#f80;--dim:#333}
+*{margin:0;padding:0;box-sizing:border-box;-webkit-user-select:none;user-select:none}
+html,body{height:100%;background:var(--bg);overflow:hidden;touch-action:none;-webkit-tap-highlight-color:transparent;font-family:system-ui,sans-serif}
+canvas{display:block;position:absolute;inset:0}
+#panel{position:fixed;bottom:10px;left:50%;transform:translateX(-50%);display:flex;gap:6px;align-items:center;padding:6px 12px;background:rgba(6,6,16,0.92);border:1px solid rgba(255,255,255,0.06);border-radius:12px;z-index:5;backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);flex-wrap:wrap;justify-content:center;opacity:1;transition:opacity 0.3s}
+@media(hover:hover){#panel{opacity:0.3}#panel:hover{opacity:1}}
+.btn{padding:5px 12px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);color:#555;font-size:0.4rem;cursor:pointer;border-radius:5px;font-family:inherit;transition:all 0.12s}
+.btn:active{color:#aaa}
+.btn.active{border-color:var(--accent);color:var(--accent)}
+.ctrl{display:flex;align-items:center;gap:3px;font-size:0.32rem;color:#444}
+.ctrl input[type="range"]{width:55px;height:3px;accent-color:var(--accent)}
+.ctrl b{color:#666;font-family:monospace;min-width:20px}
+select{background:#111;border:1px solid rgba(255,255,255,0.08);color:#666;padding:3px 6px;font-size:0.35rem;border-radius:4px;outline:none;font-family:inherit}
+#hint{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);color:rgba(255,255,255,0.08);font-size:0.5rem;z-index:2;pointer-events:none;transition:opacity 0.5s}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="hint">Draw a shape</div>
+<div id="panel">
+  <button class="btn" id="btn-clear">Clear</button>
+  <span class="ctrl">Circles<input type="range" id="sl-n" min="1" max="200" value="100"><b id="v-n">100</b></span>
+  <span class="ctrl">Speed<input type="range" id="sl-speed" min="1" max="10" value="3"><b id="v-speed">3</b></span>
+  <select id="sel-preset">
+    <option value="">Preset...</option>
+    <option value="star">Star</option>
+    <option value="heart">Heart</option>
+    <option value="note">Note</option>
+    <option value="infinity">Infinity</option>
+  </select>
+</div>
+
+<script>
+(function(){
+'use strict';
+
+var canvas=document.getElementById('c'),ctx=canvas.getContext('2d');
+var W,H;
+
+// ---- State machine ----
+var STATE='WAITING'; // WAITING, DRAWING, ANIMATING
+var userPath=[]; // [{x,y}]
+var dftData=[]; // [{re,im,freq,amp,phase}]
+var tracePath=[]; // reconstructed path
+var numCircles=100;
+var speed=3;
+var time=0;
+var animFrame=null;
+var presetTimeout=null;
+
+// ---- Resize ----
+function resize(){
+  W=window.innerWidth;H=window.innerHeight;
+  canvas.width=W;canvas.height=H;
+  if(STATE==='WAITING')drawIdle();
+}
+
+function drawIdle(){
+  ctx.fillStyle='#060610';
+  ctx.fillRect(0,0,W,H);
+}
+
+// ---- Path resampling ----
+function resamplePath(path,n){
+  if(path.length<2)return path;
+  // Calculate total length
+  var totalLen=0;
+  for(var i=1;i<path.length;i++){
+    var dx=path[i].x-path[i-1].x,dy=path[i].y-path[i-1].y;
+    totalLen+=Math.sqrt(dx*dx+dy*dy);
+  }
+  if(totalLen===0)return[path[0]];
+  var step=totalLen/(n-1);
+  var result=[{x:path[0].x,y:path[0].y}];
+  var carry=0,j=1;
+  for(var i=1;i<n&&j<path.length;){
+    var dx=path[j].x-path[j-1].x,dy=path[j].y-path[j-1].y;
+    var segLen=Math.sqrt(dx*dx+dy*dy);
+    if(segLen===0){j++;continue}
+    if(carry+segLen>=step){
+      var t=(step-carry)/segLen;
+      result.push({x:path[j-1].x+dx*t,y:path[j-1].y+dy*t});
+      // Insert interpolated point and continue from there
+      path.splice(j,0,{x:path[j-1].x+dx*t,y:path[j-1].y+dy*t});
+      carry=0;i++;j++;
+    }else{
+      carry+=segLen;j++;
+    }
+  }
+  return result;
+}
+
+// ---- DFT ----
+function computeDFT(points){
+  var N=points.length;
+  var result=[];
+  for(var k=0;k<N;k++){
+    var re=0,im=0;
+    for(var n=0;n<N;n++){
+      var angle=-2*Math.PI*k*n/N;
+      re+=points[n].x*Math.cos(angle)-points[n].y*Math.sin(angle);
+      im+=points[n].x*Math.sin(angle)+points[n].y*Math.cos(angle);
+    }
+    re/=N;im/=N;
+    var amp=Math.sqrt(re*re+im*im);
+    var phase=Math.atan2(im,re);
+    // Map k to centered frequency: 0, 1, -1, 2, -2, ...
+    var freq=k<=N/2?k:k-N;
+    result.push({re:re,im:im,freq:freq,amp:amp,phase:phase});
+  }
+  // Sort by amplitude descending (largest circles first)
+  result.sort(function(a,b){return b.amp-a.amp});
+  return result;
+}
+
+// ---- Drawing input ----
+var isDrawing=false;
+
+canvas.addEventListener('pointerdown',function(e){
+  if(STATE==='ANIMATING')stopAnimation();
+  e.preventDefault();
+  STATE='DRAWING';
+  isDrawing=true;
+  var rect=canvas.getBoundingClientRect();
+  userPath=[{x:e.clientX-rect.left,y:e.clientY-rect.top}];
+  document.getElementById('hint').style.opacity='0';
+  ctx.fillStyle='#060610';ctx.fillRect(0,0,W,H);
+});
+
+canvas.addEventListener('pointermove',function(e){
+  if(!isDrawing)return;
+  e.preventDefault();
+  var rect=canvas.getBoundingClientRect();
+  userPath.push({x:e.clientX-rect.left,y:e.clientY-rect.top});
+  // Draw user stroke
+  if(userPath.length>1){
+    ctx.strokeStyle='rgba(255,255,255,0.5)';
+    ctx.lineWidth=1.5;
+    ctx.beginPath();
+    ctx.moveTo(userPath[userPath.length-2].x,userPath[userPath.length-2].y);
+    ctx.lineTo(userPath[userPath.length-1].x,userPath[userPath.length-1].y);
+    ctx.stroke();
+  }
+});
+
+window.addEventListener('pointerup',function(){
+  if(!isDrawing)return;
+  isDrawing=false;
+  if(userPath.length<10){stopAnimation();return}
+  startAnimation();
+});
+
+// ---- Animation ----
+function startAnimation(){
+  STATE='ANIMATING';
+  // Center the path
+  var cx=W/2,cy=H/2;
+  var sumX=0,sumY=0;
+  for(var i=0;i<userPath.length;i++){sumX+=userPath[i].x;sumY+=userPath[i].y}
+  var avgX=sumX/userPath.length,avgY=sumY/userPath.length;
+  var centered=userPath.map(function(p){return{x:p.x-avgX,y:p.y-avgY}});
+
+  // Resample to fixed number of points
+  var sampled=resamplePath(centered.slice(),250);
+  if(sampled.length<10){STATE='WAITING';return}
+
+  dftData=computeDFT(sampled);
+  tracePath=[];
+  time=0;
+
+  // Update slider max
+  document.getElementById('sl-n').max=dftData.length;
+  // Don't permanently downgrade numCircles — drawFrame already uses Math.min
+  var displayN=Math.min(numCircles,dftData.length);
+  document.getElementById('sl-n').value=displayN;
+  document.getElementById('v-n').textContent=displayN;
+
+  cancelAnimationFrame(animFrame);
+  animLoop();
+}
+
+function stopAnimation(){
+  STATE='WAITING';
+  cancelAnimationFrame(animFrame);
+  clearTimeout(presetTimeout);
+  tracePath=[];
+  ctx.fillStyle='#060610';ctx.fillRect(0,0,W,H);
+  document.getElementById('hint').style.opacity='1';
+}
+
+function animLoop(){
+  if(STATE!=='ANIMATING')return;
+  drawFrame();
+  animFrame=requestAnimationFrame(animLoop);
+}
+
+function drawFrame(){
+  ctx.fillStyle='rgba(6,6,16,0.15)';
+  ctx.fillRect(0,0,W,H);
+
+  var cx=W/2,cy=H/2;
+  var x=cx,y=cy;
+  var N=dftData.length;
+  var n=Math.min(numCircles,N);
+
+  // Draw epicycles
+  for(var i=0;i<n;i++){
+    var d=dftData[i];
+    var prevX=x,prevY=y;
+    var angle=d.freq*time+d.phase;
+    x+=d.amp*Math.cos(angle);
+    y+=d.amp*Math.sin(angle);
+
+    // Circle
+    ctx.strokeStyle='rgba(255,255,255,0.08)';
+    ctx.lineWidth=0.5;
+    ctx.beginPath();
+    ctx.arc(prevX,prevY,d.amp,0,Math.PI*2);
+    ctx.stroke();
+
+    // Arm
+    ctx.strokeStyle='rgba(0,255,255,0.15)';
+    ctx.lineWidth=0.8;
+    ctx.beginPath();
+    ctx.moveTo(prevX,prevY);
+    ctx.lineTo(x,y);
+    ctx.stroke();
+  }
+
+  // Tip dot
+  ctx.fillStyle=var_accent;
+  ctx.beginPath();ctx.arc(x,y,2.5,0,Math.PI*2);ctx.fill();
+
+  // Add to trace path (cap to prevent memory leak at low speed)
+  tracePath.push({x:x,y:y});
+  if(tracePath.length>2000)tracePath.shift();
+
+  // Draw trace
+  if(tracePath.length>1){
+    ctx.strokeStyle=var_trace;
+    ctx.lineWidth=1.5;
+    ctx.shadowColor=var_trace;
+    ctx.shadowBlur=4;
+    ctx.beginPath();
+    ctx.moveTo(tracePath[0].x,tracePath[0].y);
+    for(var i=1;i<tracePath.length;i++){
+      ctx.lineTo(tracePath[i].x,tracePath[i].y);
+    }
+    ctx.stroke();
+    ctx.shadowBlur=0;
+  }
+
+  // Advance time
+  var dt=(2*Math.PI/N)*(speed*0.3);
+  time+=dt;
+
+  // Reset after full cycle
+  if(time>=2*Math.PI){
+    time=0;
+    tracePath=[];
+  }
+}
+var var_accent='#0ff';
+var var_trace='#f80';
+
+// ---- Presets ----
+function generatePreset(type){
+  var pts=[];
+  var r=Math.min(W,H)*0.3;
+  var cx=W/2,cy=H/2;
+  var n=300;
+  if(type==='star'){
+    for(var i=0;i<n;i++){
+      var t=i/n*Math.PI*2;
+      var spike=(i%2===0)?r:r*0.4;
+      // 5-pointed star with smooth interpolation
+      var angle=Math.floor(i/(n/10))*(Math.PI*2/10);
+      var frac=(i%(n/10))/(n/10);
+      var r1=(Math.floor(i/(n/10))%2===0)?r:r*0.4;
+      var r2=(Math.floor(i/(n/10))%2===0)?r*0.4:r;
+      var ri=r1+(r2-r1)*frac;
+      pts.push({x:cx+ri*Math.cos(t-Math.PI/2),y:cy+ri*Math.sin(t-Math.PI/2)});
+    }
+  }else if(type==='heart'){
+    for(var i=0;i<n;i++){
+      var t=i/n*Math.PI*2;
+      var scale=r*0.06;
+      var hx=16*Math.pow(Math.sin(t),3);
+      var hy=-(13*Math.cos(t)-5*Math.cos(2*t)-2*Math.cos(3*t)-Math.cos(4*t));
+      pts.push({x:cx+hx*scale,y:cy+hy*scale});
+    }
+  }else if(type==='note'){
+    // Treble clef approximation — simple music note
+    for(var i=0;i<n;i++){
+      var t=i/n*Math.PI*2;
+      var sc=r*0.7;
+      // Eighth note shape
+      var px,py;
+      if(i<n*0.6){
+        // Circle part
+        var a=t/0.6*Math.PI*2;
+        px=Math.cos(a)*sc*0.3;
+        py=Math.sin(a)*sc*0.3+sc*0.3;
+      }else{
+        // Stem
+        var frac=(i-n*0.6)/(n*0.4);
+        px=sc*0.3;
+        py=sc*0.3-frac*sc*0.8;
+      }
+      pts.push({x:cx+px,y:cy+py});
+    }
+  }else if(type==='infinity'){
+    for(var i=0;i<n;i++){
+      var t=i/n*Math.PI*2;
+      var sc=r*0.8;
+      // Lemniscate of Bernoulli
+      var denom=1+Math.sin(t)*Math.sin(t);
+      pts.push({x:cx+sc*Math.cos(t)/denom,y:cy+sc*Math.sin(t)*Math.cos(t)/denom});
+    }
+  }
+  return pts;
+}
+
+// ---- Controls ----
+document.getElementById('btn-clear').addEventListener('click',stopAnimation);
+
+document.getElementById('sl-n').addEventListener('input',function(){
+  numCircles=parseInt(this.value,10);
+  document.getElementById('v-n').textContent=numCircles;
+  if(STATE==='ANIMATING'){tracePath=[];time=0}
+});
+
+document.getElementById('sl-speed').addEventListener('input',function(){
+  speed=parseInt(this.value,10);
+  document.getElementById('v-speed').textContent=speed;
+});
+
+document.getElementById('sel-preset').addEventListener('change',function(){
+  var v=this.value;
+  if(!v)return;
+  this.value='';
+  userPath=generatePreset(v);
+  document.getElementById('hint').style.opacity='0';
+  // Draw preview
+  ctx.fillStyle='#060610';ctx.fillRect(0,0,W,H);
+  ctx.strokeStyle='rgba(255,255,255,0.3)';ctx.lineWidth=1;
+  ctx.beginPath();
+  ctx.moveTo(userPath[0].x,userPath[0].y);
+  for(var i=1;i<userPath.length;i++)ctx.lineTo(userPath[i].x,userPath[i].y);
+  ctx.closePath();ctx.stroke();
+  presetTimeout=setTimeout(startAnimation,300);
+});
+
+// ---- Init ----
+resize();
+window.addEventListener('resize',resize);
+})();
+</script>
+</body>
+</html>
