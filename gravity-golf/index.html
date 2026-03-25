@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="theme-color" content="#000000">
+<title>Gravity Golf</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-user-select:none;user-select:none}
+html,body{height:100%;background:#020208;overflow:hidden;touch-action:none;-webkit-tap-highlight-color:transparent;font-family:system-ui,sans-serif}
+canvas{display:block;position:absolute;inset:0}
+#hud{position:fixed;top:8px;left:50%;transform:translateX(-50%);display:flex;gap:12px;font-size:0.4rem;color:#668;font-family:monospace;z-index:5;background:rgba(2,2,8,0.8);padding:4px 12px;border-radius:8px;border:1px solid rgba(255,255,255,0.05)}
+#hud b{color:#aac}
+#msg{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);text-align:center;z-index:10;pointer-events:none;display:none}
+#msg h2{font-size:1rem;font-weight:200;margin-bottom:4px}
+#msg p{font-size:0.45rem;color:#668;margin-bottom:8px}
+#msg button{padding:6px 16px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);color:#aac;font-size:0.4rem;cursor:pointer;border-radius:6px;font-family:inherit;pointer-events:auto}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="hud">
+  <span>Level <b id="h-lvl">1</b>/10</span>
+  <span>Strokes: <b id="h-strokes">0</b></span>
+  <span>Par: <b id="h-par">3</b></span>
+</div>
+<div id="msg">
+  <h2 id="msg-title"></h2>
+  <p id="msg-detail"></p>
+  <button id="msg-btn">Next</button>
+</div>
+
+<script>
+(function(){
+'use strict';
+
+var canvas=document.getElementById('c'),ctx=canvas.getContext('2d');
+var W,H;
+
+// ---- Levels ----
+// Each: {ball:[x%,y%], target:[x%,y%], par, wells:[{x%,y%,mass,type:'attract'|'repel'}]}
+var LEVELS=[
+  {ball:[20,50],target:[80,50],par:1,wells:[]},
+  {ball:[15,50],target:[85,50],par:2,wells:[{x:50,y:50,mass:800,type:'attract'}]},
+  {ball:[15,75],target:[85,25],par:2,wells:[{x:50,y:50,mass:1000,type:'attract'}]},
+  {ball:[50,85],target:[50,15],par:2,wells:[{x:30,y:50,mass:600,type:'attract'},{x:70,y:50,mass:600,type:'attract'}]},
+  {ball:[15,50],target:[85,50],par:3,wells:[{x:40,y:40,mass:700,type:'attract'},{x:60,y:60,mass:700,type:'attract'}]},
+  {ball:[20,80],target:[80,20],par:3,wells:[{x:50,y:50,mass:500,type:'repel'}]},
+  {ball:[15,50],target:[85,50],par:3,wells:[{x:35,y:50,mass:800,type:'attract'},{x:65,y:50,mass:500,type:'repel'}]},
+  {ball:[50,90],target:[50,10],par:3,wells:[{x:25,y:50,mass:600,type:'attract'},{x:75,y:50,mass:600,type:'attract'},{x:50,y:30,mass:400,type:'repel'}]},
+  {ball:[10,90],target:[90,10],par:4,wells:[{x:30,y:70,mass:700,type:'attract'},{x:70,y:30,mass:700,type:'attract'},{x:50,y:50,mass:500,type:'repel'}]},
+  {ball:[50,90],target:[50,10],par:4,wells:[{x:20,y:60,mass:500,type:'attract'},{x:80,y:60,mass:500,type:'attract'},{x:50,y:40,mass:600,type:'repel'},{x:50,y:70,mass:400,type:'attract'}]}
+];
+
+// ---- State ----
+var currentLevel=0;
+var ball={x:0,y:0,vx:0,vy:0,active:false};
+var startX=0,startY=0; // ball start position
+var target={x:0,y:0,r:14};
+var wells=[];
+var strokes=0;
+var trail=[];
+var MAX_TRAIL=120;
+
+// Aiming state
+var isAiming=false;
+var aimX=0,aimY=0;
+var POWER_SCALE=0.08;
+var MAX_POWER=12;
+
+var gameState='aiming'; // aiming, flying, won, oob
+
+// ---- Load level ----
+function loadLevel(idx){
+  if(idx>=LEVELS.length)idx=0;
+  currentLevel=idx;
+  var L=LEVELS[idx];
+  startX=L.ball[0]/100*W;startY=L.ball[1]/100*H;
+  ball.x=startX;ball.y=startY;ball.vx=0;ball.vy=0;ball.active=false;
+  target.x=L.target[0]/100*W;target.y=L.target[1]/100*H;
+  wells=L.wells.map(function(w){return{x:w.x/100*W,y:w.y/100*H,mass:w.mass,type:w.type}});
+  strokes=0;trail=[];
+  gameState='aiming';
+  hideMsg();
+  updateHUD();
+}
+
+function resetShot(){
+  ball.x=startX;ball.y=startY;ball.vx=0;ball.vy=0;ball.active=false;
+  trail=[];
+  gameState='aiming';
+}
+
+// ---- Physics ----
+function updateBall(){
+  if(!ball.active)return;
+  var dt=0.5;
+  for(var step=0;step<3;step++){
+    // Gravity from wells
+    for(var i=0;i<wells.length;i++){
+      var w=wells[i];
+      var dx=w.x-ball.x,dy=w.y-ball.y;
+      var d2=dx*dx+dy*dy;
+      var d=Math.sqrt(d2);
+      if(d<8&&w.type==='attract'){gameState='oob';ball.active=false;return}
+      if(d<0.001)d=0.001;
+      var f=w.mass/(d2+100); // softening
+      var dir=w.type==='attract'?1:-1;
+      ball.vx+=dx/d*f*dir*dt;
+      ball.vy+=dy/d*f*dir*dt;
+    }
+    // Speed cap
+    var spd=Math.sqrt(ball.vx*ball.vx+ball.vy*ball.vy);
+    if(spd>MAX_POWER){ball.vx=ball.vx/spd*MAX_POWER;ball.vy=ball.vy/spd*MAX_POWER}
+    ball.x+=ball.vx*dt;
+    ball.y+=ball.vy*dt;
+  }
+
+  // Trail
+  trail.push({x:ball.x,y:ball.y});
+  if(trail.length>MAX_TRAIL)trail.shift();
+
+  // Check target collision
+  var tdx=ball.x-target.x,tdy=ball.y-target.y;
+  if(tdx*tdx+tdy*tdy<(target.r+5)*(target.r+5)){
+    gameState='won';
+    ball.active=false;
+    showWin();
+    return;
+  }
+
+  // Out of bounds
+  if(ball.x<-50||ball.x>W+50||ball.y<-50||ball.y>H+50){
+    gameState='oob';
+    ball.active=false;
+  }
+}
+
+// ---- Trajectory preview ----
+function computeTrajectory(sx,sy,vx,vy,steps){
+  var pts=[{x:sx,y:sy}];
+  var bx=sx,by=sy,bvx=vx,bvy=vy;
+  var dt=0.5;
+  for(var s=0;s<steps;s++){
+    for(var i=0;i<wells.length;i++){
+      var w=wells[i];
+      var dx=w.x-bx,dy=w.y-by;
+      var d2=dx*dx+dy*dy;
+      var d=Math.sqrt(d2);
+      if(d<8&&w.type==='attract')break;
+      if(d<0.001)d=0.001;
+      var f=w.mass/(d2+100);
+      var dir=w.type==='attract'?1:-1;
+      bvx+=dx/d*f*dir*dt;
+      bvy+=dy/d*f*dir*dt;
+    }
+    var spd=Math.sqrt(bvx*bvx+bvy*bvy);
+    if(spd>MAX_POWER){bvx=bvx/spd*MAX_POWER;bvy=bvy/spd*MAX_POWER}
+    bx+=bvx*dt;by+=bvy*dt;
+    pts.push({x:bx,y:by});
+    if(bx<-50||bx>W+50||by<-50||by>H+50)break;
+  }
+  return pts;
+}
+
+// ---- Drawing ----
+function draw(){
+  ctx.fillStyle='#020208';ctx.fillRect(0,0,W,H);
+
+  // Stars background
+  if(!draw.stars){
+    draw.stars=[];
+    for(var i=0;i<80;i++)draw.stars.push({x:Math.random()*W,y:Math.random()*H,b:0.2+Math.random()*0.4});
+  }
+  for(var i=0;i<draw.stars.length;i++){
+    var s=draw.stars[i];
+    ctx.fillStyle='rgba(200,200,255,'+s.b+')';
+    ctx.fillRect(s.x,s.y,1,1);
+  }
+
+  // Wells
+  for(var i=0;i<wells.length;i++){
+    var w=wells[i];
+    var isRepel=w.type==='repel';
+    var r=Math.sqrt(w.mass)*0.12;
+    // Glow rings
+    for(var ring=1;ring<=3;ring++){
+      ctx.strokeStyle=isRepel?'rgba(255,100,50,0.06)':'rgba(100,150,255,0.06)';
+      ctx.lineWidth=0.5;
+      ctx.beginPath();ctx.arc(w.x,w.y,r*ring*2,0,Math.PI*2);ctx.stroke();
+    }
+    // Core
+    ctx.shadowColor=isRepel?'#f64':'#48f';ctx.shadowBlur=10;
+    ctx.fillStyle=isRepel?'#f64':'#48f';
+    ctx.beginPath();ctx.arc(w.x,w.y,r,0,Math.PI*2);ctx.fill();
+    ctx.shadowBlur=0;
+    // Label
+    ctx.fillStyle='rgba(255,255,255,0.3)';ctx.font='8px monospace';ctx.textAlign='center';
+    ctx.fillText(isRepel?'−':'+',w.x,w.y+3);
+  }
+
+  // Target
+  ctx.shadowColor='#0f0';ctx.shadowBlur=8;
+  ctx.strokeStyle='#0f0';ctx.lineWidth=2;
+  ctx.beginPath();ctx.arc(target.x,target.y,target.r,0,Math.PI*2);ctx.stroke();
+  ctx.beginPath();ctx.arc(target.x,target.y,target.r*0.4,0,Math.PI*2);ctx.stroke();
+  ctx.shadowBlur=0;
+
+  // Trail
+  if(trail.length>1){
+    for(var i=1;i<trail.length;i++){
+      var alpha=i/trail.length;
+      ctx.strokeStyle='rgba(255,200,50,'+alpha.toFixed(2)+')';
+      ctx.lineWidth=1.5*alpha;
+      ctx.beginPath();
+      ctx.moveTo(trail[i-1].x,trail[i-1].y);
+      ctx.lineTo(trail[i].x,trail[i].y);
+      ctx.stroke();
+    }
+  }
+
+  // Aim trajectory preview
+  if(isAiming&&gameState==='aiming'){
+    var dx=ball.x-aimX,dy=ball.y-aimY;
+    var vx=dx*POWER_SCALE,vy=dy*POWER_SCALE;
+    // Clamp
+    var spd=Math.sqrt(vx*vx+vy*vy);
+    if(spd>MAX_POWER){vx=vx/spd*MAX_POWER;vy=vy/spd*MAX_POWER}
+    var pts=computeTrajectory(ball.x,ball.y,vx,vy,80);
+    ctx.setLineDash([3,5]);
+    ctx.strokeStyle='rgba(255,255,255,0.2)';ctx.lineWidth=1;
+    ctx.beginPath();
+    ctx.moveTo(pts[0].x,pts[0].y);
+    for(var i=1;i<pts.length;i++)ctx.lineTo(pts[i].x,pts[i].y);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // Aim line
+    ctx.strokeStyle='rgba(255,255,255,0.3)';ctx.lineWidth=1;
+    ctx.beginPath();ctx.moveTo(ball.x,ball.y);ctx.lineTo(aimX,aimY);ctx.stroke();
+    // Power indicator
+    var pwr=Math.min(spd/MAX_POWER,1);
+    ctx.fillStyle='rgba(255,'+Math.round(255*(1-pwr))+',50,0.6)';
+    ctx.beginPath();ctx.arc(aimX,aimY,4+pwr*4,0,Math.PI*2);ctx.fill();
+  }
+
+  // Ball
+  if(gameState!=='oob'||ball.active){
+    ctx.shadowColor='#ff8';ctx.shadowBlur=6;
+    ctx.fillStyle='#ffa';
+    ctx.beginPath();ctx.arc(ball.x,ball.y,5,0,Math.PI*2);ctx.fill();
+    ctx.shadowBlur=0;
+  }
+
+  // OOB message
+  if(gameState==='oob'&&!ball.active){
+    ctx.fillStyle='rgba(255,100,100,0.6)';ctx.font='12px monospace';ctx.textAlign='center';
+    ctx.fillText('Miss! Tap to retry',W/2,H/2);
+  }
+}
+
+// ---- UI ----
+function updateHUD(){
+  document.getElementById('h-lvl').textContent=currentLevel+1;
+  document.getElementById('h-strokes').textContent=strokes;
+  document.getElementById('h-par').textContent=LEVELS[currentLevel].par;
+}
+
+function showWin(){
+  var par=LEVELS[currentLevel].par;
+  var diff=strokes-par;
+  var rating=diff<0?'Under par!':diff===0?'Par':diff===1?'Bogey':'Over par';
+  document.getElementById('msg-title').textContent='Hole '+( currentLevel+1)+' Complete!';
+  document.getElementById('msg-title').style.color=diff<=0?'#4f4':'#fa0';
+  document.getElementById('msg-detail').textContent=strokes+' stroke'+(strokes>1?'s':'')+' (Par '+par+') — '+rating;
+  document.getElementById('msg-btn').textContent=currentLevel<LEVELS.length-1?'Next Level':'Play Again';
+  document.getElementById('msg').style.display='block';
+}
+
+function hideMsg(){document.getElementById('msg').style.display='none'}
+
+// ---- Input ----
+canvas.addEventListener('pointerdown',function(e){
+  e.preventDefault();
+  var rect=canvas.getBoundingClientRect();
+  var px=e.clientX-rect.left,py=e.clientY-rect.top;
+
+  if(gameState==='oob'){
+    resetShot();
+    return;
+  }
+  if(gameState!=='aiming')return;
+
+  isAiming=true;
+  aimX=px;aimY=py;
+});
+
+window.addEventListener('pointermove',function(e){
+  if(!isAiming)return;
+  e.preventDefault();
+  var rect=canvas.getBoundingClientRect();
+  aimX=e.clientX-rect.left;
+  aimY=e.clientY-rect.top;
+});
+
+window.addEventListener('pointerup',function(e){
+  if(!isAiming)return;
+  isAiming=false;
+
+  // Launch ball
+  var dx=ball.x-aimX,dy=ball.y-aimY;
+  var dist=Math.sqrt(dx*dx+dy*dy);
+  if(dist<10)return; // too short, ignore
+
+  ball.vx=dx*POWER_SCALE;
+  ball.vy=dy*POWER_SCALE;
+  var spd=Math.sqrt(ball.vx*ball.vx+ball.vy*ball.vy);
+  if(spd>MAX_POWER){ball.vx=ball.vx/spd*MAX_POWER;ball.vy=ball.vy/spd*MAX_POWER}
+  ball.active=true;
+  strokes++;
+  trail=[];
+  gameState='flying';
+  updateHUD();
+});
+
+document.getElementById('msg-btn').addEventListener('click',function(){
+  if(currentLevel<LEVELS.length-1){
+    loadLevel(currentLevel+1);
+  }else{
+    loadLevel(0);
+  }
+});
+
+// ---- Resize ----
+function resize(){
+  W=window.innerWidth;H=window.innerHeight;
+  canvas.width=W;canvas.height=H;
+  draw.stars=null;
+  // Recalculate positions without resetting game state/strokes
+  var L=LEVELS[currentLevel];
+  startX=L.ball[0]/100*W;startY=L.ball[1]/100*H;
+  target.x=L.target[0]/100*W;target.y=L.target[1]/100*H;
+  wells=L.wells.map(function(w){return{x:w.x/100*W,y:w.y/100*H,mass:w.mass,type:w.type}});
+  if(gameState==='aiming'||gameState==='oob'){ball.x=startX;ball.y=startY}
+}
+
+// ---- Main loop ----
+function loop(){
+  if(gameState==='flying')updateBall();
+  draw();
+  requestAnimationFrame(loop);
+}
+
+// ---- Init ----
+resize();
+window.addEventListener('resize',resize);
+requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>

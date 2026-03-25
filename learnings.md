@@ -1456,3 +1456,16 @@ Persistent knowledge base. Read this before every build.
 - **INSIGHT**: For graph-based simulations, use convergence check (did any state change?) rather than fixed pass count. Cap iterations to prevent infinite loops from feedback circuits
 - **INSIGHT**: All hit-testing functions in a layered canvas must iterate in the SAME direction (backward = topmost first)
 - **TEST CAUGHT**: Nothing — all bugs found by Gemini
+
+### gravity-golf (2026-03-26)
+- **KEEP**: Slingshot aim with predictive trajectory — essential for physics puzzle games, makes them feel fair
+- **KEEP**: Percentage-based level coordinates (x/100*W) — scales to any screen size naturally
+- **KEEP**: Attract (blue) + repel (orange) wells — doubles puzzle design space with just one extra mechanic
+- **KEEP**: Par scoring with golf terminology — gives players a goal beyond just completing the level
+- **IMPROVE**: Gemini caught par=0 labeled as "Under par" — must distinguish diff<0 (under), diff===0 (par), diff===1 (bogey)
+- **IMPROVE**: Trajectory preview broke on repel wells — computeTrajectory had `if(d<8)break` for ALL wells but actual physics only absorbs on attract. Must match preview physics to actual physics exactly
+- **IMPROVE**: Resize called loadLevel which reset strokes/state — mobile address bar hide triggers resize. Must recalculate positions without resetting game state
+- **IMPROVE**: Divide-by-zero possible if ball hits exact well center — add epsilon guard (d<0.001 → d=0.001)
+- **INSIGHT**: Trajectory preview must use IDENTICAL physics to the actual simulation. Any discrepancy makes the game feel unfair
+- **INSIGHT**: Resize handler must distinguish "recalculate layout" from "reset game state" — never reset progress on resize
+- **TEST CAUGHT**: Nothing — all bugs found by Gemini
