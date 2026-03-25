@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="theme-color" content="#000000">
+<title>Orbit Well</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{height:100%;background:#020208;overflow:hidden;touch-action:none;-webkit-tap-highlight-color:transparent;font-family:system-ui,sans-serif}
+canvas{display:block;position:absolute;inset:0;cursor:crosshair}
+#bar{position:fixed;bottom:8px;left:50%;transform:translateX(-50%);display:flex;gap:4px;padding:5px 10px;background:rgba(2,2,8,0.9);border:1px solid rgba(255,255,255,0.05);border-radius:10px;z-index:5;backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);opacity:1;transition:opacity 0.3s}
+@media(hover:hover){#bar{opacity:0.3}#bar:hover{opacity:1}}
+.tb{padding:3px 8px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);color:#444;font-size:0.4rem;cursor:pointer;border-radius:3px;font-family:inherit}
+.tb:active{color:#aaa}
+.cl{font-size:0.35rem;color:#333;display:flex;align-items:center;gap:2px}
+input[type="range"]{width:50px;height:2px;accent-color:#444}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="bar">
+  <button class="tb" id="btn-clear">Clear</button>
+  <button class="tb" id="btn-burst">Burst</button>
+  <span class="cl">Mass<input type="range" id="sl-mass" min="500" max="5000" value="2000"></span>
+  <span class="cl">Particles<input type="range" id="sl-rate" min="0" max="10" value="3"></span>
+</div>
+
+<script>
+(function(){
+'use strict';
+var canvas=document.getElementById('c'),ctx=canvas.getContext('2d');
+var W,H;
+var wells=[]; // {x,y,mass}
+var particles=[]; // {x,y,vx,vy,life}
+var MAX_P=3000;
+var wellMass=2000,spawnRate=3;
+
+function resize(){W=window.innerWidth;H=window.innerHeight;canvas.width=W;canvas.height=H}
+
+function update(){
+  // Spawn particles from edges
+  for(var s=0;s<spawnRate;s++){
+    if(particles.length>=MAX_P)break;
+    var side=Math.floor(Math.random()*4);
+    var px,py,pvx,pvy;
+    if(side===0){px=Math.random()*W;py=0;pvx=(Math.random()-0.5)*0.5;pvy=Math.random()*1+0.3}
+    else if(side===1){px=W;py=Math.random()*H;pvx=-Math.random()*1-0.3;pvy=(Math.random()-0.5)*0.5}
+    else if(side===2){px=Math.random()*W;py=H;pvx=(Math.random()-0.5)*0.5;pvy=-Math.random()*1-0.3}
+    else{px=0;py=Math.random()*H;pvx=Math.random()*1+0.3;pvy=(Math.random()-0.5)*0.5}
+    particles.push({x:px,y:py,vx:pvx,vy:pvy,life:1});
+  }
+
+  // Physics
+  for(var i=particles.length-1;i>=0;i--){
+    var p=particles[i];
+    // Gravity from wells
+    for(var j=0;j<wells.length;j++){
+      var dx=wells[j].x-p.x,dy=wells[j].y-p.y;
+      var d2=dx*dx+dy*dy;
+      if(d2<100){particles.splice(i,1);p=null;break} // Absorbed
+      var d=Math.sqrt(d2);
+      var f=wells[j].mass/(d2);
+      p.vx+=dx/d*f;p.vy+=dy/d*f;
+    }
+    if(!p)continue;
+    // Speed cap
+    var spd=Math.sqrt(p.vx*p.vx+p.vy*p.vy);
+    if(spd>8&&spd>0.0001){p.vx=p.vx/spd*8;p.vy=p.vy/spd*8}
+    p.x+=p.vx;p.y+=p.vy;
+    p.life-=0.001;
+    // Remove if off-screen or dead
+    if(p.life<=0||p.x<-50||p.x>W+50||p.y<-50||p.y>H+50){
+      particles.splice(i,1);
+    }
+  }
+}
+
+function draw(){
+  ctx.fillStyle='rgba(2,2,8,0.12)';ctx.fillRect(0,0,W,H);
+
+  // Particles
+  for(var i=0;i<particles.length;i++){
+    var p=particles[i];
+    var spd=Math.sqrt(p.vx*p.vx+p.vy*p.vy);
+    var hue=200+spd*20; // Blue→cyan→white with speed
+    ctx.fillStyle='hsla('+hue+',70%,'+(40+spd*8)+'%,'+p.life+')';
+    ctx.fillRect(p.x,p.y,1.5,1.5);
+  }
+
+  // Wells
+  for(var i=0;i<wells.length;i++){
+    var w=wells[i];
+    var r=Math.sqrt(w.mass)*0.15;
+    // Glow rings
+    ctx.strokeStyle='rgba(255,255,255,0.06)';ctx.lineWidth=0.5;
+    for(var ring=1;ring<=3;ring++){
+      ctx.beginPath();ctx.arc(w.x,w.y,r*ring*2,0,Math.PI*2);ctx.stroke();
+    }
+    ctx.fillStyle='#fff';ctx.shadowColor='#fff';ctx.shadowBlur=10;
+    ctx.beginPath();ctx.arc(w.x,w.y,r,0,Math.PI*2);ctx.fill();
+    ctx.shadowBlur=0;
+  }
+}
+
+function loop(){update();draw();requestAnimationFrame(loop)}
+
+// Input
+canvas.addEventListener('click',function(e){
+  // Check if clicking on existing well to remove it (mobile-friendly)
+  for(var i=0;i<wells.length;i++){
+    var dx=wells[i].x-e.clientX,dy=wells[i].y-e.clientY;
+    if(dx*dx+dy*dy<900){wells.splice(i,1);return}
+  }
+  wells.push({x:e.clientX,y:e.clientY,mass:wellMass});
+});
+canvas.addEventListener('contextmenu',function(e){
+  e.preventDefault();
+  // Remove nearest well
+  var best=-1,bestD=Infinity;
+  for(var i=0;i<wells.length;i++){
+    var dx=wells[i].x-e.clientX,dy=wells[i].y-e.clientY;
+    var d=dx*dx+dy*dy;
+    if(d<bestD){bestD=d;best=i}
+  }
+  if(best>=0&&bestD<2500)wells.splice(best,1);
+});
+
+document.getElementById('btn-clear').addEventListener('click',function(){wells=[];particles=[]});
+document.getElementById('btn-burst').addEventListener('click',function(){
+  for(var i=0;i<200;i++){
+    if(particles.length>=MAX_P)break;
+    var angle=Math.random()*Math.PI*2;
+    var spd=1+Math.random()*2;
+    particles.push({x:W/2,y:H/2,vx:Math.cos(angle)*spd,vy:Math.sin(angle)*spd,life:1});
+  }
+});
+document.getElementById('sl-mass').addEventListener('input',function(e){wellMass=parseInt(e.target.value,10)});
+document.getElementById('sl-rate').addEventListener('input',function(e){spawnRate=parseInt(e.target.value,10)});
+
+resize();window.addEventListener('resize',resize);
+requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>

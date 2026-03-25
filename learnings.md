@@ -1278,3 +1278,13 @@ Persistent knowledge base. Read this before every build.
 - **New domains touched:** Interactive fiction (tale-weaver), music theory (harmonic-forge) — two categories that had zero representation before.
 - **Recurring test issue:** Comment keyword "overlay" caused false positive (4th occurrence total). Consider updating test to only match HTML content, not JS comments.
 - **Portfolio: 120 projects.** Post-100 era consistently high quality. 20 projects since hitting 100, all working.
+
+### orbit-well (2026-03-25)
+- **KEEP**: Semi-transparent fillRect overlay for trail effect — simple, performant, looks great
+- **KEEP**: Speed-based HSL coloring (hue + lightness shift) gives particles natural energy visualization
+- **IMPROVE**: Burst button bypassed MAX_P limit — Gemini caught this. Always enforce limits at every particle creation point, not just the spawn loop
+- **IMPROVE**: Mobile hover opacity — `@media(hover:hover)` is the correct pattern for hover-only styles. Default to visible, hide only on hover-capable devices
+- **IMPROVE**: Right-click-only removal doesn't work on mobile — added click-on-well-to-remove as universal alternative
+- **INSIGHT**: For any particle limit, enforce it at EVERY creation point (spawn loop, burst, any future additions). A single bypass can crash the tab
+- **INSIGHT**: `@media(hover:hover)` should be the default pattern for all toolbar opacity tricks going forward — fixes mobile accessibility for free
+- **TEST CAUGHT**: Nothing — all bugs found by Gemini this round
