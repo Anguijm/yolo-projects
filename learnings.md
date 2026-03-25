@@ -1328,3 +1328,16 @@ Persistent knowledge base. Read this before every build.
 - **INSIGHT**: OscillatorNode.type can be changed on a live running oscillator without stopping/restarting it — this is far smoother
 - **INSIGHT**: setTargetAtTime(value, currentTime, 0.015) gives smooth ~15ms ramp that eliminates clicks while feeling instant
 - **TEST CAUGHT**: Browser test timeout — transient Playwright infrastructure issue, not a code bug. Page verified manually. Same class as ink-stack/neon-runner timeouts.
+
+### picross (2026-03-25)
+- **KEEP**: Handcrafted puzzle data as binary 2D arrays — clues auto-generated, tiny file size, no human error in clue authoring
+- **KEEP**: Fill/Cross mode toggle instead of long-press — faster gameplay flow, more accessible on mobile
+- **KEEP**: Progressive level unlock with localStorage persistence — gives real sense of progression
+- **KEEP**: Pixel art color reveal on completion — transforms a logic exercise into a visual reward
+- **IMPROVE**: Gemini caught missing game state lock — must prevent all interaction after win/loss. Any game needs a state machine (playing/won/lost)
+- **IMPROVE**: drawMode must be established on pointerdown and enforced throughout drag — otherwise drag toggles chaotically between fill/erase/cross
+- **IMPROVE**: setTimeout race condition on retry — pending timeouts from previous game corrupt fresh board. Always clear pending timeouts on game restart
+- **IMPROVE**: localStorage.setItem can throw in private browsing — always wrap in try/catch
+- **INSIGHT**: For any game with win/loss states: (1) set gameState flag, (2) check it in every input handler, (3) clear all pending timeouts on restart
+- **INSIGHT**: Event listeners should be attached once, not inside renderBoard which runs on every level start. Same-reference listeners are safely deduplicated by browsers but it's fragile
+- **TEST CAUGHT**: Nothing — all bugs found by Gemini

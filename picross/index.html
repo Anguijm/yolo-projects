@@ -1,0 +1,511 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="theme-color" content="#000000">
+<title>Picross</title>
+<style>
+:root{--bg:#0a0a12;--panel:#0e0e1a;--border:rgba(255,255,255,0.06);--accent:#0ff;--cell:28px;--text:#888;--dim:#444}
+*{margin:0;padding:0;box-sizing:border-box;-webkit-user-select:none;user-select:none}
+html,body{height:100%;background:var(--bg);overflow-y:auto;touch-action:manipulation;-webkit-tap-highlight-color:transparent;font-family:system-ui,sans-serif;color:var(--text)}
+#app{max-width:500px;margin:0 auto;padding:10px}
+
+/* Views */
+.view{display:none}
+.view.active{display:block}
+
+/* Menu */
+#menu{text-align:center;padding-top:60px}
+#menu h1{font-size:1.4rem;font-weight:200;color:#ccc;letter-spacing:0.2em;margin-bottom:4px}
+#menu p{font-size:0.4rem;color:var(--dim);margin-bottom:30px}
+.menu-btn{display:block;width:200px;margin:0 auto 10px;padding:12px;background:var(--panel);border:1px solid var(--border);color:#aaa;font-size:0.5rem;cursor:pointer;border-radius:8px;font-family:inherit;transition:all 0.15s}
+.menu-btn:active{border-color:var(--accent);color:var(--accent)}
+
+/* Level Select */
+#levels h2{font-size:0.5rem;color:var(--dim);letter-spacing:0.15em;text-align:center;margin-bottom:12px}
+.level-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin-bottom:12px}
+.lvl-btn{aspect-ratio:1;background:var(--panel);border:1px solid var(--border);color:var(--dim);font-size:0.45rem;cursor:pointer;border-radius:6px;font-family:monospace;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:2px;transition:all 0.15s}
+.lvl-btn.unlocked{color:#aaa;border-color:rgba(255,255,255,0.1)}
+.lvl-btn.unlocked:active{border-color:var(--accent)}
+.lvl-btn.done{color:var(--accent);border-color:rgba(0,255,255,0.15)}
+.lvl-btn.locked{opacity:0.3;cursor:default}
+.lvl-btn .sz{font-size:0.28rem;color:var(--dim)}
+.back-btn{display:block;margin:8px auto;padding:6px 16px;background:transparent;border:1px solid var(--border);color:var(--dim);font-size:0.4rem;cursor:pointer;border-radius:4px;font-family:inherit}
+
+/* Puzzle */
+#puzzle-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+#puzzle-title{font-size:0.45rem;color:var(--dim)}
+#lives{font-size:0.45rem;color:#f44}
+#board-wrap{display:flex;justify-content:center;margin-bottom:8px;overflow:auto}
+#board-area{display:inline-block;touch-action:none}
+.clue-row{display:flex;align-items:center}
+.col-clues{display:flex;margin-left:0}
+.col-clue{width:var(--cell);display:flex;flex-direction:column;align-items:center;justify-content:flex-end;gap:0;padding:0 1px 2px}
+.col-clue span{font-size:0.3rem;color:var(--dim);font-family:monospace;line-height:1.2}
+.col-clue.done span{color:rgba(0,255,255,0.25)}
+.row-clue{display:flex;align-items:center;justify-content:flex-end;gap:2px;padding-right:4px;min-width:40px}
+.row-clue span{font-size:0.3rem;color:var(--dim);font-family:monospace}
+.row-clue.done span{color:rgba(0,255,255,0.25)}
+.grid-row{display:flex}
+.cell{width:var(--cell);height:var(--cell);background:var(--panel);border:1px solid rgba(255,255,255,0.04);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:0.35rem;color:#555;transition:background 0.1s}
+.cell.filled{background:#ccc}
+.cell.crossed::after{content:'×';font-size:0.4rem;color:#555}
+.cell.error{background:#f44;animation:shake 0.3s}
+.cell.reveal{transition:background 0.3s}
+@keyframes shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-3px)}75%{transform:translateX(3px)}}
+
+/* Controls */
+#controls{display:flex;gap:6px;justify-content:center;align-items:center;margin-bottom:8px}
+.ctrl-btn{padding:6px 14px;background:var(--panel);border:1px solid var(--border);color:var(--dim);font-size:0.4rem;cursor:pointer;border-radius:6px;font-family:inherit;transition:all 0.15s}
+.ctrl-btn.active{border-color:var(--accent);color:var(--accent)}
+.ctrl-btn:active{color:#aaa}
+
+/* Win screen */
+#win-msg{display:none;text-align:center;padding:16px}
+#win-msg h2{font-size:0.7rem;color:var(--accent);font-weight:300;margin-bottom:4px}
+#win-msg p{font-size:0.4rem;color:var(--dim);margin-bottom:10px}
+
+/* Lose */
+#lose-msg{display:none;text-align:center;padding:16px}
+#lose-msg h2{font-size:0.7rem;color:#f44;font-weight:300;margin-bottom:4px}
+#lose-msg p{font-size:0.4rem;color:var(--dim);margin-bottom:10px}
+</style>
+</head>
+<body>
+<div id="app">
+  <!-- Menu -->
+  <div class="view active" id="menu">
+    <h1>PICROSS</h1>
+    <p>Logic puzzles that reveal pixel art</p>
+    <button class="menu-btn" id="btn-play-menu">Play</button>
+  </div>
+
+  <!-- Level Select -->
+  <div class="view" id="levels">
+    <h2>SELECT PUZZLE</h2>
+    <div class="level-grid" id="level-grid"></div>
+    <button class="back-btn" id="btn-back-menu">Back</button>
+  </div>
+
+  <!-- Puzzle -->
+  <div class="view" id="game">
+    <div id="puzzle-header">
+      <span id="puzzle-title"></span>
+      <span id="lives"></span>
+    </div>
+    <div id="board-wrap"><div id="board-area"></div></div>
+    <div id="controls">
+      <button class="ctrl-btn active" id="btn-fill">Fill</button>
+      <button class="ctrl-btn" id="btn-cross">Cross</button>
+      <button class="ctrl-btn" id="btn-back-levels">Levels</button>
+    </div>
+    <div id="win-msg">
+      <h2>SOLVED!</h2>
+      <p id="win-detail"></p>
+      <button class="ctrl-btn" id="btn-next">Next Puzzle</button>
+    </div>
+    <div id="lose-msg">
+      <h2>3 STRIKES</h2>
+      <p>Too many mistakes. Try again!</p>
+      <button class="ctrl-btn" id="btn-retry">Retry</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+'use strict';
+
+// ---- Puzzle Data ----
+// Each puzzle: {name, size, color, data:[row arrays of 0/1]}
+var PUZZLES=[
+  // 5x5 Easy
+  {name:'Heart',size:5,color:'#f44',data:[[0,1,0,1,0],[1,1,1,1,1],[1,1,1,1,1],[0,1,1,1,0],[0,0,1,0,0]]},
+  {name:'Cross',size:5,color:'#0ff',data:[[0,0,1,0,0],[0,0,1,0,0],[1,1,1,1,1],[0,0,1,0,0],[0,0,1,0,0]]},
+  {name:'Arrow',size:5,color:'#0f6',data:[[0,0,1,0,0],[0,1,1,1,0],[1,0,1,0,1],[0,0,1,0,0],[0,0,1,0,0]]},
+  {name:'Diamond',size:5,color:'#fa0',data:[[0,0,1,0,0],[0,1,0,1,0],[1,0,0,0,1],[0,1,0,1,0],[0,0,1,0,0]]},
+  {name:'Cup',size:5,color:'#f06',data:[[0,0,0,0,0],[1,1,1,1,1],[1,1,1,1,1],[0,1,1,1,0],[0,0,1,0,0]]},
+  // 10x10 Medium
+  {name:'Mushroom',size:10,color:'#f44',data:[
+    [0,0,0,1,1,1,1,0,0,0],[0,0,1,1,1,1,1,1,0,0],[0,1,1,0,1,1,0,1,1,0],[0,1,0,0,1,1,0,0,1,0],
+    [1,1,1,1,1,1,1,1,1,1],[0,0,0,1,1,1,1,0,0,0],[0,0,1,1,0,0,1,1,0,0],[0,0,1,1,0,0,1,1,0,0],
+    [0,1,1,1,1,1,1,1,1,0],[0,1,1,1,1,1,1,1,1,0]]},
+  {name:'Anchor',size:10,color:'#48f',data:[
+    [0,0,0,0,1,1,0,0,0,0],[0,0,0,1,1,1,1,0,0,0],[0,0,0,0,1,1,0,0,0,0],[0,0,0,0,1,1,0,0,0,0],
+    [0,1,0,0,1,1,0,0,1,0],[1,1,1,0,1,1,0,1,1,1],[0,1,1,1,1,1,1,1,1,0],[0,0,0,1,1,1,1,0,0,0],
+    [0,0,0,0,1,1,0,0,0,0],[0,0,0,1,1,1,1,0,0,0]]},
+  {name:'Skull',size:10,color:'#ccc',data:[
+    [0,0,1,1,1,1,1,1,0,0],[0,1,1,1,1,1,1,1,1,0],[1,1,0,0,1,1,0,0,1,1],[1,1,0,0,1,1,0,0,1,1],
+    [1,1,1,1,1,1,1,1,1,1],[0,1,1,1,1,1,1,1,1,0],[0,0,1,0,1,1,0,1,0,0],[0,0,1,0,1,1,0,1,0,0],
+    [0,0,0,1,0,0,1,0,0,0],[0,0,0,0,1,1,0,0,0,0]]},
+  {name:'Star',size:10,color:'#fa0',data:[
+    [0,0,0,0,1,1,0,0,0,0],[0,0,0,0,1,1,0,0,0,0],[0,0,0,1,1,1,1,0,0,0],[1,1,1,1,1,1,1,1,1,1],
+    [0,1,1,1,1,1,1,1,1,0],[0,0,1,1,1,1,1,1,0,0],[0,0,1,1,0,0,1,1,0,0],[0,1,1,0,0,0,0,1,1,0],
+    [1,1,0,0,0,0,0,0,1,1],[1,0,0,0,0,0,0,0,0,1]]},
+  {name:'Alien',size:10,color:'#0f6',data:[
+    [0,0,1,0,0,0,0,1,0,0],[0,0,0,1,0,0,1,0,0,0],[0,0,1,1,1,1,1,1,0,0],[0,1,1,0,1,1,0,1,1,0],
+    [1,1,1,1,1,1,1,1,1,1],[1,0,1,1,1,1,1,1,0,1],[1,0,1,0,0,0,0,1,0,1],[0,0,0,1,1,1,1,0,0,0],
+    [0,0,1,0,0,0,0,1,0,0],[0,1,0,0,0,0,0,0,1,0]]},
+  // 15x15 Hard
+  {name:'Rocket',size:15,color:'#f06',data:[
+    [0,0,0,0,0,0,0,1,0,0,0,0,0,0,0],[0,0,0,0,0,0,1,1,1,0,0,0,0,0,0],[0,0,0,0,0,1,1,1,1,1,0,0,0,0,0],
+    [0,0,0,0,0,1,1,1,1,1,0,0,0,0,0],[0,0,0,0,1,1,0,1,0,1,1,0,0,0,0],[0,0,0,0,1,1,0,1,0,1,1,0,0,0,0],
+    [0,0,0,0,1,1,1,1,1,1,1,0,0,0,0],[0,0,0,0,1,1,1,1,1,1,1,0,0,0,0],[0,0,0,1,1,1,1,1,1,1,1,1,0,0,0],
+    [0,0,0,1,1,1,1,1,1,1,1,1,0,0,0],[0,0,1,1,0,1,1,1,1,1,0,1,1,0,0],[0,0,1,0,0,0,1,1,1,0,0,0,1,0,0],
+    [0,1,1,0,0,0,0,1,0,0,0,0,1,1,0],[0,1,0,0,0,0,0,0,0,0,0,0,0,1,0],[1,1,0,0,0,0,0,0,0,0,0,0,0,1,1]]},
+  {name:'Tree',size:15,color:'#0a4',data:[
+    [0,0,0,0,0,0,0,1,0,0,0,0,0,0,0],[0,0,0,0,0,0,1,1,1,0,0,0,0,0,0],[0,0,0,0,0,1,1,1,1,1,0,0,0,0,0],
+    [0,0,0,0,1,1,1,1,1,1,1,0,0,0,0],[0,0,0,1,1,1,1,1,1,1,1,1,0,0,0],[0,0,0,0,0,1,1,1,1,1,0,0,0,0,0],
+    [0,0,0,0,1,1,1,1,1,1,1,0,0,0,0],[0,0,0,1,1,1,1,1,1,1,1,1,0,0,0],[0,0,1,1,1,1,1,1,1,1,1,1,1,0,0],
+    [0,1,1,1,1,1,1,1,1,1,1,1,1,1,0],[1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],[0,0,0,0,0,0,1,1,1,0,0,0,0,0,0],
+    [0,0,0,0,0,0,1,1,1,0,0,0,0,0,0],[0,0,0,0,0,0,1,1,1,0,0,0,0,0,0],[0,0,0,0,0,1,1,1,1,1,0,0,0,0,0]]},
+  {name:'Ghost',size:15,color:'#ccc',data:[
+    [0,0,0,0,0,1,1,1,1,1,0,0,0,0,0],[0,0,0,1,1,1,1,1,1,1,1,1,0,0,0],[0,0,1,1,1,1,1,1,1,1,1,1,1,0,0],
+    [0,1,1,1,0,0,1,1,1,0,0,1,1,1,0],[0,1,1,0,0,0,1,1,0,0,0,1,1,1,0],[0,1,1,1,0,0,1,1,1,0,0,1,1,1,0],
+    [0,1,1,1,1,1,1,1,1,1,1,1,1,1,0],[0,1,1,1,1,1,1,1,1,1,1,1,1,1,0],[0,1,1,1,1,1,1,1,1,1,1,1,1,1,0],
+    [0,1,1,1,1,1,1,1,1,1,1,1,1,1,0],[0,1,1,1,1,1,1,1,1,1,1,1,1,1,0],[0,1,1,1,1,1,1,1,1,1,1,1,1,1,0],
+    [0,1,1,0,1,1,0,1,1,0,1,1,0,1,0],[0,1,0,0,0,1,0,0,1,0,0,0,1,0,0],[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]]},
+  {name:'Cat',size:15,color:'#fa0',data:[
+    [1,1,0,0,0,0,0,0,0,0,0,0,0,1,1],[1,1,1,0,0,0,0,0,0,0,0,0,1,1,1],[0,1,1,1,0,0,0,0,0,0,0,1,1,1,0],
+    [0,1,1,1,1,1,1,1,1,1,1,1,1,1,0],[0,1,1,0,0,1,1,1,1,1,0,0,1,1,0],[0,1,1,0,0,1,1,1,1,1,0,0,1,1,0],
+    [0,1,1,1,1,1,1,1,1,1,1,1,1,1,0],[0,1,1,1,1,1,0,1,0,1,1,1,1,1,0],[0,0,1,1,1,1,1,1,1,1,1,1,1,0,0],
+    [0,0,0,1,1,1,1,1,1,1,1,1,0,0,0],[0,0,0,0,1,1,1,1,1,1,1,0,0,0,0],[0,0,0,0,0,0,1,1,1,0,0,0,0,0,0],
+    [0,0,0,0,0,0,1,0,1,0,0,0,0,0,0],[0,0,0,0,0,1,1,0,1,1,0,0,0,0,0],[0,0,0,0,0,1,0,0,0,1,0,0,0,0,0]]},
+  {name:'Sword',size:15,color:'#8af',data:[
+    [0,0,0,0,0,0,0,1,0,0,0,0,0,0,0],[0,0,0,0,0,0,1,1,1,0,0,0,0,0,0],[0,0,0,0,0,0,1,1,1,0,0,0,0,0,0],
+    [0,0,0,0,0,0,1,1,1,0,0,0,0,0,0],[0,0,0,0,0,0,1,1,1,0,0,0,0,0,0],[0,0,0,0,0,0,1,1,1,0,0,0,0,0,0],
+    [0,0,0,0,0,0,1,1,1,0,0,0,0,0,0],[0,0,0,0,0,0,1,1,1,0,0,0,0,0,0],[0,0,0,0,0,0,1,1,1,0,0,0,0,0,0],
+    [0,0,0,0,0,0,1,1,1,0,0,0,0,0,0],[0,0,1,0,0,0,1,1,1,0,0,0,1,0,0],[0,0,0,1,1,1,1,1,1,1,1,1,0,0,0],
+    [0,0,0,0,0,1,1,1,1,1,0,0,0,0,0],[0,0,0,0,0,0,1,1,1,0,0,0,0,0,0],[0,0,0,0,0,0,0,1,0,0,0,0,0,0,0]]}
+];
+
+// ---- State ----
+var progress=loadProgress();
+var currentLevel=-1;
+var grid=null; // player's grid: 0=empty,1=filled,2=crossed
+var strikes=0;
+var mode='fill'; // 'fill' or 'cross'
+var isDrawing=false;
+var drawMode=-1; // what we're applying while dragging
+var gameState='playing'; // 'playing','won','lost'
+var pendingTimeouts=[];
+
+// ---- Progress ----
+function loadProgress(){
+  try{var d=JSON.parse(localStorage.getItem('picross_progress'));return d||{done:[]}}
+  catch(e){return{done:[]}}
+}
+function saveProgress(){
+  try{localStorage.setItem('picross_progress',JSON.stringify(progress))}catch(e){}
+}
+
+// ---- Clue generation ----
+function getClues(data){
+  var size=data.length;
+  var rowClues=[],colClues=[];
+  // Rows
+  for(var r=0;r<size;r++){
+    var groups=[],count=0;
+    for(var c=0;c<size;c++){
+      if(data[r][c]){count++}else{if(count>0)groups.push(count);count=0}
+    }
+    if(count>0)groups.push(count);
+    rowClues.push(groups.length?groups:[0]);
+  }
+  // Columns
+  for(var c=0;c<size;c++){
+    var groups=[],count=0;
+    for(var r=0;r<size;r++){
+      if(data[r][c]){count++}else{if(count>0)groups.push(count);count=0}
+    }
+    if(count>0)groups.push(count);
+    colClues.push(groups.length?groups:[0]);
+  }
+  return{row:rowClues,col:colClues};
+}
+
+// ---- Check if line is satisfied ----
+function lineGroups(arr){
+  var groups=[],count=0;
+  for(var i=0;i<arr.length;i++){
+    if(arr[i]===1){count++}else{if(count>0)groups.push(count);count=0}
+  }
+  if(count>0)groups.push(count);
+  return groups.length?groups:[0];
+}
+function arrEq(a,b){if(a.length!==b.length)return false;for(var i=0;i<a.length;i++)if(a[i]!==b[i])return false;return true}
+
+// ---- Views ----
+function showView(id){
+  var views=document.querySelectorAll('.view');
+  for(var i=0;i<views.length;i++)views[i].classList.remove('active');
+  document.getElementById(id).classList.add('active');
+}
+
+// ---- Level Select ----
+function buildLevelSelect(){
+  var container=document.getElementById('level-grid');
+  container.innerHTML='';
+  for(var i=0;i<PUZZLES.length;i++){
+    var p=PUZZLES[i];
+    var btn=document.createElement('button');
+    var isDone=progress.done.indexOf(i)>=0;
+    var isUnlocked=i===0||progress.done.indexOf(i-1)>=0||isDone;
+    btn.className='lvl-btn'+(isDone?' done':isUnlocked?' unlocked':' locked');
+    btn.innerHTML='<span>'+(i+1)+'</span><span class="sz">'+p.size+'x'+p.size+'</span>';
+    if(isUnlocked){
+      (function(idx){btn.addEventListener('click',function(){startPuzzle(idx)})})(i);
+    }
+    container.appendChild(btn);
+  }
+}
+
+// ---- Start Puzzle ----
+function startPuzzle(idx){
+  // Clear pending timeouts from previous game
+  for(var t=0;t<pendingTimeouts.length;t++)clearTimeout(pendingTimeouts[t]);
+  pendingTimeouts=[];
+  gameState='playing';
+  currentLevel=idx;
+  var p=PUZZLES[idx];
+  var size=p.size;
+  grid=[];
+  for(var r=0;r<size;r++){
+    grid.push(new Array(size).fill(0));
+  }
+  strikes=0;
+  mode='fill';
+  document.getElementById('btn-fill').classList.add('active');
+  document.getElementById('btn-cross').classList.remove('active');
+  document.getElementById('win-msg').style.display='none';
+  document.getElementById('lose-msg').style.display='none';
+
+  // Adjust cell size for larger grids
+  var maxW=Math.min(window.innerWidth-80,460);
+  var cellSz=Math.floor(maxW/size);
+  cellSz=Math.max(16,Math.min(cellSz,32));
+  document.documentElement.style.setProperty('--cell',cellSz+'px');
+
+  renderBoard(p,size);
+  showView('game');
+}
+
+function renderBoard(p,size){
+  var clues=getClues(p.data);
+  var area=document.getElementById('board-area');
+  area.innerHTML='';
+
+  document.getElementById('puzzle-title').textContent=(currentLevel+1)+'. '+p.name+' ('+size+'x'+size+')';
+  updateLives();
+
+  // Column clues header
+  var colRow=document.createElement('div');
+  colRow.className='clue-row';
+  var spacer=document.createElement('div');
+  spacer.className='row-clue';
+  colRow.appendChild(spacer);
+  var colClueWrap=document.createElement('div');
+  colClueWrap.className='col-clues';
+  for(var c=0;c<size;c++){
+    var cd=document.createElement('div');
+    cd.className='col-clue';
+    cd.id='cc-'+c;
+    for(var k=0;k<clues.col[c].length;k++){
+      var s=document.createElement('span');
+      s.textContent=clues.col[c][k];
+      cd.appendChild(s);
+    }
+    colClueWrap.appendChild(cd);
+  }
+  colRow.appendChild(colClueWrap);
+  area.appendChild(colRow);
+
+  // Grid rows
+  for(var r=0;r<size;r++){
+    var row=document.createElement('div');
+    row.className='clue-row';
+    // Row clue
+    var rc=document.createElement('div');
+    rc.className='row-clue';
+    rc.id='rc-'+r;
+    for(var k=0;k<clues.row[r].length;k++){
+      var s=document.createElement('span');
+      s.textContent=clues.row[r][k];
+      rc.appendChild(s);
+    }
+    row.appendChild(rc);
+    // Cells
+    for(var c=0;c<size;c++){
+      var cell=document.createElement('div');
+      cell.className='cell';
+      cell.dataset.r=r;
+      cell.dataset.c=c;
+      row.appendChild(cell);
+    }
+    area.appendChild(row);
+  }
+
+}
+
+// Attach pointer events once
+document.getElementById('board-area').addEventListener('pointerdown',onPointerDown);
+document.getElementById('board-area').addEventListener('pointermove',onPointerMove);
+window.addEventListener('pointerup',onPointerUp);
+
+function updateLives(){
+  var hearts='';
+  for(var i=0;i<3;i++)hearts+=(i<3-strikes?'♥':'♡');
+  document.getElementById('lives').textContent=hearts;
+}
+
+// ---- Interaction ----
+function onPointerDown(e){
+  e.preventDefault();
+  if(gameState!=='playing')return;
+  var cell=e.target.closest('.cell');
+  if(!cell)return;
+  isDrawing=true;
+  // Determine drag action from first cell state
+  var r=parseInt(cell.dataset.r,10),c=parseInt(cell.dataset.c,10);
+  var cur=grid[r][c];
+  if(cur===1||cur===2){drawMode=0} // erase
+  else{drawMode=mode==='fill'?1:2} // fill or cross
+  applyCell(cell);
+}
+function onPointerMove(e){
+  if(!isDrawing)return;
+  e.preventDefault();
+  var el=document.elementFromPoint(e.clientX,e.clientY);
+  if(el&&el.classList.contains('cell'))applyCell(el);
+}
+function onPointerUp(){isDrawing=false;drawMode=-1}
+
+function applyCell(cell){
+  if(gameState!=='playing')return;
+  var r=parseInt(cell.dataset.r,10);
+  var c=parseInt(cell.dataset.c,10);
+  var cur=grid[r][c];
+  var p=PUZZLES[currentLevel];
+
+  // Erase mode (dragging from filled/crossed cell)
+  if(drawMode===0){
+    if(cur===0)return;
+    if(cur===1)return; // don't erase confirmed fills
+    grid[r][c]=0;cell.className='cell';
+    checkClues(p);
+    return;
+  }
+
+  // Fill mode
+  if(drawMode===1){
+    if(cur!==0)return;
+    if(p.data[r][c]===1){
+      grid[r][c]=1;
+      cell.className='cell filled';
+      checkClues(p);
+      checkWin(p);
+    }else{
+      strikes++;
+      updateLives();
+      cell.className='cell error';
+      grid[r][c]=-1; // temp lock
+      pendingTimeouts.push(setTimeout(function(){
+        if(gameState!=='playing')return;
+        grid[r][c]=2;
+        cell.className='cell crossed';
+      },300));
+      if(strikes>=3){
+        gameState='lost';
+        pendingTimeouts.push(setTimeout(function(){
+          document.getElementById('lose-msg').style.display='block';
+        },400));
+      }
+    }
+    return;
+  }
+
+  // Cross mode
+  if(drawMode===2){
+    if(cur!==0)return;
+    grid[r][c]=2;
+    cell.className='cell crossed';
+    checkClues(p);
+  }
+}
+
+function checkClues(p){
+  var size=p.size;
+  var clues=getClues(p.data);
+  // Check each row
+  for(var r=0;r<size;r++){
+    var rowArr=[];
+    for(var c=0;c<size;c++)rowArr.push(grid[r][c]);
+    var groups=lineGroups(rowArr);
+    var el=document.getElementById('rc-'+r);
+    if(el)el.className=arrEq(groups,clues.row[r])?'row-clue done':'row-clue';
+  }
+  // Check each col
+  for(var c=0;c<size;c++){
+    var colArr=[];
+    for(var r=0;r<size;r++)colArr.push(grid[r][c]);
+    var groups=lineGroups(colArr);
+    var el=document.getElementById('cc-'+c);
+    if(el)el.className=arrEq(groups,clues.col[c])?'col-clue done':'col-clue';
+  }
+}
+
+function checkWin(p){
+  var size=p.size;
+  for(var r=0;r<size;r++){
+    for(var c=0;c<size;c++){
+      if(p.data[r][c]===1&&grid[r][c]!==1)return; // not done yet
+    }
+  }
+  // Won!
+  gameState='won';
+  if(progress.done.indexOf(currentLevel)<0){
+    progress.done.push(currentLevel);
+    saveProgress();
+  }
+  // Color reveal
+  var cells=document.querySelectorAll('.cell');
+  for(var i=0;i<cells.length;i++){
+    var cr=parseInt(cells[i].dataset.r,10);
+    var cc=parseInt(cells[i].dataset.c,10);
+    cells[i].classList.add('reveal');
+    if(p.data[cr][cc]===1){
+      cells[i].style.background=p.color;
+      cells[i].style.borderColor='rgba(0,0,0,0.1)';
+    }else{
+      cells[i].className='cell reveal';
+      cells[i].style.background='var(--bg)';
+      cells[i].style.borderColor='transparent';
+    }
+  }
+  document.getElementById('win-detail').textContent=p.name+' — '+p.size+'x'+p.size;
+  document.getElementById('win-msg').style.display='block';
+}
+
+// ---- Controls ----
+document.getElementById('btn-fill').addEventListener('click',function(){
+  mode='fill';this.classList.add('active');document.getElementById('btn-cross').classList.remove('active');
+});
+document.getElementById('btn-cross').addEventListener('click',function(){
+  mode='cross';this.classList.add('active');document.getElementById('btn-fill').classList.remove('active');
+});
+document.getElementById('btn-play-menu').addEventListener('click',function(){buildLevelSelect();showView('levels')});
+document.getElementById('btn-back-menu').addEventListener('click',function(){showView('menu')});
+document.getElementById('btn-back-levels').addEventListener('click',function(){buildLevelSelect();showView('levels')});
+document.getElementById('btn-next').addEventListener('click',function(){
+  if(currentLevel+1<PUZZLES.length)startPuzzle(currentLevel+1);
+  else{buildLevelSelect();showView('levels')}
+});
+document.getElementById('btn-retry').addEventListener('click',function(){startPuzzle(currentLevel)});
+
+})();
+</script>
+</body>
+</html>
