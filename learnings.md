@@ -1228,3 +1228,13 @@ Persistent knowledge base. Read this before every build.
 - **KEEP**: Real-time drag with debounced render — responsive interaction without frame drops
 - **INSIGHT**: Brute-force Voronoi is O(pixels × seeds). At 2x downscale on a 1920×1080 screen (480K pixels) with 20 seeds, that's ~10M distance comparisons per frame. Fast enough for interactive use with debouncing.
 - **INSIGHT**: Edge detection in Voronoi doesn't need explicit edge computation. The difference between distance-to-nearest and distance-to-second-nearest naturally identifies pixels on cell boundaries.
+
+### harmonic-forge (2026-03-25) — PROJECT #117
+- **KEEP**: Chord progression builder (creation tool) not just Circle of Fifths reference chart — engagement comes from MAKING music, not reading theory
+- **KEEP**: Strum delay (40ms between chord tones) — makes synth chords sound like a real instrument strumming
+- **KEEP**: Triangle+sine with slight detune (1.002x) — warm pad-like sound from simple oscillators
+- **KEEP**: Diatonic chord generation from intervals — compute I-ii-iii-IV-V-vi-vii° for any key using semitone offsets
+- **KEEP**: Preset progressions (Pop I-V-vi-IV, Jazz ii-V-I, Pachelbel) — instant gratification + education
+- **KEEP**: DOM-based UI (no Canvas) — total visual/technical break from recent Canvas-heavy projects
+- **INSIGHT**: Music theory tools must be CREATION tools, not reference charts. A static Circle of Fifths holds attention for 15 seconds. A progression builder that plays back your creation holds attention for 10+ minutes.
+- **INSIGHT**: The difference between "beepy" and "musical" synth is: 1) strum delay between chord tones, 2) dual oscillators with slight detune, 3) smooth ADSR envelope. All three together transform harsh beeps into pleasant chords.

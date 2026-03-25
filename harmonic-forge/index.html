@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="theme-color" content="#000000">
+<title>Harmonic Forge</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{height:100%;background:#080810;overflow-y:auto;font-family:system-ui,sans-serif;touch-action:manipulation;-webkit-tap-highlight-color:transparent;color:#ccc}
+#app{max-width:500px;margin:0 auto;padding:12px;display:flex;flex-direction:column;gap:10px}
+h1{font-size:0.7rem;color:#444;letter-spacing:0.25em;font-weight:300}
+
+/* Circle */
+#circle-wrap{position:relative;width:280px;height:280px;margin:0 auto}
+.key-seg{position:absolute;width:48px;height:48px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:0.65rem;font-weight:600;cursor:pointer;border:2px solid transparent;transition:border-color 0.15s,background 0.15s}
+.key-seg:hover{border-color:rgba(255,255,255,0.2)}
+.key-seg.major{background:#1a1a2e;color:#ccc}
+.key-seg.minor{background:#0a0a1a;color:#888;font-size:0.5rem}
+.key-seg.active{border-color:#58a6ff;background:#1a2a4a}
+.key-seg.diatonic{border-color:rgba(88,166,255,0.3)}
+.key-seg.playing{background:#2a3a5a;box-shadow:0 0 12px rgba(88,166,255,0.3)}
+#circle-label{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);text-align:center}
+#circle-key{font-size:1.2rem;color:#58a6ff;font-weight:300}
+#circle-type{font-size:0.4rem;color:#333;letter-spacing:0.1em}
+
+/* Diatonic chords */
+#diatonic{display:flex;gap:4px;flex-wrap:wrap;justify-content:center}
+.dia-btn{padding:5px 10px;background:#111;border:1px solid #1a1a1a;color:#666;font-family:inherit;font-size:0.55rem;cursor:pointer;border-radius:4px;text-align:center;min-width:50px}
+.dia-btn:hover{border-color:#333}
+.dia-btn:active,.dia-btn.playing{background:#1a2a4a;border-color:#58a6ff;color:#58a6ff}
+
+/* Sequencer */
+.section-label{font-size:0.4rem;color:#333;letter-spacing:0.15em}
+#seq{display:flex;gap:3px}
+.seq-slot{flex:1;height:40px;background:#0a0a14;border:1px solid #1a1a1a;border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:0.55rem;color:#555;cursor:pointer;position:relative}
+.seq-slot.filled{color:#888;background:#111}
+.seq-slot.active{border-color:#58a6ff;background:#1a2a4a;color:#58a6ff}
+.seq-slot .remove{position:absolute;top:1px;right:3px;font-size:0.4rem;color:#333;cursor:pointer}
+
+/* Controls */
+#controls{display:flex;gap:4px;flex-wrap:wrap;justify-content:center;align-items:center}
+.ctrl-btn{padding:4px 10px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);color:#555;font-family:inherit;font-size:0.45rem;cursor:pointer;border-radius:4px;letter-spacing:0.06em}
+.ctrl-btn:active{border-color:rgba(255,255,255,0.2);color:#aaa}
+.ctrl-btn.active{border-color:#3fb950;color:#3fb950}
+select{background:#111;border:1px solid #1a1a1a;color:#888;padding:3px 6px;font-family:inherit;font-size:0.45rem;border-radius:3px;outline:none}
+
+/* Presets */
+#presets{display:flex;gap:3px;flex-wrap:wrap;justify-content:center}
+.pre-btn{padding:3px 8px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);color:#444;font-family:inherit;font-size:0.4rem;cursor:pointer;border-radius:3px}
+.pre-btn:active{color:#aaa}
+</style>
+</head>
+<body>
+<div id="app">
+  <h1>HARMONIC FORGE</h1>
+
+  <div id="circle-wrap">
+    <div id="circle-label"><div id="circle-key">C</div><div id="circle-type">MAJOR</div></div>
+  </div>
+
+  <div class="section-label" style="text-align:center">DIATONIC CHORDS IN KEY</div>
+  <div id="diatonic"></div>
+
+  <div class="section-label">PROGRESSION</div>
+  <div id="seq"></div>
+
+  <div id="controls">
+    <button class="ctrl-btn" id="btn-play">Play</button>
+    <button class="ctrl-btn" id="btn-stop">Stop</button>
+    <button class="ctrl-btn" id="btn-clear-seq">Clear</button>
+    <select id="sel-bpm">
+      <option value="80">80 BPM</option>
+      <option value="100">100 BPM</option>
+      <option value="120" selected>120 BPM</option>
+      <option value="140">140 BPM</option>
+    </select>
+  </div>
+
+  <div class="section-label" style="text-align:center">PRESETS</div>
+  <div id="presets">
+    <button class="pre-btn" data-pre="pop">Pop (I-V-vi-IV)</button>
+    <button class="pre-btn" data-pre="jazz">Jazz (ii-V-I)</button>
+    <button class="pre-btn" data-pre="sad">Sad (i-iv-VII-III)</button>
+    <button class="pre-btn" data-pre="rock">Rock (I-IV-V-V)</button>
+    <button class="pre-btn" data-pre="canon">Pachelbel (I-V-vi-iii-IV-I-IV-V)</button>
+  </div>
+</div>
+
+<script>
+(function(){
+'use strict';
+
+// ============ MUSIC DATA ============
+var NOTES=['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+var FIFTHS_ORDER=['C','G','D','A','E','B','F#','Db','Ab','Eb','Bb','F']; // Circle of fifths
+var MINOR_MAP={'C':'Am','G':'Em','D':'Bm','A':'F#m','E':'C#m','B':'G#m','F#':'D#m','Db':'Bbm','Ab':'Fm','Eb':'Cm','Bb':'Gm','F':'Dm'};
+
+// Frequencies for octave 4
+var FREQ={};
+for(var i=0;i<12;i++)FREQ[NOTES[i]]=440*Math.pow(2,(i-9)/12);
+
+function noteFreq(note,octave){
+  var base=note.replace('#','').replace('b','');
+  var idx=NOTES.indexOf(note);
+  if(idx<0){
+    // Handle flats
+    var flatMap={'Db':'C#','Eb':'D#','Gb':'F#','Ab':'G#','Bb':'A#'};
+    if(flatMap[note])idx=NOTES.indexOf(flatMap[note]);
+  }
+  if(idx<0)return 440;
+  return 440*Math.pow(2,(idx-9)/12+(octave-4));
+}
+
+// Chord types: intervals from root in semitones
+var CHORD_TYPES={
+  major:[0,4,7],
+  minor:[0,3,7],
+  dim:[0,3,6],
+  dom7:[0,4,7,10]
+};
+
+function buildChord(rootNote,type,octave){
+  var rootIdx=NOTES.indexOf(rootNote);
+  if(rootIdx<0){
+    var flatMap={'Db':'C#','Eb':'D#','Gb':'F#','Ab':'G#','Bb':'A#'};
+    if(flatMap[rootNote])rootIdx=NOTES.indexOf(flatMap[rootNote]);
+  }
+  var intervals=CHORD_TYPES[type]||CHORD_TYPES.major;
+  return intervals.map(function(semi){
+    var noteIdx=(rootIdx+semi)%12;
+    var oct=octave+Math.floor((rootIdx+semi)/12);
+    return 440*Math.pow(2,(noteIdx-9)/12+(oct-4));
+  });
+}
+
+// Diatonic chords for a major key (intervals: I ii iii IV V vi vii°)
+var DIATONIC_INTERVALS=[0,2,4,5,7,9,11];
+var DIATONIC_TYPES=['major','minor','minor','major','major','minor','dim'];
+var DIATONIC_NUMERALS=['I','ii','iii','IV','V','vi','vii\u00b0'];
+
+function getDiatonicChords(key){
+  var rootIdx=NOTES.indexOf(key);
+  if(rootIdx<0){
+    var flatMap={'Db':'C#','Eb':'D#','Gb':'F#','Ab':'G#','Bb':'A#'};
+    if(flatMap[key])rootIdx=NOTES.indexOf(flatMap[key]);
+  }
+  var chords=[];
+  for(var i=0;i<7;i++){
+    var noteIdx=(rootIdx+DIATONIC_INTERVALS[i])%12;
+    chords.push({root:NOTES[noteIdx],type:DIATONIC_TYPES[i],numeral:DIATONIC_NUMERALS[i],
+      name:NOTES[noteIdx]+(DIATONIC_TYPES[i]==='minor'?'m':DIATONIC_TYPES[i]==='dim'?'\u00b0':'')});
+  }
+  return chords;
+}
+
+// ============ AUDIO ============
+var audioCtx=null;
+
+function initAudio(){
+  if(audioCtx)return;
+  audioCtx=new(window.AudioContext||window.webkitAudioContext)();
+  if(audioCtx.state==='suspended')audioCtx.resume();
+}
+
+function playChord(freqs,duration){
+  if(!audioCtx)return;
+  var now=audioCtx.currentTime;
+  for(var i=0;i<freqs.length;i++){
+    var delay=i*0.04; // Strum delay
+    var osc1=audioCtx.createOscillator();
+    var osc2=audioCtx.createOscillator();
+    var gain=audioCtx.createGain();
+    osc1.type='triangle';osc1.frequency.value=freqs[i];
+    osc2.type='sine';osc2.frequency.value=freqs[i]*1.002; // Slight detune for warmth
+    gain.gain.setValueAtTime(0,now+delay);
+    gain.gain.linearRampToValueAtTime(0.08,now+delay+0.03);
+    gain.gain.setValueAtTime(0.08,now+delay+duration*0.6);
+    gain.gain.setTargetAtTime(0,now+delay+duration*0.6,duration*0.15);
+    osc1.connect(gain);osc2.connect(gain);gain.connect(audioCtx.destination);
+    osc1.start(now+delay);osc2.start(now+delay);
+    osc1.stop(now+delay+duration+0.2);osc2.stop(now+delay+duration+0.2);
+    osc1.onended=function(){osc1.disconnect();osc2.disconnect();gain.disconnect()};
+  }
+}
+
+// ============ STATE ============
+var currentKey='C';
+var diatonicChords=[];
+var progression=[]; // [{root,type,name}]
+var MAX_SLOTS=8;
+var bpm=120;
+var playing=false;
+var playStep=0;
+var playTimer=null;
+
+// ============ CIRCLE OF FIFTHS ============
+function buildCircle(){
+  var wrap=document.getElementById('circle-wrap');
+  // Clear old segments
+  wrap.querySelectorAll('.key-seg').forEach(function(el){el.remove()});
+  var cx=140,cy=140;
+
+  // Major keys (outer ring)
+  for(var i=0;i<12;i++){
+    var angle=(i*30-90)*Math.PI/180;
+    var r=115;
+    var el=document.createElement('div');
+    el.className='key-seg major';
+    el.dataset.key=FIFTHS_ORDER[i];
+    el.textContent=FIFTHS_ORDER[i];
+    el.style.left=(cx+Math.cos(angle)*r-24)+'px';
+    el.style.top=(cy+Math.sin(angle)*r-24)+'px';
+    wrap.appendChild(el);
+  }
+
+  // Minor keys (inner ring)
+  for(var i=0;i<12;i++){
+    var angle=(i*30-90)*Math.PI/180;
+    var r=60;
+    var minor=MINOR_MAP[FIFTHS_ORDER[i]];
+    var el=document.createElement('div');
+    el.className='key-seg minor';
+    el.dataset.key=FIFTHS_ORDER[i];
+    el.dataset.minor='true';
+    el.textContent=minor;
+    el.style.left=(cx+Math.cos(angle)*r-24)+'px';
+    el.style.top=(cy+Math.sin(angle)*r-24)+'px';
+    el.style.width='40px';el.style.height='40px';
+    wrap.appendChild(el);
+  }
+
+  updateCircleHighlight();
+}
+
+function updateCircleHighlight(){
+  var segs=document.querySelectorAll('.key-seg');
+  segs.forEach(function(el){el.classList.remove('active','diatonic')});
+
+  // Highlight current key
+  segs.forEach(function(el){
+    if(el.dataset.key===currentKey&&!el.dataset.minor)el.classList.add('active');
+  });
+
+  // Highlight diatonic chord roots
+  diatonicChords.forEach(function(ch){
+    segs.forEach(function(el){
+      if(el.dataset.key===ch.root||el.textContent===ch.name)el.classList.add('diatonic');
+    });
+  });
+
+  document.getElementById('circle-key').textContent=currentKey;
+}
+
+// ============ DIATONIC PANEL ============
+function buildDiatonicPanel(){
+  diatonicChords=getDiatonicChords(currentKey);
+  var container=document.getElementById('diatonic');
+  container.innerHTML='';
+  diatonicChords.forEach(function(ch){
+    var btn=document.createElement('button');
+    btn.className='dia-btn';
+    btn.textContent=ch.numeral+'\n'+ch.name;
+    btn.style.whiteSpace='pre';
+    btn.dataset.root=ch.root;btn.dataset.type=ch.type;btn.dataset.name=ch.name;
+    container.appendChild(btn);
+  });
+}
+
+// ============ SEQUENCER ============
+function buildSequencer(){
+  var container=document.getElementById('seq');
+  container.innerHTML='';
+  for(var i=0;i<MAX_SLOTS;i++){
+    var slot=document.createElement('div');
+    slot.className='seq-slot'+(progression[i]?' filled':'');
+    slot.dataset.idx=i;
+    if(progression[i]){
+      slot.textContent=progression[i].name;
+      var rm=document.createElement('span');
+      rm.className='remove';rm.textContent='\u00d7';rm.dataset.idx=i;
+      slot.appendChild(rm);
+    }else{
+      slot.textContent='+';
+    }
+    container.appendChild(slot);
+  }
+}
+
+function addToProgression(chord){
+  if(progression.length>=MAX_SLOTS)return;
+  progression.push({root:chord.root,type:chord.type,name:chord.name});
+  buildSequencer();
+}
+
+// ============ PLAYBACK ============
+function startPlayback(){
+  if(progression.length===0)return;
+  initAudio();playing=true;playStep=0;
+  document.getElementById('btn-play').classList.add('active');
+  stepPlay();
+}
+
+function stopPlayback(){
+  playing=false;clearTimeout(playTimer);
+  document.getElementById('btn-play').classList.remove('active');
+  document.querySelectorAll('.seq-slot').forEach(function(s){s.classList.remove('active')});
+  document.querySelectorAll('.dia-btn').forEach(function(b){b.classList.remove('playing')});
+}
+
+function stepPlay(){
+  if(!playing||progression.length===0)return;
+  var ch=progression[playStep%progression.length];
+  var freqs=buildChord(ch.root,ch.type,3);
+  var beatDur=60/bpm;
+  playChord(freqs,beatDur*0.9);
+
+  // Visual feedback
+  document.querySelectorAll('.seq-slot').forEach(function(s,i){
+    s.classList.toggle('active',i===playStep%progression.length);
+  });
+  document.querySelectorAll('.dia-btn').forEach(function(b){
+    b.classList.toggle('playing',b.dataset.name===ch.name);
+  });
+
+  playStep++;
+  playTimer=setTimeout(stepPlay,beatDur*1000);
+}
+
+// ============ PRESETS ============
+var PRESETS={
+  pop:[0,4,5,3],      // I V vi IV
+  jazz:[1,4,0],        // ii V I
+  sad:[0,3,6,2],       // mapped to minor: i iv VII III → actually use diatonic indices
+  rock:[0,3,4,4],      // I IV V V
+  canon:[0,4,5,2,3,0,3,4] // I V vi iii IV I IV V
+};
+
+function loadPreset(name){
+  var indices=PRESETS[name];if(!indices)return;
+  progression=[];
+  indices.forEach(function(i){
+    if(diatonicChords[i])progression.push({root:diatonicChords[i].root,type:diatonicChords[i].type,name:diatonicChords[i].name});
+  });
+  buildSequencer();
+}
+
+// ============ EVENTS ============
+document.getElementById('circle-wrap').addEventListener('click',function(e){
+  var seg=e.target.closest('.key-seg');if(!seg)return;
+  initAudio();
+  currentKey=seg.dataset.key;
+  buildDiatonicPanel();updateCircleHighlight();
+  // Play the root chord
+  var type=seg.dataset.minor?'minor':'major';
+  playChord(buildChord(currentKey,type,3),0.6);
+});
+
+document.getElementById('diatonic').addEventListener('click',function(e){
+  var btn=e.target.closest('.dia-btn');if(!btn)return;
+  initAudio();
+  playChord(buildChord(btn.dataset.root,btn.dataset.type,3),0.5);
+  addToProgression({root:btn.dataset.root,type:btn.dataset.type,name:btn.dataset.name});
+});
+
+document.getElementById('seq').addEventListener('click',function(e){
+  var rm=e.target.closest('.remove');
+  if(rm){progression.splice(parseInt(rm.dataset.idx,10),1);buildSequencer();return}
+  var slot=e.target.closest('.seq-slot');
+  if(slot&&progression[parseInt(slot.dataset.idx,10)]){
+    initAudio();
+    var ch=progression[parseInt(slot.dataset.idx,10)];
+    playChord(buildChord(ch.root,ch.type,3),0.5);
+  }
+});
+
+document.getElementById('btn-play').addEventListener('click',function(){if(playing)stopPlayback();else startPlayback()});
+document.getElementById('btn-stop').addEventListener('click',stopPlayback);
+document.getElementById('btn-clear-seq').addEventListener('click',function(){progression=[];buildSequencer();stopPlayback()});
+document.getElementById('sel-bpm').addEventListener('change',function(e){bpm=parseInt(e.target.value,10)});
+
+document.getElementById('presets').addEventListener('click',function(e){
+  var btn=e.target.closest('.pre-btn');if(!btn)return;
+  loadPreset(btn.dataset.pre);
+});
+
+// ============ INIT ============
+buildCircle();
+buildDiatonicPanel();
+buildSequencer();
+
+})();
+</script>
+</body>
+</html>
