@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="theme-color" content="#000000">
+<title>Spiro Forge</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{height:100%;background:#050508;overflow:hidden;font-family:system-ui,sans-serif;touch-action:manipulation;-webkit-tap-highlight-color:transparent;color:#ccc}
+canvas{display:block;position:absolute;inset:0}
+#panel{position:fixed;top:8px;right:8px;width:195px;background:rgba(5,5,12,0.92);border:1px solid rgba(255,255,255,0.06);border-radius:10px;padding:10px;z-index:5;backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);opacity:0.35;transition:opacity 0.3s}
+#panel:hover{opacity:1}
+.p-title{font-size:0.6rem;color:#555;letter-spacing:0.2em;margin-bottom:6px;font-weight:300}
+.p-row{display:flex;align-items:center;gap:4px;margin-bottom:4px}
+.p-label{font-size:0.4rem;color:#444;min-width:35px;letter-spacing:0.05em}
+.p-val{font-size:0.4rem;color:#555;font-family:monospace;min-width:24px;text-align:right}
+input[type="range"]{flex:1;height:2px;accent-color:#555}
+select{width:100%;background:#111;border:1px solid #1a1a1a;color:#888;padding:3px 5px;font-family:inherit;font-size:0.5rem;border-radius:3px;outline:none;margin-bottom:4px}
+.p-btn{padding:3px 7px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);color:#555;font-family:inherit;font-size:0.4rem;cursor:pointer;border-radius:3px;letter-spacing:0.05em}
+.p-btn:active{border-color:rgba(255,255,255,0.2);color:#aaa}
+.p-btns{display:flex;gap:3px;flex-wrap:wrap;margin-bottom:4px}
+.p-sep{height:1px;background:rgba(255,255,255,0.04);margin:5px 0}
+.p-check{display:flex;align-items:center;gap:4px;font-size:0.4rem;color:#444;margin-bottom:3px}
+.p-check input{accent-color:#555}
+#progress{font-size:0.4rem;color:#333;font-family:monospace}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="panel">
+  <div class="p-title">SPIRO FORGE</div>
+  <select id="sel-preset">
+    <option value="">— Presets —</option>
+    <option value="classic">Classic Flower</option>
+    <option value="star">Star Burst</option>
+    <option value="lace">Fine Lace</option>
+    <option value="atom">Atomic Orbit</option>
+    <option value="bloom">Bloom</option>
+    <option value="wild">Wild Spiral</option>
+  </select>
+  <div class="p-sep"></div>
+  <div class="p-row"><span class="p-label">R</span><input type="range" id="sl-R" min="50" max="250" value="150"><span class="p-val" id="v-R">150</span></div>
+  <div class="p-row"><span class="p-label">r</span><input type="range" id="sl-r" min="5" max="150" value="55"><span class="p-val" id="v-r">55</span></div>
+  <div class="p-row"><span class="p-label">d</span><input type="range" id="sl-d" min="5" max="200" value="80"><span class="p-val" id="v-d">80</span></div>
+  <div class="p-row"><span class="p-label">Speed</span><input type="range" id="sl-speed" min="1" max="30" value="8"><span class="p-val" id="v-speed">8</span></div>
+  <div class="p-row"><span class="p-label">Width</span><input type="range" id="sl-width" min="0.5" max="4" step="0.5" value="1"><span class="p-val" id="v-width">1.0</span></div>
+  <div class="p-sep"></div>
+  <label class="p-check"><input type="checkbox" id="ck-epi"> Epitrochoid (outer)</label>
+  <label class="p-check"><input type="checkbox" id="ck-gears"> Show gears</label>
+  <label class="p-check"><input type="checkbox" id="ck-gradient" checked> Gradient color</label>
+  <div class="p-sep"></div>
+  <div class="p-btns">
+    <button class="p-btn" id="btn-clear">Clear</button>
+    <button class="p-btn" id="btn-instant">Instant</button>
+    <button class="p-btn" id="btn-save">Save PNG</button>
+  </div>
+  <div id="progress"></div>
+</div>
+
+<script>
+(function(){
+'use strict';
+
+var canvas=document.getElementById('c'),ctx=canvas.getContext('2d');
+var W,H,cx,cy;
+
+// Parameters
+var R=150,r=55,d=80,speed=8,lineWidth=1;
+var epi=false,showGears=false,useGradient=true;
+
+// Animation state
+var theta=0,prevX=null,prevY=null;
+var animating=true,complete=false;
+var totalRotations=0,maxTheta=0;
+
+// Path history for instant redraw after clear
+var pathPoints=[];
+
+// ============ MATH ============
+function gcd(a,b){a=Math.abs(Math.round(a));b=Math.abs(Math.round(b));while(b){var t=b;b=a%b;a=t}return a}
+
+function calcMaxTheta(){
+  var g=gcd(R,r);
+  totalRotations=r/g;
+  maxTheta=totalRotations*Math.PI*2;
+}
+
+function getXY(t){
+  if(epi){
+    // Epitrochoid (rolling outside)
+    return{
+      x:(R+r)*Math.cos(t)-d*Math.cos((R+r)/r*t),
+      y:(R+r)*Math.sin(t)-d*Math.sin((R+r)/r*t)
+    };
+  }else{
+    // Hypotrochoid (rolling inside)
+    return{
+      x:(R-r)*Math.cos(t)+d*Math.cos((R-r)/r*t),
+      y:(R-r)*Math.sin(t)-d*Math.sin((R-r)/r*t)
+    };
+  }
+}
+
+// ============ DRAWING ============
+function drawSegment(t1,t2){
+  var p1=getXY(t1),p2=getXY(t2);
+  var progress=t2/maxTheta;
+
+  if(useGradient){
+    var hue=(progress*360)%360;
+    ctx.strokeStyle='hsl('+hue+',75%,55%)';
+  }else{
+    ctx.strokeStyle='#0ff';
+  }
+  ctx.lineWidth=lineWidth;
+  ctx.lineCap='round';
+  ctx.beginPath();
+  ctx.moveTo(cx+p1.x,cy+p1.y);
+  ctx.lineTo(cx+p2.x,cy+p2.y);
+  ctx.stroke();
+}
+
+function drawGears(t){
+  var rollingCx,rollingCy,penX,penY;
+  if(epi){
+    rollingCx=cx+(R+r)*Math.cos(t);
+    rollingCy=cy+(R+r)*Math.sin(t);
+    penX=cx+(R+r)*Math.cos(t)-d*Math.cos((R+r)/r*t);
+    penY=cy+(R+r)*Math.sin(t)-d*Math.sin((R+r)/r*t);
+  }else{
+    rollingCx=cx+(R-r)*Math.cos(t);
+    rollingCy=cy+(R-r)*Math.sin(t);
+    penX=cx+(R-r)*Math.cos(t)+d*Math.cos((R-r)/r*t);
+    penY=cy+(R-r)*Math.sin(t)-d*Math.sin((R-r)/r*t);
+  }
+
+  // Fixed circle
+  ctx.strokeStyle='rgba(255,255,255,0.08)';ctx.lineWidth=1;
+  ctx.beginPath();ctx.arc(cx,cy,R,0,Math.PI*2);ctx.stroke();
+
+  // Rolling circle
+  ctx.strokeStyle='rgba(88,166,255,0.15)';
+  ctx.beginPath();ctx.arc(rollingCx,rollingCy,r,0,Math.PI*2);ctx.stroke();
+
+  // Pen arm
+  ctx.strokeStyle='rgba(255,255,255,0.1)';
+  ctx.beginPath();ctx.moveTo(rollingCx,rollingCy);ctx.lineTo(penX,penY);ctx.stroke();
+
+  // Pen dot
+  ctx.fillStyle='#fff';
+  ctx.beginPath();ctx.arc(penX,penY,2,0,Math.PI*2);ctx.fill();
+}
+
+// ============ ANIMATION ============
+function animate(){
+  if(!animating)return;
+  if(complete){requestAnimationFrame(animate);return}
+
+  var step=0.02*speed;
+  for(var i=0;i<3;i++){
+    var nextTheta=theta+step;
+    if(nextTheta>=maxTheta){nextTheta=maxTheta;complete=true}
+    drawSegment(theta,nextTheta);
+    theta=nextTheta;
+    if(complete)break;
+  }
+
+  // Draw gear visualization on top
+  if(showGears){
+    // Draw gears on top (they'll be overwritten next frame)
+    drawGears(theta);
+  }
+
+  var pct=Math.min(100,Math.round(theta/maxTheta*100));
+  document.getElementById('progress').textContent=pct+'% | '+totalRotations+' rotations';
+
+  requestAnimationFrame(animate);
+}
+
+function startDrawing(){
+  calcMaxTheta();
+  theta=0;prevX=null;prevY=null;complete=false;animating=true;
+  ctx.fillStyle='#050508';ctx.fillRect(0,0,W,H);
+  requestAnimationFrame(animate);
+}
+
+function instantDraw(){
+  calcMaxTheta();
+  ctx.fillStyle='#050508';ctx.fillRect(0,0,W,H);
+  var steps=Math.ceil(maxTheta/0.01);
+  for(var i=0;i<=steps;i++){
+    var t1=i/steps*maxTheta;
+    var t2=Math.min((i+1)/steps*maxTheta,maxTheta);
+    drawSegment(t1,t2);
+  }
+  theta=maxTheta;complete=true;
+  document.getElementById('progress').textContent='100% | '+totalRotations+' rotations';
+}
+
+// ============ PRESETS ============
+var PRESETS={
+  classic:{R:150,r:55,d:80,epi:false},
+  star:{R:200,r:120,d:120,epi:false},
+  lace:{R:180,r:11,d:60,epi:false},
+  atom:{R:120,r:80,d:100,epi:true},
+  bloom:{R:160,r:45,d:140,epi:false},
+  wild:{R:200,r:77,d:190,epi:true}
+};
+
+function loadPreset(name){
+  var p=PRESETS[name];if(!p)return;
+  R=p.R;r=p.r;d=p.d;epi=p.epi;
+  document.getElementById('sl-R').value=R;document.getElementById('v-R').textContent=R;
+  document.getElementById('sl-r').value=r;document.getElementById('v-r').textContent=r;
+  document.getElementById('sl-d').value=d;document.getElementById('v-d').textContent=d;
+  document.getElementById('ck-epi').checked=epi;
+  startDrawing();
+}
+
+// ============ CONTROLS ============
+document.getElementById('sel-preset').addEventListener('change',function(e){
+  if(e.target.value)loadPreset(e.target.value);
+});
+
+function bindSlider(id,vid,setter){
+  document.getElementById(id).addEventListener('input',function(e){
+    var v=parseFloat(e.target.value);if(isNaN(v))return;
+    setter(v);document.getElementById(vid).textContent=v%1?v.toFixed(1):v;
+    startDrawing();
+  });
+}
+bindSlider('sl-R','v-R',function(v){R=v});
+bindSlider('sl-r','v-r',function(v){r=v});
+bindSlider('sl-d','v-d',function(v){d=v});
+bindSlider('sl-speed','v-speed',function(v){speed=v});
+bindSlider('sl-width','v-width',function(v){lineWidth=v});
+
+document.getElementById('ck-epi').addEventListener('change',function(){epi=this.checked;startDrawing()});
+document.getElementById('ck-gears').addEventListener('change',function(){showGears=this.checked});
+document.getElementById('ck-gradient').addEventListener('change',function(){useGradient=this.checked;startDrawing()});
+
+document.getElementById('btn-clear').addEventListener('click',startDrawing);
+document.getElementById('btn-instant').addEventListener('click',instantDraw);
+document.getElementById('btn-save').addEventListener('click',function(){
+  canvas.toBlob(function(blob){
+    if(!blob)return;
+    var url=URL.createObjectURL(blob);
+    var a=document.createElement('a');a.href=url;a.download='spirograph-'+Date.now()+'.png';
+    a.click();setTimeout(function(){URL.revokeObjectURL(url)},1000);
+  },'image/png');
+});
+
+// ============ RESIZE ============
+function resize(){
+  W=window.innerWidth;H=window.innerHeight;
+  canvas.width=W;canvas.height=H;
+  cx=W/2;cy=H/2;
+  startDrawing();
+}
+
+// ============ INIT ============
+resize();window.addEventListener('resize',resize);
+
+})();
+</script>
+</body>
+</html>
