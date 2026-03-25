@@ -1442,3 +1442,17 @@ Persistent knowledge base. Read this before every build.
 - **New insight patterns:** setTimeout race conditions (fourier-draw presets, picross error flash), canvas coordinate offsets (now in 3+ projects — should be default pattern)
 - **Zero user-reported bugs** — pipeline continues to work
 - **Milestone #135** demonstrates mastery: complex math (DFT), interactive drawing, real-time animation, all in single file
+
+### logic-forge (2026-03-26)
+- **KEEP**: Tap-to-place + tap-to-wire interaction model — far better than drag on mobile
+- **KEEP**: Bezier curve wires between pins — visually clean, auto-routes around obstacles
+- **KEEP**: Convergence-based simulation (iterate until stable, max 10 passes) — handles both deep circuits and oscillators safely
+- **KEEP**: Directed graph with truth-table evaluation — clean, extensible architecture for digital logic
+- **KEEP**: Glowing wires (shadowBlur + bright green) for HIGH signals — immediate visual feedback
+- **IMPROVE**: Gemini caught node stacking — placing on existing node created hidden duplicates. Must check hitTestNode before placing
+- **IMPROVE**: hitTestPin iterated forward while hitTestNode iterated backward — inconsistent z-order. Both must iterate backward (top node first)
+- **IMPROVE**: Hardcoded 3-pass simulation breaks circuits deeper than 3 gates. Convergence loop with changed flag handles any depth
+- **IMPROVE**: Out-of-bounds placement pushed pins off-screen. Clamp coordinates to keep all pins accessible
+- **INSIGHT**: For graph-based simulations, use convergence check (did any state change?) rather than fixed pass count. Cap iterations to prevent infinite loops from feedback circuits
+- **INSIGHT**: All hit-testing functions in a layered canvas must iterate in the SAME direction (backward = topmost first)
+- **TEST CAUGHT**: Nothing — all bugs found by Gemini

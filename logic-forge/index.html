@@ -1,0 +1,414 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="theme-color" content="#000000">
+<title>Logic Forge</title>
+<style>
+:root{--bg:#080810;--grid:#0d0d18;--hi:#0f0;--lo:#333;--wire-hi:#0c0;--wire-lo:#222;--accent:#4af;--text:#777;--dim:#444}
+*{margin:0;padding:0;box-sizing:border-box;-webkit-user-select:none;user-select:none}
+html,body{height:100%;background:var(--bg);overflow:hidden;touch-action:none;-webkit-tap-highlight-color:transparent;font-family:system-ui,sans-serif}
+canvas{display:block;position:absolute;inset:0}
+#bar{position:fixed;bottom:8px;left:50%;transform:translateX(-50%);display:flex;gap:4px;padding:6px 10px;background:rgba(8,8,16,0.94);border:1px solid rgba(255,255,255,0.06);border-radius:12px;z-index:5;backdrop-filter:blur(10px);align-items:center;flex-wrap:wrap;justify-content:center}
+.tb{padding:5px 10px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);color:var(--dim);font-size:0.38rem;cursor:pointer;border-radius:5px;font-family:inherit;transition:all 0.12s}
+.tb:active{color:#aaa}
+.tb.sel{border-color:var(--accent);color:var(--accent)}
+#status{position:fixed;top:8px;left:8px;font-size:0.35rem;color:var(--dim);font-family:monospace;z-index:5;background:rgba(8,8,16,0.8);padding:4px 8px;border-radius:6px}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="status">Tap a component, then tap canvas to place</div>
+<div id="bar">
+  <button class="tb sel" id="t-switch">Switch</button>
+  <button class="tb" id="t-and">AND</button>
+  <button class="tb" id="t-or">OR</button>
+  <button class="tb" id="t-not">NOT</button>
+  <button class="tb" id="t-xor">XOR</button>
+  <button class="tb" id="t-nand">NAND</button>
+  <button class="tb" id="t-led">LED</button>
+  <button class="tb" id="t-wire">Wire</button>
+  <button class="tb" id="t-delete">Del</button>
+  <button class="tb" id="btn-clear">Clear</button>
+</div>
+
+<script>
+(function(){
+'use strict';
+
+var canvas=document.getElementById('c'),ctx=canvas.getContext('2d');
+var W,H;
+var nodes=[];  // {id,type,x,y,inputs:[],outputs:[],state:0|1}
+var wires=[];  // {from:nodeId,fromPin:idx,to:nodeId,toPin:idx}
+var nextId=1;
+var tool='switch'; // switch,and,or,not,xor,nand,led,wire,delete
+var wireStart=null; // {nodeId,pin:'out'|'in',pinIdx}
+var PIN_R=5;
+var GATE_W=60,GATE_H=40;
+
+// ---- Gate definitions ----
+var GATE_DEFS={
+  switch:{inCount:0,outCount:1,label:'SW',eval:function(n){return[n.state]}},
+  and:{inCount:2,outCount:1,label:'AND',eval:function(n){var a=getInput(n,0),b=getInput(n,1);return[(a&&b)?1:0]}},
+  or:{inCount:2,outCount:1,label:'OR',eval:function(n){var a=getInput(n,0),b=getInput(n,1);return[(a||b)?1:0]}},
+  not:{inCount:1,outCount:1,label:'NOT',eval:function(n){return[getInput(n,0)?0:1]}},
+  xor:{inCount:2,outCount:1,label:'XOR',eval:function(n){var a=getInput(n,0),b=getInput(n,1);return[(a!==b)?1:0]}},
+  nand:{inCount:2,outCount:1,label:'NAND',eval:function(n){var a=getInput(n,0),b=getInput(n,1);return[(a&&b)?0:1]}},
+  led:{inCount:1,outCount:0,label:'LED',eval:function(n){n.state=getInput(n,0);return[]}}
+};
+
+function getInput(node,pinIdx){
+  // Find wire connected to this input pin
+  for(var i=0;i<wires.length;i++){
+    var w=wires[i];
+    if(w.to===node.id&&w.toPin===pinIdx){
+      var src=getNode(w.from);
+      if(src)return src.outputStates?src.outputStates[w.fromPin]:0;
+    }
+  }
+  return 0;
+}
+
+function getNode(id){
+  for(var i=0;i<nodes.length;i++)if(nodes[i].id===id)return nodes[i];
+  return null;
+}
+
+// ---- Simulation ----
+function simulate(){
+  // Evaluate until stable or max passes (handles deep circuits + limits oscillators)
+  var maxPasses=10;
+  for(var pass=0;pass<maxPasses;pass++){
+    var changed=false;
+    for(var i=0;i<nodes.length;i++){
+      var n=nodes[i];
+      var def=GATE_DEFS[n.type];
+      if(def&&def.eval){
+        var newStates=def.eval(n);
+        if(n.outputStates){
+          for(var j=0;j<newStates.length;j++){
+            if(n.outputStates[j]!==newStates[j])changed=true;
+          }
+        }else{changed=true}
+        n.outputStates=newStates;
+      }
+    }
+    if(!changed)break;
+  }
+}
+
+// ---- Pin positions ----
+function getInputPins(node){
+  var def=GATE_DEFS[node.type];
+  var pins=[];
+  for(var i=0;i<def.inCount;i++){
+    var yOff=(i+1)/(def.inCount+1)*GATE_H;
+    pins.push({x:node.x-GATE_W/2,y:node.y-GATE_H/2+yOff});
+  }
+  return pins;
+}
+
+function getOutputPins(node){
+  var def=GATE_DEFS[node.type];
+  var pins=[];
+  for(var i=0;i<def.outCount;i++){
+    var yOff=(i+1)/(def.outCount+1)*GATE_H;
+    pins.push({x:node.x+GATE_W/2,y:node.y-GATE_H/2+yOff});
+  }
+  return pins;
+}
+
+// ---- Rendering ----
+function draw(){
+  ctx.fillStyle='#080810';
+  ctx.fillRect(0,0,W,H);
+
+  // Grid dots
+  ctx.fillStyle='#151520';
+  for(var gx=20;gx<W;gx+=40){
+    for(var gy=20;gy<H;gy+=40){
+      ctx.fillRect(gx,gy,1,1);
+    }
+  }
+
+  // Wires
+  for(var i=0;i<wires.length;i++){
+    var w=wires[i];
+    var srcNode=getNode(w.from);
+    var dstNode=getNode(w.to);
+    if(!srcNode||!dstNode)continue;
+    var srcPins=getOutputPins(srcNode);
+    var dstPins=getInputPins(dstNode);
+    if(!srcPins[w.fromPin]||!dstPins[w.toPin])continue;
+    var sp=srcPins[w.fromPin],dp=dstPins[w.toPin];
+    var signal=srcNode.outputStates?srcNode.outputStates[w.fromPin]:0;
+    ctx.strokeStyle=signal?'#0c0':'#222';
+    ctx.lineWidth=signal?2.5:1.5;
+    if(signal){ctx.shadowColor='#0f0';ctx.shadowBlur=6}
+    // Bezier curve wire
+    var midX=(sp.x+dp.x)/2;
+    ctx.beginPath();
+    ctx.moveTo(sp.x,sp.y);
+    ctx.bezierCurveTo(midX,sp.y,midX,dp.y,dp.x,dp.y);
+    ctx.stroke();
+    ctx.shadowBlur=0;
+  }
+
+  // Pending wire
+  if(wireStart&&pendingWireEnd){
+    ctx.strokeStyle='rgba(68,170,255,0.4)';
+    ctx.lineWidth=1.5;
+    ctx.setLineDash([4,4]);
+    ctx.beginPath();
+    ctx.moveTo(wireStart.px,wireStart.py);
+    ctx.lineTo(pendingWireEnd.x,pendingWireEnd.y);
+    ctx.stroke();
+    ctx.setLineDash([]);
+  }
+
+  // Nodes
+  for(var i=0;i<nodes.length;i++){
+    drawNode(nodes[i]);
+  }
+}
+var pendingWireEnd=null;
+
+function drawNode(n){
+  var x=n.x,y=n.y;
+  var hw=GATE_W/2,hh=GATE_H/2;
+
+  if(n.type==='switch'){
+    // Toggle switch
+    ctx.fillStyle=n.state?'#1a3a1a':'#1a1a2a';
+    ctx.strokeStyle=n.state?'#0f0':'#444';
+    ctx.lineWidth=1.5;
+    roundRect(x-hw,y-hh,GATE_W,GATE_H,6);
+    ctx.fill();ctx.stroke();
+    // State indicator
+    ctx.fillStyle=n.state?'#0f0':'#555';
+    ctx.beginPath();ctx.arc(x,y,8,0,Math.PI*2);ctx.fill();
+    ctx.fillStyle=n.state?'#fff':'#333';
+    ctx.font='bold 10px monospace';ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.fillText(n.state?'1':'0',x,y);
+  }else if(n.type==='led'){
+    var on=n.state;
+    ctx.fillStyle=on?'#1a3a1a':'#1a1a1a';
+    ctx.strokeStyle=on?'#0f0':'#333';
+    ctx.lineWidth=1.5;
+    ctx.beginPath();ctx.arc(x,y,18,0,Math.PI*2);ctx.fill();ctx.stroke();
+    if(on){ctx.shadowColor='#0f0';ctx.shadowBlur=12}
+    ctx.fillStyle=on?'#0f0':'#333';
+    ctx.beginPath();ctx.arc(x,y,10,0,Math.PI*2);ctx.fill();
+    ctx.shadowBlur=0;
+  }else{
+    // Standard gate body
+    ctx.fillStyle='#12121e';
+    ctx.strokeStyle='#333';
+    ctx.lineWidth=1.5;
+    roundRect(x-hw,y-hh,GATE_W,GATE_H,6);
+    ctx.fill();ctx.stroke();
+    // Label
+    ctx.fillStyle='#888';
+    ctx.font='bold 10px monospace';ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.fillText(GATE_DEFS[n.type].label,x,y);
+  }
+
+  // Input pins
+  var inPins=getInputPins(n);
+  for(var p=0;p<inPins.length;p++){
+    var pin=inPins[p];
+    var sig=getInput(n,p);
+    ctx.fillStyle=sig?'#0f0':'#444';
+    ctx.beginPath();ctx.arc(pin.x,pin.y,PIN_R,0,Math.PI*2);ctx.fill();
+  }
+  // Output pins
+  var outPins=getOutputPins(n);
+  for(var p=0;p<outPins.length;p++){
+    var pin=outPins[p];
+    var sig=n.outputStates?n.outputStates[p]:0;
+    ctx.fillStyle=sig?'#0f0':'#444';
+    ctx.beginPath();ctx.arc(pin.x,pin.y,PIN_R,0,Math.PI*2);ctx.fill();
+  }
+}
+
+function roundRect(x,y,w,h,r){
+  ctx.beginPath();
+  ctx.moveTo(x+r,y);ctx.lineTo(x+w-r,y);ctx.quadraticCurveTo(x+w,y,x+w,y+r);
+  ctx.lineTo(x+w,y+h-r);ctx.quadraticCurveTo(x+w,y+h,x+w-r,y+h);
+  ctx.lineTo(x+r,y+h);ctx.quadraticCurveTo(x,y+h,x,y+h-r);
+  ctx.lineTo(x,y+r);ctx.quadraticCurveTo(x,y,x+r,y);
+  ctx.closePath();
+}
+
+// ---- Hit testing ----
+function hitTestNode(px,py){
+  for(var i=nodes.length-1;i>=0;i--){
+    var n=nodes[i];
+    if(n.type==='led'){
+      var dx=px-n.x,dy=py-n.y;
+      if(dx*dx+dy*dy<18*18)return n;
+    }else{
+      if(px>=n.x-GATE_W/2&&px<=n.x+GATE_W/2&&py>=n.y-GATE_H/2&&py<=n.y+GATE_H/2)return n;
+    }
+  }
+  return null;
+}
+
+function hitTestPin(px,py){
+  for(var i=nodes.length-1;i>=0;i--){
+    var n=nodes[i];
+    var outPins=getOutputPins(n);
+    for(var p=0;p<outPins.length;p++){
+      var dx=px-outPins[p].x,dy=py-outPins[p].y;
+      if(dx*dx+dy*dy<(PIN_R+8)*(PIN_R+8))return{nodeId:n.id,pin:'out',pinIdx:p,px:outPins[p].x,py:outPins[p].y};
+    }
+    var inPins=getInputPins(n);
+    for(var p=0;p<inPins.length;p++){
+      var dx=px-inPins[p].x,dy=py-inPins[p].y;
+      if(dx*dx+dy*dy<(PIN_R+8)*(PIN_R+8))return{nodeId:n.id,pin:'in',pinIdx:p,px:inPins[p].x,py:inPins[p].y};
+    }
+  }
+  return null;
+}
+
+// ---- Interaction ----
+canvas.addEventListener('pointerdown',function(e){
+  e.preventDefault();
+  var rect=canvas.getBoundingClientRect();
+  var px=e.clientX-rect.left,py=e.clientY-rect.top;
+
+  if(tool==='wire'){
+    var pinHit=hitTestPin(px,py);
+    if(pinHit){
+      if(!wireStart){
+        // Start wire from output pin
+        if(pinHit.pin==='out'){
+          wireStart=pinHit;
+          setStatus('Tap an input pin to complete wire');
+        }else{
+          // Clicked input first — also allow reverse wiring
+          wireStart=pinHit;
+          setStatus('Tap an output pin to complete wire');
+        }
+      }else{
+        // Complete wire
+        if(wireStart.pin==='out'&&pinHit.pin==='in'){
+          addWire(wireStart.nodeId,wireStart.pinIdx,pinHit.nodeId,pinHit.pinIdx);
+        }else if(wireStart.pin==='in'&&pinHit.pin==='out'){
+          addWire(pinHit.nodeId,pinHit.pinIdx,wireStart.nodeId,wireStart.pinIdx);
+        }
+        wireStart=null;pendingWireEnd=null;
+        setStatus('Wire connected');
+      }
+    }else{
+      wireStart=null;pendingWireEnd=null;
+      setStatus('Wire cancelled');
+    }
+    return;
+  }
+
+  if(tool==='delete'){
+    var node=hitTestNode(px,py);
+    if(node){
+      // Remove wires connected to this node
+      wires=wires.filter(function(w){return w.from!==node.id&&w.to!==node.id});
+      nodes=nodes.filter(function(n){return n.id!==node.id});
+      setStatus('Deleted '+node.type);
+    }
+    return;
+  }
+
+  // Check if clicking an existing node
+  var node=hitTestNode(px,py);
+  if(node&&node.type==='switch'){
+    node.state=node.state?0:1;
+    simulate();
+    return;
+  }
+  // Don't stack on existing nodes
+  if(node)return;
+
+  // Clamp to keep pins on-screen
+  px=Math.max(GATE_W/2+PIN_R,Math.min(W-GATE_W/2-PIN_R,px));
+  py=Math.max(GATE_H/2+PIN_R,Math.min(H-GATE_H/2-PIN_R-60,py));
+
+  // Place new component
+  if(GATE_DEFS[tool]){
+    var def=GATE_DEFS[tool];
+    var n={id:nextId++,type:tool,x:px,y:py,state:0,outputStates:new Array(def.outCount).fill(0)};
+    nodes.push(n);
+    simulate();
+    setStatus('Placed '+tool);
+  }
+});
+
+canvas.addEventListener('pointermove',function(e){
+  if(wireStart){
+    var rect=canvas.getBoundingClientRect();
+    pendingWireEnd={x:e.clientX-rect.left,y:e.clientY-rect.top};
+  }
+});
+
+function addWire(fromId,fromPin,toId,toPin){
+  // Don't allow duplicate wires or self-connection
+  if(fromId===toId)return;
+  for(var i=0;i<wires.length;i++){
+    if(wires[i].from===fromId&&wires[i].fromPin===fromPin&&wires[i].to===toId&&wires[i].toPin===toPin)return;
+  }
+  // Don't allow multiple wires to same input pin
+  wires=wires.filter(function(w){return!(w.to===toId&&w.toPin===toPin)});
+  wires.push({from:fromId,fromPin:fromPin,to:toId,toPin:toPin});
+  simulate();
+}
+
+function setStatus(msg){
+  document.getElementById('status').textContent=msg;
+}
+
+// ---- Tool selection ----
+var TOOL_IDS={switch:'t-switch',and:'t-and',or:'t-or',not:'t-not',xor:'t-xor',nand:'t-nand',led:'t-led',wire:'t-wire',delete:'t-delete'};
+var toolKeys=Object.keys(TOOL_IDS);
+for(var i=0;i<toolKeys.length;i++){
+  (function(t){
+    document.getElementById(TOOL_IDS[t]).addEventListener('click',function(e){
+      e.stopPropagation();
+      tool=t;
+      wireStart=null;pendingWireEnd=null;
+      for(var k=0;k<toolKeys.length;k++)document.getElementById(TOOL_IDS[toolKeys[k]]).classList.remove('sel');
+      this.classList.add('sel');
+      var msgs={switch:'Tap to place switch',and:'Tap to place AND gate',or:'Tap to place OR gate',not:'Tap to place NOT gate',xor:'Tap to place XOR gate',nand:'Tap to place NAND gate',led:'Tap to place LED',wire:'Tap output pin, then input pin',delete:'Tap component to delete'};
+      setStatus(msgs[t]||'');
+    });
+  })(toolKeys[i]);
+}
+
+document.getElementById('btn-clear').addEventListener('click',function(e){
+  e.stopPropagation();
+  nodes=[];wires=[];wireStart=null;pendingWireEnd=null;
+  setStatus('Cleared');
+});
+
+// ---- Resize ----
+function resize(){
+  W=window.innerWidth;H=window.innerHeight;
+  canvas.width=W;canvas.height=H;
+}
+
+// ---- Main loop ----
+function loop(){
+  simulate();
+  draw();
+  requestAnimationFrame(loop);
+}
+
+// ---- Init ----
+resize();
+window.addEventListener('resize',resize);
+requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>
