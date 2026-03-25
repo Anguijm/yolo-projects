@@ -1288,3 +1288,16 @@ Persistent knowledge base. Read this before every build.
 - **INSIGHT**: For any particle limit, enforce it at EVERY creation point (spawn loop, burst, any future additions). A single bypass can crash the tab
 - **INSIGHT**: `@media(hover:hover)` should be the default pattern for all toolbar opacity tricks going forward — fixes mobile accessibility for free
 - **TEST CAUGHT**: Nothing — all bugs found by Gemini this round
+
+### neuro-forge (2026-03-25)
+- **KEEP**: Unrolled backprop (no matrix/tensor class) — V8-optimized, tiny file, highly readable math
+- **KEEP**: Low-res ImageData (60x60) scaled to full screen via drawImage — perfect for real-time heatmap viz at 60fps
+- **KEEP**: Network diagram overlay showing weight magnitudes and node activations — makes the "black box" transparent
+- **KEEP**: Default dataset on load (XOR) so user immediately sees the network learning — never start with empty state
+- **IMPROVE**: Loss display was lifetime average, not current — Gemini caught this. Always show current-epoch loss, not cumulative
+- **IMPROVE**: Pointer drag created point explosion (pointermove fires fast) — must enforce minimum distance between consecutive drag-added points
+- **IMPROVE**: Canvas coordinates should use getBoundingClientRect, not raw clientX/clientY — matters when canvas isn't at (0,0)
+- **IMPROVE**: Keyboard shortcuts should check e.target.tagName to avoid firing when user is in a form control
+- **INSIGHT**: For any real-time visualization of ML training, separate the "predict for display" function from the "forward for backprop" function to avoid shared state corruption
+- **INSIGHT**: Xavier initialization (scale by 1/sqrt(fan_in)) is critical — without it, tanh saturates immediately and learning stalls
+- **TEST CAUGHT**: Nothing — all bugs found by Gemini. The predict/forward separation was proactively handled.
