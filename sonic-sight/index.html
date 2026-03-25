@@ -1,0 +1,428 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="theme-color" content="#000000">
+<title>Sonic Sight</title>
+<style>
+:root{--bg:#080810;--panel:#0c0c18;--border:rgba(255,255,255,0.06);--accent:#0ff;--green:#0f6;--text:#888;--dim:#444}
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{height:100%;background:var(--bg);overflow-y:auto;touch-action:manipulation;-webkit-tap-highlight-color:transparent;font-family:system-ui,sans-serif;color:var(--text)}
+#unlock{position:fixed;inset:0;background:var(--bg);z-index:100;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;cursor:pointer}
+#unlock h1{font-size:1.2rem;font-weight:300;color:#ccc;letter-spacing:0.15em}
+#unlock p{font-size:0.5rem;color:var(--dim)}
+#unlock .ring{width:80px;height:80px;border:2px solid var(--accent);border-radius:50%;display:flex;align-items:center;justify-content:center;animation:pulse 2s infinite;background:transparent;cursor:pointer;padding:0}
+#unlock .ring::after{content:'';width:0;height:0;border-left:24px solid var(--accent);border-top:14px solid transparent;border-bottom:14px solid transparent;margin-left:6px}
+@keyframes pulse{0%,100%{opacity:0.6;transform:scale(1)}50%{opacity:1;transform:scale(1.05)}}
+#unlock.hidden{display:none}
+
+#app{max-width:700px;margin:0 auto;padding:8px}
+canvas{width:100%;border-radius:8px;background:#060610;border:1px solid var(--border);display:block;margin-bottom:6px}
+#scope{height:120px}
+#spectrum{height:80px}
+
+.section{background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:10px;margin-bottom:6px}
+.section-title{font-size:0.38rem;color:var(--dim);letter-spacing:0.1em;margin-bottom:6px;text-transform:uppercase}
+
+.osc-row{display:flex;gap:8px;align-items:center;margin-bottom:8px;padding:6px 8px;background:rgba(255,255,255,0.02);border-radius:6px}
+.osc-row:last-child{margin-bottom:0}
+.osc-label{font-size:0.4rem;color:var(--accent);min-width:18px;font-family:monospace;font-weight:700}
+.osc-type{background:var(--bg);border:1px solid var(--border);color:var(--text);padding:3px 4px;font-size:0.35rem;border-radius:3px;outline:none;font-family:inherit}
+.osc-ctrl{display:flex;flex-direction:column;gap:1px;flex:1}
+.osc-ctrl-label{font-size:0.28rem;color:var(--dim);display:flex;justify-content:space-between}
+.osc-ctrl input[type="range"]{width:100%;height:3px;accent-color:var(--accent)}
+.osc-on{width:28px;height:28px;border-radius:50%;border:2px solid var(--border);background:transparent;cursor:pointer;transition:all 0.15s;flex-shrink:0}
+.osc-on.active{background:var(--accent);border-color:var(--accent)}
+
+.controls{display:flex;gap:6px;align-items:center;justify-content:center;flex-wrap:wrap}
+.btn{padding:5px 12px;background:rgba(255,255,255,0.04);border:1px solid var(--border);color:var(--dim);font-size:0.4rem;cursor:pointer;border-radius:4px;font-family:inherit;transition:all 0.15s}
+.btn:active{color:#aaa}
+.btn.active{border-color:var(--accent);color:var(--accent)}
+.master-vol{display:flex;align-items:center;gap:4px;font-size:0.35rem;color:var(--dim)}
+.master-vol input{width:60px;height:3px;accent-color:var(--accent)}
+
+#lesson-panel{background:rgba(0,255,255,0.03);border:1px solid rgba(0,255,255,0.08);border-radius:8px;padding:10px;margin-bottom:6px;display:none}
+#lesson-panel.show{display:block}
+#lesson-title{font-size:0.5rem;color:var(--accent);margin-bottom:4px;font-weight:600}
+#lesson-body{font-size:0.38rem;color:var(--text);line-height:1.5;margin-bottom:8px}
+.lesson-nav{display:flex;gap:6px;align-items:center}
+.lesson-nav .btn{font-size:0.35rem}
+#lesson-count{font-size:0.32rem;color:var(--dim)}
+</style>
+</head>
+<body>
+<div id="unlock">
+  <button class="ring" id="btn-start" aria-label="Start audio"></button>
+  <h1>SONIC SIGHT</h1>
+  <p>Tap to start audio</p>
+</div>
+
+<div id="app">
+  <canvas id="scope"></canvas>
+  <canvas id="spectrum"></canvas>
+
+  <div id="lesson-panel">
+    <div id="lesson-title"></div>
+    <div id="lesson-body"></div>
+    <div class="lesson-nav">
+      <button class="btn" id="btn-lprev">Prev</button>
+      <span id="lesson-count"></span>
+      <button class="btn" id="btn-lnext">Next</button>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Oscillators</div>
+    <div id="osc-container"></div>
+  </div>
+
+  <div class="section controls">
+    <button class="btn" id="btn-play">Play</button>
+    <button class="btn" id="btn-lessons">Lessons</button>
+    <span class="master-vol">Vol<input type="range" id="sl-master" min="0" max="100" value="30"><span id="v-master">30%</span></span>
+  </div>
+</div>
+
+<script>
+(function(){
+'use strict';
+
+// ---- Audio setup ----
+var actx=null,analyser=null,masterGain=null;
+var playing=false;
+var OSC_COUNT=4;
+var oscData=[];
+for(var i=0;i<OSC_COUNT;i++){
+  oscData.push({on:i===0,type:'sine',freq:220*(i+1),vol:i===0?0.5:0.3,node:null,gain:null});
+}
+
+function initAudio(){
+  actx=new(window.AudioContext||window.webkitAudioContext)();
+  analyser=actx.createAnalyser();
+  analyser.fftSize=2048;
+  analyser.smoothingTimeConstant=0.8;
+  masterGain=actx.createGain();
+  masterGain.gain.value=0.3;
+  masterGain.connect(analyser);
+  analyser.connect(actx.destination);
+}
+
+function startOscillators(){
+  if(!actx)return;
+  stopOscillators();
+  for(var i=0;i<OSC_COUNT;i++){
+    var d=oscData[i];
+    if(!d.on)continue;
+    d.node=actx.createOscillator();
+    d.node.type=d.type;
+    d.node.frequency.value=d.freq;
+    d.gain=actx.createGain();
+    d.gain.gain.value=d.vol;
+    d.node.connect(d.gain);
+    d.gain.connect(masterGain);
+    d.node.start();
+  }
+  playing=true;
+  document.getElementById('btn-play').textContent='Stop';
+  document.getElementById('btn-play').classList.add('active');
+}
+
+function stopOscillators(){
+  for(var i=0;i<OSC_COUNT;i++){
+    var d=oscData[i];
+    if(d.node){try{d.node.stop()}catch(e){}d.node=null;d.gain=null}
+  }
+  playing=false;
+  document.getElementById('btn-play').textContent='Play';
+  document.getElementById('btn-play').classList.remove('active');
+}
+
+function updateOsc(idx){
+  var d=oscData[idx];
+  if(!playing||!d.on||!d.node||!actx)return;
+  var t=actx.currentTime;
+  d.node.frequency.setTargetAtTime(d.freq,t,0.015);
+  d.gain.gain.setTargetAtTime(d.vol,t,0.015);
+}
+
+function toggleOsc(idx){
+  oscData[idx].on=!oscData[idx].on;
+  if(playing){startOscillators()}
+}
+
+// ---- Canvas setup ----
+var scopeCanvas=document.getElementById('scope');
+var specCanvas=document.getElementById('spectrum');
+var scopeCtx=scopeCanvas.getContext('2d');
+var specCtx=specCanvas.getContext('2d');
+var SW,SH,FW,FH;
+
+function resizeCanvases(){
+  var rect=scopeCanvas.getBoundingClientRect();
+  SW=rect.width;SH=rect.height;
+  scopeCanvas.width=SW;scopeCanvas.height=SH;
+  rect=specCanvas.getBoundingClientRect();
+  FW=rect.width;FH=rect.height;
+  specCanvas.width=FW;specCanvas.height=FH;
+}
+
+// ---- Visualization ----
+var timeData,freqData;
+
+function drawScope(){
+  if(!analyser)return;
+  if(!timeData)timeData=new Uint8Array(analyser.fftSize);
+  analyser.getByteTimeDomainData(timeData);
+
+  scopeCtx.fillStyle='#060610';
+  scopeCtx.fillRect(0,0,SW,SH);
+
+  // Grid lines
+  scopeCtx.strokeStyle='rgba(255,255,255,0.04)';
+  scopeCtx.lineWidth=0.5;
+  for(var g=0;g<5;g++){
+    var gy=SH*g/4;
+    scopeCtx.beginPath();scopeCtx.moveTo(0,gy);scopeCtx.lineTo(SW,gy);scopeCtx.stroke();
+  }
+  for(var g=0;g<9;g++){
+    var gx=SW*g/8;
+    scopeCtx.beginPath();scopeCtx.moveTo(gx,0);scopeCtx.lineTo(gx,SH);scopeCtx.stroke();
+  }
+
+  // Waveform
+  scopeCtx.strokeStyle=playing?'#0ff':'#333';
+  scopeCtx.lineWidth=1.5;
+  scopeCtx.shadowColor='#0ff';
+  scopeCtx.shadowBlur=playing?6:0;
+  scopeCtx.beginPath();
+  var sliceW=SW/timeData.length;
+  for(var i=0;i<timeData.length;i++){
+    var val=timeData[i]/255;
+    var y=val*SH;
+    if(i===0)scopeCtx.moveTo(0,y);
+    else scopeCtx.lineTo(i*sliceW,y);
+  }
+  scopeCtx.stroke();
+  scopeCtx.shadowBlur=0;
+
+  // Label
+  scopeCtx.fillStyle='rgba(0,255,255,0.15)';
+  scopeCtx.font='9px monospace';
+  scopeCtx.fillText('WAVEFORM',4,12);
+}
+
+function drawSpectrum(){
+  if(!analyser)return;
+  var bufLen=analyser.frequencyBinCount;
+  if(!freqData)freqData=new Uint8Array(bufLen);
+  analyser.getByteFrequencyData(freqData);
+
+  specCtx.fillStyle='#060610';
+  specCtx.fillRect(0,0,FW,FH);
+
+  var barW=FW/bufLen*2.5;
+  var x=0;
+  for(var i=0;i<bufLen;i++){
+    var val=freqData[i]/255;
+    var barH=val*FH;
+    var hue=180+val*60;
+    specCtx.fillStyle='hsla('+hue+',80%,'+(20+val*40)+'%,'+(0.4+val*0.6)+')';
+    specCtx.fillRect(x,FH-barH,barW>1?barW-0.5:barW,barH);
+    x+=barW;
+    if(x>FW)break;
+  }
+
+  // Label
+  specCtx.fillStyle='rgba(0,255,255,0.15)';
+  specCtx.font='9px monospace';
+  specCtx.fillText('SPECTRUM',4,12);
+}
+
+function drawLoop(){
+  drawScope();
+  drawSpectrum();
+  requestAnimationFrame(drawLoop);
+}
+
+// ---- Build oscillator UI ----
+var WAVE_NAMES=['sine','square','sawtooth','triangle'];
+var OSC_COLORS=['#0ff','#f06','#0f6','#fa0'];
+
+function buildOscUI(){
+  var container=document.getElementById('osc-container');
+  container.innerHTML='';
+  for(var i=0;i<OSC_COUNT;i++){
+    (function(idx){
+      var d=oscData[idx];
+      var row=document.createElement('div');
+      row.className='osc-row';
+
+      // On/off button
+      var onBtn=document.createElement('button');
+      onBtn.className='osc-on'+(d.on?' active':'');
+      onBtn.id='osc-on-'+idx;
+      onBtn.style.borderColor=OSC_COLORS[idx];
+      if(d.on)onBtn.style.background=OSC_COLORS[idx];
+      onBtn.addEventListener('click',function(){
+        toggleOsc(idx);
+        var dd=oscData[idx];
+        this.classList.toggle('active',dd.on);
+        this.style.background=dd.on?OSC_COLORS[idx]:'transparent';
+      });
+
+      // Label
+      var label=document.createElement('span');
+      label.className='osc-label';
+      label.style.color=OSC_COLORS[idx];
+      label.textContent=(idx+1);
+
+      // Wave type select
+      var sel=document.createElement('select');
+      sel.className='osc-type';
+      for(var w=0;w<WAVE_NAMES.length;w++){
+        var opt=document.createElement('option');
+        opt.value=WAVE_NAMES[w];
+        opt.textContent=WAVE_NAMES[w].substring(0,3);
+        if(WAVE_NAMES[w]===d.type)opt.selected=true;
+        sel.appendChild(opt);
+      }
+      sel.addEventListener('change',function(){
+        oscData[idx].type=this.value;
+        if(playing&&oscData[idx].node){
+          oscData[idx].node.type=this.value;
+        }
+      });
+
+      // Freq slider
+      var freqCtrl=document.createElement('div');
+      freqCtrl.className='osc-ctrl';
+      var freqLabel=document.createElement('div');
+      freqLabel.className='osc-ctrl-label';
+      freqLabel.innerHTML='<span>Hz</span><span id="vf-'+idx+'">'+d.freq+'</span>';
+      var freqSlider=document.createElement('input');
+      freqSlider.type='range';freqSlider.min='20';freqSlider.max='2000';freqSlider.value=d.freq;
+      freqSlider.addEventListener('input',function(){
+        oscData[idx].freq=parseInt(this.value,10);
+        document.getElementById('vf-'+idx).textContent=this.value;
+        updateOsc(idx);
+      });
+      freqCtrl.appendChild(freqLabel);
+      freqCtrl.appendChild(freqSlider);
+
+      // Volume slider
+      var volCtrl=document.createElement('div');
+      volCtrl.className='osc-ctrl';
+      var volLabel=document.createElement('div');
+      volLabel.className='osc-ctrl-label';
+      volLabel.innerHTML='<span>Vol</span><span id="vv-'+idx+'">'+Math.round(d.vol*100)+'%</span>';
+      var volSlider=document.createElement('input');
+      volSlider.type='range';volSlider.min='0';volSlider.max='100';volSlider.value=Math.round(d.vol*100);
+      volSlider.addEventListener('input',function(){
+        oscData[idx].vol=parseInt(this.value,10)/100;
+        document.getElementById('vv-'+idx).textContent=this.value+'%';
+        updateOsc(idx);
+      });
+      volCtrl.appendChild(volLabel);
+      volCtrl.appendChild(volSlider);
+
+      row.appendChild(onBtn);
+      row.appendChild(label);
+      row.appendChild(sel);
+      row.appendChild(freqCtrl);
+      row.appendChild(volCtrl);
+      container.appendChild(row);
+    })(i);
+  }
+}
+
+// ---- Lessons ----
+var LESSONS=[
+  {title:'1. The Sine Wave',body:'The purest sound — a single frequency with no harmonics. Set Osc 1 to sine at 440 Hz (concert A). Notice the smooth, rounded waveform on the oscilloscope.',setup:function(){setOscState([{on:true,type:'sine',freq:440,vol:0.5},{on:false},{on:false},{on:false}])}},
+  {title:'2. Frequency = Pitch',body:'Move Osc 1 frequency from 220 Hz to 880 Hz. Lower frequencies = deeper sound, higher = brighter. Watch how the waveform compresses as frequency increases.',setup:function(){setOscState([{on:true,type:'sine',freq:220,vol:0.5},{on:false},{on:false},{on:false}])}},
+  {title:'3. The Square Wave',body:'A square wave contains only odd harmonics (1x, 3x, 5x...). Switch Osc 1 to square. Notice the sharp, buzzy sound and the flat-topped waveform.',setup:function(){setOscState([{on:true,type:'square',freq:220,vol:0.4},{on:false},{on:false},{on:false}])}},
+  {title:'4. Building a Square from Sines',body:'Enable all 4 oscillators. Osc 1=220Hz, Osc 2=660Hz (3x, 33% vol), Osc 3=1100Hz (5x, 20% vol), Osc 4=1540Hz (7x, 14% vol). This approximates a square wave using additive synthesis!',setup:function(){setOscState([{on:true,type:'sine',freq:220,vol:0.5},{on:true,type:'sine',freq:660,vol:0.17},{on:true,type:'sine',freq:1100,vol:0.1},{on:true,type:'sine',freq:1540,vol:0.07}])}},
+  {title:'5. Sawtooth — All Harmonics',body:'A sawtooth wave contains ALL harmonics (1x, 2x, 3x...), making it the richest-sounding waveform. Switch Osc 1 to sawtooth. Compare its spectrum to the sine wave — many more frequency bars!',setup:function(){setOscState([{on:true,type:'sawtooth',freq:220,vol:0.35},{on:false},{on:false},{on:false}])}},
+  {title:'6. Octaves & Harmony',body:'Enable Osc 1 at 220Hz and Osc 2 at 440Hz (double = one octave up). They sound "the same" but higher. Try changing Osc 2 to 330Hz (1.5x = a perfect fifth) to hear musical harmony.',setup:function(){setOscState([{on:true,type:'sine',freq:220,vol:0.4},{on:true,type:'sine',freq:440,vol:0.4},{on:false},{on:false}])}},
+  {title:'7. Beating & Interference',body:'Set Osc 1 to 440Hz and Osc 2 to 442Hz — both sine waves. You will hear a pulsing "beat" at 2Hz (the difference). This is wave interference! Watch the waveform slowly wobble.',setup:function(){setOscState([{on:true,type:'sine',freq:440,vol:0.4},{on:true,type:'sine',freq:442,vol:0.4},{on:false},{on:false}])}},
+  {title:'8. Free Exploration',body:'You now understand sine, square, sawtooth, triangle waves, harmonics, octaves, and beating. Mix all 4 oscillators freely — create drones, chords, textures. Watch the spectrum analyzer to see what frequencies are present.',setup:function(){setOscState([{on:true,type:'sine',freq:220,vol:0.5},{on:false},{on:false},{on:false}])}}
+];
+var currentLesson=-1;
+var lessonsVisible=false;
+
+function setOscState(states){
+  for(var i=0;i<OSC_COUNT;i++){
+    if(states[i]){
+      if(states[i].on!==undefined)oscData[i].on=states[i].on;
+      if(states[i].type)oscData[i].type=states[i].type;
+      if(states[i].freq)oscData[i].freq=states[i].freq;
+      if(states[i].vol!==undefined)oscData[i].vol=states[i].vol;
+    }
+  }
+  buildOscUI();
+  if(playing)startOscillators();
+}
+
+function showLesson(idx){
+  if(idx<0)idx=0;
+  if(idx>=LESSONS.length)idx=LESSONS.length-1;
+  currentLesson=idx;
+  var L=LESSONS[idx];
+  document.getElementById('lesson-title').textContent=L.title;
+  document.getElementById('lesson-body').textContent=L.body;
+  document.getElementById('lesson-count').textContent=(idx+1)+'/'+LESSONS.length;
+  if(L.setup)L.setup();
+  if(!playing&&actx)startOscillators();
+}
+
+// ---- Controls ----
+document.getElementById('btn-play').addEventListener('click',function(){
+  if(playing)stopOscillators();
+  else startOscillators();
+});
+
+document.getElementById('btn-lessons').addEventListener('click',function(){
+  lessonsVisible=!lessonsVisible;
+  var panel=document.getElementById('lesson-panel');
+  panel.classList.toggle('show',lessonsVisible);
+  this.classList.toggle('active',lessonsVisible);
+  if(lessonsVisible&&currentLesson<0)showLesson(0);
+});
+
+document.getElementById('btn-lprev').addEventListener('click',function(){showLesson(currentLesson-1)});
+document.getElementById('btn-lnext').addEventListener('click',function(){showLesson(currentLesson+1)});
+
+document.getElementById('sl-master').addEventListener('input',function(){
+  var val=parseInt(this.value,10);
+  document.getElementById('v-master').textContent=val+'%';
+  if(masterGain)masterGain.gain.value=val/100;
+});
+
+// ---- Unlock screen ----
+function unlockApp(){
+  document.getElementById('unlock').classList.add('hidden');
+  try{
+    initAudio();
+    if(actx.state==='suspended')actx.resume();
+  }catch(e){
+    // Audio not supported — visualizations still work
+  }
+  // Sync master gain with slider value
+  if(masterGain){
+    var sv=parseInt(document.getElementById('sl-master').value,10);
+    masterGain.gain.value=sv/100;
+  }
+  resizeCanvases();
+  buildOscUI();
+  requestAnimationFrame(drawLoop);
+}
+document.getElementById('unlock').addEventListener('click',unlockApp);
+document.getElementById('btn-start').addEventListener('click',function(e){e.stopPropagation();unlockApp()});
+
+window.addEventListener('resize',resizeCanvases);
+})();
+</script>
+</body>
+</html>

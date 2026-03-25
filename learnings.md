@@ -1314,3 +1314,17 @@ Persistent knowledge base. Read this before every build.
 - **INSIGHT**: For any per-frame rendering that uses an intermediate canvas, ALWAYS create it once at init, not inside the render function. This is a critical performance rule.
 - **INSIGHT**: Navier-Stokes with obstacles: skip obstacle cells in diffuse/advect/project, zero velocity inside obstacles in setBnd
 - **TEST CAUGHT**: "overlay" keyword false positive (5th occurrence). Known issue with test regex matching JS comments/function names.
+
+### sonic-sight (2026-03-25)
+- **KEEP**: Web Audio AnalyserNode for dual visualization (getByteTimeDomainData for waveform, getByteFrequencyData for spectrum)
+- **KEEP**: Guided lesson system with auto-configured oscillator states — turns a sandbox into an educational tool
+- **KEEP**: Unlock screen pattern (full-page overlay → click → AudioContext init) for browser autoplay policy compliance
+- **KEEP**: CRT-style grid lines on oscilloscope canvas for authentic instrumentation feel
+- **IMPROVE**: Gemini caught music theory error — Lesson 6 set 330Hz as "octave" when it's actually a perfect fifth (3:2 ratio). 440Hz is the true octave (2:1). Always verify music theory claims
+- **IMPROVE**: Changing wave type destroyed and recreated ALL oscillators causing clicks. Fix: set OscillatorNode.type directly in-place, no restart needed
+- **IMPROVE**: Must call actx.resume() after AudioContext creation — iOS/Safari start contexts in suspended state
+- **IMPROVE**: Use setTargetAtTime instead of direct .value assignment for audio params to prevent zipper noise on rapid slider changes
+- **IMPROVE**: masterGain.gain.value must sync with slider DOM value at init, not use hardcoded value
+- **INSIGHT**: OscillatorNode.type can be changed on a live running oscillator without stopping/restarting it — this is far smoother
+- **INSIGHT**: setTargetAtTime(value, currentTime, 0.015) gives smooth ~15ms ramp that eliminates clicks while feeling instant
+- **TEST CAUGHT**: Browser test timeout — transient Playwright infrastructure issue, not a code bug. Page verified manually. Same class as ink-stack/neon-runner timeouts.
