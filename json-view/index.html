@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="theme-color" content="#000000">
+<title>JSON View</title>
+<style>
+:root{--bg:#0a0a12;--panel:#0e0e1a;--border:rgba(255,255,255,0.06);--accent:#4af;--key:#9cdcfe;--str:#ce9178;--num:#b5cea8;--bool:#569cd6;--null:#808080;--text:#999;--dim:#555;--err:#f44;--mono:ui-monospace,Consolas,monospace}
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{height:100%;background:var(--bg);overflow-y:auto;touch-action:manipulation;-webkit-tap-highlight-color:transparent;font-family:system-ui,sans-serif;color:var(--text)}
+#app{max-width:700px;margin:0 auto;padding:8px}
+h1{font-size:0.5rem;font-weight:200;color:#aaa;letter-spacing:0.2em;text-align:center;margin-bottom:8px}
+
+.card{background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:10px;margin-bottom:6px}
+.card-title{font-size:0.32rem;color:var(--dim);letter-spacing:0.1em;text-transform:uppercase;margin-bottom:6px}
+
+textarea{width:100%;background:var(--bg);border:1px solid var(--border);color:#ccc;padding:8px;font-family:var(--mono);font-size:16px;border-radius:6px;outline:none;resize:vertical;min-height:100px;line-height:1.5}
+textarea:focus{border-color:var(--accent)}
+textarea.err{border-color:var(--err)}
+#error-msg{font-size:0.32rem;color:var(--err);min-height:14px;margin-top:4px}
+
+.toolbar{display:flex;gap:4px;flex-wrap:wrap;margin-bottom:6px}
+.btn{padding:5px 12px;background:rgba(255,255,255,0.04);border:1px solid var(--border);color:var(--dim);font-size:0.36rem;cursor:pointer;border-radius:5px;font-family:inherit;transition:all 0.12s}
+.btn:active{color:#aaa}
+.btn.active{border-color:var(--accent);color:var(--accent)}
+
+/* Tabs */
+.tabs{display:flex;gap:0;margin-bottom:6px}
+.tab{flex:1;padding:6px;text-align:center;font-size:0.36rem;color:var(--dim);cursor:pointer;border:1px solid var(--border);background:transparent;font-family:inherit}
+.tab:first-child{border-radius:6px 0 0 6px}
+.tab:last-child{border-radius:0 6px 6px 0}
+.tab.sel{background:rgba(255,255,255,0.04);color:var(--text);border-color:var(--accent)}
+
+/* Formatted view */
+#formatted{background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:10px;font-family:var(--mono);font-size:0.38rem;line-height:1.6;overflow-x:auto;white-space:pre-wrap;word-break:break-all;max-height:60vh;overflow-y:auto;display:none}
+
+/* Tree view */
+#tree{background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:8px;font-family:var(--mono);font-size:0.38rem;line-height:1.5;max-height:60vh;overflow-y:auto;overflow-x:auto;display:none}
+#tree details{margin-left:16px}
+#tree summary{cursor:pointer;list-style:none;padding:1px 0}
+#tree summary::-webkit-details-marker{display:none}
+#tree summary::before{content:'▶ ';color:var(--dim);font-size:0.3rem;display:inline-block;transition:transform 0.15s}
+#tree details[open]>summary::before{transform:rotate(90deg)}
+.t-key{color:var(--key);cursor:pointer}
+.t-key:hover{text-decoration:underline}
+.t-str{color:var(--str)}
+.t-num{color:var(--num)}
+.t-bool{color:var(--bool)}
+.t-null{color:var(--null);font-style:italic}
+.t-bracket{color:var(--dim)}
+.t-size{color:var(--dim);font-size:0.3rem;opacity:0.6}
+.t-leaf{margin-left:16px;padding:1px 0}
+
+/* Path toast */
+#toast{position:fixed;bottom:60px;left:50%;transform:translateX(-50%);background:rgba(68,170,255,0.15);border:1px solid rgba(68,170,255,0.2);color:var(--accent);padding:4px 12px;border-radius:6px;font-size:0.32rem;font-family:var(--mono);opacity:0;transition:opacity 0.3s;z-index:10;pointer-events:none}
+#toast.show{opacity:1}
+</style>
+</head>
+<body>
+<div id="app">
+  <h1>JSON VIEW</h1>
+
+  <div class="card">
+    <div class="card-title">Input</div>
+    <textarea id="input" placeholder="Paste JSON here..."></textarea>
+    <div id="error-msg"></div>
+    <div class="toolbar">
+      <button class="btn" id="btn-format">Format</button>
+      <button class="btn" id="btn-minify">Minify</button>
+      <button class="btn" id="btn-copy">Copy</button>
+      <button class="btn" id="btn-sample">Sample</button>
+      <button class="btn" id="btn-clear">Clear</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="tabs">
+      <button class="tab sel" id="tab-tree">Tree</button>
+      <button class="tab" id="tab-text">Formatted</button>
+    </div>
+    <div id="tree"></div>
+    <div id="formatted"></div>
+  </div>
+</div>
+<div id="toast"></div>
+
+<script>
+(function(){
+'use strict';
+
+var currentView='tree';
+var parsedData=null;
+var toastTimer=null;
+
+// ---- Parse ----
+function parseInput(){
+  var raw=document.getElementById('input').value.trim();
+  var errEl=document.getElementById('error-msg');
+  var inputEl=document.getElementById('input');
+  if(!raw){
+    parsedData=null;errEl.textContent='';inputEl.classList.remove('err');
+    clearOutput();return;
+  }
+  try{
+    parsedData=JSON.parse(raw);
+    errEl.textContent='';inputEl.classList.remove('err');
+    renderOutput();
+  }catch(e){
+    parsedData=null;
+    errEl.textContent=e.message;
+    inputEl.classList.add('err');
+    clearOutput();
+  }
+}
+
+function clearOutput(){
+  document.getElementById('tree').innerHTML='';
+  document.getElementById('formatted').textContent='';
+}
+
+// ---- Render ----
+function renderOutput(){
+  if(parsedData===null)return;
+  if(currentView==='tree')renderTree();
+  else renderFormatted();
+}
+
+function renderFormatted(){
+  var text=JSON.stringify(parsedData,null,2);
+  var html=text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  // Single comprehensive regex for safe token-level highlighting
+  html=html.replace(new RegExp('("(\\\\u[a-zA-Z0-9]{4}|\\\\[^u]|[^\\\\"])*"(\\s*:)?|\\b(true|false|null)\\b|-?\\d+(?:\\.\\d*)?(?:[eE][+\\-]?\\d+)?)','g'),function(match){
+    var cls='t-num';
+    if(match.charAt(0)==='"'){
+      if(match.charAt(match.length-1)===':'){
+        return'<span class="t-key">'+match.slice(0,-1)+'</span>:';
+      }
+      cls='t-str';
+    }else if(match==='true'||match==='false')cls='t-bool';
+    else if(match==='null')cls='t-null';
+    return'<span class="'+cls+'">'+match+'</span>';
+  });
+  document.getElementById('formatted').innerHTML=html;
+}
+
+function renderTree(){
+  var container=document.getElementById('tree');
+  container.innerHTML='';
+  container.appendChild(buildNode(parsedData,'root',''));
+}
+
+function buildNode(data,key,path){
+  var isRoot=(key==='root');
+  var currentPath=isRoot?'$':path;
+
+  if(data===null){
+    return createLeaf(key,currentPath,'<span class="t-null">null</span>',isRoot);
+  }
+  if(typeof data==='string'){
+    return createLeaf(key,currentPath,'<span class="t-str">"'+escapeHtml(data)+'"</span>',isRoot);
+  }
+  if(typeof data==='number'){
+    return createLeaf(key,currentPath,'<span class="t-num">'+data+'</span>',isRoot);
+  }
+  if(typeof data==='boolean'){
+    return createLeaf(key,currentPath,'<span class="t-bool">'+data+'</span>',isRoot);
+  }
+
+  var isArray=Array.isArray(data);
+  var keys=isArray?data:Object.keys(data);
+  var count=isArray?data.length:Object.keys(data).length;
+
+  var details=document.createElement('details');
+  details.open=true;
+  var summary=document.createElement('summary');
+
+  var label='';
+  if(!isRoot)label='<span class="t-key" data-path="'+escapeAttr(currentPath)+'">'+escapeHtml(String(key))+'</span>: ';
+  label+='<span class="t-bracket">'+(isArray?'[':'{')+'</span>';
+  label+=' <span class="t-size">'+count+(isArray?' items':' keys')+'</span>';
+  summary.innerHTML=label;
+  details.appendChild(summary);
+
+  if(isArray){
+    for(var i=0;i<data.length;i++){
+      var childPath=currentPath+'['+i+']';
+      details.appendChild(buildNode(data[i],i,childPath));
+    }
+  }else{
+    var objKeys=Object.keys(data);
+    for(var i=0;i<objKeys.length;i++){
+      var k=objKeys[i];
+      var childPath=/^[a-zA-Z_$][a-zA-Z0-9_$]*$/.test(k)?currentPath+'.'+k:currentPath+'["'+k+'"]';
+      details.appendChild(buildNode(data[k],k,childPath));
+    }
+  }
+
+  // Closing bracket
+  var close=document.createElement('div');
+  close.className='t-leaf';
+  close.innerHTML='<span class="t-bracket">'+(isArray?']':'}')+'</span>';
+  details.appendChild(close);
+
+  if(isRoot){
+    // Wrap root without extra indentation
+    var wrapper=document.createElement('div');
+    wrapper.appendChild(details);
+    return wrapper;
+  }
+  return details;
+}
+
+function createLeaf(key,path,valueHtml,isRoot){
+  var div=document.createElement('div');
+  div.className='t-leaf';
+  if(!isRoot){
+    div.innerHTML='<span class="t-key" data-path="'+escapeAttr(path)+'">'+escapeHtml(String(key))+'</span>: '+valueHtml;
+  }else{
+    div.innerHTML=valueHtml;
+  }
+  return div;
+}
+
+// ---- Utilities ----
+function escapeHtml(str){
+  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function escapeAttr(str){
+  return String(str).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+// ---- Path copy on click ----
+document.addEventListener('click',function(e){
+  var keyEl=e.target.closest('.t-key');
+  if(!keyEl||!keyEl.dataset.path)return;
+  var path=keyEl.dataset.path;
+  showToast(path);
+  if(navigator.clipboard&&navigator.clipboard.writeText){
+    navigator.clipboard.writeText(path).catch(function(){});
+  }
+});
+
+function showToast(text){
+  var toast=document.getElementById('toast');
+  toast.textContent=text;
+  toast.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer=setTimeout(function(){toast.classList.remove('show')},1500);
+}
+
+// ---- Controls ----
+document.getElementById('input').addEventListener('input',parseInput);
+
+document.getElementById('btn-format').addEventListener('click',function(){
+  if(!parsedData)return;
+  document.getElementById('input').value=JSON.stringify(parsedData,null,2);
+  parseInput();
+});
+
+document.getElementById('btn-minify').addEventListener('click',function(){
+  if(!parsedData)return;
+  document.getElementById('input').value=JSON.stringify(parsedData);
+  parseInput();
+});
+
+document.getElementById('btn-copy').addEventListener('click',function(){
+  var text=document.getElementById('input').value;
+  if(navigator.clipboard&&navigator.clipboard.writeText){
+    var self=this;
+    navigator.clipboard.writeText(text).then(function(){
+      self.textContent='Copied!';setTimeout(function(){self.textContent='Copy'},1200);
+    }).catch(function(){});
+  }
+});
+
+document.getElementById('btn-sample').addEventListener('click',function(){
+  document.getElementById('input').value=JSON.stringify({
+    name:"Pixel Jump",version:"1.0.0",description:"A platformer game",
+    features:["variable jump","coyote time","5 levels"],
+    config:{tileSize:24,gravity:0.6,maxSpeed:12},
+    levels:[{id:1,name:"Intro",coins:3,difficulty:"easy"},{id:2,name:"Gaps",coins:4,difficulty:"medium"},{id:3,name:"Climb",coins:5,difficulty:"hard"}],
+    published:true,rating:null,tags:["game","canvas","physics"]
+  },null,2);
+  parseInput();
+});
+
+document.getElementById('btn-clear').addEventListener('click',function(){
+  document.getElementById('input').value='';
+  parsedData=null;clearOutput();
+  document.getElementById('error-msg').textContent='';
+  document.getElementById('input').classList.remove('err');
+});
+
+// Tabs
+document.getElementById('tab-tree').addEventListener('click',function(){
+  currentView='tree';
+  this.classList.add('sel');document.getElementById('tab-text').classList.remove('sel');
+  document.getElementById('tree').style.display='block';
+  document.getElementById('formatted').style.display='none';
+  if(parsedData!==null)renderTree();
+});
+document.getElementById('tab-text').addEventListener('click',function(){
+  currentView='text';
+  this.classList.add('sel');document.getElementById('tab-tree').classList.remove('sel');
+  document.getElementById('formatted').style.display='block';
+  document.getElementById('tree').style.display='none';
+  if(parsedData!==null)renderFormatted();
+});
+
+// ---- Init ----
+document.getElementById('tree').style.display='block';
+})();
+</script>
+</body>
+</html>

@@ -1619,3 +1619,15 @@ Persistent knowledge base. Read this before every build.
 - **INSIGHT**: When checking for "no input", use ==null (catches null+undefined) not !value (catches empty string, 0, false). Empty strings are valid input for regex testing
 - **INSIGHT**: Single-quote in string literals inside other single-quoted strings confuses the test's brace checker. Use String.fromCharCode or variables to avoid
 - **TEST CAUGHT**: Brace balance false positive from single-quote escaping — 7th occurrence of this test limitation
+
+### json-view (2026-03-26)
+- **KEEP**: Native HTML5 details/summary for collapsible tree — zero JS for toggle state, accessible, fast
+- **KEEP**: Recursive buildNode function producing DOM elements — clean separation of data traversal from rendering
+- **KEEP**: Click-to-copy JSON path via event delegation on .t-key — single listener handles unlimited nodes
+- **KEEP**: Token-level regex for syntax highlighting — single regex that correctly distinguishes keys (string + colon) from values
+- **IMPROVE**: Gemini caught dead code (if x===null && x!==null) — impossible condition, should just be if(x===null)
+- **IMPROVE**: Naive per-type regex highlighting matched inside string values — "Status: true" highlighted "true" inside a string. Fixed with single comprehensive tokenizer regex
+- **IMPROVE**: Dot-notation path generation broke on keys with spaces/dots/special chars — added regex test for valid identifiers, bracket notation fallback
+- **INSIGHT**: For JSON syntax highlighting without a parser, use a single comprehensive regex that tokenizes strings first (matching escaped chars), then numbers/booleans/null. Never run separate regexes sequentially — earlier passes corrupt later ones
+- **INSIGHT**: JSON paths should use dot notation only for valid JS identifiers, bracket notation for everything else
+- **TEST CAUGHT**: Brace balance false positive from regex literals (8th occurrence)
