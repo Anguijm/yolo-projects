@@ -1631,3 +1631,20 @@ Persistent knowledge base. Read this before every build.
 - **INSIGHT**: For JSON syntax highlighting without a parser, use a single comprehensive regex that tokenizes strings first (matching escaped chars), then numbers/booleans/null. Never run separate regexes sequentially — earlier passes corrupt later ones
 - **INSIGHT**: JSON paths should use dot notation only for valid JS identifiers, bracket notation for everything else
 - **TEST CAUGHT**: Brace balance false positive from regex literals (8th occurrence)
+
+### cloth-sim (2026-03-26)
+- **KEEP**: Verlet integration with constraint satisfaction — simple, stable, visually convincing cloth physics
+- **KEEP**: Adjacency map (pointIdx -> {pointIdx -> constraint}) for O(1) constraint lookup in texture rendering — essential when iterating 1200+ quads
+- **KEEP**: Affine-transformed canvas triangles for image texture mapping — drawImage with setTransform maps UV to screen space correctly
+- **KEEP**: Tension-based wireframe coloring (blue→white→red) — communicates physics state visually without labels
+- **KEEP**: Fixed timestep accumulator (physicsAccum += dt, while >= 16.6ms step) — framerate independence for physics
+- **IMPROVE**: Gemini caught framerate-dependent physics — dt was calculated but never used in updatePhysics. Fixed with fixed-timestep accumulator in the game loop
+- **IMPROVE**: Gemini caught spongy anchor points — constraint solver used hardcoded *0.5 for both points, but when one is pinned the unpinned point only gets 50% correction. Fixed with weight-based: w1+w2, divide correction by wTotal
+- **IMPROVE**: Gemini caught preset state pollution — flag preset set CONFIG.wind=0.8 but other presets didn't reset it, creating "windy curtain." Fixed by resetting wind to 0 for non-flag presets
+- **IMPROVE**: Gemini caught ghost brush cursor — pointermove on window froze cursor at last position when mouse left canvas. Fixed with pointerenter/pointerleave tracking
+- **IMPROVE**: Gemini caught missing ceiling boundary — bounds checking only had floor/left/right, not top. Points could fly off screen upward
+- **IMPROVE**: Dead touch code — e.touches check in getPointerPos is dead code for PointerEvent. Removed.
+- **INSIGHT**: In Verlet constraint solving, when one endpoint is pinned (immovable), the other endpoint must receive the FULL correction distance, not half. The 0.5 factor assumes both points share the load equally — calculate weights (0 for pinned, 1 for free) and divide by their sum
+- **INSIGHT**: Any preset system that modifies global config (wind, gravity, etc.) must either reset to baseline first, or each preset must explicitly set ALL config values. Partial config sets cause state pollution
+- **INSIGHT**: For physics simulations, ALWAYS use a fixed-timestep accumulator. Variable dt causes faster physics on high-refresh displays. Pattern: accumulate dt, step in fixed increments, render interpolated state
+- **TEST CAUGHT**: Nothing — all bugs found by Gemini

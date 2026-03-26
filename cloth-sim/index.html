@@ -1,0 +1,800 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>Cloth Sim</title>
+<link rel="manifest" href="manifest.json">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{width:100%;height:100%;overflow:hidden;background:#0a0a0f;font-family:'Segoe UI',system-ui,sans-serif;color:#e0e0e0;touch-action:none}
+canvas{display:block;width:100%;height:100%;position:absolute;top:0;left:0}
+#ui{position:absolute;top:12px;left:12px;z-index:10;display:flex;flex-direction:column;gap:8px;pointer-events:none}
+.panel{background:rgba(15,15,25,0.85);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border:1px solid rgba(255,255,255,0.08);border-radius:12px;padding:12px 16px;pointer-events:auto}
+.panel h2{font-size:13px;font-weight:600;margin-bottom:8px;color:#8af;letter-spacing:0.5px;text-transform:uppercase}
+.tool-row{display:flex;gap:6px;flex-wrap:wrap}
+.tool-btn{background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:8px 14px;color:#ccc;font-size:12px;cursor:pointer;transition:all 0.15s;user-select:none;-webkit-user-select:none}
+.tool-btn:hover{background:rgba(255,255,255,0.12)}
+.tool-btn.active{background:rgba(100,160,255,0.2);border-color:rgba(100,160,255,0.5);color:#8af}
+.slider-row{display:flex;align-items:center;gap:8px;margin-top:4px}
+.slider-row label{font-size:11px;color:#888;min-width:55px}
+.slider-row input[type=range]{flex:1;accent-color:#8af;height:4px}
+.slider-row .val{font-size:11px;color:#8af;min-width:30px;text-align:right}
+#presets{display:flex;gap:6px;flex-wrap:wrap;margin-top:4px}
+.preset-btn{background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:6px;padding:6px 10px;color:#aaa;font-size:11px;cursor:pointer;transition:all 0.15s}
+.preset-btn:hover{background:rgba(100,160,255,0.15);color:#8af}
+#stats{position:absolute;bottom:12px;left:12px;z-index:10;font-size:11px;color:#555;pointer-events:none}
+#img-upload{display:none}
+#help-hint{position:absolute;bottom:12px;right:12px;z-index:10;font-size:11px;color:#444;text-align:right;pointer-events:none;line-height:1.6}
+#start-overlay{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(5,5,15,0.95);z-index:100;display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer}
+#start-overlay h1{font-size:clamp(28px,6vw,48px);font-weight:700;background:linear-gradient(135deg,#8af,#f8a);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;margin-bottom:12px}
+#start-overlay p{color:#666;font-size:14px;max-width:320px;text-align:center;line-height:1.5}
+#start-overlay .start-btn{margin-top:24px;padding:12px 32px;background:linear-gradient(135deg,#8af,#a8f);border:none;border-radius:10px;color:#fff;font-size:16px;font-weight:600;cursor:pointer;transition:transform 0.15s}
+#start-overlay .start-btn:hover{transform:scale(1.05)}
+@media(max-width:480px){
+  #ui{top:8px;left:8px;right:8px}
+  .panel{padding:8px 12px}
+  .tool-btn{padding:6px 10px;font-size:11px}
+}
+</style>
+</head>
+<body>
+
+<div id="start-overlay">
+  <h1>Cloth Sim</h1>
+  <p>Interactive cloth physics with Verlet integration. Drag, tear, pin, and blow fabric in real-time.</p>
+  <button class="start-btn" id="startBtn">Start</button>
+</div>
+
+<canvas id="c"></canvas>
+
+<div id="ui">
+  <div class="panel">
+    <h2>Tools</h2>
+    <div class="tool-row">
+      <button class="tool-btn active" data-tool="drag" id="toolDrag">Drag</button>
+      <button class="tool-btn" data-tool="tear" id="toolTear">Tear</button>
+      <button class="tool-btn" data-tool="pin" id="toolPin">Pin</button>
+      <button class="tool-btn" data-tool="unpin" id="toolUnpin">Unpin</button>
+    </div>
+  </div>
+  <div class="panel">
+    <h2>Physics</h2>
+    <div class="slider-row">
+      <label>Gravity</label>
+      <input type="range" id="gravSlider" min="0" max="2" step="0.05" value="0.5">
+      <span class="val" id="gravVal">0.50</span>
+    </div>
+    <div class="slider-row">
+      <label>Wind</label>
+      <input type="range" id="windSlider" min="-2" max="2" step="0.05" value="0">
+      <span class="val" id="windVal">0.00</span>
+    </div>
+    <div class="slider-row">
+      <label>Stiffness</label>
+      <input type="range" id="stiffSlider" min="1" max="15" step="1" value="5">
+      <span class="val" id="stiffVal">5</span>
+    </div>
+    <div class="slider-row">
+      <label>Brush</label>
+      <input type="range" id="brushSlider" min="10" max="80" step="1" value="30">
+      <span class="val" id="brushVal">30</span>
+    </div>
+  </div>
+  <div class="panel">
+    <h2>Presets</h2>
+    <div id="presets">
+      <button class="preset-btn" data-preset="curtain">Curtain</button>
+      <button class="preset-btn" data-preset="flag">Flag</button>
+      <button class="preset-btn" data-preset="hammock">Hammock</button>
+      <button class="preset-btn" data-preset="web">Web</button>
+    </div>
+    <div style="margin-top:8px">
+      <button class="preset-btn" id="imgBtn">Load Image</button>
+      <button class="preset-btn" id="resetBtn">Reset</button>
+    </div>
+  </div>
+</div>
+
+<div id="stats"></div>
+<div id="help-hint">
+  Drag: move cloth &bull; Tear: rip fabric<br>
+  Pin: fix points &bull; Unpin: release points<br>
+  [D] [T] [P] [U] shortcuts &bull; [R] reset
+</div>
+
+<input type="file" id="img-upload" accept="image/*">
+
+<script>
+(function() {
+  'use strict';
+
+  // === CONFIG ===
+  var CONFIG = {
+    cols: 40,
+    rows: 30,
+    spacing: 0,
+    gravity: 0.5,
+    wind: 0,
+    stiffness: 5,
+    damping: 0.99,
+    tearDist: 2.5,
+    brushRadius: 30,
+    constraintIters: 5
+  };
+
+  // === STATE ===
+  var canvas = document.getElementById('c');
+  var ctx = canvas.getContext('2d');
+  var W, H;
+  var points = [];
+  var constraints = [];
+  var tool = 'drag';
+  var pointerDown = false;
+  var pointerX = 0, pointerY = 0;
+  var prevPointerX = 0, prevPointerY = 0;
+  var dragPoint = null;
+  var textureImg = null;
+  var textureLoaded = false;
+  var animId = null;
+  var lastTime = 0;
+  var frameCount = 0;
+  var fpsTime = 0;
+  var fpsDisplay = 0;
+
+  // === POINT ===
+  function Point(x, y, idx) {
+    this.x = x;
+    this.y = y;
+    this.oldX = x;
+    this.oldY = y;
+    this.pinned = false;
+    this.col = 0;
+    this.row = 0;
+    this.idx = idx;
+  }
+
+  // === CONSTRAINT ===
+  function Constraint(p1, p2) {
+    var dx = p2.x - p1.x;
+    var dy = p2.y - p1.y;
+    this.p1 = p1;
+    this.p2 = p2;
+    this.restLen = Math.sqrt(dx * dx + dy * dy);
+    this.active = true;
+  }
+
+  // === RESIZE ===
+  function resize() {
+    W = window.innerWidth;
+    H = window.innerHeight;
+    canvas.width = W;
+    canvas.height = H;
+  }
+
+  // === INIT CLOTH ===
+  function initCloth(preset) {
+    points = [];
+    constraints = [];
+    dragPoint = null;
+
+    var spacing = Math.min((W * 0.7) / CONFIG.cols, (H * 0.6) / CONFIG.rows);
+    CONFIG.spacing = spacing;
+    var offsetX = (W - CONFIG.cols * spacing) / 2;
+    var offsetY = H * 0.08;
+
+    // Create points
+    for (var r = 0; r <= CONFIG.rows; r++) {
+      for (var c = 0; c <= CONFIG.cols; c++) {
+        var p = new Point(offsetX + c * spacing, offsetY + r * spacing, points.length);
+        p.col = c;
+        p.row = r;
+        points.push(p);
+      }
+    }
+
+    // Create constraints (horizontal + vertical)
+    var cols1 = CONFIG.cols + 1;
+    for (var r = 0; r <= CONFIG.rows; r++) {
+      for (var c = 0; c <= CONFIG.cols; c++) {
+        var idx = r * cols1 + c;
+        if (c < CONFIG.cols) {
+          constraints.push(new Constraint(points[idx], points[idx + 1]));
+        }
+        if (r < CONFIG.rows) {
+          constraints.push(new Constraint(points[idx], points[idx + cols1]));
+        }
+      }
+    }
+
+    // Build adjacency map for O(1) constraint lookup
+    buildAdjMap();
+
+    // Apply preset pinning
+    applyPreset(preset || 'curtain');
+  }
+
+  function applyPreset(preset) {
+    // Unpin all first
+    for (var i = 0; i < points.length; i++) {
+      points[i].pinned = false;
+    }
+
+    // Reset wind to slider default (prevents flag preset pollution)
+    if (preset !== 'flag') {
+      CONFIG.wind = 0;
+      document.getElementById('windSlider').value = 0;
+      document.getElementById('windVal').textContent = '0.00';
+    }
+
+    var cols1 = CONFIG.cols + 1;
+
+    if (preset === 'curtain') {
+      // Pin top row at intervals
+      for (var c = 0; c <= CONFIG.cols; c += 4) {
+        points[c].pinned = true;
+      }
+      points[CONFIG.cols].pinned = true;
+    } else if (preset === 'flag') {
+      // Pin left column
+      for (var r = 0; r <= CONFIG.rows; r++) {
+        points[r * cols1].pinned = true;
+      }
+      CONFIG.wind = 0.8;
+      document.getElementById('windSlider').value = 0.8;
+      document.getElementById('windVal').textContent = '0.80';
+    } else if (preset === 'hammock') {
+      // Pin top-left and top-right corners
+      points[0].pinned = true;
+      points[CONFIG.cols].pinned = true;
+      // Pin bottom-left and bottom-right
+      points[CONFIG.rows * cols1].pinned = true;
+      points[CONFIG.rows * cols1 + CONFIG.cols].pinned = true;
+    } else if (preset === 'web') {
+      // Pin corners and center of edges
+      points[0].pinned = true;
+      points[CONFIG.cols].pinned = true;
+      points[CONFIG.rows * cols1].pinned = true;
+      points[CONFIG.rows * cols1 + CONFIG.cols].pinned = true;
+      var midC = Math.floor(CONFIG.cols / 2);
+      var midR = Math.floor(CONFIG.rows / 2);
+      points[midC].pinned = true;
+      points[CONFIG.rows * cols1 + midC].pinned = true;
+      points[midR * cols1].pinned = true;
+      points[midR * cols1 + CONFIG.cols].pinned = true;
+    }
+  }
+
+  // === PHYSICS ===
+  var physicsAccum = 0;
+  var FIXED_DT = 16.6;
+
+  function updatePhysics(dt) {
+    var grav = CONFIG.gravity;
+    var wind = CONFIG.wind;
+    var damp = CONFIG.damping;
+    var iters = CONFIG.stiffness;
+
+    // Verlet integration
+    for (var i = 0; i < points.length; i++) {
+      var p = points[i];
+      if (p.pinned) continue;
+
+      var vx = (p.x - p.oldX) * damp;
+      var vy = (p.y - p.oldY) * damp;
+
+      // Wind with slight turbulence
+      var windForce = wind + Math.sin(p.y * 0.01 + lastTime * 0.003) * wind * 0.3;
+
+      p.oldX = p.x;
+      p.oldY = p.y;
+      p.x += vx + windForce * 0.5;
+      p.y += vy + grav;
+    }
+
+    // Constraint satisfaction with proper weight handling
+    for (var iter = 0; iter < iters; iter++) {
+      for (var i = 0; i < constraints.length; i++) {
+        var c = constraints[i];
+        if (!c.active) continue;
+
+        var dx = c.p2.x - c.p1.x;
+        var dy = c.p2.y - c.p1.y;
+        var dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist < 0.001) dist = 0.001;
+
+        // Tear check
+        if (dist > c.restLen * CONFIG.tearDist) {
+          c.active = false;
+          continue;
+        }
+
+        var w1 = c.p1.pinned ? 0 : 1;
+        var w2 = c.p2.pinned ? 0 : 1;
+        var wTotal = w1 + w2;
+        if (wTotal === 0) continue;
+
+        var diff = (c.restLen - dist) / dist / wTotal;
+        var ox = dx * diff;
+        var oy = dy * diff;
+
+        if (!c.p1.pinned) {
+          c.p1.x -= ox;
+          c.p1.y -= oy;
+        }
+        if (!c.p2.pinned) {
+          c.p2.x += ox;
+          c.p2.y += oy;
+        }
+      }
+    }
+
+    // Keep points in bounds (all 4 edges)
+    for (var i = 0; i < points.length; i++) {
+      var p = points[i];
+      if (p.pinned) continue;
+      if (p.y > H - 2) { p.y = H - 2; p.oldY = p.y; }
+      else if (p.y < 2) { p.y = 2; p.oldY = p.y; }
+      if (p.x < 2) { p.x = 2; p.oldX = p.x; }
+      else if (p.x > W - 2) { p.x = W - 2; p.oldX = p.x; }
+    }
+  }
+
+  // === INTERACTION ===
+  function handleDrag() {
+    if (!pointerDown) return;
+    var br = CONFIG.brushRadius;
+
+    if (tool === 'drag') {
+      if (dragPoint) {
+        dragPoint.x = pointerX;
+        dragPoint.y = pointerY;
+        dragPoint.oldX = pointerX;
+        dragPoint.oldY = pointerY;
+      }
+    } else if (tool === 'tear') {
+      // Sever constraints near pointer path
+      var dx = pointerX - prevPointerX;
+      var dy = pointerY - prevPointerY;
+      var len = Math.sqrt(dx * dx + dy * dy);
+      if (len < 1) len = 1;
+      var steps = Math.max(1, Math.floor(len / 4));
+      for (var s = 0; s <= steps; s++) {
+        var t = s / steps;
+        var mx = prevPointerX + dx * t;
+        var my = prevPointerY + dy * t;
+        for (var i = 0; i < constraints.length; i++) {
+          var c = constraints[i];
+          if (!c.active) continue;
+          var cx = (c.p1.x + c.p2.x) * 0.5;
+          var cy = (c.p1.y + c.p2.y) * 0.5;
+          var ddx = cx - mx;
+          var ddy = cy - my;
+          if (ddx * ddx + ddy * ddy < br * br) {
+            c.active = false;
+          }
+        }
+      }
+    } else if (tool === 'pin') {
+      for (var i = 0; i < points.length; i++) {
+        var p = points[i];
+        var ddx = p.x - pointerX;
+        var ddy = p.y - pointerY;
+        if (ddx * ddx + ddy * ddy < br * br) {
+          p.pinned = true;
+        }
+      }
+    } else if (tool === 'unpin') {
+      for (var i = 0; i < points.length; i++) {
+        var p = points[i];
+        var ddx = p.x - pointerX;
+        var ddy = p.y - pointerY;
+        if (ddx * ddx + ddy * ddy < br * br) {
+          p.pinned = false;
+        }
+      }
+    }
+  }
+
+  function findClosestPoint(x, y) {
+    var best = null;
+    var bestDist = CONFIG.brushRadius * CONFIG.brushRadius;
+    for (var i = 0; i < points.length; i++) {
+      var p = points[i];
+      var dx = p.x - x;
+      var dy = p.y - y;
+      var d2 = dx * dx + dy * dy;
+      if (d2 < bestDist) {
+        bestDist = d2;
+        best = p;
+      }
+    }
+    return best;
+  }
+
+  // === RENDERING ===
+  function render() {
+    ctx.clearRect(0, 0, W, H);
+
+    // Draw background grid (subtle)
+    ctx.strokeStyle = 'rgba(255,255,255,0.015)';
+    ctx.lineWidth = 1;
+    for (var gx = 0; gx < W; gx += 40) {
+      ctx.beginPath();
+      ctx.moveTo(gx, 0);
+      ctx.lineTo(gx, H);
+      ctx.stroke();
+    }
+    for (var gy = 0; gy < H; gy += 40) {
+      ctx.beginPath();
+      ctx.moveTo(0, gy);
+      ctx.lineTo(W, gy);
+      ctx.stroke();
+    }
+
+    var cols1 = CONFIG.cols + 1;
+
+    if (textureLoaded && textureImg) {
+      renderTextured(cols1);
+    } else {
+      renderWireframe(cols1);
+    }
+
+    // Draw pinned points
+    for (var i = 0; i < points.length; i++) {
+      var p = points[i];
+      if (p.pinned) {
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, 4, 0, Math.PI * 2);
+        ctx.fillStyle = '#f88';
+        ctx.fill();
+        ctx.strokeStyle = '#fff';
+        ctx.lineWidth = 1;
+        ctx.stroke();
+      }
+    }
+
+    // Draw brush cursor
+    if (pointerInCanvas) {
+      ctx.beginPath();
+      ctx.arc(pointerX, pointerY, CONFIG.brushRadius, 0, Math.PI * 2);
+      ctx.strokeStyle = tool === 'tear' ? 'rgba(255,100,100,0.3)' :
+                        tool === 'pin' ? 'rgba(255,136,136,0.3)' :
+                        tool === 'unpin' ? 'rgba(136,255,136,0.3)' :
+                        'rgba(136,170,255,0.3)';
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+    }
+  }
+
+  function renderWireframe(cols1) {
+    // Compute tension for coloring
+    for (var i = 0; i < constraints.length; i++) {
+      var c = constraints[i];
+      if (!c.active) continue;
+
+      var dx = c.p2.x - c.p1.x;
+      var dy = c.p2.y - c.p1.y;
+      var dist = Math.sqrt(dx * dx + dy * dy);
+      var tension = dist / c.restLen;
+
+      // Color based on tension: blue=relaxed, white=normal, red=stretched
+      var r, g, b;
+      if (tension < 1) {
+        var t = tension;
+        r = Math.floor(80 + t * 100);
+        g = Math.floor(120 + t * 80);
+        b = Math.floor(200 + t * 55);
+      } else {
+        var t = Math.min((tension - 1) / (CONFIG.tearDist - 1), 1);
+        r = Math.floor(180 + t * 75);
+        g = Math.floor(200 - t * 150);
+        b = Math.floor(255 - t * 200);
+      }
+
+      ctx.beginPath();
+      ctx.moveTo(c.p1.x, c.p1.y);
+      ctx.lineTo(c.p2.x, c.p2.y);
+      ctx.strokeStyle = 'rgb(' + r + ',' + g + ',' + b + ')';
+      ctx.lineWidth = 1.2;
+      ctx.stroke();
+    }
+  }
+
+  function renderTextured(cols1) {
+    // Draw textured triangles using canvas affine transform
+    var imgW = textureImg.width;
+    var imgH = textureImg.height;
+
+    for (var r = 0; r < CONFIG.rows; r++) {
+      for (var c = 0; c < CONFIG.cols; c++) {
+        var i00 = r * cols1 + c;
+        var i10 = i00 + 1;
+        var i01 = i00 + cols1;
+        var i11 = i01 + 1;
+
+        var p00 = points[i00];
+        var p10 = points[i10];
+        var p01 = points[i01];
+        var p11 = points[i11];
+
+        // Check if all 4 constraints for this quad are active
+        var quadActive = isConstraintActive(p00, p10) && isConstraintActive(p00, p01) &&
+                         isConstraintActive(p10, p11) && isConstraintActive(p01, p11);
+        if (!quadActive) continue;
+
+        // UV coordinates
+        var u0 = (c / CONFIG.cols) * imgW;
+        var v0 = (r / CONFIG.rows) * imgH;
+        var u1 = ((c + 1) / CONFIG.cols) * imgW;
+        var v1 = ((r + 1) / CONFIG.rows) * imgH;
+
+        // Triangle 1: p00, p10, p01
+        drawTexturedTriangle(
+          p00.x, p00.y, p10.x, p10.y, p01.x, p01.y,
+          u0, v0, u1, v0, u0, v1
+        );
+
+        // Triangle 2: p10, p11, p01
+        drawTexturedTriangle(
+          p10.x, p10.y, p11.x, p11.y, p01.x, p01.y,
+          u1, v0, u1, v1, u0, v1
+        );
+      }
+    }
+
+    // Draw constraint lines on top (thin, subtle)
+    ctx.strokeStyle = 'rgba(255,255,255,0.08)';
+    ctx.lineWidth = 0.5;
+    for (var i = 0; i < constraints.length; i++) {
+      var cn = constraints[i];
+      if (!cn.active) continue;
+      ctx.beginPath();
+      ctx.moveTo(cn.p1.x, cn.p1.y);
+      ctx.lineTo(cn.p2.x, cn.p2.y);
+      ctx.stroke();
+    }
+  }
+
+  // Adjacency map: pointIdx -> { pointIdx -> constraint }
+  var adjMap = null;
+
+  function buildAdjMap() {
+    adjMap = {};
+    for (var i = 0; i < constraints.length; i++) {
+      var c = constraints[i];
+      var i1 = c.p1.idx;
+      var i2 = c.p2.idx;
+      if (!adjMap[i1]) adjMap[i1] = {};
+      if (!adjMap[i2]) adjMap[i2] = {};
+      adjMap[i1][i2] = c;
+      adjMap[i2][i1] = c;
+    }
+  }
+
+  function isConstraintActive(p1, p2) {
+    if (!adjMap) return false;
+    var m = adjMap[p1.idx];
+    if (!m) return false;
+    var c = m[p2.idx];
+    return c ? c.active : false;
+  }
+
+  function drawTexturedTriangle(x0, y0, x1, y1, x2, y2, u0, v0, u1, v1, u2, v2) {
+    // Affine transform from UV space to screen space
+    ctx.save();
+    ctx.beginPath();
+    ctx.moveTo(x0, y0);
+    ctx.lineTo(x1, y1);
+    ctx.lineTo(x2, y2);
+    ctx.closePath();
+    ctx.clip();
+
+    // Solve affine transform: maps (u,v) -> (x,y)
+    var denom = (u0 * (v1 - v2) + u1 * (v2 - v0) + u2 * (v0 - v1));
+    if (Math.abs(denom) < 0.001) { ctx.restore(); return; }
+    var invD = 1 / denom;
+
+    var a = (x0 * (v1 - v2) + x1 * (v2 - v0) + x2 * (v0 - v1)) * invD;
+    var b = (x0 * (u2 - u1) + x1 * (u0 - u2) + x2 * (u1 - u0)) * invD;
+    var e = (x0 * (u1 * v2 - u2 * v1) + x1 * (u2 * v0 - u0 * v2) + x2 * (u0 * v1 - u1 * v0)) * invD;
+
+    var cc = (y0 * (v1 - v2) + y1 * (v2 - v0) + y2 * (v0 - v1)) * invD;
+    var d = (y0 * (u2 - u1) + y1 * (u0 - u2) + y2 * (u1 - u0)) * invD;
+    var f = (y0 * (u1 * v2 - u2 * v1) + y1 * (u2 * v0 - u0 * v2) + y2 * (u0 * v1 - u1 * v0)) * invD;
+
+    ctx.setTransform(a, cc, b, d, e, f);
+    ctx.drawImage(textureImg, 0, 0);
+    ctx.restore();
+  }
+
+  // === MAIN LOOP ===
+  function loop(time) {
+    animId = requestAnimationFrame(loop);
+
+    var dt = time - lastTime;
+    if (dt > 100) dt = 100;
+    lastTime = time;
+
+    // FPS counter
+    frameCount++;
+    if (time - fpsTime > 500) {
+      fpsDisplay = Math.round(frameCount * 1000 / (time - fpsTime));
+      frameCount = 0;
+      fpsTime = time;
+    }
+
+    handleDrag();
+
+    // Fixed timestep physics for framerate independence
+    physicsAccum += dt;
+    while (physicsAccum >= FIXED_DT) {
+      updatePhysics(FIXED_DT);
+      physicsAccum -= FIXED_DT;
+    }
+
+    render();
+
+    var activeConstraints = 0;
+    for (var i = 0; i < constraints.length; i++) {
+      if (constraints[i].active) activeConstraints++;
+    }
+    document.getElementById('stats').textContent =
+      'FPS: ' + fpsDisplay + ' | Points: ' + points.length +
+      ' | Links: ' + activeConstraints + '/' + constraints.length;
+  }
+
+  // === EVENT HANDLERS ===
+  var pointerInCanvas = false;
+
+  function getPointerPos(e) {
+    var rect = canvas.getBoundingClientRect();
+    return {
+      x: (e.clientX - rect.left) * (canvas.width / rect.width),
+      y: (e.clientY - rect.top) * (canvas.height / rect.height)
+    };
+  }
+
+  canvas.addEventListener('pointerdown', function(e) {
+    e.preventDefault();
+    var pos = getPointerPos(e);
+    pointerDown = true;
+    pointerX = pos.x;
+    pointerY = pos.y;
+    prevPointerX = pos.x;
+    prevPointerY = pos.y;
+
+    if (tool === 'drag') {
+      dragPoint = findClosestPoint(pos.x, pos.y);
+    }
+  });
+
+  canvas.addEventListener('pointerenter', function() { pointerInCanvas = true; });
+  canvas.addEventListener('pointerleave', function() { pointerInCanvas = false; });
+
+  window.addEventListener('pointermove', function(e) {
+    var pos = getPointerPos(e);
+    prevPointerX = pointerX;
+    prevPointerY = pointerY;
+    pointerX = pos.x;
+    pointerY = pos.y;
+  });
+
+  window.addEventListener('pointerup', function() {
+    pointerDown = false;
+    dragPoint = null;
+  });
+
+  // Tool buttons
+  var toolBtns = document.querySelectorAll('.tool-btn[data-tool]');
+  for (var i = 0; i < toolBtns.length; i++) {
+    toolBtns[i].addEventListener('click', function(e) {
+      e.stopPropagation();
+      tool = this.getAttribute('data-tool');
+      for (var j = 0; j < toolBtns.length; j++) {
+        toolBtns[j].classList.remove('active');
+      }
+      this.classList.add('active');
+    });
+  }
+
+  // Keyboard shortcuts
+  document.addEventListener('keydown', function(e) {
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+    var key = e.key.toLowerCase();
+    if (key === 'd') { selectTool('drag'); }
+    else if (key === 't') { selectTool('tear'); }
+    else if (key === 'p') { selectTool('pin'); }
+    else if (key === 'u') { selectTool('unpin'); }
+    else if (key === 'r') { initCloth('curtain'); }
+  });
+
+  function selectTool(t) {
+    tool = t;
+    for (var j = 0; j < toolBtns.length; j++) {
+      toolBtns[j].classList.remove('active');
+      if (toolBtns[j].getAttribute('data-tool') === t) {
+        toolBtns[j].classList.add('active');
+      }
+    }
+  }
+
+  // Sliders
+  document.getElementById('gravSlider').addEventListener('input', function() {
+    CONFIG.gravity = parseFloat(this.value);
+    document.getElementById('gravVal').textContent = CONFIG.gravity.toFixed(2);
+  });
+  document.getElementById('windSlider').addEventListener('input', function() {
+    CONFIG.wind = parseFloat(this.value);
+    document.getElementById('windVal').textContent = CONFIG.wind.toFixed(2);
+  });
+  document.getElementById('stiffSlider').addEventListener('input', function() {
+    CONFIG.stiffness = parseInt(this.value);
+    document.getElementById('stiffVal').textContent = CONFIG.stiffness;
+  });
+  document.getElementById('brushSlider').addEventListener('input', function() {
+    CONFIG.brushRadius = parseInt(this.value);
+    document.getElementById('brushVal').textContent = CONFIG.brushRadius;
+  });
+
+  // Presets
+  var presetBtns = document.querySelectorAll('.preset-btn[data-preset]');
+  for (var i = 0; i < presetBtns.length; i++) {
+    presetBtns[i].addEventListener('click', function(e) {
+      e.stopPropagation();
+      initCloth(this.getAttribute('data-preset'));
+    });
+  }
+
+  // Image upload
+  document.getElementById('imgBtn').addEventListener('click', function(e) {
+    e.stopPropagation();
+    document.getElementById('img-upload').click();
+  });
+
+  document.getElementById('img-upload').addEventListener('change', function(e) {
+    var file = e.target.files[0];
+    if (!file) return;
+    var reader = new FileReader();
+    reader.onload = function(ev) {
+      var img = new Image();
+      img.onload = function() {
+        textureImg = img;
+        textureLoaded = true;
+      };
+      img.src = ev.target.result;
+    };
+    reader.readAsDataURL(file);
+    this.value = '';
+  });
+
+  // Reset
+  document.getElementById('resetBtn').addEventListener('click', function(e) {
+    e.stopPropagation();
+    textureImg = null;
+    textureLoaded = false;
+    initCloth('curtain');
+  });
+
+  // Start overlay
+  document.getElementById('startBtn').addEventListener('click', function() {
+    document.getElementById('start-overlay').style.display = 'none';
+  });
+
+  // === INIT ===
+  resize();
+  window.addEventListener('resize', function() {
+    resize();
+    initCloth('curtain');
+  });
+
+  initCloth('curtain');
+  animId = requestAnimationFrame(loop);
+
+})();
+</script>
+</body>
+</html>
