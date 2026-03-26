@@ -1691,3 +1691,12 @@ Persistent knowledge base. Read this before every build.
 - **INSIGHT**: Building fast creates duplicates you don't notice — regex-playground vs regex-lab, math-plot vs graph-calc, etc. A curation pass after rapid building is essential
 - **INSIGHT**: Trivial projects actively harm a portfolio — a tip calculator next to a software 3D renderer makes the 3D renderer look accidental
 - **INSIGHT**: Category saturation (4 typing games, 5 timers, 4 color tools) signals repetition, not mastery. Keep 1-2 apex projects per category
+
+### git-xray refinement (2026-03-27) — PHASE 2 #1
+- **FIX**: XSS vulnerability — json.dumps preserves `</script>` in filenames, breaking out of script tag. Fixed with `\u003c`/`\u003e` escaping
+- **FIX**: subprocess.TimeoutExpired crash — no try/except around 120s timeout. Script crashed on large repos
+- **FIX**: 500-file truncation — first_seen used O(N) subprocesses (one per file), capped at 500. Replaced with single-pass git log parsing
+- **FIX**: Rename handling — git numstat outputs `{old => new}` for renames, which didn't match current filenames. Added regex cleanup
+- **FIX**: Encoding crash — `text=True` crashes on non-UTF-8 commit messages. Fixed with manual `decode('utf-8', errors='replace')`
+- **FIX**: Repo validation — `.git` directory check fails for worktrees/submodules (where `.git` is a file). Replaced with `git rev-parse --is-inside-work-tree`
+- **INSIGHT**: Single-pass git log parsing (one command, parse output) is orders of magnitude faster than per-file subprocess spawning. Always batch git operations

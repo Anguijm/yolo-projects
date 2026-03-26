@@ -15,6 +15,7 @@ Usage: python3 git_xray.py [path-to-repo] [-o output.html]
 import argparse
 import json
 import os
+import re
 import subprocess
 import sys
 from collections import defaultdict
@@ -23,20 +24,30 @@ from pathlib import Path
 
 
 def run_git(repo_path, *args):
-    """Run a git command and return stdout."""
-    result = subprocess.run(
-        ["git", "-C", str(repo_path)] + list(args),
-        capture_output=True, text=True, timeout=120
-    )
-    if result.returncode != 0:
+    """Run a git command and return stdout. Handles timeouts and encoding."""
+    try:
+        result = subprocess.run(
+            ["git", "-C", str(repo_path)] + list(args),
+            capture_output=True, timeout=120
+        )
+        if result.returncode != 0:
+            return ""
+        return result.stdout.decode('utf-8', errors='replace')
+    except subprocess.TimeoutExpired:
+        print(f"Warning: git command timed out: git {' '.join(args)}", file=sys.stderr)
         return ""
-    return result.stdout
+
+
+def clean_git_path(path_str):
+    """Transform path/{old => new}/file to path/new/file for renames."""
+    return re.sub(r'\{.* => (.*?)\}', r'\1', path_str).replace('//', '/')
 
 
 def analyze_repo(repo_path):
     """Analyze a git repository and return structured data."""
     repo_path = Path(repo_path).resolve()
-    if not (repo_path / ".git").exists():
+    check = run_git(repo_path, "rev-parse", "--is-inside-work-tree").strip()
+    if check != "true":
         print(f"Error: {repo_path} is not a git repository")
         sys.exit(1)
 
@@ -66,22 +77,24 @@ def analyze_repo(repo_path):
         if line:
             commit_counts[line] += 1
 
-    # Get last modified date per file
+    # Get first_seen and last_modified in a single pass (no per-file subprocess)
     print("  Analyzing code age...")
-    last_modified = {}
-    for f in all_files:
-        date_str = run_git(repo_path, "log", "-1", "--format=%aI", "--", f).strip()
-        if date_str:
-            last_modified[f] = date_str
-
-    # Get first commit date per file
     first_seen = {}
-    for f in all_files[:500]:  # cap to avoid being too slow
-        date_str = run_git(repo_path, "log", "--follow", "--diff-filter=A", "--format=%aI", "--", f).strip()
-        if date_str:
-            # Take the last line (oldest)
-            lines = date_str.strip().split("\n")
-            first_seen[f] = lines[-1].strip()
+    last_modified = {}
+    age_log = run_git(repo_path, "log", "--name-only", "--pretty=format:COMMIT|%aI", "--diff-filter=AMRC")
+    current_date = None
+    for line in age_log.strip().split("\n"):
+        line = line.strip()
+        if not line:
+            current_date = None
+            continue
+        if line.startswith("COMMIT|"):
+            current_date = line[7:].strip()
+        elif current_date:
+            fname = line
+            if fname not in last_modified:
+                last_modified[fname] = current_date
+            first_seen[fname] = current_date
 
     # Get churn (insertions + deletions) per file
     print("  Analyzing churn...")
@@ -93,6 +106,7 @@ def analyze_repo(repo_path):
             ins, dels, fname = parts
             if ins != "-" and dels != "-":
                 try:
+                    fname = clean_git_path(fname)
                     churn[fname]["insertions"] += int(ins)
                     churn[fname]["deletions"] += int(dels)
                 except ValueError:
@@ -607,9 +621,12 @@ renderActivity();
 
 def generate_html(data, output_path):
     """Generate the HTML visualization."""
-    html = HTML_TEMPLATE.replace('__DATA__', json.dumps(data))
-    html = html.replace('__REPO_NAME__', data['repo_name'])
-    Path(output_path).write_text(html)
+    import html as html_lib
+    # Escape </script> sequences to prevent XSS via malicious filenames
+    json_data = json.dumps(data).replace('<', '\\u003c').replace('>', '\\u003e')
+    html = HTML_TEMPLATE.replace('__DATA__', json_data)
+    html = html.replace('__REPO_NAME__', html_lib.escape(data['repo_name']))
+    Path(output_path).write_text(html, encoding='utf-8')
     print(f"Output written to {output_path}")
 
 
