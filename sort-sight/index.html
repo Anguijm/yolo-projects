@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="theme-color" content="#000000">
+<title>Sort Sight</title>
+<style>
+:root{--bg:#080810;--bar:#2a5aaa;--compare:#fa0;--swap:#f44;--sorted:#0c6;--panel:#0c0c18;--border:rgba(255,255,255,0.06);--text:#888;--dim:#444}
+*{margin:0;padding:0;box-sizing:border-box;-webkit-user-select:none;user-select:none}
+html,body{height:100%;background:var(--bg);overflow:hidden;touch-action:manipulation;-webkit-tap-highlight-color:transparent;font-family:system-ui,sans-serif;color:var(--text)}
+#bars{position:absolute;top:0;left:0;right:0;bottom:90px;display:flex;align-items:flex-end;justify-content:center;gap:1px;padding:8px 4px 0}
+.bar{flex:1;min-width:2px;border-radius:2px 2px 0 0;transition:background 0.05s}
+#panel{position:fixed;bottom:0;left:0;right:0;background:var(--panel);border-top:1px solid var(--border);padding:8px 10px;z-index:5;display:flex;flex-wrap:wrap;gap:6px;align-items:center;justify-content:center;backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px)}
+.btn{padding:5px 12px;background:rgba(255,255,255,0.04);border:1px solid var(--border);color:var(--dim);font-size:0.38rem;cursor:pointer;border-radius:5px;font-family:inherit;transition:all 0.12s}
+.btn:active{color:#aaa}
+.btn.active{border-color:#4af;color:#4af}
+.btn:disabled{opacity:0.3;cursor:default}
+select{background:#111;border:1px solid var(--border);color:var(--text);padding:4px 6px;font-size:0.35rem;border-radius:4px;outline:none;font-family:inherit}
+.ctrl{display:flex;align-items:center;gap:3px;font-size:0.32rem;color:var(--dim)}
+.ctrl input[type="range"]{width:55px;height:3px;accent-color:#4af}
+.ctrl b{color:var(--text);font-family:monospace;min-width:18px}
+#stats{font-size:0.3rem;color:var(--dim);font-family:monospace}
+</style>
+</head>
+<body>
+<div id="bars"></div>
+<div id="panel">
+  <select id="sel-algo">
+    <option value="bubble">Bubble Sort</option>
+    <option value="insertion">Insertion Sort</option>
+    <option value="selection">Selection Sort</option>
+    <option value="merge">Merge Sort</option>
+    <option value="quick" selected>Quick Sort</option>
+  </select>
+  <button class="btn" id="btn-play">Sort</button>
+  <button class="btn" id="btn-shuffle">Shuffle</button>
+  <span class="ctrl">Size<input type="range" id="sl-size" min="10" max="120" value="50"><b id="v-size">50</b></span>
+  <span class="ctrl">Speed<input type="range" id="sl-speed" min="1" max="20" value="8"><b id="v-speed">8</b></span>
+  <span id="stats"></span>
+</div>
+
+<script>
+(function(){
+'use strict';
+
+// ---- State ----
+var arr=[];
+var arrSize=50;
+var speed=8;
+var sorting=false;
+var abortFlag=false;
+var comparisons=0,swaps=0;
+var actx=null;
+
+// ---- Audio ----
+function ensureAudio(){
+  if(!actx){var A=window.AudioContext||window.webkitAudioContext;if(A)actx=new A()}
+  if(actx&&actx.state==='suspended')actx.resume();
+}
+
+function playTone(value,maxVal){
+  if(!actx)return;
+  var freq=200+value/maxVal*800;
+  var osc=actx.createOscillator();
+  var gain=actx.createGain();
+  osc.type='triangle';
+  osc.frequency.value=freq;
+  gain.gain.setValueAtTime(0.08,actx.currentTime);
+  gain.gain.exponentialRampToValueAtTime(0.001,actx.currentTime+0.05);
+  osc.connect(gain);gain.connect(actx.destination);
+  osc.start();osc.stop(actx.currentTime+0.05);
+}
+
+// ---- Array & rendering ----
+function generateArray(){
+  arr=[];
+  for(var i=0;i<arrSize;i++)arr.push(Math.floor(Math.random()*95)+5);
+  renderBars();
+}
+
+function renderBars(highlights){
+  var container=document.getElementById('bars');
+  // Reuse existing bars if count matches
+  var bars=container.children;
+  while(bars.length>arr.length)container.removeChild(container.lastChild);
+  while(bars.length<arr.length){
+    var d=document.createElement('div');d.className='bar';container.appendChild(d);
+  }
+  var maxH=container.clientHeight-8;
+  for(var i=0;i<arr.length;i++){
+    bars[i].style.height=Math.max(2,arr[i]/100*maxH)+'px';
+    if(highlights&&highlights.sorted&&highlights.sorted.has(i)){
+      bars[i].style.background='var(--sorted)';
+    }else if(highlights&&highlights.swap&&(highlights.swap[0]===i||highlights.swap[1]===i)){
+      bars[i].style.background='var(--swap)';
+    }else if(highlights&&highlights.compare&&(highlights.compare[0]===i||highlights.compare[1]===i)){
+      bars[i].style.background='var(--compare)';
+    }else{
+      bars[i].style.background='var(--bar)';
+    }
+  }
+  updateStats();
+}
+
+// ---- Delay ----
+function delay(){
+  var ms=Math.max(1,Math.floor(200/(speed*speed)));
+  return new Promise(function(resolve){setTimeout(resolve,ms)});
+}
+
+// ---- Sorting algorithms (async) ----
+async function bubbleSort(){
+  var n=arr.length;
+  for(var i=0;i<n-1;i++){
+    for(var j=0;j<n-i-1;j++){
+      if(abortFlag)return;
+      comparisons++;
+      renderBars({compare:[j,j+1]});
+      playTone(arr[j],100);
+      await delay();
+      if(arr[j]>arr[j+1]){
+        swaps++;
+        var tmp=arr[j];arr[j]=arr[j+1];arr[j+1]=tmp;
+        renderBars({swap:[j,j+1]});
+        await delay();
+      }
+    }
+  }
+}
+
+async function insertionSort(){
+  var n=arr.length;
+  for(var i=1;i<n;i++){
+    var key=arr[i],j=i-1;
+    while(j>=0&&arr[j]>key){
+      if(abortFlag)return;
+      comparisons++;swaps++;
+      arr[j+1]=arr[j];
+      renderBars({compare:[j,j+1]});
+      playTone(arr[j],100);
+      await delay();
+      j--;
+    }
+    comparisons++;
+    arr[j+1]=key;
+    renderBars({swap:[j+1,i]});
+    await delay();
+  }
+}
+
+async function selectionSort(){
+  var n=arr.length;
+  var sorted=new Set();
+  for(var i=0;i<n-1;i++){
+    var minIdx=i;
+    for(var j=i+1;j<n;j++){
+      if(abortFlag)return;
+      comparisons++;
+      renderBars({compare:[minIdx,j],sorted:sorted});
+      playTone(arr[j],100);
+      await delay();
+      if(arr[j]<arr[minIdx])minIdx=j;
+    }
+    if(minIdx!==i){
+      swaps++;
+      var tmp=arr[i];arr[i]=arr[minIdx];arr[minIdx]=tmp;
+      renderBars({swap:[i,minIdx],sorted:sorted});
+      await delay();
+    }
+    sorted.add(i);
+  }
+  sorted.add(n-1);
+  renderBars({sorted:sorted});
+}
+
+async function mergeSort(){
+  await mergeSortHelper(0,arr.length-1);
+}
+
+async function mergeSortHelper(l,r){
+  if(l>=r||abortFlag)return;
+  var m=Math.floor((l+r)/2);
+  await mergeSortHelper(l,m);
+  await mergeSortHelper(m+1,r);
+  await merge(l,m,r);
+}
+
+async function merge(l,m,r){
+  var left=arr.slice(l,m+1);
+  var right=arr.slice(m+1,r+1);
+  var i=0,j=0,k=l;
+  while(i<left.length&&j<right.length){
+    if(abortFlag)return;
+    comparisons++;
+    renderBars({compare:[k,k]});
+    playTone(left[i]>right[j]?right[j]:left[i],100);
+    await delay();
+    if(left[i]<=right[j]){arr[k]=left[i];i++}
+    else{arr[k]=right[j];j++}
+    swaps++;
+    renderBars({swap:[k,k]});
+    await delay();
+    k++;
+  }
+  while(i<left.length){if(abortFlag)return;arr[k]=left[i];i++;swaps++;
+    renderBars({swap:[k,k]});await delay();k++}
+  while(j<right.length){if(abortFlag)return;arr[k]=right[j];j++;swaps++;
+    renderBars({swap:[k,k]});await delay();k++}
+}
+
+async function quickSort(){
+  await quickSortHelper(0,arr.length-1);
+}
+
+async function quickSortHelper(lo,hi){
+  if(lo>=hi||abortFlag)return;
+  var p=await partition(lo,hi);
+  if(abortFlag)return;
+  await quickSortHelper(lo,p-1);
+  await quickSortHelper(p+1,hi);
+}
+
+async function partition(lo,hi){
+  var pivot=arr[hi];
+  var i=lo-1;
+  for(var j=lo;j<hi;j++){
+    if(abortFlag)return lo;
+    comparisons++;
+    renderBars({compare:[j,hi]});
+    playTone(arr[j],100);
+    await delay();
+    if(arr[j]<pivot){
+      i++;swaps++;
+      var tmp=arr[i];arr[i]=arr[j];arr[j]=tmp;
+      renderBars({swap:[i,j]});
+      await delay();
+    }
+  }
+  swaps++;
+  var tmp=arr[i+1];arr[i+1]=arr[hi];arr[hi]=tmp;
+  renderBars({swap:[i+1,hi]});
+  await delay();
+  return i+1;
+}
+
+// ---- Completion animation ----
+async function sortedSweep(){
+  var sorted=new Set();
+  for(var i=0;i<arr.length;i++){
+    if(abortFlag)return;
+    sorted.add(i);
+    renderBars({sorted:sorted});
+    playTone(arr[i],100);
+    await new Promise(function(r){setTimeout(r,15)});
+  }
+}
+
+// ---- Controls ----
+var ALGOS={bubble:bubbleSort,insertion:insertionSort,selection:selectionSort,merge:mergeSort,quick:quickSort};
+
+document.getElementById('btn-play').addEventListener('click',async function(){
+  if(sorting){
+    abortFlag=true;
+    return;
+  }
+  ensureAudio();
+  sorting=true;abortFlag=false;
+  comparisons=0;swaps=0;
+  this.textContent='Stop';this.classList.add('active');
+  disableControls(true);
+
+  var algo=document.getElementById('sel-algo').value;
+  await ALGOS[algo]();
+
+  if(!abortFlag)await sortedSweep();
+
+  sorting=false;abortFlag=false;
+  this.textContent='Sort';this.classList.remove('active');
+  disableControls(false);
+  updateStats();
+});
+
+document.getElementById('btn-shuffle').addEventListener('click',function(){
+  if(sorting)return;
+  generateArray();
+  comparisons=0;swaps=0;updateStats();
+});
+
+document.getElementById('sl-size').addEventListener('input',function(){
+  document.getElementById('v-size').textContent=this.value;
+});
+document.getElementById('sl-size').addEventListener('change',function(){
+  arrSize=parseInt(this.value,10);
+  if(!sorting){generateArray();comparisons=0;swaps=0;updateStats()}
+});
+
+document.getElementById('sl-speed').addEventListener('input',function(){
+  speed=parseInt(this.value,10);
+  document.getElementById('v-speed').textContent=speed;
+});
+
+function disableControls(disabled){
+  document.getElementById('btn-shuffle').disabled=disabled;
+  document.getElementById('sl-size').disabled=disabled;
+  document.getElementById('sel-algo').disabled=disabled;
+}
+
+function updateStats(){
+  document.getElementById('stats').textContent=comparisons+' cmp, '+swaps+' swp';
+}
+
+// ---- Init ----
+generateArray();
+})();
+</script>
+</body>
+</html>

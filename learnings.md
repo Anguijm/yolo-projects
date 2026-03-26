@@ -1529,3 +1529,17 @@ Persistent knowledge base. Read this before every build.
 - **INSIGHT**: Any game with setTimeout-based state transitions MUST clear those timeouts on game restart. This is the 3rd time this pattern has appeared (picross error flash, fourier-draw presets, now memory-match). It's a universal rule for game state machines.
 - **INSIGHT**: CSS aspect-ratio + grid 1fr is superior to JS-computed card dimensions for responsive game grids
 - **TEST CAUGHT**: Nothing — all bugs found by Gemini
+
+### sort-sight (2026-03-26)
+- **KEEP**: Async/await sorting algorithms with delay() — perfect pattern for step-by-step visualization without blocking UI
+- **KEEP**: Color-coded bar states (compare=yellow, swap=red, sorted=green) — immediately communicates algorithm behavior
+- **KEEP**: Audio tones mapped to values — satisfying and educational (higher bars = higher pitch)
+- **KEEP**: abortFlag checked at every iteration — clean abort without race conditions
+- **KEEP**: Controls disabled during sort — prevents user from creating overlapping animations
+- **IMPROVE**: Gemini caught merge sort visualization snapping — only rendered after entire merge, not per-write. Must render+delay at EVERY array write for step-by-step visibility
+- **IMPROVE**: Stats counter only updated at end — must call updateStats() inside renderBars for real-time display
+- **IMPROVE**: Size slider on 'input' event recreated 100+ DOM nodes per pixel of drag — changed to 'change' (fires on release) for label update on 'input', DOM rebuild on 'change'
+- **IMPROVE**: AudioContext creation crashes if neither WebAudioAPI exists — must check before calling new
+- **INSIGHT**: For algorithm visualizations, EVERY array mutation must trigger render+delay, not just high-level operations. Users need to see each individual step.
+- **INSIGHT**: Split slider behavior: use 'input' for visual label updates (fast, cheap), 'change' for expensive DOM operations (fires on release)
+- **TEST CAUGHT**: Nothing — all bugs found by Gemini
