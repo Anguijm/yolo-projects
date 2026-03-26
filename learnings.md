@@ -1494,3 +1494,26 @@ Persistent knowledge base. Read this before every build.
 - **INSIGHT**: Any text transformation function must preserve properties of the input (case, whitespace, punctuation) that aren't part of the transformation. Test with mixed-case inputs during development
 - **INSIGHT**: For cipher implementations, the decrypt operation should be the exact mathematical inverse of encrypt. Test: decrypt(encrypt(text)) === text
 - **TEST CAUGHT**: Nothing — all bugs found by Gemini
+
+### palette-gen (2026-03-26)
+- **KEEP**: HSL-based color harmony generation — simple hue rotations produce beautiful palettes (analogous ±30°, complementary +180°, triadic +120°/+240°)
+- **KEEP**: Full-viewport swatches with auto black/white text — immediately visual, no chrome needed
+- **KEEP**: Constrained random seed (S: 40-85, L: 35-65) — avoids ugly washed-out or invisible colors
+- **KEEP**: Export as CSS custom properties — practical for designers
+- **IMPROVE**: Gemini caught WCAG luminance threshold at 0.4 — WAY too high. Correct crossover for black/white text is approximately 0.179. This is the second time luminance math has been reviewed (also in contrast-check)
+- **IMPROVE**: Clipboard "Copied!" shown even when writeText fails — must use .then() to only show on success
+- **IMPROVE**: Locked colors broke harmony when seed randomized — locked color should BECOME the seed so unlocked colors harmonize with it
+- **INSIGHT**: The WCAG luminance crossover for max contrast between black and white text is ~0.179, not 0.4 or 0.5. Memorize this number.
+- **INSIGHT**: When a "lock" feature exists alongside regeneration, the locked item should constrain the regeneration, not be ignored by it
+- **TEST CAUGHT**: Nothing — all bugs found by Gemini
+
+### 5-Build Review: #136-#140
+**Builds:** logic-forge, gravity-golf, graph-calc, crypto-lens, palette-gen
+**Pattern analysis:**
+- **Category diversity restored:** CS education (logic gates), physics game (gravity golf), math tool (grapher), cryptography (ciphers), design tool (palette gen) — 5 different categories
+- **Gemini consistently finding 3-5 bugs per build** — audit continues to be essential
+- **Recurring WCAG luminance errors** — appeared in both contrast-check and palette-gen. The 0.179 threshold is now permanently learned
+- **Recurring themes:** canvas coordinate offsets (getBoundingClientRect), game state/timer lifecycle, try/catch performance in loops
+- **New patterns learned:** convergence-based simulation (logic-forge), trajectory preview must match actual physics (gravity-golf), locked items should constrain regeneration (palette-gen)
+- **Zero user-reported bugs** — pipeline working perfectly
+- **10 projects remaining** before pivot to adversarial review at #150

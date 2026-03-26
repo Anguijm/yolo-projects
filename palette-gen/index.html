@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="theme-color" content="#000000">
+<title>Palette Gen</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-user-select:none;user-select:none}
+html,body{height:100%;background:#0a0a12;overflow:hidden;font-family:system-ui,sans-serif}
+#swatches{display:flex;flex-direction:column;height:100vh}
+.swatch{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;transition:background 0.3s;position:relative;min-height:0}
+.swatch-hex{font-family:ui-monospace,monospace;font-size:0.65rem;font-weight:600;letter-spacing:0.05em;margin-bottom:2px}
+.swatch-name{font-size:0.3rem;opacity:0.5;letter-spacing:0.1em;text-transform:uppercase}
+.swatch-lock{position:absolute;top:6px;right:8px;font-size:0.5rem;cursor:pointer;opacity:0.3;transition:opacity 0.15s}
+.swatch-lock.locked{opacity:0.8}
+.swatch-copy{position:absolute;top:6px;left:8px;font-size:0.28rem;opacity:0;transition:opacity 0.3s;pointer-events:none}
+.swatch-copy.show{opacity:0.6}
+
+/* Bottom bar */
+#bar{position:fixed;bottom:0;left:0;right:0;display:flex;gap:4px;padding:6px 8px;background:rgba(10,10,18,0.92);border-top:1px solid rgba(255,255,255,0.06);z-index:5;backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);align-items:center;justify-content:center;flex-wrap:wrap}
+.btn{padding:5px 10px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);color:#666;font-size:0.36rem;cursor:pointer;border-radius:5px;font-family:inherit;transition:all 0.12s}
+.btn:active{color:#aaa}
+.btn.sel{border-color:#4af;color:#4af}
+select{background:#111;border:1px solid rgba(255,255,255,0.08);color:#888;padding:4px 6px;font-size:0.35rem;border-radius:4px;outline:none;font-family:inherit}
+input[type="color"]{width:32px;height:28px;border:1px solid rgba(255,255,255,0.1);border-radius:4px;cursor:pointer;background:transparent;padding:1px}
+#hint{font-size:0.28rem;color:#444}
+</style>
+</head>
+<body>
+<div id="swatches"></div>
+<div id="bar">
+  <input type="color" id="seed-pick" value="#4488ff" title="Seed color">
+  <select id="sel-mode">
+    <option value="analogous">Analogous</option>
+    <option value="complementary">Complementary</option>
+    <option value="triadic">Triadic</option>
+    <option value="split">Split Comp.</option>
+    <option value="mono">Monochromatic</option>
+  </select>
+  <button class="btn" id="btn-gen">Generate</button>
+  <button class="btn" id="btn-export">Export CSS</button>
+  <span id="hint">Space = new</span>
+</div>
+
+<script>
+(function(){
+'use strict';
+
+var SWATCH_COUNT=5;
+var mode='analogous';
+var seedHSL=[220,70,55]; // H,S%,L%
+var swatches=[]; // {h,s,l,locked,hex}
+var copyTimers=[];
+
+// ---- Color math ----
+function hslToHex(h,s,l){
+  h=((h%360)+360)%360;
+  s=Math.max(0,Math.min(100,s));
+  l=Math.max(0,Math.min(100,l));
+  var rgb=hslToRgb(h,s/100,l/100);
+  return rgbToHex(rgb[0],rgb[1],rgb[2]);
+}
+
+function hslToRgb(h,s,l){
+  h/=360;
+  var r,g,b;
+  if(s===0){r=g=b=l}else{
+    function hue2rgb(p,q,t){if(t<0)t+=1;if(t>1)t-=1;if(t<1/6)return p+(q-p)*6*t;if(t<1/2)return q;if(t<2/3)return p+(q-p)*(2/3-t)*6;return p}
+    var q=l<0.5?l*(1+s):l+s-l*s;var p=2*l-q;
+    r=hue2rgb(p,q,h+1/3);g=hue2rgb(p,q,h);b=hue2rgb(p,q,h-1/3);
+  }
+  return[Math.round(r*255),Math.round(g*255),Math.round(b*255)];
+}
+
+function rgbToHex(r,g,b){
+  return'#'+((1<<24)+(r<<16)+(g<<8)+b).toString(16).slice(1);
+}
+
+function hexToHsl(hex){
+  hex=hex.replace('#','');
+  var r=parseInt(hex.substring(0,2),16)/255;
+  var g=parseInt(hex.substring(2,4),16)/255;
+  var b=parseInt(hex.substring(4,6),16)/255;
+  var max=Math.max(r,g,b),min=Math.min(r,g,b);
+  var h=0,s=0,l=(max+min)/2;
+  if(max!==min){
+    var d=max-min;
+    s=l>0.5?d/(2-max-min):d/(max+min);
+    if(max===r)h=((g-b)/d+(g<b?6:0))/6;
+    else if(max===g)h=((b-r)/d+2)/6;
+    else h=((r-g)/d+4)/6;
+  }
+  return[Math.round(h*360),Math.round(s*100),Math.round(l*100)];
+}
+
+function relativeLuminance(hex){
+  hex=hex.replace('#','');
+  var r=parseInt(hex.substring(0,2),16)/255;
+  var g=parseInt(hex.substring(2,4),16)/255;
+  var b=parseInt(hex.substring(4,6),16)/255;
+  function lin(c){return c<=0.03928?c/12.92:Math.pow((c+0.055)/1.055,2.4)}
+  return 0.2126*lin(r)+0.7152*lin(g)+0.0722*lin(b);
+}
+
+function textColor(hex){
+  return relativeLuminance(hex)>0.179?'#000':'#fff';
+}
+
+// ---- Harmony algorithms ----
+function generatePalette(){
+  var h=seedHSL[0],s=seedHSL[1],l=seedHSL[2];
+  var colors=[];
+
+  if(mode==='analogous'){
+    colors=[
+      {h:h-30,s:s,l:l},
+      {h:h-15,s:s,l:l},
+      {h:h,s:s,l:l},
+      {h:h+15,s:s,l:l},
+      {h:h+30,s:s,l:l}
+    ];
+  }else if(mode==='complementary'){
+    colors=[
+      {h:h,s:s,l:l-10},
+      {h:h,s:s,l:l},
+      {h:h,s:s,l:l+10},
+      {h:h+180,s:s,l:l},
+      {h:h+180,s:s,l:l+10}
+    ];
+  }else if(mode==='triadic'){
+    colors=[
+      {h:h,s:s,l:l},
+      {h:h,s:s,l:l+15},
+      {h:h+120,s:s,l:l},
+      {h:h+240,s:s,l:l},
+      {h:h+240,s:s,l:l+15}
+    ];
+  }else if(mode==='split'){
+    colors=[
+      {h:h,s:s,l:l-10},
+      {h:h,s:s,l:l},
+      {h:h,s:s,l:l+10},
+      {h:h+150,s:s,l:l},
+      {h:h+210,s:s,l:l}
+    ];
+  }else if(mode==='mono'){
+    colors=[
+      {h:h,s:s,l:Math.max(10,l-30)},
+      {h:h,s:s,l:Math.max(10,l-15)},
+      {h:h,s:s,l:l},
+      {h:h,s:Math.max(10,s-15),l:Math.min(90,l+15)},
+      {h:h,s:Math.max(10,s-25),l:Math.min(90,l+30)}
+    ];
+  }
+
+  var NAMES=['Primary','Secondary','Accent','Highlight','Muted'];
+  for(var i=0;i<SWATCH_COUNT;i++){
+    if(swatches[i]&&swatches[i].locked)continue;
+    var c=colors[i];
+    var hex=hslToHex(c.h,c.s,c.l);
+    swatches[i]={h:c.h,s:c.s,l:c.l,locked:false,hex:hex,name:NAMES[i]};
+  }
+  render();
+}
+
+// ---- Render ----
+function render(){
+  var container=document.getElementById('swatches');
+  container.innerHTML='';
+  for(var i=0;i<SWATCH_COUNT;i++){
+    var sw=swatches[i];
+    if(!sw)continue;
+    var div=document.createElement('div');
+    div.className='swatch';
+    div.style.background=sw.hex;
+    var tc=textColor(sw.hex);
+    div.style.color=tc;
+
+    div.innerHTML='<span class="swatch-hex">'+sw.hex.toUpperCase()+'</span><span class="swatch-name">'+sw.name+'</span><span class="swatch-lock'+(sw.locked?' locked':'')+'" data-idx="'+i+'">'+(sw.locked?'🔒':'🔓')+'</span><span class="swatch-copy" id="copy-'+i+'">Copied!</span>';
+
+    div.dataset.idx=i;
+    container.appendChild(div);
+  }
+  // Adjust bar height compensation
+  container.style.paddingBottom='44px';
+}
+
+// ---- Interaction ----
+document.getElementById('swatches').addEventListener('click',function(e){
+  // Lock toggle
+  var lockEl=e.target.closest('.swatch-lock');
+  if(lockEl){
+    var idx=parseInt(lockEl.dataset.idx,10);
+    swatches[idx].locked=!swatches[idx].locked;
+    render();
+    return;
+  }
+  // Copy hex
+  var swatch=e.target.closest('.swatch');
+  if(swatch){
+    var idx=parseInt(swatch.dataset.idx,10);
+    var hex=swatches[idx].hex.toUpperCase();
+    if(navigator.clipboard&&navigator.clipboard.writeText){
+      navigator.clipboard.writeText(hex).then(function(){
+        var copyEl=document.getElementById('copy-'+idx);
+        if(copyEl){copyEl.classList.add('show');clearTimeout(copyTimers[idx]);
+          copyTimers[idx]=setTimeout(function(){copyEl.classList.remove('show')},1000)}
+      }).catch(function(){});
+    }
+  }
+});
+
+// ---- Controls ----
+document.getElementById('seed-pick').addEventListener('input',function(){
+  seedHSL=hexToHsl(this.value);
+  generatePalette();
+});
+
+document.getElementById('sel-mode').addEventListener('change',function(){
+  mode=this.value;
+  generatePalette();
+});
+
+document.getElementById('btn-gen').addEventListener('click',function(){
+  randomSeed();
+  generatePalette();
+});
+
+document.getElementById('btn-export').addEventListener('click',function(){
+  var css=':root {\n';
+  for(var i=0;i<SWATCH_COUNT;i++){
+    if(swatches[i])css+='  --color-'+swatches[i].name.toLowerCase()+': '+swatches[i].hex.toUpperCase()+';\n';
+  }
+  css+='}';
+  try{navigator.clipboard.writeText(css)}catch(err){}
+  this.textContent='Copied!';
+  var self=this;
+  setTimeout(function(){self.textContent='Export CSS'},1200);
+});
+
+// Spacebar / tap to generate
+document.addEventListener('keydown',function(e){
+  if(e.target.tagName==='INPUT'||e.target.tagName==='TEXTAREA'||e.target.tagName==='SELECT')return;
+  if(e.key===' '){
+    e.preventDefault();
+    randomSeed();
+    generatePalette();
+  }
+});
+
+function randomSeed(){
+  // If any swatch is locked, use first locked as seed to maintain harmony
+  var locked=null;
+  for(var i=0;i<swatches.length;i++){if(swatches[i]&&swatches[i].locked){locked=swatches[i];break}}
+  var h,s,l;
+  if(locked){h=locked.h;s=locked.s;l=locked.l}
+  else{h=Math.floor(Math.random()*360);s=40+Math.floor(Math.random()*45);l=35+Math.floor(Math.random()*30)}
+  seedHSL=[h,s,l];
+  document.getElementById('seed-pick').value=hslToHex(h,s,l);
+}
+
+// ---- Init ----
+// Initialize swatches array
+for(var i=0;i<SWATCH_COUNT;i++)swatches.push(null);
+generatePalette();
+})();
+</script>
+</body>
+</html>
