@@ -1605,3 +1605,17 @@ Persistent knowledge base. Read this before every build.
 - **INSIGHT**: When biasing random selection toward a subset, filter first then pick randomly. Never break on first match — that's deterministic, not biased-random
 - **INSIGHT**: If a curated word list references another data structure, validate that every referenced word actually exists. Dead references are silent bugs
 - **TEST CAUGHT**: Nothing — all bugs found by Gemini
+
+### regex-lab (2026-03-26)
+- **KEEP**: Real-time match highlighting via escapeHtml + mark tags — safe, performant, clear visual
+- **KEEP**: Alternating match colors (m0/m1) — distinguishes adjacent matches visually
+- **KEEP**: Debounced input (150ms) — prevents lag on rapid typing without feeling delayed
+- **KEEP**: Collapsible cheat sheet via HTML details element — accessible but doesn't clutter UI
+- **KEEP**: XSS-safe rendering (escapeHtml before innerHTML) — critical for a tool that processes arbitrary user text
+- **IMPROVE**: Gemini caught falsy empty-string check — !text is true for empty string, blocking ^$ pattern matches. Use text==null instead
+- **IMPROVE**: Zero-width matches (^, $, \b) rendered as invisible empty mark tags. Added zero-width space + border indicator
+- **IMPROVE**: Named capture groups (m.groups) were stripped by Array.from().slice(1). Must capture m.groups separately
+- **IMPROVE**: Single quote not escaped in escapeHtml — added &#39; replacement
+- **INSIGHT**: When checking for "no input", use ==null (catches null+undefined) not !value (catches empty string, 0, false). Empty strings are valid input for regex testing
+- **INSIGHT**: Single-quote in string literals inside other single-quoted strings confuses the test's brace checker. Use String.fromCharCode or variables to avoid
+- **TEST CAUGHT**: Brace balance false positive from single-quote escaping — 7th occurrence of this test limitation
