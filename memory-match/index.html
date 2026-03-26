@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="theme-color" content="#000000">
+<title>Memory Match</title>
+<style>
+:root{--bg:#0a0a12;--card-bg:#14141e;--card-back:#1a1a2e;--matched:#0a2a0a;--accent:#4af;--text:#888;--dim:#444}
+*{margin:0;padding:0;box-sizing:border-box;-webkit-user-select:none;user-select:none}
+html,body{height:100%;background:var(--bg);overflow-y:auto;touch-action:manipulation;-webkit-tap-highlight-color:transparent;font-family:system-ui,sans-serif;color:var(--text)}
+#app{max-width:440px;margin:0 auto;padding:10px 8px}
+h1{font-size:0.55rem;font-weight:200;color:#aaa;letter-spacing:0.2em;text-align:center;margin-bottom:6px}
+
+/* HUD */
+#hud{display:flex;gap:10px;justify-content:center;font-size:0.38rem;color:var(--dim);font-family:monospace;margin-bottom:8px}
+#hud b{color:var(--text)}
+
+/* Difficulty */
+.diff-row{display:flex;gap:4px;justify-content:center;margin-bottom:8px}
+.diff-btn{padding:4px 12px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);color:var(--dim);font-size:0.36rem;cursor:pointer;border-radius:5px;font-family:inherit;transition:all 0.12s}
+.diff-btn:active{color:#aaa}
+.diff-btn.sel{border-color:var(--accent);color:var(--accent)}
+
+/* Board */
+#board{display:grid;gap:6px;justify-content:center;margin-bottom:8px}
+
+/* Card */
+.card{position:relative;cursor:pointer;perspective:600px;aspect-ratio:1/1.2}
+.card-inner{position:relative;width:100%;height:100%;transition:transform 0.4s;transform-style:preserve-3d}
+.card.flipped .card-inner{transform:rotateY(180deg)}
+.card-face{position:absolute;inset:0;border-radius:8px;display:flex;align-items:center;justify-content:center;backface-visibility:hidden}
+.card-front{background:var(--card-bg);border:1px solid rgba(255,255,255,0.06);font-size:clamp(1.2rem,5vw,2rem)}
+.card-front{transform:rotateY(180deg)}
+.card-back{background:var(--card-back);border:1px solid rgba(255,255,255,0.08)}
+.card-back::after{content:'?';font-size:1rem;color:rgba(255,255,255,0.08);font-weight:300}
+.card.matched .card-front{background:var(--matched);border-color:rgba(0,255,0,0.15)}
+.card.matched{pointer-events:none}
+
+/* Win */
+#win{display:none;text-align:center;padding:16px}
+#win h2{font-size:0.7rem;color:#4f4;font-weight:200;margin-bottom:4px}
+#win p{font-size:0.4rem;color:var(--dim);margin-bottom:8px}
+.btn{padding:5px 14px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);color:var(--dim);font-size:0.38rem;cursor:pointer;border-radius:5px;font-family:inherit}
+.btn:active{color:#aaa}
+</style>
+</head>
+<body>
+<div id="app">
+  <h1>MEMORY MATCH</h1>
+  <div id="hud">
+    <span>Moves: <b id="h-moves">0</b></span>
+    <span>Time: <b id="h-time">0:00</b></span>
+    <span>Best: <b id="h-best">—</b></span>
+  </div>
+  <div class="diff-row">
+    <button class="diff-btn" id="d-easy">Easy 4×3</button>
+    <button class="diff-btn sel" id="d-med">Medium 4×4</button>
+    <button class="diff-btn" id="d-hard">Hard 5×4</button>
+  </div>
+  <div id="board"></div>
+  <div id="win">
+    <h2>You Win!</h2>
+    <p id="win-stats"></p>
+    <button class="btn" id="btn-again">Play Again</button>
+  </div>
+</div>
+
+<script>
+(function(){
+'use strict';
+
+// ---- Emoji pools by theme ----
+var EMOJIS_EASY=['🐶','🐱','🐸','🦊','🐼','🐨']; // Animals
+var EMOJIS_MED=['🚀','💎','🔥','⭐','🌈','🎵','🍕','🎮']; // Mixed
+var EMOJIS_HARD=['🪐','🧬','🔮','🎭','🦋','🌸','🍄','🧊','🎯','🫧']; // Abstract
+
+var DIFFICULTIES={
+  easy:{cols:4,rows:3,pairs:6,emojis:EMOJIS_EASY},
+  med:{cols:4,rows:4,pairs:8,emojis:EMOJIS_MED},
+  hard:{cols:5,rows:4,pairs:10,emojis:EMOJIS_HARD}
+};
+
+// ---- State ----
+var difficulty='med';
+var cards=[];
+var flipped=[];
+var matchedCount=0;
+var totalPairs=0;
+var moves=0;
+var gameState='playing'; // playing, evaluating, won
+var timerInterval=null;
+var evalTimeout=null;
+var startTime=0;
+var started=false;
+
+// ---- Fisher-Yates shuffle ----
+function shuffle(arr){
+  for(var i=arr.length-1;i>0;i--){
+    var j=Math.floor(Math.random()*(i+1));
+    var tmp=arr[i];arr[i]=arr[j];arr[j]=tmp;
+  }
+  return arr;
+}
+
+// ---- New game ----
+function newGame(){
+  var diff=DIFFICULTIES[difficulty];
+  totalPairs=diff.pairs;
+  matchedCount=0;
+  moves=0;
+  started=false;
+  gameState='playing';
+  flipped=[];
+  clearInterval(timerInterval);
+  clearTimeout(evalTimeout);
+  startTime=0;
+  document.getElementById('h-time').textContent='0:00';
+  document.getElementById('h-moves').textContent='0';
+  document.getElementById('win').style.display='none';
+  showBest();
+
+  // Build card array: pairs of emojis
+  var emojis=diff.emojis.slice(0,diff.pairs);
+  var deck=[];
+  for(var i=0;i<emojis.length;i++){
+    deck.push({emoji:emojis[i],id:i});
+    deck.push({emoji:emojis[i],id:i});
+  }
+  shuffle(deck);
+  cards=deck;
+
+  // Render board
+  var board=document.getElementById('board');
+  board.innerHTML='';
+  board.style.gridTemplateColumns='repeat('+diff.cols+',1fr)';
+
+  for(var i=0;i<deck.length;i++){
+    var card=document.createElement('div');
+    card.className='card';
+    card.dataset.idx=i;
+
+    var inner=document.createElement('div');
+    inner.className='card-inner';
+
+    var back=document.createElement('div');
+    back.className='card-face card-back';
+
+    var front=document.createElement('div');
+    front.className='card-face card-front';
+    front.textContent=deck[i].emoji;
+
+    inner.appendChild(back);
+    inner.appendChild(front);
+    card.appendChild(inner);
+    board.appendChild(card);
+  }
+}
+
+// ---- Card click ----
+document.getElementById('board').addEventListener('click',function(e){
+  if(gameState!=='playing')return;
+
+  var cardEl=e.target.closest('.card');
+  if(!cardEl)return;
+  if(cardEl.classList.contains('flipped'))return;
+  if(cardEl.classList.contains('matched'))return;
+
+  var idx=parseInt(cardEl.dataset.idx,10);
+
+  // Start timer on first flip
+  if(!started){
+    started=true;
+    startTime=Date.now();
+    timerInterval=setInterval(updateTimer,1000);
+  }
+
+  // Flip card
+  cardEl.classList.add('flipped');
+  flipped.push({idx:idx,el:cardEl});
+
+  if(flipped.length===2){
+    moves++;
+    document.getElementById('h-moves').textContent=moves;
+    gameState='evaluating'; // Lock board
+
+    var a=flipped[0],b=flipped[1];
+    if(cards[a.idx].id===cards[b.idx].id){
+      // Match!
+      evalTimeout=setTimeout(function(){
+        a.el.classList.add('matched');
+        b.el.classList.add('matched');
+        matchedCount++;
+        flipped=[];
+        gameState='playing';
+        if(matchedCount===totalPairs){
+          winGame();
+        }
+      },400);
+    }else{
+      // No match — flip back
+      evalTimeout=setTimeout(function(){
+        a.el.classList.remove('flipped');
+        b.el.classList.remove('flipped');
+        flipped=[];
+        gameState='playing';
+      },800);
+    }
+  }
+});
+
+// ---- Timer ----
+function updateTimer(){
+  if(gameState==='won')return;
+  var elapsed=Math.floor((Date.now()-startTime)/1000);
+  document.getElementById('h-time').textContent=formatTime(elapsed);
+}
+function formatTime(s){return Math.floor(s/60)+':'+('0'+(s%60)).slice(-2)}
+
+// ---- Win ----
+function winGame(){
+  gameState='won';
+  clearInterval(timerInterval);
+  var elapsed=Math.floor((Date.now()-startTime)/1000);
+  document.getElementById('win-stats').textContent=moves+' moves in '+formatTime(elapsed);
+  document.getElementById('win').style.display='block';
+
+  // Save best
+  var key='mm_best_'+difficulty;
+  var best=getBest();
+  if(best===0||moves<best){
+    saveBest(moves);
+  }
+  showBest();
+}
+
+function getBest(){
+  try{return parseInt(localStorage.getItem('mm_best_'+difficulty),10)||0}catch(e){return 0}
+}
+function saveBest(m){
+  try{localStorage.setItem('mm_best_'+difficulty,''+m)}catch(e){}
+}
+function showBest(){
+  var b=getBest();
+  document.getElementById('h-best').textContent=b>0?b+' moves':'—';
+}
+
+// ---- Difficulty selection ----
+var DIFF_BTNS={easy:'d-easy',med:'d-med',hard:'d-hard'};
+var diffKeys=Object.keys(DIFF_BTNS);
+for(var i=0;i<diffKeys.length;i++){
+  (function(d){
+    document.getElementById(DIFF_BTNS[d]).addEventListener('click',function(){
+      difficulty=d;
+      for(var k=0;k<diffKeys.length;k++)document.getElementById(DIFF_BTNS[diffKeys[k]]).classList.remove('sel');
+      this.classList.add('sel');
+      newGame();
+    });
+  })(diffKeys[i]);
+}
+
+document.getElementById('btn-again').addEventListener('click',newGame);
+
+// ---- Init ----
+newGame();
+})();
+</script>
+</body>
+</html>

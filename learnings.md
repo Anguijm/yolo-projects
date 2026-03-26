@@ -1517,3 +1517,15 @@ Persistent knowledge base. Read this before every build.
 - **New patterns learned:** convergence-based simulation (logic-forge), trajectory preview must match actual physics (gravity-golf), locked items should constrain regeneration (palette-gen)
 - **Zero user-reported bugs** — pipeline working perfectly
 - **10 projects remaining** before pivot to adversarial review at #150
+
+### memory-match (2026-03-26)
+- **KEEP**: CSS 3D card flips (perspective + preserve-3d + rotateY + backface-visibility) — visually stunning, hardware-accelerated
+- **KEEP**: Strict state machine (playing/evaluating/won) prevents multi-click during animation
+- **KEEP**: Themed emoji sets per difficulty — gives sense of progression beyond just grid size
+- **KEEP**: CSS aspect-ratio for card sizing — adapts to any screen size without JS recalculation
+- **IMPROVE**: Gemini caught ghost timeout race condition — timeout from previous game fires during new game, corrupting state. Must store eval timeout ID and clearTimeout in newGame()
+- **IMPROVE**: JS-computed card widths don't adapt on resize/rotation. CSS aspect-ratio + grid 1fr is more resilient
+- **IMPROVE**: Best score only tracks moves, not time as tiebreaker — noted for future refinement
+- **INSIGHT**: Any game with setTimeout-based state transitions MUST clear those timeouts on game restart. This is the 3rd time this pattern has appeared (picross error flash, fourier-draw presets, now memory-match). It's a universal rule for game state machines.
+- **INSIGHT**: CSS aspect-ratio + grid 1fr is superior to JS-computed card dimensions for responsive game grids
+- **TEST CAUGHT**: Nothing — all bugs found by Gemini
