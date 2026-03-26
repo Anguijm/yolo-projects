@@ -1592,3 +1592,16 @@ Persistent knowledge base. Read this before every build.
 - **New patterns:** timestamp-based timing (zenodoro), CSS aspect-ratio for responsive grids (memory-match), slider input/change split (sort-sight)
 - **Zero user-reported bugs** — pipeline continues to be effective
 - **5 projects remain** before adversarial review pivot at #150
+
+### haiku-gen (2026-03-26)
+- **KEEP**: Template-based generation with POS+syllable word banks — guarantees grammatical structure while allowing creative variation
+- **KEEP**: Seasonal themes with vocabulary bias — adds thematic coherence, not just random words
+- **KEEP**: Zen minimal typography (system serif, centered, lots of whitespace) — the aesthetic IS the product
+- **KEEP**: Fade transition between poems — meditative UX, not jarring swap
+- **IMPROVE**: Gemini caught first-seasonal-word bias — loop with break always picked same word. Must filter matching words into array then pick randomly
+- **IMPROVE**: Season word lists referenced words not in dictionary — dead code. All seasonal words must exist in WORDS banks
+- **IMPROVE**: Spam-clicking queued multiple fade timeouts — clearTimeout before each new setTimeout
+- **IMPROVE**: "a" before vowel-starting adjectives — added regex replace for a→an
+- **INSIGHT**: When biasing random selection toward a subset, filter first then pick randomly. Never break on first match — that's deterministic, not biased-random
+- **INSIGHT**: If a curated word list references another data structure, validate that every referenced word actually exists. Dead references are silent bugs
+- **TEST CAUGHT**: Nothing — all bugs found by Gemini

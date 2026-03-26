@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="theme-color" content="#000000">
+<title>Haiku</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{height:100%;overflow:hidden;font-family:ui-serif,Georgia,Cambria,'Times New Roman',Times,serif;transition:background 1.2s,color 1.2s}
+body{display:flex;flex-direction:column;align-items:center;justify-content:center;background:#0a0a0f;color:#c8c0b0;-webkit-tap-highlight-color:transparent}
+
+#poem{text-align:center;padding:20px;max-width:400px;transition:opacity 0.5s;cursor:pointer}
+#poem.fade{opacity:0}
+.line{font-size:1.3rem;line-height:2;font-weight:300;letter-spacing:0.03em}
+#season-label{font-size:0.3rem;letter-spacing:0.25em;text-transform:uppercase;opacity:0.3;margin-top:20px}
+
+#controls{position:fixed;bottom:20px;display:flex;gap:8px;z-index:5}
+.btn{padding:6px 16px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);color:rgba(255,255,255,0.3);font-size:0.38rem;cursor:pointer;border-radius:6px;font-family:inherit;transition:all 0.15s}
+.btn:active{color:rgba(255,255,255,0.6)}
+#hint{position:fixed;bottom:56px;font-size:0.28rem;color:rgba(255,255,255,0.1);letter-spacing:0.1em}
+#saved-count{position:fixed;top:12px;right:12px;font-size:0.3rem;color:rgba(255,255,255,0.15);font-family:system-ui,sans-serif}
+</style>
+</head>
+<body>
+<div id="poem">
+  <div class="line" id="l1"></div>
+  <div class="line" id="l2"></div>
+  <div class="line" id="l3"></div>
+</div>
+<div id="season-label"></div>
+<span id="hint">tap anywhere or press space</span>
+<div id="controls">
+  <button class="btn" id="btn-copy">Copy</button>
+  <button class="btn" id="btn-save">Save</button>
+</div>
+<span id="saved-count"></span>
+
+<script>
+(function(){
+'use strict';
+
+// ---- Word banks: organized by part-of-speech and syllable count ----
+var WORDS={
+  adj:{
+    1:['bare','bright','calm','cold','dark','deep','dry','faint','fresh','gold','green','grey','hushed','lone','lost','mild','old','pale','red','sharp','slow','soft','still','sweet','thin','warm','wet','wild'],
+    2:['ancient','broken','crimson','distant','drowsy','empty','endless','fallen','fleeting','floating','frozen','gentle','golden','hollow','iron','jagged','molten','orange','patient','quiet','sacred','shallow','silent','silver','slender','sudden','tender','twilight','vacant','velvet','woven'],
+    3:['beautiful','delicate','forgotten','motionless','luminous','resonant','shadowy','shimmering','solitary','wandering','whispering']
+  },
+  noun:{
+    1:['ash','bark','bell','bloom','branch','brook','cloud','crane','creek','crow','dawn','dew','dream','dusk','dust','earth','field','flame','frog','frost','gate','grass','grove','haze','heat','hill','ice','lake','leaf','light','marsh','mist','moon','moss','moth','night','oak','path','peak','pine','pool','rain','reed','ridge','rock','root','rose','seed','shade','shore','sky','smoke','snow','spring','star','stone','stream','sun','thorn','tide','tree','vale','vine','wave','well','wind','wing','wood','wren'],
+    2:['amber','bamboo','blossom','candle','canyon','cedar','cherry','cobweb','cricket','crystal','cypress','feather','firefly','flower','footprint','garden','harbor','harvest','heron','hillside','honey','iris','lantern','lily','meadow','mountain','ocean','pebble','plover','rabbit','ripple','river','robin','shadow','shimmer','silence','sparrow','spider','starlight','summer','sunlight','temple','thistle','thunder','village','water','willow','winter'],
+    3:['butterfly','chrysalis','cicada','dragonfly','evergreen','firefly','galaxy','horizon','lavender','memory','mosquito','nightingale','porcupine','sakura','silhouette','solitude','waterfall','wilderness']
+  },
+  verb:{
+    1:['bends','blooms','burns','calls','climbs','clings','creeps','drifts','drips','falls','fades','flies','floats','flows','glows','grows','hangs','hides','holds','leaps','lies','melts','moves','parts','rests','rings','rocks','rolls','shines','sings','sits','sleeps','slips','soars','speaks','stays','stirs','stops','sways','turns','waits','wakes','walks','weeps'],
+    2:['awakens','echoes','embraces','fading','flickers','gathers','lingers','murmurs','quivers','reaches','ripples','scatters','settles','shivers','shimmers','sleeping','trembles','unfolds','vanishes','whispers','withers','wanders']
+  },
+  prep:{
+    1:['through','past','near','on','in','by','with'],
+    2:['across','against','along','among','beneath','beside','between','beyond','into','over','under']
+  },
+  det:{
+    1:['the','a','each','no','one','this'],
+  }
+};
+
+// ---- Seasons with themes ----
+var SEASONS=[
+  {name:'Spring',bg:'#0a0f0a',text:'#a0c0a0',words:['blossom','cherry','bloom','rain','dew','frog','iris','meadow','robin','seed','creek','green','fresh','gentle','awakens']},
+  {name:'Summer',bg:'#0f0a05',text:'#c0b090',words:['sun','heat','firefly','cricket','honey','golden','warm','bright','cicada','thunder','sunlight','molten','shimmer']},
+  {name:'Autumn',bg:'#0f0808',text:'#c0a080',words:['leaf','frost','crimson','fallen','wind','harvest','amber','red','orange','twilight','shadow','fading','withers']},
+  {name:'Winter',bg:'#080a0f',text:'#90a0c0',words:['snow','ice','cold','silence','bare','frozen','pale','still','crystal','starlight','hollow','silver','sleeping']}
+];
+
+// ---- Templates: arrays of [pos, syllables] tuples that sum to target ----
+var TEMPLATES_5=[
+  [['adj',2],['noun',3]],
+  [['adj',1],['noun',2],['verb',2]],
+  [['det',1],['adj',1],['noun',3]],
+  [['noun',2],['verb',1],['adj',2]],
+  [['adj',2],['noun',1],['verb',2]],
+  [['det',1],['adj',2],['noun',2]],
+  [['noun',1],['prep',1],['det',1],['noun',2]],
+  [['adj',3],['noun',2]]
+];
+
+var TEMPLATES_7=[
+  [['adj',2],['noun',2],['verb',1],['adj',2]],
+  [['det',1],['adj',2],['noun',1],['verb',1],['adj',2]],
+  [['noun',2],['verb',2],['prep',1],['noun',2]],
+  [['adj',3],['noun',2],['verb',2]],
+  [['prep',2],['det',1],['adj',2],['noun',2]],
+  [['det',1],['noun',3],['verb',1],['adj',2]],
+  [['adj',1],['noun',2],['verb',2],['adj',2]],
+  [['noun',2],['prep',1],['det',1],['adj',1],['noun',2]]
+];
+
+// ---- Generation ----
+function pick(arr){return arr[Math.floor(Math.random()*arr.length)]}
+
+function generateLine(templates,seasonWords){
+  var tmpl=pick(templates);
+  var words=[];
+  var attempts=0;
+  while(attempts<20){
+    words=[];
+    var valid=true;
+    for(var i=0;i<tmpl.length;i++){
+      var pos=tmpl[i][0],syl=tmpl[i][1];
+      var bank=WORDS[pos];
+      if(!bank||!bank[syl]||bank[syl].length===0){valid=false;break}
+      var w=pick(bank[syl]);
+      // Slight bias toward seasonal words
+      if(seasonWords&&Math.random()<0.3){
+        var seasonal=bank[syl].filter(function(word){return seasonWords.indexOf(word)>=0});
+        if(seasonal.length>0)w=pick(seasonal);
+      }
+      words.push(w);
+    }
+    if(valid&&new Set(words).size===words.length)break; // no duplicate words
+    attempts++;
+  }
+  var line=words.join(' ');
+  return line.replace(/\ba ([aeiou])/gi,'an $1');
+}
+
+var fadeTimeout=null;
+
+function generate(){
+  var season=pick(SEASONS);
+
+  document.body.style.background=season.bg;
+  document.body.style.color=season.text;
+  document.getElementById('season-label').textContent=season.name;
+
+  var poem=document.getElementById('poem');
+  poem.classList.add('fade');
+
+  if(fadeTimeout)clearTimeout(fadeTimeout);
+  fadeTimeout=setTimeout(function(){
+    document.getElementById('l1').textContent=generateLine(TEMPLATES_5,season.words);
+    document.getElementById('l2').textContent=generateLine(TEMPLATES_7,season.words);
+    document.getElementById('l3').textContent=generateLine(TEMPLATES_5,season.words);
+    poem.classList.remove('fade');
+  },500);
+}
+
+// ---- Saved poems ----
+var saved=[];
+function loadSaved(){
+  try{saved=JSON.parse(localStorage.getItem('haiku_saved'))||[]}catch(e){saved=[]}
+  updateSavedCount();
+}
+function saveCurrent(){
+  var text=document.getElementById('l1').textContent+'\n'+document.getElementById('l2').textContent+'\n'+document.getElementById('l3').textContent;
+  if(!text.trim())return;
+  if(saved.indexOf(text)>=0)return; // no duplicates
+  saved.push(text);
+  try{localStorage.setItem('haiku_saved',JSON.stringify(saved))}catch(e){}
+  updateSavedCount();
+}
+function updateSavedCount(){
+  document.getElementById('saved-count').textContent=saved.length>0?saved.length+' saved':'';
+}
+
+// ---- Controls ----
+document.getElementById('poem').addEventListener('click',function(e){
+  generate();
+  document.getElementById('hint').style.opacity='0';
+});
+
+document.addEventListener('keydown',function(e){
+  if(e.target.tagName==='INPUT'||e.target.tagName==='TEXTAREA')return;
+  if(e.key===' '){e.preventDefault();generate();document.getElementById('hint').style.opacity='0'}
+});
+
+document.getElementById('btn-copy').addEventListener('click',function(e){
+  e.stopPropagation();
+  var text=document.getElementById('l1').textContent+'\n'+document.getElementById('l2').textContent+'\n'+document.getElementById('l3').textContent;
+  if(navigator.clipboard&&navigator.clipboard.writeText){
+    var self=this;
+    navigator.clipboard.writeText(text).then(function(){
+      self.textContent='Copied!';setTimeout(function(){self.textContent='Copy'},1200);
+    }).catch(function(){});
+  }
+});
+
+document.getElementById('btn-save').addEventListener('click',function(e){
+  e.stopPropagation();
+  saveCurrent();
+  this.textContent='Saved!';
+  var self=this;
+  setTimeout(function(){self.textContent='Save'},1200);
+});
+
+// ---- Init ----
+loadSaved();
+generate();
+})();
+</script>
+</body>
+</html>
