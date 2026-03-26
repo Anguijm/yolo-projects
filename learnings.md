@@ -1543,3 +1543,16 @@ Persistent knowledge base. Read this before every build.
 - **INSIGHT**: For algorithm visualizations, EVERY array mutation must trigger render+delay, not just high-level operations. Users need to see each individual step.
 - **INSIGHT**: Split slider behavior: use 'input' for visual label updates (fast, cheap), 'change' for expensive DOM operations (fires on release)
 - **TEST CAUGHT**: Nothing — all bugs found by Gemini
+
+### zenodoro (2026-03-26)
+- **KEEP**: Timestamp-based timing (Date.now() delta) — immune to background tab throttling, accurate even when tab is inactive
+- **KEEP**: SVG circle progress ring via stroke-dashoffset — clean, resolution-independent, smooth
+- **KEEP**: Dynamic CSS variable themes per phase — immediate visual context (red=work, green=break, blue=long)
+- **KEEP**: Screen Wake Lock API — prevents display sleep during focus sessions
+- **KEEP**: Synthesized chime via Web Audio + vibration — no external audio files needed
+- **IMPROVE**: Gemini caught progress ring jump on resume — totalDuration was overwritten to timeRemaining on pause, causing remaining/totalDuration to equal 1 on resume. Must keep totalDuration constant throughout a session, use separate timeRemaining variable
+- **IMPROVE**: DOM used as source of truth (getRemainingFromDisplay parsed textContent) — fragile, replaced with JS state variable
+- **IMPROVE**: Wake lock released on tab switch but never re-acquired — added visibilitychange listener
+- **INSIGHT**: For any timer with pause/resume: totalDuration (the full session length) must NEVER change during a session. Only timeRemaining changes. Progress = timeRemaining / totalDuration
+- **INSIGHT**: Screen Wake Lock is automatically released by browsers on tab hide. Must re-acquire on visibilitychange 'visible' if timer is still running
+- **TEST CAUGHT**: Nothing — all bugs found by Gemini

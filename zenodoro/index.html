@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="theme-color" content="#000000">
+<title>Zenodoro</title>
+<style>
+:root{--bg:#1a0a0a;--ring:#d44;--text:#eee;--dim:rgba(255,255,255,0.3);--btn-bg:rgba(255,255,255,0.08);--btn-border:rgba(255,255,255,0.12)}
+*{margin:0;padding:0;box-sizing:border-box;-webkit-user-select:none;user-select:none}
+html,body{height:100%;overflow:hidden;font-family:system-ui,sans-serif;transition:background 0.8s}
+body{background:var(--bg);display:flex;flex-direction:column;align-items:center;justify-content:center;color:var(--text)}
+
+/* Timer ring */
+#timer-wrap{position:relative;width:260px;height:260px;margin-bottom:16px}
+#timer-svg{width:100%;height:100%;transform:rotate(-90deg)}
+.ring-bg{fill:none;stroke:rgba(255,255,255,0.06);stroke-width:6}
+.ring-fg{fill:none;stroke:var(--ring);stroke-width:6;stroke-linecap:round;transition:stroke 0.8s}
+#time-display{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center}
+#time-text{font-size:2.8rem;font-weight:200;font-family:ui-monospace,monospace;letter-spacing:0.05em}
+#phase-text{font-size:0.42rem;color:var(--dim);letter-spacing:0.15em;text-transform:uppercase;margin-top:2px}
+
+/* Session dots */
+#dots{display:flex;gap:8px;margin-bottom:16px}
+.dot{width:10px;height:10px;border-radius:50%;background:rgba(255,255,255,0.1);transition:background 0.3s}
+.dot.done{background:var(--ring)}
+
+/* Controls */
+#controls{display:flex;gap:8px;margin-bottom:12px}
+.btn{padding:8px 20px;background:var(--btn-bg);border:1px solid var(--btn-border);color:var(--text);font-size:0.45rem;cursor:pointer;border-radius:8px;font-family:inherit;transition:all 0.15s;min-width:70px}
+.btn:active{transform:scale(0.96)}
+.btn.primary{background:rgba(255,255,255,0.15);font-weight:600}
+
+/* Phase selector */
+#phases{display:flex;gap:4px;margin-bottom:10px}
+.phase-btn{padding:5px 12px;background:transparent;border:1px solid var(--btn-border);color:var(--dim);font-size:0.36rem;cursor:pointer;border-radius:6px;font-family:inherit;transition:all 0.15s}
+.phase-btn.sel{border-color:var(--ring);color:var(--text)}
+
+/* Settings */
+#settings{font-size:0.32rem;color:var(--dim);display:flex;gap:12px;align-items:center}
+#settings input[type="number"]{width:40px;background:rgba(255,255,255,0.06);border:1px solid var(--btn-border);color:var(--text);padding:3px;font-size:0.35rem;border-radius:4px;text-align:center;font-family:monospace;outline:none}
+#total-sessions{margin-top:8px;font-size:0.3rem;color:var(--dim)}
+</style>
+</head>
+<body>
+<div id="timer-wrap">
+  <svg id="timer-svg" viewBox="0 0 120 120">
+    <circle class="ring-bg" cx="60" cy="60" r="54"/>
+    <circle class="ring-fg" id="ring" cx="60" cy="60" r="54"/>
+  </svg>
+  <div id="time-display">
+    <div id="time-text">25:00</div>
+    <div id="phase-text">Focus</div>
+  </div>
+</div>
+
+<div id="dots">
+  <div class="dot" id="dot-0"></div>
+  <div class="dot" id="dot-1"></div>
+  <div class="dot" id="dot-2"></div>
+  <div class="dot" id="dot-3"></div>
+</div>
+
+<div id="phases">
+  <button class="phase-btn sel" id="ph-work">Focus</button>
+  <button class="phase-btn" id="ph-short">Short</button>
+  <button class="phase-btn" id="ph-long">Long</button>
+</div>
+
+<div id="controls">
+  <button class="btn primary" id="btn-start">Start</button>
+  <button class="btn" id="btn-reset">Reset</button>
+</div>
+
+<div id="settings">
+  <span>Work <input type="number" id="s-work" value="25" min="1" max="90">m</span>
+  <span>Short <input type="number" id="s-short" value="5" min="1" max="30">m</span>
+  <span>Long <input type="number" id="s-long" value="15" min="1" max="60">m</span>
+</div>
+
+<div id="total-sessions">Sessions today: <b id="h-total">0</b></div>
+
+<script>
+(function(){
+'use strict';
+
+// ---- State ----
+var phase='work'; // work, short, long
+var running=false;
+var endTime=0; // timestamp when timer should end
+var totalDuration=0; // total seconds for current phase (never changes during a session)
+var timeRemaining=0; // current remaining seconds
+var sessionsCompleted=0;
+var totalSessions=0;
+var tickInterval=null;
+var actx=null;
+var wakeLock=null;
+
+// ---- Durations (seconds) ----
+var durations={work:25*60,short:5*60,long:15*60};
+
+// ---- SVG ring ----
+var ring=document.getElementById('ring');
+var circumference=2*Math.PI*54;
+ring.style.strokeDasharray=circumference;
+ring.style.strokeDashoffset='0';
+
+// ---- Theme colors ----
+var THEMES={
+  work:{bg:'#1a0a0a',ring:'#d44',name:'Focus'},
+  short:{bg:'#0a1a0a',ring:'#4b4',name:'Short Break'},
+  long:{bg:'#0a0a1a',ring:'#48f',name:'Long Break'}
+};
+
+function applyTheme(){
+  var t=THEMES[phase];
+  document.documentElement.style.setProperty('--bg',t.bg);
+  document.documentElement.style.setProperty('--ring',t.ring);
+  document.body.style.background=t.bg;
+  document.getElementById('phase-text').textContent=t.name;
+  // Update phase buttons
+  document.getElementById('ph-work').classList.toggle('sel',phase==='work');
+  document.getElementById('ph-short').classList.toggle('sel',phase==='short');
+  document.getElementById('ph-long').classList.toggle('sel',phase==='long');
+}
+
+// ---- Timer logic (timestamp-based) ----
+function startTimer(){
+  if(running)return;
+  endTime=Date.now()+timeRemaining*1000;
+  running=true;
+  document.getElementById('btn-start').textContent='Pause';
+  tickInterval=setInterval(tick,200); // Check frequently for background accuracy
+  requestWakeLock();
+}
+
+function pauseTimer(){
+  if(!running)return;
+  running=false;
+  clearInterval(tickInterval);
+  document.getElementById('btn-start').textContent='Resume';
+  timeRemaining=Math.max(0,Math.ceil((endTime-Date.now())/1000));
+  releaseWakeLock();
+}
+
+function resetTimer(){
+  running=false;
+  clearInterval(tickInterval);
+  totalDuration=durations[phase];
+  timeRemaining=totalDuration;
+  updateDisplay(totalDuration);
+  updateRing(1);
+  document.getElementById('btn-start').textContent='Start';
+  releaseWakeLock();
+}
+
+function tick(){
+  var now=Date.now();
+  var remaining=Math.max(0,Math.ceil((endTime-now)/1000));
+  timeRemaining=remaining;
+  var progress=totalDuration>0?remaining/totalDuration:0;
+  updateDisplay(remaining);
+  updateRing(progress);
+
+  if(remaining<=0){
+    // Timer complete
+    running=false;
+    clearInterval(tickInterval);
+    updateDisplay(0);
+    updateRing(0);
+    onTimerComplete();
+  }
+}
+
+function updateDisplay(secs){
+  var m=Math.floor(secs/60);
+  var s=secs%60;
+  document.getElementById('time-text').textContent=('0'+m).slice(-2)+':'+('0'+s).slice(-2);
+}
+
+function updateRing(progress){
+  var offset=circumference*(1-progress);
+  ring.style.strokeDashoffset=offset;
+}
+
+// ---- Timer completion ----
+function onTimerComplete(){
+  playChime();
+  vibrate();
+  releaseWakeLock();
+
+  if(phase==='work'){
+    sessionsCompleted++;
+    totalSessions++;
+    updateDots();
+    saveTotalSessions();
+
+    if(sessionsCompleted>=4){
+      sessionsCompleted=0;
+      switchPhase('long');
+    }else{
+      switchPhase('short');
+    }
+  }else{
+    switchPhase('work');
+  }
+
+  document.getElementById('btn-start').textContent='Start';
+}
+
+function switchPhase(p){
+  phase=p;
+  totalDuration=durations[phase];
+  timeRemaining=totalDuration;
+  updateDisplay(totalDuration);
+  updateRing(1);
+  applyTheme();
+}
+
+function updateDots(){
+  for(var i=0;i<4;i++){
+    document.getElementById('dot-'+i).classList.toggle('done',i<sessionsCompleted);
+  }
+}
+
+// ---- Audio (synthesized chime) ----
+function ensureAudio(){
+  if(!actx){var A=window.AudioContext||window.webkitAudioContext;if(A)actx=new A()}
+  if(actx&&actx.state==='suspended')actx.resume();
+}
+
+function playChime(){
+  ensureAudio();
+  if(!actx)return;
+  var t=actx.currentTime;
+  // Two-tone chime
+  for(var i=0;i<3;i++){
+    var osc=actx.createOscillator();
+    var gain=actx.createGain();
+    osc.type='sine';
+    osc.frequency.value=i%2===0?880:660;
+    gain.gain.setValueAtTime(0.15,t+i*0.3);
+    gain.gain.exponentialRampToValueAtTime(0.001,t+i*0.3+0.25);
+    osc.connect(gain);gain.connect(actx.destination);
+    osc.start(t+i*0.3);osc.stop(t+i*0.3+0.25);
+  }
+}
+
+function vibrate(){
+  if(navigator.vibrate)navigator.vibrate([200,100,200]);
+}
+
+// ---- Wake Lock ----
+async function requestWakeLock(){
+  try{
+    if('wakeLock' in navigator){
+      wakeLock=await navigator.wakeLock.request('screen');
+    }
+  }catch(e){}
+}
+function releaseWakeLock(){
+  if(wakeLock){try{wakeLock.release()}catch(e){}wakeLock=null}
+}
+document.addEventListener('visibilitychange',function(){
+  if(document.visibilityState==='visible'&&running)requestWakeLock();
+});
+
+// ---- Controls ----
+document.getElementById('btn-start').addEventListener('click',function(){
+  ensureAudio();
+  if(running)pauseTimer();
+  else startTimer();
+});
+
+document.getElementById('btn-reset').addEventListener('click',resetTimer);
+
+document.getElementById('ph-work').addEventListener('click',function(){if(!running){switchPhase('work')}});
+document.getElementById('ph-short').addEventListener('click',function(){if(!running){switchPhase('short')}});
+document.getElementById('ph-long').addEventListener('click',function(){if(!running){switchPhase('long')}});
+
+// Settings
+document.getElementById('s-work').addEventListener('change',function(){
+  durations.work=Math.max(1,parseInt(this.value,10)||25)*60;
+  if(!running&&phase==='work')resetTimer();
+});
+document.getElementById('s-short').addEventListener('change',function(){
+  durations.short=Math.max(1,parseInt(this.value,10)||5)*60;
+  if(!running&&phase==='short')resetTimer();
+});
+document.getElementById('s-long').addEventListener('change',function(){
+  durations.long=Math.max(1,parseInt(this.value,10)||15)*60;
+  if(!running&&phase==='long')resetTimer();
+});
+
+// ---- Persistence ----
+function saveTotalSessions(){
+  var today=new Date().toISOString().split('T')[0];
+  try{localStorage.setItem('zen_sessions',JSON.stringify({date:today,count:totalSessions}))}catch(e){}
+  document.getElementById('h-total').textContent=totalSessions;
+}
+
+function loadTotalSessions(){
+  try{
+    var d=JSON.parse(localStorage.getItem('zen_sessions'));
+    var today=new Date().toISOString().split('T')[0];
+    if(d&&d.date===today){totalSessions=d.count||0}
+    else{totalSessions=0}
+  }catch(e){totalSessions=0}
+  document.getElementById('h-total').textContent=totalSessions;
+}
+
+// ---- Init ----
+loadTotalSessions();
+applyTheme();
+totalDuration=durations[phase];
+timeRemaining=totalDuration;
+updateDisplay(totalDuration);
+updateRing(1);
+updateDots();
+})();
+</script>
+</body>
+</html>
