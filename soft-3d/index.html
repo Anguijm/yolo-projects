@@ -1,0 +1,685 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>Soft 3D</title>
+<link rel="manifest" href="manifest.json">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{width:100%;height:100%;overflow:hidden;background:#08080c;font-family:'Segoe UI',system-ui,sans-serif;color:#e0e0e0;touch-action:none}
+canvas{display:block;width:100%;height:100%;position:absolute;top:0;left:0}
+#ui{position:absolute;top:12px;left:12px;z-index:10;display:flex;flex-direction:column;gap:8px;pointer-events:none}
+.panel{background:rgba(12,12,20,0.88);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border:1px solid rgba(255,255,255,0.07);border-radius:12px;padding:12px 16px;pointer-events:auto}
+.panel h2{font-size:12px;font-weight:600;margin-bottom:8px;color:#fa8;letter-spacing:0.5px;text-transform:uppercase}
+.tool-row{display:flex;gap:6px;flex-wrap:wrap}
+.btn{background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:7px 12px;color:#bbb;font-size:11px;cursor:pointer;transition:all 0.15s;user-select:none;-webkit-user-select:none}
+.btn:hover{background:rgba(255,255,255,0.1)}
+.btn.active{background:rgba(255,170,100,0.18);border-color:rgba(255,170,100,0.4);color:#fa8}
+.slider-row{display:flex;align-items:center;gap:8px;margin-top:4px}
+.slider-row label{font-size:11px;color:#777;min-width:50px}
+.slider-row input[type=range]{flex:1;accent-color:#fa8;height:4px}
+.slider-row .val{font-size:11px;color:#fa8;min-width:28px;text-align:right}
+#stats{position:absolute;bottom:12px;left:12px;z-index:10;font-size:11px;color:#444;pointer-events:none}
+#help-hint{position:absolute;bottom:12px;right:12px;z-index:10;font-size:11px;color:#333;text-align:right;pointer-events:none;line-height:1.6}
+#start-overlay{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(4,4,8,0.96);z-index:100;display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer}
+#start-overlay h1{font-size:clamp(28px,6vw,52px);font-weight:700;background:linear-gradient(135deg,#fa8,#f8a,#8af);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;margin-bottom:12px}
+#start-overlay p{color:#555;font-size:14px;max-width:360px;text-align:center;line-height:1.5}
+#start-overlay .start-btn{margin-top:24px;padding:12px 32px;background:linear-gradient(135deg,#fa8,#f8a);border:none;border-radius:10px;color:#fff;font-size:16px;font-weight:600;cursor:pointer;transition:transform 0.15s}
+#start-overlay .start-btn:hover{transform:scale(1.05)}
+@media(max-width:480px){
+  #ui{top:8px;left:8px;right:8px}
+  .panel{padding:8px 12px}
+  .btn{padding:5px 9px;font-size:10px}
+}
+</style>
+</head>
+<body>
+
+<div id="start-overlay">
+  <h1>Soft 3D</h1>
+  <p>A software 3D renderer built from scratch. No WebGL — pure math and Canvas 2D. Rotate, shade, and explore 3D meshes rendered with hand-rolled linear algebra.</p>
+  <button class="start-btn" id="startBtn">Start</button>
+</div>
+
+<canvas id="c"></canvas>
+
+<div id="ui">
+  <div class="panel">
+    <h2>Mesh</h2>
+    <div class="tool-row">
+      <button class="btn active" data-mesh="cube" id="meshCube">Cube</button>
+      <button class="btn" data-mesh="sphere" id="meshSphere">Sphere</button>
+      <button class="btn" data-mesh="torus" id="meshTorus">Torus</button>
+      <button class="btn" data-mesh="icosa" id="meshIcosa">Icosahedron</button>
+      <button class="btn" data-mesh="teapot" id="meshTeapot">Diamond</button>
+    </div>
+  </div>
+  <div class="panel">
+    <h2>Render</h2>
+    <div class="tool-row">
+      <button class="btn active" data-render="flat" id="renderFlat">Flat</button>
+      <button class="btn" data-render="wire" id="renderWire">Wireframe</button>
+      <button class="btn" data-render="both" id="renderBoth">Both</button>
+    </div>
+  </div>
+  <div class="panel">
+    <h2>Settings</h2>
+    <div class="slider-row">
+      <label>Spin</label>
+      <input type="range" id="spinSlider" min="0" max="2" step="0.05" value="0.5">
+      <span class="val" id="spinVal">0.50</span>
+    </div>
+    <div class="slider-row">
+      <label>FOV</label>
+      <input type="range" id="fovSlider" min="30" max="120" step="1" value="60">
+      <span class="val" id="fovVal">60</span>
+    </div>
+    <div class="slider-row">
+      <label>Light X</label>
+      <input type="range" id="lightXSlider" min="-1" max="1" step="0.05" value="0.5">
+      <span class="val" id="lightXVal">0.50</span>
+    </div>
+    <div class="slider-row">
+      <label>Light Y</label>
+      <input type="range" id="lightYSlider" min="-1" max="1" step="0.05" value="-0.7">
+      <span class="val" id="lightYVal">-0.70</span>
+    </div>
+  </div>
+  <div class="panel">
+    <h2>Presets</h2>
+    <div class="tool-row">
+      <button class="btn" data-preset="crystal" id="presetCrystal">Crystal</button>
+      <button class="btn" data-preset="planet" id="presetPlanet">Planet</button>
+      <button class="btn" data-preset="gem" id="presetGem">Gem</button>
+      <button class="btn" data-preset="orbit" id="presetOrbit">Orbit</button>
+    </div>
+  </div>
+</div>
+
+<div id="stats"></div>
+<div id="help-hint">
+  Drag to orbit &bull; Scroll to zoom<br>
+  [1-5] meshes &bull; [W/F/B] render modes
+</div>
+
+<script>
+(function() {
+  'use strict';
+
+  // ========== VECTOR3 ==========
+  function v3(x, y, z) { return {x: x, y: y, z: z}; }
+  function v3add(a, b) { return {x: a.x + b.x, y: a.y + b.y, z: a.z + b.z}; }
+  function v3sub(a, b) { return {x: a.x - b.x, y: a.y - b.y, z: a.z - b.z}; }
+  function v3scale(a, s) { return {x: a.x * s, y: a.y * s, z: a.z * s}; }
+  function v3dot(a, b) { return a.x * b.x + a.y * b.y + a.z * b.z; }
+  function v3cross(a, b) {
+    return {x: a.y * b.z - a.z * b.y, y: a.z * b.x - a.x * b.z, z: a.x * b.y - a.y * b.x};
+  }
+  function v3len(a) { return Math.sqrt(a.x * a.x + a.y * a.y + a.z * a.z); }
+  function v3norm(a) {
+    var l = v3len(a);
+    if (l < 1e-8) return {x: 0, y: 0, z: 0};
+    return {x: a.x / l, y: a.y / l, z: a.z / l};
+  }
+
+  // ========== MATRIX 4x4 (column-major flat array) ==========
+  function m4identity() {
+    return [1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1];
+  }
+
+  function m4multiply(a, b) {
+    var r = new Array(16);
+    for (var i = 0; i < 4; i++) {
+      for (var j = 0; j < 4; j++) {
+        var sum = 0;
+        for (var k = 0; k < 4; k++) {
+          sum += a[i + k * 4] * b[k + j * 4];
+        }
+        r[i + j * 4] = sum;
+      }
+    }
+    return r;
+  }
+
+  function m4translate(tx, ty, tz) {
+    return [1,0,0,0, 0,1,0,0, 0,0,1,0, tx,ty,tz,1];
+  }
+
+  function m4rotateX(a) {
+    var c = Math.cos(a), s = Math.sin(a);
+    return [1,0,0,0, 0,c,s,0, 0,-s,c,0, 0,0,0,1];
+  }
+
+  function m4rotateY(a) {
+    var c = Math.cos(a), s = Math.sin(a);
+    return [c,0,-s,0, 0,1,0,0, s,0,c,0, 0,0,0,1];
+  }
+
+  function m4perspective(fovDeg, aspect, near, far) {
+    var f = 1 / Math.tan(fovDeg * Math.PI / 360);
+    var nf = 1 / (near - far);
+    return [
+      f / aspect, 0, 0, 0,
+      0, f, 0, 0,
+      0, 0, (far + near) * nf, -1,
+      0, 0, 2 * far * near * nf, 0
+    ];
+  }
+
+  function m4transformPoint(m, p) {
+    var x = p.x, y = p.y, z = p.z;
+    var w = m[3] * x + m[7] * y + m[11] * z + m[15];
+    if (w === 0) w = 1e-8;
+    return {
+      x: (m[0] * x + m[4] * y + m[8] * z + m[12]) / w,
+      y: (m[1] * x + m[5] * y + m[9] * z + m[13]) / w,
+      z: (m[2] * x + m[6] * y + m[10] * z + m[14]) / w,
+      w: w
+    };
+  }
+
+  function m4transformDir(m, p) {
+    return {
+      x: m[0] * p.x + m[4] * p.y + m[8] * p.z,
+      y: m[1] * p.x + m[5] * p.y + m[9] * p.z,
+      z: m[2] * p.x + m[6] * p.y + m[10] * p.z
+    };
+  }
+
+  // ========== MESH GENERATORS ==========
+  function makeCube() {
+    var v = [
+      v3(-1,-1,-1), v3(1,-1,-1), v3(1,1,-1), v3(-1,1,-1),
+      v3(-1,-1,1), v3(1,-1,1), v3(1,1,1), v3(-1,1,1)
+    ];
+    var faces = [
+      [0,1,2,3],[5,4,7,6],[4,0,3,7],[1,5,6,2],[4,5,1,0],[3,2,6,7]
+    ];
+    // Triangulate quads
+    var tris = [];
+    for (var i = 0; i < faces.length; i++) {
+      var f = faces[i];
+      tris.push([f[0],f[1],f[2]]);
+      tris.push([f[0],f[2],f[3]]);
+    }
+    return {verts: v, faces: tris, color: {h: 25, s: 80, lBase: 45}};
+  }
+
+  function makeSphere(rings, segs) {
+    rings = rings || 16;
+    segs = segs || 24;
+    var verts = [];
+    for (var r = 0; r <= rings; r++) {
+      var phi = Math.PI * r / rings;
+      var sp = Math.sin(phi), cp = Math.cos(phi);
+      for (var s = 0; s <= segs; s++) {
+        var theta = 2 * Math.PI * s / segs;
+        verts.push(v3(sp * Math.cos(theta), cp, sp * Math.sin(theta)));
+      }
+    }
+    var faces = [];
+    for (var r = 0; r < rings; r++) {
+      for (var s = 0; s < segs; s++) {
+        var i0 = r * (segs + 1) + s;
+        var i1 = i0 + 1;
+        var i2 = i0 + segs + 1;
+        var i3 = i2 + 1;
+        if (r > 0) faces.push([i0, i2, i1]);
+        if (r < rings - 1) faces.push([i1, i2, i3]);
+      }
+    }
+    return {verts: verts, faces: faces, color: {h: 200, s: 70, lBase: 40}};
+  }
+
+  function makeTorus(R, r, rings, segs) {
+    R = R || 0.7; r = r || 0.3;
+    rings = rings || 20; segs = segs || 12;
+    var verts = [];
+    for (var i = 0; i <= rings; i++) {
+      var theta = 2 * Math.PI * i / rings;
+      var ct = Math.cos(theta), st = Math.sin(theta);
+      for (var j = 0; j <= segs; j++) {
+        var phi = 2 * Math.PI * j / segs;
+        var cp = Math.cos(phi), sp = Math.sin(phi);
+        verts.push(v3((R + r * cp) * ct, r * sp, (R + r * cp) * st));
+      }
+    }
+    var faces = [];
+    for (var i = 0; i < rings; i++) {
+      for (var j = 0; j < segs; j++) {
+        var i0 = i * (segs + 1) + j;
+        var i1 = i0 + 1;
+        var i2 = i0 + segs + 1;
+        var i3 = i2 + 1;
+        faces.push([i0, i2, i1]);
+        faces.push([i1, i2, i3]);
+      }
+    }
+    return {verts: verts, faces: faces, color: {h: 160, s: 65, lBase: 38}};
+  }
+
+  function makeIcosahedron() {
+    var t = (1 + Math.sqrt(5)) / 2;
+    var verts = [
+      v3(-1, t, 0), v3(1, t, 0), v3(-1,-t, 0), v3(1,-t, 0),
+      v3(0,-1, t), v3(0, 1, t), v3(0,-1,-t), v3(0, 1,-t),
+      v3(t, 0,-1), v3(t, 0, 1), v3(-t, 0,-1), v3(-t, 0, 1)
+    ];
+    // Normalize to unit sphere
+    for (var i = 0; i < verts.length; i++) {
+      verts[i] = v3norm(verts[i]);
+    }
+    var faces = [
+      [0,11,5],[0,5,1],[0,1,7],[0,7,10],[0,10,11],
+      [1,5,9],[5,11,4],[11,10,2],[10,7,6],[7,1,8],
+      [3,9,4],[3,4,2],[3,2,6],[3,6,8],[3,8,9],
+      [4,9,5],[2,4,11],[6,2,10],[8,6,7],[9,8,1]
+    ];
+    return {verts: verts, faces: faces, color: {h: 280, s: 60, lBase: 42}};
+  }
+
+  function makeDiamond() {
+    // Octahedron-based diamond shape (elongated top, compressed bottom)
+    var verts = [
+      v3(0, 1.4, 0),   // top apex
+      v3(1, 0.2, 0),    // girdle ring
+      v3(0.5, 0.2, 0.866),
+      v3(-0.5, 0.2, 0.866),
+      v3(-1, 0.2, 0),
+      v3(-0.5, 0.2, -0.866),
+      v3(0.5, 0.2, -0.866),
+      v3(0, -0.8, 0)    // bottom apex (pavilion)
+    ];
+    var faces = [
+      // Crown (top) — triangles from apex to girdle
+      [0,1,2],[0,2,3],[0,3,4],[0,4,5],[0,5,6],[0,6,1],
+      // Pavilion (bottom) — triangles from bottom to girdle
+      [7,2,1],[7,3,2],[7,4,3],[7,5,4],[7,6,5],[7,1,6]
+    ];
+    return {verts: verts, faces: faces, color: {h: 50, s: 90, lBase: 50}};
+  }
+
+  // ========== STATE ==========
+  var canvas = document.getElementById('c');
+  var ctx = canvas.getContext('2d');
+  var W, H;
+  var currentMesh = null;
+  var meshType = 'cube';
+  var renderMode = 'flat';
+  var autoSpin = 0.5;
+  var fov = 60;
+  var lightDir = v3norm(v3(0.5, -0.7, -0.5));
+  var camDist = 3.5;
+  var camRotX = 0.4;
+  var camRotY = 0;
+  var pointerDown = false;
+  var lastPX = 0, lastPY = 0;
+  var pointerInCanvas = false;
+  var animId = null;
+  var lastTime = 0;
+  var frameCount = 0;
+  var fpsTime = 0;
+  var fpsDisplay = 0;
+  var time = 0;
+
+  // ========== RESIZE ==========
+  function resize() {
+    W = window.innerWidth;
+    H = window.innerHeight;
+    canvas.width = W;
+    canvas.height = H;
+  }
+
+  // ========== LOAD MESH ==========
+  function loadMesh(type) {
+    meshType = type;
+    if (type === 'cube') currentMesh = makeCube();
+    else if (type === 'sphere') currentMesh = makeSphere(16, 24);
+    else if (type === 'torus') currentMesh = makeTorus(0.7, 0.3, 20, 12);
+    else if (type === 'icosa') currentMesh = makeIcosahedron();
+    else if (type === 'teapot') currentMesh = makeDiamond();
+  }
+
+  // ========== PRESETS ==========
+  function applyPreset(name) {
+    if (name === 'crystal') {
+      loadMesh('icosa');
+      renderMode = 'both';
+      autoSpin = 0.3;
+      fov = 50;
+      lightDir = v3norm(v3(0.3, -0.9, -0.2));
+      camDist = 3.0;
+    } else if (name === 'planet') {
+      loadMesh('sphere');
+      renderMode = 'flat';
+      autoSpin = 0.15;
+      fov = 45;
+      lightDir = v3norm(v3(1.0, -0.3, 0.2));
+      camDist = 3.2;
+    } else if (name === 'gem') {
+      loadMesh('teapot');
+      renderMode = 'flat';
+      autoSpin = 0.6;
+      fov = 55;
+      lightDir = v3norm(v3(0.0, -1.0, -0.3));
+      camDist = 3.5;
+    } else if (name === 'orbit') {
+      loadMesh('torus');
+      renderMode = 'both';
+      autoSpin = 0.8;
+      fov = 70;
+      lightDir = v3norm(v3(0.5, -0.5, -0.7));
+      camDist = 3.8;
+    }
+    syncUI();
+    updateMeshButtons();
+    updateRenderButtons();
+  }
+
+  function syncUI() {
+    document.getElementById('spinSlider').value = autoSpin;
+    document.getElementById('spinVal').textContent = autoSpin.toFixed(2);
+    document.getElementById('fovSlider').value = fov;
+    document.getElementById('fovVal').textContent = fov;
+    document.getElementById('lightXSlider').value = lightDir.x.toFixed(2);
+    document.getElementById('lightXVal').textContent = lightDir.x.toFixed(2);
+    document.getElementById('lightYSlider').value = lightDir.y.toFixed(2);
+    document.getElementById('lightYVal').textContent = lightDir.y.toFixed(2);
+  }
+
+  // ========== RENDERING ==========
+  function render() {
+    ctx.fillStyle = '#08080c';
+    ctx.fillRect(0, 0, W, H);
+
+    // Draw subtle grid
+    ctx.strokeStyle = 'rgba(255,255,255,0.015)';
+    ctx.lineWidth = 1;
+    for (var gx = 0; gx < W; gx += 50) {
+      ctx.beginPath(); ctx.moveTo(gx, 0); ctx.lineTo(gx, H); ctx.stroke();
+    }
+    for (var gy = 0; gy < H; gy += 50) {
+      ctx.beginPath(); ctx.moveTo(0, gy); ctx.lineTo(W, gy); ctx.stroke();
+    }
+
+    if (!currentMesh) return;
+
+    var aspect = W / H;
+
+    // Build model matrix (auto-rotation)
+    var model = m4multiply(m4rotateY(time * autoSpin), m4rotateX(time * autoSpin * 0.3));
+
+    // Build view matrix (orbit camera)
+    var view = m4multiply(
+      m4translate(0, 0, -camDist),
+      m4multiply(m4rotateX(camRotX), m4rotateY(camRotY))
+    );
+
+    // Projection
+    var proj = m4perspective(fov, aspect, 0.1, 100);
+
+    // Combined MVP
+    var mvp = m4multiply(proj, m4multiply(view, model));
+
+    // Transform all vertices to clip space
+    var verts = currentMesh.verts;
+    var projected = new Array(verts.length);
+    for (var i = 0; i < verts.length; i++) {
+      var p = m4transformPoint(mvp, verts[i]);
+      projected[i] = {
+        x: (p.x * 0.5 + 0.5) * W,
+        y: (1 - (p.y * 0.5 + 0.5)) * H,
+        z: p.z
+      };
+    }
+
+    // Build face list with z-depth and normals
+    var faces = currentMesh.faces;
+    var faceList = [];
+    var col = currentMesh.color;
+
+    for (var i = 0; i < faces.length; i++) {
+      var f = faces[i];
+      var p0 = projected[f[0]];
+      var p1 = projected[f[1]];
+      var p2 = projected[f[2]];
+
+      // Cheap near-plane clipping: skip if any vertex is behind camera
+      if (p0.w < 0 || p1.w < 0 || p2.w < 0) continue;
+
+      // Backface culling (screen-space cross product)
+      var e1x = p1.x - p0.x, e1y = p1.y - p0.y;
+      var e2x = p2.x - p0.x, e2y = p2.y - p0.y;
+      var cross = e1x * e2y - e1y * e2x;
+      if (cross <= 0) continue;
+
+      // Average z for painter's algorithm
+      var avgZ = (p0.z + p1.z + p2.z) / 3;
+
+      // Compute normal in local space, then transform to world space
+      var le1 = v3sub(verts[f[1]], verts[f[0]]);
+      var le2 = v3sub(verts[f[2]], verts[f[0]]);
+      var localNormal = v3norm(v3cross(le1, le2));
+      var worldNormal = v3norm(m4transformDir(model, localNormal));
+
+      // Flat shading: dot product with light direction
+      var ndotl = -v3dot(worldNormal, lightDir);
+      var intensity = Math.max(0.08, Math.min(1, ndotl * 0.85 + 0.15));
+
+      faceList.push({
+        indices: f,
+        z: avgZ,
+        intensity: intensity
+      });
+    }
+
+    // Painter's algorithm: sort back to front (higher z = further)
+    faceList.sort(function(a, b) { return b.z - a.z; });
+
+    // Draw faces
+    for (var i = 0; i < faceList.length; i++) {
+      var face = faceList[i];
+      var f = face.indices;
+      var intensity = face.intensity;
+
+      var lightness = col.lBase * intensity + 10 * intensity;
+
+      if (renderMode === 'flat' || renderMode === 'both') {
+        ctx.beginPath();
+        ctx.moveTo(projected[f[0]].x, projected[f[0]].y);
+        ctx.lineTo(projected[f[1]].x, projected[f[1]].y);
+        ctx.lineTo(projected[f[2]].x, projected[f[2]].y);
+        ctx.closePath();
+        ctx.fillStyle = 'hsl(' + col.h + ',' + col.s + '%,' + Math.round(lightness) + '%)';
+        ctx.fill();
+      }
+
+      if (renderMode === 'wire' || renderMode === 'both') {
+        ctx.beginPath();
+        ctx.moveTo(projected[f[0]].x, projected[f[0]].y);
+        ctx.lineTo(projected[f[1]].x, projected[f[1]].y);
+        ctx.lineTo(projected[f[2]].x, projected[f[2]].y);
+        ctx.closePath();
+        var wireAlpha = renderMode === 'both' ? 0.3 : 0.7;
+        ctx.strokeStyle = 'rgba(255,255,255,' + wireAlpha + ')';
+        ctx.lineWidth = renderMode === 'both' ? 0.5 : 1;
+        ctx.stroke();
+      }
+    }
+
+    // Draw ground plane reference (subtle horizon line)
+    var horizY = H * 0.5 + camRotX * H * 0.3;
+    ctx.strokeStyle = 'rgba(255,170,100,0.06)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(0, horizY);
+    ctx.lineTo(W, horizY);
+    ctx.stroke();
+  }
+
+  // ========== MAIN LOOP ==========
+  var FIXED_DT = 16.6;
+  var physicsAccum = 0;
+
+  function loop(ts) {
+    animId = requestAnimationFrame(loop);
+
+    var dt = ts - lastTime;
+    if (dt > 100) dt = 100;
+    lastTime = ts;
+
+    // FPS counter
+    frameCount++;
+    if (ts - fpsTime > 500) {
+      fpsDisplay = Math.round(frameCount * 1000 / (ts - fpsTime));
+      frameCount = 0;
+      fpsTime = ts;
+
+      // Throttle DOM stats update to every 500ms
+      var triCount = currentMesh ? currentMesh.faces.length : 0;
+      document.getElementById('stats').textContent =
+        'FPS: ' + fpsDisplay + ' | Tris: ' + triCount +
+        ' | Verts: ' + (currentMesh ? currentMesh.verts.length : 0) +
+        ' | Renderer: Software (Canvas 2D)';
+    }
+
+    // Fixed timestep for consistent animation speed
+    physicsAccum += dt;
+    while (physicsAccum >= FIXED_DT) {
+      time += FIXED_DT * 0.001;
+      physicsAccum -= FIXED_DT;
+    }
+
+    render();
+  }
+
+  // ========== EVENT HANDLERS ==========
+  canvas.addEventListener('pointerdown', function(e) {
+    e.preventDefault();
+    pointerDown = true;
+    lastPX = e.clientX;
+    lastPY = e.clientY;
+  });
+
+  canvas.addEventListener('pointerenter', function() { pointerInCanvas = true; });
+  canvas.addEventListener('pointerleave', function() { pointerInCanvas = false; });
+
+  window.addEventListener('pointermove', function(e) {
+    if (!pointerDown) return;
+    var dx = e.clientX - lastPX;
+    var dy = e.clientY - lastPY;
+    lastPX = e.clientX;
+    lastPY = e.clientY;
+    camRotY += dx * 0.008;
+    camRotX += dy * 0.008;
+    camRotX = Math.max(-Math.PI * 0.45, Math.min(Math.PI * 0.45, camRotX));
+  });
+
+  window.addEventListener('pointerup', function() {
+    pointerDown = false;
+  });
+
+  canvas.addEventListener('wheel', function(e) {
+    e.preventDefault();
+    camDist += e.deltaY * 0.003;
+    camDist = Math.max(1.5, Math.min(10, camDist));
+  }, {passive: false});
+
+  // Mesh buttons
+  var meshBtns = document.querySelectorAll('.btn[data-mesh]');
+  function updateMeshButtons() {
+    for (var j = 0; j < meshBtns.length; j++) {
+      meshBtns[j].classList.remove('active');
+      if (meshBtns[j].getAttribute('data-mesh') === meshType) {
+        meshBtns[j].classList.add('active');
+      }
+    }
+  }
+  for (var i = 0; i < meshBtns.length; i++) {
+    meshBtns[i].addEventListener('click', function(e) {
+      e.stopPropagation();
+      loadMesh(this.getAttribute('data-mesh'));
+      updateMeshButtons();
+    });
+  }
+
+  // Render mode buttons
+  var renderBtns = document.querySelectorAll('.btn[data-render]');
+  function updateRenderButtons() {
+    for (var j = 0; j < renderBtns.length; j++) {
+      renderBtns[j].classList.remove('active');
+      if (renderBtns[j].getAttribute('data-render') === renderMode) {
+        renderBtns[j].classList.add('active');
+      }
+    }
+  }
+  for (var i = 0; i < renderBtns.length; i++) {
+    renderBtns[i].addEventListener('click', function(e) {
+      e.stopPropagation();
+      renderMode = this.getAttribute('data-render');
+      updateRenderButtons();
+    });
+  }
+
+  // Preset buttons
+  var presetBtns = document.querySelectorAll('.btn[data-preset]');
+  for (var i = 0; i < presetBtns.length; i++) {
+    presetBtns[i].addEventListener('click', function(e) {
+      e.stopPropagation();
+      applyPreset(this.getAttribute('data-preset'));
+    });
+  }
+
+  // Sliders
+  document.getElementById('spinSlider').addEventListener('input', function() {
+    autoSpin = parseFloat(this.value);
+    document.getElementById('spinVal').textContent = autoSpin.toFixed(2);
+  });
+  document.getElementById('fovSlider').addEventListener('input', function() {
+    fov = parseInt(this.value, 10);
+    document.getElementById('fovVal').textContent = fov;
+  });
+  document.getElementById('lightXSlider').addEventListener('input', function() {
+    var lx = parseFloat(this.value);
+    document.getElementById('lightXVal').textContent = lx.toFixed(2);
+    lightDir = v3norm(v3(lx, lightDir.y, -0.5));
+  });
+  document.getElementById('lightYSlider').addEventListener('input', function() {
+    var ly = parseFloat(this.value);
+    document.getElementById('lightYVal').textContent = ly.toFixed(2);
+    lightDir = v3norm(v3(lightDir.x, ly, -0.5));
+  });
+
+  // Keyboard shortcuts
+  document.addEventListener('keydown', function(e) {
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+    var key = e.key.toLowerCase();
+    if (key === '1') { loadMesh('cube'); updateMeshButtons(); }
+    else if (key === '2') { loadMesh('sphere'); updateMeshButtons(); }
+    else if (key === '3') { loadMesh('torus'); updateMeshButtons(); }
+    else if (key === '4') { loadMesh('icosa'); updateMeshButtons(); }
+    else if (key === '5') { loadMesh('teapot'); updateMeshButtons(); }
+    else if (key === 'w') { renderMode = 'wire'; updateRenderButtons(); }
+    else if (key === 'f') { renderMode = 'flat'; updateRenderButtons(); }
+    else if (key === 'b') { renderMode = 'both'; updateRenderButtons(); }
+  });
+
+  // Start overlay
+  document.getElementById('startBtn').addEventListener('click', function() {
+    document.getElementById('start-overlay').style.display = 'none';
+  });
+
+  // ========== INIT ==========
+  resize();
+  window.addEventListener('resize', resize);
+  loadMesh('cube');
+  animId = requestAnimationFrame(loop);
+
+})();
+</script>
+</body>
+</html>

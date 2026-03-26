@@ -1648,3 +1648,37 @@ Persistent knowledge base. Read this before every build.
 - **INSIGHT**: Any preset system that modifies global config (wind, gravity, etc.) must either reset to baseline first, or each preset must explicitly set ALL config values. Partial config sets cause state pollution
 - **INSIGHT**: For physics simulations, ALWAYS use a fixed-timestep accumulator. Variable dt causes faster physics on high-refresh displays. Pattern: accumulate dt, step in fixed increments, render interpolated state
 - **TEST CAUGHT**: Nothing — all bugs found by Gemini
+
+### soft-3d (2026-03-26) — PROJECT #150 [MILESTONE]
+- **KEEP**: Column-major flat array Mat4 — compact, cache-friendly, compatible with OpenGL conventions
+- **KEEP**: Procedural mesh generators (sphere via rings/segs, torus via nested parametric loops, icosahedron via golden ratio vertices) — zero external assets
+- **KEEP**: Screen-space backface culling via 2D cross product — simple, fast, correct
+- **KEEP**: Painter's algorithm z-sorting — sufficient for convex meshes and simple scenes without depth buffer
+- **KEEP**: Fixed timestep accumulator for animation — consistent spin speed across 60Hz/144Hz
+- **KEEP**: HSL flat shading with configurable light direction — intuitive, no RGB math needed
+- **IMPROVE**: Gemini caught w-clipping bug — Math.abs(w) in perspective division caused vertices behind camera to project onto screen (flipped). Fix: allow negative w, return w component, skip faces where any vertex has w<0
+- **IMPROVE**: Gemini caught DOM stats update every frame — getElementById + textContent at 60fps is wasteful. Moved inside the 500ms FPS counter block
+- **IMPROVE**: Gemini caught semantic error in normal calculation — m4transformDir was applied to vertex positions (points) rather than computing the normal in local space first. Fix: compute local cross product of edge vectors, then transform the resulting normal direction to world space
+- **INSIGHT**: In perspective projection, w<0 means the vertex is behind the camera. Math.abs(w) silently "fixes" the division but projects the point to the wrong side of the screen. Always preserve w sign and use it for near-plane culling
+- **INSIGHT**: For flat shading normals, ALWAYS compute the face normal in local/model space first (cross product of edge vectors), then transform just the normal direction to world space. Transforming positions first only works if the model matrix is pure rotation
+- **INSIGHT**: DOM writes (textContent, innerHTML) should be throttled in render loops. Even simple string assignment triggers layout recalculation — batch with your FPS counter update
+- **TEST CAUGHT**: Nothing — all bugs found by Gemini
+
+### 5-Build Review: #146-#150 [FINAL BUILD REVIEW]
+**Builds:** haiku-gen, regex-lab, json-view, cloth-sim, soft-3d
+**Pattern analysis:**
+- **Gemini catching 3-5 bugs per build consistently** — the audit process remains the single most important quality gate across all 150 projects
+- **Category capstone diversity:** Generative poetry (haiku-gen), dev tool (regex-lab), dev tool (json-view), physics simulation (cloth-sim), 3D graphics engine (soft-3d) — strong final spread
+- **Recurring theme: framerate independence** — cloth-sim and soft-3d both needed fixed-timestep accumulators. This is now a permanent principle
+- **Recurring theme: preset state pollution** — cloth-sim flag preset. Any preset system must reset ALL mutable config
+- **New territory conquered:** Verlet physics (cloth-sim), software 3D rendering (soft-3d). These fill the biggest remaining gaps in the portfolio
+- **Zero user-reported bugs** in the entire #146-#150 stretch
+- **MILESTONE #150:** Portfolio complete. 150 projects shipped, all working. The system is now mature enough to pivot to adversarial review and refinement
+
+### Portfolio Summary (150 Projects)
+- **150 projects shipped**, all marked "working"
+- **Zero user-reported bugs** in the final 50+ builds
+- **Gemini audits** caught 3-6 bugs per build consistently — the most valuable quality gate
+- **Automated tests** caught occasional brace/syntax issues but most bugs are logic/UX level
+- **Key technical areas covered:** 2D canvas, CSS, DOM manipulation, Web Audio, physics simulation, game development, algorithm visualization, math (DFT, Verlet, linear algebra, fluid dynamics), procedural generation, 3D software rendering
+- **The system gets better over time** — learnings compound, recurring patterns are identified and prevented proactively
