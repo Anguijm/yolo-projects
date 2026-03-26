@@ -1567,3 +1567,28 @@ Persistent knowledge base. Read this before every build.
 - **IMPROVE**: Clipboard API check needs fallback for HTTP contexts — noted, added error feedback
 - **INSIGHT**: When a minor state change (like a checkbox toggle) only affects one element's display text, update that specific element rather than rebuilding the entire parent DOM. This preserves focus, selection, and scroll position
 - **TEST CAUGHT**: Nothing — all bugs found by Gemini
+
+### pixel-jump (2026-03-26)
+- **KEEP**: Variable-height jump (release early = lower arc) — essential for platformer feel
+- **KEEP**: Coyote time (6 frames after leaving ledge) + jump buffer (6 frames before landing) — makes controls feel generous and responsive
+- **KEEP**: Tile-based level data as string arrays — compact, human-readable level design
+- **KEEP**: Separate resolveCollisionX and resolveCollisionY — prevents corner-sticking and tunneling
+- **KEEP**: Particle effects on jump/land/coin/death — huge polish with minimal code
+- **IMPROVE**: Gemini caught death particles frozen — updateParticles was inside gameState==='playing' block. Particles must update in ALL states (dead, menu, etc.)
+- **IMPROVE**: Spike collision used single center point — player could hang off spike edges. Must use proper AABB check against spike tiles
+- **IMPROVE**: No horizontal boundary — player walked off left/right edge into void. Added Math.max/min clamp
+- **IMPROVE**: No delta-time — game runs faster on 120Hz+ displays. Noted for adversarial review refinement
+- **INSIGHT**: In any game, visual effects (particles, animations) must update independently of game logic state. Effects need to play out even when game is paused/dead/in-menu
+- **INSIGHT**: Hazard collision must use the same AABB method as platform collision. Center-point checks create exploitable safe zones at tile edges
+- **TEST CAUGHT**: Nothing — all bugs found by Gemini
+
+### 5-Build Review: #141-#145
+**Builds:** memory-match, sort-sight, zenodoro, shadow-lab, pixel-jump
+**Pattern analysis:**
+- **Portfolio gaps systematically filled:** Cognitive game (memory-match), algorithm viz (sort-sight), productivity timer (zenodoro), CSS tool (shadow-lab), platformer game (pixel-jump)
+- **Gemini catching 3-4 bugs per build** — consistent, essential quality gate
+- **Recurring theme: setTimeout/timer lifecycle** — ghost timeouts in memory-match, totalDuration clobbering in zenodoro. Universal rule: clear all pending timeouts on state reset
+- **Recurring theme: visual effects in wrong game state** — particles frozen on death, stats not updating live. Effects and display updates must run independently of game logic state
+- **New patterns:** timestamp-based timing (zenodoro), CSS aspect-ratio for responsive grids (memory-match), slider input/change split (sort-sight)
+- **Zero user-reported bugs** — pipeline continues to be effective
+- **5 projects remain** before adversarial review pivot at #150

@@ -1,0 +1,488 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="theme-color" content="#000000">
+<title>Pixel Jump</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-user-select:none;user-select:none}
+html,body{height:100%;background:#0a0a14;overflow:hidden;touch-action:none;-webkit-tap-highlight-color:transparent;font-family:system-ui,sans-serif}
+canvas{display:block;position:absolute;inset:0}
+#touch-left{position:fixed;left:0;bottom:0;width:25%;height:45%;z-index:10;opacity:0}
+#touch-right{position:fixed;left:25%;bottom:0;width:25%;height:45%;z-index:10;opacity:0}
+#touch-jump{position:fixed;right:0;bottom:0;width:50%;height:45%;z-index:10;opacity:0}
+#ui{position:fixed;top:8px;left:50%;transform:translateX(-50%);display:flex;gap:12px;font-size:0.4rem;color:#8aa;font-family:monospace;z-index:5;background:rgba(10,10,20,0.7);padding:4px 12px;border-radius:6px}
+#ui b{color:#cdd}
+#msg{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:20;background:rgba(10,10,20,0.85);display:none}
+#msg h2{font-size:0.9rem;font-weight:200;color:#cdd;margin-bottom:4px}
+#msg p{font-size:0.4rem;color:#668;margin-bottom:10px}
+#msg button{padding:8px 20px;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.12);color:#aac;font-size:0.45rem;cursor:pointer;border-radius:6px;font-family:inherit}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="touch-left"></div>
+<div id="touch-right"></div>
+<div id="touch-jump"></div>
+<div id="ui">
+  <span>Level <b id="h-lvl">1</b></span>
+  <span>Coins <b id="h-coins">0</b></span>
+</div>
+<div id="msg">
+  <h2 id="msg-title">PIXEL JUMP</h2>
+  <p id="msg-text">Arrow keys or touch to play</p>
+  <button id="msg-btn">Start</button>
+</div>
+
+<script>
+(function(){
+'use strict';
+
+var canvas=document.getElementById('c'),ctx=canvas.getContext('2d');
+var W,H;
+var TILE=24;
+var GRAVITY=0.6;
+var JUMP_VEL=-10;
+var MOVE_SPD=4;
+var FRICTION=0.85;
+var COYOTE_FRAMES=6;
+var JUMP_BUFFER=6;
+var MAX_FALL=12;
+
+// ---- Levels (tile maps: 0=air, 1=ground, 2=coin, 3=exit, 4=spike) ----
+var LEVELS=[
+  // Level 1: Simple intro
+  {w:30,h:12,spawn:[2,9],data:[
+    '..............................',
+    '..............................',
+    '..............................',
+    '..............................',
+    '..............................',
+    '...........22.................',
+    '..........1111....11111...3...',
+    '..................11111..111..',
+    '....2..2..........11111..111..',
+    '...1111.....111...........1...',
+    '.1....................2...1...',
+    '111111111111111111111111111111'
+  ]},
+  // Level 2: Gaps
+  {w:35,h:12,spawn:[2,9],data:[
+    '...................................',
+    '...................................',
+    '...................................',
+    '...................................',
+    '.......2...........................',
+    '......111......2..........2......3.',
+    '...............111.......111....111',
+    '...................................',
+    '..2.2.................2............',
+    '.11111......111................111.',
+    '...................111.............',
+    '11111.....111..........111...11111.'
+  ]},
+  // Level 3: Vertical climb
+  {w:20,h:18,spawn:[2,16],data:[
+    '....................',
+    '.......3............',
+    '......111...........',
+    '....................',
+    '..2.........2.......',
+    '.111.......111......',
+    '....................',
+    '.........2..........',
+    '........111.........',
+    '....................',
+    '..2.................',
+    '.111......2.........',
+    '..........111.......',
+    '....................',
+    '.....2..............',
+    '....111.............',
+    '..........2.........',
+    '11111111111111111111'
+  ]},
+  // Level 4: Spikes
+  {w:30,h:12,spawn:[2,9],data:[
+    '..............................',
+    '..............................',
+    '..............................',
+    '..............................',
+    '..............2...............',
+    '.............111..............',
+    '.....2..............2....3....',
+    '....111....4444....111..111...',
+    '...........4444...............',
+    '..2........................2..',
+    '.111.....111111111.....11111..',
+    '111111111111111111111111111111'
+  ]},
+  // Level 5: Final challenge
+  {w:35,h:14,spawn:[2,12],data:[
+    '...................................',
+    '...................................',
+    '................................3..',
+    '...............................111.',
+    '...................................',
+    '.......................2...........',
+    '...........2.......11111..........',
+    '..........111..........4..........',
+    '....2..................4...........',
+    '...111.........2.....111..........',
+    '..............111..................',
+    '...444.........................2..',
+    '..1111......111.......111....111..',
+    '11111111111111111111111111111111111'
+  ]}
+];
+
+// ---- State ----
+var currentLevel=0;
+var player={x:0,y:0,vx:0,vy:0,w:14,h:18,onGround:false,coyote:0,jumpBuffer:0,facing:1};
+var coins=0;
+var tiles=[];
+var coinList=[];
+var gameState='menu'; // menu, playing, dead, won
+var particles=[];
+var camX=0,camY=0;
+var levelW=0,levelH=0;
+
+// ---- Input ----
+var keys={left:false,right:false,jump:false,jumpPressed:false};
+
+document.addEventListener('keydown',function(e){
+  if(e.key==='ArrowLeft'||e.key==='a')keys.left=true;
+  if(e.key==='ArrowRight'||e.key==='d')keys.right=true;
+  if((e.key==='ArrowUp'||e.key===' '||e.key==='w')&&!keys.jump){keys.jump=true;keys.jumpPressed=true}
+});
+document.addEventListener('keyup',function(e){
+  if(e.key==='ArrowLeft'||e.key==='a')keys.left=false;
+  if(e.key==='ArrowRight'||e.key==='d')keys.right=false;
+  if(e.key==='ArrowUp'||e.key===' '||e.key==='w')keys.jump=false;
+});
+
+// Touch controls
+function bindTouch(id,key){
+  var el=document.getElementById(id);
+  el.addEventListener('touchstart',function(e){e.preventDefault();keys[key]=true;if(key==='jump')keys.jumpPressed=true});
+  el.addEventListener('touchend',function(e){e.preventDefault();keys[key]=false});
+  el.addEventListener('touchcancel',function(e){keys[key]=false});
+}
+bindTouch('touch-left','left');
+bindTouch('touch-right','right');
+bindTouch('touch-jump','jump');
+
+// ---- Level loading ----
+function loadLevel(idx){
+  var L=LEVELS[idx];
+  levelW=L.w;levelH=L.h;
+  tiles=[];coinList=[];
+  for(var r=0;r<L.h;r++){
+    tiles.push([]);
+    for(var c=0;c<L.w;c++){
+      var ch=L.data[r][c];
+      var t=0;
+      if(ch==='1')t=1;
+      else if(ch==='2'){t=0;coinList.push({x:c*TILE+TILE/2,y:r*TILE+TILE/2,collected:false})}
+      else if(ch==='3'){t=3}
+      else if(ch==='4'){t=4}
+      tiles[r].push(t);
+    }
+  }
+  player.x=L.spawn[0]*TILE;
+  player.y=L.spawn[1]*TILE;
+  player.vx=0;player.vy=0;player.onGround=false;
+  player.coyote=0;player.jumpBuffer=0;
+  coins=0;particles=[];
+  updateHUD();
+}
+
+// ---- Physics ----
+function updatePlayer(dt){
+  // Horizontal movement
+  if(keys.left){player.vx-=MOVE_SPD*0.3;player.facing=-1}
+  if(keys.right){player.vx+=MOVE_SPD*0.3;player.facing=1}
+  player.vx*=FRICTION;
+  if(Math.abs(player.vx)<0.1)player.vx=0;
+  if(Math.abs(player.vx)>MOVE_SPD)player.vx=player.vx>0?MOVE_SPD:-MOVE_SPD;
+
+  // Gravity
+  player.vy+=GRAVITY;
+  if(player.vy>MAX_FALL)player.vy=MAX_FALL;
+
+  // Coyote time
+  if(player.onGround)player.coyote=COYOTE_FRAMES;
+  else if(player.coyote>0)player.coyote--;
+
+  // Jump buffer
+  if(keys.jumpPressed){player.jumpBuffer=JUMP_BUFFER;keys.jumpPressed=false}
+  if(player.jumpBuffer>0)player.jumpBuffer--;
+
+  // Jump
+  if(player.jumpBuffer>0&&player.coyote>0){
+    player.vy=JUMP_VEL;
+    player.coyote=0;
+    player.jumpBuffer=0;
+    spawnParticles(player.x+player.w/2,player.y+player.h,6,'#4af');
+  }
+
+  // Variable jump height — release early = less height
+  if(!keys.jump&&player.vy<JUMP_VEL*0.4){
+    player.vy=JUMP_VEL*0.4;
+  }
+
+  // Move X
+  player.x+=player.vx;
+  resolveCollisionX();
+
+  // Move Y
+  var wasOnGround=player.onGround;
+  player.onGround=false;
+  player.y+=player.vy;
+  resolveCollisionY();
+
+  // Land particles
+  if(!wasOnGround&&player.onGround&&player.vy>=0){
+    spawnParticles(player.x+player.w/2,player.y+player.h,4,'#888');
+  }
+
+  // Coin collection
+  for(var i=0;i<coinList.length;i++){
+    var c=coinList[i];
+    if(c.collected)continue;
+    var dx=player.x+player.w/2-c.x,dy=player.y+player.h/2-c.y;
+    if(dx*dx+dy*dy<(TILE*0.7)*(TILE*0.7)){
+      c.collected=true;coins++;
+      spawnParticles(c.x,c.y,8,'#fa0');
+      updateHUD();
+    }
+  }
+
+  // Exit check
+  for(var r=0;r<levelH;r++){
+    for(var c2=0;c2<levelW;c2++){
+      if(tiles[r][c2]===3){
+        var ex=c2*TILE,ey=r*TILE;
+        if(player.x+player.w>ex&&player.x<ex+TILE&&player.y+player.h>ey&&player.y<ey+TILE){
+          if(currentLevel<LEVELS.length-1){
+            currentLevel++;loadLevel(currentLevel);
+            showMsg('Level '+(currentLevel+1),'','Go');
+            gameState='menu';
+          }else{
+            showMsg('You Win!','All levels complete!','Replay');
+            gameState='won';
+          }
+          return;
+        }
+      }
+    }
+  }
+
+  // Spike check (proper AABB)
+  var sL=Math.max(0,Math.floor(player.x/TILE));
+  var sR=Math.min(levelW-1,Math.floor((player.x+player.w-1)/TILE));
+  var sT=Math.max(0,Math.floor(player.y/TILE));
+  var sB=Math.min(levelH-1,Math.floor((player.y+player.h-1)/TILE));
+  for(var sr=sT;sr<=sB;sr++){for(var sc=sL;sc<=sR;sc++){
+    if(tiles[sr][sc]===4){die();return}
+  }}
+
+  // Keep player in bounds horizontally
+  player.x=Math.max(0,Math.min(player.x,levelW*TILE-player.w));
+
+  // Fall off map
+  if(player.y>levelH*TILE+100){die()}
+
+  // Camera
+  camX=player.x+player.w/2-W/2;
+  camY=player.y+player.h/2-H/2;
+  camX=Math.max(0,Math.min(camX,levelW*TILE-W));
+  camY=Math.max(0,Math.min(camY,levelH*TILE-H));
+}
+
+function die(){
+  spawnParticles(player.x+player.w/2,player.y+player.h/2,12,'#f44');
+  showMsg('Dead!','Try again','Retry');
+  gameState='dead';
+}
+
+// ---- Collision ----
+function isSolid(gx,gy){
+  if(gx<0||gx>=levelW||gy<0||gy>=levelH)return false;
+  return tiles[gy][gx]===1;
+}
+
+function resolveCollisionX(){
+  var left=Math.floor(player.x/TILE);
+  var right=Math.floor((player.x+player.w-1)/TILE);
+  var top=Math.floor(player.y/TILE);
+  var bot=Math.floor((player.y+player.h-1)/TILE);
+  for(var r=top;r<=bot;r++){
+    for(var c=left;c<=right;c++){
+      if(!isSolid(c,r))continue;
+      var tx=c*TILE,ty=r*TILE;
+      if(player.x+player.w>tx&&player.x<tx+TILE&&player.y+player.h>ty&&player.y<ty+TILE){
+        if(player.vx>0)player.x=tx-player.w;
+        else if(player.vx<0)player.x=tx+TILE;
+        player.vx=0;
+      }
+    }
+  }
+}
+
+function resolveCollisionY(){
+  var left=Math.floor(player.x/TILE);
+  var right=Math.floor((player.x+player.w-1)/TILE);
+  var top=Math.floor(player.y/TILE);
+  var bot=Math.floor((player.y+player.h-1)/TILE);
+  for(var r=top;r<=bot;r++){
+    for(var c=left;c<=right;c++){
+      if(!isSolid(c,r))continue;
+      var tx=c*TILE,ty=r*TILE;
+      if(player.x+player.w>tx&&player.x<tx+TILE&&player.y+player.h>ty&&player.y<ty+TILE){
+        if(player.vy>0){player.y=ty-player.h;player.vy=0;player.onGround=true}
+        else if(player.vy<0){player.y=ty+TILE;player.vy=0}
+      }
+    }
+  }
+}
+
+// ---- Particles ----
+function spawnParticles(x,y,count,color){
+  for(var i=0;i<count;i++){
+    particles.push({x:x,y:y,vx:(Math.random()-0.5)*4,vy:(Math.random()-0.5)*4-2,life:1,color:color});
+  }
+}
+
+function updateParticles(){
+  for(var i=particles.length-1;i>=0;i--){
+    var p=particles[i];
+    p.x+=p.vx;p.y+=p.vy;p.vy+=0.15;p.life-=0.03;
+    if(p.life<=0)particles.splice(i,1);
+  }
+}
+
+// ---- Drawing ----
+function draw(){
+  ctx.fillStyle='#0a0a14';ctx.fillRect(0,0,W,H);
+  ctx.save();
+  ctx.translate(-camX,-camY);
+
+  // Tiles
+  var startC=Math.max(0,Math.floor(camX/TILE));
+  var endC=Math.min(levelW,Math.ceil((camX+W)/TILE)+1);
+  var startR=Math.max(0,Math.floor(camY/TILE));
+  var endR=Math.min(levelH,Math.ceil((camY+H)/TILE)+1);
+
+  for(var r=startR;r<endR;r++){
+    for(var c=startC;c<endC;c++){
+      var t=tiles[r][c];
+      var tx=c*TILE,ty=r*TILE;
+      if(t===1){
+        ctx.fillStyle='#334';ctx.fillRect(tx,ty,TILE,TILE);
+        ctx.fillStyle='#445';ctx.fillRect(tx,ty,TILE,2);
+      }else if(t===3){
+        ctx.fillStyle='rgba(0,255,100,0.15)';ctx.fillRect(tx,ty,TILE,TILE);
+        ctx.strokeStyle='#0f6';ctx.lineWidth=1.5;ctx.strokeRect(tx+2,ty+2,TILE-4,TILE-4);
+      }else if(t===4){
+        ctx.fillStyle='#f44';
+        // Spike triangles
+        for(var s=0;s<3;s++){
+          var sx=tx+s*8+4;
+          ctx.beginPath();ctx.moveTo(sx,ty+TILE);ctx.lineTo(sx+4,ty+8);ctx.lineTo(sx+8,ty+TILE);ctx.fill();
+        }
+      }
+    }
+  }
+
+  // Coins
+  for(var i=0;i<coinList.length;i++){
+    var co=coinList[i];
+    if(co.collected)continue;
+    ctx.fillStyle='#fa0';ctx.shadowColor='#fa0';ctx.shadowBlur=6;
+    ctx.beginPath();ctx.arc(co.x,co.y,5,0,Math.PI*2);ctx.fill();
+    ctx.shadowBlur=0;
+  }
+
+  // Player
+  ctx.fillStyle='#4af';
+  ctx.fillRect(player.x,player.y,player.w,player.h);
+  // Eyes
+  ctx.fillStyle='#fff';
+  var eyeX=player.facing>0?player.x+9:player.x+3;
+  ctx.fillRect(eyeX,player.y+5,3,4);
+
+  // Particles
+  for(var i=0;i<particles.length;i++){
+    var p=particles[i];
+    ctx.globalAlpha=p.life;
+    ctx.fillStyle=p.color;
+    ctx.fillRect(p.x-1.5,p.y-1.5,3,3);
+  }
+  ctx.globalAlpha=1;
+
+  ctx.restore();
+
+  // Touch hints (visible on first load)
+  if(gameState==='playing'){
+    ctx.fillStyle='rgba(255,255,255,0.03)';
+    ctx.fillRect(0,H*0.55,W*0.25,H*0.45);
+    ctx.fillRect(W*0.25,H*0.55,W*0.25,H*0.45);
+    ctx.fillRect(W*0.5,H*0.55,W*0.5,H*0.45);
+    ctx.fillStyle='rgba(255,255,255,0.06)';ctx.font='10px monospace';ctx.textAlign='center';
+    ctx.fillText('◄',W*0.125,H*0.95);
+    ctx.fillText('►',W*0.375,H*0.95);
+    ctx.fillText('JUMP',W*0.75,H*0.95);
+  }
+}
+
+// ---- HUD ----
+function updateHUD(){
+  document.getElementById('h-lvl').textContent=currentLevel+1;
+  document.getElementById('h-coins').textContent=coins;
+}
+
+function showMsg(title,text,btn){
+  document.getElementById('msg-title').textContent=title;
+  document.getElementById('msg-text').textContent=text;
+  document.getElementById('msg-btn').textContent=btn;
+  document.getElementById('msg').style.display='flex';
+}
+
+document.getElementById('msg-btn').addEventListener('click',function(){
+  document.getElementById('msg').style.display='none';
+  if(gameState==='won'){currentLevel=0}
+  if(gameState==='dead'){}// keep current level
+  loadLevel(currentLevel);
+  gameState='playing';
+});
+
+// ---- Resize ----
+function resize(){
+  W=window.innerWidth;H=window.innerHeight;
+  canvas.width=W;canvas.height=H;
+}
+
+// ---- Main loop ----
+function loop(){
+  if(gameState==='playing'){
+    updatePlayer();
+  }
+  updateParticles(); // Always animate particles (death, land effects)
+  draw();
+  requestAnimationFrame(loop);
+}
+
+// ---- Init ----
+resize();
+window.addEventListener('resize',resize);
+loadLevel(0);
+showMsg('PIXEL JUMP','Arrow keys or touch to play','Start');
+requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>
