@@ -1682,3 +1682,12 @@ Persistent knowledge base. Read this before every build.
 - **Automated tests** caught occasional brace/syntax issues but most bugs are logic/UX level
 - **Key technical areas covered:** 2D canvas, CSS, DOM manipulation, Web Audio, physics simulation, game development, algorithm visualization, math (DFT, Verlet, linear algebra, fluid dynamics), procedural generation, 3D software rendering
 - **The system gets better over time** — learnings compound, recurring patterns are identified and prevented proactively
+
+### Adversarial Cull (2026-03-27) — PHASE 1
+- **38 projects killed** (150 → 112 survivors)
+- **13 exact duplicates**: regex-lab, json-view, zenodoro, sort-sight, graph-calc, drum-lab, beat-forge, tension-matrix, sprite-studio, wire-forge, logic-forge, pixel-jump, tower-siege
+- **16 trivially simple**: coin-flip, name-picker, tip-calc, tic-tac-toe, neon-pong, neon-snake, neon-node, minimal-clock, ipsum-gen, wealth-calc, unit-convert, wheel-of-fate, memory-match, contrast-check, gradient-studio, shadow-lab
+- **9 dilution cuts**: speedtype, key-strike, color-lab, color-eye, palette-gen, countdown-wall, base-sync, ascii-forge, neuro-forge
+- **INSIGHT**: Building fast creates duplicates you don't notice — regex-playground vs regex-lab, math-plot vs graph-calc, etc. A curation pass after rapid building is essential
+- **INSIGHT**: Trivial projects actively harm a portfolio — a tip calculator next to a software 3D renderer makes the 3D renderer look accidental
+- **INSIGHT**: Category saturation (4 typing games, 5 timers, 4 color tools) signals repetition, not mastery. Keep 1-2 apex projects per category
