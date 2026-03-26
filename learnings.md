@@ -1556,3 +1556,14 @@ Persistent knowledge base. Read this before every build.
 - **INSIGHT**: For any timer with pause/resume: totalDuration (the full session length) must NEVER change during a session. Only timeRemaining changes. Progress = timeRemaining / totalDuration
 - **INSIGHT**: Screen Wake Lock is automatically released by browsers on tab hide. Must re-acquire on visibilitychange 'visible' if timer is still running
 - **TEST CAUGHT**: Nothing — all bugs found by Gemini
+
+### shadow-lab (2026-03-26)
+- **KEEP**: Multi-layer shadow editing — modern CSS shadows use 2-3+ layers for depth. Must-have feature
+- **KEEP**: Presets (soft/hard/neumorphism/glow) — instant professional results, demonstrates the tool's range
+- **KEEP**: Per-layer opacity slider separate from color — more intuitive than editing rgba alpha directly
+- **KEEP**: Customizable preview box (color, background, border-radius) — lets users test shadows in context
+- **IMPROVE**: Gemini caught inset toggle calling buildLayers() which destroys entire DOM and loses keyboard focus. Fixed: update only the title span text, don't rebuild
+- **IMPROVE**: hexToRgba didn't expand 3-char hex shorthand — #F00 parsed as F0,0,0 not FF,00,00. Added expansion logic
+- **IMPROVE**: Clipboard API check needs fallback for HTTP contexts — noted, added error feedback
+- **INSIGHT**: When a minor state change (like a checkbox toggle) only affects one element's display text, update that specific element rather than rebuilding the entire parent DOM. This preserves focus, selection, and scroll position
+- **TEST CAUGHT**: Nothing — all bugs found by Gemini

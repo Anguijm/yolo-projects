@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="theme-color" content="#000000">
+<title>Shadow Lab</title>
+<style>
+:root{--bg:#1a1a24;--panel:#0e0e18;--border:rgba(255,255,255,0.06);--accent:#4af;--text:#888;--dim:#444}
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{height:100%;background:var(--bg);overflow-y:auto;touch-action:manipulation;-webkit-tap-highlight-color:transparent;font-family:system-ui,sans-serif;color:var(--text)}
+#app{max-width:500px;margin:0 auto;padding:8px}
+
+/* Preview */
+#preview-area{background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:30px;display:flex;align-items:center;justify-content:center;min-height:180px;margin-bottom:8px;position:sticky;top:0;z-index:3}
+#preview-box{width:120px;height:120px;background:#fff;border-radius:12px;transition:box-shadow 0.15s}
+
+/* Controls header */
+.section{background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:10px;margin-bottom:6px}
+.section-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}
+.section-title{font-size:0.35rem;color:var(--dim);letter-spacing:0.1em;text-transform:uppercase}
+.btn{padding:4px 10px;background:rgba(255,255,255,0.04);border:1px solid var(--border);color:var(--dim);font-size:0.35rem;cursor:pointer;border-radius:4px;font-family:inherit;transition:all 0.12s}
+.btn:active{color:#aaa}
+.btn.primary{border-color:var(--accent);color:var(--accent)}
+
+/* Layer card */
+.layer{background:rgba(255,255,255,0.02);border:1px solid var(--border);border-radius:6px;padding:8px;margin-bottom:4px}
+.layer-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}
+.layer-title{font-size:0.35rem;color:var(--text);font-family:monospace}
+.layer-del{background:transparent;border:none;color:#f44;font-size:0.4rem;cursor:pointer;padding:0 4px;opacity:0.5}
+.layer-del:hover{opacity:1}
+.ctrl-row{display:flex;gap:6px;align-items:center;margin-bottom:4px}
+.ctrl-label{font-size:0.28rem;color:var(--dim);min-width:32px;text-align:right}
+.ctrl-val{font-size:0.28rem;color:var(--text);font-family:monospace;min-width:24px;text-align:right}
+input[type="range"]{flex:1;height:3px;accent-color:var(--accent)}
+input[type="color"]{width:28px;height:22px;border:1px solid var(--border);border-radius:3px;cursor:pointer;background:transparent;padding:1px}
+input[type="checkbox"]{accent-color:var(--accent)}
+.check-label{font-size:0.28rem;color:var(--dim);display:flex;align-items:center;gap:3px}
+
+/* Color controls */
+.color-row{display:flex;gap:8px;align-items:center;margin-bottom:6px}
+.color-row label{font-size:0.3rem;color:var(--dim)}
+
+/* Output */
+#css-output{width:100%;background:#0a0a12;border:1px solid var(--border);color:var(--accent);padding:8px;font-family:ui-monospace,monospace;font-size:0.35rem;border-radius:6px;min-height:40px;word-break:break-all;margin-bottom:6px}
+
+/* Presets */
+.preset-row{display:flex;gap:4px;flex-wrap:wrap;margin-bottom:6px}
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="preview-area">
+    <div id="preview-box"></div>
+  </div>
+
+  <div class="section">
+    <div class="color-row">
+      <label>Box <input type="color" id="c-box" value="#ffffff"></label>
+      <label>BG <input type="color" id="c-bg" value="#1a1a24"></label>
+      <label>Radius <input type="range" id="sl-radius" min="0" max="50" value="12" style="width:50px"><span id="v-radius" style="font-size:0.28rem;color:var(--dim);font-family:monospace">12</span></label>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-header">
+      <span class="section-title">Shadow Layers</span>
+      <button class="btn" id="btn-add">+ Layer</button>
+    </div>
+    <div id="layers"></div>
+  </div>
+
+  <div class="section">
+    <div class="section-title" style="margin-bottom:4px">Presets</div>
+    <div class="preset-row">
+      <button class="btn" id="p-soft">Soft</button>
+      <button class="btn" id="p-hard">Hard</button>
+      <button class="btn" id="p-neu-light">Neu Light</button>
+      <button class="btn" id="p-neu-dark">Neu Dark</button>
+      <button class="btn" id="p-glow">Glow</button>
+    </div>
+  </div>
+
+  <div id="css-output"></div>
+  <button class="btn primary" id="btn-copy" style="display:block;margin:0 auto">Copy CSS</button>
+</div>
+
+<script>
+(function(){
+'use strict';
+
+// ---- State ----
+var layers=[
+  {x:0,y:4,blur:12,spread:0,color:'#000000',opacity:15,inset:false},
+  {x:0,y:8,blur:24,spread:-4,color:'#000000',opacity:10,inset:false}
+];
+
+// ---- Render ----
+function render(){
+  // Build CSS string
+  var parts=[];
+  for(var i=0;i<layers.length;i++){
+    var l=layers[i];
+    var rgba=hexToRgba(l.color,l.opacity/100);
+    var s=(l.inset?'inset ':'')+l.x+'px '+l.y+'px '+l.blur+'px '+l.spread+'px '+rgba;
+    parts.push(s);
+  }
+  var css=parts.length?parts.join(',\n    '):'none';
+  var fullCss='box-shadow: '+css+';';
+
+  // Apply to preview
+  document.getElementById('preview-box').style.boxShadow=parts.length?parts.join(', '):'none';
+  document.getElementById('css-output').textContent=fullCss;
+}
+
+function hexToRgba(hex,alpha){
+  hex=hex.replace('#','');
+  if(hex.length===3)hex=hex[0]+hex[0]+hex[1]+hex[1]+hex[2]+hex[2];
+  var r=parseInt(hex.substring(0,2),16);
+  var g=parseInt(hex.substring(2,4),16);
+  var b=parseInt(hex.substring(4,6),16);
+  alpha=Math.max(0,Math.min(1,alpha));
+  return'rgba('+r+','+g+','+b+','+alpha.toFixed(2)+')';
+}
+
+// ---- Build layer UI ----
+function buildLayers(){
+  var container=document.getElementById('layers');
+  container.innerHTML='';
+  for(var i=0;i<layers.length;i++){
+    (function(idx){
+      var l=layers[idx];
+      var card=document.createElement('div');
+      card.className='layer';
+
+      // Header
+      var header=document.createElement('div');
+      header.className='layer-header';
+      header.innerHTML='<span class="layer-title">Layer '+(idx+1)+(l.inset?' (inset)':'')+'</span>';
+      var del=document.createElement('button');
+      del.className='layer-del';del.textContent='×';
+      del.addEventListener('click',function(){layers.splice(idx,1);buildLayers();render()});
+      header.appendChild(del);
+      card.appendChild(header);
+
+      // Controls
+      function addSlider(label,prop,min,max,val,unit){
+        var row=document.createElement('div');row.className='ctrl-row';
+        row.innerHTML='<span class="ctrl-label">'+label+'</span>';
+        var sl=document.createElement('input');
+        sl.type='range';sl.min=min;sl.max=max;sl.value=val;
+        var vSpan=document.createElement('span');
+        vSpan.className='ctrl-val';vSpan.textContent=val+(unit||'');
+        sl.addEventListener('input',function(){
+          layers[idx][prop]=parseInt(this.value,10);
+          vSpan.textContent=this.value+(unit||'');
+          render();
+        });
+        row.appendChild(sl);row.appendChild(vSpan);
+        card.appendChild(row);
+      }
+
+      addSlider('X',  'x',     -50,50, l.x,'px');
+      addSlider('Y',  'y',     -50,50, l.y,'px');
+      addSlider('Blur','blur',   0,80, l.blur,'px');
+      addSlider('Spr', 'spread',-30,30,l.spread,'px');
+      addSlider('Opa', 'opacity', 0,100,l.opacity,'%');
+
+      // Color + inset row
+      var colorRow=document.createElement('div');
+      colorRow.className='ctrl-row';
+      colorRow.innerHTML='<span class="ctrl-label">Color</span>';
+      var cPick=document.createElement('input');
+      cPick.type='color';cPick.value=l.color;
+      cPick.addEventListener('input',function(){layers[idx].color=this.value;render()});
+      colorRow.appendChild(cPick);
+
+      var insetLabel=document.createElement('label');
+      insetLabel.className='check-label';
+      var insetCb=document.createElement('input');
+      insetCb.type='checkbox';insetCb.checked=l.inset;
+      insetCb.addEventListener('change',function(){
+        layers[idx].inset=this.checked;
+        var title=card.querySelector('.layer-title');
+        if(title)title.textContent='Layer '+(idx+1)+(this.checked?' (inset)':'');
+        render();
+      });
+      insetLabel.appendChild(insetCb);
+      insetLabel.appendChild(document.createTextNode(' Inset'));
+      colorRow.appendChild(insetLabel);
+      card.appendChild(colorRow);
+
+      container.appendChild(card);
+    })(i);
+  }
+}
+
+// ---- Controls ----
+document.getElementById('btn-add').addEventListener('click',function(){
+  layers.push({x:0,y:4,blur:10,spread:0,color:'#000000',opacity:15,inset:false});
+  buildLayers();render();
+});
+
+document.getElementById('c-box').addEventListener('input',function(){
+  document.getElementById('preview-box').style.background=this.value;
+});
+document.getElementById('c-bg').addEventListener('input',function(){
+  document.getElementById('preview-area').style.background=this.value;
+});
+document.getElementById('sl-radius').addEventListener('input',function(){
+  document.getElementById('preview-box').style.borderRadius=this.value+'px';
+  document.getElementById('v-radius').textContent=this.value;
+});
+
+document.getElementById('btn-copy').addEventListener('click',function(){
+  var css=document.getElementById('css-output').textContent;
+  if(navigator.clipboard&&navigator.clipboard.writeText){
+    var self=this;
+    navigator.clipboard.writeText(css).then(function(){
+      self.textContent='Copied!';
+      setTimeout(function(){self.textContent='Copy CSS'},1200);
+    }).catch(function(){});
+  }
+});
+
+// ---- Presets ----
+function setPreset(newLayers,boxColor,bgColor){
+  layers=newLayers;
+  if(boxColor){document.getElementById('c-box').value=boxColor;document.getElementById('preview-box').style.background=boxColor}
+  if(bgColor){document.getElementById('c-bg').value=bgColor;document.getElementById('preview-area').style.background=bgColor}
+  buildLayers();render();
+}
+
+document.getElementById('p-soft').addEventListener('click',function(){
+  setPreset([
+    {x:0,y:2,blur:4,spread:0,color:'#000000',opacity:8,inset:false},
+    {x:0,y:4,blur:12,spread:-2,color:'#000000',opacity:12,inset:false},
+    {x:0,y:12,blur:32,spread:-8,color:'#000000',opacity:15,inset:false}
+  ],'#ffffff','#f0f0f4');
+});
+
+document.getElementById('p-hard').addEventListener('click',function(){
+  setPreset([
+    {x:4,y:4,blur:0,spread:0,color:'#000000',opacity:80,inset:false}
+  ],'#ffffff','#e8e8ee');
+});
+
+document.getElementById('p-neu-light').addEventListener('click',function(){
+  setPreset([
+    {x:6,y:6,blur:12,spread:0,color:'#000000',opacity:10,inset:false},
+    {x:-6,y:-6,blur:12,spread:0,color:'#ffffff',opacity:70,inset:false}
+  ],'#e0e0e8','#e0e0e8');
+});
+
+document.getElementById('p-neu-dark').addEventListener('click',function(){
+  setPreset([
+    {x:6,y:6,blur:14,spread:0,color:'#000000',opacity:50,inset:false},
+    {x:-6,y:-6,blur:14,spread:0,color:'#ffffff',opacity:5,inset:false}
+  ],'#1a1a24','#1a1a24');
+});
+
+document.getElementById('p-glow').addEventListener('click',function(){
+  setPreset([
+    {x:0,y:0,blur:15,spread:0,color:'#4488ff',opacity:50,inset:false},
+    {x:0,y:0,blur:40,spread:-5,color:'#4488ff',opacity:30,inset:false}
+  ],'#1a1a2e','#0a0a14');
+});
+
+// ---- Init ----
+buildLayers();
+render();
+})();
+</script>
+</body>
+</html>
