@@ -93,7 +93,7 @@ let viewMode = 'split';
 // LCS-based diff
 function lcs(a, b) {
   const m = a.length, n = b.length;
-  const dp = Array.from({length: m + 1}, () => new Uint16Array(n + 1));
+  const dp = Array.from({length: m + 1}, () => new Int32Array(n + 1));
   for (let i = 1; i <= m; i++)
     for (let j = 1; j <= n; j++)
       dp[i][j] = a[i-1] === b[j-1] ? dp[i-1][j-1] + 1 : Math.max(dp[i-1][j], dp[i][j-1]);
@@ -117,22 +117,24 @@ function lcs(a, b) {
 
 // Character-level diff for modified lines
 function charDiff(a, b) {
-  const ops = lcs(a.split(''), b.split(''));
+  // Use spread to correctly handle emojis/surrogate pairs
+  const aChars = [...a], bChars = [...b];
+  const ops = lcs(aChars, bChars);
   let leftHtml = '', rightHtml = '';
   for (const op of ops) {
     if (op.type === 'equal') {
-      leftHtml += esc(a[op.left]);
-      rightHtml += esc(b[op.right]);
+      leftHtml += esc(aChars[op.left]);
+      rightHtml += esc(bChars[op.right]);
     } else if (op.type === 'del') {
-      leftHtml += `<span class="char-del">${esc(a[op.left])}</span>`;
+      leftHtml += `<span class="char-del">${esc(aChars[op.left])}</span>`;
     } else {
-      rightHtml += `<span class="char-add">${esc(b[op.right])}</span>`;
+      rightHtml += `<span class="char-add">${esc(bChars[op.right])}</span>`;
     }
   }
   return { leftHtml, rightHtml };
 }
 
-function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 
 function computeDiff() {
   const leftLines = leftEl.value.split('\n');
@@ -148,10 +150,14 @@ function computeDiff() {
     if (op.type === 'equal') {
       rows.push({type: 'equal', left: leftLines[op.left], right: rightLines[op.right], leftNum: op.left + 1, rightNum: op.right + 1});
       i++;
-    } else if (op.type === 'del' && i + 1 < ops.length && ops[i+1].type === 'add') {
-      // Modified line
-      const cd = charDiff(leftLines[op.left], rightLines[ops[i+1].right]);
-      rows.push({type: 'mod', leftHtml: cd.leftHtml, rightHtml: cd.rightHtml, leftNum: op.left + 1, rightNum: ops[i+1].right + 1});
+    } else if (i + 1 < ops.length &&
+               ((op.type === 'del' && ops[i+1].type === 'add') ||
+                (op.type === 'add' && ops[i+1].type === 'del'))) {
+      // Modified line (handle both del+add and add+del ordering)
+      var delOp = op.type === 'del' ? op : ops[i+1];
+      var addOp = op.type === 'add' ? op : ops[i+1];
+      const cd = charDiff(leftLines[delOp.left], rightLines[addOp.right]);
+      rows.push({type: 'mod', leftHtml: cd.leftHtml, rightHtml: cd.rightHtml, leftNum: delOp.left + 1, rightNum: addOp.right + 1});
       mods++;
       i += 2;
     } else if (op.type === 'del') {

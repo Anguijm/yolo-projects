@@ -1760,3 +1760,10 @@ Persistent knowledge base. Read this before every build.
 - **FIX**: O(N) log trimming — list.pop(0) is O(N). Replaced with collections.deque(maxlen=200)
 - **FIX**: Server bound to 0.0.0.0 — exposed mock API to entire LAN. Changed to 127.0.0.1
 - **INSIGHT**: When using re.sub to add capture groups to URL patterns, ALWAYS re.escape the base path first to prevent regex special characters (`.`, `?`, `+`) from being interpreted
+
+### diff-painter refinement (2026-03-28) — PHASE 2 #9
+- **FIX**: Uint16Array overflow — LCS DP table used Uint16Array (max 65535), silently corrupting diffs for files >65K lines. Changed to Int32Array
+- **FIX**: Unicode/emoji corruption — charDiff used `.split('')` which breaks surrogate pairs. Changed to spread `[...str]` for correct codepoint splitting
+- **FIX**: Mod detection missed add-before-del — only detected del+add pairs, not add+del. Now handles both orderings by checking both permutations
+- **INSIGHT**: `String.split('')` breaks UTF-16 surrogate pairs (emojis, CJK extension). Always use `[...str]` or `Array.from(str)` for character-level operations
+- **TEST CAUGHT**: Brace balance false positive (12th occurrence)
