@@ -149,54 +149,67 @@ let slides = [];
 let currentSlide = 0;
 let presenting = false;
 
-// Minimal markdown parser
+// Minimal markdown parser with code-block protection
 function md(text) {
-  let html = text
-    // Code blocks
-    .replace(/```(\w*)\n([\s\S]*?)```/g, (_, lang, code) => `<pre><code>${esc(code.trim())}</code></pre>`)
-    // Inline code
-    .replace(/`([^`]+)`/g, '<code>$1</code>')
-    // Headers
+  // 1. Extract code blocks into placeholders (protect from inner parsing)
+  var codeBlocks = [];
+  var html = text.replace(/```(\w*)\n([\s\S]*?)```/g, function(_, lang, code) {
+    codeBlocks.push('<pre><code>' + esc(code.trim()) + '</code></pre>');
+    return '__CODEBLOCK_' + (codeBlocks.length - 1) + '__';
+  });
+
+  // 2. Extract inline code into placeholders (and escape content)
+  var inlineCodes = [];
+  html = html.replace(/`([^`]+)`/g, function(_, code) {
+    inlineCodes.push('<code>' + esc(code) + '</code>');
+    return '__INLINE_' + (inlineCodes.length - 1) + '__';
+  });
+
+  // 3. Parse markdown
+  html = html
     .replace(/^### (.+)$/gm, '<h3>$1</h3>')
     .replace(/^## (.+)$/gm, '<h2>$1</h2>')
     .replace(/^# (.+)$/gm, '<h1>$1</h1>')
-    // Bold & italic
     .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
     .replace(/\*(.+?)\*/g, '<em>$1</em>')
-    // Blockquote
     .replace(/^> (.+)$/gm, '<blockquote>$1</blockquote>')
-    // HR
     .replace(/^---$/gm, '<hr>')
-    // Links
-    .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2">$1</a>')
-    // Unordered lists
-    .replace(/^[*-] (.+)$/gm, '<li>$1</li>')
-    // Ordered lists
-    .replace(/^\d+\. (.+)$/gm, '<li>$1</li>');
+    .replace(/\[([^\]]+)\]\(([^)]+)\)/g, function(_, t, url) {
+      var safeUrl = url.trim().toLowerCase().startsWith('javascript:') ? '#' : url;
+      return '<a href="' + safeUrl + '">' + t + '</a>';
+    })
+    .replace(/^[*-] (.+)$/gm, '<li class="uli">$1</li>')
+    .replace(/^\d+\. (.+)$/gm, '<li class="oli">$1</li>');
 
-  // Wrap consecutive <li> in <ul>
-  html = html.replace(/((?:<li>.*<\/li>\n?)+)/g, '<ul>$1</ul>');
+  // 4. Wrap consecutive list items in proper list tags
+  html = html.replace(/((?:<li class="uli">.*<\/li>\n?)+)/g, '<ul>$1</ul>');
+  html = html.replace(/((?:<li class="oli">.*<\/li>\n?)+)/g, '<ol>$1</ol>');
 
-  // Tables (simple)
-  html = html.replace(/^\|(.+)\|$/gm, (match, content) => {
+  // 5. Tables
+  html = html.replace(/^\|(.+)\|$/gm, function(match, content) {
     if (content.match(/^[\s\-|]+$/)) return '';
-    const cells = content.split('|').map(c => c.trim());
-    return '<tr>' + cells.map(c => `<td style="padding:0.3rem 0.8rem;border-bottom:1px solid #222">${c}</td>`).join('') + '</tr>';
+    var cells = content.split('|').map(function(c) { return c.trim(); });
+    return '<tr>' + cells.map(function(c) { return '<td style="padding:0.3rem 0.8rem;border-bottom:1px solid #222">' + c + '</td>'; }).join('') + '</tr>';
   });
   html = html.replace(/((?:<tr>.*<\/tr>\n?)+)/g, '<table style="border-collapse:collapse;font-size:0.85rem;margin:0.5rem 0">$1</table>');
 
-  // Paragraphs (wrap remaining text lines)
-  html = html.split('\n').map(line => {
-    if (!line.trim()) return '';
-    if (line.match(/^<(h[1-3]|ul|ol|li|pre|blockquote|hr|table|tr|td)/)) return line;
-    if (line.match(/<\/(h[1-3]|ul|ol|pre|blockquote|table)>/)) return line;
-    return `<p>${line}</p>`;
+  // 6. Paragraphs (split by double newline for proper paragraph breaks)
+  html = html.split(/\n\n+/).map(function(block) {
+    block = block.trim();
+    if (!block) return '';
+    if (block.match(/^<(h[1-3]|ul|ol|li|pre|blockquote|hr|table|tr|td|__CODEBLOCK)/)) return block;
+    if (block.match(/<\/(h[1-3]|ul|ol|pre|blockquote|table)>/)) return block;
+    return '<p>' + block.replace(/\n/g, '<br>') + '</p>';
   }).join('\n');
+
+  // 7. Re-inject code blocks and inline code
+  html = html.replace(/__CODEBLOCK_(\d+)__/g, function(_, i) { return codeBlocks[i]; });
+  html = html.replace(/__INLINE_(\d+)__/g, function(_, i) { return inlineCodes[i]; });
 
   return html;
 }
 
-function esc(s) { return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+function esc(s) { return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
 
 function parseSlides() {
   const raw = inputEl.value;

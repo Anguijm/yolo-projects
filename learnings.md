@@ -1742,3 +1742,12 @@ Persistent knowledge base. Read this before every build.
 - **FIX**: NaN acceptance — invalid values like `A-B` or `foo` parsed to NaN and silently produced no matches. Added isNaN checks that throw errors
 - **FIX**: Missing bounds validation — out-of-range values like minute=99 were accepted without error. Added min/max bounds checking on explicit values
 - **INSIGHT**: Cron DOM/DOW OR semantics are a classic trap — almost every naive cron parser gets this wrong. If both fields are restricted (not *), the match is field3 OR field5, not AND
+
+### markdown-deck refinement (2026-03-28) — PHASE 2 #7
+- **FIX**: Code block content parsed as markdown — `*bold*` and `# heading` inside ``` blocks became HTML. Fixed with placeholder extraction before parsing, re-injection after
+- **FIX**: Inline code XSS — backtick content not escaped, so `<script>` in inline code executed. Now escaped with esc()
+- **FIX**: Ordered lists rendered as unordered — both `*` and `1.` items wrapped in `<ul>`. Added class markers (uli/oli) and separate `<ul>`/`<ol>` wrapping
+- **FIX**: javascript: link XSS — `[click](javascript:alert(1))` executed JS. Added protocol check, replaces with `#`
+- **FIX**: Paragraph wrapping per-line — every line got its own `<p>`, breaking multi-line paragraphs. Changed to split on double-newline with `<br>` for soft breaks
+- **INSIGHT**: Regex-based markdown parsers MUST extract code blocks into placeholders before running any other transforms. Otherwise bold/italic/heading regexes corrupt code content
+- **TEST CAUGHT**: Brace balance false positive (11th occurrence) — regex character classes confuse naive bracket counter
