@@ -24,6 +24,9 @@ def scan_directory(root, max_depth=6):
     print(f"Scanning {root}...")
 
     def scan(path, depth=0):
+        # Skip symlinks to prevent infinite recursion
+        if path.is_symlink():
+            return None
         name = path.name or str(path)
         if path.is_file():
             try:
@@ -56,6 +59,8 @@ def scan_directory(root, max_depth=6):
             return {'name': name + '/', 'size': 0, 'type': 'dir', 'children': []}
 
         for entry in entries:
+            if entry.is_symlink():
+                continue
             # Skip hidden and common junk
             if entry.name.startswith('.') or entry.name in ('node_modules', '__pycache__', '.git', 'venv', '.venv'):
                 # Still count size
@@ -77,7 +82,7 @@ def scan_directory(root, max_depth=6):
                 continue
 
             child = scan(entry, depth + 1)
-            if child and child['size'] > 0:
+            if child is not None and child['size'] > 0:
                 children.append(child)
 
         total = sum(c['size'] for c in children)
@@ -281,9 +286,11 @@ def main():
 
     tree = scan_directory(root, args.max_depth)
 
-    html = HTML_TEMPLATE.replace('__DATA__', json.dumps(tree))
-    html = html.replace('__ROOT_NAME__', tree['name'])
-    Path(output).write_text(html)
+    import html as html_lib
+    json_data = json.dumps(tree).replace('<', '\\u003c').replace('>', '\\u003e')
+    html = HTML_TEMPLATE.replace('__DATA__', json_data)
+    html = html.replace('__ROOT_NAME__', html_lib.escape(tree['name']))
+    Path(output).write_text(html, encoding='utf-8')
 
     print(f"Total size: {format_bytes(tree['size'])}")
     print(f"Output: {output}")

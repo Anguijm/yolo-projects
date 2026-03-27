@@ -1782,3 +1782,9 @@ Persistent knowledge base. Read this before every build.
 - **FIX**: Import validation — accepted any JSON (objects, strings, numbers) without verifying it's an array. Added Array.isArray check
 - **FIX**: localStorage parse crash — malformed data in localStorage crashed the app on load. Added try/catch with empty array fallback
 - **INSIGHT**: NEVER use toISOString().slice(0,10) for user-facing dates — it returns UTC which can be a different day than the user's local date. Use getFullYear/getMonth/getDate for local dates
+
+### file-treemap refinement (2026-03-28) — PHASE 2 #12
+- **FIX**: Symlink infinite recursion — symlinks to parent directories caused scan() or rglob() to loop infinitely. Added is_symlink() check to skip symlinks
+- **FIX**: XSS via filenames — malicious filenames like `<script>alert(1)</script>` executed in browser via innerHTML. Added \u003c/\u003e escaping in JSON output and html.escape for root name
+- **FIX**: UTF-8 encoding crash — write_text() used system default encoding (cp1252 on Windows), crashing on non-ASCII filenames. Added encoding='utf-8'
+- **INSIGHT**: Any tool that recursively walks a filesystem MUST check is_symlink() to prevent infinite loops from circular symlinks
