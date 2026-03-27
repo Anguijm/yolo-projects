@@ -1788,3 +1788,11 @@ Persistent knowledge base. Read this before every build.
 - **FIX**: XSS via filenames — malicious filenames like `<script>alert(1)</script>` executed in browser via innerHTML. Added \u003c/\u003e escaping in JSON output and html.escape for root name
 - **FIX**: UTF-8 encoding crash — write_text() used system default encoding (cp1252 on Windows), crashing on non-ASCII filenames. Added encoding='utf-8'
 - **INSIGHT**: Any tool that recursively walks a filesystem MUST check is_symlink() to prevent infinite loops from circular symlinks
+
+### pomodoro-flow refinement (2026-03-28) — PHASE 2 #13
+- **FIX**: Skip logged full duration — skipTimer set remaining=0 before logSession(), falsely recording a complete session. Moved logSession() before zeroing remaining
+- **FIX**: AudioContext leak — new AudioContext() created every playSound(), hitting browser 6-context limit. Moved to single global context initialized on first user interaction
+- **FIX**: Background tab drift — setInterval(tick, 1000) throttled in background tabs, stretching timers. Replaced with timestamp-based: targetEndTime = Date.now() + remaining*1000, tick reads real clock
+- **FIX**: UTC session filtering — toISOString().slice(0,10) returned UTC date for todaySessions(). Replaced with local date formatting
+- **FIX**: Negative input crash — parseInt("-5")||25 evaluates to -5, causing infinite tick loop. Added isNaN/<=0 validation with fallbacks
+- **INSIGHT**: Timer apps MUST use wall-clock timestamps (Date.now()) not interval counting — setInterval is throttled to 1/sec in background tabs, causing multi-minute drift on 25-min timers

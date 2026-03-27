@@ -97,13 +97,22 @@ let remaining = totalSecs;
 let running = false;
 let interval = null;
 let sessions = JSON.parse(localStorage.getItem('pomo-sessions')||'[]');
+var audioCtx = null;
+var targetEndTime = 0;
+
+function getVal(id, fallback) {
+  var el = document.getElementById(id);
+  if (!el) return fallback;
+  var v = parseInt(el.value);
+  return (isNaN(v) || v <= 0) ? fallback : v;
+}
 
 function getSettings() {
   return {
-    work: parseInt(document.getElementById('set-work').value)||25,
-    short: parseInt(document.getElementById('set-short').value)||5,
-    long: parseInt(document.getElementById('set-long').value)||15,
-    rounds: parseInt(document.getElementById('set-rounds').value)||4,
+    work: getVal('set-work', 25),
+    short: getVal('set-short', 5),
+    long: getVal('set-long', 15),
+    rounds: getVal('set-rounds', 4),
   };
 }
 
@@ -152,13 +161,18 @@ function toggleTimer() {
     document.getElementById('btn-start').className = 'primary';
   } else {
     running = true;
+    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+    targetEndTime = Date.now() + remaining * 1000;
     document.getElementById('btn-start').textContent = 'Pause';
     document.getElementById('btn-start').className = 'danger';
-    interval = setInterval(tick, 1000);
+    interval = setInterval(tick, 250);
   }
 }
 
 function tick() {
+  remaining = Math.max(0, Math.ceil((targetEndTime - Date.now()) / 1000));
+  updateDisplay();
   if (remaining <= 0) {
     clearInterval(interval);
     running = false;
@@ -167,8 +181,6 @@ function tick() {
     autoNext();
     return;
   }
-  remaining--;
-  updateDisplay();
 }
 
 function resetTimer() {
@@ -183,8 +195,8 @@ function resetTimer() {
 function skipTimer() {
   clearInterval(interval);
   running = false;
-  remaining = 0;
   logSession();
+  remaining = 0;
   autoNext();
 }
 
@@ -218,33 +230,38 @@ function logSession() {
 }
 
 function playSound() {
+  if (!audioCtx) return;
   try {
-    const ctx = new AudioContext();
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
+    var osc = audioCtx.createOscillator();
+    var gain = audioCtx.createGain();
     osc.connect(gain);
-    gain.connect(ctx.destination);
+    gain.connect(audioCtx.destination);
     osc.frequency.value = 800;
     osc.type = 'sine';
-    gain.gain.setValueAtTime(0.3, ctx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.5);
+    gain.gain.setValueAtTime(0.3, audioCtx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.5);
     osc.start();
-    osc.stop(ctx.currentTime + 0.5);
-    setTimeout(() => {
-      const osc2 = ctx.createOscillator();
-      const gain2 = ctx.createGain();
-      osc2.connect(gain2);gain2.connect(ctx.destination);
+    osc.stop(audioCtx.currentTime + 0.5);
+    setTimeout(function() {
+      var osc2 = audioCtx.createOscillator();
+      var gain2 = audioCtx.createGain();
+      osc2.connect(gain2);gain2.connect(audioCtx.destination);
       osc2.frequency.value = 1000;osc2.type='sine';
-      gain2.gain.setValueAtTime(0.3,ctx.currentTime);
-      gain2.gain.exponentialRampToValueAtTime(0.01,ctx.currentTime+0.5);
-      osc2.start();osc2.stop(ctx.currentTime+0.5);
+      gain2.gain.setValueAtTime(0.3,audioCtx.currentTime);
+      gain2.gain.exponentialRampToValueAtTime(0.01,audioCtx.currentTime+0.5);
+      osc2.start();osc2.stop(audioCtx.currentTime+0.5);
     }, 200);
   } catch(e){}
 }
 
+function localDateStr() {
+  var d = new Date();
+  return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+}
+
 function todaySessions() {
-  const today = new Date().toISOString().slice(0,10);
-  return sessions.filter(s => s.time.startsWith(today));
+  var td = localDateStr();
+  return sessions.filter(s => s.time.startsWith(td));
 }
 
 function renderSessions() {
