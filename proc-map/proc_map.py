@@ -63,9 +63,13 @@ def get_processes():
             proc_stat = Path(f"/proc/{pid}/stat").read_text()
             boot_time = float(Path("/proc/uptime").read_text().split()[0])
             clk_tck = os.sysconf("SC_CLK_TCK")
-            tokens = proc_stat.split()
-            # starttime is field 22 (0-indexed: 21)
-            start_ticks = int(tokens[21])
+            # Parse after last ')' to handle spaces in process names
+            close_paren = proc_stat.rfind(')')
+            if close_paren == -1:
+                raise ValueError("malformed /proc/pid/stat")
+            tokens = proc_stat[close_paren + 1:].split()
+            # starttime is field 22 overall; after stripping pid and (comm), it's index 19
+            start_ticks = int(tokens[19])
             proc_uptime_sec = boot_time - (start_ticks / clk_tck)
             if proc_uptime_sec < 0:
                 proc_uptime_sec = 0
@@ -146,9 +150,9 @@ def generate_html(nodes, links, processes):
             "uptime": p["uptime"],
         })
 
-    nodes_json = json.dumps(nodes)
-    links_json = json.dumps(links)
-    table_json = json.dumps(table_data)
+    nodes_json = json.dumps(nodes).replace('<', '\\u003c').replace('>', '\\u003e')
+    links_json = json.dumps(links).replace('<', '\\u003c').replace('>', '\\u003e')
+    table_json = json.dumps(table_data).replace('<', '\\u003c').replace('>', '\\u003e')
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     num_procs = len(nodes)
 
@@ -580,25 +584,25 @@ function renderTable() {{
     </tr>`;
   }});
   tbody.innerHTML = html;
-
-  // Click on table row to highlight in graph
-  tbody.querySelectorAll('tr').forEach(tr => {{
-    tr.addEventListener('click', () => {{
-      const pid = parseInt(tr.dataset.pid);
-      if (selectedPid === pid) {{
-        selectedPid = null;
-        highlightSet = null;
-        highlightTableRows(null);
-      }} else {{
-        selectedPid = pid;
-        const desc = getDescendants(pid);
-        const anc = getAncestors(pid);
-        highlightSet = new Set([...desc, ...anc]);
-        highlightTableRows(highlightSet);
-      }}
-    }});
-  }});
 }}
+
+// Event delegation for table row clicks (avoids listener leak on re-render)
+tbody.addEventListener('click', function(e) {{
+  const tr = e.target.closest('tr[data-pid]');
+  if (!tr) return;
+  const pid = parseInt(tr.dataset.pid);
+  if (selectedPid === pid) {{
+    selectedPid = null;
+    highlightSet = null;
+    highlightTableRows(null);
+  }} else {{
+    selectedPid = pid;
+    const desc = getDescendants(pid);
+    const anc = getAncestors(pid);
+    highlightSet = new Set([...desc, ...anc]);
+    highlightTableRows(highlightSet);
+  }}
+}});
 
 function highlightTableRows(pidSet) {{
   tbody.querySelectorAll('tr').forEach(tr => {{

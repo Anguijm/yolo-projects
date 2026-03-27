@@ -1700,3 +1700,9 @@ Persistent knowledge base. Read this before every build.
 - **FIX**: Encoding crash — `text=True` crashes on non-UTF-8 commit messages. Fixed with manual `decode('utf-8', errors='replace')`
 - **FIX**: Repo validation — `.git` directory check fails for worktrees/submodules (where `.git` is a file). Replaced with `git rev-parse --is-inside-work-tree`
 - **INSIGHT**: Single-pass git log parsing (one command, parse output) is orders of magnitude faster than per-file subprocess spawning. Always batch git operations
+
+### proc-map refinement (2026-03-27) — PHASE 2 #2
+- **FIX**: /proc/pid/stat parsing — split() on spaces breaks when process name contains spaces (e.g. "kworker/u4:2"). Fixed by parsing after rfind(')') and using offset index 19 instead of 21
+- **FIX**: XSS via process args — innerHTML with unsanitized process arguments allows script injection. Fixed with \u003c/\u003e escaping in JSON output
+- **FIX**: Event listener memory leak — renderTable() attached click listeners to every row on every re-render. Fixed with single event delegation listener on tbody
+- **INSIGHT**: /proc/pid/stat format is: `PID (comm) state ...` where comm can contain spaces and parentheses. Always parse by finding the LAST `)` and splitting from there
