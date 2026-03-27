@@ -1735,3 +1735,10 @@ Persistent knowledge base. Read this before every build.
 - **FIX**: Search not debounced — every keystroke iterated all tree-lines. Added 200ms debounce
 - **INSIGHT**: When injecting data into HTML attributes, double-quote escaping is critical — JSON.stringify output contains double quotes that will break out of attribute values
 - **TEST CAUGHT**: Brace balance false positive (10th occurrence)
+
+### cron-decoder refinement (2026-03-28) — PHASE 2 #6
+- **FIX**: DOM/DOW OR logic — cron spec says if both day-of-month and day-of-week are restricted, they combine with OR, not AND. `0 0 1 * 1` means "1st of month OR Monday", not "1st that's also Monday"
+- **FIX**: Step=0 infinite loop — `*/0` parsed step as 0, causing `for(i=min; i<=max; i+=0)` to freeze the browser. Added step>0 validation
+- **FIX**: NaN acceptance — invalid values like `A-B` or `foo` parsed to NaN and silently produced no matches. Added isNaN checks that throw errors
+- **FIX**: Missing bounds validation — out-of-range values like minute=99 were accepted without error. Added min/max bounds checking on explicit values
+- **INSIGHT**: Cron DOM/DOW OR semantics are a classic trap — almost every naive cron parser gets this wrong. If both fields are restricted (not *), the match is field3 OR field5, not AND

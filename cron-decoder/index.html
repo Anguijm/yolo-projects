@@ -99,6 +99,7 @@ function parseField(field, min, max) {
     if (stepMatch) {
       range = stepMatch[1];
       step = parseInt(stepMatch[2]);
+      if (step <= 0 || isNaN(step)) throw new Error('Step must be > 0');
     } else {
       range = part;
     }
@@ -106,11 +107,16 @@ function parseField(field, min, max) {
       for (let i = min; i <= max; i += step) values.add(i);
     } else if (range.includes('-')) {
       const [a, b] = range.split('-').map(Number);
-      for (let i = a; i <= b; i += step) values.add(i);
+      if (isNaN(a) || isNaN(b)) throw new Error('Invalid range');
+      for (let i = a; i <= Math.min(b, max); i += step) values.add(i);
     } else {
-      values.add(parseInt(range));
+      const v = parseInt(range);
+      if (isNaN(v)) throw new Error('Invalid value');
+      if (v < min || v > max) throw new Error('Value ' + v + ' out of bounds (' + min + '-' + max + ')');
+      values.add(v);
     }
   }
+  if (values.size === 0) throw new Error('Empty field');
   return [...values].sort((a, b) => a - b);
 }
 
@@ -161,10 +167,18 @@ function getNextRuns(cron, count = 10) {
   let d = new Date(now.getFullYear(), now.getMonth(), now.getDate(), now.getHours(), now.getMinutes() + 1, 0, 0);
   const maxIter = 525600; // 1 year of minutes
   let iter = 0;
+  // Per cron spec: if BOTH dom and dow are restricted, they use OR logic
+  const domRestricted = cron.raw[2] !== '*';
+  const dowRestricted = cron.raw[4] !== '*';
   while (runs.length < count && iter < maxIter) {
+    var dayMatch;
+    if (domRestricted && dowRestricted) {
+      dayMatch = cron.days.includes(d.getDate()) || cron.weekdays.includes(d.getDay());
+    } else {
+      dayMatch = cron.days.includes(d.getDate()) && cron.weekdays.includes(d.getDay());
+    }
     if (cron.months.includes(d.getMonth() + 1) &&
-        cron.days.includes(d.getDate()) &&
-        cron.weekdays.includes(d.getDay()) &&
+        dayMatch &&
         cron.hours.includes(d.getHours()) &&
         cron.minutes.includes(d.getMinutes())) {
       runs.push(new Date(d));
