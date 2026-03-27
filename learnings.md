@@ -1767,3 +1767,10 @@ Persistent knowledge base. Read this before every build.
 - **FIX**: Mod detection missed add-before-del — only detected del+add pairs, not add+del. Now handles both orderings by checking both permutations
 - **INSIGHT**: `String.split('')` breaks UTF-16 surrogate pairs (emojis, CJK extension). Always use `[...str]` or `Array.from(str)` for character-level operations
 - **TEST CAUGHT**: Brace balance false positive (12th occurrence)
+
+### sound-synth refinement (2026-03-28) — PHASE 2 #10
+- **FIX**: Envelope release clicks — linearRampToValueAtTime during attack ramp caused abrupt transitions. Fixed with cancelScheduledValues + setValueAtTime to anchor current gain before ramping down
+- **FIX**: Octave display wrong for key 'k' — noteIdx=12 displayed as C4 instead of C5. Added Math.floor(noteIdx/12) to display octave
+- **FIX**: Stuck notes on window blur — holding keys then alt-tabbing left notes playing forever. Added window blur handler that stops all active oscillators
+- **FIX**: Polyphony clipping — multiple simultaneous notes exceeded gain of 1.0 causing digital distortion. Added DynamicsCompressor before destination
+- **INSIGHT**: Web Audio envelope release MUST cancelScheduledValues and anchor the current gain value before starting the release ramp — otherwise the scheduler doesn't know where to start the ramp from

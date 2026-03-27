@@ -114,8 +114,14 @@ function initAudio() {
     }
   }
   convolver.buffer = impulse;
+  // Compressor prevents clipping during polyphony
+  var compressor = audioCtx.createDynamicsCompressor();
+  compressor.threshold.setValueAtTime(-15, audioCtx.currentTime);
+  compressor.ratio.setValueAtTime(12, audioCtx.currentTime);
+
   convolver.connect(analyser);
-  analyser.connect(audioCtx.destination);
+  analyser.connect(compressor);
+  compressor.connect(audioCtx.destination);
 
   drawViz();
 }
@@ -156,7 +162,8 @@ function playNote(noteIdx) {
   activeOscillators[key] = { osc, gain, dryGain, wetGain };
 
   // Update UI
-  const noteName = NOTES[noteIdx % 12] + octave;
+  var displayOctave = octave + Math.floor(noteIdx / 12);
+  const noteName = NOTES[noteIdx % 12] + displayOctave;
   document.getElementById('active-note').textContent = noteName + ' (' + Math.round(freq) + ' Hz)';
   document.querySelector(`[data-note="${noteIdx}"]`)?.classList.add('active');
 }
@@ -167,7 +174,10 @@ function stopNote(noteIdx) {
   if (!entry) return;
 
   const release = parseInt(document.getElementById('release').value) / 1000;
-  entry.gain.gain.linearRampToValueAtTime(0, audioCtx.currentTime + release);
+  // Cancel pending attack ramp and anchor current value to prevent clicks
+  entry.gain.gain.cancelScheduledValues(audioCtx.currentTime);
+  entry.gain.gain.setValueAtTime(entry.gain.gain.value, audioCtx.currentTime);
+  entry.gain.gain.linearRampToValueAtTime(0.0001, audioCtx.currentTime + release);
   setTimeout(() => {
     entry.osc.stop();
     entry.osc.disconnect();
@@ -231,6 +241,12 @@ document.addEventListener('keydown', e => {
 document.addEventListener('keyup', e => {
   const k = e.key.toLowerCase();
   if (k in KEY_MAP) { keysDown.delete(k); stopNote(KEY_MAP[k]); }
+});
+
+// Stop stuck notes on window blur
+window.addEventListener('blur', function() {
+  keysDown.clear();
+  Object.keys(activeOscillators).forEach(function(k) { stopNote(parseInt(k)); });
 });
 
 // Waveform visualization
