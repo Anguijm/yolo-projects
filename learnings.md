@@ -1751,3 +1751,12 @@ Persistent knowledge base. Read this before every build.
 - **FIX**: Paragraph wrapping per-line — every line got its own `<p>`, breaking multi-line paragraphs. Changed to split on double-newline with `<br>` for soft breaks
 - **INSIGHT**: Regex-based markdown parsers MUST extract code blocks into placeholders before running any other transforms. Otherwise bold/italic/heading regexes corrupt code content
 - **TEST CAUGHT**: Brace balance false positive (11th occurrence) — regex character classes confuse naive bracket counter
+
+### api-mocker refinement (2026-03-28) — PHASE 2 #8
+- **FIX**: Regex injection in path matching — dots/question marks in endpoint paths (e.g. `/api/v1.0`) weren't escaped, matching wrong routes. Fixed with re.escape before param substitution
+- **FIX**: Stored XSS via endpoint paths/bodies — innerHTML interpolated unsanitized data. Added complete escHtml, switched onclick to data attributes + event delegation
+- **FIX**: Binary payload crash — `.decode()` on non-UTF-8 request bodies threw UnicodeDecodeError. Added try/except with fallback
+- **FIX**: Body type validation — non-string body values (int, object) caused `.encode()` crash. Auto-converts to JSON string
+- **FIX**: O(N) log trimming — list.pop(0) is O(N). Replaced with collections.deque(maxlen=200)
+- **FIX**: Server bound to 0.0.0.0 — exposed mock API to entire LAN. Changed to 127.0.0.1
+- **INSIGHT**: When using re.sub to add capture groups to URL patterns, ALWAYS re.escape the base path first to prevent regex special characters (`.`, `?`, `+`) from being interpreted

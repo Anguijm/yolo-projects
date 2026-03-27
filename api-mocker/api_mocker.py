@@ -8,16 +8,15 @@ Usage: python3 api_mocker.py [--port 8800]
 import argparse
 import json
 import re
-import threading
 import time
 import webbrowser
+from collections import deque
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from urllib.parse import urlparse, parse_qs
 
 # In-memory endpoint store
 endpoints = []
-request_log = []
-MAX_LOG = 200
+request_log = deque(maxlen=200)
 
 
 class MockHandler(BaseHTTPRequestHandler):
@@ -29,9 +28,16 @@ class MockHandler(BaseHTTPRequestHandler):
         path = parsed.path
         query = parse_qs(parsed.query)
 
-        # Read body
+        # Read body (handle binary payloads gracefully)
         content_len = int(self.headers.get('Content-Length', 0))
-        body = self.rfile.read(content_len).decode() if content_len > 0 else ''
+        if content_len > 0:
+            raw = self.rfile.read(content_len)
+            try:
+                body = raw.decode('utf-8')
+            except UnicodeDecodeError:
+                body = '<binary data>'
+        else:
+            body = ''
 
         # Admin UI
         if path == '/' and method == 'GET':
@@ -56,6 +62,11 @@ class MockHandler(BaseHTTPRequestHandler):
                     ep.setdefault('headers', {'Content-Type': 'application/json'})
                     ep.setdefault('body', '{"message": "hello"}')
                     ep.setdefault('delay', 0)
+                    # Validate types
+                    if not isinstance(ep.get('headers', {}), dict):
+                        ep['headers'] = {'Content-Type': 'application/json'}
+                    if not isinstance(ep.get('body', ''), str):
+                        ep['body'] = json.dumps(ep['body'])
                     endpoints.append(ep)
                     self.json_response(ep, 201)
                 except Exception as e:
@@ -75,7 +86,7 @@ class MockHandler(BaseHTTPRequestHandler):
                 return
 
         if path == '/_admin/log':
-            self.json_response(request_log[-50:])
+            self.json_response(list(request_log)[-50:])
             return
 
         if path == '/_admin/log/clear':
@@ -87,8 +98,9 @@ class MockHandler(BaseHTTPRequestHandler):
         matched = None
         for ep in endpoints:
             if ep['method'].upper() == method.upper():
-                # Simple path matching with :param support
-                pattern = re.sub(r':(\w+)', r'(?P<\1>[^/]+)', ep['path'])
+                # Escape path then replace :param with capture groups
+                escaped = re.escape(ep['path'])
+                pattern = re.sub(r'\\:(\w+)', r'(?P<\1>[^/]+)', escaped)
                 m = re.fullmatch(pattern, path)
                 if m:
                     matched = ep
@@ -104,8 +116,6 @@ class MockHandler(BaseHTTPRequestHandler):
             'body': body[:500] if body else None,
         }
         request_log.append(log_entry)
-        if len(request_log) > MAX_LOG:
-            request_log.pop(0)
 
         if matched:
             if matched.get('delay', 0) > 0:
@@ -247,21 +257,21 @@ async function loadEndpoints() {
   el.innerHTML = eps.map(ep => `
     <div class="ep-card">
       <div class="ep-header">
-        <span class="method-badge method-${ep.method}">${ep.method}</span>
-        <span class="ep-path">${ep.path}</span>
+        <span class="method-badge method-${escHtml(ep.method)}">${escHtml(ep.method)}</span>
+        <span class="ep-path">${escHtml(ep.path)}</span>
         <span class="ep-status">${ep.status}</span>
       </div>
       <div class="ep-body">${escHtml(ep.body)}</div>
       <div class="ep-actions">
-        <button onclick="testEndpoint('${ep.method}','${ep.path}')">Test</button>
-        <button onclick="deleteEndpoint(${ep.id})">Delete</button>
+        <button data-test-method="${escHtml(ep.method)}" data-test-path="${escHtml(ep.path)}">Test</button>
+        <button data-delete-id="${ep.id}">Delete</button>
         ${ep.delay ? `<span style="font-size:0.65rem;color:#555">${ep.delay}ms delay</span>` : ''}
       </div>
     </div>
   `).join('');
 }
 
-function escHtml(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function escHtml(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
 
 async function addEndpoint() {
   const ep = {
@@ -300,7 +310,7 @@ async function loadLog() {
     return `<div class="log-entry">
       <span class="log-time">${l.time}</span>
       <span class="log-method" style="color:${{'GET':'#4ade80','POST':'#60a5fa','PUT':'#fbbf24','DELETE':'#f87171','PATCH':'#a78bfa'}[l.method]||'#ccc'}">${l.method}</span>
-      <span class="log-path">${l.path}</span>
+      <span class="log-path">${escHtml(l.path)}</span>
       <span class="log-status ${sc}">${l.status}</span>
     </div>`;
   }).join('');
@@ -310,6 +320,16 @@ async function clearLog() {
   await fetch('/_admin/log/clear');
   loadLog();
 }
+
+// Event delegation for test/delete buttons
+document.getElementById('endpoints').addEventListener('click', function(e) {
+  var btn = e.target;
+  if (btn.dataset.testMethod) {
+    testEndpoint(btn.dataset.testMethod, btn.dataset.testPath);
+  } else if (btn.dataset.deleteId) {
+    deleteEndpoint(parseInt(btn.dataset.deleteId));
+  }
+});
 
 loadEndpoints();
 setInterval(loadLog, 2000);
@@ -346,7 +366,7 @@ def main():
     if not args.no_browser:
         webbrowser.open(f'http://localhost:{args.port}')
 
-    server = HTTPServer(('0.0.0.0', args.port), MockHandler)
+    server = HTTPServer(('127.0.0.1', args.port), MockHandler)
     try:
         server.serve_forever()
     except KeyboardInterrupt:
