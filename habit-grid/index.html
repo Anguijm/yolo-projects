@@ -78,23 +78,39 @@ const COLORS = {
 const DAY_LABELS = ['','Mon','','Wed','','Fri',''];
 const WEEKS = 52;
 
-let habits = JSON.parse(localStorage.getItem('habit-grid-data') || '[]');
+var parsedData = [];
+try {
+  parsedData = JSON.parse(localStorage.getItem('habit-grid-data') || '[]');
+  if (!Array.isArray(parsedData)) parsedData = [];
+} catch(e) { parsedData = []; }
+let habits = parsedData;
 
-function save() { localStorage.setItem('habit-grid-data', JSON.stringify(habits)); }
+function save() { try { localStorage.setItem('habit-grid-data', JSON.stringify(habits)); } catch(e) {} }
 
-function today() { return new Date().toISOString().slice(0, 10); }
+function localDate(d) {
+  d = d || new Date();
+  return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+}
+
+function today() { return localDate(); }
 
 function dateKey(weeksAgo, dayOfWeek) {
   const d = new Date();
   d.setDate(d.getDate() - d.getDay() - (weeksAgo * 7) + dayOfWeek);
-  return d.toISOString().slice(0, 10);
+  return localDate(d);
 }
+
+function escHtml(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 
 function getStreak(habit) {
   let streak = 0;
   const d = new Date();
+  // Check today first
+  if (habit.days[localDate(d)]) { streak++; }
+  // Then walk backwards from yesterday
+  d.setDate(d.getDate() - 1);
   while (true) {
-    const key = d.toISOString().slice(0, 10);
+    var key = localDate(d);
     if (habit.days[key]) { streak++; d.setDate(d.getDate() - 1); }
     else break;
   }
@@ -185,7 +201,7 @@ function render() {
 
     return `<div class="habit-section">
       <div class="habit-header">
-        <span class="habit-name">${habit.name}</span>
+        <span class="habit-name">${escHtml(habit.name)}</span>
         <span class="habit-streak">${streak}d streak</span>
         <span class="habit-total">${total} total</span>
         <span class="habit-delete" onclick="deleteHabit(${habit.id})">delete</span>
@@ -229,11 +245,14 @@ window.importData = function() {
   input.type = 'file';
   input.accept = '.json';
   input.addEventListener('change', async e => {
+    if (!e.target.files.length) return;
     const text = await e.target.files[0].text();
     try {
-      habits = JSON.parse(text);
+      var data = JSON.parse(text);
+      if (!Array.isArray(data)) throw new Error('Not an array');
+      habits = data;
       save(); render();
-    } catch(err) { alert('Invalid JSON'); }
+    } catch(err) { alert('Invalid JSON: ' + err.message); }
   });
   input.click();
 };

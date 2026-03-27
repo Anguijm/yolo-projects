@@ -1774,3 +1774,11 @@ Persistent knowledge base. Read this before every build.
 - **FIX**: Stuck notes on window blur — holding keys then alt-tabbing left notes playing forever. Added window blur handler that stops all active oscillators
 - **FIX**: Polyphony clipping — multiple simultaneous notes exceeded gain of 1.0 causing digital distortion. Added DynamicsCompressor before destination
 - **INSIGHT**: Web Audio envelope release MUST cancelScheduledValues and anchor the current gain value before starting the release ramp — otherwise the scheduler doesn't know where to start the ramp from
+
+### habit-grid refinement (2026-03-28) — PHASE 2 #11
+- **FIX**: UTC date bug — toISOString() returns UTC dates, causing check-ins to shift to wrong day for users in negative UTC offsets (e.g. 9pm ET records as next day). Replaced with local date formatting
+- **FIX**: Streak logic broke on unchecked today — streak returned 0 if today wasn't checked even with a 30-day streak through yesterday. Now checks today first, then walks backwards from yesterday
+- **FIX**: XSS via habit name — user input injected directly into innerHTML. Added escHtml() for habit name rendering
+- **FIX**: Import validation — accepted any JSON (objects, strings, numbers) without verifying it's an array. Added Array.isArray check
+- **FIX**: localStorage parse crash — malformed data in localStorage crashed the app on load. Added try/catch with empty array fallback
+- **INSIGHT**: NEVER use toISOString().slice(0,10) for user-facing dates — it returns UTC which can be a different day than the user's local date. Use getFullYear/getMonth/getDate for local dates
