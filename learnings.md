@@ -1715,3 +1715,12 @@ Persistent knowledge base. Read this before every build.
 - **FIX**: Dead code — get_connection_info() was never called and hardcoded interface wlo1. Removed
 - **FIX**: File read OOM risk — load_history() used read_text().split() loading entire file into RAM. Changed to line-by-line reading
 - **INSIGHT**: WiFi BSSIDs are location-trackable via services like Wigle.net — never expose WiFi scan data on 0.0.0.0
+
+### regex-playground refinement (2026-03-27) — PHASE 2 #4
+- **FIX**: Named capture group misidentification — matched groups by value, so duplicate values (e.g. two groups both capturing "a") assigned wrong name. Fixed with `d` flag index-based matching via m.indices
+- **FIX**: Flag state desync — `flags` hardcoded to 'g' instead of reading from DOM. Fixed to derive from active buttons on load
+- **FIX**: Unicode zero-length match advance — `regex.lastIndex++` splits surrogate pairs when `u` flag is active. Now advances by 2 for codepoints >= 0x10000
+- **FIX**: Incomplete escapeHtml — missing quote escaping (" and '). Added &quot; and &#39;
+- **FIX**: Empty string captures invisible — matched empty string showed blank cell. Now shows "(empty)" with italic styling
+- **INSIGHT**: The `d` (hasIndices) regex flag gives exact start/end indices per capture group — essential for correctly identifying named groups when multiple groups capture identical values
+- **TEST CAUGHT**: Brace balance false positive (9th occurrence) — test confused by regex patterns in HTML content

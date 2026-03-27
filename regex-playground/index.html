@@ -125,7 +125,7 @@ const matchCountEl = document.getElementById('match-count');
 const groupsBody = document.getElementById('groups-body');
 const flagBtns = document.querySelectorAll('.flag-btn');
 
-let flags = 'g';
+let flags = [...document.querySelectorAll('.flag-btn.active')].map(b => b.dataset.flag).join('');
 
 flagBtns.forEach(btn => {
   btn.addEventListener('click', () => {
@@ -136,7 +136,7 @@ flagBtns.forEach(btn => {
 });
 
 function escapeHtml(s) {
-  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
 
 function run() {
@@ -152,8 +152,9 @@ function run() {
   }
 
   let regex;
+  let useFlags = flags.includes('d') ? flags : flags + 'd';
   try {
-    regex = new RegExp(pattern, flags);
+    regex = new RegExp(pattern, useFlags);
   } catch(e) {
     errorEl.textContent = e.message;
     highlightedEl.innerHTML = escapeHtml(text);
@@ -167,7 +168,13 @@ function run() {
     let m;
     while ((m = regex.exec(text)) !== null) {
       matches.push(m);
-      if (m.index === regex.lastIndex) regex.lastIndex++;
+      if (m.index === regex.lastIndex) {
+        if (flags.includes('u') && text.codePointAt(m.index) >= 0x10000) {
+          regex.lastIndex += 2;
+        } else {
+          regex.lastIndex++;
+        }
+      }
     }
   } else {
     const m = regex.exec(text);
@@ -204,19 +211,31 @@ function run() {
     // Capture groups
     for (let g = 1; g < m.length; g++) {
       const val = m[g];
-      // Check for named groups
+      // Find named group by index match, not value match (avoids duplicate value confusion)
       let name = '';
-      if (m.groups) {
-        for (const [k, v] of Object.entries(m.groups)) {
-          if (v === val) { name = k; break; }
+      if (m.indices && m.indices.groups) {
+        var gi = m.indices[g];
+        if (gi) {
+          for (const [k, idxPair] of Object.entries(m.indices.groups)) {
+            if (idxPair && idxPair[0] === gi[0] && idxPair[1] === gi[1]) { name = k; break; }
+          }
         }
       }
+      let displayVal;
+      if (val === undefined) {
+        displayVal = '<span style="color:#555">undefined</span>';
+      } else if (val === '') {
+        displayVal = '<span style="color:#888;font-style:italic">(empty)</span>';
+      } else {
+        displayVal = escapeHtml(val);
+      }
+      var spanStr = m.indices && m.indices[g] ? m.indices[g].join('-') : '';
       groupsHtml += `<tr>
         <td class="group-idx"></td>
         <td class="group-idx">${g}</td>
-        <td class="group-name">${name}</td>
-        <td class="group-val">${val !== undefined ? escapeHtml(val) : '<span style="color:#555">undefined</span>'}</td>
-        <td class="group-span"></td>
+        <td class="group-name">${escapeHtml(name)}</td>
+        <td class="group-val">${displayVal}</td>
+        <td class="group-span">${spanStr}</td>
       </tr>`;
     }
   });
