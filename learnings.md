@@ -1706,3 +1706,12 @@ Persistent knowledge base. Read this before every build.
 - **FIX**: XSS via process args — innerHTML with unsanitized process arguments allows script injection. Fixed with \u003c/\u003e escaping in JSON output
 - **FIX**: Event listener memory leak — renderTable() attached click listeners to every row on every re-render. Fixed with single event delegation listener on tbody
 - **INSIGHT**: /proc/pid/stat format is: `PID (comm) state ...` where comm can contain spaces and parentheses. Always parse by finding the LAST `)` and splitting from there
+
+### wifi-time-machine refinement (2026-03-27) — PHASE 2 #3
+- **FIX**: XSS via malicious SSID names — innerHTML interpolated raw SSID strings. Added escapeHtml() for network list and heatmap
+- **FIX**: API disk reads on every request — /api/history and /api/since/ called load_history() (full file read) per request instead of using snapshots_in_memory. Switched to memory
+- **FIX**: Unbounded memory growth — snapshots_in_memory grew forever. Added MAX_MEMORY_SNAPSHOTS=10000 cap with pop(0)
+- **FIX**: Server bound to 0.0.0.0 — exposed WiFi location data (BSSIDs) to entire LAN. Changed to 127.0.0.1
+- **FIX**: Dead code — get_connection_info() was never called and hardcoded interface wlo1. Removed
+- **FIX**: File read OOM risk — load_history() used read_text().split() loading entire file into RAM. Changed to line-by-line reading
+- **INSIGHT**: WiFi BSSIDs are location-trackable via services like Wigle.net — never expose WiFi scan data on 0.0.0.0

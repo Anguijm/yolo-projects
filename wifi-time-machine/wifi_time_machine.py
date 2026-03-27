@@ -80,24 +80,6 @@ def scan_wifi():
     return networks
 
 
-def get_connection_info():
-    """Get current connection details."""
-    try:
-        result = subprocess.run(
-            ["nmcli", "-t", "-f", "GENERAL.CONNECTION,GENERAL.DEVICE,GENERAL.TYPE,GENERAL.STATE,WIRED-PROPERTIES",
-             "dev", "show", "wlo1"],
-            capture_output=True, text=True, timeout=10
-        )
-        # Also get IP info
-        ip_result = subprocess.run(
-            ["nmcli", "-t", "-f", "IP4.ADDRESS,IP4.GATEWAY,IP4.DNS", "dev", "show", "wlo1"],
-            capture_output=True, text=True, timeout=10
-        )
-        return result.stdout.strip() + "\n" + ip_result.stdout.strip()
-    except Exception:
-        return ""
-
-
 def collect_snapshot():
     """Collect a single WiFi snapshot."""
     networks = scan_wifi()
@@ -121,6 +103,7 @@ def collect_snapshot():
 
 snapshots_in_memory = []
 collection_running = True
+MAX_MEMORY_SNAPSHOTS = 10000
 
 def collection_loop(interval=10):
     """Collect WiFi data every `interval` seconds."""
@@ -129,6 +112,8 @@ def collection_loop(interval=10):
         try:
             snap = collect_snapshot()
             snapshots_in_memory.append(snap)
+            if len(snapshots_in_memory) > MAX_MEMORY_SNAPSHOTS:
+                snapshots_in_memory.pop(0)
             # Append to log file
             with open(LOG_FILE, "a") as f:
                 f.write(json.dumps(snap) + "\n")
@@ -138,16 +123,18 @@ def collection_loop(interval=10):
 
 
 def load_history():
-    """Load all historical snapshots from disk."""
+    """Load all historical snapshots from disk (line-by-line to avoid OOM)."""
     if not LOG_FILE.exists():
         return []
     snapshots = []
-    for line in LOG_FILE.read_text().strip().split("\n"):
-        if line:
-            try:
-                snapshots.append(json.loads(line))
-            except json.JSONDecodeError:
-                continue
+    with open(LOG_FILE, 'r') as f:
+        for line in f:
+            line = line.strip()
+            if line:
+                try:
+                    snapshots.append(json.loads(line))
+                except json.JSONDecodeError:
+                    continue
     return snapshots
 
 
@@ -166,13 +153,12 @@ class WifiHandler(SimpleHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(HTML_PAGE.encode())
         elif self.path == "/api/history":
-            # Return all data (history + in-memory)
-            history = load_history()
+            # Return all data from memory (no disk read per request)
             self.send_response(200)
             self.send_header("Content-Type", "application/json")
             self.send_header("Access-Control-Allow-Origin", "*")
             self.end_headers()
-            self.wfile.write(json.dumps(history).encode())
+            self.wfile.write(json.dumps(snapshots_in_memory).encode())
         elif self.path == "/api/latest":
             if snapshots_in_memory:
                 data = snapshots_in_memory[-1]
@@ -189,8 +175,7 @@ class WifiHandler(SimpleHTTPRequestHandler):
                 since = float(self.path.split("/api/since/")[1])
             except (ValueError, IndexError):
                 since = 0
-            history = load_history()
-            filtered = [s for s in history if s.get("epoch", 0) > since]
+            filtered = [s for s in snapshots_in_memory if s.get("epoch", 0) > since]
             self.send_response(200)
             self.send_header("Content-Type", "application/json")
             self.send_header("Access-Control-Allow-Origin", "*")
@@ -310,6 +295,10 @@ canvas { width: 100%; height: 100%; }
 </div>
 
 <script>
+function escapeHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+
 let allSnapshots = [];
 let isLive = true;
 let currentIdx = 0;
@@ -414,7 +403,7 @@ function renderSnapshot(snap) {
   const listEl = document.getElementById('network-list');
   listEl.innerHTML = sorted.map(n => `
     <div class="net-row ${n.in_use ? 'connected' : ''}">
-      <span class="net-ssid">${n.in_use ? '● ' : ''}${n.ssid}</span>
+      <span class="net-ssid">${n.in_use ? '● ' : ''}${escapeHtml(n.ssid)}</span>
       <span class="net-channel">ch${n.channel}</span>
       <div class="net-signal-bar"><div class="net-signal-fill" style="width:${n.signal}%;background:${signalColor(n.signal)}"></div></div>
       <span class="net-signal-num">${n.signal}%</span>
@@ -542,7 +531,7 @@ function renderHeatmap() {
 
   el.innerHTML = sorted.map(row => `
     <div class="heatmap-row">
-      <span class="heatmap-label" title="${row.ssid}">${row.ssid}</span>
+      <span class="heatmap-label" title="${escapeHtml(row.ssid)}">${escapeHtml(row.ssid)}</span>
       <div class="heatmap-cells">
         ${indices.map(i => {
           const sig = row.signals[i] || 0;
@@ -601,7 +590,7 @@ def main():
         webbrowser.open(f"http://localhost:{args.port}")
 
     # Start HTTP server
-    server = HTTPServer(("0.0.0.0", args.port), WifiHandler)
+    server = HTTPServer(("127.0.0.1", args.port), WifiHandler)
     print(f"  Server running on http://localhost:{args.port}")
     print(f"  Press Ctrl+C to stop\n")
     try:
