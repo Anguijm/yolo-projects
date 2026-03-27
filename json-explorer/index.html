@@ -91,7 +91,7 @@ const statsEl = document.getElementById('stats');
 let currentPath = '';
 let parsedData = null;
 
-function escHtml(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function escHtml(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
 
 function countItems(val) {
   if (val === null || typeof val !== 'object') return 1;
@@ -115,8 +115,10 @@ function renderObject(obj, path) {
   let html = `<span class="toggle" data-id="${id}" onclick="toggleNode('${id}')">&#9660;</span><span class="bracket">{</span> <span class="count">${keys.length} keys</span>`;
   html += `<div class="node" id="${id}">`;
   keys.forEach((k, i) => {
-    const childPath = path ? path + '.' + k : k;
-    html += `<div class="tree-line" data-searchable="${escHtml(k)} ${escHtml(JSON.stringify(obj[k]))}">`;
+    const isValidId = /^[a-zA-Z_$][0-9a-zA-Z_$]*$/.test(k);
+    const childPath = path ? (isValidId ? path + '.' + k : path + "['" + k + "']") : k;
+    var searchVal = (obj[k] !== null && typeof obj[k] !== 'object') ? String(obj[k]) : '';
+    html += `<div class="tree-line" data-searchable="${escHtml(k)} ${escHtml(searchVal)}">`;
     html += `<span class="key" data-path="${escHtml(childPath)}">"${escHtml(k)}"</span><span class="colon">: </span>${renderValue(obj[k], childPath)}`;
     if (i < keys.length - 1) html += '<span class="comma">,</span>';
     html += '</div>';
@@ -132,7 +134,8 @@ function renderArray(arr, path) {
   html += `<div class="node" id="${id}">`;
   arr.forEach((v, i) => {
     const childPath = path + '[' + i + ']';
-    html += `<div class="tree-line" data-searchable="${escHtml(JSON.stringify(v))}">`;
+    var searchVal = (v !== null && typeof v !== 'object') ? String(v) : '';
+    html += `<div class="tree-line" data-searchable="${escHtml(searchVal)}">`;
     html += `<span class="num" style="color:#555;font-size:0.7rem">${i}</span><span class="colon"> </span>${renderValue(v, childPath)}`;
     if (i < arr.length - 1) html += '<span class="comma">,</span>';
     html += '</div>';
@@ -164,28 +167,20 @@ function parse() {
     const bytes = new Blob([raw]).size;
     const items = countItems(parsedData);
     statsEl.textContent = `${bytes.toLocaleString()} bytes \u00b7 ${items} values \u00b7 ${raw.split('\n').length} lines`;
-    // Click handlers for paths
-    treeEl.querySelectorAll('[data-path]').forEach(el => {
-      el.style.cursor = 'pointer';
-      el.addEventListener('click', e => {
-        e.stopPropagation();
-        currentPath = el.dataset.path;
-        pathBar.innerHTML = `<span class="path-val">${escHtml(currentPath)}</span>`;
-        // Remove old highlights
-        treeEl.querySelectorAll('.highlight').forEach(h => h.classList.remove('highlight'));
-        el.classList.add('highlight');
-      });
-    });
+    // Path click handling via event delegation (set up once below)
   } catch(e) {
     errorEl.textContent = e.message;
     errorEl.style.display = '';
     // Try to show position
-    const match = e.message.match(/position (\d+)/);
-    if (match) {
-      const pos = parseInt(match[1]);
-      const line = raw.slice(0, pos).split('\n').length;
-      errorEl.textContent += ` (line ~${line})`;
+    var chromeMatch = e.message.match(/position (\d+)/);
+    var ffMatch = e.message.match(/line (\d+)/);
+    var line = null;
+    if (chromeMatch) {
+      line = raw.slice(0, parseInt(chromeMatch[1])).split('\n').length;
+    } else if (ffMatch) {
+      line = parseInt(ffMatch[1]);
     }
+    if (line) errorEl.textContent += ' (line ~' + line + ')';
   }
 }
 
@@ -232,24 +227,43 @@ function copyPath() {
   if (currentPath) navigator.clipboard.writeText(currentPath);
 }
 
-// Search
+// Event delegation for path clicks (single listener, not per-element)
+treeEl.addEventListener('click', function(e) {
+  var target = e.target.closest('[data-path]');
+  if (!target) return;
+  e.stopPropagation();
+  currentPath = target.dataset.path;
+  pathBar.innerHTML = '<span class="path-val">' + escHtml(currentPath) + '</span>';
+  var prev = treeEl.querySelector('.highlight');
+  if (prev) prev.classList.remove('highlight');
+  target.classList.add('highlight');
+});
+
+// Search with debounce and toggle arrow sync
+let searchDebounce;
 searchEl.addEventListener('input', () => {
-  const q = searchEl.value.toLowerCase();
-  treeEl.querySelectorAll('.tree-line').forEach(line => {
-    if (!q) { line.classList.remove('hidden'); return; }
-    const searchable = (line.dataset.searchable || '').toLowerCase();
-    if (searchable.includes(q)) {
-      line.classList.remove('hidden');
-      // Make sure parents are visible
-      let parent = line.parentElement;
-      while (parent && parent !== treeEl) {
-        if (parent.classList.contains('node')) parent.style.display = '';
-        parent = parent.parentElement;
+  clearTimeout(searchDebounce);
+  searchDebounce = setTimeout(() => {
+    const q = searchEl.value.toLowerCase();
+    treeEl.querySelectorAll('.tree-line').forEach(line => {
+      if (!q) { line.classList.remove('hidden'); return; }
+      const searchable = (line.dataset.searchable || '').toLowerCase();
+      if (searchable.includes(q)) {
+        line.classList.remove('hidden');
+        let parent = line.parentElement;
+        while (parent && parent !== treeEl) {
+          if (parent.classList.contains('node')) {
+            parent.style.display = '';
+            var toggleBtn = document.querySelector('[data-id="' + parent.id + '"]');
+            if (toggleBtn) toggleBtn.innerHTML = '&#9660;';
+          }
+          parent = parent.parentElement;
+        }
+      } else {
+        line.classList.add('hidden');
       }
-    } else {
-      line.classList.add('hidden');
-    }
-  });
+    });
+  }, 200);
 });
 
 let debounceTimer;

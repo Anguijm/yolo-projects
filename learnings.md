@@ -1724,3 +1724,14 @@ Persistent knowledge base. Read this before every build.
 - **FIX**: Empty string captures invisible — matched empty string showed blank cell. Now shows "(empty)" with italic styling
 - **INSIGHT**: The `d` (hasIndices) regex flag gives exact start/end indices per capture group — essential for correctly identifying named groups when multiple groups capture identical values
 - **TEST CAUGHT**: Brace balance false positive (9th occurrence) — test confused by regex patterns in HTML content
+
+### json-explorer refinement (2026-03-27) — PHASE 2 #5
+- **FIX**: Attribute injection via incomplete escHtml — missing quote escaping broke data-searchable attributes when values contained quotes. Added &quot; and &#39;
+- **FIX**: Exponential DOM bloat — data-searchable stringified entire subtree at every nesting level (O(N^2) memory). Changed to only store primitive values
+- **FIX**: JSONPath bracket notation — keys with spaces/hyphens/numbers produced invalid dot-notation paths. Added identifier regex test, fallback to bracket notation
+- **FIX**: Event listener explosion — parse() attached individual click listeners to every data-path element on every re-parse. Replaced with single event delegation on treeEl
+- **FIX**: Search desync toggle arrows — expanding parents during search didn't update arrow icons. Now syncs toggle innerHTML when forcing parent display
+- **FIX**: Cross-browser error parsing — position regex only matched Chrome/V8 format. Added Firefox "line N" pattern fallback
+- **FIX**: Search not debounced — every keystroke iterated all tree-lines. Added 200ms debounce
+- **INSIGHT**: When injecting data into HTML attributes, double-quote escaping is critical — JSON.stringify output contains double quotes that will break out of attribute values
+- **TEST CAUGHT**: Brace balance false positive (10th occurrence)
