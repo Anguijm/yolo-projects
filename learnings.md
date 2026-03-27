@@ -1796,3 +1796,10 @@ Persistent knowledge base. Read this before every build.
 - **FIX**: UTC session filtering — toISOString().slice(0,10) returned UTC date for todaySessions(). Replaced with local date formatting
 - **FIX**: Negative input crash — parseInt("-5")||25 evaluates to -5, causing infinite tick loop. Added isNaN/<=0 validation with fallbacks
 - **INSIGHT**: Timer apps MUST use wall-clock timestamps (Date.now()) not interval counting — setInterval is throttled to 1/sec in background tabs, causing multi-minute drift on 25-min timers
+
+### pixel-paint refinement (2026-03-28) — PHASE 2 #14
+- **FIX**: Circle algorithm gaps — trig-based `a+=2` degree stepping left visible gaps at larger radii. Replaced with Bresenham midpoint circle algorithm (gap-free at any radius)
+- **FIX**: mouseup outside canvas — mouseup listener on canvas missed releases outside it, leaving drawing state stuck. Moved to window
+- **FIX**: Blank undo states — saveUndo() called on mousedown for shapes, but mouseleave cancelled the shape without drawing. Moved saveUndo() to mouseup (only saves when shape actually drawn)
+- **FIX**: Keyboard shortcut bleed — typing 'p','e','f' etc. in any future text input would switch tools. Added INPUT/TEXTAREA tag guard
+- **INSIGHT**: Bresenham's midpoint circle algorithm is the correct choice for pixel art — trig stepping always has gaps at large radii because arc length between steps exceeds 1 pixel

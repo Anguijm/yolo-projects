@@ -216,11 +216,19 @@ function drawRect(x0,y0,x1,y1,color) {
 }
 
 function drawCircle(cx,cy,rx,ry,color) {
-  const r=Math.max(Math.abs(rx-cx),Math.abs(ry-cy));
-  for(let a=0;a<360;a+=2){
-    const x=Math.round(cx+r*Math.cos(a*Math.PI/180));
-    const y=Math.round(cy+r*Math.sin(a*Math.PI/180));
-    setPixel(x,y,color);
+  // Bresenham midpoint circle — no gaps at any radius
+  var r=Math.round(Math.max(Math.abs(rx-cx),Math.abs(ry-cy)));
+  var x=0, y=r, d=3-2*r;
+  function pts(xc,yc,x,y,c){
+    setPixel(xc+x,yc+y,c);setPixel(xc-x,yc+y,c);
+    setPixel(xc+x,yc-y,c);setPixel(xc-x,yc-y,c);
+    setPixel(xc+y,yc+x,c);setPixel(xc-y,yc+x,c);
+    setPixel(xc+y,yc-x,c);setPixel(xc-y,yc-x,c);
+  }
+  while(y>=x){
+    pts(cx,cy,x,y,color);
+    x++;
+    if(d>0){y--;d+=4*(x-y)+10;}else{d+=4*x+6;}
   }
 }
 
@@ -231,7 +239,7 @@ canvas.addEventListener('mousedown', e => {
   else if (currentTool === 'eraser') { saveUndo(); setPixel(x, y, null); draw(); }
   else if (currentTool === 'fill') { saveUndo(); floodFill(x, y, currentColor); draw(); }
   else if (currentTool === 'pick') { if (pixels[y][x]) { currentColor = pixels[y][x]; updateColorUI(); } }
-  else if (['line','rect','circle'].includes(currentTool)) { saveUndo(); lineStart = {x, y}; }
+  else if (['line','rect','circle'].includes(currentTool)) { lineStart = {x, y}; }
 });
 
 canvas.addEventListener('mousemove', e => {
@@ -242,11 +250,12 @@ canvas.addEventListener('mousemove', e => {
   else if (currentTool === 'eraser') { setPixel(x, y, null); draw(); }
 });
 
-canvas.addEventListener('mouseup', e => {
+window.addEventListener('mouseup', e => {
   if (!isDrawing) return;
   isDrawing = false;
   const {x,y} = getCell(e);
   if (lineStart) {
+    saveUndo();
     if (currentTool === 'line') drawLine(lineStart.x, lineStart.y, x, y, currentColor);
     else if (currentTool === 'rect') drawRect(lineStart.x, lineStart.y, x, y, currentColor);
     else if (currentTool === 'circle') drawCircle(lineStart.x, lineStart.y, x, y, currentColor);
@@ -254,8 +263,6 @@ canvas.addEventListener('mouseup', e => {
     draw();
   }
 });
-
-canvas.addEventListener('mouseleave', () => { isDrawing = false; lineStart = null; });
 
 // Tools
 document.querySelectorAll('.tool').forEach(el => {
@@ -269,6 +276,7 @@ document.querySelectorAll('.tool').forEach(el => {
 
 // Keyboard shortcuts
 document.addEventListener('keydown', e => {
+  if (['INPUT','TEXTAREA'].includes(e.target.tagName)) return;
   const shortcuts = {p:'pen',e:'eraser',f:'fill',i:'pick',l:'line',r:'rect',c:'circle'};
   if (shortcuts[e.key]) {
     document.querySelectorAll('.tool').forEach(t => t.classList.toggle('active', t.dataset.tool === shortcuts[e.key]));
