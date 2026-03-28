@@ -1903,3 +1903,9 @@ Persistent knowledge base. Read this before every build.
 - **FIX**: Set deduplication lost match counts — using Set to compare matches collapsed duplicates, so matching "cats" 3x when goal required 3x showed 100% accuracy for 1 match. Replaced with frequency map counting
 - **FIX**: Division by zero on empty goal — goalSet.size of 0 caused NaN accuracy. Added fallback to 1
 - **INSIGHT**: When comparing match quality in regex tools, use frequency maps not Sets — Sets collapse duplicates, making "match all 5 occurrences" look like "match 1 occurrence" for accuracy scoring
+
+### neural-playground refinement (2026-03-28) — PHASE 2 #29
+- **FIX**: Duplicate mousedown listeners — two separate mousedown handlers both fired on click, adding 2 data points per click. Merged into single handler
+- **FIX**: Clear keyboard shortcut didn't reset state — pressing 'c' cleared data but didn't reset lossHistory or epoch counter, leaving stale chart/stats
+- **FIX**: Keyboard shortcuts fired in inputs — space/r/c triggered while focused on activation select or sliders. Added INPUT/SELECT tag guard
+- **INSIGHT**: When registering multiple event listeners on the same element for the same event, all of them fire — if each adds a data point, you get double entries per interaction

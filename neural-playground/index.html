@@ -520,25 +520,19 @@ function loop() {
 requestAnimationFrame(loop);
 
 // ============ INPUT ============
-pgCanvas.addEventListener('mousedown', e => {
-  e.preventDefault();
-  const rect = pgCanvas.getBoundingClientRect();
-  const x = (e.clientX - rect.left) / rect.width;
-  const y = (e.clientY - rect.top) / rect.height;
-  const label = e.button === 2 ? 1 : 0;
-  data.push({ x, y, label });
-  updateStats();
-});
-
-pgCanvas.addEventListener('contextmenu', e => e.preventDefault());
-
-// Drag to paint
 let painting = false;
 let paintLabel = 0;
 pgCanvas.addEventListener('mousedown', e => {
+  e.preventDefault();
   painting = true;
   paintLabel = e.button === 2 ? 1 : 0;
+  const rect = pgCanvas.getBoundingClientRect();
+  const x = (e.clientX - rect.left) / rect.width;
+  const y = (e.clientY - rect.top) / rect.height;
+  data.push({ x, y, label: paintLabel });
+  updateStats();
 });
+pgCanvas.addEventListener('contextmenu', e => e.preventDefault());
 pgCanvas.addEventListener('mousemove', e => {
   if (!painting) return;
   const rect = pgCanvas.getBoundingClientRect();
@@ -617,9 +611,10 @@ document.querySelectorAll('#presets .preset-card').forEach(card => {
 
 // Keyboard shortcuts
 document.addEventListener('keydown', e => {
+  if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
   if (e.key === ' ') { training = !training; e.preventDefault(); }
   if (e.key === 'r') buildNetwork();
-  if (e.key === 'c') { data = []; buildNetwork(); }
+  if (e.key === 'c') { data = []; lossHistory = []; epoch = 0; buildNetwork(); }
 });
 
 })();
