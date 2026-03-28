@@ -119,8 +119,12 @@ const QR = (() => {
   }
 
   function encode(text, ecl = 'M') {
+    if (!text) throw new Error('Text is required');
+    if (ECLEVEL[ecl] === undefined) throw new Error('Invalid EC level');
     const data = new TextEncoder().encode(text);
     const version = bestVersion(data.length, ecl);
+    var maxData = Math.floor(TOTAL_CW[version-1] * EC_RATIOS[ECLEVEL[ecl]]);
+    if (data.length + 3 > maxData) throw new Error('Data too large for QR v1-10');
     const size = 17 + version * 4;
     const totalCW = TOTAL_CW[version - 1];
     const ecCW = EC_TABLE[version - 1][ECLEVEL[ecl]];
@@ -132,7 +136,9 @@ const QR = (() => {
     pushBits(4, 4); // byte mode
     pushBits(data.length, version <= 9 ? 8 : 16);
     for (const b of data) pushBits(b, 8);
-    pushBits(0, 4); // terminator
+    // Terminator: up to 4 zero bits, but don't exceed capacity
+    var termLen = Math.min(4, dataCW * 8 - bits.length);
+    if (termLen > 0) pushBits(0, termLen);
     while (bits.length % 8) bits.push(0);
     while (bits.length < dataCW * 8) {
       pushBits(0xEC, 8);
@@ -310,7 +316,7 @@ window.downloadSVG = function() {
 };
 
 window.copyDataURL = function() {
-  navigator.clipboard.writeText(qrCanvas.toDataURL('image/png'));
+  navigator.clipboard.writeText(qrCanvas.toDataURL('image/png')).then(function(){}, function(){alert('Copy failed — requires HTTPS');});
 };
 
 window.setPreset = function(type) {

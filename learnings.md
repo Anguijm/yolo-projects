@@ -1835,4 +1835,12 @@ Persistent knowledge base. Read this before every build.
 - **FIX**: Server bound to 0.0.0.0 — exposed system metrics to entire LAN. Changed to 127.0.0.1
 - **FIX**: MemAvailable fallback — older kernels (pre-3.14) lack MemAvailable field. Added fallback: Free + Buffers + Cached
 - **INSIGHT**: /proc/net/dev fields can merge with interface name when no space exists — always split on colon first to isolate interface name from data columns
+
+### qr-forge refinement (2026-03-28) — PHASE 2 #19
+- **FIX**: Terminator padding overflow — unconditionally added 4 zero bits which could exceed dataCW capacity. Now adds min(4, remaining bits)
+- **FIX**: No input validation — null/undefined text crashed TextEncoder, invalid ECL caused NaN cascade. Added guards with descriptive errors
+- **FIX**: Silent data truncation — oversized text silently used Version 10 and produced corrupt/incomplete QR. Now throws explicit error
+- **FIX**: Clipboard copy silent failure — navigator.clipboard.writeText fails on HTTP without feedback. Added .then() error handler
+- **INSIGHT**: QR terminator is "up to 4 bits" not "exactly 4 bits" — when remaining capacity is <4 bits, adding 4 pushes past dataCW boundary and corrupts padding bytes
+- **TEST CAUGHT**: Brace balance false positive (15th occurrence)
 - **FIX**: Unused variable — removed dead `currentPath` variable
