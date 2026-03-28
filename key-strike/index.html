@@ -225,6 +225,9 @@ function handleKey(e) {
   if (e.key === 'Backspace') {
     if (currentIdx > 0) {
       currentIdx--;
+      // Decrement error if backspacing over incorrect character
+      if (chars[currentIdx] !== target[currentIdx] && errors > 0) errors--;
+      chars[currentIdx] = target[currentIdx]; // Reset to original
       combo = 0;
       playKeySound();
     }
@@ -278,7 +281,7 @@ function updateLiveStats() {
   var minutes = elapsed / 60;
   var wordsTyped = currentIdx / 5; // Standard: 5 chars = 1 word
   var wpm = minutes > 0 ? ~~(wordsTyped / minutes) : 0;
-  var accuracy = totalKeystrokes > 0 ? ~~((totalKeystrokes - errors) / totalKeystrokes * 100) : 100;
+  var accuracy = totalKeystrokes > 0 ? Math.max(0, ~~((totalKeystrokes - errors) / totalKeystrokes * 100)) : 100;
   document.getElementById('s-wpm').textContent = wpm;
   document.getElementById('s-acc').textContent = accuracy;
   document.getElementById('s-time').textContent = elapsed.toFixed(1);
@@ -291,7 +294,7 @@ function finishTest() {
   var minutes = elapsed / 60;
   var wordsTyped = target.length / 5;
   var wpm = ~~(wordsTyped / minutes);
-  var accuracy = totalKeystrokes > 0 ? ~~((totalKeystrokes - errors) / totalKeystrokes * 100) : 100;
+  var accuracy = totalKeystrokes > 0 ? Math.max(0, ~~((totalKeystrokes - errors) / totalKeystrokes * 100)) : 100;
 
   var grade = getGrade(wpm);
 
@@ -330,10 +333,15 @@ function shareScore() {
   var acc = document.getElementById('r-acc').textContent;
   var grade = document.getElementById('r-grade').textContent;
   var text = 'KEY/STRIKE: ' + wpm + ' WPM / ' + acc + '% accuracy (' + grade + '). Your fingers are too slow. Beat me.';
-  navigator.clipboard.writeText(text).then(function() {
-    document.getElementById('btn-share').textContent = 'Copied!';
+  if (navigator.clipboard && window.isSecureContext) {
+    navigator.clipboard.writeText(text).then(function() {
+      document.getElementById('btn-share').textContent = 'Copied!';
+      setTimeout(function() { document.getElementById('btn-share').textContent = 'Copy Score'; }, 1500);
+    });
+  } else {
+    document.getElementById('btn-share').textContent = 'HTTPS required';
     setTimeout(function() { document.getElementById('btn-share').textContent = 'Copy Score'; }, 1500);
-  });
+  }
 }
 
 // ============ INPUT ============

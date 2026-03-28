@@ -1989,3 +1989,9 @@ Persistent knowledge base. Read this before every build.
 - **FIX**: Free enemy turns after stairs — descending triggered moveEnemies() on the new floor, giving freshly spawned enemies a free attack before player could react. Added early return after generateDungeon
 - **FIX**: Dead player kept getting attacked — enemy loop continued after player death, driving HP negative and spamming log. Added gameActive check at loop start and return on death
 - **INSIGHT**: In turn-based roguelikes, floor transitions must return before processing enemy turns — otherwise the newly generated enemies get a free move/attack on the player's arrival
+
+### key-strike refinement (2026-03-29) — PHASE 2 #42
+- **FIX**: Backspace didn't decrement errors — typing wrong char + backspace + retype still counted 2 errors, permanently tanking accuracy. Now decrements error count when backspacing over incorrect character
+- **FIX**: Accuracy could go negative — (totalKeystrokes - errors) / totalKeystrokes could be negative with many corrections. Added Math.max(0, ...) floor
+- **FIX**: Clipboard share on insecure context — navigator.clipboard.writeText crashed on HTTP. Added isSecureContext check
+- **INSIGHT**: Typing games must track error correction — backspace over a wrong character should decrement the error counter, otherwise accuracy is permanently punished for self-correction
