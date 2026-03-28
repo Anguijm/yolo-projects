@@ -161,6 +161,7 @@ function playSnare(time, params, vol) {
   hp.connect(noiseGain);
   noiseGain.connect(masterGain);
   src.start(time);
+  src.stop(time + params.decay + 0.05); // Prevent noise buffer CPU leak
 }
 
 function playHat(time, params, vol) {
@@ -228,12 +229,12 @@ function scheduler() {
 
     // Advance
     var baseStep = 60 / bpm / 4; // 16th notes
+    var safeSwing = Math.max(0, Math.min(swing, 0.9)); // Clamp to prevent zero/negative step duration
     var stepDuration = baseStep;
-    // Swing: lengthen even steps (downbeats), shorten odd steps (offbeats)
     if (currentStep % 2 === 0) {
-      stepDuration += baseStep * swing;
+      stepDuration += baseStep * safeSwing;
     } else {
-      stepDuration -= baseStep * swing;
+      stepDuration -= baseStep * safeSwing;
     }
     nextStepTime += stepDuration;
     currentStep = (currentStep + 1) % STEPS;
@@ -394,6 +395,7 @@ document.getElementById('btn-stop').addEventListener('click', function() {
   if (timerID) { clearTimeout(timerID); timerID = null; }
   currentStep = 0;
   document.getElementById('btn-play').classList.remove('active');
+  prevHighlight = -1;
   var allSteps = document.querySelectorAll('.step');
   for (var i = 0; i < allSteps.length; i++) allSteps[i].classList.remove('playing');
 });

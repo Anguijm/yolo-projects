@@ -1995,3 +1995,9 @@ Persistent knowledge base. Read this before every build.
 - **FIX**: Accuracy could go negative — (totalKeystrokes - errors) / totalKeystrokes could be negative with many corrections. Added Math.max(0, ...) floor
 - **FIX**: Clipboard share on insecure context — navigator.clipboard.writeText crashed on HTTP. Added isSecureContext check
 - **INSIGHT**: Typing games must track error correction — backspace over a wrong character should decrement the error counter, otherwise accuracy is permanently punished for self-correction
+
+### drum-lab refinement (2026-03-29) — PHASE 2 #43
+- **FIX**: Snare noise buffer CPU leak — BufferSourceNode started but never stopped, continuing to process audio at inaudible volume for 2 seconds per hit. Added src.stop()
+- **FIX**: Swing browser freeze — swing value >= 1.0 made odd step duration zero or negative, causing scheduler while-loop to never advance. Clamped safeSwing to [0, 0.9]
+- **FIX**: Play button active state not cleared on stop — visual state desynced. Added classList.remove and prevHighlight reset
+- **INSIGHT**: Web Audio BufferSourceNode must always be stopped explicitly — even when gain ramps to 0, the node continues processing audio samples silently, consuming CPU
