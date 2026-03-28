@@ -1977,3 +1977,10 @@ Persistent knowledge base. Read this before every build.
 - **FIX**: Spacebar race condition on focused button — space on focused "Again" button triggered both button click and game click. Added activeElement tag guard
 - **FIX**: Clipboard share on HTTP — navigator.clipboard.writeText failed on insecure context. Added isSecureContext check with alert fallback
 - **INSIGHT**: e.target.tagName === 'BUTTON' fails when buttons contain child elements (spans, icons) — always use e.target.closest('button') for reliable button detection
+
+### prose-xray refinement (2026-03-29) — PHASE 2 #40
+- **FIX**: Prototype pollution in word frequency — using plain `{}` for freq allowed "constructor"/"toString" to collide with Object.prototype. Changed to Map
+- **FIX**: Math.max spread overflow — `Math.max(...sentenceLengths)` exceeds call stack on 200K+ element arrays. Changed to reduce()
+- **FIX**: Abbreviation regex didn't match e.g./i.e. — `e\.g` matched `e.g` but missed the trailing period in `e.g.`. Split into separate pattern
+- **INSIGHT**: Never use `{}` for user-input frequency counting — words like "constructor" or "toString" match Object.prototype properties. Use Map or Object.create(null)
+- **TEST CAUGHT**: Brace balance false positive (20th occurrence)

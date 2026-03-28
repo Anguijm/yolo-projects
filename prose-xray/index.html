@@ -140,7 +140,8 @@ const DEMOS = {
 function splitSentences(text) {
   // Protect common abbreviations, then split on sentence-ending punctuation
   return text
-    .replace(/\b(Mr|Mrs|Ms|Dr|Prof|Jr|Sr|St|vs|etc|e\.g|i\.e)\.\s/gi, '$1\u2060 ')
+    .replace(/\b(Mr|Mrs|Ms|Dr|Prof|Jr|Sr|St|vs|etc)\.\s/gi, '$1\u2060 ')
+    .replace(/\b(e\.g\.|i\.e\.)\s/gi, function(m){return m.replace(/\./g,'\u2060');})
     .replace(/([.!?])\s+/g, '$1\u200B')
     .split('\u200B')
     .map(s => s.replace(/\u2060/g, '.').trim())
@@ -191,13 +192,13 @@ function analyze(text) {
   const readTimeMin = words.length / 238;
 
   // Word frequency (excluding stop words)
-  const freq = {};
+  var freq = new Map();
   for (const w of wordLower) {
     if (!STOP_WORDS.has(w) && w.length > 2) {
-      freq[w] = (freq[w] || 0) + 1;
+      freq.set(w, (freq.get(w) || 0) + 1);
     }
   }
-  const topWords = Object.entries(freq)
+  const topWords = Array.from(freq.entries())
     .sort((a, b) => b[1] - a[1])
     .slice(0, 12);
 
@@ -261,7 +262,7 @@ function renderStats(stats) {
 
   // Sentence rhythm
   const rhythmEl = document.getElementById('rhythm');
-  const maxLen = Math.max(1, ...stats.sentenceLengths);
+  const maxLen = stats.sentenceLengths.length > 0 ? stats.sentenceLengths.reduce(function(m,v){return v>m?v:m;},1) : 1;
   rhythmEl.innerHTML = stats.sentenceLengths.map(len => {
     const pct = (len / maxLen) * 100;
     const hue = len < 10 ? 120 : len < 20 ? 60 : len < 30 ? 30 : 0;
