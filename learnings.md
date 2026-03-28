@@ -1909,3 +1909,10 @@ Persistent knowledge base. Read this before every build.
 - **FIX**: Clear keyboard shortcut didn't reset state — pressing 'c' cleared data but didn't reset lossHistory or epoch counter, leaving stale chart/stats
 - **FIX**: Keyboard shortcuts fired in inputs — space/r/c triggered while focused on activation select or sliders. Added INPUT/SELECT tag guard
 - **INSIGHT**: When registering multiple event listeners on the same element for the same event, all of them fire — if each adds a data point, you get double entries per interaction
+
+### markov-composer refinement (2026-03-28) — PHASE 2 #30
+- **FIX**: State not fully reset on rebuild — building new chain didn't clear trailNodes/currentNode, causing trail to reference deleted nodes and crash
+- **FIX**: Dead-end trail carryover — hitting a Markov dead-end restarted generation but kept the old trail, drawing false connections between unrelated sentences
+- **FIX**: Edge attraction div-by-zero — nodes at identical positions caused 0/0=NaN in force calculation, infecting all coordinates. Added Math.max(0.001, dist) guard
+- **FIX**: Output truncation after render — truncating generatedWords after updateOutput() caused a visible jump from 501 to 201 words. Moved truncation before render
+- **TEST CAUGHT**: Brace balance false positive (17th occurrence)

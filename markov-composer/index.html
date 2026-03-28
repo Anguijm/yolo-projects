@@ -148,6 +148,8 @@ function buildChain(text) {
 
   buildGraph(words);
   generatedWords = [];
+  trailNodes = [];
+  currentNode = -1;
   document.getElementById('output-text').textContent = 'Click a node or press Generate...';
   updateStats(words.length);
 }
@@ -237,7 +239,7 @@ function simulateForces() {
   for (const e of edges) {
     const a = nodes[e.from], b = nodes[e.to];
     const dx = b.x - a.x, dy = b.y - a.y;
-    const dist = Math.sqrt(dx * dx + dy * dy);
+    const dist = Math.max(0.001, Math.sqrt(dx * dx + dy * dy));
     const force = dist * ATTRACTION * (1 + e.weight);
     a.vx += dx / dist * force;
     a.vy += dy / dist * force;
@@ -284,8 +286,10 @@ function generateStep() {
   // Get current n-gram
   const key = generatedWords.slice(-order).join(' ');
   if (!chain[key]) {
-    // Dead end — restart
+    // Dead end — restart and break trail
     generatedWords.push('...');
+    trailNodes = [];
+    currentNode = -1;
     const keys = Object.keys(chain);
     const newKey = keys[~~(Math.random() * keys.length)];
     generatedWords.push(...newKey.split(' '));
@@ -307,12 +311,12 @@ function generateStep() {
     currentNode = -1;
   }
 
-  updateOutput();
-
-  // Cap output
+  // Cap output before rendering to prevent visual jump
   if (generatedWords.length > 500) {
     generatedWords = generatedWords.slice(-200);
   }
+
+  updateOutput();
 }
 
 function highlightNode(idx) {
