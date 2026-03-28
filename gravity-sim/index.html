@@ -107,10 +107,10 @@ function step(dt) {
       const dx = bj.x - bi.x;
       const dy = bj.y - bi.y;
       const distSq = dx * dx + dy * dy + softening * softening;
-      const dist = Math.sqrt(distSq);
-      const force = G * bj.mass / distSq;
-      ax += force * dx / dist;
-      ay += force * dy / dist;
+      const invDistCube = 1 / (distSq * Math.sqrt(distSq));
+      const f = G * bj.mass * invDistCube;
+      ax += f * dx;
+      ay += f * dy;
     }
     bi.vx += ax * dt;
     bi.vy += ay * dt;
@@ -141,6 +141,7 @@ function step(dt) {
           a.y = (a.y * a.mass + b.y * b.mass) / totalMass;
           a.mass = totalMass;
           a.radius = Math.pow(totalMass, 0.33) * 2;
+          a.trail = []; // Clear trail to prevent teleportation line
           bodies.splice(j, 1);
           j--;
         }
@@ -182,14 +183,15 @@ function render() {
     if (pts < 2) continue;
     const lw = Math.max(0.5, b.radius * 0.3) / camZoom;
     ctx.lineWidth = lw;
+    ctx.strokeStyle = b.color;
     for (let i = 2; i < b.trail.length; i += 2) {
-      const alpha = (i / b.trail.length) * trailFade;
-      ctx.strokeStyle = b.color + (~~(alpha * 255)).toString(16).padStart(2, '0');
+      ctx.globalAlpha = (i / b.trail.length) * trailFade;
       ctx.beginPath();
       ctx.moveTo(b.trail[i-2], b.trail[i-1]);
       ctx.lineTo(b.trail[i], b.trail[i+1]);
       ctx.stroke();
     }
+    ctx.globalAlpha = 1;
   }
 
   // Draw bodies
@@ -262,7 +264,7 @@ canvas.addEventListener('mousedown', e => {
     // Pan
     isPanning = true;
     panStartX = e.clientX;
-    panStartY = e.clientY;
+    panStartY = e.clientY - document.getElementById('topbar').offsetHeight;
     panCamX = camX;
     panCamY = camY;
     canvas.style.cursor = 'grabbing';
@@ -281,7 +283,7 @@ canvas.addEventListener('mousemove', e => {
   const sy = e.clientY - document.getElementById('topbar').offsetHeight;
   if (isPanning) {
     camX = panCamX - (e.clientX - panStartX) / camZoom;
-    camY = panCamY - (sy - (panStartY - document.getElementById('topbar').offsetHeight)) / camZoom;
+    camY = panCamY - (sy - panStartY) / camZoom;
   }
   if (isDragging) {
     dragEndX = e.clientX;

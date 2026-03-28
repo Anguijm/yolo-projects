@@ -1870,3 +1870,10 @@ Persistent knowledge base. Read this before every build.
 - **FIX**: Canvas clear/fade conflict — render() applied fade overlay then immediately clearRect for bars/circular/mountain, wasting GPU and erasing the effect. Separated: fade for wave/particles, hard clear for structured modes
 - **FIX**: File re-select broken — selecting same file twice didn't trigger change event. Reset input.value after reading file
 - **INSIGHT**: When switching between mic and file audio sources, ALWAYS disconnect the analyser from audioCtx.destination before connecting mic input — otherwise mic audio routes to speakers creating instant feedback
+
+### gravity-sim refinement (2026-03-28) — PHASE 2 #24
+- **FIX**: Trail color alpha via string concatenation — appending hex alpha to non-7-char colors (e.g. `#ff0`, `hsl(...)`) created invalid CSS. Replaced with globalAlpha
+- **FIX**: Merge trail teleportation — merged body snapped to center-of-mass, creating ugly straight line from old position. Cleared trail on merge
+- **FIX**: Pan coordinate inconsistency — panStartY not adjusted for topbar height while dragStartY was, causing erratic panning. Applied consistent offset
+- **FIX**: Physics optimization — replaced `Math.sqrt` + two divisions with single `invDistCube = 1/(distSq * sqrt(distSq))`, eliminating redundant computation in O(N^2) loop
+- **INSIGHT**: Canvas color string concatenation for alpha (e.g. `color + 'FF'`) only works with 7-char hex codes — use globalAlpha instead for universal compatibility with any CSS color format
