@@ -87,10 +87,14 @@ const DEFAULT_DATA = {
   ]
 };
 
-let data = JSON.parse(localStorage.getItem('bookmark-dash') || 'null') || JSON.parse(JSON.stringify(DEFAULT_DATA));
+function escHtml(s){return String(s||'').replace(/\x26/g,'\x26amp;').replace(/\x3c/g,'\x26lt;').replace(/\x3e/g,'\x26gt;').replace(/\x22/g,'\x26quot;');}
+
+var parsedStorage = null;
+try { parsedStorage = JSON.parse(localStorage.getItem('bookmark-dash')); } catch(e) {}
+let data = (parsedStorage && Array.isArray(parsedStorage.groups)) ? parsedStorage : JSON.parse(JSON.stringify(DEFAULT_DATA));
 let editingGroup = null;
 
-function save() { localStorage.setItem('bookmark-dash', JSON.stringify(data)); }
+function save() { try { localStorage.setItem('bookmark-dash', JSON.stringify(data)); } catch(e){} }
 
 function updateClock() {
   const now = new Date();
@@ -101,22 +105,22 @@ function updateClock() {
 function render() {
   const q = document.getElementById('search').value.toLowerCase();
   document.getElementById('groups').innerHTML = data.groups.map((g, gi) => {
-    let links = g.links;
-    if (q) links = links.filter(l => (l.name + l.url).toLowerCase().includes(q));
+    var links = g.links.map(function(l,i){return Object.assign({},l,{origIdx:i});});
+    if (q) links = links.filter(function(l){return ((l.name||'')+(l.url||'')).toLowerCase().includes(q);});
     return `<div class="group">
       <div class="group-header">
-        <span class="group-title">${g.name}</span>
+        <span class="group-title">${escHtml(g.name)}</span>
         <span class="group-add" onclick="openModal(${gi})">+</span>
       </div>
       <div class="links">
-        ${links.map((l, li) => `
-          <a class="link" href="${l.url}" target="_blank">
-            <span class="link-icon">${l.icon||'&#128279;'}</span>
-            <span class="link-name">${l.name}</span>
-            <span class="link-url">${l.url.replace(/^https?:\/\//,'').slice(0,30)}</span>
-            <span class="link-del" onclick="event.preventDefault();event.stopPropagation();deleteLink(${gi},${gi}_${li})">x</span>
+        ${links.map(function(l) { return `
+          <a class="link" href="${escHtml(l.url)}" target="_blank">
+            <span class="link-icon">${l.icon||'\&#128279;'}</span>
+            <span class="link-name">${escHtml(l.name)}</span>
+            <span class="link-url">${escHtml((l.url||'').replace(/^https?:\\\/\\\//,'').slice(0,30))}</span>
+            <span class="link-del" onclick="event.preventDefault();event.stopPropagation();deleteLink(${gi},${l.origIdx})">x</span>
           </a>
-        `).join('')}
+        `; }).join('')}
         <div class="add-link" onclick="openModal(${gi})">+</div>
       </div>
     </div>`;
@@ -141,16 +145,16 @@ window.saveLink = function() {
   const url = document.getElementById('m-url').value.trim();
   const icon = document.getElementById('m-icon').value.trim();
   if (!name || !url) return;
-  data.groups[editingGroup].links.push({ name, url: url.startsWith('http') ? url : 'https://' + url, icon: icon || null });
+  var hasProto = /^[a-zA-Z]+:\/\//.test(url);
+  data.groups[editingGroup].links.push({ name, url: hasProto ? url : 'https://' + url, icon: icon || null });
   save(); render(); closeModal();
 };
 
-window.deleteLink = function(gi, key) {
-  // Parse the actual index from the rendered order
-  const parts = String(key).split('_');
-  const li = parseInt(parts[1]);
-  data.groups[gi].links.splice(li, 1);
-  save(); render();
+window.deleteLink = function(gi, origIdx) {
+  if (data.groups[gi] && data.groups[gi].links[origIdx] !== undefined) {
+    data.groups[gi].links.splice(origIdx, 1);
+    save(); render();
+  }
 };
 
 window.addGroup = function() {

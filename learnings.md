@@ -1842,5 +1842,13 @@ Persistent knowledge base. Read this before every build.
 - **FIX**: Silent data truncation — oversized text silently used Version 10 and produced corrupt/incomplete QR. Now throws explicit error
 - **FIX**: Clipboard copy silent failure — navigator.clipboard.writeText fails on HTTP without feedback. Added .then() error handler
 - **INSIGHT**: QR terminator is "up to 4 bits" not "exactly 4 bits" — when remaining capacity is <4 bits, adding 4 pushes past dataCW boundary and corrupts padding bytes
+
+### bookmark-dash refinement (2026-03-28) — PHASE 2 #20
+- **FIX**: deleteLink always deleted first item — `${gi}_${li}` without quotes evaluated as numeric literal, parseInt(undefined) gave NaN, splice(NaN,1) defaulted to splice(0,1). Replaced with origIdx tracked before filtering
+- **FIX**: Filtered search index mismatch — delete used filtered array index, not original. Added origIdx property to each link before filtering
+- **FIX**: XSS via group/link names — user input injected raw into innerHTML. Added escHtml() for names, URLs, and group titles
+- **FIX**: URL protocol handling — `startsWith('http')` broke ftp://, file:// etc. Changed to regex protocol detection
+- **FIX**: localStorage validation — corrupt data missing groups array crashed render. Added structure check with fallback
+- **INSIGHT**: When filtering arrays for display but passing indices to delete functions, always track the original index BEFORE filtering — the filtered index doesn't correspond to the source array position
 - **TEST CAUGHT**: Brace balance false positive (15th occurrence)
 - **FIX**: Unused variable — removed dead `currentPath` variable
