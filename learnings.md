@@ -2029,3 +2029,9 @@ Persistent knowledge base. Read this before every build.
 - **FIX**: Save button double-fired — both pointerdown and click listeners called save() on desktop. Removed pointerdown, kept only click
 - **FIX**: Char count warning invisible — color changed from near-black to slightly-less-black (#1a1a1a to #555). Added red at 75+ chars, visible grey at 60+
 - **INSIGHT**: When a storage function sets error UI, the caller must check the return value before overwriting the message — otherwise the error is silently masked
+
+### secure-note refinement (2026-03-29) — PHASE 2 #49
+- **FIX**: O(n^2) base64 conversion — string concatenation in loop created new string per byte. Changed to chunked String.fromCharCode.apply with subarray
+- **FIX**: Auto-save race condition — overlapping async encrypt+save operations could write out of order. Added isSaving mutex with pendingSave queue
+- **FIX**: Double-click unlock spam — rapid clicking triggered multiple concurrent PBKDF2 derivations (600K iterations each), freezing browser. Added unlocking guard flag
+- **INSIGHT**: Any async operation that writes to storage must be serialized — concurrent encrypt+save operations can finish out of order, causing older data to overwrite newer data

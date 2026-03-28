@@ -114,7 +114,10 @@ async function decryptText(ciphertextBytes, iv, key) {
 // ============ STORAGE ============
 function uint8ToBase64(arr) {
   var binary = '';
-  for (var i = 0; i < arr.length; i++) binary += String.fromCharCode(arr[i]);
+  var chunk = 8192;
+  for (var i = 0; i < arr.length; i += chunk) {
+    binary += String.fromCharCode.apply(null, arr.subarray(i, i + chunk));
+  }
   return btoa(binary);
 }
 
@@ -186,7 +189,9 @@ function showEditor(text) {
 }
 
 // ============ UNLOCK / CREATE ============
+var unlocking = false;
 async function handleUnlock() {
+  if (unlocking) return;
   var password = document.getElementById('pw-input').value;
   if (password.length < 1) {
     document.getElementById('lock-error').textContent = 'Enter a password';
@@ -197,8 +202,9 @@ async function handleUnlock() {
     return;
   }
 
+  unlocking = true;
+  document.getElementById('btn-unlock').textContent = 'Deriving key...';
   if (isNewUser) {
-    // First time — create new encrypted note
     currentSalt = generateSalt();
     try {
       derivedKey = await deriveKey(password, currentSalt);
@@ -227,17 +233,27 @@ async function handleUnlock() {
       derivedKey = null;
     }
   }
+  unlocking = false;
+  document.getElementById('btn-unlock').textContent = isNewUser ? 'Create' : 'Unlock';
 }
 
 // ============ AUTO-SAVE ============
+var isSaving = false;
+var pendingSave = false;
+
 async function autoSave() {
   if (!derivedKey || !currentSalt) return;
+  if (isSaving) { pendingSave = true; return; }
+  isSaving = true;
   var text = document.getElementById('editor').value;
   try {
     var encrypted = await encryptText(text, derivedKey);
     saveEncrypted(currentSalt, encrypted.iv, encrypted.ciphertext);
   } catch (e) {
     setStatus('Save error');
+  } finally {
+    isSaving = false;
+    if (pendingSave) { pendingSave = false; autoSave(); }
   }
 }
 
