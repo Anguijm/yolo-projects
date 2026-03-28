@@ -58,6 +58,12 @@ TEMPLATE = r'''<!DOCTYPE html>
   .entry:hover { border-color: #333; }
   .entry.thumbs-up { border-left: 3px solid #4ade80; }
   .entry.thumbs-down { border-left: 3px solid #f87171; opacity: 0.6; }
+  .entry.refined { border-top: 2px solid #58a6ff; }
+  .refined-badge { font-size: 0.55rem; padding: 0.1rem 0.4rem; border-radius: 3px; background: #0d1b2e; color: #58a6ff; border: 1px solid #1a3a5e; margin-left: 6px; vertical-align: middle; }
+  .section-divider { font-size: 0.9rem; color: #58a6ff; padding: 0.8rem 0 0.4rem; margin-top: 1rem; border-bottom: 1px solid #1a1a2e; margin-bottom: 0.8rem; display: flex; align-items: center; gap: 0.5rem; }
+  .section-divider .count { font-size: 0.7rem; color: #444; margin-left: auto; }
+  .unrefined-section { opacity: 0.75; }
+  .unrefined-section .entry { border-left: 2px solid #333; }
   .entry-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.4rem; gap: 0.5rem; }
   .entry-name { font-weight: bold; font-size: 0.95rem; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .entry-date { color: #444; font-size: 0.65rem; white-space: nowrap; }
@@ -223,7 +229,9 @@ function render() {
   let filtered = data;
   if (activeRange > 0) filtered = filtered.slice(0, activeRange);
   if (activeCategory !== 'all') filtered = filtered.filter(e => e.category === activeCategory);
-  if (activeStatus !== 'all') filtered = filtered.filter(e => e.status === activeStatus);
+  if (activeStatus === 'refined') filtered = filtered.filter(e => e.refined);
+  else if (activeStatus === 'unrefined') filtered = filtered.filter(e => e.status === 'working' && !e.refined);
+  else if (activeStatus !== 'all') filtered = filtered.filter(e => e.status === activeStatus);
   if (activeVote === 'up') filtered = filtered.filter(e => e._vote === 'up');
   if (activeVote === 'down') filtered = filtered.filter(e => e._vote === 'down');
   if (activeVote === 'unrated') filtered = filtered.filter(e => !e._vote);
@@ -245,6 +253,8 @@ function render() {
   // Stats
   const total = data.length;
   const working = data.filter(e => e.status === 'working').length;
+  const failed = data.filter(e => e.status === 'failed').length;
+  const refinedCount = data.filter(e => e.refined).length;
   const liked = data.filter(e => e._vote === 'up').length;
   const disliked = data.filter(e => e._vote === 'down').length;
   const totalOpens = data.reduce((s, e) => s + e._opens, 0);
@@ -252,9 +262,9 @@ function render() {
   document.getElementById('stats').innerHTML = `
     <div class="stat"><div class="stat-num">${total}</div><div class="stat-label">Total</div></div>
     <div class="stat"><div class="stat-num" style="color:#4ade80">${working}</div><div class="stat-label">Working</div></div>
-    <div class="stat"><div class="stat-num" style="color:#4ade80">${liked}</div><div class="stat-label">Liked</div></div>
-    <div class="stat"><div class="stat-num" style="color:#f87171">${disliked}</div><div class="stat-label">Disliked</div></div>
-    <div class="stat"><div class="stat-num">${totalOpens}</div><div class="stat-label">Total Opens</div></div>
+    <div class="stat"><div class="stat-num" style="color:#58a6ff">${refinedCount}</div><div class="stat-label">Refined</div></div>
+    <div class="stat"><div class="stat-num" style="color:#f87171">${failed}</div><div class="stat-label">Culled</div></div>
+    <div class="stat"><div class="stat-num">${totalOpens}</div><div class="stat-label">Opens</div></div>
   `;
 
   // Leaderboard — top 5 most opened
@@ -284,9 +294,9 @@ function render() {
     `<button class="pill ${val === activeCategory ? 'active' : ''}" onclick="setCat('${val.replace(/'/g, "\\'")}')">${label}<span class="count">${count}</span></button>`
   ).join('');
 
-  // Status pills
+  // Status pills (include refined filter)
   document.getElementById('status-pills').innerHTML = [
-    ['all', 'All'],['working','\u2705 Working'],['partial','\u26a0\ufe0f Partial'],['failed','\u274c Failed']
+    ['all', 'All'],['working','\u2705 Working'],['refined','\u2728 Refined'],['unrefined','Unrefined'],['failed','\u274c Culled']
   ].map(([val, label]) =>
     `<button class="pill ${val === activeStatus ? 'active' : ''}" onclick="setStatus('${val}')">${label}</button>`
   ).join('');
@@ -333,7 +343,19 @@ function render() {
     }
     document.getElementById('feed').innerHTML = html;
   } else {
-    document.getElementById('feed').innerHTML = `<div class="${viewMode === 'grid' ? 'grid' : 'list'}">${filtered.map(renderEntry).join('')}</div>`;
+    // Separate refined from unrefined with section headers
+    const refinedItems = filtered.filter(e => e.refined);
+    const unrefinedItems = filtered.filter(e => !e.refined);
+    let html = '';
+    if (refinedItems.length > 0) {
+      html += `<div class="section-divider">\u2728 Refined <span class="count">${refinedItems.length}</span></div>`;
+      html += `<div class="${viewMode === 'grid' ? 'grid' : 'list'}">${refinedItems.map(renderEntry).join('')}</div>`;
+    }
+    if (unrefinedItems.length > 0) {
+      html += `<div class="section-divider unrefined-section">\uD83D\uDD27 Awaiting Refinement <span class="count">${unrefinedItems.length}</span></div>`;
+      html += `<div class="${viewMode === 'grid' ? 'grid' : 'list'} unrefined-section">${unrefinedItems.map(renderEntry).join('')}</div>`;
+    }
+    document.getElementById('feed').innerHTML = html;
   }
 
   // Wire up thumb buttons
@@ -361,7 +383,8 @@ function render() {
 function renderEntry(e) {
   const voteUp = e._vote === 'up';
   const voteDown = e._vote === 'down';
-  const entryClass = voteUp ? 'thumbs-up' : voteDown ? 'thumbs-down' : '';
+  const voteClass = voteUp ? 'thumbs-up' : voteDown ? 'thumbs-down' : '';
+  const entryClass = (e.refined ? 'refined ' : '') + voteClass;
 
   const launchHtml = e.ui
     ? (e.ui.endsWith('.html')
@@ -374,7 +397,7 @@ function renderEntry(e) {
   return `
     <div class="entry ${entryClass}">
       <div class="entry-header">
-        <span class="entry-name">${e.project}</span>
+        <span class="entry-name">${e.project}${e.refined ? '<span class="refined-badge">refined</span>' : ''}</span>
         <span class="entry-date">${e.date}</span>
       </div>
       <div class="entry-idea">${e.idea}</div>
@@ -435,11 +458,27 @@ render();
 </html>'''
 
 
+def get_refined_projects():
+    """Scan learnings.md for refined project names."""
+    learnings = ROOT / "learnings.md"
+    refined = set()
+    if learnings.exists():
+        import re
+        for line in learnings.read_text().split('\n'):
+            m = re.match(r'^### (\S+) refinement \(', line)
+            if m:
+                refined.add(m.group(1))
+    return refined
+
 def update():
     log = json.loads(LOG_FILE.read_text()) if LOG_FILE.exists() else []
+    refined = get_refined_projects()
+    for entry in log:
+        entry['refined'] = entry['project'] in refined
     html = TEMPLATE.replace('__LOG_DATA__', json.dumps(log))
     DASHBOARD.write_text(html)
-    print(f"Dashboard updated with {len(log)} entries.")
+    refined_count = sum(1 for e in log if e.get('refined'))
+    print(f"Dashboard updated with {len(log)} entries ({refined_count} refined).")
 
 
 if __name__ == "__main__":
