@@ -97,8 +97,9 @@ const GRAD = [[1,1],[-1,1],[1,-1],[-1,-1],[1,0],[-1,0],[0,1],[0,-1]];
 })();
 
 function noise2d(x, y) {
-  const X = ~~x & 255, Y = ~~y & 255;
-  const xf = x - ~~x, yf = y - ~~y;
+  var flX = Math.floor(x), flY = Math.floor(y);
+  const X = flX & 255, Y = flY & 255;
+  const xf = x - flX, yf = y - flY;
   const u = xf * xf * (3 - 2 * xf), v = yf * yf * (3 - 2 * yf);
   const g00 = GRAD[PERM[X + PERM[Y]] & 7];
   const g10 = GRAD[PERM[X + 1 + PERM[Y]] & 7];
@@ -207,7 +208,7 @@ function render() {
     const px = pool[i], py = pool[i + 1];
     const life = pool[i + 4];
 
-    const colorIdx = ri % pal.colors.length;
+    const colorIdx = ~~(Math.abs(px * 7.3 + py * 13.7)) % pal.colors.length;
     const alpha = Math.min(PARTICLE_DRAW_ALPHA, life / 100);
 
     ctx.fillStyle = pal.colors[colorIdx];
@@ -301,12 +302,16 @@ function loop() {
 // ============ INPUT ============
 canvas.addEventListener('click', e => {
   initAudio();
+  if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
   if (e.shiftKey) {
     attractors.push({ x: e.clientX, y: e.clientY });
+    if (attractors.length > 15) attractors.shift();
   } else if (e.altKey) {
     repulsors.push({ x: e.clientX, y: e.clientY });
+    if (repulsors.length > 15) repulsors.shift();
   } else {
     emitters.push({ x: e.clientX, y: e.clientY });
+    if (emitters.length > 15) emitters.shift();
   }
 });
 

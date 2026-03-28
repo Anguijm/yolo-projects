@@ -1949,3 +1949,10 @@ Persistent knowledge base. Read this before every build.
 - **FIX**: Infinite mine placement loop — if mineCount > available cells (cells.length - safeSet.size), while loop ran forever. Capped actualMines and added attempt limit
 - **FIX**: Keyboard shortcuts fired in select — pressing 'n' or Enter while focused on difficulty/grid select triggered newGame. Added SELECT tag guard
 - **INSIGHT**: Random placement loops (`while (placed < count) { pick random }`) MUST cap total attempts or validate count <= available slots — otherwise edge cases cause infinite loops
+
+### flow-field refinement (2026-03-29) — PHASE 2 #36
+- **FIX**: Particle color flickering — color assigned by array index `ri % colors.length`, but array compaction shifted indices every frame. Changed to position-based hash for stable colors
+- **FIX**: Perlin noise negative coordinate artifacts — `~~x` rounds toward zero not negative infinity, producing negative fractional parts for negative coords. Changed to Math.floor()
+- **FIX**: AudioContext suspension — Safari starts AudioContext suspended even inside click handler. Added audioCtx.resume() on click
+- **FIX**: Uncapped emitters/attractors — spam-clicking created O(P*A) performance spiral. Added 15-item cap with shift()
+- **INSIGHT**: Array compaction (removing dead elements by shifting survivors forward) changes every element's index — never use the index for deterministic properties like color
