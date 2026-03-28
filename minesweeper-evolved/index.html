@@ -167,8 +167,11 @@ function placeMines(safeCol, safeRow) {
   safeSet.add(idx(safeCol, safeRow));
   for (const [nc, nr] of getNeighbors(safeCol, safeRow)) safeSet.add(idx(nc, nr));
 
+  var actualMines = Math.min(mineCount, cells.length - safeSet.size);
   let placed = 0;
-  while (placed < mineCount) {
+  var attempts = 0;
+  while (placed < actualMines && attempts < cells.length * 10) {
+    attempts++;
     const i = ~~(Math.random() * cells.length);
     if (!cells[i].mine && !safeSet.has(i)) {
       cells[i].mine = true;
@@ -299,7 +302,7 @@ function triggerExplosion(c, r, chainDepth) {
             const [fc, fr] = stack.pop();
             for (const [fnc, fnr] of getNeighbors(fc, fr)) {
               const fi = idx(fnc, fnr);
-              if (!cells[fi].revealed && !cells[fi].mine) {
+              if (!cells[fi].revealed && !cells[fi].mine && !cells[fi].flagged) {
                 cells[fi].revealed = true;
                 clearedCount++;
                 if (cells[fi].adjacentMines === 0) stack.push([fnc, fnr]);
@@ -569,6 +572,7 @@ document.getElementById('sel-grid').addEventListener('change', function() {
 
 // Keyboard
 document.addEventListener('keydown', e => {
+  if (e.target.tagName === 'SELECT') return;
   if (e.key === 'n' || e.key === 'Enter') newGame();
 });
 

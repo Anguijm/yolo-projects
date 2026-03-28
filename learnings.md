@@ -1943,3 +1943,9 @@ Persistent knowledge base. Read this before every build.
 - **FIX**: Redundant bidir Set creation per frame — render loop created `new Set([...visitedA, ...visitedB])` 60x/sec when s.visited already tracked the union. Eliminated redundant merge
 - **FIX**: Keyboard spam spawned multiple race loops — holding Enter/Space called startRace() repeatedly. Added `if (!running)` guard
 - **INSIGHT**: In step-based pathfinding visualizers, popping an already-visited node from a priority queue should immediately try the next node, not count as a wasted animation step
+
+### minesweeper-evolved refinement (2026-03-29) — PHASE 2 #35
+- **FIX**: Explosion flood fill ignored flags — triggerExplosion's inner flood fill didn't check `!cells[fi].flagged`, force-revealing incorrectly flagged safe cells. Added flag guard
+- **FIX**: Infinite mine placement loop — if mineCount > available cells (cells.length - safeSet.size), while loop ran forever. Capped actualMines and added attempt limit
+- **FIX**: Keyboard shortcuts fired in select — pressing 'n' or Enter while focused on difficulty/grid select triggered newGame. Added SELECT tag guard
+- **INSIGHT**: Random placement loops (`while (placed < count) { pick random }`) MUST cap total attempts or validate count <= available slots — otherwise edge cases cause infinite loops
