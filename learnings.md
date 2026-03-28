@@ -1827,4 +1827,12 @@ Persistent knowledge base. Read this before every build.
 - **FIX**: Canvas coordinate offset — used raw e.clientX/clientY ignoring canvas position. Added getBoundingClientRect helper
 - **FIX**: Keyboard shortcut bleed — tool shortcuts fired while focused on range input. Added INPUT/TEXTAREA guard
 - **FIX**: Cursor not updated on keyboard shortcut — tool keyboard selection didn't update canvas cursor style. Added cursor update
+
+### system-dash refinement (2026-03-28) — PHASE 2 #18
+- **FIX**: XSS via process command — ps aux command field injected raw into innerHTML. Added html.escape()
+- **FIX**: /proc/net/dev parsing — naive split() merged interface name with first byte count when no space separator. Split on colon first, then parse fields
+- **FIX**: O(N) history trimming — list.pop(0) shifted all elements. Replaced with deque(maxlen=360)
+- **FIX**: Server bound to 0.0.0.0 — exposed system metrics to entire LAN. Changed to 127.0.0.1
+- **FIX**: MemAvailable fallback — older kernels (pre-3.14) lack MemAvailable field. Added fallback: Free + Buffers + Cached
+- **INSIGHT**: /proc/net/dev fields can merge with interface name when no space exists — always split on colon first to isolate interface name from data columns
 - **FIX**: Unused variable — removed dead `currentPath` variable

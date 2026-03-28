@@ -3,11 +3,11 @@
 system-dash: Live system resource monitor in your browser.
 Usage: python3 system_dash.py [--port 8900]
 """
-import argparse, json, os, subprocess, time, threading, webbrowser
+import argparse, html as html_lib, json, os, subprocess, time, threading, webbrowser
+from collections import deque
 from http.server import HTTPServer, BaseHTTPRequestHandler
 
-history = []
-MAX_HISTORY = 360  # 30 min at 5s intervals
+history = deque(maxlen=360)
 
 def get_cpu():
     try:
@@ -39,7 +39,7 @@ def mem_info():
                     info[parts[0].rstrip(':')] = int(parts[1])
     except: pass
     total = info.get('MemTotal', 0)
-    avail = info.get('MemAvailable', 0)
+    avail = info.get('MemAvailable', info.get('MemFree',0) + info.get('Buffers',0) + info.get('Cached',0))
     used = total - avail
     return {'total_mb': total//1024, 'used_mb': used//1024, 'avail_mb': avail//1024,
             'percent': round(100*used/total,1) if total else 0,
@@ -80,11 +80,14 @@ def net_stats():
             lines = f.readlines()[2:]
         total_rx, total_tx = 0, 0
         for line in lines:
-            parts = line.split()
-            iface = parts[0].rstrip(':')
+            iface_split = line.split(':')
+            if len(iface_split) < 2: continue
+            iface = iface_split[0].strip()
             if iface == 'lo': continue
-            total_rx += int(parts[1])
-            total_tx += int(parts[9])
+            parts = iface_split[1].split()
+            if len(parts) < 9: continue
+            total_rx += int(parts[0])
+            total_tx += int(parts[8])
         return {'rx_bytes': total_rx, 'tx_bytes': total_tx}
     except: return {'rx_bytes':0, 'tx_bytes':0}
 
@@ -103,6 +106,7 @@ def net_speed():
     prev_net_time = now
     return {'rx_mbps': round(rx_speed/1048576, 2), 'tx_mbps': round(tx_speed/1048576, 2),
             'rx_total_gb': round(cur['rx_bytes']/1073741824, 2), 'tx_total_gb': round(cur['tx_bytes']/1073741824, 2)}
+    # Note: rx_mbps/tx_mbps are actually MB/s (megabytes). The HTML template labels them correctly as MB/s.
 
 def top_processes():
     try:
@@ -111,7 +115,7 @@ def top_processes():
         for line in result.stdout.strip().split('\n')[1:11]:
             parts = line.split(None, 10)
             if len(parts) >= 11:
-                procs.append({'user':parts[0],'pid':parts[1],'cpu':parts[2],'mem':parts[3],'cmd':parts[10][:60]})
+                procs.append({'user':parts[0],'pid':parts[1],'cpu':parts[2],'mem':parts[3],'cmd':html_lib.escape(parts[10][:60])})
         return procs
     except: return []
 
@@ -132,7 +136,6 @@ def collector(interval=5):
     while True:
         snap = snapshot()
         history.append(snap)
-        if len(history) > MAX_HISTORY: history.pop(0)
         time.sleep(interval)
 
 class Handler(BaseHTTPRequestHandler):
@@ -146,7 +149,7 @@ class Handler(BaseHTTPRequestHandler):
             self.wfile.write(json.dumps(history[-1] if history else {}).encode())
         elif self.path == '/api/history':
             self.send_response(200); self.send_header('Content-Type','application/json'); self.end_headers()
-            self.wfile.write(json.dumps(history).encode())
+            self.wfile.write(json.dumps(list(history)).encode())
         else:
             self.send_response(404); self.end_headers()
 
@@ -250,7 +253,7 @@ def main():
     t = threading.Thread(target=collector, daemon=True); t.start()
     print(f"System Dashboard: http://localhost:{args.port}")
     if not args.no_browser: webbrowser.open(f'http://localhost:{args.port}')
-    server = HTTPServer(('0.0.0.0', args.port), Handler)
+    server = HTTPServer(('127.0.0.1', args.port), Handler)
     try: server.serve_forever()
     except KeyboardInterrupt: print('\nStopped.')
 
