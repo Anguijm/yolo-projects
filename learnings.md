@@ -1850,5 +1850,11 @@ Persistent knowledge base. Read this before every build.
 - **FIX**: URL protocol handling — `startsWith('http')` broke ftp://, file:// etc. Changed to regex protocol detection
 - **FIX**: localStorage validation — corrupt data missing groups array crashed render. Added structure check with fallback
 - **INSIGHT**: When filtering arrays for display but passing indices to delete functions, always track the original index BEFORE filtering — the filtered index doesn't correspond to the source array position
+
+### ray-caster refinement (2026-03-28) — PHASE 2 #21
+- **FIX**: DDA NaN at cardinal angles — `1/dirX` where dirX=0 yields Infinity, then `0 * Infinity = NaN` broke raycasting at 0/90/180/270 degrees. Replaced with `dirX === 0 ? 1e30 : Math.abs(1/dirX)`
+- **FIX**: Mirrored textures — wallX not inverted based on ray direction, causing textures to appear horizontally flipped on certain wall faces. Added direction-dependent inversion
+- **FIX**: Missing wall color crash — accessing undefined parsedWallColors index threw TypeError. Added magenta fallback
+- **INSIGHT**: DDA raycasting must guard against exactly-zero direction components. `0 * Infinity = NaN` in IEEE 754 silently corrupts all subsequent math — use a large finite number (1e30) instead of actual Infinity
 - **TEST CAUGHT**: Brace balance false positive (15th occurrence)
 - **FIX**: Unused variable — removed dead `currentPath` variable

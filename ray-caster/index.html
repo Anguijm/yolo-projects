@@ -261,8 +261,8 @@ function castRayDDA(ox, oy, angle) {
   let mapX = Math.floor(ox);
   let mapY = Math.floor(oy);
 
-  const deltaDistX = Math.abs(1 / dirX);
-  const deltaDistY = Math.abs(1 / dirY);
+  const deltaDistX = (dirX === 0) ? 1e30 : Math.abs(1 / dirX);
+  const deltaDistY = (dirY === 0) ? 1e30 : Math.abs(1 / dirY);
 
   let stepX, stepY, sideDistX, sideDistY;
 
@@ -300,6 +300,10 @@ function castRayDDA(ox, oy, angle) {
   else wallX = ox + perpDist * dirX;
   wallX -= Math.floor(wallX);
 
+  // Fix mirrored textures based on ray direction
+  if (side === 0 && dirX > 0) wallX = 1.0 - wallX;
+  if (side === 1 && dirY < 0) wallX = 1.0 - wallX;
+
   return { dist: perpDist, wall: map[mapY][mapX], texX: wallX, side };
 }
 
@@ -322,7 +326,7 @@ function render() {
     const drawEnd = Math.min(RENDER_H - 1, ~~((RENDER_H + wallHeight) / 2) + bob);
 
     if (hit.wall > 0) {
-      const c = parsedWallColors[hit.wall];
+      const c = parsedWallColors[hit.wall] || {r:255,g:0,b:255};
       const darken = hit.side === 1 ? 0.7 : 1.0;
       const texXi = (~~(hit.texX * TEX_SIZE)) & (TEX_SIZE - 1);
       const texStep = TEX_SIZE / trueWallHeight;
