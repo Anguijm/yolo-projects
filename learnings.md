@@ -1897,3 +1897,9 @@ Persistent knowledge base. Read this before every build.
 - **FIX**: Enemy waypoint overshoot — fast enemies or lag spikes caused speed*dt > distance, enemy never triggered pathIdx++. Now snaps to waypoint when moveDist >= dist
 - **FIX**: HUD DOM query per frame — getElementById called every update tick. Cached element reference
 - **INSIGHT**: AudioContext must be a singleton in games with restart — creating a new one per game start hits the browser's 6-context limit and permanently silences audio
+
+### regex-quest refinement (2026-03-28) — PHASE 2 #28
+- **FIX**: XSS via regex input in log — user's regex pattern injected raw into innerHTML via addLog. Escaped all user input with escapeHtml() before logging
+- **FIX**: Set deduplication lost match counts — using Set to compare matches collapsed duplicates, so matching "cats" 3x when goal required 3x showed 100% accuracy for 1 match. Replaced with frequency map counting
+- **FIX**: Division by zero on empty goal — goalSet.size of 0 caused NaN accuracy. Added fallback to 1
+- **INSIGHT**: When comparing match quality in regex tools, use frequency maps not Sets — Sets collapse duplicates, making "match all 5 occurrences" look like "match 1 occurrence" for accuracy scoring

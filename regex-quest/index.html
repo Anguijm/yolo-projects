@@ -312,7 +312,7 @@ function attack() {
   try {
     regex = new RegExp(input, 'gm');
   } catch (e) {
-    addLog(`Invalid regex: ${e.message}`, 'miss');
+    addLog('Invalid regex: ' + escapeHtml(e.message), 'miss');
     return;
   }
 
@@ -320,7 +320,7 @@ function attack() {
   const matches = safeMatch(text, regex, 200);
 
   if (matches === null) {
-    addLog(`/${input}/ — Regex timed out! Catastrophic backtracking detected. Enemy strikes!`, 'miss');
+    addLog('/' + escapeHtml(input) + '/ — Regex timed out! Catastrophic backtracking. Enemy strikes!', 'miss');
     enemyAttack();
     return;
   }
@@ -331,7 +331,7 @@ function attack() {
   const goalMatches = text.match(goalRegex);
 
   if (!matches || matches.length === 0) {
-    addLog(`/${input}/ — No matches found! Enemy strikes back.`, 'miss');
+    addLog('/' + escapeHtml(input) + '/ — No matches found! Enemy strikes back.', 'miss');
     enemyAttack();
     return;
   }
@@ -341,15 +341,24 @@ function attack() {
   document.getElementById('target-text').innerHTML = highlighted;
   document.getElementById('match-count').textContent = `(${matches.length} match${matches.length > 1 ? 'es' : ''})`;
 
-  // Compare player matches with goal matches
-  const goalSet = new Set(goalMatches || []);
-  const playerSet = new Set(matches);
-  const correct = [...playerSet].filter(m => goalSet.has(m)).length;
-  const extra = [...playerSet].filter(m => !goalSet.has(m)).length;
-  const missed = [...goalSet].filter(m => !playerSet.has(m)).length;
+  // Compare using frequency maps (Sets lose duplicate counts)
+  var goalArr = goalMatches || [];
+  var goalFreq = {}, playerFreq = {};
+  for (var gi = 0; gi < goalArr.length; gi++) goalFreq[goalArr[gi]] = (goalFreq[goalArr[gi]]||0) + 1;
+  for (var pi = 0; pi < matches.length; pi++) playerFreq[matches[pi]] = (playerFreq[matches[pi]]||0) + 1;
+  var correct = 0, extra = 0, missed = 0;
+  for (var mk in playerFreq) {
+    var gc = goalFreq[mk] || 0;
+    correct += Math.min(playerFreq[mk], gc);
+    extra += Math.max(0, playerFreq[mk] - gc);
+  }
+  for (var gk in goalFreq) {
+    missed += Math.max(0, goalFreq[gk] - (playerFreq[gk]||0));
+  }
+  var goalSet = { size: goalArr.length || 1 }; // For accuracy calculation
 
   if (correct === 0) {
-    addLog(`/${input}/ — Matched ${matches.length} item(s), but none were the weakness!`, 'miss');
+    addLog('/' + escapeHtml(input) + '/ — Matched ' + matches.length + ' item(s), but none were the weakness!', 'miss');
     enemyAttack();
     return;
   }
@@ -368,9 +377,9 @@ function attack() {
   currentEnemy.hp -= damage;
 
   if (missed === 0 && extra === 0) {
-    addLog(`/${input}/ — PERFECT MATCH! ${damage} damage!`, 'hit');
+    addLog('/' + escapeHtml(input) + '/ — PERFECT MATCH! ' + damage + ' damage!', 'hit');
   } else {
-    addLog(`/${input}/ — ${correct}/${goalSet.size} correct. ${damage} damage.${extra > 0 ? ` (${extra} extra match${extra > 1 ? 'es' : ''})` : ''}`, 'hit');
+    addLog('/' + escapeHtml(input) + '/ — ' + correct + '/' + goalSet.size + ' correct. ' + damage + ' damage.' + (extra > 0 ? ' (' + extra + ' extra)' : ''), 'hit');
   }
 
   if (currentEnemy.hp <= 0) {
