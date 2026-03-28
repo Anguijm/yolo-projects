@@ -2018,3 +2018,8 @@ Persistent knowledge base. Read this before every build.
 - **FIX**: Infinite average accumulation — dbSum grew indefinitely, losing float precision over hours. Replaced with rolling 60-sample moving average using previously unused dbHistory array
 - **FIX**: Mic disconnection not handled — unplugging mic left app stuck showing DB_FLOOR. Added stream track onended handler to auto-stop
 - **INSIGHT**: AnalyserNode.smoothingTimeConstant only affects getByteFrequencyData/getFloatFrequencyData — it has zero effect on time-domain data used for volume/RMS calculation
+
+### interval-timer refinement (2026-03-29) — PHASE 2 #47
+- **FIX**: Done phase infinite tick loop — advancePhase set phase='done' but didn't set running=false, causing rAF to loop forever calling advancePhase 60x/sec. Added running=false and final updateDisplay
+- **FIX**: Zero rest time double-trigger — restTime=0 caused immediate re-advance to work phase in same tick, overlapping audio. Changed minimum rest from 0 to 1
+- **INSIGHT**: Timer apps that use advancePhase() must set running=false in the terminal state — otherwise rAF continues, and any condition triggering advancePhase fires infinitely
