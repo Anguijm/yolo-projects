@@ -1863,3 +1863,10 @@ Persistent knowledge base. Read this before every build.
 - **FIX**: Keyboard shortcuts fire in inputs — pressing +/-/r while focused on iteration slider or palette select triggered zoom/reset. Added INPUT/SELECT tag guard
 - **INSIGHT**: JS modulo operator `%` preserves the sign of the dividend — `(-5) % 3 === -2`, not `1`. For array index wrapping, always add the modulus if the result is negative
 - **FIX**: Unused variable — removed dead `currentPath` variable
+
+### music-viz refinement (2026-03-28) — PHASE 2 #23
+- **FIX**: Microphone feedback loop — switching to mic left analyser connected to speakers, causing deafening screech. Disconnected analyser from destination before mic capture
+- **FIX**: Mic stream hardware leak — switching sources never stopped MediaStream tracks, leaving mic light on and leaking resources. Added track.stop() on source switch
+- **FIX**: Canvas clear/fade conflict — render() applied fade overlay then immediately clearRect for bars/circular/mountain, wasting GPU and erasing the effect. Separated: fade for wave/particles, hard clear for structured modes
+- **FIX**: File re-select broken — selecting same file twice didn't trigger change event. Reset input.value after reading file
+- **INSIGHT**: When switching between mic and file audio sources, ALWAYS disconnect the analyser from audioCtx.destination before connecting mic input — otherwise mic audio routes to speakers creating instant feedback

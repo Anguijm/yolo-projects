@@ -83,13 +83,18 @@ function initAudio() {
 }
 
 // Microphone
+var currentStream = null;
 document.getElementById('btn-mic').addEventListener('click', async function() {
   try {
     initAudio();
     if (audioElement) { audioElement.pause(); }
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    // Disconnect analyser from speakers to prevent feedback loop
+    try { analyser.disconnect(audioCtx.destination); } catch(e) {}
+    // Stop existing mic stream
+    if (currentStream) { currentStream.getTracks().forEach(function(t){t.stop();}); }
+    currentStream = await navigator.mediaDevices.getUserMedia({ audio: true });
     if (source) source.disconnect();
-    source = audioCtx.createMediaStreamSource(stream);
+    source = audioCtx.createMediaStreamSource(currentStream);
     source.connect(analyser);
     isActive = true;
     this.classList.add('active');
@@ -107,7 +112,10 @@ let currentAudioURL = null;
 document.getElementById('file-input').addEventListener('change', function(e) {
   const file = e.target.files[0];
   if (!file) return;
+  e.target.value = ''; // Allow re-selecting same file
   initAudio();
+  // Stop mic stream if active
+  if (currentStream) { currentStream.getTracks().forEach(function(t){t.stop();}); currentStream = null; }
   if (audioElement) { audioElement.pause(); audioElement = null; }
   if (source) source.disconnect();
   if (currentAudioURL) URL.revokeObjectURL(currentAudioURL);
@@ -327,16 +335,20 @@ function drawMountain() {
 
 // Main render loop
 function render() {
-  ctx.fillStyle = 'rgba(0, 0, 0, 0.15)';
-  ctx.fillRect(0, 0, width, height);
+  if (currentMode === 'wave' || currentMode === 'particles') {
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.15)';
+    ctx.fillRect(0, 0, width, height);
+  } else {
+    ctx.clearRect(0, 0, width, height);
+  }
 
   if (isActive && analyser) {
     switch (currentMode) {
-      case 'bars': ctx.clearRect(0, 0, width, height); drawBars(); break;
+      case 'bars': drawBars(); break;
       case 'wave': drawWave(); break;
-      case 'circular': ctx.clearRect(0, 0, width, height); drawCircular(); break;
+      case 'circular': drawCircular(); break;
       case 'particles': drawParticles(); break;
-      case 'mountain': ctx.clearRect(0, 0, width, height); drawMountain(); break;
+      case 'mountain': drawMountain(); break;
     }
   }
 
