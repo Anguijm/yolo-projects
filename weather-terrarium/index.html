@@ -71,6 +71,10 @@ let temp = 20, humidity = 50, wind = 0, timeOfDay = 12;
 let smoothTemp = 20, smoothHum = 50, smoothWind = 0;
 const LERP_SPEED = 2; // units per second convergence rate factor
 
+var weatherLabelEl = document.getElementById('weather-label');
+var lastWeatherLabel = '';
+var frameTime = 0;
+
 let resizeTimer;
 function resize() {
   W = canvas.width = window.innerWidth;
@@ -123,17 +127,18 @@ function spawn(type, x, y, vx, vy, life, size) {
 }
 
 // ---- Weather classification ----
-function getWeather() {
-  if (temp <= -5 && humidity > 60) return 'Blizzard';
-  if (temp <= 0 && humidity > 40) return 'Snow';
-  if (temp > 25 && humidity > 75) return 'Thunderstorm';
-  if (temp > 10 && humidity > 65) return 'Rain';
-  if (humidity > 80) return 'Fog';
-  if (temp > 35 && humidity < 30) return 'Dust Storm';
-  if (temp > 30 && humidity < 40) return 'Haze';
-  if (temp < -10 && humidity < 30) return 'Aurora';
-  if (humidity > 50) return 'Cloudy';
-  if (temp > 15 && temp < 30 && humidity < 50) return 'Clear';
+function getWeather() { return getWeatherEx(temp, humidity); }
+function getWeatherEx(t, h) {
+  if (t <= -5 && h > 60) return 'Blizzard';
+  if (t <= 0 && h > 40) return 'Snow';
+  if (t > 25 && h > 75) return 'Thunderstorm';
+  if (t > 10 && h > 65) return 'Rain';
+  if (h > 80) return 'Fog';
+  if (t > 35 && h < 30) return 'Dust Storm';
+  if (t > 30 && h < 40) return 'Haze';
+  if (t < -10 && h < 30) return 'Aurora';
+  if (h > 50) return 'Cloudy';
+  if (t > 15 && t < 30 && h < 50) return 'Clear';
   return 'Clear';
 }
 
@@ -370,7 +375,7 @@ function updateParticles(dt) {
     p.life -= dt;
 
     if (p.type === 'snow') {
-      p.x += Math.sin(Date.now() / 500 + i) * 0.3; // Drift
+      p.x += Math.sin(frameTime / 500 + i) * 0.3; // Drift
     }
 
     if (p.life <= 0 || p.y > H + 20 || p.x < -50 || p.x > W + 50) {
@@ -424,18 +429,22 @@ function lerp(current, target, speed, dt) {
 function loop(ts) {
   const dt = Math.min(0.05, (ts - lastTime) / 1000);
   lastTime = ts;
+  frameTime = ts;
 
   // Smooth transitions — weather changes gradually
   smoothTemp = lerp(smoothTemp, temp, LERP_SPEED, dt);
   smoothHum = lerp(smoothHum, humidity, LERP_SPEED, dt);
   smoothWind = lerp(smoothWind, wind, LERP_SPEED * 1.5, dt);
 
-  // Temporarily swap for getWeather + all render functions
-  const _t = temp, _h = humidity, _w = wind;
+  // Swap globals to smoothed values for rendering (restore in finally)
+  var _t = temp, _h = humidity, _w = wind;
   temp = smoothTemp; humidity = smoothHum; wind = smoothWind;
-
-  const weather = getWeather();
-  document.getElementById('weather-label').textContent = weather;
+  try {
+  var weather = getWeather();
+  if (weather !== lastWeatherLabel && weatherLabelEl) {
+    weatherLabelEl.textContent = weather;
+    lastWeatherLabel = weather;
+  }
 
   const skyColors = getSkyColors(weather, timeOfDay);
   const cloudiness = humidity / 100;
@@ -482,9 +491,7 @@ function loop(ts) {
     lightningFlash -= dt * 3;
   }
 
-  // Restore actual slider values
-  temp = _t; humidity = _h; wind = _w;
-
+  } finally { temp = _t; humidity = _h; wind = _w; }
   requestAnimationFrame(loop);
 }
 

@@ -1884,3 +1884,9 @@ Persistent knowledge base. Read this before every build.
 - **FIX**: Label naming collisions — labels based on array length created duplicates after deletion (delete IN0, create new = IN1 again). Replaced with monotonic counters
 - **FIX**: Keyboard shortcuts case-sensitive — CapsLock or Shift caused shortcuts to fail. Added toLowerCase() on e.key
 - **INSIGHT**: In circuit simulators, disconnected inputs should default to low (false) not null — null propagates through the entire graph and makes partially-wired circuits completely inert
+
+### weather-terrarium refinement (2026-03-28) — PHASE 2 #26
+- **FIX**: State swap crash risk — temp/humidity/wind swapped to smoothed values without try/finally, permanently desyncing on error. Wrapped in try/finally
+- **FIX**: Date.now() called 3000x per frame — snow drift used Date.now() inside particle loop (system call per particle). Replaced with single frameTime variable set once per frame
+- **FIX**: DOM query in render loop — getElementById('weather-label') called every frame. Cached element reference, only update textContent when weather string changes
+- **INSIGHT**: Never call Date.now() inside a per-particle loop — cache the timestamp once per frame and pass it through. 3000 system calls per frame at 60fps = 180,000 unnecessary calls/second
