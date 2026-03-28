@@ -145,7 +145,7 @@ window.addEventListener('resize', resize);
 
 // ============ CSV PARSING ============
 function parseCSV(text) {
-  const lines = text.trim().split('\n');
+  const lines = text.trim().replace(/\r\n?/g, '\n').split('\n');
   if (lines.length < 2) return { headers: [], rows: [] };
 
   // Detect delimiter
@@ -174,7 +174,7 @@ function inferColumns(hdrs, rows) {
 
   for (const h of hdrs) {
     const vals = sample.map(r => r[h]);
-    const numericCount = vals.filter(v => !isNaN(parseFloat(v)) && v.trim() !== '').length;
+    const numericCount = vals.filter(v => v.trim() !== '' && !isNaN(Number(v))).length;
     const datePattern = /^\d{4}[-\/]?\d{0,2}[-\/]?\d{0,2}$|^\d{4}$/;
     const dateCount = vals.filter(v => datePattern.test(v.trim())).length;
     const uniqueCount = new Set(vals).size;
@@ -450,9 +450,14 @@ function formatNum(n) {
 }
 
 // ============ MAIN LOOP ============
-function loop() {
+var lastLoopTime = 0;
+function loop(ts) {
+  var loopDt = ts - lastLoopTime;
+  if (loopDt > 100) loopDt = 16.6;
+  lastLoopTime = ts;
+  var timeScale = loopDt / 16.66;
   if (playing && timeSteps.length > 0) {
-    currentFrame += speed * 0.03;
+    currentFrame += speed * 0.03 * timeScale;
     if (currentFrame >= timeSteps.length - 1) {
       currentFrame = timeSteps.length - 1;
       playing = false;
@@ -497,8 +502,9 @@ dz.addEventListener('dragleave', () => dz.classList.remove('dragover'));
 dz.addEventListener('drop', e => {
   e.preventDefault();
   dz.classList.remove('dragover');
-  const file = e.dataTransfer.files[0];
-  if (file) file.text().then(loadCSV);
+  if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+    e.dataTransfer.files[0].text().then(loadCSV);
+  }
 });
 
 // Browse button

@@ -1922,3 +1922,11 @@ Persistent knowledge base. Read this before every build.
 - **FIX**: Framerate-dependent friction — `vx *= 0.99` applied per frame, not per time unit. 144Hz players had 2.4x more friction. Fixed with Math.pow(friction, dt*60)
 - **FIX**: CapsLock broke controls — keys['w'] failed when CapsLock on (registers as 'W'). Added toLowerCase() on keydown/keyup
 - **INSIGHT**: Multiplicative friction (v *= constant) is framerate-dependent — on 144Hz it compounds 2.4x faster than 60Hz. Use Math.pow(friction, dt * targetFPS) for consistent behavior
+
+### csv-cinema refinement (2026-03-28) — PHASE 2 #32
+- **FIX**: Framerate-dependent playback — `currentFrame += speed * 0.03` per frame, so 144Hz played 2.4x faster. Added dt/16.66 timeScale
+- **FIX**: Numeric inference false positives — parseFloat("123 Main St") returns 123, misclassifying address columns. Changed to Number() which returns NaN for mixed strings
+- **FIX**: Line ending handling — split('\n') failed on Windows \r\n and classic Mac \r. Added replace(/\r\n?/g, '\n') before split
+- **FIX**: Non-file drop crash — dragging text/links onto dropzone crashed on undefined.text(). Added files.length guard
+- **INSIGHT**: parseFloat("123abc") === 123 (not NaN) — for column type inference, use Number(v) which correctly returns NaN for non-pure-numeric strings
+- **TEST CAUGHT**: Brace balance false positive (18th occurrence)
