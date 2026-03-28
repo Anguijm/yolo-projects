@@ -1802,4 +1802,13 @@ Persistent knowledge base. Read this before every build.
 - **FIX**: mouseup outside canvas — mouseup listener on canvas missed releases outside it, leaving drawing state stuck. Moved to window
 - **FIX**: Blank undo states — saveUndo() called on mousedown for shapes, but mouseleave cancelled the shape without drawing. Moved saveUndo() to mouseup (only saves when shape actually drawn)
 - **FIX**: Keyboard shortcut bleed — typing 'p','e','f' etc. in any future text input would switch tools. Added INPUT/TEXTAREA tag guard
-- **INSIGHT**: Bresenham's midpoint circle algorithm is the correct choice for pixel art — trig stepping always has gaps at large radii because arc length between steps exceeds 1 pixel
+- **INSIGHT**: Bresenham midpoint circle is the correct choice for pixel art — trig stepping always has gaps at large radii because arc length between steps exceeds 1 pixel
+
+### math-plot refinement (2026-03-28) — PHASE 2 #15
+- **FIX**: Pan/zoom state overwritten — plot() read bounds from DOM inputs on every call, discarding pan/zoom globals. Split into readBoundsFromDOM() and writeBoundsToDOM()
+- **FIX**: Asymptote rendering — tan(x) and 1/x drew vertical lines at discontinuities. Added jump detection: break line when consecutive y-pixels differ by more than canvas height
+- **FIX**: Syntax error crash — new Function() throws SyntaxError at compilation, bypassing inner try-catch. Wrapped in outer try-catch returning null
+- **FIX**: XSS in expression input — f.expr injected directly into value attribute. Added escAttr() helper
+- **FIX**: Passive wheel listener — e.preventDefault() threw error on passive listener. Added passive:false
+- **INSIGHT**: Graphing tools must separate "read range from UI" from "render with current range" — otherwise pan/zoom globals get overwritten by stale DOM input values
+- **TEST CAUGHT**: Brace balance false positive (14th occurrence) — regex literals with escaped parens confuse naive counter

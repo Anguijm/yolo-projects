@@ -46,7 +46,7 @@ canvas{width:100%;height:100%}
   <div class="section-label" style="margin-top:0.5rem">View Range</div>
   <div class="range-row"><label>X min</label><input id="xmin" value="-10" type="number" step="1"><label>max</label><input id="xmax" value="10" type="number" step="1"></div>
   <div class="range-row"><label>Y min</label><input id="ymin" value="-10" type="number" step="1"><label>max</label><input id="ymax" value="10" type="number" step="1"></div>
-  <button onclick="plot()">Apply Range</button>
+  <button onclick="readBoundsFromDOM();plot()">Apply Range</button>
 
   <div class="section-label" style="margin-top:0.5rem">Presets</div>
   <div class="presets">
@@ -73,6 +73,7 @@ const canvas = document.getElementById('canvas');
 const ctx = canvas.getContext('2d');
 const COLORS = ['#4ade80','#60a5fa','#f87171','#fbbf24','#a78bfa','#fb923c','#f472b6','#34d399'];
 
+function escAttr(s){return String(s).replace(/\x26/g,'\x26amp;').replace(/\x22/g,'\x26quot;').replace(/\x3c/g,'\x26lt;');}
 let funcs = [{expr:'sin(x)', color:COLORS[0]},{expr:'x^2/10', color:COLORS[1]}];
 let xMin=-10, xMax=10, yMin=-10, yMax=10;
 let isDragging=false, dragStart={x:0,y:0}, dragRange={};
@@ -94,7 +95,11 @@ function parseExpr(expr) {
     .replace(/(x)(\d)/g, 'x*$2')
     .replace(/\)(x)/g, ')*x')
     .replace(/(x)\(/g, 'x*(');
-  return new Function('x', `"use strict"; try { return ${js}; } catch(e) { return NaN; }`);
+  try {
+    return new Function('x', '"use strict"; return ' + js + ';');
+  } catch(e) {
+    return null;
+  }
 }
 
 function resize() {
@@ -104,12 +109,23 @@ function resize() {
   plot();
 }
 
-function plot() {
+function readBoundsFromDOM() {
   xMin = parseFloat(document.getElementById('xmin').value) || -10;
   xMax = parseFloat(document.getElementById('xmax').value) || 10;
   yMin = parseFloat(document.getElementById('ymin').value) || -10;
   yMax = parseFloat(document.getElementById('ymax').value) || 10;
+  if (xMin === xMax) xMax = xMin + 1;
+  if (yMin === yMax) yMax = yMin + 1;
+}
 
+function writeBoundsToDOM() {
+  document.getElementById('xmin').value = fmt(xMin);
+  document.getElementById('xmax').value = fmt(xMax);
+  document.getElementById('ymin').value = fmt(yMin);
+  document.getElementById('ymax').value = fmt(yMax);
+}
+
+function plot() {
   const W = canvas.width / 2;
   const H = canvas.height / 2;
   ctx.clearRect(0, 0, W, H);
@@ -151,20 +167,25 @@ function plot() {
   const errEl = document.getElementById('error');
   errEl.textContent = '';
   funcs.forEach(f => {
-    let fn;
-    try { fn = parseExpr(f.expr); } catch(e) { errEl.textContent = `Error in "${f.expr}"`; return; }
+    var fn;
+    try { fn = parseExpr(f.expr); } catch(e) { errEl.textContent = 'Error in "' + f.expr + '"'; return; }
+    if (!fn) { errEl.textContent = 'Syntax error in "' + f.expr + '"'; return; }
     ctx.beginPath();
     ctx.strokeStyle = f.color;
     ctx.lineWidth = 2;
-    let started = false;
-    const step = (xMax - xMin) / W;
-    for (let px = 0; px < W; px++) {
-      const x = xMin + (px / W) * (xMax - xMin);
-      const y = fn(x);
-      if (isNaN(y) || !isFinite(y) || Math.abs(y) > 1e10) { started = false; continue; }
-      const py = toY(y);
+    var started = false;
+    var prevPy = null;
+    for (var px = 0; px < W; px++) {
+      var x = xMin + (px / W) * (xMax - xMin);
+      var y;
+      try { y = fn(x); } catch(e) { y = NaN; }
+      if (isNaN(y) || !isFinite(y) || Math.abs(y) > 1e10) { started = false; prevPy = null; continue; }
+      var py = toY(y);
+      // Asymptote detection: break line if jump exceeds canvas height
+      if (prevPy !== null && Math.abs(py - prevPy) > H) { started = false; }
       if (!started) { ctx.moveTo(px, py); started = true; }
       else ctx.lineTo(px, py);
+      prevPy = py;
     }
     ctx.stroke();
   });
@@ -191,7 +212,7 @@ function renderFuncList() {
   el.innerHTML = funcs.map((f, i) => `
     <div class="func-row">
       <div class="func-color" style="background:${f.color}" onclick="cycleColor(${i})"></div>
-      <input class="func-input" value="${f.expr}" data-idx="${i}" placeholder="f(x) = ...">
+      <input class="func-input" value="${escAttr(f.expr)}" data-idx="${i}" placeholder="f(x) = ...">
       <span class="func-del" onclick="delFunc(${i})">x</span>
     </div>
   `).join('');
@@ -214,24 +235,21 @@ window.addFunc = addFunc;
 window.loadPreset = function(expr) { funcs = [{expr, color: COLORS[0]}]; renderFuncList(); plot(); };
 
 // Mouse interaction - pan & zoom
-canvas.addEventListener('wheel', e => {
+canvas.addEventListener('wheel', function(e) {
   e.preventDefault();
-  const factor = e.deltaY > 0 ? 1.1 : 0.9;
-  const rect = canvas.getBoundingClientRect();
-  const mx = (e.clientX - rect.left) / rect.width;
-  const my = 1 - (e.clientY - rect.top) / rect.height;
-  const xCenter = xMin + mx * (xMax - xMin);
-  const yCenter = yMin + my * (yMax - yMin);
-  const newW = (xMax - xMin) * factor;
-  const newH = (yMax - yMin) * factor;
+  var factor = e.deltaY > 0 ? 1.1 : 0.9;
+  var rect = canvas.getBoundingClientRect();
+  var mx = (e.clientX - rect.left) / rect.width;
+  var my = 1 - (e.clientY - rect.top) / rect.height;
+  var xCenter = xMin + mx * (xMax - xMin);
+  var yCenter = yMin + my * (yMax - yMin);
+  var newW = (xMax - xMin) * factor;
+  var newH = (yMax - yMin) * factor;
   xMin = xCenter - mx * newW; xMax = xCenter + (1-mx) * newW;
   yMin = yCenter - my * newH; yMax = yCenter + (1-my) * newH;
-  document.getElementById('xmin').value = fmt(xMin);
-  document.getElementById('xmax').value = fmt(xMax);
-  document.getElementById('ymin').value = fmt(yMin);
-  document.getElementById('ymax').value = fmt(yMax);
+  writeBoundsToDOM();
   plot();
-});
+}, {passive: false});
 
 canvas.addEventListener('mousedown', e => { isDragging = true; dragStart = {x: e.clientX, y: e.clientY}; dragRange = {xMin, xMax, yMin, yMax}; });
 canvas.addEventListener('mousemove', e => {
@@ -244,17 +262,16 @@ canvas.addEventListener('mousemove', e => {
   const dy = (e.clientY - dragStart.y) / rect.height * (dragRange.yMax - dragRange.yMin);
   xMin = dragRange.xMin - dx; xMax = dragRange.xMax - dx;
   yMin = dragRange.yMin + dy; yMax = dragRange.yMax + dy;
-  document.getElementById('xmin').value = fmt(xMin);
-  document.getElementById('xmax').value = fmt(xMax);
-  document.getElementById('ymin').value = fmt(yMin);
-  document.getElementById('ymax').value = fmt(yMax);
+  writeBoundsToDOM();
   plot();
 });
 canvas.addEventListener('mouseup', () => isDragging = false);
 
-['xmin','xmax','ymin','ymax'].forEach(id => document.getElementById(id).addEventListener('change', plot));
+['xmin','xmax','ymin','ymax'].forEach(id => document.getElementById(id).addEventListener('change', function() { readBoundsFromDOM(); plot(); }));
+window.readBoundsFromDOM = readBoundsFromDOM;
 window.addEventListener('resize', resize);
 renderFuncList();
+readBoundsFromDOM();
 resize();
 </script>
 </body>
