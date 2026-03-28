@@ -84,8 +84,8 @@ try { results = JSON.parse(localStorage.getItem('sonic_reflex_results')) || []; 
 
 // ============ AUDIO ============
 function initAudio() {
-  if (audioCtx) return;
-  audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  if (audioCtx.state === 'suspended') audioCtx.resume();
 }
 
 function startTension() {
@@ -321,9 +321,11 @@ function updateStats() {
 window._retry = () => { startRound(); };
 window._share = (ms) => {
   const text = `Sonic Reflex: ${ms}ms (${getRating(ms).text}) | Best: ${Math.min(...results)}ms | Can you beat me?`;
-  navigator.clipboard.writeText(text).then(() => {
-    alert('Copied to clipboard!');
-  });
+  if (navigator.clipboard && window.isSecureContext) {
+    navigator.clipboard.writeText(text).then(function() { alert('Copied to clipboard!'); });
+  } else {
+    alert(text);
+  }
 };
 window._reset = () => {
   if (confirm('Clear all stats?')) {
@@ -336,12 +338,12 @@ window._reset = () => {
 // ============ INPUT ============
 // Use pointerdown for zero-delay input (click has ~300ms delay on mobile)
 document.addEventListener('pointerdown', e => {
-  if (e.target.tagName === 'BUTTON') return;
+  if (e.target.closest('button')) return;
   handleClick();
 });
 
 document.addEventListener('keydown', e => {
-  if (e.key === ' ') { e.preventDefault(); handleClick(); }
+  if (e.key === ' ' && document.activeElement.tagName !== 'BUTTON') { e.preventDefault(); handleClick(); }
 });
 
 // Show stats if we have history

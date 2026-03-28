@@ -1970,3 +1970,10 @@ Persistent knowledge base. Read this before every build.
 - **FIX**: Keyboard shortcut bleed — shortcuts fired in select/input elements. Added tag guard
 - **FIX**: Clipboard insecure context — navigator.clipboard undefined on HTTP. Added isSecureContext check
 - **INSIGHT**: Reading DOM layout properties (clientHeight, offsetWidth) inside rAF forces synchronous layout — cache these values on resize and read from cache in the render loop
+
+### sonic-reflex refinement (2026-03-29) — PHASE 2 #39
+- **FIX**: Button click detection — e.target.tagName==='BUTTON' missed clicks on child elements inside buttons. Changed to e.target.closest('button')
+- **FIX**: AudioContext suspension on iOS — initAudio() didn't resume suspended context. Added audioCtx.resume() call
+- **FIX**: Spacebar race condition on focused button — space on focused "Again" button triggered both button click and game click. Added activeElement tag guard
+- **FIX**: Clipboard share on HTTP — navigator.clipboard.writeText failed on insecure context. Added isSecureContext check with alert fallback
+- **INSIGHT**: e.target.tagName === 'BUTTON' fails when buttons contain child elements (spans, icons) — always use e.target.closest('button') for reliable button detection
