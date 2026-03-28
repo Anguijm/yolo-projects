@@ -80,6 +80,7 @@ let droneBullets = [];
 const keys = {};
 document.addEventListener('keydown', e => {
   keys[e.key] = true;
+  keys[e.key.toLowerCase()] = true;
   if (e.key === 'Enter' && gameState !== 'playing') startGame();
 });
 
@@ -91,7 +92,7 @@ document.getElementById('btn-start-game').addEventListener('click', (e) => {
 document.getElementById('overlay').addEventListener('click', () => {
   if (gameState !== 'playing') startGame();
 });
-document.addEventListener('keyup', e => { keys[e.key] = false; });
+document.addEventListener('keyup', e => { keys[e.key] = false; keys[e.key.toLowerCase()] = false; });
 window.addEventListener('blur', () => { for (const k in keys) keys[k] = false; });
 
 function resize() {
@@ -216,8 +217,9 @@ function update(dt) {
   }
 
   // Player physics
-  player.vx *= FRICTION;
-  player.vy *= FRICTION;
+  var frictionDt = Math.pow(FRICTION, dt * 60);
+  player.vx *= frictionDt;
+  player.vy *= frictionDt;
   player.x += player.vx * dt;
   player.y += player.vy * dt;
   wrap(player);
@@ -334,11 +336,12 @@ function update(dt) {
     for (let ej = ei + 1; ej < enemies.length; ej++) {
       const o = enemies[ej];
       const sx = e.x - o.x, sy = e.y - o.y;
-      const sd = Math.sqrt(sx * sx + sy * sy) || 1;
+      const sd = Math.max(0.1, Math.sqrt(sx * sx + sy * sy));
       if (sd < 25) {
         const repel = (25 - sd) * 2;
-        e.vx += sx / sd * repel * dt; e.vy += sy / sd * repel * dt;
-        o.vx -= sx / sd * repel * dt; o.vy -= sy / sd * repel * dt;
+        var rnx = sx / sd * repel * dt, rny = sy / sd * repel * dt;
+        e.vx += rnx; e.vy += rny;
+        o.vx -= rnx; o.vy -= rny;
       }
     }
     const spd = Math.sqrt(e.vx * e.vx + e.vy * e.vy);
@@ -385,7 +388,8 @@ function update(dt) {
     const ty = player.y + Math.sin(a.orbitAngle) * ALLY_ORBIT_RADIUS;
     a.vx += (tx - a.x) * 3 * dt;
     a.vy += (ty - a.y) * 3 * dt;
-    a.vx *= 0.95; a.vy *= 0.95;
+    var allyFrict = Math.pow(0.95, dt * 60);
+    a.vx *= allyFrict; a.vy *= allyFrict;
     a.x += a.vx * dt;
     a.y += a.vy * dt;
     wrap(a);

@@ -1916,3 +1916,9 @@ Persistent knowledge base. Read this before every build.
 - **FIX**: Edge attraction div-by-zero — nodes at identical positions caused 0/0=NaN in force calculation, infecting all coordinates. Added Math.max(0.001, dist) guard
 - **FIX**: Output truncation after render — truncating generatedWords after updateOutput() caused a visible jump from 501 to 201 words. Moved truncation before render
 - **TEST CAUGHT**: Brace balance false positive (17th occurrence)
+
+### asteroids-evolved refinement (2026-03-28) — PHASE 2 #31
+- **FIX**: Enemy Y-axis separation missing — repulsion only applied to vx, not vy, causing enemies to stack vertically. Added vy repulsion
+- **FIX**: Framerate-dependent friction — `vx *= 0.99` applied per frame, not per time unit. 144Hz players had 2.4x more friction. Fixed with Math.pow(friction, dt*60)
+- **FIX**: CapsLock broke controls — keys['w'] failed when CapsLock on (registers as 'W'). Added toLowerCase() on keydown/keyup
+- **INSIGHT**: Multiplicative friction (v *= constant) is framerate-dependent — on 144Hz it compounds 2.4x faster than 60Hz. Use Math.pow(friction, dt * targetFPS) for consistent behavior
