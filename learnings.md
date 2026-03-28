@@ -1820,3 +1820,11 @@ Persistent knowledge base. Read this before every build.
 - **FIX**: Empty title crash — deleting all text from contenteditable saved empty string, making card unclickable. Added fallback to 'Untitled'
 - **FIX**: Rename desync — renameCol/renameCard saved but didn't re-render, leaving trimmed text out of sync with DOM
 - **INSIGHT**: Drag-and-drop onDragLeave fires when hovering child elements — always check e.relatedTarget is outside the container before removing hover state
+
+### whiteboard refinement (2026-03-28) — PHASE 2 #17
+- **FIX**: Single-click no dot — pen tool only drew on mousemove, clicking without dragging drew nothing. Added arc fill on mousedown for instant dot
+- **FIX**: Mac undo shortcut — only checked e.ctrlKey, missing e.metaKey for Cmd+Z on macOS
+- **FIX**: Canvas coordinate offset — used raw e.clientX/clientY ignoring canvas position. Added getBoundingClientRect helper
+- **FIX**: Keyboard shortcut bleed — tool shortcuts fired while focused on range input. Added INPUT/TEXTAREA guard
+- **FIX**: Cursor not updated on keyboard shortcut — tool keyboard selection didn't update canvas cursor style. Added cursor update
+- **FIX**: Unused variable — removed dead `currentPath` variable

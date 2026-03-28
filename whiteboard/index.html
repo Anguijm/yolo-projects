@@ -54,7 +54,6 @@ let lineWidth = 2;
 let drawing = false;
 let startX, startY;
 let strokes = []; // array of imageData snapshots
-let currentPath = [];
 
 function resize() {
   const img = ctx.getImageData(0, 0, canvas.width, canvas.height);
@@ -113,32 +112,46 @@ document.querySelectorAll('.color-btn').forEach(btn => {
 
 document.getElementById('size').addEventListener('input', e => { lineWidth = parseInt(e.target.value); });
 
+function getXY(e) {
+  var rect = canvas.getBoundingClientRect();
+  return { x: e.clientX - rect.left, y: e.clientY - rect.top };
+}
+
 // Drawing
 canvas.addEventListener('mousedown', e => {
+  var pos = getXY(e);
   if (tool === 'text') {
-    const text = prompt('Enter text:');
+    var text = prompt('Enter text:');
     if (text) {
       saveState();
       ctx.fillStyle = color;
-      ctx.font = `${lineWidth * 8}px 'SF Mono', monospace`;
-      ctx.fillText(text, e.clientX, e.clientY);
+      ctx.font = (lineWidth * 8) + "px 'SF Mono', monospace";
+      ctx.fillText(text, pos.x, pos.y);
     }
     return;
   }
   drawing = true;
-  startX = e.clientX;
-  startY = e.clientY;
+  startX = pos.x;
+  startY = pos.y;
   saveState();
-  if (tool === 'pen' || tool === 'eraser') {
+  if (tool === 'pen') {
+    ctx.beginPath();
+    ctx.arc(startX, startY, lineWidth / 2, 0, Math.PI * 2);
+    ctx.fillStyle = color;
+    ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(startX, startY);
+  } else if (tool === 'eraser') {
     ctx.beginPath();
     ctx.moveTo(startX, startY);
   }
 });
 
 canvas.addEventListener('mousemove', e => {
-  document.getElementById('status').textContent = `${e.clientX}, ${e.clientY}`;
+  var pos = getXY(e);
+  document.getElementById('status').textContent = Math.round(pos.x) + ', ' + Math.round(pos.y);
   if (!drawing) return;
-  const x = e.clientX, y = e.clientY;
+  var x = pos.x, y = pos.y;
 
   if (tool === 'pen') {
     ctx.strokeStyle = color;
@@ -182,12 +195,14 @@ canvas.addEventListener('mouseleave', () => { drawing = false; });
 
 // Keyboard shortcuts
 document.addEventListener('keydown', e => {
-  const keys = {p:'pen',l:'line',r:'rect',c:'circle',t:'text',e:'eraser'};
+  if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+  var keys = {p:'pen',l:'line',r:'rect',c:'circle',t:'text',e:'eraser'};
   if (keys[e.key]) {
     document.querySelectorAll('.tb-btn[data-tool]').forEach(b => b.classList.toggle('active', b.dataset.tool === keys[e.key]));
     tool = keys[e.key];
+    canvas.style.cursor = tool === 'eraser' ? 'cell' : tool === 'text' ? 'text' : 'crosshair';
   }
-  if (e.ctrlKey && e.key === 'z') { e.preventDefault(); undo(); }
+  if ((e.ctrlKey || e.metaKey) && e.key === 'z') { e.preventDefault(); undo(); }
 });
 
 canvas.width = window.innerWidth;
