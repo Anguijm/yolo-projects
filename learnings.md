@@ -2001,3 +2001,9 @@ Persistent knowledge base. Read this before every build.
 - **FIX**: Swing browser freeze — swing value >= 1.0 made odd step duration zero or negative, causing scheduler while-loop to never advance. Clamped safeSwing to [0, 0.9]
 - **FIX**: Play button active state not cleared on stop — visual state desynced. Added classList.remove and prevHighlight reset
 - **INSIGHT**: Web Audio BufferSourceNode must always be stopped explicitly — even when gain ramps to 0, the node continues processing audio samples silently, consuming CPU
+
+### pendulum-waves refinement (2026-03-29) — PHASE 2 #44
+- **FIX**: Octave shift math wrong — multiplied frequency by 1.5 (perfect fifth) instead of 2 (octave). Changed to Math.pow(2, floor(i/PENTA.length))
+- **FIX**: Framerate-dependent damping — `velocity *= (1 - damping)` compounded per sub-step not per time unit. Changed to Math.pow(1 - damping, dt * 60)
+- **FIX**: First-frame dt spike — lastTime initialized to 0, making first frame dt = timestamp/1000 (huge). Changed to null with first-frame detection
+- **INSIGHT**: Frequency * 1.5 is a musical fifth, not an octave — to shift up one octave, multiply by 2 (use Math.pow(2, n) for n octaves)

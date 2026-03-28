@@ -151,7 +151,7 @@ function updatePhysics(dt) {
     var accel = -(gravity * 9.81 / p.length) * Math.sin(p.angle);
     // Apply damping
     p.velocity += accel * dt;
-    p.velocity *= (1 - damping);
+    p.velocity *= Math.pow(1 - damping, dt * 60);
     p.angle += p.velocity * dt;
 
     // Audio trigger: detect when pendulum crosses center (sign change)
@@ -159,7 +159,7 @@ function updatePhysics(dt) {
     if (currentSign !== p.prevSign && audioEnabled) {
       // Shift octave for pendulums beyond the palette to avoid frequency phasing
       var noteIdx = i % PENTA.length;
-      var octaveShift = 1 + Math.floor(i / PENTA.length) * 0.5;
+      var octaveShift = Math.pow(2, Math.floor(i / PENTA.length));
       playTone(PENTA[noteIdx] * octaveShift);
     }
     p.prevSign = currentSign;
@@ -237,8 +237,9 @@ function render() {
 }
 
 // ============ MAIN LOOP ============
-var lastTime = 0;
+var lastTime = null;
 function loop(ts) {
+  if (lastTime === null) lastTime = ts;
   var dt = Math.min(0.03, (ts - lastTime) / 1000);
   lastTime = ts;
 
