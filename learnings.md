@@ -2035,3 +2035,9 @@ Persistent knowledge base. Read this before every build.
 - **FIX**: Auto-save race condition — overlapping async encrypt+save operations could write out of order. Added isSaving mutex with pendingSave queue
 - **FIX**: Double-click unlock spam — rapid clicking triggered multiple concurrent PBKDF2 derivations (600K iterations each), freezing browser. Added unlocking guard flag
 - **INSIGHT**: Any async operation that writes to storage must be serialized — concurrent encrypt+save operations can finish out of order, causing older data to overwrite newer data
+
+### word-garden refinement (2026-03-29) — PHASE 2 #50
+- **FIX**: Leaves drawn behind branches — leaf objects had no depth property, defaulting to 0 in sort, drawing first then covered by branches. Added depth: maxDepth+1
+- **FIX**: Animation leak on clear — clearing input didn't cancel rAF, causing previous tree to keep drawing over black. Added cancelAnimationFrame
+- **FIX**: Hash function negative overflow — Math.abs(-2147483648) returns -2147483648, causing negative palette index. Changed to unsigned right shift (>>> 0)
+- **INSIGHT**: When sorting a mixed array by a property, objects missing that property default to undefined which becomes 0 or NaN — always ensure all objects have the sort key

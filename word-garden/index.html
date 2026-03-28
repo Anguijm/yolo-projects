@@ -62,7 +62,7 @@ function hashString(str) {
     hash = ((hash << 5) - hash) + ch;
     hash = hash & hash; // Convert to 32-bit integer
   }
-  return Math.abs(hash);
+  return hash >>> 0; // Unsigned 32-bit to avoid Math.abs(-2147483648) staying negative
 }
 
 function mulberry32(seed) {
@@ -146,7 +146,8 @@ function generateTree(word) {
         type: 'leaf', x: endX, y: endY,
         size: 2 + rng() * 4,
         color: rng() > 0.5 ? currentPalette.leaf : currentPalette.accent,
-        alpha: 0.5 + rng() * 0.5
+        alpha: 0.5 + rng() * 0.5,
+        depth: maxDepth + 1 // Ensure leaves sort after all branches
       });
       return;
     }
@@ -223,7 +224,8 @@ inputEl.addEventListener('input', function() {
       generateTree(word);
       startDrawing();
     } else {
-      ctx.fillStyle = '#000';
+      if (animId) { cancelAnimationFrame(animId); animId = null; }
+      ctx.fillStyle = currentPalette.bg || '#000';
       ctx.fillRect(0, 0, W, H);
       document.getElementById('current-word').textContent = '';
     }
