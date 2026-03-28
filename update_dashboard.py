@@ -253,17 +253,16 @@ function render() {
   // Stats
   const total = data.length;
   const working = data.filter(e => e.status === 'working').length;
-  const failed = data.filter(e => e.status === 'failed').length;
   const refinedCount = data.filter(e => e.refined).length;
+  const unrefinedCount = working - refinedCount;
   const liked = data.filter(e => e._vote === 'up').length;
-  const disliked = data.filter(e => e._vote === 'down').length;
   const totalOpens = data.reduce((s, e) => s + e._opens, 0);
 
   document.getElementById('stats').innerHTML = `
-    <div class="stat"><div class="stat-num">${total}</div><div class="stat-label">Total</div></div>
-    <div class="stat"><div class="stat-num" style="color:#4ade80">${working}</div><div class="stat-label">Working</div></div>
+    <div class="stat"><div class="stat-num">${total}</div><div class="stat-label">Projects</div></div>
     <div class="stat"><div class="stat-num" style="color:#58a6ff">${refinedCount}</div><div class="stat-label">Refined</div></div>
-    <div class="stat"><div class="stat-num" style="color:#f87171">${failed}</div><div class="stat-label">Culled</div></div>
+    <div class="stat"><div class="stat-num" style="color:#888">${unrefinedCount}</div><div class="stat-label">Pending</div></div>
+    <div class="stat"><div class="stat-num" style="color:#4ade80">${liked}</div><div class="stat-label">Liked</div></div>
     <div class="stat"><div class="stat-num">${totalOpens}</div><div class="stat-label">Opens</div></div>
   `;
 
@@ -296,7 +295,7 @@ function render() {
 
   // Status pills (include refined filter)
   document.getElementById('status-pills').innerHTML = [
-    ['all', 'All'],['working','\u2705 Working'],['refined','\u2728 Refined'],['unrefined','Unrefined'],['failed','\u274c Culled']
+    ['all', 'All'],['refined','\u2728 Refined'],['unrefined','Awaiting Review']
   ].map(([val, label]) =>
     `<button class="pill ${val === activeStatus ? 'active' : ''}" onclick="setStatus('${val}')">${label}</button>`
   ).join('');
@@ -473,12 +472,14 @@ def get_refined_projects():
 def update():
     log = json.loads(LOG_FILE.read_text()) if LOG_FILE.exists() else []
     refined = get_refined_projects()
-    for entry in log:
+    # Filter out culled (failed) projects entirely
+    survivors = [e for e in log if e.get('status') != 'failed']
+    for entry in survivors:
         entry['refined'] = entry['project'] in refined
-    html = TEMPLATE.replace('__LOG_DATA__', json.dumps(log))
+    html = TEMPLATE.replace('__LOG_DATA__', json.dumps(survivors))
     DASHBOARD.write_text(html)
-    refined_count = sum(1 for e in log if e.get('refined'))
-    print(f"Dashboard updated with {len(log)} entries ({refined_count} refined).")
+    refined_count = sum(1 for e in survivors if e.get('refined'))
+    print(f"Dashboard updated with {len(survivors)} entries ({refined_count} refined, {len(log) - len(survivors)} culled hidden).")
 
 
 if __name__ == "__main__":
