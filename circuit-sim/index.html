@@ -66,6 +66,8 @@ let isWiring = false;
 let wireStart = null; // { gateId, portIdx, isOutput }
 let wireEndPos = { x: 0, y: 0 };
 let placingType = null;
+let inputCounter = 0;
+let outputCounter = 0;
 
 function resize() {
   W = canvas.width = window.innerWidth;
@@ -90,8 +92,8 @@ function createGate(type, x, y) {
     inputs: Array(inputCount).fill(null), // null = unconnected
     output: false,
     value: type === 'INPUT' ? false : null, // INPUT can be toggled
-    label: type === 'INPUT' ? `IN${gates.filter(g => g.type === 'INPUT').length}` :
-           type === 'OUTPUT' ? `OUT${gates.filter(g => g.type === 'OUTPUT').length}` : type
+    label: type === 'INPUT' ? 'IN' + (inputCounter++) :
+           type === 'OUTPUT' ? 'OUT' + (outputCounter++) : type
   };
   gates.push(gate);
   return gate;
@@ -135,12 +137,10 @@ function evaluate() {
       // Get input values from connected wires via map lookup
       const inputVals = g.inputs.map((_, idx) => {
         const wire = wireByInput.get(`${g.id}:${idx}`);
-        if (!wire) return null;
+        if (!wire) return false; // Disconnected inputs default to low
         const srcGate = gateMap.get(wire.fromGate);
-        return srcGate ? srcGate.output : null;
+        return (srcGate && srcGate.output !== null) ? srcGate.output : false;
       });
-
-      if (inputVals.some(v => v === null)) continue;
 
       let result;
       const a = inputVals[0], b = inputVals[1];
@@ -354,9 +354,10 @@ canvas.addEventListener('mousedown', e => {
   const gate = hitTestGate(mx, my);
   if (gate) {
     if (gate.type === 'INPUT' && e.detail === 1) {
-      // Toggle input on click
       gate.value = !gate.value;
       evaluate();
+      selectedGate = gate;
+      return; // Don't start dragging on toggle
     }
     selectedGate = gate;
     isDraggingGate = true;
@@ -431,9 +432,10 @@ document.addEventListener('keydown', e => {
     e.preventDefault();
   }
   // Keyboard shortcuts for gates
-  const shortcuts = { 'i': 'INPUT', 'o': 'OUTPUT', 'a': 'AND', 'r': 'OR', 'n': 'NOT', 'x': 'XOR' };
-  if (shortcuts[e.key] && !e.ctrlKey && !e.metaKey) {
-    placingType = shortcuts[e.key];
+  var shortcuts = { 'i': 'INPUT', 'o': 'OUTPUT', 'a': 'AND', 'r': 'OR', 'n': 'NOT', 'x': 'XOR' };
+  var skey = e.key.toLowerCase();
+  if (shortcuts[skey] && !e.ctrlKey && !e.metaKey) {
+    placingType = shortcuts[skey];
     canvas.style.cursor = 'copy';
   }
 });

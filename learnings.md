@@ -1877,3 +1877,10 @@ Persistent knowledge base. Read this before every build.
 - **FIX**: Pan coordinate inconsistency — panStartY not adjusted for topbar height while dragStartY was, causing erratic panning. Applied consistent offset
 - **FIX**: Physics optimization — replaced `Math.sqrt` + two divisions with single `invDistCube = 1/(distSq * sqrt(distSq))`, eliminating redundant computation in O(N^2) loop
 - **INSIGHT**: Canvas color string concatenation for alpha (e.g. `color + 'FF'`) only works with 7-char hex codes — use globalAlpha instead for universal compatibility with any CSS color format
+
+### circuit-sim refinement (2026-03-28) — PHASE 2 #25
+- **FIX**: INPUT toggle also started drag — clicking to toggle didn't return, so dragging state activated simultaneously. Added return after toggle
+- **FIX**: Disconnected inputs froze circuit — any gate with an unconnected input returned null, propagating null to all downstream gates. Changed disconnected inputs to default to false (low)
+- **FIX**: Label naming collisions — labels based on array length created duplicates after deletion (delete IN0, create new = IN1 again). Replaced with monotonic counters
+- **FIX**: Keyboard shortcuts case-sensitive — CapsLock or Shift caused shortcuts to fail. Added toLowerCase() on e.key
+- **INSIGHT**: In circuit simulators, disconnected inputs should default to low (false) not null — null propagates through the entire graph and makes partially-wired circuits completely inert
