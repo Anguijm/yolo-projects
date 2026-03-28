@@ -70,12 +70,14 @@ const DEFAULT_BOARD = {
   ]
 };
 
+function escHtml(s){return String(s).replace(/\x26/g,'\x26amp;').replace(/\x3c/g,'\x26lt;').replace(/\x3e/g,'\x26gt;').replace(/\x22/g,'\x26quot;');}
+
 let board = JSON.parse(localStorage.getItem('kanban-board') || 'null') || JSON.parse(JSON.stringify(DEFAULT_BOARD));
 let dragCard = null;
 let dragCol = null;
 let nextId = Date.now();
 
-function save() { localStorage.setItem('kanban-board', JSON.stringify(board)); }
+function save() { try { localStorage.setItem('kanban-board', JSON.stringify(board)); } catch(e){} }
 
 function render() {
   const el = document.getElementById('board');
@@ -83,7 +85,7 @@ function render() {
     <div class="column" data-col="${col.id}" ondragover="onDragOver(event,${col.id})" ondragleave="onDragLeave(event)" ondrop="onDrop(event,${col.id})">
       <div class="col-header">
         <div class="col-dot" style="background:${col.color}"></div>
-        <span class="col-title" contenteditable="true" onblur="renameCol(${col.id},this.textContent)">${col.title}</span>
+        <span class="col-title" contenteditable="true" onblur="renameCol(${col.id},this.textContent)">${escHtml(col.title)}</span>
         <span class="col-count">${col.cards.length}</span>
         <span class="col-add" onclick="addCard(${col.id})">+</span>
       </div>
@@ -91,9 +93,9 @@ function render() {
         ${col.cards.map(card => `
           <div class="card" draggable="true" data-card="${card.id}" data-col="${col.id}"
             ondragstart="onDragStart(event,${card.id},${col.id})" ondragend="onDragEnd(event)">
-            <div class="card-title" contenteditable="true" onblur="renameCard(${card.id},this.textContent)">${card.title}</div>
+            <div class="card-title" contenteditable="true" onblur="renameCard(${card.id},this.textContent)">${escHtml(card.title)}</div>
             <div class="card-meta">
-              ${card.tags.map(t => `<span class="card-tag ${t}">${t}</span>`).join('')}
+              ${card.tags.map(t => `<span class="card-tag ${escHtml(t)}">${escHtml(t)}</span>`).join('')}
               <span class="card-date">${card.created}</span>
             </div>
             <span class="card-delete" onclick="deleteCard(${col.id},${card.id})">x</span>
@@ -133,16 +135,14 @@ window.deleteCard = function(colId, cardId) {
 
 window.renameCol = function(colId, title) {
   const col = board.columns.find(c => c.id === colId);
-  if (col) col.title = title.trim();
-  save();
+  if (col) { col.title = title.trim() || 'Untitled'; save(); render(); }
 };
 
 window.renameCard = function(cardId, title) {
   for (const col of board.columns) {
     const card = col.cards.find(c => c.id === cardId);
-    if (card) { card.title = title.trim(); break; }
+    if (card) { card.title = title.trim() || 'Untitled'; save(); render(); break; }
   }
-  save();
 };
 
 // Drag and drop
@@ -166,7 +166,8 @@ window.onDragOver = function(e, colId) {
 };
 
 window.onDragLeave = function(e) {
-  e.target.closest('.column')?.classList.remove('drag-over');
+  var col = e.target.closest('.column');
+  if (col && !col.contains(e.relatedTarget)) col.classList.remove('drag-over');
 };
 
 window.onDrop = function(e, targetColId) {
@@ -193,7 +194,8 @@ window.exportBoard = function() {
 window.importBoard = function() {
   const input = document.createElement('input'); input.type = 'file'; input.accept = '.json';
   input.addEventListener('change', async e => {
-    try { board = JSON.parse(await e.target.files[0].text()); save(); render(); } catch(err) { alert('Invalid JSON'); }
+    if (!e.target.files.length) return;
+    try { var d = JSON.parse(await e.target.files[0].text()); if (!d||!Array.isArray(d.columns)) throw new Error('bad structure'); board = d; save(); render(); } catch(err) { alert('Invalid JSON: ' + err.message); }
   }); input.click();
 };
 

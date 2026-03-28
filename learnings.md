@@ -1812,3 +1812,11 @@ Persistent knowledge base. Read this before every build.
 - **FIX**: Passive wheel listener — e.preventDefault() threw error on passive listener. Added passive:false
 - **INSIGHT**: Graphing tools must separate "read range from UI" from "render with current range" — otherwise pan/zoom globals get overwritten by stale DOM input values
 - **TEST CAUGHT**: Brace balance false positive (14th occurrence) — regex literals with escaped parens confuse naive counter
+
+### kanban-board refinement (2026-03-28) — PHASE 2 #16
+- **FIX**: XSS via contenteditable — card/column titles injected raw into innerHTML. Added escHtml() using hex escapes
+- **FIX**: Drag flicker — onDragLeave fired when hovering child elements inside column. Added relatedTarget containment check
+- **FIX**: Import validation — accepted any JSON (objects, strings) without checking columns array. Added Array.isArray(d.columns) check
+- **FIX**: Empty title crash — deleting all text from contenteditable saved empty string, making card unclickable. Added fallback to 'Untitled'
+- **FIX**: Rename desync — renameCol/renameCard saved but didn't re-render, leaving trimmed text out of sync with DOM
+- **INSIGHT**: Drag-and-drop onDragLeave fires when hovering child elements — always check e.relatedTarget is outside the container before removing hover state
