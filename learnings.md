@@ -1890,3 +1890,10 @@ Persistent knowledge base. Read this before every build.
 - **FIX**: Date.now() called 3000x per frame — snow drift used Date.now() inside particle loop (system call per particle). Replaced with single frameTime variable set once per frame
 - **FIX**: DOM query in render loop — getElementById('weather-label') called every frame. Cached element reference, only update textContent when weather string changes
 - **INSIGHT**: Never call Date.now() inside a per-particle loop — cache the timestamp once per frame and pass it through. 3000 system calls per frame at 60fps = 180,000 unnecessary calls/second
+
+### synth-defense refinement (2026-03-28) — PHASE 2 #27
+- **FIX**: AudioContext leak on restart — new AudioContext() created every game start, hitting 6-context browser limit after 6 deaths. Made singleton with resume check
+- **FIX**: Click coordinates ignored canvas offset — used raw clientX/clientY, misaligning tower placement when topbar present. Added getBoundingClientRect
+- **FIX**: Enemy waypoint overshoot — fast enemies or lag spikes caused speed*dt > distance, enemy never triggered pathIdx++. Now snaps to waypoint when moveDist >= dist
+- **FIX**: HUD DOM query per frame — getElementById called every update tick. Cached element reference
+- **INSIGHT**: AudioContext must be a singleton in games with restart — creating a new one per game start hits the browser's 6-context limit and permanently silences audio

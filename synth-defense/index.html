@@ -89,6 +89,7 @@ let particles = [];
 let path = [];
 let pathSet = new Set();
 let pathGrid = null; // Uint8Array for O(1) grid lookup
+var hudTextEl = document.getElementById('hud-text');
 let spawnTimer = 0;
 let enemiesLeft = 0;
 let waveDelay = 0;
@@ -241,11 +242,12 @@ function update(dt) {
     const ty = target.y * CELL + CELL/2;
     const dx = tx - e.x, dy = ty - e.y;
     const dist = Math.sqrt(dx*dx + dy*dy);
-    if (dist < 2) {
-      e.pathIdx++;
+    var moveDist = e.speed * dt;
+    if (dist <= moveDist) {
+      e.x = tx; e.y = ty; e.pathIdx++;
     } else {
-      e.x += dx/dist * e.speed * dt;
-      e.y += dy/dist * e.speed * dt;
+      e.x += dx/dist * moveDist;
+      e.y += dy/dist * moveDist;
     }
   }
 
@@ -312,8 +314,8 @@ function update(dt) {
   }
 
   // HUD
-  document.getElementById('hud-text').textContent =
-    `Wave ${wave} | Gold: $${gold} | Lives: ${lives} | Score: ${score}`;
+  if (hudTextEl) hudTextEl.textContent =
+    'Wave ' + wave + ' | Gold: $' + gold + ' | Lives: ' + lives + ' | Score: ' + score;
 }
 
 // ============ RENDER ============
@@ -448,8 +450,9 @@ function loop(ts) {
 // ============ INPUT ============
 canvas.addEventListener('click', e => {
   if (!gameActive) return;
-  const gx = ~~(e.clientX / CELL);
-  const gy = ~~(e.clientY / CELL);
+  var rect = canvas.getBoundingClientRect();
+  const gx = ~~((e.clientX - rect.left) / CELL);
+  const gy = ~~((e.clientY - rect.top) / CELL);
 
   // Can't place on path (O(1) lookup)
   if (pathGrid && pathGrid[gy * cols + gx]) return;
@@ -500,15 +503,18 @@ function startGame() {
   document.getElementById('overlay').style.display = 'none';
   document.getElementById('tower-select').style.display = 'flex';
   document.getElementById('game-over').style.display = 'none';
-  audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-  compressor = audioCtx.createDynamicsCompressor();
-  compressor.threshold.value = -24;
-  compressor.knee.value = 30;
-  compressor.ratio.value = 12;
-  masterGain = audioCtx.createGain();
-  masterGain.gain.value = 0.8;
-  masterGain.connect(compressor);
-  compressor.connect(audioCtx.destination);
+  if (!audioCtx) {
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    compressor = audioCtx.createDynamicsCompressor();
+    compressor.threshold.value = -24;
+    compressor.knee.value = 30;
+    compressor.ratio.value = 12;
+    masterGain = audioCtx.createGain();
+    masterGain.gain.value = 0.8;
+    masterGain.connect(compressor);
+    compressor.connect(audioCtx.destination);
+  }
+  if (audioCtx.state === 'suspended') audioCtx.resume();
   gameActive = true;
   gold = 50; lives = 20; wave = 0; score = 0;
   enemies = []; towers = []; globalTick = 0; lastTickTime = 0;
