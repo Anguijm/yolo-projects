@@ -1937,3 +1937,9 @@ Persistent knowledge base. Read this before every build.
 - **FIX**: loadState backward compat — renamed storage key from history to reqHistory, added fallback to read old key
 - **INSIGHT**: NEVER name a variable `history` in browser JS — `window.history` is the browser's Navigation API and is read-only. Calling .unshift() or reassigning it silently fails or throws
 - **TEST CAUGHT**: Brace balance false positive (19th occurrence)
+
+### pathfinder-arena refinement (2026-03-29) — PHASE 2 #34
+- **FIX**: Wasted steps on visited nodes — A*/Dijkstra/Greedy popped already-visited nodes and returned without expanding, inflating stepsUsed and stalling animation. Now recursively skips to next unvisited
+- **FIX**: Redundant bidir Set creation per frame — render loop created `new Set([...visitedA, ...visitedB])` 60x/sec when s.visited already tracked the union. Eliminated redundant merge
+- **FIX**: Keyboard spam spawned multiple race loops — holding Enter/Space called startRace() repeatedly. Added `if (!running)` guard
+- **INSIGHT**: In step-based pathfinding visualizers, popping an already-visited node from a priority queue should immediately try the next node, not count as a wasted animation step

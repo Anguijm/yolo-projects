@@ -302,7 +302,11 @@ function stepAlgo(s) {
   const ck = key(current.x, current.y);
 
   if (s.name === 'astar' || s.name === 'dijkstra' || s.name === 'greedy') {
-    if (s.visited.has(ck)) return;
+    if (s.visited.has(ck)) {
+      // Skip already-visited — don't waste a step, try next immediately
+      if (s.frontier.length > 0) stepAlgo(s);
+      return;
+    }
     s.visited.add(ck);
   }
 
@@ -426,7 +430,7 @@ function render() {
   for (const name of algoNames) {
     const s = algoStates[name];
     ctx.fillStyle = ALGO_COLORS[name] + '30';
-    const visitSet = name === 'bidir' ? new Set([...(s.visitedA || []), ...(s.visitedB || [])]) : s.visited;
+    const visitSet = s.visited;
     for (const k of visitSet) {
       const vx = k % COLS, vy = ~~(k / COLS);
       ctx.fillRect(vx * CELL + 1, vy * CELL + 1, CELL - 2, CELL - 2);
@@ -614,7 +618,7 @@ document.getElementById('sel-size').addEventListener('change', function() {
 
 // Keyboard
 document.addEventListener('keydown', e => {
-  if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); startRace(); }
+  if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); if (!running) startRace(); }
   if (e.key === 'r') { running = false; algoStates = {}; updateAllStats('Waiting...'); render(); }
   if (e.key === 'c') { running = false; initGrid(); render(); }
   if (e.key === '1') tool = 'wall';
