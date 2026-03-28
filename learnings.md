@@ -2023,3 +2023,9 @@ Persistent knowledge base. Read this before every build.
 - **FIX**: Done phase infinite tick loop — advancePhase set phase='done' but didn't set running=false, causing rAF to loop forever calling advancePhase 60x/sec. Added running=false and final updateDisplay
 - **FIX**: Zero rest time double-trigger — restTime=0 caused immediate re-advance to work phase in same tick, overlapping audio. Changed minimum rest from 0 to 1
 - **INSIGHT**: Timer apps that use advancePhase() must set running=false in the terminal state — otherwise rAF continues, and any condition triggering advancePhase fires infinitely
+
+### one-line refinement (2026-03-29) — PHASE 2 #48
+- **FIX**: Storage full error overwritten — saveEntry set "Storage full" message but save() immediately replaced it with "Saved". Made saveEntry return boolean, save() checks before setting message
+- **FIX**: Save button double-fired — both pointerdown and click listeners called save() on desktop. Removed pointerdown, kept only click
+- **FIX**: Char count warning invisible — color changed from near-black to slightly-less-black (#1a1a1a to #555). Added red at 75+ chars, visible grey at 60+
+- **INSIGHT**: When a storage function sets error UI, the caller must check the return value before overwriting the message — otherwise the error is silently masked

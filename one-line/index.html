@@ -106,8 +106,8 @@ function saveEntry(dateStr, text) {
   } else {
     entries[dateStr] = text.trim();
   }
-  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(entries)); }
-  catch (e) { saveMsg.textContent = 'Storage full'; saveMsg.style.color = '#f85149'; }
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(entries)); return true; }
+  catch (e) { return false; }
 }
 
 function getEntry(dateStr) {
@@ -153,13 +153,16 @@ function initWriteView() {
 function updateCharCount() {
   var len = inputEl.value.length;
   charCount.textContent = len + ' / 80';
-  charCount.style.color = len >= 70 ? '#555' : '#1a1a1a';
+  charCount.style.color = len >= 75 ? '#f85149' : len >= 60 ? '#555' : '#1a1a1a';
 }
 
 function save() {
   var text = inputEl.value.trim();
-  saveEntry(todayStr, text); // Allow empty = delete entry
-  if (text.length === 0) {
+  var ok = saveEntry(todayStr, text);
+  if (!ok) {
+    saveMsg.textContent = 'Storage full';
+    saveMsg.style.color = '#f85149';
+  } else if (text.length === 0) {
     saveMsg.textContent = 'Cleared';
     saveMsg.style.color = '#555';
   } else {
@@ -190,8 +193,7 @@ inputEl.addEventListener('input', updateCharCount);
 inputEl.addEventListener('keydown', function(e) {
   if (e.key === 'Enter') { e.preventDefault(); save(); }
 });
-document.getElementById('save-btn').addEventListener('pointerdown', function(e) { e.preventDefault(); save(); });
-document.getElementById('save-btn').addEventListener('click', save);
+document.getElementById('save-btn').addEventListener('click', function(e) { e.preventDefault(); save(); });
 
 // ============ MOSAIC VIEW ============
 function renderMosaic() {
