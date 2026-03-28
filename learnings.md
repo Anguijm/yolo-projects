@@ -1984,3 +1984,8 @@ Persistent knowledge base. Read this before every build.
 - **FIX**: Abbreviation regex didn't match e.g./i.e. — `e\.g` matched `e.g` but missed the trailing period in `e.g.`. Split into separate pattern
 - **INSIGHT**: Never use `{}` for user-input frequency counting — words like "constructor" or "toString" match Object.prototype properties. Use Map or Object.create(null)
 - **TEST CAUGHT**: Brace balance false positive (20th occurrence)
+
+### pulse-dungeon refinement (2026-03-29) — PHASE 2 #41
+- **FIX**: Free enemy turns after stairs — descending triggered moveEnemies() on the new floor, giving freshly spawned enemies a free attack before player could react. Added early return after generateDungeon
+- **FIX**: Dead player kept getting attacked — enemy loop continued after player death, driving HP negative and spamming log. Added gameActive check at loop start and return on death
+- **INSIGHT**: In turn-based roguelikes, floor transitions must return before processing enemy turns — otherwise the newly generated enemies get a free move/attack on the player's arrival

@@ -285,6 +285,8 @@ function movePlayer(dx, dy) {
       log('Descending to floor ' + floor + '...');
       player.hp = Math.min(player.maxHp, player.hp + 5);
       generateDungeon();
+      updateHUD(); render();
+      return; // Don't let new floor enemies move immediately
     } else if (grid[ny][nx] === TILE_GOLD) {
       grid[ny][nx] = TILE_EMPTY;
       player.gold += 3 + floor;
@@ -301,6 +303,7 @@ function movePlayer(dx, dy) {
 }
 
 function moveEnemies() {
+  if (!gameActive) return;
   for (var i = 0; i < enemies.length; i++) {
     var e = enemies[i];
     var dx = player.x - e.x, dy = player.y - e.y;
@@ -329,6 +332,7 @@ function moveEnemies() {
           gameActive = false;
           playDeath();
           setTimeout(function() { showGameOver(); }, 500);
+          return; // Stop processing further enemies
         }
       } else if (!blocked) {
         e.x = nx;
