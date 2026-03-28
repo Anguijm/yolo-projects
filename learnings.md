@@ -1857,4 +1857,9 @@ Persistent knowledge base. Read this before every build.
 - **FIX**: Missing wall color crash — accessing undefined parsedWallColors index threw TypeError. Added magenta fallback
 - **INSIGHT**: DDA raycasting must guard against exactly-zero direction components. `0 * Infinity = NaN` in IEEE 754 silently corrupts all subsequent math — use a large finite number (1e30) instead of actual Infinity
 - **TEST CAUGHT**: Brace balance false positive (15th occurrence)
+
+### mandelbrot-explorer refinement (2026-03-28) — PHASE 2 #22
+- **FIX**: Negative modulo palette index — smoothIter could go negative for high-velocity escapes, making palIdx negative. JS `%` preserves sign, so `palette[negative]` returned undefined, causing black pixels. Added `if (palIdx < 0) palIdx += palSize`
+- **FIX**: Keyboard shortcuts fire in inputs — pressing +/-/r while focused on iteration slider or palette select triggered zoom/reset. Added INPUT/SELECT tag guard
+- **INSIGHT**: JS modulo operator `%` preserves the sign of the dividend — `(-5) % 3 === -2`, not `1`. For array index wrapping, always add the modulus if the result is negative
 - **FIX**: Unused variable — removed dead `currentPath` variable
