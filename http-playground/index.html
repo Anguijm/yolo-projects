@@ -127,7 +127,7 @@ body { background: #0d1117; color: #c9d1d9; font-family: 'Segoe UI', system-ui, 
       <div class="panel-tab active" data-tab="req-headers">Headers</div>
       <div class="panel-tab" data-tab="req-body">Body</div>
       <div class="panel-tab" data-tab="req-params">Params</div>
-      <div class="panel-tab" data-tab="history">History</div>
+      <div class="panel-tab" data-tab="reqHistory">History</div>
     </div>
     <div class="panel-body">
       <div id="req-headers" class="tab-content" style="display:block">
@@ -139,7 +139,7 @@ body { background: #0d1117; color: #c9d1d9; font-family: 'Segoe UI', system-ui, 
       <div id="req-params" class="tab-content" style="display:none">
         <textarea class="editor" id="params-editor" placeholder='key=value&#10;page=1&#10;limit=10'></textarea>
       </div>
-      <div id="history" class="tab-content" style="display:none">
+      <div id="reqHistory" class="tab-content" style="display:none">
         <div id="history-list"><div class="empty">No requests yet</div></div>
       </div>
     </div>
@@ -188,7 +188,7 @@ const PRESETS = {
 };
 
 // ============ STATE ============
-let history = [];
+let reqHistory = [];
 
 // ============ DOM ============
 const $url = document.getElementById('url');
@@ -326,15 +326,15 @@ function highlightJson(str) {
 
 // ============ HISTORY ============
 function addHistory(method, url, status, ms) {
-  history.unshift({ method, url, status, ms: ms.toFixed(0), time: new Date().toLocaleTimeString() });
-  if (history.length > 50) history.pop();
+  reqHistory.unshift({ method, url, status, ms: ms.toFixed(0), time: new Date().toLocaleTimeString() });
+  if (reqHistory.length > 50) reqHistory.pop();
   renderHistory();
 }
 
 function renderHistory() {
   const el = document.getElementById('history-list');
-  if (history.length === 0) { el.innerHTML = '<div class="empty">No requests yet</div>'; return; }
-  el.innerHTML = history.map((h, i) => `
+  if (reqHistory.length === 0) { el.innerHTML = '<div class="empty">No requests yet</div>'; return; }
+  el.innerHTML = reqHistory.map((h, i) => `
     <div class="history-item" data-idx="${i}">
       <span class="history-method m-${h.method}">${h.method}</span>
       <span class="history-url">${escapeHtml(h.url)}</span>
@@ -345,7 +345,7 @@ function renderHistory() {
 
   el.querySelectorAll('.history-item').forEach(item => {
     item.addEventListener('click', () => {
-      const h = history[parseInt(item.dataset.idx)];
+      const h = reqHistory[parseInt(item.dataset.idx)];
       $method.value = h.method;
       $url.value = h.url;
     });
@@ -365,7 +365,7 @@ function saveState() {
     body: $body.value,
     params: $params.value,
     corsProxy: document.getElementById('cors-proxy').checked,
-    history: history.slice(0, 20)
+    reqHistory: reqHistory.slice(0, 20)
   };
   try { localStorage.setItem('http_playground', JSON.stringify(state)); } catch(e) {}
 }
@@ -380,7 +380,8 @@ function loadState() {
     $body.value = state.body || '';
     $params.value = state.params || '';
     if (state.corsProxy) document.getElementById('cors-proxy').checked = true;
-    if (state.history) { history = state.history; renderHistory(); }
+    var saved = state.reqHistory || state.history;
+    if (Array.isArray(saved)) { reqHistory = saved; renderHistory(); }
   } catch(e) {}
 }
 
@@ -423,11 +424,23 @@ document.getElementById('cors-proxy').addEventListener('change', function() {
 // Copy response to clipboard
 document.getElementById('btn-copy').addEventListener('click', () => {
   const text = $rawDisplay.textContent || $display.textContent;
-  navigator.clipboard.writeText(text).then(() => {
-    const btn = document.getElementById('btn-copy');
+  if (navigator.clipboard && window.isSecureContext) {
+    navigator.clipboard.writeText(text).then(function() {
+      var btn = document.getElementById('btn-copy');
+      btn.textContent = 'Copied!';
+      setTimeout(function() { btn.textContent = 'Copy'; }, 1500);
+    });
+  } else {
+    var ta = document.createElement('textarea');
+    ta.value = text;
+    document.body.appendChild(ta);
+    ta.select();
+    try { document.execCommand('copy'); } catch(e) {}
+    document.body.removeChild(ta);
+    var btn = document.getElementById('btn-copy');
     btn.textContent = 'Copied!';
-    setTimeout(() => { btn.textContent = 'Copy'; }, 1500);
-  });
+    setTimeout(function() { btn.textContent = 'Copy'; }, 1500);
+  }
 });
 
 // Load saved state

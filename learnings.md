@@ -1930,3 +1930,10 @@ Persistent knowledge base. Read this before every build.
 - **FIX**: Non-file drop crash — dragging text/links onto dropzone crashed on undefined.text(). Added files.length guard
 - **INSIGHT**: parseFloat("123abc") === 123 (not NaN) — for column type inference, use Number(v) which correctly returns NaN for non-pure-numeric strings
 - **TEST CAUGHT**: Brace balance false positive (18th occurrence)
+
+### http-playground refinement (2026-03-28) — PHASE 2 #33
+- **FIX**: `history` variable collision with window.history — browser's built-in History API object is read-only, .unshift() threw TypeError. Renamed to reqHistory
+- **FIX**: Clipboard API insecure context crash — navigator.clipboard undefined on HTTP. Added isSecureContext check with execCommand fallback
+- **FIX**: loadState backward compat — renamed storage key from history to reqHistory, added fallback to read old key
+- **INSIGHT**: NEVER name a variable `history` in browser JS — `window.history` is the browser's Navigation API and is read-only. Calling .unshift() or reassigning it silently fails or throws
+- **TEST CAUGHT**: Brace balance false positive (19th occurrence)
