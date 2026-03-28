@@ -1956,3 +1956,9 @@ Persistent knowledge base. Read this before every build.
 - **FIX**: AudioContext suspension — Safari starts AudioContext suspended even inside click handler. Added audioCtx.resume() on click
 - **FIX**: Uncapped emitters/attractors — spam-clicking created O(P*A) performance spiral. Added 15-item cap with shift()
 - **INSIGHT**: Array compaction (removing dead elements by shifting survivors forward) changes every element's index — never use the index for deterministic properties like color
+
+### git-time-machine refinement (2026-03-29) — PHASE 2 #37
+- **FIX**: Merge of ancestor not detected — merging a branch already behind HEAD created a useless merge commit. Added isAncestor(targetId, currentId) check returning "Already up to date"
+- **FIX**: git log used BFS traversal — queue.shift() gave level-order (interleaved branches). Changed to stack.pop() for DFS, matching real git log behavior
+- **FIX**: checkout -b without branch name — `git checkout -b` without arg fell through to standard checkout, showing confusing error. Added early return with usage message
+- **INSIGHT**: Git's `log` command uses DFS (stack), not BFS (queue) — BFS interleaves branches at equal depth, while DFS follows each branch to its root before switching

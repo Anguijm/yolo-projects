@@ -183,7 +183,8 @@ function gitBranch(parts) {
 function gitCheckout(parts) {
   if (parts.length < 3) return { ok: false, msg: 'Usage: git checkout <branch|commit>' };
   const target = parts[2];
-  if (parts[2] === '-b' && parts[3]) {
+  if (parts[2] === '-b') {
+    if (!parts[3]) return { ok: false, msg: 'Usage: git checkout -b <branch-name>' };
     // Create and switch
     const name = parts[3];
     if (git.branches[name]) return { ok: false, msg: `Branch '${name}' already exists.` };
@@ -213,6 +214,8 @@ function gitMerge(parts) {
   const currentId = headCommitId(git);
   const targetId = git.branches[target];
   if (currentId === targetId) return { ok: true, msg: 'Already up to date.' };
+  // Target already behind current branch
+  if (isAncestor(git, targetId, currentId)) return { ok: true, msg: 'Already up to date.' };
   // Fast-forward check
   if (isAncestor(git, currentId, targetId)) {
     git.branches[git.HEAD] = targetId;
@@ -308,16 +311,16 @@ function gitLog() {
   let id = headCommitId(git);
   let count = 0;
   const visited = new Set();
-  const queue = [id];
-  while (queue.length && count < 15) {
-    const cid = queue.shift();
+  const stack = [id];
+  while (stack.length && count < 15) {
+    const cid = stack.pop();
     if (visited.has(cid)) continue;
     visited.add(cid);
     const c = git.commits[cid];
     if (!c) continue;
     const branchLabels = Object.entries(git.branches).filter(([_,v]) => v === cid).map(([b]) => b);
     lines.push(`${cid} ${branchLabels.length ? '(' + branchLabels.join(', ') + ')' : ''} ${c.message}`);
-    for (const pid of c.parents) queue.push(pid);
+    for (var pi = c.parents.length - 1; pi >= 0; pi--) stack.push(c.parents[pi]);
     count++;
   }
   return { ok: true, msg: lines.join('\n'), type: 'info' };
