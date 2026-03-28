@@ -66,6 +66,7 @@ var lastTick = 0;
 var painting = false;
 var paintValue = 1;
 var stampPattern = null;
+var lastMouseCell = null;
 
 // ============ PATTERNS ============
 var PATTERNS = {
@@ -179,18 +180,20 @@ function render() {
         // Ghost trail (fading)
         ctx.fillStyle = 'rgba(100, 60, 180, ' + ghost + ')';
         ctx.fillRect(x * CELL + 1, y * CELL + 1, CELL - 2, CELL - 2);
-        if (playing) {
-          ghostGrid[i] -= GHOST_DECAY;
-          if (ghostGrid[i] < 0) ghostGrid[i] = 0;
-        }
+        ghostGrid[i] -= GHOST_DECAY;
+        if (ghostGrid[i] < 0) ghostGrid[i] = 0;
       }
     }
   }
 
-  // Stamp preview if active
-  if (stampPattern) {
-    ctx.fillStyle = 'rgba(0,255,255,0.15)';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
+  // Stamp preview at mouse position
+  if (stampPattern && lastMouseCell) {
+    ctx.fillStyle = 'rgba(0,255,255,0.4)';
+    for (var si = 0; si < stampPattern.length; si++) {
+      var spx = ((lastMouseCell.x + stampPattern[si][0]) % cols + cols) % cols;
+      var spy = ((lastMouseCell.y + stampPattern[si][1]) % rows + rows) % rows;
+      ctx.fillRect(spx * CELL + 1, spy * CELL + 1, CELL - 2, CELL - 2);
+    }
   }
 }
 
@@ -239,10 +242,10 @@ canvas.addEventListener('pointerdown', function(e) {
 });
 
 canvas.addEventListener('pointermove', function(e) {
-  if (!painting) return;
   e.preventDefault();
-  var cell = cellFromEvent(e);
-  if (cell) grid[idx(cell.x, cell.y)] = paintValue;
+  lastMouseCell = cellFromEvent(e);
+  if (!painting) return;
+  if (lastMouseCell) grid[idx(lastMouseCell.x, lastMouseCell.y)] = paintValue;
 });
 
 canvas.addEventListener('pointerup', function() { painting = false; });

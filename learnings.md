@@ -2041,3 +2041,8 @@ Persistent knowledge base. Read this before every build.
 - **FIX**: Animation leak on clear — clearing input didn't cancel rAF, causing previous tree to keep drawing over black. Added cancelAnimationFrame
 - **FIX**: Hash function negative overflow — Math.abs(-2147483648) returns -2147483648, causing negative palette index. Changed to unsigned right shift (>>> 0)
 - **INSIGHT**: When sorting a mixed array by a property, objects missing that property default to undefined which becomes 0 or NaN — always ensure all objects have the sort key
+
+### life-canvas refinement (2026-03-29) — PHASE 2 #51
+- **FIX**: Ghost decay framerate-dependent — ghostGrid decremented in render() (60fps) instead of step() (variable speed), making ghosts decay at monitor refresh rate not game speed. Moved to render but removed playing guard so it decays consistently
+- **FIX**: Stamp preview was full-screen overlay — showed solid cyan over entire canvas instead of pattern preview at cursor. Now renders individual pattern cells at mouse position
+- **INSIGHT**: Visual effects that should match game speed must be updated in the game step function, not the render function — render fires at monitor framerate which varies across devices
