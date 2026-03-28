@@ -122,6 +122,14 @@ let inverted = false;
 let mirrored = true;
 let frameCount = 0;
 let fpsTime = 0;
+var cachedMainH = 400, cachedMainW = 600;
+function cacheMainSize() {
+  var m = document.getElementById('main');
+  cachedMainH = m.clientHeight - 10;
+  cachedMainW = m.clientWidth - 20;
+}
+window.addEventListener('resize', cacheMainSize);
+setTimeout(cacheMainSize, 100);
 
 // ============ CAMERA ============
 async function startCamera() {
@@ -246,14 +254,11 @@ function loop(ts) {
 
   // Auto-size font to fit
   const lines = ascii.split('\n');
-  const lineCount = lines.length;
-  const longestLine = Math.max(...lines.map(l => l.length));
-  const mainEl = document.getElementById('main');
-  const maxH = mainEl.clientHeight - 10;
-  const maxW = mainEl.clientWidth - 20;
-  // Each char is roughly 0.6 * fontSize wide, 1.0 * fontSize tall
-  const fontByH = maxH / lineCount;
-  const fontByW = maxW / (longestLine * 0.6);
+  const lineCount = lines.length || 1;
+  const longestLine = lines[0] ? lines[0].length : 1;
+  // Use cached container size to avoid layout thrashing
+  const fontByH = cachedMainH / lineCount;
+  const fontByW = cachedMainW / (longestLine * 0.6);
   const fontSize = Math.max(3, Math.min(fontByH, fontByW, 16));
   outputEl.style.fontSize = fontSize + 'px';
 
@@ -272,6 +277,7 @@ function snapshot() {
   // Render current ASCII to a canvas for PNG export
   const text = outputEl.textContent;
   const lines = text.split('\n').filter(l => l.length > 0);
+  if (lines.length === 0) return;
   const charW = 6, charH = 10;
   const w = (Math.max(...lines.map(l => l.length))) * charW + 20;
   const h = lines.length * charH + 20;
@@ -330,17 +336,25 @@ document.getElementById('btn-mirror').addEventListener('click', function() {
 document.getElementById('btn-snap').addEventListener('click', snapshot);
 
 document.getElementById('btn-copy').addEventListener('click', function() {
-  navigator.clipboard.writeText(outputEl.textContent).then(() => {
-    this.textContent = 'Copied!';
-    setTimeout(() => { this.textContent = 'Copy Text'; }, 1500);
-  });
+  var self = this;
+  if (navigator.clipboard && window.isSecureContext) {
+    navigator.clipboard.writeText(outputEl.textContent).then(function() {
+      self.textContent = 'Copied!';
+      setTimeout(function() { self.textContent = 'Copy Text'; }, 1500);
+    });
+  } else {
+    self.textContent = 'Copy requires HTTPS';
+    setTimeout(function() { self.textContent = 'Copy Text'; }, 1500);
+  }
 });
 
 // Keyboard shortcuts
 document.addEventListener('keydown', e => {
-  if (e.key === 's' || e.key === 'S') snapshot();
-  if (e.key === 'i') { inverted = !inverted; document.getElementById('btn-invert').classList.toggle('active', inverted); }
-  if (e.key === 'm') { mirrored = !mirrored; document.getElementById('btn-mirror').textContent = 'Mirror: ' + (mirrored ? 'ON' : 'OFF'); }
+  if (['INPUT','SELECT','TEXTAREA'].includes(e.target.tagName)) return;
+  var k = e.key.toLowerCase();
+  if (k === 's') snapshot();
+  if (k === 'i') { inverted = !inverted; document.getElementById('btn-invert').classList.toggle('active', inverted); }
+  if (k === 'm') { mirrored = !mirrored; document.getElementById('btn-mirror').textContent = 'Mirror: ' + (mirrored ? 'ON' : 'OFF'); }
 });
 
 })();

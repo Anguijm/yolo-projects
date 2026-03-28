@@ -1962,3 +1962,11 @@ Persistent knowledge base. Read this before every build.
 - **FIX**: git log used BFS traversal — queue.shift() gave level-order (interleaved branches). Changed to stack.pop() for DFS, matching real git log behavior
 - **FIX**: checkout -b without branch name — `git checkout -b` without arg fell through to standard checkout, showing confusing error. Added early return with usage message
 - **INSIGHT**: Git's `log` command uses DFS (stack), not BFS (queue) — BFS interleaves branches at equal depth, while DFS follows each branch to its root before switching
+
+### ascii-cam refinement (2026-03-29) — PHASE 2 #38
+- **FIX**: Layout thrashing — reading clientHeight/Width + setting fontSize 60x/sec forced synchronous layout recalculation. Cached container size on resize, read from cache in loop
+- **FIX**: Empty snapshot crash — Math.max(...[]) = -Infinity when no lines, creating invalid canvas. Added early return guard
+- **FIX**: Keyboard case sensitivity — invert/mirror shortcuts only worked lowercase, CapsLock broke them. Added toLowerCase()
+- **FIX**: Keyboard shortcut bleed — shortcuts fired in select/input elements. Added tag guard
+- **FIX**: Clipboard insecure context — navigator.clipboard undefined on HTTP. Added isSecureContext check
+- **INSIGHT**: Reading DOM layout properties (clientHeight, offsetWidth) inside rAF forces synchronous layout — cache these values on resize and read from cache in the render loop
