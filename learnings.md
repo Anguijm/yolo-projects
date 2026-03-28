@@ -2012,3 +2012,9 @@ Persistent knowledge base. Read this before every build.
 - **FIX**: Audio pop on transition — gain set to 0.08 then linearly ramped to same value (no change), causing instant volume jump. Changed to start at 0.001 and ramp up smoothly
 - **FIX**: Wake lock race condition — async requestWakeLock could resolve after stop(), leaving screen awake forever. Added pending flag and post-resolve cleanup check
 - **INSIGHT**: Web Audio gain must always ramp FROM near-zero TO target — setting gain directly to a non-zero value causes an audible click/pop artifact
+
+### sound-meter refinement (2026-03-29) — PHASE 2 #46
+- **FIX**: smoothingTimeConstant useless — set on analyser but only affects frequency-domain data, not getFloatTimeDomainData. Removed misleading setting
+- **FIX**: Infinite average accumulation — dbSum grew indefinitely, losing float precision over hours. Replaced with rolling 60-sample moving average using previously unused dbHistory array
+- **FIX**: Mic disconnection not handled — unplugging mic left app stuck showing DB_FLOOR. Added stream track onended handler to auto-stop
+- **INSIGHT**: AnalyserNode.smoothingTimeConstant only affects getByteFrequencyData/getFloatFrequencyData — it has zero effect on time-domain data used for volume/RMS calculation

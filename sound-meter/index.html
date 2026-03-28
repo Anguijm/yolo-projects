@@ -127,9 +127,11 @@ async function startListening() {
   var source = audioCtx.createMediaStreamSource(stream);
   analyser = audioCtx.createAnalyser();
   analyser.fftSize = 2048;
-  analyser.smoothingTimeConstant = SMOOTHING;
+  // Note: smoothingTimeConstant only affects frequency data, not time-domain used here
   source.connect(analyser);
   dataArray = new Float32Array(analyser.fftSize);
+  // Handle mic disconnection
+  stream.getTracks()[0].onended = function() { stopListening(); };
 
   running = true;
   peakDb = 0;
@@ -190,11 +192,13 @@ function tick() {
   if (db > peakDb) peakDb = db;
   if (db < minDb) minDb = db;
   sampleCount++;
-  dbSum += db;
+  dbHistory.push(db);
+  if (dbHistory.length > 60) dbHistory.shift(); // Rolling 1-second average (~60fps)
+  var rollingAvg = dbHistory.reduce(function(a,b){return a+b;},0) / dbHistory.length;
 
   peakEl.textContent = Math.round(peakDb);
   peakEl.style.color = peakDb >= LOUD_THRESHOLD ? '#f85149' : '#444';
-  avgEl.textContent = Math.round(dbSum / sampleCount);
+  avgEl.textContent = Math.round(rollingAvg);
   minEl.textContent = minDb < 999 ? Math.round(minDb) : '—';
 
   // Haptic on loud threshold (throttled to prevent spam)
