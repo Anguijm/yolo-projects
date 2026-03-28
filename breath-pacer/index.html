@@ -117,9 +117,10 @@ function playTransitionTone(phaseName) {
   var gain = audioCtx.createGain();
   osc.type = 'sine';
   osc.frequency.value = freq;
-  gain.gain.setValueAtTime(0.08, audioCtx.currentTime);
-  gain.gain.linearRampToValueAtTime(0.08, audioCtx.currentTime + 0.05);
-  gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
+  var t = audioCtx.currentTime;
+  gain.gain.setValueAtTime(0.001, t);
+  gain.gain.linearRampToValueAtTime(0.08, t + 0.05);
+  gain.gain.exponentialRampToValueAtTime(0.001, t + duration);
   osc.connect(gain);
   gain.connect(masterGain);
   osc.start();
@@ -127,15 +128,21 @@ function playTransitionTone(phaseName) {
 }
 
 // ============ WAKE LOCK ============
+var wakeLockPending = false;
 async function requestWakeLock() {
-  if (wakeLock !== null) return; // Already have one
+  if (wakeLock !== null || wakeLockPending) return;
   try {
     if ('wakeLock' in navigator) {
+      wakeLockPending = true;
       wakeLock = await navigator.wakeLock.request('screen');
       wakeLock.addEventListener('release', function() { wakeLock = null; });
     }
   } catch (e) {
-    // Silently fail — not all browsers support it
+    // Silently fail
+  } finally {
+    wakeLockPending = false;
+    // If user stopped while promise was pending, release immediately
+    if (!running && wakeLock) releaseWakeLock();
   }
 }
 

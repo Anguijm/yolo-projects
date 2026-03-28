@@ -2007,3 +2007,8 @@ Persistent knowledge base. Read this before every build.
 - **FIX**: Framerate-dependent damping — `velocity *= (1 - damping)` compounded per sub-step not per time unit. Changed to Math.pow(1 - damping, dt * 60)
 - **FIX**: First-frame dt spike — lastTime initialized to 0, making first frame dt = timestamp/1000 (huge). Changed to null with first-frame detection
 - **INSIGHT**: Frequency * 1.5 is a musical fifth, not an octave — to shift up one octave, multiply by 2 (use Math.pow(2, n) for n octaves)
+
+### breath-pacer refinement (2026-03-29) — PHASE 2 #45
+- **FIX**: Audio pop on transition — gain set to 0.08 then linearly ramped to same value (no change), causing instant volume jump. Changed to start at 0.001 and ramp up smoothly
+- **FIX**: Wake lock race condition — async requestWakeLock could resolve after stop(), leaving screen awake forever. Added pending flag and post-resolve cleanup check
+- **INSIGHT**: Web Audio gain must always ramp FROM near-zero TO target — setting gain directly to a non-zero value causes an audible click/pop artifact
