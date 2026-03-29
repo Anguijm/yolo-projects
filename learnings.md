@@ -2111,3 +2111,8 @@ Persistent knowledge base. Read this before every build.
 - **FIX**: Entropy bar desynced when all character types unchecked — generate() returned early without calling updateEntropy(), so the bar/label showed stale values from the previous password. Now calls updateEntropy() before returning
 - **FIX**: Clipboard fallback missing focus() — `document.execCommand('copy')` requires the textarea to be focused before selecting on some mobile browsers. Added `ta.focus()` before `ta.select()`
 - **INSIGHT**: When a generator has an "invalid config" early return, always reset ALL UI elements (not just the output) — entropy bars, stats, and labels can mislead users if left showing stale data
+
+### crypt-lex refinement (2026-03-29) — PHASE 2 #62
+- **FIX**: Status timeout race condition — submitting two invalid words in quick succession caused the first setTimeout to clear the second error message prematurely. Added `clearTimeout(statusTimeout)` before setting new timeout
+- **FIX**: Enter key double-fire — physical Enter key could trigger both keydown handler and click on focused virtual keyboard button. Added `e.preventDefault()` on Enter keydown
+- **INSIGHT**: Any setTimeout-based temporary UI message needs a stored timeout ID with clearTimeout before re-setting — otherwise rapid user actions cause premature message dismissal

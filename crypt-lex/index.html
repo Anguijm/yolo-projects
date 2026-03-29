@@ -84,6 +84,7 @@ var currentGuess = '';
 var gameOver = false;
 var ROW_COUNT = 6;
 var keyStates = {}; // letter -> 'correct'|'present'|'absent'
+var statusTimeout = null;
 
 // ============ INIT GAME ============
 function newGame() {
@@ -250,7 +251,8 @@ function submitGuess() {
     void row.offsetWidth; // Force reflow to restart animation on rapid presses
     row.classList.add('shake');
     document.getElementById('status').textContent = 'Not in word list';
-    setTimeout(function() {
+    clearTimeout(statusTimeout);
+    statusTimeout = setTimeout(function() {
       if (!gameOver) document.getElementById('status').textContent = '';
     }, 1500);
     return;
@@ -290,7 +292,7 @@ function submitGuess() {
 // ============ EVENTS ============
 document.addEventListener('keydown', function(e) {
   if (e.ctrlKey || e.metaKey || e.altKey) return;
-  if (e.key === 'Enter') { submitGuess(); return; }
+  if (e.key === 'Enter') { e.preventDefault(); submitGuess(); return; }
   if (e.key === 'Backspace') { e.preventDefault(); removeLetter(); return; }
   var key = e.key.toLowerCase();
   if (/^[a-z]$/.test(key)) addLetter(key);
