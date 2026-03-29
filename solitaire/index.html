@@ -188,7 +188,6 @@ function renderTableau(col){
     var el=createCardEl(card,card.faceUp);
     el.style.position='absolute';
     el.style.left='0';
-    el.style.top=(card.faceUp?(i>0?calcTop(pile,i):0)+'px':i*parseInt(getComputedStyle(document.documentElement).getPropertyValue('--hidden-off'))+'px');
     el.style.top=calcTop(pile,i)+'px';
     el.style.zIndex=i+1;
     container.appendChild(el);
@@ -376,23 +375,16 @@ document.getElementById('game').addEventListener('pointerdown',function(e){
   if(!el)return;
   e.preventDefault();
 
+  // Stock cards are not in findCard — check first
+  if(el.closest('#stock')){drawFromStock();return}
+
   var suit=parseInt(el.dataset.suit,10);
   var rank=parseInt(el.dataset.rank,10);
   var loc=findCard(suit,rank);
   if(!loc)return;
 
-  // Stock tap
-  if(loc.zone==='stock'||(!el.classList.contains('face-up')&&el.closest('#stock'))){
-    // Actually check if clicking stock area
-  }
-
-  // Face-down cards in tableau — can't interact
   var cardObj=getCardObj(suit,rank);
-  if(!cardObj||!cardObj.faceUp){
-    // Check if it's the stock
-    if(el.closest('#stock')){drawFromStock();return}
-    return;
-  }
+  if(!cardObj||!cardObj.faceUp)return;
 
   // Smart tap
   smartTap(cardObj);

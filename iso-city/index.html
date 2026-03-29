@@ -175,6 +175,7 @@ function drawBuilding(r,c){
 }
 
 // ---- Render ----
+var var_bg='#0a0f14';
 function draw(){
   ctx.fillStyle=var_bg;ctx.fillRect(0,0,W,H);
 
@@ -212,7 +213,6 @@ function draw(){
     ctx.fillText(ft.text,fs[0],floatY);
   }
 }
-var var_bg='#0a0f14';
 var hoverR=-1,hoverC=-1;
 
 // ---- Game logic ----
@@ -238,13 +238,15 @@ function updateStats(){
         if(nb[i].type==='park')hasPark=true;
       }
       if(t.type==='house'){
-        if(hasPark&&t.level<1)t.level=1;
-        if(hasPark&&hasRoad&&t.level<2)t.level=2;
+        t.level=0;
+        if(hasPark)t.level=1;
+        if(hasPark&&hasRoad)t.level=2;
         newPop+=2+t.level*3;
       }
       if(t.type==='shop'){
-        if(hasRoad&&t.level<1)t.level=1;
-        if(hasRoad&&hasPark&&t.level<2)t.level=2;
+        t.level=0;
+        if(hasRoad)t.level=1;
+        if(hasRoad&&hasPark)t.level=2;
       }
     }
   }
@@ -368,10 +370,10 @@ function resize(){
 }
 
 // ---- Main loop ----
-var lastTick=0;
+var lastTick=performance.now();
 function loop(ts){
-  // Game tick every 2 seconds
-  if(ts-lastTick>2000){gameTick();lastTick=ts}
+  // Game tick every 2 seconds; accumulate to handle tab-backgrounding
+  while(ts-lastTick>2000){gameTick();lastTick+=2000;}
   draw();
   requestAnimationFrame(loop);
 }

@@ -2367,6 +2367,15 @@ Persistent knowledge base. Read this before every build.
 - **BUG**: `setOscState()` called `buildOscUI()` which wiped and rebuilt the entire DOM on every lesson change — destroying focus, re-creating all event listeners, causing GC spikes. Fixed by adding `updateUIForOsc(idx)` that updates existing DOM nodes in-place, and only calling `buildOscUI()` when audio isn't running.
 - **BUG**: `resizeCanvases()` called `getBoundingClientRect()` when canvases might be hidden — a zero width would propagate to `sliceW=SW/timeData.length` producing `Infinity` in the draw loop. Fixed with early-return guard when `rect.width===0`.
 
+### iso-city refinement (Phase 2 #107)
+- **BUG**: Building levels were never reset before recalculating — clearing a road or park left houses/shops permanently at a higher level. Fixed by setting `t.level=0` at the start of each building's evaluation in `updateStats()`, then conditionally upgrading.
+- **BUG**: `requestAnimationFrame` timestamps pause when the tab is backgrounded — on return, `ts-lastTick>2000` triggered exactly one `gameTick()` then snapped `lastTick=ts`, silently dropping all missed revenue ticks. Fixed with a `while(ts-lastTick>2000){gameTick();lastTick+=2000}` accumulator.
+- **BUG**: `var_bg` declared after `draw()` that references it — hoisting made this work by accident but is fragile. Moved declaration to before `draw()`.
+
+### solitaire refinement (Phase 2 #108)
+- **CRITICAL BUG**: Drawing from the stock was completely broken. `findCard()` searches only tableau/waste/foundations — it never finds stock cards and returns `null`. The main `pointerdown` handler had `if(!loc)return` immediately after, so the fallback `drawFromStock()` logic lower in the function was **unreachable dead code**. Fixed by checking `el.closest('#stock')` first, before calling `findCard`, and calling `drawFromStock()` immediately.
+- **BUG**: `renderTableau` had two consecutive `el.style.top=...` assignments — the first (a convoluted ternary involving `getComputedStyle`) was immediately overwritten by the second (`calcTop`). Removed the dead first assignment.
+
 ### picross refinement (Phase 2 #106)
 - **BUG**: `pointercancel` not handled — if the browser interrupts a drag gesture (system notification, scroll hijack), `isDrawing` stayed `true` permanently, causing cells to trigger on hover. Fixed by adding `window.addEventListener('pointercancel', onPointerUp)`.
 - **BUG**: Error cells (`grid[r][c]===-1`) were erasable during the 300ms error animation — the erase path checked `cur===0||cur===1` but not `-1`. After erasing, the pending timeout would still fire and re-cross the cell. Fixed by also blocking erase on `-1`.
