@@ -2058,3 +2058,10 @@ Persistent knowledge base. Read this before every build.
 - **FIX**: Acid hyper-eating — corrode loop ate up to 8 neighbors per frame instead of 1. Added `ate` flag to break after first corrosion
 - **FIX**: swap() missing bounds check — out-of-bounds swap on typed array reads undefined, `undefined & 127 = 0`, silently converting particles to EMPTY at edges. Added inBounds guard
 - **INSIGHT**: In falling sand games, lighter elements should NOT actively move down into heavier ones — they get displaced upward when heavier elements fall. Inverting the density check causes infinite oscillation
+
+### memory-xray refinement (2026-03-29) — PHASE 2 #54
+- **FIX**: Bitwise shift operations corrupted values in Little Endian mode — manual byte-level carry propagation assumed Big Endian byte order. Replaced with BigInt-based `getBigUint64`/`setBigUint64` for correct mathematical shifts regardless of endianness
+- **FIX**: Text input truncated Unicode — `charCodeAt() & 0xFF` silently dropped high bytes of non-ASCII characters (€ → 0xAC). Replaced with `TextEncoder.encode()` for proper UTF-8
+- **FIX**: Empty number input silently zeroed buffer — `Number("")` evaluates to `0` in JS, so pressing Enter on empty field overwrote the buffer. Added empty string guard
+- **FIX**: Non-numeric text in number input silently ignored — typing "hello" did nothing. Now writes NaN to buffer so user sees the IEEE 754 NaN bit pattern
+- **INSIGHT**: When building endian-aware tools, byte-level carry propagation is endian-dependent. Use BigInt DataView methods to let the engine handle byte order correctly
