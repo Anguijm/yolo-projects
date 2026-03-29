@@ -2252,6 +2252,19 @@ Persistent knowledge base. Read this before every build.
 - **BUG**: FOV raycasting used step size `0.3` with `VIEW_RADIUS*3` steps — rays only reached 90% of intended radius (6.3 vs 7), causing jagged shortened vision. Fixed by changing to `VIEW_RADIUS*4` steps
 - **BUG**: Entity/potion room-selector `rooms[1+Math.floor(...*(rooms.length-1))]` crashed with undefined if only 1 room generated. Changed to `rooms[Math.floor(...*rooms.length)]` which also uses all rooms safely
 
+### dither-forge refinement (2026-03-29) — PHASE 2 #88
+- **FIX**: BAYER8 matrix generation loop ran 6 iterations instead of 3 — for an 8x8 matrix (values 0–63) only 3 bits are needed per axis. The `bit<6` loop produced 12-bit values up to ~4095, causing all thresholds to exceed 255 and turning the entire bayer8 output solid white. Changed to `bit<3`
+- **FIX**: Bayer threshold multiplier was 128 instead of 255 — `(value-0.5)*128` only spans ±64, muting the dither effect. Changed to `*255` for full ±127.5 range covering the entire 8-bit channel
+- **FIX**: Divide-by-zero in contrast formula — formula `(259*(contrast*128+255))/(255*(259-contrast*128))` has denominator=0 when `contrast≈2.023`. Added zero guard: if `denom===0` set `denom=0.001`
+- **FIX**: Transparent images dithered to garbage — alpha pixels have RGB=0,0,0 which gets dithered to a palette color while alpha stays 0, causing edge artifacts. Added white background fill (`fillStyle='#ffffff'; fillRect(...)`) before drawing the uploaded image
+
+### graph-forge refinement (2026-03-29) — PHASE 2 #87
+- **FIX**: Fast-drag triggered label edit — `pointerup` measured movement using node's current coords (`clickNode.x/y`), but `pointermove` had already updated those to the release position, so `moved` was always near 0. Fixed by recording `startClickX/Y` on `pointerdown` and comparing against those static values
+- **FIX**: Label input detached from node during physics — `editLabel()` positioned the HTML input once and physics kept moving the node. Fixed by updating input position inside `draw()` whenever `editingNode` is active
+- **FIX**: Edge preview guard used `mouseX>0` — any click at x=0 would suppress the dashed edge preview line. Changed to `edgeStart!==null`
+- **FIX**: `loadGraph` used truthy check on `data.nodes` — a non-array object (corrupted storage) would pass and `.map()` would throw. Changed to `Array.isArray(data.nodes)`; also filters loaded edges to remove orphans whose nodes no longer exist
+- **FIX**: Whitespace-only labels — `labelInput.value||'Node'` kept labels like `"   "`. Added `.trim()` before the falsy check
+
 ### wave-draw refinement (Phase 2 #86)
 - **BUG**: Wave canvas draw interpolation was direction-dependent — when dragging right-to-left `startVal` was always assigned from `lastDrawIdx` (the right point) and `endVal` from the new cursor position (the left point), causing the drawn line to be inverted for leftward strokes. Fixed by determining startVal/endVal based on which index is physically left vs right
 - **BUG**: Multitouch sliding cleared `.pressed` from all keys instead of just the departed key — holding note with finger 1 while sliding finger 2 would flash-remove the visual press indicator from finger 1's key. Fixed by targeting only the old key's element via `querySelector('[data-freq=...]')`; same fix applied to `pointerup`

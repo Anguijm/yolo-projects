@@ -119,6 +119,7 @@ function loadImage(src){
       w=Math.floor(w*s);h=Math.floor(h*s);
     }
     srcCanvas.width=w;srcCanvas.height=h;
+    srcCtx.fillStyle='#ffffff';srcCtx.fillRect(0,0,w,h);
     srcCtx.drawImage(img,0,0,w,h);
     sourceLoaded=true;
     applyDither();
@@ -144,7 +145,9 @@ function generateSample(){
 
 // ============ PRE-PROCESSING ============
 function preprocess(data){
-  var factor=(259*(contrast*128+255))/(255*(259-contrast*128));
+  var denom=259-contrast*128;
+  if(denom===0)denom=0.001;
+  var factor=(259*(contrast*128+255))/(255*denom);
   for(var i=0;i<data.length;i+=4){
     for(var c=0;c<3;c++){
       var v=data[i+c]+brightness;
@@ -226,7 +229,7 @@ var BAYER8=[];
     var i=y*8+x;
     // Standard 8x8 Bayer threshold map
     var v=0,xc=x^y,yc=y;
-    for(var bit=0;bit<6;bit++){v=(v<<1)|((xc>>bit)&1);v=(v<<1)|((yc>>bit)&1)}
+    for(var bit=0;bit<3;bit++){v=(v<<1)|((xc>>bit)&1);v=(v<<1)|((yc>>bit)&1)}
     BAYER8[y][x]=(v/64);
   }}
 })();
@@ -234,7 +237,7 @@ var BAYER8=[];
 function ditherBayer(data,w,h,pal,matrix,size){
   for(var y=0;y<h;y++)for(var x=0;x<w;x++){
     var i=(y*w+x)*4;
-    var threshold=(matrix[y%size][x%size]-0.5)*128;
+    var threshold=(matrix[y%size][x%size]-0.5)*255;
     var r=Math.max(0,Math.min(255,data[i]+threshold));
     var g=Math.max(0,Math.min(255,data[i+1]+threshold));
     var b=Math.max(0,Math.min(255,data[i+2]+threshold));

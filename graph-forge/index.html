@@ -146,7 +146,7 @@ function draw(){
   }
 
   // Drawing edge preview
-  if(edgeStart&&mouseX>0){
+  if(edgeStart!==null){
     ctx.strokeStyle='rgba(88,166,255,0.4)';ctx.setLineDash([4,4]);
     ctx.beginPath();ctx.moveTo(edgeStart.x,edgeStart.y);ctx.lineTo(mouseX,mouseY);ctx.stroke();
     ctx.setLineDash([]);
@@ -163,15 +163,21 @@ function draw(){
     ctx.fillStyle='#fff';ctx.font='10px system-ui';ctx.textAlign='center';ctx.textBaseline='middle';
     ctx.fillText(n.label,n.x,n.y);
   }
+  // Keep label input glued to node during physics
+  if(editingNode&&labelInput.style.display==='block'){
+    labelInput.style.left=(editingNode.x-40)+'px';
+    labelInput.style.top=(editingNode.y-12)+'px';
+  }
 }
 
 // ============ INTERACTION ============
 var dragNode=null,edgeStart=null,mouseX=0,mouseY=0;
-var clickTime=0,clickNode=null;
+var clickTime=0,clickNode=null,startClickX=0,startClickY=0;
 
 canvas.addEventListener('pointerdown',function(e){
   e.preventDefault();
   mouseX=e.clientX;mouseY=e.clientY;
+  startClickX=mouseX;startClickY=mouseY;
   var hit=findNode(mouseX,mouseY);
 
   if(hit){
@@ -205,7 +211,7 @@ window.addEventListener('pointerup',function(e){
 
   // Single click on node → edit label
   if(clickNode&&Date.now()-clickTime<300){
-    var moved=Math.abs(e.clientX-clickNode.x)+Math.abs(e.clientY-clickNode.y);
+    var moved=Math.abs(e.clientX-startClickX)+Math.abs(e.clientY-startClickY);
     if(moved<10)editLabel(clickNode);
   }
   clickNode=null;
@@ -253,7 +259,7 @@ labelInput.addEventListener('blur',finishEdit);
 
 function finishEdit(){
   if(!editingNode)return;
-  editingNode.label=labelInput.value||'Node';
+  editingNode.label=labelInput.value.trim()||'Node';
   labelInput.style.display='none';
   editingNode=null;
   saveGraph();
@@ -274,9 +280,9 @@ function loadGraph(){
     var raw=localStorage.getItem(STORAGE_KEY);
     if(!raw)return false;
     var data=JSON.parse(raw);
-    if(!data.nodes)return false;
+    if(!Array.isArray(data.nodes))return false;
     nodes=data.nodes.map(function(n){return{id:n.id,x:n.x,y:n.y,vx:0,vy:0,label:n.label,color:n.color,dragged:false}});
-    edges=data.edges||[];
+    edges=(data.edges||[]).filter(function(ed){return nodeById(ed.a)&&nodeById(ed.b)});
     nextId=data.nextId||nodes.length+1;
     return nodes.length>0;
   }catch(e){return false}
