@@ -2148,3 +2148,8 @@ Persistent knowledge base. Read this before every build.
 - **FIX**: Audio clipping on chords — playing 4+ notes routed combined amplitude >1.0 through masterGain, causing harsh digital distortion. Added DynamicsCompressor before destination to gracefully handle polyphonic peaks
 - **FIX**: Incomplete QWERTY map — second octave only mapped 6 of 12 notes (k through '), leaving the top 6 keys unplayable from keyboard. Added Z-N mappings for notes 18-23
 - **INSIGHT**: Web Audio synthesizers must include a compressor before destination — without it, polyphonic playing clips harshly since each oscillator adds 0.3 amplitude
+
+### neon-tetra refinement (2026-03-29) — PHASE 2 #69
+- **FIX**: Hard drop didn't reset gravity timer — after hard drop, `lastDrop` still held the old value so `time - lastDrop > dropInterval` was immediately true on next frame, instantly dropping the new piece one row before player could react. Added `lastDrop = performance.now()` after lockPiece in hardDrop
+- **FIX**: Soft drop didn't reset gravity timer — pressing down moved piece, but gravity still fired on its original schedule, causing double-drop jitter. Reset `lastDrop` on both keyboard and touch soft drops
+- **INSIGHT**: In Tetris clones, any player-initiated downward movement must reset the gravity timer — otherwise the next automatic gravity tick fires too soon, causing uncontrollable drops
