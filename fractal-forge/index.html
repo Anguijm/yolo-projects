@@ -145,7 +145,10 @@ function render(){
   var bw=bounds.maxX-bounds.minX||1;
   var bh=bounds.maxY-bounds.minY||1;
   var pad=40;
-  var scale=Math.min((W-pad*2)/bw,(H-pad*2)/bh);
+  // Guard against negative scale when window is very small
+  var paddedW=Math.max(10,W-pad*2);
+  var paddedH=Math.max(10,H-pad*2);
+  var scale=Math.min(paddedW/bw,paddedH/bh);
   var offsetX=-bounds.minX*scale+(W-bw*scale)/2;
   var offsetY=-bounds.minY*scale+(H-bh*scale)/2;
 
@@ -157,11 +160,17 @@ function render(){
   var x=0,y=0,dir=-Math.PI/2;
   var stack=[];
   var totalF=0;
-  for(var i=0;i<str.length;i++){if(str[i]==='F'||str[i]==='G')totalF++}
+  for(var ii=0;ii<str.length;ii++){if(str[ii]==='F'||str[ii]==='G')totalF++}
   var drawCount=0;
 
-  ctx.lineWidth=Math.max(0.5,Math.min(2,1000/totalF));
+  ctx.lineWidth=Math.max(0.5,Math.min(2,1000/Math.max(1,totalF)));
   ctx.lineCap='round';
+
+  // Batch non-gradient strokes into a single path for performance
+  if(!useGradient){
+    ctx.strokeStyle='#0ff';
+    ctx.beginPath();
+  }
 
   for(var i=0;i<str.length;i++){
     var ch=str[i];
@@ -172,14 +181,14 @@ function render(){
         var t=drawCount/Math.max(1,totalF);
         var hue=t*300; // 0 → 300 (red → blue spectrum)
         ctx.strokeStyle='hsl('+hue+',75%,55%)';
+        ctx.beginPath();
+        ctx.moveTo(x*scale+offsetX,y*scale+offsetY);
+        ctx.lineTo(nx*scale+offsetX,ny*scale+offsetY);
+        ctx.stroke();
       }else{
-        ctx.strokeStyle='#0ff';
+        ctx.moveTo(x*scale+offsetX,y*scale+offsetY);
+        ctx.lineTo(nx*scale+offsetX,ny*scale+offsetY);
       }
-
-      ctx.beginPath();
-      ctx.moveTo(x*scale+offsetX,y*scale+offsetY);
-      ctx.lineTo(nx*scale+offsetX,ny*scale+offsetY);
-      ctx.stroke();
 
       x=nx;y=ny;drawCount++;
     }else if(ch==='+'){dir+=rad}
@@ -187,6 +196,9 @@ function render(){
     else if(ch==='['){stack.push({x:x,y:y,dir:dir})}
     else if(ch===']'&&stack.length>0){var s=stack.pop();x=s.x;y=s.y;dir=s.dir}
   }
+
+  // Flush batched non-gradient path
+  if(!useGradient){ctx.stroke()}
 }
 
 // ============ CONTROLS ============
@@ -240,9 +252,11 @@ document.getElementById('ck-gradient').addEventListener('change',function(){
 
 // ============ RESIZE ============
 function resize(){W=window.innerWidth;H=window.innerHeight;canvas.width=W;canvas.height=H;render()}
+var _resizeTimer;
+function onResize(){clearTimeout(_resizeTimer);_resizeTimer=setTimeout(resize,150);}
 
 // ============ INIT ============
-resize();window.addEventListener('resize',resize);
+resize();window.addEventListener('resize',onResize);
 loadPreset('fern');
 
 })();

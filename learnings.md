@@ -2318,3 +2318,15 @@ Persistent knowledge base. Read this before every build.
 ### tale-weaver refinement (Phase 2 #96)
 - **BUG**: Inventory items pushed without deduplication — revisiting medbay gave a second `command_keycard`, displaying duplicate item tags and allowing the item to appear multiple times in the list. Fixed with an `indexOf` guard before push.
 - **BUG**: `startGame()` reset `state.steps=0` but did not update the `#step-count` DOM element — restarting the game left the previous game's step count visible until the first choice. Fixed by updating the element text in `startGame`.
+
+### fractal-forge refinement (Phase 2 #97)
+- **BUG**: Scale calculated as `(W-pad*2)/bw` — on small windows (< 80px) produces negative scale, inverting and clipping the drawing. Fixed with `Math.max(10, W-pad*2)` guard.
+- **BUG**: Every non-gradient L-system segment called `ctx.beginPath()/stroke()` individually — for 500k-char strings this is 500k canvas state flushes, freezing the browser. Fixed by batching all solid-color segments into a single `beginPath()`/`stroke()` pass.
+- **BUG**: Resize fired synchronously on every window resize event, re-computing massive L-systems dozens of times per second. Fixed with 150ms debounce.
+
+### spiro-forge refinement (Phase 2 #98)
+- **BUG**: Every slider/preset/resize call invoked `startDrawing()` which called `requestAnimationFrame(animate)` without cancelling the previous loop — dozens of concurrent animation loops built up exponentially, draining CPU. Fixed by tracking `animFrameId` and calling `cancelAnimationFrame` before each new draw.
+- **BUG**: When `complete=true`, animate called `requestAnimationFrame(animate)` and immediately returned — an infinite 60fps idle loop burning CPU/battery. Fixed by returning without scheduling a new frame when complete.
+- **BUG**: `showGears` drew directly to the main canvas without clearing between frames, permanently smearing gear artifacts over the spirograph. Fixed with an off-screen canvas for the permanent path; main canvas clears each frame, composites from offCanvas, then draws gears on top.
+- **BUG**: `r=0` caused `gcd(R,0)` to return `R`, then `totalRotations=0/R=0`, `maxTheta=0` — subsequent `theta/maxTheta` produced `NaN` and `(R+r)/r*t` produced `Infinity`. Fixed with an early-return guard in `calcMaxTheta`.
+- **PERF**: `instantDraw` skipped `offCtx.clearRect` and `ctx.drawImage(offCanvas)` — instant renders drew to offCanvas but never composited to screen, so the display was blank. Fixed to clear offCanvas then blit it to main canvas after the loop.

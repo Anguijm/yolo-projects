@@ -75,14 +75,18 @@ var epi=false,showGears=false,useGradient=true;
 var theta=0,prevX=null,prevY=null;
 var animating=true,complete=false;
 var totalRotations=0,maxTheta=0;
+var animFrameId=null;
 
-// Path history for instant redraw after clear
-var pathPoints=[];
+// Off-screen canvas for permanent path (prevents gear smearing)
+var offCanvas=document.createElement('canvas');
+var offCtx=offCanvas.getContext('2d');
 
 // ============ MATH ============
 function gcd(a,b){a=Math.abs(Math.round(a));b=Math.abs(Math.round(b));while(b){var t=b;b=a%b;a=t}return a}
 
 function calcMaxTheta(){
+  // Guard against r=0 which causes division by zero
+  if(r===0){totalRotations=0;maxTheta=0;return;}
   var g=gcd(R,r);
   totalRotations=r/g;
   maxTheta=totalRotations*Math.PI*2;
@@ -107,20 +111,20 @@ function getXY(t){
 // ============ DRAWING ============
 function drawSegment(t1,t2){
   var p1=getXY(t1),p2=getXY(t2);
-  var progress=t2/maxTheta;
+  var progress=maxTheta>0?t2/maxTheta:0;
 
   if(useGradient){
     var hue=(progress*360)%360;
-    ctx.strokeStyle='hsl('+hue+',75%,55%)';
+    offCtx.strokeStyle='hsl('+hue+',75%,55%)';
   }else{
-    ctx.strokeStyle='#0ff';
+    offCtx.strokeStyle='#0ff';
   }
-  ctx.lineWidth=lineWidth;
-  ctx.lineCap='round';
-  ctx.beginPath();
-  ctx.moveTo(cx+p1.x,cy+p1.y);
-  ctx.lineTo(cx+p2.x,cy+p2.y);
-  ctx.stroke();
+  offCtx.lineWidth=lineWidth;
+  offCtx.lineCap='round';
+  offCtx.beginPath();
+  offCtx.moveTo(cx+p1.x,cy+p1.y);
+  offCtx.lineTo(cx+p2.x,cy+p2.y);
+  offCtx.stroke();
 }
 
 function drawGears(t){
@@ -157,7 +161,12 @@ function drawGears(t){
 // ============ ANIMATION ============
 function animate(){
   if(!animating)return;
-  if(complete){requestAnimationFrame(animate);return}
+
+  // FIX: don't spin the rAF loop forever when done
+  if(complete){
+    document.getElementById('progress').textContent='100% | '+totalRotations+' rotations';
+    return;
+  }
 
   var step=0.02*speed;
   for(var i=0;i<3;i++){
@@ -168,34 +177,41 @@ function animate(){
     if(complete)break;
   }
 
-  // Draw gear visualization on top
-  if(showGears){
-    // Draw gears on top (they'll be overwritten next frame)
-    drawGears(theta);
-  }
+  // Composite: clear main canvas, blit offscreen path, then draw gears on top
+  ctx.fillStyle='#050508';ctx.fillRect(0,0,W,H);
+  ctx.drawImage(offCanvas,0,0);
+  if(showGears&&!complete){drawGears(theta);}
 
-  var pct=Math.min(100,Math.round(theta/maxTheta*100));
+  var pct=maxTheta>0?Math.min(100,Math.round(theta/maxTheta*100)):0;
   document.getElementById('progress').textContent=pct+'% | '+totalRotations+' rotations';
 
-  requestAnimationFrame(animate);
+  animFrameId=requestAnimationFrame(animate);
 }
 
 function startDrawing(){
+  // FIX: cancel any running loop before starting a new one
+  if(animFrameId){cancelAnimationFrame(animFrameId);animFrameId=null;}
   calcMaxTheta();
   theta=0;prevX=null;prevY=null;complete=false;animating=true;
   ctx.fillStyle='#050508';ctx.fillRect(0,0,W,H);
-  requestAnimationFrame(animate);
+  offCtx.clearRect(0,0,W,H);
+  animFrameId=requestAnimationFrame(animate);
 }
 
 function instantDraw(){
+  if(animFrameId){cancelAnimationFrame(animFrameId);animFrameId=null;}
   calcMaxTheta();
   ctx.fillStyle='#050508';ctx.fillRect(0,0,W,H);
-  var steps=Math.ceil(maxTheta/0.01);
-  for(var i=0;i<=steps;i++){
-    var t1=i/steps*maxTheta;
-    var t2=Math.min((i+1)/steps*maxTheta,maxTheta);
-    drawSegment(t1,t2);
+  offCtx.clearRect(0,0,W,H);
+  if(maxTheta>0){
+    var steps=Math.ceil(maxTheta/0.01);
+    for(var i=0;i<=steps;i++){
+      var t1=i/steps*maxTheta;
+      var t2=Math.min((i+1)/steps*maxTheta,maxTheta);
+      drawSegment(t1,t2);
+    }
   }
+  ctx.drawImage(offCanvas,0,0);
   theta=maxTheta;complete=true;
   document.getElementById('progress').textContent='100% | '+totalRotations+' rotations';
 }
@@ -257,12 +273,15 @@ document.getElementById('btn-save').addEventListener('click',function(){
 function resize(){
   W=window.innerWidth;H=window.innerHeight;
   canvas.width=W;canvas.height=H;
+  offCanvas.width=W;offCanvas.height=H;
   cx=W/2;cy=H/2;
   startDrawing();
 }
+var _resizeTimer;
+function onResize(){clearTimeout(_resizeTimer);_resizeTimer=setTimeout(resize,150);}
 
 // ============ INIT ============
-resize();window.addEventListener('resize',resize);
+resize();window.addEventListener('resize',onResize);
 
 })();
 </script>
