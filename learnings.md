@@ -2158,3 +2158,9 @@ Persistent knowledge base. Read this before every build.
 - **FIX**: UI color bleed between rounds — `mainText.style.color` set to `#000` on ready and `#fff` on false-start was never reset, so "Wait..." text showed in wrong color on next round. Added color reset in `startRound()`
 - **FIX**: localStorage best score vulnerable to negative tampering — `parseInt(val) || 0` accepted negative numbers, permanently freezing best at an impossible value since `best < bestAll` was always false. Changed to `(stored > 0) ? stored : 0`
 - **INSIGHT**: When using inline style.color changes across state transitions, always reset to empty string ('') when returning to the base state — otherwise the previous state's color bleeds through
+
+### emoji-search refinement (2026-03-29) — PHASE 2 #71
+- **FIX**: Flash message race condition — clicking a second emoji within 1200ms triggered a new show while the original timer was still running, causing it to hide the message prematurely. Added `flashTimer` variable with `clearTimeout` before each new `setTimeout`
+- **FIX**: Unhandled Promise rejection from Clipboard API — `navigator.clipboard.writeText()` was called without `.catch()`, causing unhandled rejection errors when clipboard permission is denied. Converted to `async/await` with try/catch
+- **FIX**: `JSON.parse` crash on corrupted localStorage — if `emoji-recent` held invalid JSON the entire script would throw on load. Wrapped in try/catch defaulting to `[]`
+- **FIX**: `localStorage.setItem` could throw in private browsing — `QuotaExceededError`/`SecurityError` would crash `copyEmoji` before showing the flash. Wrapped write in try/catch

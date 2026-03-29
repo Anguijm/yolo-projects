@@ -180,18 +180,23 @@ const EMOJIS = [
 
 const CATEGORIES = ['all', ...new Set(EMOJIS.map(e => e.c))];
 let activeCategory = 'all';
-let recent = JSON.parse(localStorage.getItem('emoji-recent') || '[]');
+let recent = [];
+try { recent = JSON.parse(localStorage.getItem('emoji-recent') || '[]'); } catch(e) { recent = []; }
+let flashTimer = null;
 
-function copyEmoji(emoji) {
-  navigator.clipboard.writeText(emoji);
+async function copyEmoji(emoji) {
+  try {
+    await navigator.clipboard.writeText(emoji);
+  } catch(e) { /* clipboard denied — still update UI */ }
   // Update recent
   recent = [emoji, ...recent.filter(e => e !== emoji)].slice(0, 20);
-  localStorage.setItem('emoji-recent', JSON.stringify(recent));
-  // Flash
+  try { localStorage.setItem('emoji-recent', JSON.stringify(recent)); } catch(e) {}
+  // Flash — clear any running timer to prevent early hide
   const el = document.getElementById('copied');
   el.textContent = `Copied ${emoji}`;
   el.classList.add('show');
-  setTimeout(() => el.classList.remove('show'), 1200);
+  if (flashTimer) clearTimeout(flashTimer);
+  flashTimer = setTimeout(() => el.classList.remove('show'), 1200);
   renderRecent();
 }
 
