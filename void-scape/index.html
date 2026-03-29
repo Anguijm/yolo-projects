@@ -189,6 +189,13 @@ function playPluck(freq, time) {
   modulator.start(t);
   carrier.stop(t + 2);
   modulator.stop(t + 2);
+
+  carrier.onended = function() {
+    modulator.disconnect();
+    modGain.disconnect();
+    carrier.disconnect();
+    env.disconnect();
+  };
 }
 
 // ============ SCHEDULER ============
@@ -213,7 +220,8 @@ function scheduleNotes() {
       var ring = rings[r];
       var step = currentStep[r] % ring.steps;
       if (ring.pattern[step] === 1) {
-        var freq = BASE_FREQS[ring.noteIdx + (step % 5)];
+        var noteIndex = (ring.noteIdx + (step % 5)) % BASE_FREQS.length;
+        var freq = BASE_FREQS[noteIndex];
         if (freq) playPluck(freq, nextStepTime[r]);
         lastTrigger[r] = { step: step, time: nextStepTime[r] };
       }
@@ -375,9 +383,11 @@ document.getElementById('sl-bpm').addEventListener('input', function(e) {
 
 // ============ START ============
 document.getElementById('btn-start').addEventListener('click', function() {
+  if (playing) return; // Prevent double initialization
   document.getElementById('start-screen').style.display = 'none';
   document.getElementById('controls').style.display = 'block';
   initAudio();
+  if (audioCtx.state === 'suspended') audioCtx.resume();
   playing = true;
   startScheduler();
 });

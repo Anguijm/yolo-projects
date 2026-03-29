@@ -2094,3 +2094,10 @@ Persistent knowledge base. Read this before every build.
 - **FIX**: XSS in history log — user-typed notation injected via innerHTML. Replaced with textContent via DOM createElement
 - **FIX**: Silent misparsing of invalid operators — `1d6 * 5` silently became `1d6 + 5`. Added regex validation to reject strings with invalid characters
 - **INSIGHT**: When using Monte Carlo for probability distributions, the actual roll may produce values not in the simulation. Always handle missing keys gracefully
+
+### void-scape refinement (2026-03-29) — PHASE 2 #59
+- **FIX**: Missing AudioContext.resume() — browsers suspend new AudioContexts even when created inside click handlers in some cases. Added explicit resume check
+- **FIX**: Double-start possible — fast double-click on start button called initAudio() and startScheduler() twice, creating overlapping audio contexts and double-speed scheduling. Added `if (playing) return` guard
+- **FIX**: BASE_FREQS array out-of-bounds — `ring.noteIdx + (step % 5)` could exceed array length if rings were added or noteIdx changed. Added modulo wrap `% BASE_FREQS.length`
+- **FIX**: Audio node memory leak — playPluck creates 4 nodes per note (carrier, modulator, modGain, env) that accumulate during long sessions. Added `carrier.onended` cleanup to disconnect all nodes
+- **INSIGHT**: In Web Audio sequencers, always disconnect oscillator/gain node trees on ended event — at fast tempos, node accumulation causes memory bloat and audio dropouts
