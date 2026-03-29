@@ -1692,6 +1692,11 @@ Persistent knowledge base. Read this before every build.
 - **INSIGHT**: Trivial projects actively harm a portfolio — a tip calculator next to a software 3D renderer makes the 3D renderer look accidental
 - **INSIGHT**: Category saturation (4 typing games, 5 timers, 4 color tools) signals repetition, not mastery. Keep 1-2 apex projects per category
 
+### cyber-breach refinement (2026-03-29) — PHASE 2 #80
+- **FIX**: `checkWin()` only checked `guessed[char]` without filtering non-alpha chars — words with spaces or hyphens would be unwinnable; now skips non-`[A-Z]` chars
+- **FIX**: `currentWord` not normalized to uppercase — added `.toUpperCase()` on assignment so mixed-case word list entries can't produce unguessable letters
+- **FIX**: `Enter` key had no effect when game-over modal was shown, breaking keyboard-only flow — `Enter` now triggers `newGame()` when `gameOver` is true
+
 ### algo-vision refinement (2026-03-29) — PHASE 2 #77
 - **FIX**: Sorted bars lost their green highlight on subsequent render calls — `sortedIndices` Set now persists sorted state across renders instead of resetting all classes each frame
 - **FIX**: Insertion sort undercounted comparisons — the final comparison that breaks the while loop was never counted; restructured loop to count every comparison
