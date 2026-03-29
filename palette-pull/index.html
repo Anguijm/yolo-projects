@@ -67,6 +67,7 @@ function loadImage(src){
     loaded=true;
     extract();
   };
+  img.onerror=function(){showToast('Failed to load image');};
   img.src=src;
 }
 
@@ -129,7 +130,11 @@ function kMeans(pixels,k,maxIter){
     // Update centroids
     var moved=false;
     for(var j=0;j<k;j++){
-      if(clusters[j].length===0)continue;
+      if(clusters[j].length===0){
+        // Dead centroid: reinitialize to a random pixel to avoid wasted palette slot
+        centroids[j]=pixels[Math.floor(Math.random()*pixels.length)].slice();
+        moved=true;continue;
+      }
       var sr=0,sg=0,sb=0;
       for(var i=0;i<clusters[j].length;i++){
         sr+=clusters[j][i][0];sg+=clusters[j][i][1];sb+=clusters[j][i][2];

@@ -2324,6 +2324,14 @@ Persistent knowledge base. Read this before every build.
 - **BUG**: Every non-gradient L-system segment called `ctx.beginPath()/stroke()` individually — for 500k-char strings this is 500k canvas state flushes, freezing the browser. Fixed by batching all solid-color segments into a single `beginPath()`/`stroke()` pass.
 - **BUG**: Resize fired synchronously on every window resize event, re-computing massive L-systems dozens of times per second. Fixed with 150ms debounce.
 
+### lissajous-lab refinement (Phase 2 #99)
+- **BUG**: `autoPhase` incremented `phase` indefinitely without wrapping — floats grew without bound causing eventual `Math.sin` precision degradation. Fixed with `if(phase>Math.PI*2)phase-=Math.PI*2`.
+- **BUG**: Phase slider and display value diverged silently during `autoPhase` — toggling auto-phase off caused a violent jump to the stale slider position. Fixed by syncing `sl-phase` value and `v-phase` text each frame when auto-phase is active.
+
+### palette-pull refinement (Phase 2 #100)
+- **BUG**: K-means dead centroid (`clusters[j].length===0`) just did `continue`, leaving the centroid frozen and wasting a palette slot with a duplicate color. Fixed by reinitializing dead centroids to a random pixel and setting `moved=true` to continue iterating.
+- **BUG**: `img.onerror` not handled in `loadImage` — corrupted or misnamed files failed silently with no feedback. Fixed by adding `img.onerror` handler that calls `showToast('Failed to load image')`.
+
 ### spiro-forge refinement (Phase 2 #98)
 - **BUG**: Every slider/preset/resize call invoked `startDrawing()` which called `requestAnimationFrame(animate)` without cancelling the previous loop — dozens of concurrent animation loops built up exponentially, draining CPU. Fixed by tracking `animFrameId` and calling `cancelAnimationFrame` before each new draw.
 - **BUG**: When `complete=true`, animate called `requestAnimationFrame(animate)` and immediately returned — an infinite 60fps idle loop burning CPU/battery. Fixed by returning without scheduling a new frame when complete.
