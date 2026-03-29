@@ -2143,3 +2143,8 @@ Persistent knowledge base. Read this before every build.
 - **FIX**: Clipboard fallback skipped on permission denial — `navigator.clipboard.writeText` exists but rejects in iframes/HTTP; `.catch` showed "Copy failed" without trying `execCommand` fallback. Now `.catch` falls through to `execCommand` copy
 - **FIX**: Hue lost on grayscale hex input — typing `#ffffff` set hue to 0 (red). When user adjusted lightness back down, color was red instead of their original blue. Now preserves `seedH` when saturation is 0
 - **INSIGHT**: In color pickers, always preserve the hue when saturation drops to 0 — grayscale colors have no intrinsic hue, so use the last known hue to avoid jarring color shifts
+
+### aura-keys refinement (2026-03-29) — PHASE 2 #68
+- **FIX**: Audio clipping on chords — playing 4+ notes routed combined amplitude >1.0 through masterGain, causing harsh digital distortion. Added DynamicsCompressor before destination to gracefully handle polyphonic peaks
+- **FIX**: Incomplete QWERTY map — second octave only mapped 6 of 12 notes (k through '), leaving the top 6 keys unplayable from keyboard. Added Z-N mappings for notes 18-23
+- **INSIGHT**: Web Audio synthesizers must include a compressor before destination — without it, polyphonic playing clips harshly since each oscillator adds 0.3 amplitude
