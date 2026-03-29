@@ -83,6 +83,7 @@ var threshold = 80;
 var threshold2 = 220;
 var aberration = 0;
 var sortDir = 'horiz'; // 'horiz' or 'vert'
+var isLittleEndian = new Uint8Array(new Uint32Array([0x11223344]).buffer)[0] === 0x44;
 
 // ============ SMPTE TEST PATTERN ============
 function drawSMPTE(w, h) {
@@ -131,10 +132,16 @@ function setupCanvas(img) {
 
 // ============ PIXEL SORTING ============
 function luminance(pixel) {
-  // pixel is ABGR in little-endian Uint32Array
-  var r = pixel & 0xFF;
-  var g = (pixel >> 8) & 0xFF;
-  var b = (pixel >> 16) & 0xFF;
+  var r, g, b;
+  if (isLittleEndian) {
+    r = pixel & 0xFF;
+    g = (pixel >> 8) & 0xFF;
+    b = (pixel >> 16) & 0xFF;
+  } else {
+    r = (pixel >> 24) & 0xFF;
+    g = (pixel >> 16) & 0xFF;
+    b = (pixel >> 8) & 0xFF;
+  }
   return 0.299 * r + 0.587 * g + 0.114 * b;
 }
 
@@ -153,10 +160,13 @@ function sortRow(pixels, start, length) {
       }
       // Sort this chunk by luminance
       var chunkLen = i - chunkStart;
-      var chunk = new Uint32Array(chunkLen);
-      for (var j = 0; j < chunkLen; j++) chunk[j] = pixels[start + chunkStart + j];
-      chunk.sort(function(a, b) { return luminance(a) - luminance(b); });
-      for (var j = 0; j < chunkLen; j++) pixels[start + chunkStart + j] = chunk[j];
+      var mapped = new Array(chunkLen);
+      for (var j = 0; j < chunkLen; j++) {
+        var px = pixels[start + chunkStart + j];
+        mapped[j] = { pixel: px, lum: luminance(px) };
+      }
+      mapped.sort(function(a, b) { return a.lum - b.lum; });
+      for (var j = 0; j < chunkLen; j++) pixels[start + chunkStart + j] = mapped[j].pixel;
     } else {
       i++;
     }
@@ -261,12 +271,16 @@ fileInput.addEventListener('change', function() {
 });
 
 function readFile(file) {
-  var reader = new FileReader();
-  reader.onload = function(e) {
-    dropzone.style.display = 'none';
-    loadImage(e.target.result);
+  dropzone.style.display = 'none';
+  var url = URL.createObjectURL(file);
+  var img = new Image();
+  img.onload = function() {
+    origImg = img;
+    setupCanvas(img);
+    applyEffect();
+    URL.revokeObjectURL(url);
   };
-  reader.readAsDataURL(file);
+  img.src = url;
 }
 
 // ============ CONTROLS ============
@@ -325,15 +339,19 @@ document.getElementById('btn-reset').addEventListener('click', function() {
 });
 
 document.getElementById('btn-save').addEventListener('click', function() {
-  canvas.toBlob(function(blob) {
-    if (!blob) return;
-    var url = URL.createObjectURL(blob);
-    var a = document.createElement('a');
-    a.href = url;
-    a.download = 'glitch-' + Date.now() + '.png';
-    a.click();
-    setTimeout(function() { URL.revokeObjectURL(url); }, 1000);
-  }, 'image/png');
+  try {
+    canvas.toBlob(function(blob) {
+      if (!blob) return;
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement('a');
+      a.href = url;
+      a.download = 'glitch-' + Date.now() + '.png';
+      a.click();
+      setTimeout(function() { URL.revokeObjectURL(url); }, 1000);
+    }, 'image/png');
+  } catch (e) {
+    alert('Cannot save: image may be from another origin. Upload a local file instead.');
+  }
 });
 
 // ============ INIT ============
@@ -345,6 +363,7 @@ smpteImg.onload = function() {
   setupCanvas(smpteImg);
   // Apply with visible settings so UI matches canvas
   threshold = 40; slThresh.value = 40; vThresh.textContent = '40';
+  threshold2 = 220; slThresh2.value = 220; vThresh2.textContent = '220';
   aberration = 8; slAber.value = 8; vAber.textContent = '8';
   applyEffect();
 };

@@ -2071,3 +2071,11 @@ Persistent knowledge base. Read this before every build.
 - **FIX**: Resize erased entire drawing — setting `canvas.width` clears the buffer. Now saves to temp canvas before resize and restores after. Also skips height-only changes to avoid mobile URL bar wipe
 - **FIX**: Multi-touch caused zigzag lines — single `isDrawing` boolean tracked all pointers, so two fingers made `prevX/Y` jump between both positions. Added `activePointerId` to lock to first finger and ignore secondary touches
 - **INSIGHT**: Canvas fade trails using low-alpha fillRect always leave ghosts due to 8-bit rounding. Use `destination-out` compositing for clean fades
+
+### glitch-studio refinement (2026-03-29) — PHASE 2 #56
+- **FIX**: Pixel sort called luminance() on every comparison — O(N log N) redundant calls caused browser freeze on large images. Applied Schwartzian transform (pre-compute luminance, sort cached values, map back)
+- **FIX**: readAsDataURL caused memory spikes on large photos — 10MB JPEG becomes ~14MB base64 string. Replaced with URL.createObjectURL which is instant and zero-copy
+- **FIX**: Uint32Array luminance assumed little-endian byte order — would read alpha as red on big-endian hardware. Added runtime endianness detection
+- **FIX**: threshold2 not synced in init block — internal state was 220 but slider could show different value on reload
+- **FIX**: canvas.toBlob crashed on cross-origin images with SecurityError — added try/catch with user-friendly alert
+- **INSIGHT**: Always use URL.createObjectURL over FileReader.readAsDataURL for image loading — it's faster, uses less memory, and doesn't block the main thread
