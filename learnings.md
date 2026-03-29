@@ -2116,3 +2116,8 @@ Persistent knowledge base. Read this before every build.
 - **FIX**: Status timeout race condition — submitting two invalid words in quick succession caused the first setTimeout to clear the second error message prematurely. Added `clearTimeout(statusTimeout)` before setting new timeout
 - **FIX**: Enter key double-fire — physical Enter key could trigger both keydown handler and click on focused virtual keyboard button. Added `e.preventDefault()` on Enter keydown
 - **INSIGHT**: Any setTimeout-based temporary UI message needs a stored timeout ID with clearTimeout before re-setting — otherwise rapid user actions cause premature message dismissal
+
+### beat-haus refinement (2026-03-29) — PHASE 2 #63
+- **FIX**: requestAnimationFrame loop leak — `updatePlayhead` kept looping via rAF even when stopped, so each Play/Stop cycle spawned a new concurrent loop. After several cycles, dozens of loops ran simultaneously draining CPU. Fixed by returning immediately when `!playing` instead of re-queuing
+- **FIX**: Falsy-zero bug on Drive and BPM sliders — `parseInt(val) || defaultVal` treated `0` as falsy, so sliding Drive to 0 snapped back to 20. Replaced with `isNaN` check to allow 0 as valid value
+- **INSIGHT**: `parseInt(x) || fallback` is a common antipattern for numeric sliders — `0` is falsy in JS. Always use `isNaN()` check instead when 0 is a valid input
