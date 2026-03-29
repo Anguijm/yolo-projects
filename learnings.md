@@ -2359,3 +2359,17 @@ Persistent knowledge base. Read this before every build.
 - **BUG**: Backspace or empty input caused `val[val.length-1]` to be `undefined`, which compared false against expected char, counted as an error, and corrupted accuracy. Fixed with `if(val.length===0)return` guard.
 - **BUG**: Rapid wrong keystrokes spawned overlapping `setTimeout` error-flash callbacks, causing UI flicker and wasted timers. Fixed by debouncing with `clearTimeout(errorTimeout)` before each new flash.
 - **BUG**: Stats (elapsed time, WPM) froze while player idle — only updated on input events. Fixed by adding a `setInterval` stat ticker that runs at 500ms while racing.
+
+### sonic-sight refinement (Phase 2 #105)
+- **BUG**: `initAudio()` lacked a guard — if `unlockApp()` was triggered twice (double-click before overlay hid), a second `AudioContext` was created without closing the first. Browsers limit active contexts to ~6, so repeated unlocks could permanently break audio. Fixed with `if(actx)return` guard.
+- **BUG**: `toggleOsc(idx)` called `startOscillators()` to mute an oscillator — this stopped and recreated ALL audio nodes, causing audible click/stutter on every toggle. Fixed to ramp the individual oscillator's gain to 0 via `setTargetAtTime` (smooth, click-free).
+- **BUG**: `startOscillators()` skipped creating nodes for oscillators with `d.on===false`, meaning toggling one on later required a full restart. Fixed by always creating all 4 nodes, with gain=0 for disabled oscillators — enables smooth toggle without restarting the graph.
+- **BUG**: `setOscState()` called `buildOscUI()` which wiped and rebuilt the entire DOM on every lesson change — destroying focus, re-creating all event listeners, causing GC spikes. Fixed by adding `updateUIForOsc(idx)` that updates existing DOM nodes in-place, and only calling `buildOscUI()` when audio isn't running.
+- **BUG**: `resizeCanvases()` called `getBoundingClientRect()` when canvases might be hidden — a zero width would propagate to `sliceW=SW/timeData.length` producing `Infinity` in the draw loop. Fixed with early-return guard when `rect.width===0`.
+
+### picross refinement (Phase 2 #106)
+- **BUG**: `pointercancel` not handled — if the browser interrupts a drag gesture (system notification, scroll hijack), `isDrawing` stayed `true` permanently, causing cells to trigger on hover. Fixed by adding `window.addEventListener('pointercancel', onPointerUp)`.
+- **BUG**: Error cells (`grid[r][c]===-1`) were erasable during the 300ms error animation — the erase path checked `cur===0||cur===1` but not `-1`. After erasing, the pending timeout would still fire and re-cross the cell. Fixed by also blocking erase on `-1`.
+- **BUG**: `checkClues()` was never called on puzzle load — fully-empty rows/columns (clue `[0]`) appeared unsatisfied until the user first clicked, causing a sudden mass "greying out" of solved clues. Fixed by calling `checkClues(p)` right after `renderBoard()`.
+- **BUG**: `pendingTimeouts` only cleared on puzzle restart, never on completion — over a long session the array accumulated thousands of dead integers. Fixed by splicing each timeout ID out of the array in its own callback.
+- **BUG**: `checkWin` queried `document.querySelectorAll('.cell')` globally — any UI element elsewhere with class `cell` would inject NaN `dataset.r` values and throw runtime errors. Fixed by scoping query to `document.getElementById('board-area')`.

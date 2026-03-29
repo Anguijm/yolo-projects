@@ -290,6 +290,7 @@ function startPuzzle(idx){
   document.documentElement.style.setProperty('--cell',cellSz+'px');
 
   renderBoard(p,size);
+  checkClues(p);
   showView('game');
 }
 
@@ -354,6 +355,7 @@ function renderBoard(p,size){
 document.getElementById('board-area').addEventListener('pointerdown',onPointerDown);
 document.getElementById('board-area').addEventListener('pointermove',onPointerMove);
 window.addEventListener('pointerup',onPointerUp);
+window.addEventListener('pointercancel',onPointerUp);
 
 function updateLives(){
   var hearts='';
@@ -392,8 +394,7 @@ function applyCell(cell){
 
   // Erase mode (dragging from filled/crossed cell)
   if(drawMode===0){
-    if(cur===0)return;
-    if(cur===1)return; // don't erase confirmed fills
+    if(cur===0||cur===1||cur===-1)return; // don't erase confirmed fills or error-pending cells
     grid[r][c]=0;cell.className='cell';
     checkClues(p);
     return;
@@ -412,11 +413,16 @@ function applyCell(cell){
       updateLives();
       cell.className='cell error';
       grid[r][c]=-1; // temp lock
-      pendingTimeouts.push(setTimeout(function(){
-        if(gameState!=='playing')return;
-        grid[r][c]=2;
-        cell.className='cell crossed';
-      },300));
+      (function(){
+        var tId=setTimeout(function(){
+          var idx=pendingTimeouts.indexOf(tId);
+          if(idx>-1)pendingTimeouts.splice(idx,1);
+          if(gameState!=='playing')return;
+          grid[r][c]=2;
+          cell.className='cell crossed';
+        },300);
+        pendingTimeouts.push(tId);
+      })();
       if(strikes>=3){
         gameState='lost';
         pendingTimeouts.push(setTimeout(function(){
@@ -471,7 +477,7 @@ function checkWin(p){
     saveProgress();
   }
   // Color reveal
-  var cells=document.querySelectorAll('.cell');
+  var cells=document.getElementById('board-area').querySelectorAll('.cell');
   for(var i=0;i<cells.length;i++){
     var cr=parseInt(cells[i].dataset.r,10);
     var cc=parseInt(cells[i].dataset.c,10);

@@ -100,6 +100,7 @@ for(var i=0;i<OSC_COUNT;i++){
 }
 
 function initAudio(){
+  if(actx)return;
   actx=new(window.AudioContext||window.webkitAudioContext)();
   analyser=actx.createAnalyser();
   analyser.fftSize=2048;
@@ -115,12 +116,11 @@ function startOscillators(){
   stopOscillators();
   for(var i=0;i<OSC_COUNT;i++){
     var d=oscData[i];
-    if(!d.on)continue;
     d.node=actx.createOscillator();
     d.node.type=d.type;
     d.node.frequency.value=d.freq;
     d.gain=actx.createGain();
-    d.gain.gain.value=d.vol;
+    d.gain.gain.value=d.on?d.vol:0;
     d.node.connect(d.gain);
     d.gain.connect(masterGain);
     d.node.start();
@@ -149,8 +149,12 @@ function updateOsc(idx){
 }
 
 function toggleOsc(idx){
-  oscData[idx].on=!oscData[idx].on;
-  if(playing){startOscillators()}
+  var d=oscData[idx];
+  d.on=!d.on;
+  if(playing&&d.gain&&actx){
+    var t=actx.currentTime;
+    d.gain.gain.setTargetAtTime(d.on?d.vol:0,t,0.015);
+  }
 }
 
 // ---- Canvas setup ----
@@ -162,6 +166,7 @@ var SW,SH,FW,FH;
 
 function resizeCanvases(){
   var rect=scopeCanvas.getBoundingClientRect();
+  if(rect.width===0)return;
   SW=rect.width;SH=rect.height;
   scopeCanvas.width=SW;scopeCanvas.height=SH;
   rect=specCanvas.getBoundingClientRect();
@@ -352,6 +357,25 @@ var LESSONS=[
 var currentLesson=-1;
 var lessonsVisible=false;
 
+function updateUIForOsc(idx){
+  var d=oscData[idx];
+  var btn=document.getElementById('osc-on-'+idx);
+  if(btn){btn.classList.toggle('active',d.on);btn.style.background=d.on?OSC_COLORS[idx]:'transparent';}
+  var vf=document.getElementById('vf-'+idx);
+  if(vf)vf.textContent=d.freq;
+  var vv=document.getElementById('vv-'+idx);
+  if(vv)vv.textContent=Math.round(d.vol*100)+'%';
+  // update sliders and select via their parent rows
+  var row=btn&&btn.closest('.osc-row');
+  if(row){
+    var sel=row.querySelector('select');
+    if(sel)sel.value=d.type;
+    var sliders=row.querySelectorAll('input[type="range"]');
+    if(sliders[0])sliders[0].value=d.freq;
+    if(sliders[1])sliders[1].value=Math.round(d.vol*100);
+  }
+}
+
 function setOscState(states){
   for(var i=0;i<OSC_COUNT;i++){
     if(states[i]){
@@ -361,8 +385,22 @@ function setOscState(states){
       if(states[i].vol!==undefined)oscData[i].vol=states[i].vol;
     }
   }
-  buildOscUI();
-  if(playing)startOscillators();
+  if(!playing||!actx){
+    buildOscUI();
+    if(playing)startOscillators();
+  } else {
+    // Update live audio nodes without clicking
+    var t=actx.currentTime;
+    for(var j=0;j<OSC_COUNT;j++){
+      var d=oscData[j];
+      if(d.node){
+        d.node.type=d.type;
+        d.node.frequency.setTargetAtTime(d.freq,t,0.015);
+        d.gain.gain.setTargetAtTime(d.on?d.vol:0,t,0.015);
+      }
+      updateUIForOsc(j);
+    }
+  }
 }
 
 function showLesson(idx){
