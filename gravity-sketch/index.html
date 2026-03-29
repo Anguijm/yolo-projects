@@ -97,15 +97,6 @@ function update(){
     if(bx.x+hr>W){bx.x=W-hr;bx.vx*=-BOUNCE}
     // Line collisions (approximate as circle)
     for(var j=0;j<lines.length;j++){
-      collideBallLine({x:bx.x,y:bx.y,vx:bx.vx,vy:bx.vy,r:hr},lines[j]);
-      bx.vx=arguments[0]?bx.vx:bx.vx; // workaround — use temp
-    }
-  }
-  // Actually apply box-line collision properly
-  for(var i=0;i<boxes.length;i++){
-    var bx=boxes[i];
-    var hr=Math.max(bx.w,bx.h)/2;
-    for(var j=0;j<lines.length;j++){
       var tmp={x:bx.x,y:bx.y,vx:bx.vx,vy:bx.vy,r:hr};
       collideBallLine(tmp,lines[j]);
       bx.x=tmp.x;bx.y=tmp.y;bx.vx=tmp.vx;bx.vy=tmp.vy;
@@ -114,7 +105,7 @@ function update(){
 
   // Remove out-of-bounds
   balls=balls.filter(function(b){return b.y<H+100&&b.x>-100&&b.x<W+100});
-  boxes=boxes.filter(function(b){return b.y<H+100});
+  boxes=boxes.filter(function(b){return b.y<H+100&&b.x>-100&&b.x<W+100});
 
   document.getElementById('count').textContent=balls.length+boxes.length+' bodies / '+lines.length+' lines';
 }
@@ -147,8 +138,10 @@ function collideBallLine(ball,line){
 function collideBallBall(a,b){
   var dx=b.x-a.x,dy=b.y-a.y;
   var dist=Math.sqrt(dx*dx+dy*dy);
+  // Guard against NaN when two balls spawn at identical position
+  if(dist<0.001){dx=0.01;dy=0.01;dist=Math.sqrt(0.0002)}
   var minDist=a.r+b.r;
-  if(dist<minDist&&dist>0.001){
+  if(dist<minDist){
     var nx=dx/dist,ny=dy/dist;
     var overlap=(minDist-dist)/2;
     a.x-=nx*overlap;a.y-=ny*overlap;
@@ -156,8 +149,9 @@ function collideBallBall(a,b){
     var dvx=a.vx-b.vx,dvy=a.vy-b.vy;
     var dot=dvx*nx+dvy*ny;
     if(dot>0){
-      a.vx-=dot*nx*BOUNCE;a.vy-=dot*ny*BOUNCE;
-      b.vx+=dot*nx*BOUNCE;b.vy+=dot*ny*BOUNCE;
+      var impulse=dot*(1+BOUNCE)*0.5;
+      a.vx-=impulse*nx;a.vy-=impulse*ny;
+      b.vx+=impulse*nx;b.vy+=impulse*ny;
     }
   }
 }
@@ -238,7 +232,7 @@ canvas.addEventListener('pointerdown',function(e){
   }
 });
 
-canvas.addEventListener('pointermove',function(e){
+window.addEventListener('pointermove',function(e){
   pmouseX=mouseX;pmouseY=mouseY;
   mouseX=e.clientX;mouseY=e.clientY;
 
@@ -253,7 +247,9 @@ canvas.addEventListener('pointermove',function(e){
   if(draggingBall){
     draggingBall.x=mouseX+dragOffX;
     draggingBall.y=mouseY+dragOffY;
-    draggingBall.vx=0;draggingBall.vy=0;
+    // Track velocity during drag so release throw is accurate
+    draggingBall.vx=(mouseX-pmouseX)*0.8;
+    draggingBall.vy=(mouseY-pmouseY)*0.8;
   }
 });
 
@@ -268,22 +264,20 @@ window.addEventListener('pointerup',function(e){
   }
 
   if(draggingBall){
-    // Throw velocity from mouse movement
-    draggingBall.vx=(mouseX-pmouseX)*0.5;
-    draggingBall.vy=(mouseY-pmouseY)*0.5;
+    // Velocity already tracked during pointermove; just release
     draggingBall=null;
   }
 });
 
 function spawnBall(x,y){
-  if(balls.length+boxes.length>=MAX_BODIES){balls.shift()}
+  if(balls.length+boxes.length>=MAX_BODIES){if(balls.length>0)balls.shift();else boxes.shift()}
   var colors=['#0ff','#f0f','#3fb950','#ffcc33','#f85149','#58a6ff'];
   balls.push({x:x,y:y,vx:(Math.random()-0.5)*2,vy:0,r:8+Math.random()*8,
     color:colors[Math.floor(Math.random()*colors.length)]});
 }
 
 function spawnBox(x,y){
-  if(balls.length+boxes.length>=MAX_BODIES){boxes.shift()}
+  if(balls.length+boxes.length>=MAX_BODIES){if(boxes.length>0)boxes.shift();else balls.shift()}
   var colors=['#bc8cff','#f0883e','#58a6ff','#3fb950'];
   boxes.push({x:x,y:y,vx:(Math.random()-0.5)*2,vy:0,
     w:12+Math.random()*16,h:12+Math.random()*16,

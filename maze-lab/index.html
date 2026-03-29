@@ -59,6 +59,7 @@ var genAlgo='backtrack',solveAlgo='bfs';
 var speed=10; // steps per frame
 var animating=false,phase='idle'; // idle, generating, solving, done
 var genState=null,solveState=null;
+var animId=null;
 var solution=[];
 
 // ============ GRID ============
@@ -123,7 +124,7 @@ function stepBacktrack(state){
 function initPrim(){
   grid[0][0].inMaze=true;grid[0][0].genVisit=true;
   var frontier=[];
-  neighbors(0,0).forEach(function(n){frontier.push({r:n[0],c:n[1],fr:0,fc:0});grid[n[0]][n[1]].frontier=true});
+  neighbors(0,0).forEach(function(n){frontier.push({r:n[0],c:n[1]});grid[n[0]][n[1]].frontier=true});
   return{type:'prim',frontier:frontier,done:false};
 }
 
@@ -133,12 +134,14 @@ function stepPrim(state){
   var f=state.frontier[idx];
   state.frontier.splice(idx,1);
   grid[f.r][f.c].frontier=false;
-  if(grid[f.r][f.c].inMaze){return} // already added
   grid[f.r][f.c].inMaze=true;grid[f.r][f.c].genVisit=true;
-  removeWall(f.fr,f.fc,f.r,f.c);
+  // Connect to a random adjacent maze cell (true Prim's)
+  var inMazeNb=neighbors(f.r,f.c).filter(function(n){return grid[n[0]][n[1]].inMaze});
+  var conn=inMazeNb[Math.floor(Math.random()*inMazeNb.length)];
+  removeWall(conn[0],conn[1],f.r,f.c);
   neighbors(f.r,f.c).forEach(function(n){
     if(!grid[n[0]][n[1]].inMaze&&!grid[n[0]][n[1]].frontier){
-      state.frontier.push({r:n[0],c:n[1],fr:f.r,fc:f.c});
+      state.frontier.push({r:n[0],c:n[1]});
       grid[n[0]][n[1]].frontier=true;
     }
   });
@@ -224,12 +227,13 @@ function stepDFS(state){
   if(state.stack.length===0){state.done=true;return}
   var cur=state.stack.pop();
   var r=cur[0],c=cur[1];
+  if(grid[r][c].solveVisit)return; // skip already-visited (popped via alternate push)
+  grid[r][c].solveVisit=true;
   if(r===ROWS-1&&c===COLS-1){state.done=true;state.found=true;tracePath(state.parent);return}
   var nb=neighbors(r,c);
   for(var i=0;i<nb.length;i++){
     var nr=nb[i][0],nc=nb[i][1];
     if(!grid[nr][nc].solveVisit&&canPass(r,c,nr,nc)){
-      grid[nr][nc].solveVisit=true;
       state.parent[nr+','+nc]=r+','+c;
       state.stack.push([nr,nc]);
     }
@@ -317,12 +321,13 @@ function animate(){
     }
   }
   draw();
-  if(animating)requestAnimationFrame(animate);
+  if(animating)animId=requestAnimationFrame(animate);
 }
 
 // ============ CONTROLS ============
 function startGenerate(){
-  COLS=parseInt(document.getElementById('sl-size').value,10)||20;
+  if(animId){cancelAnimationFrame(animId);animId=null}
+  COLS=Math.max(2,parseInt(document.getElementById('sl-size').value,10)||20);
   ROWS=COLS;
   resize();initGrid();
   genAlgo=document.getElementById('sel-gen').value;
@@ -331,11 +336,12 @@ function startGenerate(){
   else if(genAlgo==='kruskal')genState=initKruskal();
   phase='generating';animating=true;solveState=null;solution=[];
   setStatus('Generating...');
-  requestAnimationFrame(animate);
+  animId=requestAnimationFrame(animate);
 }
 
 function startSolve(){
   if(phase!=='idle'&&phase!=='done')return;
+  if(animId){cancelAnimationFrame(animId);animId=null}
   // Clear solve state
   for(var r=0;r<ROWS;r++)for(var c=0;c<COLS;c++){
     grid[r][c].solveVisit=false;grid[r][c].path=false;
@@ -346,7 +352,7 @@ function startSolve(){
   else solveState=initDFS();
   phase='solving';animating=true;
   setStatus('Solving...');
-  requestAnimationFrame(animate);
+  animId=requestAnimationFrame(animate);
 }
 
 function stepOnce(){
@@ -367,7 +373,7 @@ function setStatus(t){document.getElementById('status').textContent=t}
 
 document.getElementById('btn-gen').addEventListener('click',startGenerate);
 document.getElementById('btn-solve').addEventListener('click',startSolve);
-document.getElementById('btn-step').addEventListener('click',function(){animating=false;stepOnce()});
+document.getElementById('btn-step').addEventListener('click',function(){animating=false;if(animId){cancelAnimationFrame(animId);animId=null}stepOnce()});
 document.getElementById('sl-speed').addEventListener('input',function(e){
   speed=parseInt(e.target.value,10);if(isNaN(speed)||speed<1)speed=1;
 });

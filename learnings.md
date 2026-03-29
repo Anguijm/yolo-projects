@@ -2280,3 +2280,17 @@ Persistent knowledge base. Read this before every build.
 - **BUG**: High score read from localStorage at init but never written back — best score always reset on page refresh. Fixed by saving to localStorage in `updateHUD()` whenever `score > bestScore`.
 - **BUG**: Scored notes use `n.life || 0.5` in draw() but `n.life` is never initialized or decremented — always draws at 0.5 opacity with no fade. Fixed by initializing `n.life=1` on score and decrementing by `dt*2` in update().
 - **BUG**: Particle velocity not multiplied by `dt` — explosion speed tied to monitor refresh rate (2x faster on 120Hz vs 60Hz). Fixed to `p.vx*dt*60` normalization.
+
+### gravity-sketch refinement (Phase 2 #92)
+- **BUG**: First-pass box-line collision loop created a temporary object, mutated it via `collideBallLine`, then immediately discarded the result — boxes phased through ramps. Removed the dead loop; the correct second-pass `tmp` approach already existed.
+- **BUG**: Box out-of-bounds filter only checked Y, not X — boxes pushed off the side of the screen leaked into memory forever and consumed `MAX_BODIES` slots. Added X-bounds check to match ball filtering.
+- **BUG**: `collideBallBall` had no guard for `dist === 0` — two balls spawned at identical coords produced `NaN` velocities that permanently corrupted those bodies. Added epsilon offset before the distance check.
+- **BUG**: `MAX_BODIES` eviction called `balls.shift()` even in `spawnBall` when zero balls exist, doing nothing — same for `spawnBox`. Fixed to shift from the array with items, falling back to the other.
+- **BUG**: `pointermove` on `canvas` only — rapid drags escape the canvas, freezing balls mid-drag and leaving draw lines with gaps. Moved to `window`.
+- **BUG**: Throw velocity computed on `pointerup` from last two `pointermove` samples — if mouse paused before release the velocity was zero. Fixed by accumulating velocity in `pointermove` during drag and releasing without recalculating.
+
+### maze-lab refinement (Phase 2 #91)
+- **BUG**: No animation concurrency guard — clicking Generate/Solve rapidly spawned multiple simultaneous `requestAnimationFrame` loops, multiplying animation speed and corrupting state. Fixed by tracking `animId` and calling `cancelAnimationFrame(animId)` before starting any new loop.
+- **BUG**: Prim's algorithm stored the first-discovering maze neighbor in each frontier entry and always connected to it, creating directional bias. Fixed to find all adjacent in-maze cells at pop time and connect to a random one — true randomized Prim's.
+- **BUG**: DFS solver marked cells `solveVisit=true` on push, not pop — cells appeared visited before the algorithm head reached them, breaking backtrack visualization. Fixed to mark on pop and skip if already visited.
+- **PATTERN**: `cancelAnimationFrame` should always be paired with `requestAnimationFrame` in interactive visualizers to prevent runaway loops on button re-clicks.
