@@ -200,17 +200,21 @@ document.addEventListener('keydown', function(e) {
     board[selectedCell] = num;
     updateBoard();
   }
-  if (e.key === 'Backspace' || e.key === 'Delete') {
+  if (e.key === 'Backspace' || e.key === 'Delete' || e.key === '0') {
     if (!given[selectedCell]) { board[selectedCell] = 0; updateBoard(); }
     e.preventDefault();
   }
-  // Arrow navigation
-  var row = Math.floor(selectedCell / 9);
-  var col = selectedCell % 9;
-  if (e.key === 'ArrowUp' && row > 0) { selectedCell -= 9; updateBoard(); e.preventDefault(); }
-  if (e.key === 'ArrowDown' && row < 8) { selectedCell += 9; updateBoard(); e.preventDefault(); }
-  if (e.key === 'ArrowLeft' && col > 0) { selectedCell -= 1; updateBoard(); e.preventDefault(); }
-  if (e.key === 'ArrowRight' && col < 8) { selectedCell += 1; updateBoard(); e.preventDefault(); }
+  // Arrow navigation — always preventDefault to prevent page scrolling
+  if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
+    e.preventDefault();
+    var row = Math.floor(selectedCell / 9);
+    var col = selectedCell % 9;
+    if (e.key === 'ArrowUp' && row > 0) selectedCell -= 9;
+    if (e.key === 'ArrowDown' && row < 8) selectedCell += 9;
+    if (e.key === 'ArrowLeft' && col > 0) selectedCell -= 1;
+    if (e.key === 'ArrowRight' && col < 8) selectedCell += 1;
+    updateBoard();
+  }
 });
 
 // Check solution
@@ -224,7 +228,7 @@ document.getElementById('btn-check').addEventListener('click', function() {
       var temp = board[i];
       board[i] = 0;
       if (!isValid(board, Math.floor(i / 9), i % 9, temp)) {
-        cells[i].classList.add('error');
+        if (!given[i]) cells[i].classList.add('error');
         errors++;
       }
       board[i] = temp;

@@ -2174,3 +2174,8 @@ Persistent knowledge base. Read this before every build.
 - **FIX**: Unhandled Promise rejection from Clipboard API — `navigator.clipboard.writeText()` was called without `.catch()`, causing unhandled rejection errors when clipboard permission is denied. Converted to `async/await` with try/catch
 - **FIX**: `JSON.parse` crash on corrupted localStorage — if `emoji-recent` held invalid JSON the entire script would throw on load. Wrapped in try/catch defaulting to `[]`
 - **FIX**: `localStorage.setItem` could throw in private browsing — `QuotaExceededError`/`SecurityError` would crash `copyEmoji` before showing the flash. Wrapped write in try/catch
+
+### sudoku refinement (2026-03-29) — PHASE 2 #74
+- **FIX**: Given cells marked as errors on Check — `isValid` flagged conflicting given cells with `.error` class (red) even though givens are immutable puzzle truths. Added `!given[i]` guard before applying error class
+- **FIX**: Arrow keys scroll page at board edges — `e.preventDefault()` was only called inside movement condition branches, so pressing ArrowUp on row 0 or ArrowDown on row 8 didn't prevent page scroll. Moved `preventDefault()` outside all directional conditions so it always fires for arrow keys
+- **FIX**: Keyboard `0` key didn't erase — numpad Erase button mapped to `0` but keyboard `0` was silently ignored. Added `e.key === '0'` to the erase condition alongside Backspace/Delete
