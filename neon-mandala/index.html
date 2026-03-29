@@ -70,23 +70,47 @@ var fadeSpeed = 3; // 0 = no fade, higher = faster
 
 // Drawing state
 var isDrawing = false;
+var activePointerId = null;
 var prevX = 0, prevY = 0;
 var hue = 0;
 
 // ============ SIZING ============
+var lastInnerWidth = 0;
+
 function resize() {
+  // Skip height-only changes (mobile URL bar show/hide)
+  if (window.innerWidth === lastInnerWidth && W > 0) return;
+  lastInnerWidth = window.innerWidth;
+
   var dpr = window.devicePixelRatio || 1;
+  var newW = window.innerWidth * dpr;
+  var newH = window.innerHeight * dpr;
+
+  // Save existing drawing before resize clears the canvas
+  var tempCanvas = null;
+  if (canvas.width > 0 && canvas.height > 0) {
+    tempCanvas = document.createElement('canvas');
+    tempCanvas.width = canvas.width;
+    tempCanvas.height = canvas.height;
+    tempCanvas.getContext('2d').drawImage(canvas, 0, 0);
+  }
+
   canvas.style.width = window.innerWidth + 'px';
   canvas.style.height = window.innerHeight + 'px';
-  W = window.innerWidth * dpr;
-  H = window.innerHeight * dpr;
+  W = newW;
+  H = newH;
   canvas.width = W;
   canvas.height = H;
   cx = W / 2;
   cy = H / 2;
-  // Fill black
+
   ctx.fillStyle = '#050505';
   ctx.fillRect(0, 0, W, H);
+
+  // Restore saved drawing
+  if (tempCanvas) {
+    ctx.drawImage(tempCanvas, 0, 0);
+  }
 }
 
 // ============ DRAWING ============
@@ -138,8 +162,15 @@ function drawSymmetricLine(x1, y1, x2, y2) {
 // ============ FADE LOOP ============
 function fadeLoop() {
   if (fadeSpeed > 0) {
-    ctx.fillStyle = 'rgba(5, 5, 5, ' + (fadeSpeed * 0.005) + ')';
+    // Use destination-out to avoid ghost trails from canvas alpha rounding
+    ctx.globalCompositeOperation = 'destination-out';
+    ctx.fillStyle = 'rgba(0, 0, 0, ' + (fadeSpeed * 0.005) + ')';
     ctx.fillRect(0, 0, W, H);
+    // Redraw background behind transparent pixels
+    ctx.globalCompositeOperation = 'destination-over';
+    ctx.fillStyle = '#050505';
+    ctx.fillRect(0, 0, W, H);
+    ctx.globalCompositeOperation = 'source-over';
   }
 
   // Cycle hue continuously
@@ -160,7 +191,9 @@ function getPos(e) {
 
 canvas.addEventListener('pointerdown', function(e) {
   e.preventDefault();
+  if (isDrawing) return; // Ignore second fingers
   isDrawing = true;
+  activePointerId = e.pointerId;
   var p = getPos(e);
   prevX = p.x;
   prevY = p.y;
@@ -168,7 +201,7 @@ canvas.addEventListener('pointerdown', function(e) {
 });
 
 canvas.addEventListener('pointermove', function(e) {
-  if (!isDrawing) return;
+  if (!isDrawing || e.pointerId !== activePointerId) return;
   e.preventDefault();
   var p = getPos(e);
   drawSymmetricLine(prevX, prevY, p.x, p.y);
@@ -177,12 +210,16 @@ canvas.addEventListener('pointermove', function(e) {
 });
 
 canvas.addEventListener('pointerup', function(e) {
+  if (e.pointerId !== activePointerId) return;
   isDrawing = false;
+  activePointerId = null;
   canvas.releasePointerCapture(e.pointerId);
 });
 
-canvas.addEventListener('pointercancel', function() {
+canvas.addEventListener('pointercancel', function(e) {
+  if (e.pointerId !== activePointerId) return;
   isDrawing = false;
+  activePointerId = null;
 });
 
 // Prevent context menu on long press

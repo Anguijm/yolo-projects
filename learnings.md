@@ -2065,3 +2065,9 @@ Persistent knowledge base. Read this before every build.
 - **FIX**: Empty number input silently zeroed buffer — `Number("")` evaluates to `0` in JS, so pressing Enter on empty field overwrote the buffer. Added empty string guard
 - **FIX**: Non-numeric text in number input silently ignored — typing "hello" did nothing. Now writes NaN to buffer so user sees the IEEE 754 NaN bit pattern
 - **INSIGHT**: When building endian-aware tools, byte-level carry propagation is endian-dependent. Use BigInt DataView methods to let the engine handle byte order correctly
+
+### neon-mandala refinement (2026-03-29) — PHASE 2 #55
+- **FIX**: Ghost trails never fully faded — canvas alpha rounding (8-bit channels) means `rgba(5,5,5,0.015)` overlay never fully erases bright pixels. Fixed with `destination-out` compositing to truly subtract alpha, then `destination-over` to fill background behind transparent areas
+- **FIX**: Resize erased entire drawing — setting `canvas.width` clears the buffer. Now saves to temp canvas before resize and restores after. Also skips height-only changes to avoid mobile URL bar wipe
+- **FIX**: Multi-touch caused zigzag lines — single `isDrawing` boolean tracked all pointers, so two fingers made `prevX/Y` jump between both positions. Added `activePointerId` to lock to first finger and ignore secondary touches
+- **INSIGHT**: Canvas fade trails using low-alpha fillRect always leave ghosts due to 8-bit rounding. Use `destination-out` compositing for clean fades
