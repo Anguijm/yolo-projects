@@ -2206,6 +2206,12 @@ Persistent knowledge base. Read this before every build.
 - **FIX**: Window resize destroyed baked artwork — resizing the canvas element clears all pixel data; `resize()` rebuilt `bakedCanvas` dimensions with a fresh fill, erasing baked history. Fixed by saving baked content to a temp canvas before resize and restoring it after
 - **FIX**: Duplicate drawing code (DRY) — `drawStroke(ctx)` was a near-exact copy of `drawStrokeTo(stroke, tctx)`, and the save button had a third inline copy. Removed `drawStroke` entirely; `redrawAll` and save both call the shared `drawStrokeTo`
 
+### raw-md refinement (2026-03-29) — PHASE 2 #79
+- **FIX**: XSS via `javascript:` URIs in Markdown links — `parseInline` passed URLs directly into `href` attributes; sanitized by stripping `javascript:`/`vbscript:` schemes and replacing with `#`
+- **FIX**: Unescaped `"` and `'` in HTML escaping — initial escape pass omitted quote characters, allowing attribute breakout in image `alt` values; added `&quot;` and `&#39;` replacements
+- **FIX**: Windows line endings (`\r\n`) breaking regex — `\r` left on line endings caused header, HR, and list regexes with `$` anchors to fail on Windows-sourced text; added `text.replace(/\r/g, '')` before splitting
+- **FIX**: One-way scroll sync — preview pane scrolling did not scroll the editor; added symmetric `preview.scroll` listener with mutual flag guards to prevent infinite loop
+
 ### sudoku refinement (2026-03-29) — PHASE 2 #74
 - **FIX**: Given cells marked as errors on Check — `isValid` flagged conflicting given cells with `.error` class (red) even though givens are immutable puzzle truths. Added `!given[i]` guard before applying error class
 - **FIX**: Arrow keys scroll page at board edges — `e.preventDefault()` was only called inside movement condition branches, so pressing ArrowUp on row 0 or ArrowDown on row 8 didn't prevent page scroll. Moved `preventDefault()` outside all directional conditions so it always fires for arrow keys

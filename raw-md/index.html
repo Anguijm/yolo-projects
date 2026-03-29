@@ -96,7 +96,9 @@ function parseMD(src) {
   var text = src
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;');
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
 
   // 2. Extract code blocks (protect from inline parsing)
   var codeBlocks = [];
@@ -114,8 +116,8 @@ function parseMD(src) {
     return 'ZZINLINEZZ' + idx + 'ZZ';
   });
 
-  // 4. Process lines
-  var lines = text.split('\n');
+  // 4. Process lines (normalize Windows line endings)
+  var lines = text.replace(/\r/g, '').split('\n');
   var html = '';
   var inList = false;
   var listType = '';
@@ -217,8 +219,11 @@ function parseMD(src) {
 function parseInline(text) {
   // Images: ![alt](url)
   text = text.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, '<img src="$2" alt="$1">');
-  // Links: [text](url)
-  text = text.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
+  // Links: [text](url) — block javascript: and vbscript: XSS URIs
+  text = text.replace(/\[([^\]]+)\]\(([^)]+)\)/g, function(match, linkText, url) {
+    var cleanUrl = /^\s*(javascript|vbscript):/i.test(url) ? '#' : url;
+    return '<a href="' + cleanUrl + '" target="_blank" rel="noopener">' + linkText + '</a>';
+  });
   // Bold+Italic
   text = text.replace(/\*\*\*(.+?)\*\*\*/g, '<strong><em>$1</em></strong>');
   // Bold
@@ -254,14 +259,21 @@ function updateStats(src) {
 }
 
 // ============ SYNC SCROLL ============
-var syncingScroll = false;
+var syncingLeft = false;
+var syncingRight = false;
 
 input.addEventListener('scroll', function() {
-  if (syncingScroll) return;
-  syncingScroll = true;
+  if (syncingLeft) { syncingLeft = false; return; }
+  syncingRight = true;
   var pct = input.scrollTop / Math.max(1, input.scrollHeight - input.clientHeight);
   preview.scrollTop = pct * (preview.scrollHeight - preview.clientHeight);
-  requestAnimationFrame(function() { syncingScroll = false; });
+});
+
+preview.addEventListener('scroll', function() {
+  if (syncingRight) { syncingRight = false; return; }
+  syncingLeft = true;
+  var pct = preview.scrollTop / Math.max(1, preview.scrollHeight - preview.clientHeight);
+  input.scrollTop = pct * (input.scrollHeight - input.clientHeight);
 });
 
 // ============ EVENTS ============
