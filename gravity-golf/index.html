@@ -161,6 +161,9 @@ function computeTrajectory(sx,sy,vx,vy,steps){
     bx+=bvx*dt;by+=bvy*dt;
     pts.push({x:bx,y:by});
     if(bx<-50||bx>W+50||by<-50||by>H+50)break;
+    // Stop preview at target (matches actual win condition)
+    var tdx=bx-target.x,tdy=by-target.y;
+    if(tdx*tdx+tdy*tdy<(target.r+5)*(target.r+5))break;
   }
   return pts;
 }
@@ -343,7 +346,12 @@ function resize(){
   startX=L.ball[0]/100*W;startY=L.ball[1]/100*H;
   target.x=L.target[0]/100*W;target.y=L.target[1]/100*H;
   wells=L.wells.map(function(w){return{x:w.x/100*W,y:w.y/100*H,mass:w.mass,type:w.type}});
-  if(gameState==='aiming'||gameState==='oob'){ball.x=startX;ball.y=startY}
+  if(gameState==='flying'){
+    // Resize during flight would desync ball position from recalculated world — reset shot
+    resetShot();
+  }else if(gameState==='aiming'||gameState==='oob'){
+    ball.x=startX;ball.y=startY;
+  }
 }
 
 // ---- Main loop ----
@@ -356,6 +364,7 @@ function loop(){
 // ---- Init ----
 resize();
 window.addEventListener('resize',resize);
+loadLevel(0);
 requestAnimationFrame(loop);
 })();
 </script>

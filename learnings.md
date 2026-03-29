@@ -2376,6 +2376,17 @@ Persistent knowledge base. Read this before every build.
 - **CRITICAL BUG**: Drawing from the stock was completely broken. `findCard()` searches only tableau/waste/foundations — it never finds stock cards and returns `null`. The main `pointerdown` handler had `if(!loc)return` immediately after, so the fallback `drawFromStock()` logic lower in the function was **unreachable dead code**. Fixed by checking `el.closest('#stock')` first, before calling `findCard`, and calling `drawFromStock()` immediately.
 - **BUG**: `renderTableau` had two consecutive `el.style.top=...` assignments — the first (a convoluted ternary involving `getComputedStyle`) was immediately overwritten by the second (`calcTop`). Removed the dead first assignment.
 
+### fourier-draw refinement (Phase 2 #109)
+- **BUG**: `time` was hard-reset to `0` at the end of each Fourier cycle. Because `dt` is a discrete step, `time` always overshoots `2*Math.PI`, and resetting to zero dropped the fractional overshoot — causing a subtle stutter/jump at the start of every loop. Fixed with `time %= (2 * Math.PI)`.
+- **BUG**: Rapid preset selection queued multiple `setTimeout(startAnimation, 300)` calls without clearing the previous one. Each fired independently, launching overlapping animation loops. Fixed by calling `clearTimeout(presetTimeout)` before reassigning.
+- **BUG**: `generatePreset` returns `[]` for unrecognized preset values. The listener immediately called `ctx.moveTo(userPath[0].x, ...)` — a crash on `undefined`. Fixed with an early return guard: `if(!userPath.length)return`.
+- **BUG**: `pointercancel` not handled — a system interruption during drawing left `isDrawing=true` permanently, causing ghost strokes on subsequent pointer moves. Fixed by adding a `pointercancel` listener mirroring the `pointerup` logic.
+
+### gravity-golf refinement (Phase 2 #109)
+- **BUG**: `loadLevel(0)` was never called on init — only `resize()` was. The HUD showed blank values and `ball` started at `{x:0,y:0}` (top-left corner) instead of level position. Fixed by adding `loadLevel(0)` before `requestAnimationFrame(loop)`.
+- **BUG**: Window resize during ball flight left the ball and trail at stale pixel coords while `target`/`wells` were recalculated to new screen-relative positions — creating impossible physics mid-flight. Fixed by calling `resetShot()` in `resize()` when `gameState==='flying'`.
+- **BUG**: `computeTrajectory` trajectory preview didn't check for target collision, so the dotted aim line visually passed straight through the goal hole. Fixed by breaking the trajectory loop when the simulated ball enters `(target.r+5)^2` — matching the real win condition.
+
 ### picross refinement (Phase 2 #106)
 - **BUG**: `pointercancel` not handled — if the browser interrupts a drag gesture (system notification, scroll hijack), `isDrawing` stayed `true` permanently, causing cells to trigger on hover. Fixed by adding `window.addEventListener('pointercancel', onPointerUp)`.
 - **BUG**: Error cells (`grid[r][c]===-1`) were erasable during the 300ms error animation — the erase path checked `cur===0||cur===1` but not `-1`. After erasing, the pending timeout would still fire and re-cross the cell. Fixed by also blocking erase on `-1`.

@@ -160,6 +160,13 @@ window.addEventListener('pointerup',function(){
   startAnimation();
 });
 
+window.addEventListener('pointercancel',function(){
+  if(!isDrawing)return;
+  isDrawing=false;
+  if(userPath.length<10){stopAnimation();return}
+  startAnimation();
+});
+
 // ---- Animation ----
 function startAnimation(){
   STATE='ANIMATING';
@@ -264,9 +271,9 @@ function drawFrame(){
   var dt=(2*Math.PI/N)*(speed*0.3);
   time+=dt;
 
-  // Reset after full cycle
+  // Reset after full cycle (use modulo to keep fractional overflow — avoids stutter)
   if(time>=2*Math.PI){
-    time=0;
+    time%=(2*Math.PI);
     tracePath=[];
   }
 }
@@ -350,6 +357,7 @@ document.getElementById('sel-preset').addEventListener('change',function(){
   if(!v)return;
   this.value='';
   userPath=generatePreset(v);
+  if(!userPath.length)return; // guard against unknown preset
   document.getElementById('hint').style.opacity='0';
   // Draw preview
   ctx.fillStyle='#060610';ctx.fillRect(0,0,W,H);
@@ -358,6 +366,7 @@ document.getElementById('sel-preset').addEventListener('change',function(){
   ctx.moveTo(userPath[0].x,userPath[0].y);
   for(var i=1;i<userPath.length;i++)ctx.lineTo(userPath[i].x,userPath[i].y);
   ctx.closePath();ctx.stroke();
+  clearTimeout(presetTimeout);
   presetTimeout=setTimeout(startAnimation,300);
 });
 
