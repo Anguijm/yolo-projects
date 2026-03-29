@@ -69,6 +69,8 @@ var comparisons = 0;
 var swaps = 0;
 var audioOn = false;
 var audioCtx = null;
+var sortedIndices = new Set();
+var barsContainer = null;
 
 // ============ AUDIO ============
 function initAudio() {
@@ -96,6 +98,7 @@ function playTone(value, maxVal) {
 // ============ ARRAY / RENDERING ============
 function generateArray() {
   arr = [];
+  sortedIndices.clear();
   for (var i = 0; i < size; i++) arr.push(Math.floor(Math.random() * 100) + 1);
   renderBars();
   comparisons = 0;
@@ -104,7 +107,7 @@ function generateArray() {
 }
 
 function renderBars(highlights) {
-  var container = document.getElementById('bars');
+  var container = barsContainer;
   // Reuse existing bars if count matches
   while (container.children.length > arr.length) container.removeChild(container.lastChild);
   while (container.children.length < arr.length) {
@@ -114,14 +117,19 @@ function renderBars(highlights) {
   }
   var maxVal = Math.max.apply(null, arr);
   var hl = highlights || {};
+  // If explicit sorted list provided, update sortedIndices
+  if (hl.sorted) {
+    for (var s = 0; s < hl.sorted.length; s++) sortedIndices.add(hl.sorted[s]);
+  }
   for (var i = 0; i < arr.length; i++) {
     var bar = container.children[i];
     bar.style.height = (arr[i] / maxVal * 100) + '%';
-    bar.className = 'bar';
-    if (hl.sorted && hl.sorted.indexOf(i) >= 0) bar.classList.add('sorted');
-    else if (hl.swapping && hl.swapping.indexOf(i) >= 0) bar.classList.add('swapping');
-    else if (hl.comparing && hl.comparing.indexOf(i) >= 0) bar.classList.add('comparing');
-    else if (hl.pivot !== undefined && hl.pivot === i) bar.classList.add('pivot');
+    var cls = 'bar';
+    if (hl.swapping && hl.swapping.indexOf(i) >= 0) cls += ' swapping';
+    else if (hl.comparing && hl.comparing.indexOf(i) >= 0) cls += ' comparing';
+    else if (hl.pivot !== undefined && hl.pivot === i) cls += ' pivot';
+    else if (sortedIndices.has(i)) cls += ' sorted';
+    if (bar.className !== cls) bar.className = cls;
   }
 }
 
@@ -166,9 +174,10 @@ async function insertionSort() {
     renderBars({ comparing: [i] });
     playTone(arr[i], 100);
     await delay();
-    while (j >= 0 && arr[j] > key) {
+    while (j >= 0) {
       if (cancelled) return;
       comparisons++;
+      if (arr[j] <= key) break;
       arr[j + 1] = arr[j];
       swaps++;
       j--;
@@ -296,6 +305,7 @@ document.getElementById('btn-start').addEventListener('click', async function() 
   cancelled = false;
   comparisons = 0;
   swaps = 0;
+  sortedIndices.clear();
   updateInfo();
   this.textContent = 'Stop';
   this.classList.add('running');
@@ -315,7 +325,7 @@ document.getElementById('btn-gen').addEventListener('click', function() {
   generateArray();
 });
 
-document.getElementById('sl-size').addEventListener('input', function(e) {
+document.getElementById('sl-size').addEventListener('change', function(e) {
   size = parseInt(e.target.value, 10);
   if (isNaN(size) || size < 5) size = 5;
   if (!sorting) generateArray();
@@ -333,6 +343,7 @@ document.getElementById('btn-audio').addEventListener('click', function() {
 });
 
 // ============ INIT ============
+barsContainer = document.getElementById('bars');
 generateArray();
 
 })();

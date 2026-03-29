@@ -1692,6 +1692,12 @@ Persistent knowledge base. Read this before every build.
 - **INSIGHT**: Trivial projects actively harm a portfolio — a tip calculator next to a software 3D renderer makes the 3D renderer look accidental
 - **INSIGHT**: Category saturation (4 typing games, 5 timers, 4 color tools) signals repetition, not mastery. Keep 1-2 apex projects per category
 
+### algo-vision refinement (2026-03-29) — PHASE 2 #77
+- **FIX**: Sorted bars lost their green highlight on subsequent render calls — `sortedIndices` Set now persists sorted state across renders instead of resetting all classes each frame
+- **FIX**: Insertion sort undercounted comparisons — the final comparison that breaks the while loop was never counted; restructured loop to count every comparison
+- **FIX**: Size slider used `input` event causing continuous DOM thrashing while dragging — changed to `change` event so it only fires on release
+- **FIX**: `getElementById('bars')` was called inside `renderBars()` on every frame — cached reference at init time
+
 ### git-xray refinement (2026-03-27) — PHASE 2 #1
 - **FIX**: XSS vulnerability — json.dumps preserves `</script>` in filenames, breaking out of script tag. Fixed with `\u003c`/`\u003e` escaping
 - **FIX**: subprocess.TimeoutExpired crash — no try/except around 120s timeout. Script crashed on large repos
