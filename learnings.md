@@ -2086,3 +2086,11 @@ Persistent knowledge base. Read this before every build.
 - **FIX**: Early Koch progression — required only 10 samples but sliced last 20, so 9/10 correct triggered level-up. Changed minimum to 20 for full-window assessment
 - **FIX**: Double event firing on start — clicking btn-start inside start-screen fired startGame twice due to bubbling. Added stopPropagation (mitigated by started guard but still bad practice)
 - **INSIGHT**: In quiz/drill games, forced retries after wrong answers must not count toward accuracy — they always succeed and inflate scores
+
+### dice-oracle refinement (2026-03-29) — PHASE 2 #58
+- **FIX**: NaN% displayed for rare Monte Carlo rolls — `dist[roll]` was undefined when the exact roll didn't appear in 20K iterations. Added fallback `dist[roll] || 0`
+- **FIX**: Monte Carlo distribution jitter — pressing Enter recomputed distribution, producing slightly different probabilities each time. Now caches and reuses distribution when notation hasn't changed
+- **FIX**: Modulo bias in cryptoRandInt — `Uint32 % max` has slight bias when max doesn't divide 2^32. Implemented rejection sampling for true uniformity
+- **FIX**: XSS in history log — user-typed notation injected via innerHTML. Replaced with textContent via DOM createElement
+- **FIX**: Silent misparsing of invalid operators — `1d6 * 5` silently became `1d6 + 5`. Added regex validation to reject strings with invalid characters
+- **INSIGHT**: When using Monte Carlo for probability distributions, the actual roll may produce values not in the simulation. Always handle missing keys gracefully

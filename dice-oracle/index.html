@@ -112,6 +112,8 @@ function playClick() {
 function parseDice(str) {
   str = str.replace(/\s/g, '').toLowerCase();
   if (!str) return null;
+  // Reject strings with invalid characters
+  if (/[^d0-9k+\-]/.test(str)) return null;
 
   var tokens = [];
   var re = /(\d*d\d+(?:k\d+)?)|([+\-])|(\d+)/g;
@@ -209,8 +211,12 @@ function convolve(a, b, op) {
 
 // ============ CRYPTO RNG ============
 function cryptoRandInt(max) {
+  // Rejection sampling to eliminate modulo bias
   var arr = new Uint32Array(1);
-  crypto.getRandomValues(arr);
+  var limit = 4294967296 - (4294967296 % max); // 2^32 - (2^32 % max)
+  do {
+    crypto.getRandomValues(arr);
+  } while (arr[0] >= limit);
   return arr[0] % max;
 }
 
@@ -341,7 +347,9 @@ function doRoll() {
   if (!notation) return;
 
   initAudio();
-  var dist = parseDice(notation);
+  // Reuse cached distribution if notation hasn't changed (avoids Monte Carlo jitter)
+  var dist = (currentDist && input.dataset.lastParsed === notation) ? currentDist : parseDice(notation);
+  input.dataset.lastParsed = notation;
   if (!dist) {
     resultEl.textContent = '?';
     resultEl.style.color = '#333';
@@ -366,7 +374,8 @@ function doRoll() {
   percentileEl.textContent = 'TOP ' + (100 - pct) + '% | PERCENTILE ' + pct;
 
   var keys = Object.keys(dist).map(Number).sort(function(a, b) { return a - b; });
-  detailEl.textContent = 'RANGE ' + keys[0] + '-' + keys[keys.length - 1] + ' | MEAN ' + mean.toFixed(1) + ' | P(' + roll + ') = ' + (dist[roll] * 100).toFixed(1) + '%';
+  var prob = dist[roll] || 0;
+  detailEl.textContent = 'RANGE ' + keys[0] + '-' + keys[keys.length - 1] + ' | MEAN ' + mean.toFixed(1) + ' | P(' + roll + ') = ' + (prob * 100).toFixed(1) + '%';
 
   drawChart(dist, roll);
   playClick();
@@ -374,7 +383,14 @@ function doRoll() {
   // Add to history
   var entry = document.createElement('span');
   entry.className = 'hist-entry';
-  entry.innerHTML = '<span style="color:#0ff">' + notation + '</span> <span class="hist-val">' + roll + '</span>';
+  var notSpan = document.createElement('span');
+  notSpan.style.color = '#0ff';
+  notSpan.textContent = notation;
+  var valSpan = document.createElement('span');
+  valSpan.className = 'hist-val';
+  valSpan.textContent = ' ' + roll;
+  entry.appendChild(notSpan);
+  entry.appendChild(valSpan);
   historyLog.insertBefore(entry, historyLog.firstChild);
 
   // Cap history
