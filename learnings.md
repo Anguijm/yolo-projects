@@ -2106,3 +2106,8 @@ Persistent knowledge base. Read this before every build.
 - **FIX**: Ghost moves on reset — clicking Reset while AI was thinking didn't cancel the queued setTimeout. When the timeout fired, minimax ran against the empty board and dropped an AI piece on the fresh game. Added `clearTimeout(aiTimeout)` in resetGame
 - **FIX**: Deterministic AI — strict inequality `score > best.score` always picked the first equal-score column (center-biased from move ordering). Added 40% random tie-breaking so the AI plays varied openings
 - **INSIGHT**: Any game with AI thinking via setTimeout must cancel the timeout on reset/new-game — otherwise the queued callback corrupts the new game state
+
+### entropy-forge refinement (2026-03-29) — PHASE 2 #61
+- **FIX**: Entropy bar desynced when all character types unchecked — generate() returned early without calling updateEntropy(), so the bar/label showed stale values from the previous password. Now calls updateEntropy() before returning
+- **FIX**: Clipboard fallback missing focus() — `document.execCommand('copy')` requires the textarea to be focused before selecting on some mobile browsers. Added `ta.focus()` before `ta.select()`
+- **INSIGHT**: When a generator has an "invalid config" early return, always reset ALL UI elements (not just the output) — entropy bars, stats, and labels can mislead users if left showing stale data
