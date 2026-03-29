@@ -2308,3 +2308,13 @@ Persistent knowledge base. Read this before every build.
 - **BUG**: `findSeed` looped forward — overlapping seeds always grabbed the oldest one (bottom). Reversed to backward iteration so the most-recently-added (topmost visual) seed is hit first.
 - **BUG**: `pointermove` bound to `canvas` only — fast drags escape the canvas and lose tracking. Fixed with `canvas.setPointerCapture(e.pointerId)` on pointerdown to keep events coming regardless of position.
 - **BUG**: `pointercancel` (OS interruption) not handled — left `dragging=true`, causing point teleportation on next touch. Added shared `resetDrag` handler on both `pointerup` and `pointercancel`.
+
+### harmonic-forge refinement (Phase 2 #95)
+- **BUG**: `osc1.onended` closure inside a `for` loop captured `osc1`, `osc2`, `gain` by reference — all cleanup callbacks disconnected the last loop iteration's nodes, leaking the others. Fixed by wrapping the loop body in an IIFE to capture correct per-note references.
+- **BUG**: Web Audio envelope timing conflict — `setValueAtTime(0.08, now+delay+duration*0.6)` was scheduled before `linearRampToValueAtTime(0.08, now+delay+0.03)` at fast BPM (e.g. 140 BPM = 0.43s beat, 0.43*0.6=0.257 > 0.03 is fine, but at tiny durations it would cross). Fixed by computing `sustainStart = Math.max(attackEnd+0.01, now+delay+duration*0.6)`.
+- **BUG**: `playStep` not reset when loading a preset — mid-playback preset switch jumped to `playStep % newLength` offset instead of starting at beat 1. Fixed by setting `playStep=0` in `loadPreset`.
+- **BUG**: No master compressor — rapid chord clicks stacked oscillators and caused audio clipping. Added a `DynamicsCompressorNode` as master bus; all gains routed through it instead of directly to `audioCtx.destination`.
+
+### tale-weaver refinement (Phase 2 #96)
+- **BUG**: Inventory items pushed without deduplication — revisiting medbay gave a second `command_keycard`, displaying duplicate item tags and allowing the item to appear multiple times in the list. Fixed with an `indexOf` guard before push.
+- **BUG**: `startGame()` reset `state.steps=0` but did not update the `#step-count` DOM element — restarting the game left the previous game's step count visible until the first choice. Fixed by updating the element text in `startGame`.

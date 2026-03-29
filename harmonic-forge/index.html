@@ -158,10 +158,13 @@ function getDiatonicChords(key){
 
 // ============ AUDIO ============
 var audioCtx=null;
+var masterComp=null;
 
 function initAudio(){
   if(audioCtx)return;
   audioCtx=new(window.AudioContext||window.webkitAudioContext)();
+  masterComp=audioCtx.createDynamicsCompressor();
+  masterComp.connect(audioCtx.destination);
   if(audioCtx.state==='suspended')audioCtx.resume();
 }
 
@@ -169,20 +172,23 @@ function playChord(freqs,duration){
   if(!audioCtx)return;
   var now=audioCtx.currentTime;
   for(var i=0;i<freqs.length;i++){
-    var delay=i*0.04; // Strum delay
-    var osc1=audioCtx.createOscillator();
-    var osc2=audioCtx.createOscillator();
-    var gain=audioCtx.createGain();
-    osc1.type='triangle';osc1.frequency.value=freqs[i];
-    osc2.type='sine';osc2.frequency.value=freqs[i]*1.002; // Slight detune for warmth
-    gain.gain.setValueAtTime(0,now+delay);
-    gain.gain.linearRampToValueAtTime(0.08,now+delay+0.03);
-    gain.gain.setValueAtTime(0.08,now+delay+duration*0.6);
-    gain.gain.setTargetAtTime(0,now+delay+duration*0.6,duration*0.15);
-    osc1.connect(gain);osc2.connect(gain);gain.connect(audioCtx.destination);
-    osc1.start(now+delay);osc2.start(now+delay);
-    osc1.stop(now+delay+duration+0.2);osc2.stop(now+delay+duration+0.2);
-    osc1.onended=function(){osc1.disconnect();osc2.disconnect();gain.disconnect()};
+    (function(freq,delay){
+      var osc1=audioCtx.createOscillator();
+      var osc2=audioCtx.createOscillator();
+      var gain=audioCtx.createGain();
+      osc1.type='triangle';osc1.frequency.value=freq;
+      osc2.type='sine';osc2.frequency.value=freq*1.002; // Slight detune for warmth
+      var attackEnd=now+delay+0.03;
+      var sustainStart=Math.max(attackEnd+0.01,now+delay+duration*0.6);
+      gain.gain.setValueAtTime(0,now+delay);
+      gain.gain.linearRampToValueAtTime(0.08,attackEnd);
+      gain.gain.setValueAtTime(0.08,sustainStart);
+      gain.gain.setTargetAtTime(0,sustainStart,Math.max(duration*0.15,0.05));
+      osc1.connect(gain);osc2.connect(gain);gain.connect(masterComp);
+      osc1.start(now+delay);osc2.start(now+delay);
+      osc1.stop(now+delay+duration+0.2);osc2.stop(now+delay+duration+0.2);
+      osc1.onended=function(){osc1.disconnect();osc2.disconnect();gain.disconnect()};
+    })(freqs[i],i*0.04);
   }
 }
 
@@ -344,6 +350,7 @@ function loadPreset(name){
   indices.forEach(function(i){
     if(diatonicChords[i])progression.push({root:diatonicChords[i].root,type:diatonicChords[i].type,name:diatonicChords[i].name});
   });
+  playStep=0;
   buildSequencer();
 }
 
