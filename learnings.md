@@ -2393,3 +2393,17 @@ Persistent knowledge base. Read this before every build.
 - **BUG**: `checkClues()` was never called on puzzle load — fully-empty rows/columns (clue `[0]`) appeared unsatisfied until the user first clicked, causing a sudden mass "greying out" of solved clues. Fixed by calling `checkClues(p)` right after `renderBoard()`.
 - **BUG**: `pendingTimeouts` only cleared on puzzle restart, never on completion — over a long session the array accumulated thousands of dead integers. Fixed by splicing each timeout ID out of the array in its own callback.
 - **BUG**: `checkWin` queried `document.querySelectorAll('.cell')` globally — any UI element elsewhere with class `cell` would inject NaN `dataset.r` values and throw runtime errors. Fixed by scoping query to `document.getElementById('board-area')`.
+
+### crypto-lens refinement (Phase 2 #111)
+- **BUG**: `getKey()` used `parseInt(...)||3` for Caesar shift — shift value 0 is falsy in JS, so it was impossible to test a zero-shift (always fell back to 3). Fixed with `isNaN(v)?3:v` pattern.
+- **BUG**: Vigenere key-alignment strip in `renderLens()` started `ka=0` at the beginning of the visible window instead of counting alpha chars from the start of text. The displayed key characters were completely out of sync with the actual cipher key position whenever `idx>4` and non-alpha chars preceded the window. Fixed by pre-counting alpha chars before `winStart`.
+- **BUG**: XOR lens visualization used `text[idx].toUpperCase()` as the plain char, but `xorFull()` operates on raw (unmodified) chars. For lowercase input, the lens showed the wrong binary/hex values while the actual output was correct. Fixed by using `text[idx]` (raw) in the XOR section.
+
+### haiku-gen refinement (Phase 2 #112)
+- **BUG**: `pick(templates)` was called once *before* the `while(attempts<20)` retry loop. If the chosen template required a POS/syllable combo absent from WORDS, the loop retried the *exact same impossible template* 20 times and silently returned a broken partial line. Fixed by moving `var tmpl=pick(templates)` inside the loop so each failed attempt picks a fresh template.
+
+### cloth-sim refinement (Phase 2 #113)
+- **BUG**: Drag tool set `dragPoint.oldX = pointerX` and `dragPoint.oldY = pointerY` — making old and current positions identical. In Verlet integration `velocity = pos - oldPos`, so velocity was always zero on drag release. Cloth dropped straight down instead of inheriting throw momentum. Fixed by computing `oldX = dragPoint.x - (pointerX - prevPointerX)` to encode actual mouse velocity.
+
+### soft-3d refinement (Phase 2 #114)
+- **BUG**: Near-plane culling check `if (p0.w < 0 || p1.w < 0 || p2.w < 0) continue` always evaluated false because `projected[i]` only stored `{x, y, z}` — `w` was never saved. `undefined < 0` is `false`, so behind-camera vertices were never culled, causing bow-tie artifacts when geometry crossed the camera plane. Fixed by adding `w: p.w` to the projected point object.

@@ -180,7 +180,7 @@ function xorFull(text,key){
 // ---- Get current state ----
 function getInput(){return document.getElementById('input').value}
 function getKey(){
-  if(cipher==='caesar')return parseInt(document.getElementById('key-caesar').value,10)||3;
+  if(cipher==='caesar'){var v=parseInt(document.getElementById('key-caesar').value,10);return isNaN(v)?3:v;}
   if(cipher==='vigenere')return document.getElementById('key-vigenere').value||'LEMON';
   return document.getElementById('key-xor').value||'KEY';
 }
@@ -283,13 +283,14 @@ function renderLens(){
 
     // Show key alignment
     var keyHTML='<div class="lens-row" style="margin-top:4px"><span class="lens-label">Key:</span>';
+    // Count alpha chars before the window start to sync key index correctly
+    var winStart=Math.max(0,idx-4);
     var ka=0;
-    for(var i=Math.max(0,idx-4);i<Math.min(total,idx+5);i++){
+    for(var i=0;i<winStart;i++){var c2=text[i].toUpperCase();if(c2>='A'&&c2<='Z')ka++;}
+    for(var i=winStart;i<Math.min(total,idx+5);i++){
       var c2=text[i].toUpperCase();
       var active=i===idx;
       if(c2>='A'&&c2<='Z'){
-        var kc2=cleanKey[(ka+(i<idx?0:0))%cleanKey.length];
-        // Need to properly track key index for each position
         keyHTML+='<span class="lens-char c-key'+(active?' c-active':' c-dim')+'">'+cleanKey[ka%cleanKey.length]+'</span>';
         ka++;
       }else{
@@ -297,22 +298,23 @@ function renderLens(){
       }
     }
     keyHTML+='</div>';
-    // Recalculate ka properly
     lens.innerHTML+=keyHTML;
 
   }else if(cipher==='xor'){
     var xKey=typeof key==='string'?key:'K';
     if(!xKey)xKey='K';
+    // Use raw char (not uppercased) so lens matches what xorFull actually computes
+    var rawCh=text[idx];
     var keyChar=xKey[idx%xKey.length];
-    var plainBin=ch.charCodeAt(0).toString(2);
+    var plainBin=rawCh.charCodeAt(0).toString(2);
     while(plainBin.length<8)plainBin='0'+plainBin;
     var keyBin=keyChar.charCodeAt(0).toString(2);
     while(keyBin.length<8)keyBin='0'+keyBin;
-    var resultCode=ch.charCodeAt(0)^keyChar.charCodeAt(0);
+    var resultCode=rawCh.charCodeAt(0)^keyChar.charCodeAt(0);
     var resBin=resultCode.toString(2);
     while(resBin.length<8)resBin='0'+resBin;
 
-    lens.innerHTML+='<div class="lens-row"><span class="lens-label">Plain</span><span class="lens-char c-plain c-active">'+ch+'</span>';
+    lens.innerHTML+='<div class="lens-row"><span class="lens-label">Plain</span><span class="lens-char c-plain c-active">'+rawCh+'</span>';
     for(var b=0;b<8;b++)lens.innerHTML+='<span class="bit c-plain">'+plainBin[b]+'</span>';
     lens.innerHTML+='</div>';
 
