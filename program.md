@@ -17,6 +17,7 @@ These are non-negotiable. Every single build must follow these without exception
 - **Just build it.** Don't ask clarifying questions. Make your best assumptions and go.
 - **Keep the scope small.** Build the simplest possible version that proves the idea works. No feature creep.
 - **Every project must have a UI.** No CLI-only tools. Build a web interface (single HTML file, or Python serving HTML) that I can open in a browser. Default stack: Python for backend, single-file HTML for the frontend. Only deviate if the idea specifically requires something else.
+- **Follow the design system.** Read `design.md` before writing any CSS. Use the established color palette, typography scale, component patterns, and layout rules. Every project should feel like part of the same suite.
 - **Mobile-first PWA.** Every project must work on mobile. Design touch-first: use `pointerdown` not just `click`, ensure tap targets are large enough, test at narrow viewport widths. Include a `<meta name="viewport">` tag. Include a web app manifest and service worker for offline support where feasible. At minimum:
   - Responsive layout that doesn't break at 375px width
   - Touch-friendly controls (no hover-only interactions, no right-click-only features without alternatives)
