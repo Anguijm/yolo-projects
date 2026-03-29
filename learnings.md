@@ -2212,6 +2212,21 @@ Persistent knowledge base. Read this before every build.
 - **FIX**: Windows line endings (`\r\n`) breaking regex — `\r` left on line endings caused header, HR, and list regexes with `$` anchors to fail on Windows-sourced text; added `text.replace(/\r/g, '')` before splitting
 - **FIX**: One-way scroll sync — preview pane scrolling did not scroll the editor; added symmetric `preview.scroll` listener with mutual flag guards to prevent infinite loop
 
+### particle-life refinement (2026-03-29) — PHASE 2 #81
+- **FIX**: Falsy-zero bug in slider handlers — `parseInt(val) || default` treated `0` as invalid and reverted to the default. Replaced with `isNaN(val) ? default : val` throughout all four control listeners (count, friction, radius, force)
+- **FIX**: Particle count slider caused memory churn — the `input` event fires continuously while dragging, calling `initParticles()` which allocates 5 new TypedArrays per event (dozens/sec). Moved allocation to `change` event (fires only on release); kept `input` for live label update only
+- **FIX**: Resize destroyed particle state — `window.resize` called `initParticles()` which wiped all particle positions/velocities. Removed `initParticles()` from resize handler; canvas dimensions update cleanly without resetting the simulation
+- **FIX**: Mouse coords used `clientX/Y` — switched to `offsetX/Y` for canvas-relative accuracy; also improves correctness if the canvas ever has margins or borders
+- **PERF**: Integer-truncate render coords — `fillRect((px - 1.5) | 0, ...)` avoids sub-pixel anti-aliasing on per-particle draws, measurably faster at 1500+ particles at 60fps
+
+### neon-runner refinement (2026-03-29) — PHASE 2 #82
+- **FIX**: Death particles immediately erased — `die()` called `loadLevel()` synchronously, and `loadLevel` resets `particles=[]` before any frame renders. Added `state='dead'` guard and a 500ms `setTimeout` before reload; `update()` now keeps ticking particles during the dead state so the explosion actually appears
+- **FIX**: Camera snapped wildly on level load/death — camera position was never reset to the spawn point, causing a high-speed pan across the whole map. Added instant camera snap in `loadLevel()` using the same lerp target formula used during play
+- **FIX**: HUD showed "LVL 4/3" after completing all levels — `level` increments past `LEVELS.length` before state switches to `complete`. Clamped display with `Math.min(level+1, LEVELS.length)`
+- **FIX**: Ghost inputs on window blur — holding a movement key and alt-tabbing left `keys[key]=true` permanently (no `keyup` fires). Added `window.blur` listener to clear both `keys` and `touches`
+- **FIX**: Sticky keys carried into new level — `loadLevel()` didn't clear `keys`, so a spacebar press to start the game triggered an immediate jump on spawn. Added `keys={}` reset inside `loadLevel()`
+- **FIX**: Ceiling collision math — `Math.ceil(y/T)*T` is a no-op when `y` is exactly on a tile boundary, leaving the player stuck in the ceiling tile. Replaced with `Math.floor(y/T)*T + T` which always pushes to the next tile boundary
+
 ### sudoku refinement (2026-03-29) — PHASE 2 #74
 - **FIX**: Given cells marked as errors on Check — `isValid` flagged conflicting given cells with `.error` class (red) even though givens are immutable puzzle truths. Added `!given[i]` guard before applying error class
 - **FIX**: Arrow keys scroll page at board edges — `e.preventDefault()` was only called inside movement condition branches, so pressing ArrowUp on row 0 or ArrowDown on row 8 didn't prevent page scroll. Moved `preventDefault()` outside all directional conditions so it always fires for arrow keys

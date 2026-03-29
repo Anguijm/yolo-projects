@@ -248,7 +248,7 @@ function draw() {
     ctx.fillStyle = COLORS[c];
     for (var i = 0; i < count; i++) {
       if (pcolor[i] === c) {
-        ctx.fillRect(px[i] - 1.5, py[i] - 1.5, 3, 3);
+        ctx.fillRect((px[i] - 1.5) | 0, (py[i] - 1.5) | 0, 3, 3);
       }
     }
   }
@@ -311,23 +311,30 @@ document.getElementById('matrix').addEventListener('click', function(e) {
 
 // ============ CONTROLS ============
 document.getElementById('sl-count').addEventListener('input', function(e) {
-  count = parseInt(e.target.value, 10) || 1500;
+  document.getElementById('v-count').textContent = e.target.value;
+});
+document.getElementById('sl-count').addEventListener('change', function(e) {
+  var val = parseInt(e.target.value, 10);
+  count = isNaN(val) ? 1500 : val;
   document.getElementById('v-count').textContent = count;
   initParticles();
 });
 
 document.getElementById('sl-friction').addEventListener('input', function(e) {
-  friction = parseFloat(e.target.value) || 0.05;
+  var val = parseFloat(e.target.value);
+  friction = isNaN(val) ? 0.05 : val;
   document.getElementById('v-friction').textContent = friction.toFixed(2);
 });
 
 document.getElementById('sl-radius').addEventListener('input', function(e) {
-  radius = parseInt(e.target.value, 10) || 80;
+  var val = parseInt(e.target.value, 10);
+  radius = isNaN(val) ? 80 : val;
   document.getElementById('v-radius').textContent = radius;
 });
 
 document.getElementById('sl-force').addEventListener('input', function(e) {
-  forceMul = parseFloat(e.target.value) || 0.5;
+  var val = parseFloat(e.target.value);
+  forceMul = isNaN(val) ? 0.5 : val;
   document.getElementById('v-force').textContent = forceMul.toFixed(1);
 });
 
@@ -347,12 +354,12 @@ document.querySelectorAll('[data-preset]').forEach(function(btn) {
 canvas.addEventListener('pointerdown', function(e) {
   mouseDown = true;
   mouseRepel = e.button === 2;
-  mouseX = e.clientX;
-  mouseY = e.clientY;
+  mouseX = e.offsetX;
+  mouseY = e.offsetY;
 });
 canvas.addEventListener('pointermove', function(e) {
-  mouseX = e.clientX;
-  mouseY = e.clientY;
+  mouseX = e.offsetX;
+  mouseY = e.offsetY;
 });
 window.addEventListener('pointerup', function() { mouseDown = false; });
 canvas.addEventListener('contextmenu', function(e) { e.preventDefault(); });
@@ -377,7 +384,7 @@ function loop() {
 
 // ============ INIT ============
 resize();
-window.addEventListener('resize', function() { resize(); initParticles(); });
+window.addEventListener('resize', function() { resize(); });
 randomMatrix();
 initParticles();
 requestAnimationFrame(loop);
