@@ -229,21 +229,26 @@ function fluidStep(){
 var textPixels=null;
 
 function renderTextToObstacle(){
+  // Draw text at screen proportions so physics obstacles match visible text
   var offCanvas=document.createElement('canvas');
-  offCanvas.width=N+2;offCanvas.height=N+2;
+  offCanvas.width=W||N+2;offCanvas.height=H||N+2;
   var octx=offCanvas.getContext('2d');
   octx.fillStyle='#000';
-  octx.fillRect(0,0,N+2,N+2);
-
-  // Size text to fit
-  var fontSize=Math.floor(N*0.45);
+  octx.fillRect(0,0,offCanvas.width,offCanvas.height);
+  var fontSize=Math.floor(Math.min(offCanvas.width,offCanvas.height)*0.18);
   octx.font='900 '+fontSize+'px system-ui, sans-serif';
   octx.textAlign='center';
   octx.textBaseline='middle';
   octx.fillStyle='#fff';
-  octx.fillText(currentText,(N+2)/2,(N+2)/2);
+  octx.fillText(currentText,offCanvas.width/2,offCanvas.height/2);
 
-  var imgData=octx.getImageData(0,0,N+2,N+2);
+  // Scale down to physics grid
+  var gridCanvas=document.createElement('canvas');
+  gridCanvas.width=N+2;gridCanvas.height=N+2;
+  var gctx=gridCanvas.getContext('2d');
+  gctx.drawImage(offCanvas,0,0,offCanvas.width,offCanvas.height,0,0,N+2,N+2);
+
+  var imgData=gctx.getImageData(0,0,N+2,N+2);
   textPixels=imgData.data;
   obstacle.fill(0);
   for(var j=0;j<N+2;j++){
@@ -310,7 +315,6 @@ function drawFluid(){
     }
   }
   offCtx.putImageData(fluidImg,0,0);
-  fctx.imageSmoothingEnabled=true;
   fctx.drawImage(offC,0,0,W,H);
 }
 
@@ -319,6 +323,7 @@ function resize(){
   W=window.innerWidth;H=window.innerHeight;
   fluidCanvas.width=W;fluidCanvas.height=H;
   textCanvas.width=W;textCanvas.height=H;
+  fctx.imageSmoothingEnabled=true;
   drawTextLayer();
 }
 
@@ -442,7 +447,11 @@ function loop(){
 
 // ---- Init ----
 resize();
-window.addEventListener('resize',function(){resize();renderTextToObstacle()});
+var resizeTimer;
+window.addEventListener('resize',function(){
+  clearTimeout(resizeTimer);
+  resizeTimer=setTimeout(function(){resize();renderTextToObstacle();},200);
+});
 renderTextToObstacle();
 requestAnimationFrame(loop);
 })();

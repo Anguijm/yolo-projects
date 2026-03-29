@@ -2344,6 +2344,15 @@ Persistent knowledge base. Read this before every build.
 - **BUG**: Euler integration with `dt=0.5` applied 3 times per frame (effective dt=1.5) caused artificial energy injection into the chaotic system — the pendulum would eventually spin out of control and produce NaN/Infinity. Fixed by reducing to `dt=0.05` with 10 substeps (same effective dt=0.5, much more stable).
 - **BUG**: Slider `parseInt()` could return `NaN` if input was empty/invalid, propagating NaN through all physics variables and freezing the display permanently. Fixed with `safeParse(val, min)` helper that clamps to a minimum of 1 for lengths/masses.
 
+### orbit-well refinement (Phase 2 #103)
+- **BUG**: `ctx.shadowBlur=10` set before drawing wells, then reset with `ctx.shadowBlur=0` — but `strokeStyle`, `lineWidth`, and `fillStyle` were not restored, causing state to bleed into subsequent frames. Fixed by wrapping well-drawing with `ctx.save()/ctx.restore()`.
+- **BUG**: `parseInt(e.target.value,10)` on sliders could return `NaN` if value was malformed, poisoning physics (gravity became `NaN`, velocities became `NaN`, particles vanished). Fixed with `||2000` and `||0` fallbacks.
+
+### fluid-type refinement (Phase 2 #104)
+- **BUG**: Obstacle map generated on a square 128x128 canvas while fluid rendered stretched to full screen — physics obstacles didn't align with visible text. Fixed by rendering text at actual screen dimensions then scaling down to the physics grid via a secondary canvas drawImage.
+- **BUG**: `window.resize` event directly called `renderTextToObstacle()` which creates new canvas DOM elements — fires dozens of times per second while dragging, causing memory spikes. Fixed with 200ms debounce via `clearTimeout/setTimeout`.
+- **PERF**: `fctx.imageSmoothingEnabled=true` was set inside the draw loop every frame. Moved to `resize()` so it's set once per resize.
+
 ### type-racer refinement (Phase 2 #102)
 - **BUG**: When ghost wins before player types, `startTime===0` so `elapsed=(Date.now()-0)/1000` yields ~1.7 billion seconds. Fixed by setting `startTime=Date.now()` in `finishRace` when player never typed.
 - **BUG**: `finishRace` could fire twice (ghost timer fires same tick as player finishing). Fixed with `if(finished)return` guard at top of `finishRace`.
