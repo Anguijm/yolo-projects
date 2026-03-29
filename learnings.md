@@ -2180,6 +2180,15 @@ Persistent knowledge base. Read this before every build.
 - **FIX**: Clipboard fallback textarea missing `top: 0; left: 0` positioning — appending and focusing the hidden textarea without anchoring it to the top-left could cause the page to scroll. Added `top: '0'` and `left: '0'` to the fixed-position style
 - **FIX**: Font index bounds not validated in Copy CSS — `FONTS[parseInt(selFont.value)]` could access `undefined` if the index was out of range. Added explicit bounds check with fallback to index 0
 
+### sprite-forge refinement (2026-03-29) — PHASE 2 #76
+- **FIX**: Signed integer overflow in `colorToInt` — `(255 << 24)` sets the sign bit, producing negative numbers (e.g. `-16777216`). Added `>>> 0` to force unsigned 32-bit interpretation, matching the intended ABGR encoding
+- **FIX**: Add/Duplicate frames always inserted at end — clicking Add or Dup while on frame 1 of 5 appended to index 5. Changed to `splice(activeFrame + 1, 0, ...)` to insert immediately after the active frame
+- **FIX**: Preview loop redraws at 60fps on single frame — `else` branch called `renderFrameToCanvas` unconditionally every rAF tick. Added a `lastPreviewRendered` index guard so redraws only happen on frame changes or active drawing strokes
+- **FIX**: Fractional pixel artifacts in thumbnails — `renderFrameToCanvas` used `px = size/GRID` (e.g. 2.5) causing sub-pixel blurring between cells. Switched to `ctx.scale(px, px)` + `imageSmoothingEnabled = false` to draw integer 1×1 rects cleanly
+- **FIX**: Right-click and middle-click initiated drawing — no button check on `pointerdown`. Added `if (e.button !== 0) return` guard
+- **FIX**: Canvas resize cleared `imageSmoothingEnabled` — resizing a canvas resets all context state. Added `drawCtx.imageSmoothingEnabled = false` after each resize
+- **FIX**: Pointer capture never explicitly released — relied on implicit browser release, which can leave touch devices stuck. Added explicit `releasePointerCapture` on `pointerup` and `pointercancel`
+
 ### sudoku refinement (2026-03-29) — PHASE 2 #74
 - **FIX**: Given cells marked as errors on Check — `isValid` flagged conflicting given cells with `.error` class (red) even though givens are immutable puzzle truths. Added `!given[i]` guard before applying error class
 - **FIX**: Arrow keys scroll page at board edges — `e.preventDefault()` was only called inside movement condition branches, so pressing ArrowUp on row 0 or ArrowDown on row 8 didn't prevent page scroll. Moved `preventDefault()` outside all directional conditions so it always fires for arrow keys

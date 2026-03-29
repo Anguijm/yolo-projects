@@ -106,7 +106,7 @@ function colorToInt(hex) {
   var r = parseInt(hex.substr(1, 2), 16);
   var g = parseInt(hex.substr(3, 2), 16);
   var b = parseInt(hex.substr(5, 2), 16);
-  return (255 << 24) | (b << 16) | (g << 8) | r; // ABGR for Uint32
+  return ((255 << 24) | (b << 16) | (g << 8) | r) >>> 0; // ABGR for Uint32, unsigned
 }
 
 function intToHex(val) {
@@ -128,6 +128,7 @@ function resizeDrawCanvas() {
   cellSize = Math.max(cellSize, 8);
   drawCanvas.width = GRID * cellSize;
   drawCanvas.height = GRID * cellSize;
+  drawCtx.imageSmoothingEnabled = false;
   renderDrawCanvas();
 }
 
@@ -191,15 +192,19 @@ function renderDrawCanvas() {
 function renderFrameToCanvas(ctx, frame, size) {
   ctx.clearRect(0, 0, size, size);
   var px = size / GRID;
+  ctx.save();
+  ctx.imageSmoothingEnabled = false;
+  ctx.scale(px, px);
   for (var i = 0; i < GRID * GRID; i++) {
     if (frame[i]) {
       var hex = intToHex(frame[i]);
       if (hex) {
         ctx.fillStyle = hex;
-        ctx.fillRect((i % GRID) * px, Math.floor(i / GRID) * px, px, px);
+        ctx.fillRect(i % GRID, Math.floor(i / GRID), 1, 1);
       }
     }
   }
+  ctx.restore();
 }
 
 // ============ TIMELINE ============
@@ -271,6 +276,7 @@ function floodFill(frame, startIdx, newColor) {
 }
 
 drawCanvas.addEventListener('pointerdown', function(e) {
+  if (e.button !== 0) return; // Left-click / primary touch only
   e.preventDefault();
   isDrawing = true;
   drawCanvas.setPointerCapture(e.pointerId);
@@ -283,8 +289,20 @@ drawCanvas.addEventListener('pointermove', function(e) {
   applyTool(getCellFromEvent(e));
 });
 
-window.addEventListener('pointerup', function() { isDrawing = false; });
-window.addEventListener('pointercancel', function() { isDrawing = false; });
+window.addEventListener('pointerup', function(e) {
+  if (isDrawing) {
+    isDrawing = false;
+    if (drawCanvas.hasPointerCapture(e.pointerId)) {
+      drawCanvas.releasePointerCapture(e.pointerId);
+    }
+  }
+});
+window.addEventListener('pointercancel', function(e) {
+  isDrawing = false;
+  if (drawCanvas.hasPointerCapture(e.pointerId)) {
+    drawCanvas.releasePointerCapture(e.pointerId);
+  }
+});
 
 // ============ TOOLS ============
 document.querySelectorAll('.tool-btn').forEach(function(btn) {
@@ -301,15 +319,15 @@ document.getElementById('color-input').addEventListener('input', function(e) {
 
 // ============ TIMELINE EVENTS ============
 document.getElementById('btn-add').addEventListener('click', function() {
-  frames.push(createEmptyFrame());
-  activeFrame = frames.length - 1;
+  frames.splice(activeFrame + 1, 0, createEmptyFrame());
+  activeFrame++;
   renderDrawCanvas();
   renderTimeline();
 });
 
 document.getElementById('btn-dup').addEventListener('click', function() {
-  frames.push(frames[activeFrame].slice());
-  activeFrame = frames.length - 1;
+  frames.splice(activeFrame + 1, 0, frames[activeFrame].slice());
+  activeFrame++;
   renderDrawCanvas();
   renderTimeline();
 });
@@ -333,17 +351,25 @@ document.getElementById('timeline').addEventListener('click', function(e) {
 // ============ PREVIEW PLAYBACK ============
 var previewFrame = 0;
 var lastPreviewTime = 0;
+var lastPreviewRendered = -1; // track which frame index was last rendered
 
 function previewLoop(time) {
+  var targetFrame;
   if (frames.length > 1) {
     var interval = 1000 / fps;
     if (time - lastPreviewTime >= interval) {
       previewFrame = (previewFrame + 1) % frames.length;
-      renderFrameToCanvas(previewCtx, frames[previewFrame], 80);
       lastPreviewTime = time;
     }
+    targetFrame = previewFrame;
   } else {
-    renderFrameToCanvas(previewCtx, frames[0], 80);
+    previewFrame = 0;
+    targetFrame = 0;
+  }
+  // Redraw if frame index changed or user is actively drawing on the previewed frame
+  if (lastPreviewRendered !== targetFrame || (targetFrame === activeFrame && isDrawing)) {
+    renderFrameToCanvas(previewCtx, frames[targetFrame], 80);
+    lastPreviewRendered = targetFrame;
   }
   requestAnimationFrame(previewLoop);
 }
