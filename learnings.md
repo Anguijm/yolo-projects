@@ -2121,3 +2121,8 @@ Persistent knowledge base. Read this before every build.
 - **FIX**: requestAnimationFrame loop leak — `updatePlayhead` kept looping via rAF even when stopped, so each Play/Stop cycle spawned a new concurrent loop. After several cycles, dozens of loops ran simultaneously draining CPU. Fixed by returning immediately when `!playing` instead of re-queuing
 - **FIX**: Falsy-zero bug on Drive and BPM sliders — `parseInt(val) || defaultVal` treated `0` as falsy, so sliding Drive to 0 snapped back to 20. Replaced with `isNaN` check to allow 0 as valid value
 - **INSIGHT**: `parseInt(x) || fallback` is a common antipattern for numeric sliders — `0` is falsy in JS. Always use `isNaN()` check instead when 0 is a valid input
+
+### stellar-forge refinement (2026-03-29) — PHASE 2 #64
+- **FIX**: Inverted Up/Down controls — rotation mapping `[0,1,2,3]` was wrong. 1 CW rotation moves bottom-to-left, so pressing Up actually moved tiles Down. Fixed to `[0,3,2,1]` so Up rotates 3 times (top-to-left) and Down rotates 1 time (bottom-to-left)
+- **FIX**: Win message overwritten by lose message — creating Iron on a full board showed "Fe synthesized!" then immediately replaced it with "No moves left" in red. Now only shows lose message if `!won`
+- **INSIGHT**: In 2048-style games using rotate-then-slide-left, the rotation count for each direction depends on which edge maps to "left". Always verify: Up=3CW, Down=1CW, Left=0, Right=2CW
