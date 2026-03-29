@@ -80,6 +80,7 @@ var paused = true;
 var gameOver = false;
 var lastTick = 0;
 var wakeLock = null;
+var wasAutoPaused = false;
 
 // ============ DOM ============
 var p1Zone = document.getElementById('p1-zone');
@@ -100,8 +101,9 @@ function formatTime(ms) {
     var tenths = Math.floor((ms % 1000) / 10);
     return sec + '.' + (tenths < 10 ? '0' : '') + tenths;
   }
-  var min = Math.floor(totalSec / 60);
-  var sec = Math.floor(totalSec % 60);
+  var totalSecCeil = Math.ceil(totalSec);
+  var min = Math.floor(totalSecCeil / 60);
+  var sec = totalSecCeil % 60;
   return min + ':' + (sec < 10 ? '0' : '') + sec;
 }
 
@@ -221,14 +223,16 @@ function releaseWakeLock() {
 // Re-acquire on visibility change
 document.addEventListener('visibilitychange', function() {
   if (document.visibilityState === 'visible') {
-    if (!paused && !gameOver) {
-      lastTick = performance.now(); // Prevent massive dt on return
+    if (wasAutoPaused && !gameOver) {
+      paused = false;
+      wasAutoPaused = false;
+      lastTick = performance.now();
       acquireWakeLock();
     }
   } else {
-    // Auto-pause when backgrounded to prevent invisible time loss
     if (!paused && !gameOver && activePlayer >= 0) {
       paused = true;
+      wasAutoPaused = true;
     }
   }
 });

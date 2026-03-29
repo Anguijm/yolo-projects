@@ -2126,3 +2126,8 @@ Persistent knowledge base. Read this before every build.
 - **FIX**: Inverted Up/Down controls — rotation mapping `[0,1,2,3]` was wrong. 1 CW rotation moves bottom-to-left, so pressing Up actually moved tiles Down. Fixed to `[0,3,2,1]` so Up rotates 3 times (top-to-left) and Down rotates 1 time (bottom-to-left)
 - **FIX**: Win message overwritten by lose message — creating Iron on a full board showed "Fe synthesized!" then immediately replaced it with "No moves left" in red. Now only shows lose message if `!won`
 - **INSIGHT**: In 2048-style games using rotate-then-slide-left, the rotation count for each direction depends on which edge maps to "left". Always verify: Up=3CW, Down=1CW, Left=0, Right=2CW
+
+### chess-clock refinement (2026-03-29) — PHASE 2 #65
+- **FIX**: Auto-resume broken after tab switch — visibilitychange set `paused=true` on hide, but the resume check tested `!paused` which was always false. Added `wasAutoPaused` flag so only system-initiated pauses auto-resume on return
+- **FIX**: Time display stall at 1:00 — `Math.floor(totalSec)` showed `1:00` for a full second (60.000-60.999) before jumping to `59.99`. Changed to `Math.ceil` for the MM:SS display so it transitions smoothly from `1:01` to `1:00` to `59.99`
+- **INSIGHT**: When auto-pausing on visibility change, track whether the pause was user-initiated or system-initiated — otherwise the resume logic can't distinguish and breaks
