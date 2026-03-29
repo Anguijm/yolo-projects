@@ -2269,3 +2269,14 @@ Persistent knowledge base. Read this before every build.
 - **BUG**: Wave canvas draw interpolation was direction-dependent — when dragging right-to-left `startVal` was always assigned from `lastDrawIdx` (the right point) and `endVal` from the new cursor position (the left point), causing the drawn line to be inverted for leftward strokes. Fixed by determining startVal/endVal based on which index is physically left vs right
 - **BUG**: Multitouch sliding cleared `.pressed` from all keys instead of just the departed key — holding note with finger 1 while sliding finger 2 would flash-remove the visual press indicator from finger 1's key. Fixed by targeting only the old key's element via `querySelector('[data-freq=...]')`; same fix applied to `pointerup`
 - **BUG**: Keyboard (QWERTY) inputs played audio but never added/removed `.pressed` CSS class on the DOM piano keys — hardware keys showed no visual feedback. Added `querySelector('[data-freq]')` + `classList.add/remove('pressed')` to `keydown`/`keyup` handlers
+
+### bezier-forge refinement (Phase 2 #89)
+- **BUG**: `animFrame` variable declared but never assigned the `requestAnimationFrame` return value in `playPreview()` — `cancelAnimationFrame(animFrame)` always called with `null`, allowing overlapping previews on rapid replays. Fixed by assigning `animFrame = requestAnimationFrame(...)`.
+- **BUG**: `svg.setPointerCapture(e.pointerId)` called on parent SVG from handle's `pointerdown` — spec requires capture on the event target or an ancestor, but some strict implementations throw `InvalidPointerId`. Fixed to `e.target.setPointerCapture(e.pointerId)`.
+- **BUG**: Preset click handler called `.split(',')` on `btn.dataset.p` without null-guard — if a `.pre-btn` element lacks the `data-p` attribute it throws TypeError. Added `!btn.dataset.p` guard.
+
+### rhythm-type refinement (Phase 2 #90)
+- **BUG**: `initAudio()` called unconditionally on every start-button click, creating multiple AudioContext instances. `setInterval(scheduler)` also leaked — previous interval never cleared before starting a new one. Fixed with `audioInitialized` flag and `clearInterval(schedulerTimer)` before re-starting.
+- **BUG**: High score read from localStorage at init but never written back — best score always reset on page refresh. Fixed by saving to localStorage in `updateHUD()` whenever `score > bestScore`.
+- **BUG**: Scored notes use `n.life || 0.5` in draw() but `n.life` is never initialized or decremented — always draws at 0.5 opacity with no fade. Fixed by initializing `n.life=1` on score and decrementing by `dt*2` in update().
+- **BUG**: Particle velocity not multiplied by `dt` — explosion speed tied to monitor refresh rate (2x faster on 120Hz vs 60Hz). Fixed to `p.vx*dt*60` normalization.

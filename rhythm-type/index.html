@@ -211,7 +211,9 @@ function update(dt){
     var n=notes[i];
     if(n.scored){
       n.y-=200*dt;
-      if(n.y<-50)notes.splice(i,1);
+      if(n.life===undefined)n.life=1;
+      n.life-=dt*2;
+      if(n.y<-50||n.life<=0)notes.splice(i,1);
       continue;
     }
     if(n.missed){
@@ -235,7 +237,7 @@ function update(dt){
   // Particles
   for(var i=particles.length-1;i>=0;i--){
     var p=particles[i];
-    p.x+=p.vx;p.y+=p.vy;p.vy+=0.1;p.life-=dt*3;
+    p.x+=p.vx*dt*60;p.y+=p.vy*dt*60;p.vy+=0.1*dt*60;p.life-=dt*3;
     if(p.life<=0)particles.splice(i,1);
   }
   // Popups
@@ -277,7 +279,7 @@ function draw(){
   for(var i=0;i<notes.length;i++){
     var n=notes[i];
     if(n.scored){
-      ctx.globalAlpha=Math.max(0,n.life||0.5);
+      ctx.globalAlpha=Math.max(0,n.life!==undefined?n.life:1);
       ctx.fillStyle='#3fb950';ctx.font='bold 14px monospace';
       ctx.fillText(n.word,n.x,n.y);
       ctx.globalAlpha=1;
@@ -335,7 +337,11 @@ function updateHUD(){
   var elapsed=(Date.now()-startTime)/60000; // minutes
   var wpm=elapsed>0?Math.round(wordsTyped/elapsed):0;
   document.getElementById('h-wpm').textContent=wpm;
-  document.getElementById('h-best').textContent=Math.max(bestScore,score);
+  if(score>bestScore){
+    bestScore=score;
+    try{localStorage.setItem('rtype_best',bestScore)}catch(e){}
+  }
+  document.getElementById('h-best').textContent=bestScore;
 }
 
 // ============ GAME LOOP ============
@@ -348,8 +354,11 @@ function loop(time){
 }
 
 // ============ START ============
+var audioInitialized=false;
 document.getElementById('btn-start').addEventListener('click',function(){
-  initAudio();
+  if(!audioInitialized){initAudio();audioInitialized=true;}
+  if(audioCtx.state==='suspended')audioCtx.resume();
+  if(schedulerTimer){clearInterval(schedulerTimer);schedulerTimer=null;}
   playing=true;gameOver=false;
   notes=[];particles=[];popups=[];
   score=0;combo=0;maxCombo=0;wordsTyped=0;
