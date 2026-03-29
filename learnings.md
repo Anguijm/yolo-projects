@@ -2338,3 +2338,15 @@ Persistent knowledge base. Read this before every build.
 - **BUG**: `showGears` drew directly to the main canvas without clearing between frames, permanently smearing gear artifacts over the spirograph. Fixed with an off-screen canvas for the permanent path; main canvas clears each frame, composites from offCanvas, then draws gears on top.
 - **BUG**: `r=0` caused `gcd(R,0)` to return `R`, then `totalRotations=0/R=0`, `maxTheta=0` — subsequent `theta/maxTheta` produced `NaN` and `(R+r)/r*t` produced `Infinity`. Fixed with an early-return guard in `calcMaxTheta`.
 - **PERF**: `instantDraw` skipped `offCtx.clearRect` and `ctx.drawImage(offCanvas)` — instant renders drew to offCanvas but never composited to screen, so the display was blank. Fixed to clear offCanvas then blit it to main canvas after the loop.
+
+### chaos-pendulum refinement (Phase 2 #101)
+- **BUG**: `if(trail.length>maxTrail)trail.shift()` only removed one point per frame, so reducing the trail slider from 500→10 took 490 frames (~8 seconds) to shrink. Fixed with `while` loop for immediate truncation.
+- **BUG**: Euler integration with `dt=0.5` applied 3 times per frame (effective dt=1.5) caused artificial energy injection into the chaotic system — the pendulum would eventually spin out of control and produce NaN/Infinity. Fixed by reducing to `dt=0.05` with 10 substeps (same effective dt=0.5, much more stable).
+- **BUG**: Slider `parseInt()` could return `NaN` if input was empty/invalid, propagating NaN through all physics variables and freezing the display permanently. Fixed with `safeParse(val, min)` helper that clamps to a minimum of 1 for lengths/masses.
+
+### type-racer refinement (Phase 2 #102)
+- **BUG**: When ghost wins before player types, `startTime===0` so `elapsed=(Date.now()-0)/1000` yields ~1.7 billion seconds. Fixed by setting `startTime=Date.now()` in `finishRace` when player never typed.
+- **BUG**: `finishRace` could fire twice (ghost timer fires same tick as player finishing). Fixed with `if(finished)return` guard at top of `finishRace`.
+- **BUG**: Backspace or empty input caused `val[val.length-1]` to be `undefined`, which compared false against expected char, counted as an error, and corrupted accuracy. Fixed with `if(val.length===0)return` guard.
+- **BUG**: Rapid wrong keystrokes spawned overlapping `setTimeout` error-flash callbacks, causing UI flicker and wasted timers. Fixed by debouncing with `clearTimeout(errorTimeout)` before each new flash.
+- **BUG**: Stats (elapsed time, WPM) froze while player idle — only updated on input events. Fixed by adding a `setInterval` stat ticker that runs at 500ms while racing.

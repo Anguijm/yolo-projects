@@ -65,8 +65,8 @@ function step(aa1,aa2,av1,av2){
 }
 
 function update(){
-  var dt=0.5;
-  for(var i=0;i<3;i++){
+  var dt=0.05;
+  for(var i=0;i<10;i++){
     // Primary pendulum
     var s=step(a1,a2,v1,v2);
     v1+=s.acc1*dt;v2+=s.acc2*dt;
@@ -86,13 +86,13 @@ function update(){
   var x2=ox+L1*Math.sin(a1)+L2*Math.sin(a2);
   var y2=oy+L1*Math.cos(a1)+L2*Math.cos(a2);
   trail.push({x:x2,y:y2});
-  if(trail.length>maxTrail)trail.shift();
+  while(trail.length>maxTrail)trail.shift();
 
   if(showDual){
     var bx2=ox+L1*Math.sin(b1)+L2*Math.sin(b2);
     var by2=oy+L1*Math.cos(b1)+L2*Math.cos(b2);
     trail2.push({x:bx2,y:by2});
-    if(trail2.length>maxTrail)trail2.shift();
+    while(trail2.length>maxTrail)trail2.shift();
   }
 }
 
@@ -141,11 +141,12 @@ function draw(){
 function loop(){update();draw();requestAnimationFrame(loop)}
 
 // Controls
-document.getElementById('sl-l1').addEventListener('input',function(e){L1=parseInt(e.target.value,10);document.getElementById('v-l1').textContent=L1});
-document.getElementById('sl-l2').addEventListener('input',function(e){L2=parseInt(e.target.value,10);document.getElementById('v-l2').textContent=L2});
-document.getElementById('sl-m1').addEventListener('input',function(e){M1=parseInt(e.target.value,10);document.getElementById('v-m1').textContent=M1});
-document.getElementById('sl-m2').addEventListener('input',function(e){M2=parseInt(e.target.value,10);document.getElementById('v-m2').textContent=M2});
-document.getElementById('sl-trail').addEventListener('input',function(e){maxTrail=parseInt(e.target.value,10);document.getElementById('v-trail').textContent=maxTrail});
+function safeParse(val,min){var p=parseInt(val,10);return(isNaN(p)||p<min)?min:p;}
+document.getElementById('sl-l1').addEventListener('input',function(e){L1=safeParse(e.target.value,1);document.getElementById('v-l1').textContent=L1});
+document.getElementById('sl-l2').addEventListener('input',function(e){L2=safeParse(e.target.value,1);document.getElementById('v-l2').textContent=L2});
+document.getElementById('sl-m1').addEventListener('input',function(e){M1=safeParse(e.target.value,1);document.getElementById('v-m1').textContent=M1});
+document.getElementById('sl-m2').addEventListener('input',function(e){M2=safeParse(e.target.value,1);document.getElementById('v-m2').textContent=M2});
+document.getElementById('sl-trail').addEventListener('input',function(e){maxTrail=safeParse(e.target.value,0);document.getElementById('v-trail').textContent=maxTrail});
 document.getElementById('btn-reset').addEventListener('click',resetPendulum);
 document.getElementById('btn-dual').addEventListener('click',function(){
   showDual=!showDual;this.style.color=showDual?'#f6c':'#444';

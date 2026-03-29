@@ -94,14 +94,14 @@ var TEXTS=[
 var text='',charIdx=0,errors=0,totalTyped=0;
 var startTime=0,racing=false,finished=false;
 var ghostWPM=45,ghostProgress=0;
-var ghostTimer=null;
+var ghostTimer=null,statTimer=null,errorTimeout=null;
 
 function newRace(){
   text=TEXTS[Math.floor(Math.random()*TEXTS.length)];
   charIdx=0;errors=0;totalTyped=0;
   startTime=0;racing=false;finished=false;
   ghostProgress=0;
-  clearInterval(ghostTimer);
+  clearInterval(ghostTimer);clearInterval(statTimer);clearTimeout(errorTimeout);
   document.getElementById('type-input').value='';
   document.getElementById('type-input').disabled=false;
   document.getElementById('type-input').focus();
@@ -137,6 +137,8 @@ function startGhost(){
       finishRace(false);
     }
   },100);
+  // Live stat ticker so elapsed time and WPM update while player is idle
+  statTimer=setInterval(function(){if(racing&&!finished)updateStats();},500);
 }
 
 function updateStats(){
@@ -151,9 +153,11 @@ function updateStats(){
 }
 
 function finishRace(playerWon){
+  if(finished)return; // Prevent double-finish
   finished=true;racing=false;
-  clearInterval(ghostTimer);
+  clearInterval(ghostTimer);clearInterval(statTimer);
   document.getElementById('type-input').disabled=true;
+  if(startTime===0)startTime=Date.now(); // Player never typed; avoid 1970 epoch math
   var elapsed=(Date.now()-startTime)/1000;
   var wpm=Math.round((text.length/5)/(elapsed/60));
   var acc=totalTyped>0?Math.round((totalTyped-errors)/totalTyped*100):100;
@@ -170,8 +174,9 @@ function finishRace(playerWon){
 document.getElementById('type-input').addEventListener('input',function(e){
   if(finished)return;
   var val=e.target.value;
+  if(val.length===0)return; // Ignore backspace/empty (prevents undefined char error)
 
-  if(!racing&&val.length>0){
+  if(!racing){
     racing=true;startTime=Date.now();
     startGhost();
   }
@@ -193,10 +198,11 @@ document.getElementById('type-input').addEventListener('input',function(e){
   }else{
     errors++;
     e.target.value=''; // Clear wrong char
-    // Flash current char red briefly
+    // Flash current char red briefly — debounced to prevent overlapping timeouts
     var spans=document.getElementById('text-display').children;
     if(spans[charIdx])spans[charIdx].className='wrong';
-    setTimeout(function(){renderText()},200);
+    clearTimeout(errorTimeout);
+    errorTimeout=setTimeout(function(){renderText();},200);
   }
 
   updateStats();
