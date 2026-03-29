@@ -197,8 +197,8 @@ function update(dt) {
   if (ball.vy > 0 &&
       ball.y + ball.r >= paddle.y &&
       ball.y + ball.r <= paddle.y + paddle.h + 4 &&
-      ball.x >= paddle.x - paddle.w / 2 &&
-      ball.x <= paddle.x + paddle.w / 2) {
+      ball.x >= paddle.x - paddle.w / 2 - ball.r &&
+      ball.x <= paddle.x + paddle.w / 2 + ball.r) {
     // Relative hit position: -1 (left edge) to +1 (right edge)
     var rel = (ball.x - paddle.x) / (paddle.w / 2);
     rel = Math.max(-0.9, Math.min(0.9, rel));
@@ -255,6 +255,7 @@ function update(dt) {
   // Keyboard held movement
   if (keysHeld['ArrowLeft']) targetPaddleX -= 300 * dt;
   if (keysHeld['ArrowRight']) targetPaddleX += 300 * dt;
+  targetPaddleX = Math.max(paddle.w / 2, Math.min(GW - paddle.w / 2, targetPaddleX));
 
   // Paddle movement (lerp toward target)
   paddle.x += (targetPaddleX - paddle.x) * 0.2;
@@ -381,6 +382,9 @@ document.getElementById('overlay').addEventListener('click', startGame);
 canvas.addEventListener('click', function() {
   if (state === 'playing' && ball.vx === 0 && ball.vy === 0) launchBall();
 });
+canvas.addEventListener('touchstart', function() {
+  if (state === 'playing' && ball.vx === 0 && ball.vy === 0) launchBall();
+}, { passive: true });
 
 // ============ LOOP ============
 var lastTime = 0;

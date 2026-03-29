@@ -2131,3 +2131,9 @@ Persistent knowledge base. Read this before every build.
 - **FIX**: Auto-resume broken after tab switch — visibilitychange set `paused=true` on hide, but the resume check tested `!paused` which was always false. Added `wasAutoPaused` flag so only system-initiated pauses auto-resume on return
 - **FIX**: Time display stall at 1:00 — `Math.floor(totalSec)` showed `1:00` for a full second (60.000-60.999) before jumping to `59.99`. Changed to `Math.ceil` for the MM:SS display so it transitions smoothly from `1:01` to `1:00` to `59.99`
 - **INSIGHT**: When auto-pausing on visibility change, track whether the pause was user-initiated or system-initiated — otherwise the resume logic can't distinguish and breaks
+
+### neon-shatter refinement (2026-03-29) — PHASE 2 #66
+- **FIX**: Sticky paddle — `targetPaddleX` wasn't clamped to screen bounds, so holding arrow key against wall accumulated a huge offset (e.g., -1000). Releasing required seconds of opposite input before paddle moved. Added clamp after keyboard input
+- **FIX**: Paddle edge clipping — collision check used `ball.x` center only, ignoring `ball.r`. Ball visually overlapping paddle edge by up to 4.9px would fall through. Added `ball.r` to paddle width bounds
+- **FIX**: Mobile ball launch unresponsive — only `click` event launched the ball, which has 300ms delay on some mobile browsers. Added `touchstart` listener for immediate response
+- **INSIGHT**: In breakout games, always include ball radius in paddle collision width — center-only checks create a frustrating "near miss" at paddle edges
