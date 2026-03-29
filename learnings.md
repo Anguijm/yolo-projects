@@ -2159,6 +2159,11 @@ Persistent knowledge base. Read this before every build.
 - **FIX**: localStorage best score vulnerable to negative tampering — `parseInt(val) || 0` accepted negative numbers, permanently freezing best at an impossible value since `best < bestAll` was always false. Changed to `(stored > 0) ? stored : 0`
 - **INSIGHT**: When using inline style.color changes across state transitions, always reset to empty string ('') when returning to the base state — otherwise the previous state's color bleeds through
 
+### maze-runner refinement (2026-03-29) — PHASE 2 #72
+- **FIX**: Player could escape upward from start — `movePlayer` allowed `ny = -1` when at `(0,0)`, setting `player.y` to `-1`. Next move would index `maze.cells[-mazeSize]` (undefined), crashing with `TypeError` on wall access. Changed bounds check to `if (nx < 0 || nx >= mazeSize || ny < 0) return` unconditionally
+- **FIX**: `bestTimes` null crash — `JSON.parse(localStorage.getItem('maze_best'))` returns `null` when key absent; `typeof null === 'object'` so the existing guard passed null through. `bestTimes[key] = ...` then threw `TypeError: Cannot set properties of null`. Added explicit `!bestTimes` check
+- **FIX**: Touch swipe-up loop crash — the `do...while` slide loop in `touchend` would iterate after player moved to `y = -1`, attempting a second `movePlayer` which accessed undefined cell and crashed; fixed as part of the ny < 0 bounds fix above
+
 ### emoji-search refinement (2026-03-29) — PHASE 2 #71
 - **FIX**: Flash message race condition — clicking a second emoji within 1200ms triggered a new show while the original timer was still running, causing it to hide the message prematurely. Added `flashTimer` variable with `clearTimeout` before each new `setTimeout`
 - **FIX**: Unhandled Promise rejection from Clipboard API — `navigator.clipboard.writeText()` was called without `.catch()`, causing unhandled rejection errors when clipboard permission is denied. Converted to `async/await` with try/catch

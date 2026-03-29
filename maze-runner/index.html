@@ -47,7 +47,7 @@ var bestTimes = {};
 var timeDisplayEl = document.getElementById('h-time');
 
 try { bestTimes = JSON.parse(localStorage.getItem('maze_best')) || {}; } catch(e) {}
-if (typeof bestTimes !== 'object' || Array.isArray(bestTimes)) bestTimes = {};
+if (!bestTimes || typeof bestTimes !== 'object' || Array.isArray(bestTimes)) bestTimes = {};
 
 // ============ MAZE GENERATION (Recursive Backtracker) ============
 function generateMaze(w, h) {
@@ -146,13 +146,13 @@ function movePlayer(dx, dy) {
   var ny = player.y + dy;
 
   // Bounds check (allow exit through bottom of last cell)
-  if (nx < 0 || nx >= mazeSize) return;
-  if (ny < 0 && !(player.x === 0 && player.y === 0)) return;
+  if (nx < 0 || nx >= mazeSize || ny < 0) return;
   if (ny >= mazeSize) {
     // Check if at exit
     if (player.x === mazeSize - 1 && player.y === mazeSize - 1) {
+      trail.push({ x: nx, y: ny });
+      render();
       winGame();
-      return;
     }
     return;
   }
