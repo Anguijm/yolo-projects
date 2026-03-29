@@ -2153,3 +2153,8 @@ Persistent knowledge base. Read this before every build.
 - **FIX**: Hard drop didn't reset gravity timer — after hard drop, `lastDrop` still held the old value so `time - lastDrop > dropInterval` was immediately true on next frame, instantly dropping the new piece one row before player could react. Added `lastDrop = performance.now()` after lockPiece in hardDrop
 - **FIX**: Soft drop didn't reset gravity timer — pressing down moved piece, but gravity still fired on its original schedule, causing double-drop jitter. Reset `lastDrop` on both keyboard and touch soft drops
 - **INSIGHT**: In Tetris clones, any player-initiated downward movement must reset the gravity timer — otherwise the next automatic gravity tick fires too soon, causing uncontrollable drops
+
+### neon-reflex refinement (2026-03-29) — PHASE 2 #70
+- **FIX**: UI color bleed between rounds — `mainText.style.color` set to `#000` on ready and `#fff` on false-start was never reset, so "Wait..." text showed in wrong color on next round. Added color reset in `startRound()`
+- **FIX**: localStorage best score vulnerable to negative tampering — `parseInt(val) || 0` accepted negative numbers, permanently freezing best at an impossible value since `best < bestAll` was always false. Changed to `(stored > 0) ? stored : 0`
+- **INSIGHT**: When using inline style.color changes across state transitions, always reset to empty string ('') when returning to the base state — otherwise the previous state's color bleeds through
