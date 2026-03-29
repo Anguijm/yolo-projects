@@ -2294,3 +2294,17 @@ Persistent knowledge base. Read this before every build.
 - **BUG**: Prim's algorithm stored the first-discovering maze neighbor in each frontier entry and always connected to it, creating directional bias. Fixed to find all adjacent in-maze cells at pop time and connect to a random one — true randomized Prim's.
 - **BUG**: DFS solver marked cells `solveVisit=true` on push, not pop — cells appeared visited before the algorithm head reached them, breaking backtrack visualization. Fixed to mark on pop and skip if already visited.
 - **PATTERN**: `cancelAnimationFrame` should always be paired with `requestAnimationFrame` in interactive visualizers to prevent runaway loops on button re-clicks.
+
+### automata-lab refinement (Phase 2 #93)
+- **BUG**: `resize()` called `initGrid()` unconditionally — wiped the entire simulation on every window resize. Fixed by saving old grid/ageGrid before `initGrid()` and copying cells back up to the min dimensions.
+- **BUG**: Switching away from Brian's Brain left cells in state `2` (dying) in the grid. B/S rules treat `>0` as alive, so state-2 cells counted as live neighbors and corrupted future generations. Fixed by sanitizing all `grid[i]>1` to `0` in `setRule()` when leaving Brain mode.
+- **BUG**: `getCellCoords` used `e.clientX/CELL` directly — assumes canvas at absolute `(0,0)`. Fixed using `getBoundingClientRect` for proper canvas-relative coords.
+- **BUG**: `updateStats()` (full grid O(n) scan) called unconditionally on every animation frame at 60fps — ~5M iterations/sec when paused. Moved to only fire after `tick()` and paint events.
+- **PERF**: `CELL-0.5` in `fillRect` forces sub-pixel anti-aliasing on tens of thousands of rects. Changed to integer `CELL-1` for faster integer-path rendering.
+
+### voronoi-forge refinement (Phase 2 #94)
+- **BUG**: `render()` early-returned for empty seeds before updating the count UI — "Clear" button left stale point count in the display. Fixed by updating count display before the early return.
+- **BUG**: Voronoi pixel sampling used `px*scale, py*scale` — sampled top-left corner of each scaled block. Seeds drawn at center coordinates caused visual misalignment between cells and dots. Fixed to `(px+0.5)*scale` to sample block centers.
+- **BUG**: `findSeed` looped forward — overlapping seeds always grabbed the oldest one (bottom). Reversed to backward iteration so the most-recently-added (topmost visual) seed is hit first.
+- **BUG**: `pointermove` bound to `canvas` only — fast drags escape the canvas and lose tracking. Fixed with `canvas.setPointerCapture(e.pointerId)` on pointerdown to keep events coming regardless of position.
+- **BUG**: `pointercancel` (OS interruption) not handled — left `dragging=true`, causing point teleportation on next touch. Added shared `resetDrag` handler on both `pointerup` and `pointercancel`.

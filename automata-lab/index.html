@@ -99,6 +99,7 @@ function get(x,y){return grid[idx(x,y)]}
 
 // ============ RULES ============
 function setRule(name){
+  var wasBrain=isBrain;
   ruleType=name;isBrain=false;
   if(name==='conway'){birthSet=new Set([3]);surviveSet=new Set([2,3])}
   else if(name==='highlife'){birthSet=new Set([3,6]);surviveSet=new Set([2,3])}
@@ -107,6 +108,10 @@ function setRule(name){
   else if(name==='diamoeba'){birthSet=new Set([3,5,6,7,8]);surviveSet=new Set([5,6,7,8])}
   else if(name==='brain'){isBrain=true}
   else if(name==='custom'){parseCustomRule(document.getElementById('custom-rule').value)}
+  // Sanitize ghost states (state=2) when leaving Brian's Brain
+  if(wasBrain&&!isBrain&&grid){
+    for(var i=0;i<grid.length;i++){if(grid[i]>1){grid[i]=0;ageGrid[i]=0;}}
+  }
 }
 
 function parseCustomRule(str){
@@ -185,7 +190,7 @@ function draw(){
         var light=60-t*30;
         ctx.fillStyle='hsl('+hue+','+sat+'%,'+light+'%)';
       }
-      ctx.fillRect(x*CELL,y*CELL,CELL-0.5,CELL-0.5);
+      ctx.fillRect(x*CELL,y*CELL,CELL-1,CELL-1);
     }
   }
 }
@@ -238,7 +243,9 @@ function placePattern(name){
 
 // ============ INPUT ============
 function getCellCoords(e){
-  return{x:Math.floor(e.clientX/CELL),y:Math.floor(e.clientY/CELL)};
+  var rect=canvas.getBoundingClientRect();
+  var scaleX=canvas.width/rect.width,scaleY=canvas.height/rect.height;
+  return{x:Math.floor((e.clientX-rect.left)*scaleX/CELL),y:Math.floor((e.clientY-rect.top)*scaleY/CELL)};
 }
 
 function paintCell(cx,cy){
@@ -254,7 +261,7 @@ canvas.addEventListener('pointerdown',function(e){
   e.preventDefault();painting=true;
   var c=getCellCoords(e);
   paintState=grid[idx(c.x,c.y)]?0:1; // Toggle
-  paintCell(c.x,c.y);
+  paintCell(c.x,c.y);updateStats();
 });
 canvas.addEventListener('pointermove',function(e){
   if(!painting)return;
@@ -305,19 +312,28 @@ function updateStats(){
 function loop(time){
   if(playing){
     var interval=1000/speed;
-    if(time-lastTick>=interval){
-      tick();lastTick=time;
+    if(speed>0&&time-lastTick>=interval){
+      tick();updateStats();lastTick=time;
     }
   }
-  draw();updateStats();
+  draw();
   requestAnimationFrame(loop);
 }
 
 // ============ RESIZE ============
 function resize(){
+  var oldGrid=grid,oldAge=ageGrid,oldCols=COLS,oldRows=ROWS;
   W=window.innerWidth;H=window.innerHeight;
   canvas.width=W;canvas.height=H;
   initGrid();
+  // Preserve existing simulation state after resize
+  if(oldGrid){
+    var minC=Math.min(oldCols||0,COLS),minR=Math.min(oldRows||0,ROWS);
+    for(var ry=0;ry<minR;ry++)for(var rx=0;rx<minC;rx++){
+      var oi=ry*oldCols+rx,ni=ry*COLS+rx;
+      grid[ni]=oldGrid[oi];ageGrid[ni]=oldAge[oi];
+    }
+  }
 }
 
 // ============ INIT ============

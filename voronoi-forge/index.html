@@ -78,6 +78,7 @@ function parseColor(css){
 
 // ============ VORONOI RENDERING ============
 function render(){
+  document.getElementById('count').textContent=seeds.length+' points';
   if(seeds.length===0){
     ctx.fillStyle='#060610';ctx.fillRect(0,0,W,H);
     ctx.fillStyle='#1a1a1a';ctx.font='14px system-ui';ctx.textAlign='center';
@@ -100,7 +101,7 @@ function render(){
 
   for(var py=0;py<sh;py++){
     for(var px=0;px<sw;px++){
-      var wx=px*scale,wy=py*scale;
+      var wx=(px+0.5)*scale,wy=(py+0.5)*scale;
       var bestDist=Infinity,bestIdx=0,secondDist=Infinity;
 
       for(var s=0;s<seeds.length;s++){
@@ -156,7 +157,6 @@ function render(){
     }
   }
 
-  document.getElementById('count').textContent=seeds.length+' points';
 }
 
 function debouncedRender(){
@@ -177,7 +177,8 @@ function recolorAll(){
 }
 
 function findSeed(x,y){
-  for(var i=0;i<seeds.length;i++){
+  // Loop backwards so most-recently-added (top) seed is found first
+  for(var i=seeds.length-1;i>=0;i--){
     var dx=seeds[i].x-x,dy=seeds[i].y-y;
     if(dx*dx+dy*dy<400)return i; // 20px radius
   }
@@ -193,35 +194,44 @@ function randomSeeds(n){
 }
 
 // ============ INPUT ============
+function getCanvasXY(e){
+  var rect=canvas.getBoundingClientRect();
+  return{x:e.clientX-rect.left,y:e.clientY-rect.top};
+}
+
 canvas.addEventListener('pointerdown',function(e){
   e.preventDefault();
-  var x=e.clientX,y=e.clientY;
+  canvas.setPointerCapture(e.pointerId);
+  var pt=getCanvasXY(e);
 
   if(e.button===2){
     // Right-click: delete nearest
-    var idx=findSeed(x,y);
+    var idx=findSeed(pt.x,pt.y);
     if(idx>=0){seeds.splice(idx,1);debouncedRender()}
     return;
   }
 
-  var idx=findSeed(x,y);
+  var idx=findSeed(pt.x,pt.y);
   if(idx>=0){
     // Start dragging
     dragging=true;dragIdx=idx;
   }else{
     // Add new seed
-    addSeed(x,y);
+    addSeed(pt.x,pt.y);
   }
 });
 
 canvas.addEventListener('pointermove',function(e){
   if(!dragging)return;
-  seeds[dragIdx].x=e.clientX;
-  seeds[dragIdx].y=e.clientY;
+  var pt=getCanvasXY(e);
+  seeds[dragIdx].x=Math.max(0,Math.min(W,pt.x));
+  seeds[dragIdx].y=Math.max(0,Math.min(H,pt.y));
   debouncedRender();
 });
 
-window.addEventListener('pointerup',function(){dragging=false;dragIdx=-1});
+function resetDrag(){dragging=false;dragIdx=-1;}
+window.addEventListener('pointerup',resetDrag);
+window.addEventListener('pointercancel',resetDrag);
 canvas.addEventListener('contextmenu',function(e){e.preventDefault()});
 
 // ============ CONTROLS ============
