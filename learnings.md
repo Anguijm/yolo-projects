@@ -2101,3 +2101,8 @@ Persistent knowledge base. Read this before every build.
 - **FIX**: BASE_FREQS array out-of-bounds — `ring.noteIdx + (step % 5)` could exceed array length if rings were added or noteIdx changed. Added modulo wrap `% BASE_FREQS.length`
 - **FIX**: Audio node memory leak — playPluck creates 4 nodes per note (carrier, modulator, modGain, env) that accumulate during long sessions. Added `carrier.onended` cleanup to disconnect all nodes
 - **INSIGHT**: In Web Audio sequencers, always disconnect oscillator/gain node trees on ended event — at fast tempos, node accumulation causes memory bloat and audio dropouts
+
+### connect-four refinement (2026-03-29) — PHASE 2 #60
+- **FIX**: Ghost moves on reset — clicking Reset while AI was thinking didn't cancel the queued setTimeout. When the timeout fired, minimax ran against the empty board and dropped an AI piece on the fresh game. Added `clearTimeout(aiTimeout)` in resetGame
+- **FIX**: Deterministic AI — strict inequality `score > best.score` always picked the first equal-score column (center-biased from move ordering). Added 40% random tie-breaking so the AI plays varied openings
+- **INSIGHT**: Any game with AI thinking via setTimeout must cancel the timeout on reset/new-game — otherwise the queued callback corrupts the new game state

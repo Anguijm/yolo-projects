@@ -63,6 +63,7 @@ var board = [];
 var gameOver = false;
 var aiThinking = false;
 var aiDepth = 5;
+var aiTimeout = null;
 var wins = 0, losses = 0, draws = 0;
 
 // Load score
@@ -278,7 +279,7 @@ function minimax(b, depth, alpha, beta, maximizing) {
       b[row][col] = AI;
       var result = minimax(b, depth - 1, alpha, beta, false);
       b[row][col] = EMPTY;
-      if (result.score > best.score) { best.score = result.score; best.col = col; }
+      if (result.score > best.score || (result.score === best.score && Math.random() < 0.4)) { best.score = result.score; best.col = col; }
       alpha = Math.max(alpha, best.score);
       if (alpha >= beta) break;
     }
@@ -306,7 +307,7 @@ function aiMove() {
   aiThinking = true;
   document.getElementById('status').textContent = 'Thinking...';
 
-  setTimeout(function() {
+  aiTimeout = setTimeout(function() {
     var result = minimax(board, aiDepth, -Infinity, Infinity, true);
     var col = result.col;
     if (col < 0) { aiThinking = false; return; }
@@ -373,6 +374,7 @@ function handleClick(col) {
 }
 
 function resetGame() {
+  if (aiTimeout) { clearTimeout(aiTimeout); aiTimeout = null; }
   initBoard();
   gameOver = false;
   aiThinking = false;
