@@ -2079,3 +2079,10 @@ Persistent knowledge base. Read this before every build.
 - **FIX**: threshold2 not synced in init block — internal state was 220 but slider could show different value on reload
 - **FIX**: canvas.toBlob crashed on cross-origin images with SecurityError — added try/catch with user-friendly alert
 - **INSIGHT**: Always use URL.createObjectURL over FileReader.readAsDataURL for image loading — it's faster, uses less memory, and doesn't block the main thread
+
+### morse-pulse refinement (2026-03-29) — PHASE 2 #57
+- **FIX**: Retry accuracy exploit — wrong answer forced a replay, then the subsequent correct press counted as a new correct answer, inflating accuracy to 50% per miss instead of 0%. Added `isRetry` flag so retries don't push to history or increment counters
+- **FIX**: Replay button race condition — during the transition delay between correct answer and nextRound, both `waiting` and `playing` were false, so clicking Replay started overlapping audio. Added `transitioning` guard state
+- **FIX**: Early Koch progression — required only 10 samples but sliced last 20, so 9/10 correct triggered level-up. Changed minimum to 20 for full-window assessment
+- **FIX**: Double event firing on start — clicking btn-start inside start-screen fired startGame twice due to bubbling. Added stopPropagation (mitigated by started guard but still bad practice)
+- **INSIGHT**: In quiz/drill games, forced retries after wrong answers must not count toward accuracy — they always succeed and inflate scores
