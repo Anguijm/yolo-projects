@@ -136,7 +136,7 @@ function hexToHsl(hex) {
   var g = parseInt(hex.substr(2, 2), 16) / 255;
   var b = parseInt(hex.substr(4, 2), 16) / 255;
   var max = Math.max(r, g, b), min = Math.min(r, g, b);
-  var h = 0, s = 0, l = (max + min) / 2;
+  var h = seedH, s = 0, l = (max + min) / 2;
   if (max !== min) {
     var d = max - min;
     s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
@@ -157,7 +157,7 @@ function luminance(hex) {
 // ============ HARMONY GENERATION ============
 function generateHarmony() {
   var colors = [];
-  var seed = { h: seedH, s: seedS, l: seedL };
+  var seed = { h: seedH, s: seedS, l: seedL, isSeed: true };
 
   if (mode === 'complementary') {
     colors = [seed, { h: (seedH + 180) % 360, s: seedS, l: seedL }];
@@ -191,7 +191,7 @@ function generateHarmony() {
 
   return colors.map(function(c) {
     var hex = hslToHex(c.h, c.s, c.l);
-    return { h: c.h, s: c.s, l: c.l, hex: hex };
+    return { h: c.h, s: c.s, l: c.l, hex: hex, isSeed: !!c.isSeed };
   });
 }
 
@@ -225,7 +225,7 @@ function drawWheel(harmony) {
     var ny = WHEEL_CY + Math.sin(rad) * WHEEL_R;
 
     var node = document.createElement('div');
-    node.className = 'node' + (i === 0 && mode !== 'mono' ? ' seed' : '');
+    node.className = 'node' + (c.isSeed && mode !== 'mono' ? ' seed' : '');
     node.style.left = nx + 'px';
     node.style.top = ny + 'px';
     node.style.background = c.hex;
@@ -264,18 +264,22 @@ function renderCSS(harmony) {
 
 // ============ COPY ============
 function copyToClipboard(text) {
+  function fallbackCopy() {
+    var ta = document.createElement('textarea');
+    ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+    document.body.appendChild(ta); ta.focus(); ta.select(); ta.setSelectionRange(0, 99999);
+    try {
+      var ok = document.execCommand('copy');
+      showToast(ok ? 'Copied ' + text : 'Copy failed');
+    } catch(e) { showToast('Copy failed'); }
+    document.body.removeChild(ta);
+  }
   if (navigator.clipboard && navigator.clipboard.writeText) {
     navigator.clipboard.writeText(text).then(function() {
       showToast('Copied ' + text);
-    }).catch(function() {
-      showToast('Copy failed');
-    });
+    }).catch(fallbackCopy);
   } else {
-    var ta = document.createElement('textarea');
-    ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
-    document.body.appendChild(ta); ta.select(); ta.setSelectionRange(0, 99999);
-    var ok = document.execCommand('copy'); document.body.removeChild(ta);
-    showToast(ok ? 'Copied ' + text : 'Copy failed');
+    fallbackCopy();
   }
 }
 

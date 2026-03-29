@@ -2137,3 +2137,9 @@ Persistent knowledge base. Read this before every build.
 - **FIX**: Paddle edge clipping — collision check used `ball.x` center only, ignoring `ball.r`. Ball visually overlapping paddle edge by up to 4.9px would fall through. Added `ball.r` to paddle width bounds
 - **FIX**: Mobile ball launch unresponsive — only `click` event launched the ball, which has 300ms delay on some mobile browsers. Added `touchstart` listener for immediate response
 - **INSIGHT**: In breakout games, always include ball radius in paddle collision width — center-only checks create a frustrating "near miss" at paddle edges
+
+### color-forge refinement (2026-03-29) — PHASE 2 #67
+- **FIX**: Wrong seed node highlighted in analogous mode — seed was at index 1 but drawWheel always applied `.seed` class to index 0. Added `isSeed` flag to color objects so the correct node gets highlighted regardless of array position
+- **FIX**: Clipboard fallback skipped on permission denial — `navigator.clipboard.writeText` exists but rejects in iframes/HTTP; `.catch` showed "Copy failed" without trying `execCommand` fallback. Now `.catch` falls through to `execCommand` copy
+- **FIX**: Hue lost on grayscale hex input — typing `#ffffff` set hue to 0 (red). When user adjusted lightness back down, color was red instead of their original blue. Now preserves `seedH` when saturation is 0
+- **INSIGHT**: In color pickers, always preserve the hue when saturation drops to 0 — grayscale colors have no intrinsic hue, so use the last known hue to avoid jarring color shifts
