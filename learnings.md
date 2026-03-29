@@ -2195,6 +2195,12 @@ Persistent knowledge base. Read this before every build.
 - **FIX**: Canvas resize cleared `imageSmoothingEnabled` — resizing a canvas resets all context state. Added `drawCtx.imageSmoothingEnabled = false` after each resize
 - **FIX**: Pointer capture never explicitly released — relied on implicit browser release, which can leave touch devices stuck. Added explicit `releasePointerCapture` on `pointerup` and `pointercancel`
 
+### ink-stack refinement (2026-03-29) — PHASE 2 #78
+- **FIX**: Save button omitted baked strokes — after 50+ strokes, older ones were baked to an offscreen canvas; save only iterated `strokes[]` and missed the baked background entirely. Fixed by drawing `bakedCanvas` onto the offscreen canvas before rendering active strokes
+- **FIX**: Clear button left baked strokes on screen — `btn-clear` reset `strokes[]` and `redoStack[]` but never cleared `bakedCanvas`; after 50+ strokes, baked content remained permanently visible. Fixed by calling `bakedCtx.fillRect` to repaint the background
+- **FIX**: Window resize destroyed baked artwork — resizing the canvas element clears all pixel data; `resize()` rebuilt `bakedCanvas` dimensions with a fresh fill, erasing baked history. Fixed by saving baked content to a temp canvas before resize and restoring it after
+- **FIX**: Duplicate drawing code (DRY) — `drawStroke(ctx)` was a near-exact copy of `drawStrokeTo(stroke, tctx)`, and the save button had a third inline copy. Removed `drawStroke` entirely; `redrawAll` and save both call the shared `drawStrokeTo`
+
 ### sudoku refinement (2026-03-29) — PHASE 2 #74
 - **FIX**: Given cells marked as errors on Check — `isValid` flagged conflicting given cells with `.error` class (red) even though givens are immutable puzzle truths. Added `!given[i]` guard before applying error class
 - **FIX**: Arrow keys scroll page at board edges — `e.preventDefault()` was only called inside movement condition branches, so pressing ArrowUp on row 0 or ArrowDown on row 8 didn't prevent page scroll. Moved `preventDefault()` outside all directional conditions so it always fires for arrow keys

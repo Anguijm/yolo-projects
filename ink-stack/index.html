@@ -85,11 +85,22 @@ function resize() {
   canvas.style.width = W + 'px';
   canvas.style.height = H + 'px';
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  // Preserve baked canvas content across resize
+  var tempCanvas = null;
+  if (bakedCanvas.width > 0 && bakedCanvas.height > 0) {
+    tempCanvas = document.createElement('canvas');
+    tempCanvas.width = bakedCanvas.width;
+    tempCanvas.height = bakedCanvas.height;
+    tempCanvas.getContext('2d').drawImage(bakedCanvas, 0, 0);
+  }
   bakedCanvas.width = W * dpr;
   bakedCanvas.height = H * dpr;
   bakedCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
   bakedCtx.fillStyle = '#0e0e0e';
   bakedCtx.fillRect(0, 0, W, H);
+  if (tempCanvas) {
+    bakedCtx.drawImage(tempCanvas, 0, 0, W, H);
+  }
   redrawAll();
 }
 
@@ -98,14 +109,14 @@ function redrawAll() {
   ctx.clearRect(0, 0, W, H);
   ctx.drawImage(bakedCanvas, 0, 0, W, H); // Baked permanent strokes
   for (var i = 0; i < strokes.length; i++) {
-    drawStroke(strokes[i]);
+    drawStrokeTo(strokes[i], ctx);
   }
-  if (currentStroke) drawStroke(currentStroke);
+  if (currentStroke) drawStrokeTo(currentStroke, ctx);
 }
 
 function drawStrokeTo(stroke, tctx) {
   var pts = stroke.points;
-  if (pts.length === 0) return;
+  if (!pts || pts.length === 0) return;
   tctx.strokeStyle = stroke.color; tctx.lineWidth = stroke.size;
   tctx.lineCap = 'round'; tctx.lineJoin = 'round';
   if (pts.length === 1) {
@@ -121,39 +132,6 @@ function drawStrokeTo(stroke, tctx) {
   }
   tctx.lineTo(pts[pts.length - 1].x, pts[pts.length - 1].y);
   tctx.stroke();
-}
-
-function drawStroke(stroke) {
-  var pts = stroke.points;
-  if (pts.length === 0) return;
-
-  ctx.strokeStyle = stroke.color;
-  ctx.lineWidth = stroke.size;
-  ctx.lineCap = 'round';
-  ctx.lineJoin = 'round';
-
-  if (pts.length === 1) {
-    // Single dot
-    ctx.fillStyle = stroke.color;
-    ctx.beginPath();
-    ctx.arc(pts[0].x, pts[0].y, stroke.size / 2, 0, Math.PI * 2);
-    ctx.fill();
-    return;
-  }
-
-  ctx.beginPath();
-  ctx.moveTo(pts[0].x, pts[0].y);
-
-  // Quadratic bezier smoothing
-  for (var i = 1; i < pts.length - 1; i++) {
-    var mx = (pts[i].x + pts[i + 1].x) / 2;
-    var my = (pts[i].y + pts[i + 1].y) / 2;
-    ctx.quadraticCurveTo(pts[i].x, pts[i].y, mx, my);
-  }
-  // Last segment
-  var last = pts[pts.length - 1];
-  ctx.lineTo(last.x, last.y);
-  ctx.stroke();
 }
 
 // ============ POINTER INPUT ============
@@ -247,10 +225,11 @@ document.getElementById('btn-undo').addEventListener('click', undo);
 document.getElementById('btn-redo').addEventListener('click', redo);
 
 document.getElementById('btn-clear').addEventListener('click', function() {
-  if (strokes.length === 0) return;
-  // Push all strokes to redo so clear is undoable? No — just clear.
   strokes = [];
   redoStack = [];
+  // Also clear baked canvas so baked strokes don't persist
+  bakedCtx.fillStyle = '#0e0e0e';
+  bakedCtx.fillRect(0, 0, W, H);
   redrawAll();
   updateButtons();
 });
@@ -264,30 +243,11 @@ document.getElementById('btn-save').addEventListener('click', function() {
   octx.setTransform(dpr, 0, 0, dpr, 0, 0);
   octx.fillStyle = '#0e0e0e';
   octx.fillRect(0, 0, W, H);
+  // Include baked strokes (strokes beyond MAX_HISTORY that were baked to background)
+  octx.drawImage(bakedCanvas, 0, 0, W, H);
+  // Draw active strokes using shared drawing function
   for (var i = 0; i < strokes.length; i++) {
-    // Redraw strokes on offscreen canvas
-    var pts = strokes[i].points;
-    if (pts.length === 0) continue;
-    octx.strokeStyle = strokes[i].color;
-    octx.lineWidth = strokes[i].size;
-    octx.lineCap = 'round';
-    octx.lineJoin = 'round';
-    if (pts.length === 1) {
-      octx.fillStyle = strokes[i].color;
-      octx.beginPath();
-      octx.arc(pts[0].x, pts[0].y, strokes[i].size / 2, 0, Math.PI * 2);
-      octx.fill();
-    } else {
-      octx.beginPath();
-      octx.moveTo(pts[0].x, pts[0].y);
-      for (var j = 1; j < pts.length - 1; j++) {
-        var mx = (pts[j].x + pts[j + 1].x) / 2;
-        var my = (pts[j].y + pts[j + 1].y) / 2;
-        octx.quadraticCurveTo(pts[j].x, pts[j].y, mx, my);
-      }
-      octx.lineTo(pts[pts.length - 1].x, pts[pts.length - 1].y);
-      octx.stroke();
-    }
+    drawStrokeTo(strokes[i], octx);
   }
   oc.toBlob(function(blob) {
     if (!blob) return;
