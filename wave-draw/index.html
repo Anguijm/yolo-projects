@@ -142,7 +142,8 @@ function buildWaveFromPreset(type){
 // ============ PLAY NOTE ============
 function playNote(freq){
   initAudio(); // Init first, then check
-  if(!audioCtx||activeNotes[freq])return;
+  if(!audioCtx)return;
+  if(activeNotes[freq])return; // already sounding
   if(audioCtx.state==='suspended')audioCtx.resume();
   var osc=audioCtx.createOscillator();
   var gain=audioCtx.createGain();
@@ -225,7 +226,8 @@ waveCanvas.addEventListener('pointermove',function(e){
   // Interpolate between last and current to fill gaps
   if(lastDrawIdx>=0){
     var start=Math.min(lastDrawIdx,idx),end=Math.max(lastDrawIdx,idx);
-    var startVal=waveformData[lastDrawIdx],endVal=val;
+    var startVal=(start===lastDrawIdx)?waveformData[lastDrawIdx]:val;
+    var endVal=(end===lastDrawIdx)?waveformData[lastDrawIdx]:val;
     for(var i=start;i<=end;i++){
       var t=(end===start)?0:(i-start)/(end-start);
       waveformData[i]=startVal+(endVal-startVal)*t;
@@ -298,14 +300,17 @@ document.getElementById('keyboard').addEventListener('pointermove',function(e){
   var oldFreq=pointerNotes[e.pointerId];
   if(newFreq!==oldFreq){
     stopNote(oldFreq);
-    document.querySelectorAll('.pressed').forEach(function(k){k.classList.remove('pressed')});
+    var oldKey=document.querySelector('.white-key[data-freq="'+oldFreq+'"],.black-key[data-freq="'+oldFreq+'"]');
+    if(oldKey)oldKey.classList.remove('pressed');
     if(newFreq>0){playNote(newFreq);key.classList.add('pressed');pointerNotes[e.pointerId]=newFreq}
   }
 });
 window.addEventListener('pointerup',function(e){
   var freq=pointerNotes[e.pointerId];
   if(freq){stopNote(freq);delete pointerNotes[e.pointerId];
-    document.querySelectorAll('.pressed').forEach(function(k){k.classList.remove('pressed')})}
+    var k=document.querySelector('.white-key[data-freq="'+freq+'"],.black-key[data-freq="'+freq+'"]');
+    if(k)k.classList.remove('pressed');
+  }
 });
 
 // Keyboard mapping
@@ -313,11 +318,19 @@ var keyMap={};NOTES.forEach(function(n){keyMap[n.key]=n.freq});
 document.addEventListener('keydown',function(e){
   if(e.repeat||e.ctrlKey||e.metaKey||e.altKey)return;
   var freq=keyMap[e.key.toLowerCase()];
-  if(freq){e.preventDefault();initAudio();playNote(freq)}
+  if(freq){
+    e.preventDefault();initAudio();playNote(freq);
+    var keyDiv=document.querySelector('[data-freq="'+freq+'"]');
+    if(keyDiv)keyDiv.classList.add('pressed');
+  }
 });
 document.addEventListener('keyup',function(e){
   var freq=keyMap[e.key.toLowerCase()];
-  if(freq)stopNote(freq);
+  if(freq){
+    stopNote(freq);
+    var keyDiv=document.querySelector('[data-freq="'+freq+'"]');
+    if(keyDiv)keyDiv.classList.remove('pressed');
+  }
 });
 
 // ============ CONTROLS ============

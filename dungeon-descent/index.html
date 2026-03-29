@@ -108,7 +108,7 @@ function generateDungeon(){
   entities=[];
   var numEnemies=3+player.floor*2;
   for(var e=0;e<numEnemies;e++){
-    var room=rooms[1+Math.floor(Math.random()*(rooms.length-1))];
+    var room=rooms[Math.floor(Math.random()*rooms.length)];
     var ex=room.x+Math.floor(Math.random()*room.w);
     var ey=room.y+Math.floor(Math.random()*room.h);
     if(ex===player.x&&ey===player.y)continue;
@@ -121,10 +121,10 @@ function generateDungeon(){
   // Spawn health potions
   var numPotions=2+Math.floor(Math.random()*2);
   for(var p=0;p<numPotions;p++){
-    var room=rooms[1+Math.floor(Math.random()*(rooms.length-1))];
+    var room=rooms[Math.floor(Math.random()*rooms.length)];
     var px=room.x+Math.floor(Math.random()*room.w);
     var py=room.y+Math.floor(Math.random()*room.h);
-    entities.push({x:px,y:py,ch:'+',color:'#f85149',hp:0,atk:0,name:'Potion',isItem:true,heal:5+player.floor});
+    entities.push({x:px,y:py,ch:'+',color:'#f85149',hp:1,atk:0,name:'Potion',isItem:true,heal:5+player.floor});
   }
 
   computeFOV();
@@ -148,7 +148,7 @@ function computeFOV(){
     var dx=Math.cos(rad)*0.3;
     var dy=Math.sin(rad)*0.3;
     var cx=player.x+0.5,cy=player.y+0.5;
-    for(var step=0;step<VIEW_RADIUS*3;step++){
+    for(var step=0;step<VIEW_RADIUS*4;step++){
       var mx=Math.floor(cx),my=Math.floor(cy);
       if(mx<0||mx>=MW||my<0||my>=MH)break;
       var dist=Math.sqrt((mx-player.x)*(mx-player.x)+(my-player.y)*(my-player.y));
@@ -193,7 +193,7 @@ function tryMove(dx,dy){
     if(item&&item.isItem){
       player.hp=Math.min(player.maxHp,player.hp+item.heal);
       addLog('Healed '+item.heal+' HP!','log-item');
-      item.hp=-1; // Remove
+      item.hp=0; // Remove
     }
     // Stairs
     if(map[ny][nx]===TILE_STAIR){
@@ -208,12 +208,15 @@ function tryMove(dx,dy){
   // Enemy turns
   enemyTurns();
   // Clean dead
-  entities=entities.filter(function(e){return e.hp>0||e.isItem});
+  entities=entities.filter(function(e){return e.hp>0});
   computeFOV();
+  checkDeath();
   updateHUD();
   draw();
+}
 
-  if(player.hp<=0){
+function checkDeath(){
+  if(player.hp<=0&&!gameOver){
     gameOver=true;
     addLog('You died on floor '+player.floor+' with '+player.kills+' kills.','log-combat');
   }
@@ -328,7 +331,7 @@ document.addEventListener('keydown',function(e){
   else if(e.key==='ArrowDown'||e.key==='s')dy=1;
   else if(e.key==='ArrowLeft'||e.key==='a')dx=-1;
   else if(e.key==='ArrowRight'||e.key==='d')dx=1;
-  else if(e.key==='.'){/* wait turn */enemyTurns();computeFOV();updateHUD();draw();return}
+  else if(e.key==='.'){/* wait turn */enemyTurns();computeFOV();checkDeath();updateHUD();draw();return}
   else return;
   e.preventDefault();
   tryMove(dx,dy);
@@ -339,7 +342,7 @@ document.getElementById('touch').addEventListener('pointerdown',function(e){
   var btn=e.target.closest('.t-btn');if(!btn)return;e.preventDefault();
   var dx=parseInt(btn.dataset.dx,10),dy=parseInt(btn.dataset.dy,10);
   if(gameOver){if(dx===0&&dy===0)restart();return}
-  if(dx===0&&dy===0){enemyTurns();computeFOV();updateHUD();draw();return} // Wait
+  if(dx===0&&dy===0){enemyTurns();computeFOV();checkDeath();updateHUD();draw();return} // Wait
   tryMove(dx,dy);
 });
 
