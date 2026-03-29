@@ -77,6 +77,21 @@ After automated tests pass, manually verify:
 
 If ANY test fails, fix the issue and re-run all tests before proceeding.
 
+### Dark Factory Retry Loop
+The build process is a **Dark Factory**: spec in → autonomous build → automated eval → retry until green.
+
+1. After the full test suite runs, if ANY check fails:
+   - Fix the specific failure
+   - Re-run the **entire** test suite (not just the failed check)
+   - Repeat until all checks pass — maximum 3 retry cycles
+2. After Gemini code audit, if bugs are found:
+   - Fix all identified bugs
+   - Re-run the full test suite again
+   - If new failures appear, loop back to step 1
+3. Only proceed to README/logging after **both** test suite AND Gemini audit pass with zero issues.
+
+The goal: the human never sees a broken project. Every shipped build has survived at least one full test→fix→retest cycle.
+
 ## Gemini Code Audit
 
 **This is a bedrock rule.** After testing passes but before shipping:
