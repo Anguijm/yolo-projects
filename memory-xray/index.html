@@ -273,23 +273,31 @@ document.getElementById('btn-random').addEventListener('click', function() {
 });
 
 document.getElementById('btn-shift-l').addEventListener('click', function() {
-  // Shift all 64 bits left by 1
-  var carry = 0;
-  for (var i = 7; i >= 0; i--) {
-    var newCarry = (bytes[i] >> 7) & 1;
-    bytes[i] = ((bytes[i] << 1) | carry) & 0xFF;
-    carry = newCarry;
+  try {
+    var val = view.getBigUint64(0, !bigEndian);
+    view.setBigUint64(0, val << 1n, !bigEndian);
+  } catch (e) {
+    var carry = 0;
+    for (var i = 7; i >= 0; i--) {
+      var newCarry = (bytes[i] >> 7) & 1;
+      bytes[i] = ((bytes[i] << 1) | carry) & 0xFF;
+      carry = newCarry;
+    }
   }
   updateAll();
 });
 
 document.getElementById('btn-shift-r').addEventListener('click', function() {
-  // Shift all 64 bits right by 1
-  var carry = 0;
-  for (var i = 0; i < 8; i++) {
-    var newCarry = bytes[i] & 1;
-    bytes[i] = ((bytes[i] >> 1) | (carry << 7)) & 0xFF;
-    carry = newCarry;
+  try {
+    var val = view.getBigUint64(0, !bigEndian);
+    view.setBigUint64(0, val >> 1n, !bigEndian);
+  } catch (e) {
+    var carry = 0;
+    for (var i = 0; i < 8; i++) {
+      var newCarry = bytes[i] & 1;
+      bytes[i] = ((bytes[i] >> 1) | (carry << 7)) & 0xFF;
+      carry = newCarry;
+    }
   }
   updateAll();
 });
@@ -308,8 +316,12 @@ document.getElementById('btn-endian').addEventListener('click', function() {
 textInput.addEventListener('input', function() {
   var text = textInput.value;
   bytes.fill(0);
-  for (var i = 0; i < Math.min(text.length, 8); i++) {
-    bytes[i] = text.charCodeAt(i) & 0xFF;
+  if (text.length > 0) {
+    var encoder = new TextEncoder();
+    var encoded = encoder.encode(text);
+    for (var i = 0; i < Math.min(encoded.length, 8); i++) {
+      bytes[i] = encoded[i];
+    }
   }
   updateAll();
 });
@@ -318,6 +330,7 @@ textInput.addEventListener('input', function() {
 numInput.addEventListener('keydown', function(e) {
   if (e.key !== 'Enter') return;
   var val = numInput.value.trim();
+  if (val === '') return;
   if (val === 'Infinity' || val === '+Infinity') {
     view.setFloat64(0, Infinity, !bigEndian);
   } else if (val === '-Infinity') {
@@ -328,7 +341,9 @@ numInput.addEventListener('keydown', function(e) {
     view.setFloat64(0, -0, !bigEndian);
   } else {
     var num = Number(val);
-    if (!isNaN(num)) {
+    if (isNaN(num)) {
+      view.setFloat64(0, NaN, !bigEndian);
+    } else {
       view.setFloat64(0, num, !bigEndian);
     }
   }
