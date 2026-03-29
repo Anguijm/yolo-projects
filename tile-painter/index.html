@@ -112,6 +112,13 @@ function buildPaletteSelector() {
   }
 }
 
+function updateEraserUI() {
+  var btn = document.getElementById('btn-eraser');
+  if (!btn) return;
+  btn.style.color = isEraser ? '#fff' : '';
+  btn.style.borderColor = isEraser ? 'rgba(255,255,255,0.3)' : '';
+}
+
 function buildColorRow() {
   var el = document.getElementById('color-row');
   el.innerHTML = '';
@@ -124,6 +131,7 @@ function buildColorRow() {
     swatch.addEventListener('click', function() {
       currentColor = this.dataset.color;
       isEraser = false;
+      updateEraserUI();
       buildColorRow();
     });
     el.appendChild(swatch);
@@ -197,15 +205,14 @@ gridEl.addEventListener('pointermove', function(e) {
   if (idx >= 0) paintCell(idx);
 });
 
-gridEl.addEventListener('pointerup', function(e) { painting = false; gridEl.releasePointerCapture(e.pointerId); });
+gridEl.addEventListener('pointerup', function(e) { painting = false; if (gridEl.hasPointerCapture(e.pointerId)) { gridEl.releasePointerCapture(e.pointerId); } });
 gridEl.addEventListener('pointerleave', function() { painting = false; });
 gridEl.addEventListener('pointercancel', function() { painting = false; });
 
 // ============ CONTROLS ============
 document.getElementById('btn-eraser').addEventListener('click', function() {
   isEraser = !isEraser;
-  this.style.color = isEraser ? '#fff' : '';
-  this.style.borderColor = isEraser ? 'rgba(255,255,255,0.3)' : '';
+  updateEraserUI();
   buildColorRow();
 });
 
@@ -244,15 +251,12 @@ document.getElementById('btn-save').addEventListener('click', function() {
     }
   }
 
-  // Use toBlob to avoid URL length limits on large canvases
-  wallpaper.toBlob(function(blob) {
-    var url = URL.createObjectURL(blob);
-    var link = document.createElement('a');
-    link.download = 'tile-' + Date.now() + '.png';
-    link.href = url;
-    link.click();
-    setTimeout(function() { URL.revokeObjectURL(url); }, 200);
-  }, 'image/png');
+  // Use toDataURL synchronously to keep download within user gesture context (required by Safari)
+  var dataUrl = wallpaper.toDataURL('image/png');
+  var link = document.createElement('a');
+  link.download = 'tile-' + Date.now() + '.png';
+  link.href = dataUrl;
+  link.click();
 });
 
 // ============ INIT ============

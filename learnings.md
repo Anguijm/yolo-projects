@@ -2164,6 +2164,11 @@ Persistent knowledge base. Read this before every build.
 - **FIX**: `bestTimes` null crash — `JSON.parse(localStorage.getItem('maze_best'))` returns `null` when key absent; `typeof null === 'object'` so the existing guard passed null through. `bestTimes[key] = ...` then threw `TypeError: Cannot set properties of null`. Added explicit `!bestTimes` check
 - **FIX**: Touch swipe-up loop crash — the `do...while` slide loop in `touchend` would iterate after player moved to `y = -1`, attempting a second `movePlayer` which accessed undefined cell and crashed; fixed as part of the ny < 0 bounds fix above
 
+### tile-painter refinement (2026-03-29) — PHASE 2 #73
+- **FIX**: Eraser UI desync — clicking a color swatch set `isEraser = false` but never reset the eraser button's visual state (white text/border), leaving it appearing active. Extracted `updateEraserUI()` and called it from both the eraser toggle and color swatch click handler
+- **FIX**: `releasePointerCapture` DOMException — calling `releasePointerCapture` without checking if the element still holds the capture threw `DOMException: InvalidPointerId` when pointer was already released (e.g. via `pointercancel`). Added `hasPointerCapture` guard
+- **FIX**: Async `toBlob` download blocked on Safari — `toBlob` callback fires asynchronously, breaking the user gesture context required by Safari for downloads. Replaced with synchronous `toDataURL` to keep the download trigger within the click handler
+
 ### emoji-search refinement (2026-03-29) — PHASE 2 #71
 - **FIX**: Flash message race condition — clicking a second emoji within 1200ms triggered a new show while the original timer was still running, causing it to hide the message prematurely. Added `flashTimer` variable with `clearTimeout` before each new `setTimeout`
 - **FIX**: Unhandled Promise rejection from Clipboard API — `navigator.clipboard.writeText()` was called without `.catch()`, causing unhandled rejection errors when clipboard permission is denied. Converted to `async/await` with try/catch
