@@ -106,6 +106,7 @@ function parseEditor() {
     var parts = l.split('|');
     var front = (parts[0] || '').trim();
     var back = (parts.slice(1).join('|') || '').trim();
+    if (front.length === 0 && back.length === 0) return null; // Skip blank cards
     var prev = existing[front + '||' + back];
     return {
       front: front,
@@ -113,7 +114,7 @@ function parseEditor() {
       nextReview: prev ? prev.nextReview : 0,
       interval: prev ? prev.interval : 60000
     };
-  });
+  }).filter(function(c) { return c !== null; });
   saveCards();
 }
 
@@ -173,8 +174,11 @@ function flipCard() {
   }
 }
 
+var ratingLocked = false;
 function rateCard(rating) {
-  if (currentIdx < 0) return;
+  if (currentIdx < 0 || ratingLocked) return;
+  ratingLocked = true;
+  setTimeout(function() { ratingLocked = false; }, 300);
   var card = cards[currentIdx];
   // Simple spaced repetition: multiply interval by rating factor
   if (rating === 1) card.interval = 60000; // Hard: reset to 1 min
@@ -226,9 +230,10 @@ document.getElementById('btn-study').addEventListener('click', function() {
 document.getElementById('btn-edit').addEventListener('click', enterEditMode);
 
 document.getElementById('btn-shuffle').addEventListener('click', function() {
-  // Reset all review times so all cards become due again
+  // Reset all review times AND intervals so cards truly restart
   for (var i = 0; i < cards.length; i++) {
     cards[i].nextReview = 0;
+    cards[i].interval = 60000;
   }
   saveCards();
   if (!isEditing) showNextCard();

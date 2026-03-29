@@ -2046,3 +2046,9 @@ Persistent knowledge base. Read this before every build.
 - **FIX**: Ghost decay framerate-dependent — ghostGrid decremented in render() (60fps) instead of step() (variable speed), making ghosts decay at monitor refresh rate not game speed. Moved to render but removed playing guard so it decays consistently
 - **FIX**: Stamp preview was full-screen overlay — showed solid cyan over entire canvas instead of pattern preview at cursor. Now renders individual pattern cells at mouse position
 - **INSIGHT**: Visual effects that should match game speed must be updated in the game step function, not the render function — render fires at monitor framerate which varies across devices
+
+### flash-cards refinement (2026-03-29) — PHASE 2 #52
+- **FIX**: Reset didn't clear intervals — only set nextReview=0 but left 7-day intervals intact, so first re-rating jumped back to long intervals. Now resets interval to 60s too
+- **FIX**: Blank cards created — empty front+back (" | ") parsed as valid card. Added null return and filter for blank entries
+- **FIX**: Rapid double-click rated wrong card — fast double-click rated current card then immediately applied second rating to next card. Added 300ms ratingLocked guard
+- **INSIGHT**: Spaced repetition reset must clear both nextReview AND interval — resetting only nextReview while keeping a 7-day interval means the first "OK" rating jumps to 14 days
