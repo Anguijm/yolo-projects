@@ -117,6 +117,7 @@ function getRaw(x, y) { return inBounds(x, y) ? grid[idx(x, y)] : (WALL | MOVED)
 function set(x, y, v) { if (inBounds(x, y)) grid[idx(x, y)] = v | MOVED; }
 
 function swap(x1, y1, x2, y2) {
+  if (!inBounds(x1, y1) || !inBounds(x2, y2)) return;
   var i1 = idx(x1, y1), i2 = idx(x2, y2);
   var a = grid[i1] & 127, b = grid[i2] & 127;
   grid[i1] = b | MOVED;
@@ -161,8 +162,8 @@ function updateCell(x, y) {
 
   else if (cell === OIL) {
     if (below === EMPTY) { swap(x, y, x, y + 1); return; }
-    // Oil floats on water: swap if below is denser
-    if (DENSITY[below] > DENSITY[OIL] && below !== WALL && below !== PLANT) { swap(x, y, x, y + 1); return; }
+    // Oil sinks into lighter elements only
+    if (DENSITY[below] < DENSITY[OIL] && below !== WALL && below !== PLANT) { swap(x, y, x, y + 1); return; }
     var dg2 = get(x + randDir, y + 1);
     if (dg2 === EMPTY) { swap(x, y, x + randDir, y + 1); return; }
     dg2 = get(x - randDir, y + 1);
@@ -207,14 +208,16 @@ function updateCell(x, y) {
   }
 
   else if (cell === ACID) {
-    // Corrode neighbors
-    for (var ax = -1; ax <= 1; ax++) {
-      for (var ay = -1; ay <= 1; ay++) {
+    // Corrode ONE neighbor per frame
+    var ate = false;
+    for (var ax = -1; ax <= 1 && !ate; ax++) {
+      for (var ay = -1; ay <= 1 && !ate; ay++) {
         if (ax === 0 && ay === 0) continue;
         var an = get(x + ax, y + ay);
         if (an !== EMPTY && an !== ACID && an !== WALL && Math.random() < 0.04) {
           set(x + ax, y + ay, EMPTY);
-          if (Math.random() < 0.3) { set(x, y, EMPTY); return; } // Acid consumed
+          ate = true;
+          if (Math.random() < 0.3) { set(x, y, EMPTY); return; }
         }
       }
     }

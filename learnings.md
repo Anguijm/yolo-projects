@@ -2052,3 +2052,9 @@ Persistent knowledge base. Read this before every build.
 - **FIX**: Blank cards created — empty front+back (" | ") parsed as valid card. Added null return and filter for blank entries
 - **FIX**: Rapid double-click rated wrong card — fast double-click rated current card then immediately applied second rating to next card. Added 300ms ratingLocked guard
 - **INSIGHT**: Spaced repetition reset must clear both nextReview AND interval — resetting only nextReview while keeping a 7-day interval means the first "OK" rating jumps to 14 days
+
+### elementa refinement (2026-03-29) — PHASE 2 #53
+- **FIX**: Oil density check caused oscillation — `DENSITY[below] > DENSITY[OIL]` made oil sink into heavier elements, causing infinite swap vibration with sand. Changed to `< DENSITY[OIL]` so oil only sinks into lighter elements
+- **FIX**: Acid hyper-eating — corrode loop ate up to 8 neighbors per frame instead of 1. Added `ate` flag to break after first corrosion
+- **FIX**: swap() missing bounds check — out-of-bounds swap on typed array reads undefined, `undefined & 127 = 0`, silently converting particles to EMPTY at edges. Added inBounds guard
+- **INSIGHT**: In falling sand games, lighter elements should NOT actively move down into heavier ones — they get displaced upward when heavier elements fall. Inverting the density check causes infinite oscillation
