@@ -192,17 +192,22 @@ document.getElementById('btn-theme').addEventListener('click', function() {
 
 // Copy CSS
 document.getElementById('btn-css').addEventListener('click', function() {
-  var font = FONTS[parseInt(selFont.value, 10)];
-  var size = document.getElementById('sl-size').value;
-  var weight = document.getElementById('sl-weight').value;
-  var height = document.getElementById('sl-height').value;
-  var spacing = document.getElementById('sl-spacing').value;
+  var fontIdx = parseInt(selFont.value, 10);
+  var font = FONTS[isNaN(fontIdx) || fontIdx < 0 || fontIdx >= FONTS.length ? 0 : fontIdx];
+  var size = parseInt(document.getElementById('sl-size').value, 10);
+  if (isNaN(size)) size = 32;
+  var weight = parseInt(document.getElementById('sl-weight').value, 10);
+  if (isNaN(weight)) weight = 400;
+  var height = parseFloat(document.getElementById('sl-height').value);
+  if (isNaN(height)) height = 1.5;
+  var spacing = parseFloat(document.getElementById('sl-spacing').value);
+  if (isNaN(spacing)) spacing = 0;
 
   var css = 'font-family: ' + font.family + ';\n' +
     'font-size: ' + size + 'px;\n' +
     'font-weight: ' + weight + ';\n' +
     'line-height: ' + height + ';\n' +
-    'letter-spacing: ' + spacing + 'em;';
+    'letter-spacing: ' + spacing.toFixed(2) + 'em;';
 
   if (navigator.clipboard && navigator.clipboard.writeText) {
     navigator.clipboard.writeText(css).then(function() {
@@ -210,7 +215,7 @@ document.getElementById('btn-css').addEventListener('click', function() {
     }).catch(function() { showToast('Copy failed'); });
   } else {
     var ta = document.createElement('textarea');
-    ta.value = css; ta.style.position = 'fixed'; ta.style.opacity = '0';
+    ta.value = css; ta.style.position = 'fixed'; ta.style.top = '0'; ta.style.left = '0'; ta.style.opacity = '0';
     document.body.appendChild(ta); ta.select(); ta.setSelectionRange(0, 99999);
     document.execCommand('copy'); document.body.removeChild(ta);
     showToast('CSS copied!');

@@ -2175,6 +2175,11 @@ Persistent knowledge base. Read this before every build.
 - **FIX**: `JSON.parse` crash on corrupted localStorage — if `emoji-recent` held invalid JSON the entire script would throw on load. Wrapped in try/catch defaulting to `[]`
 - **FIX**: `localStorage.setItem` could throw in private browsing — `QuotaExceededError`/`SecurityError` would crash `copyEmoji` before showing the flash. Wrapped write in try/catch
 
+### type-forge refinement (2026-03-29) — PHASE 2 #75
+- **FIX**: Copy CSS used raw `.value` strings instead of parsed values — if slider values were somehow invalid, the copied CSS would contain `NaNpx` or empty units. Replaced with properly parsed and sanitized integers/floats with fallback defaults, matching the input event handler logic
+- **FIX**: Clipboard fallback textarea missing `top: 0; left: 0` positioning — appending and focusing the hidden textarea without anchoring it to the top-left could cause the page to scroll. Added `top: '0'` and `left: '0'` to the fixed-position style
+- **FIX**: Font index bounds not validated in Copy CSS — `FONTS[parseInt(selFont.value)]` could access `undefined` if the index was out of range. Added explicit bounds check with fallback to index 0
+
 ### sudoku refinement (2026-03-29) — PHASE 2 #74
 - **FIX**: Given cells marked as errors on Check — `isValid` flagged conflicting given cells with `.error` class (red) even though givens are immutable puzzle truths. Added `!given[i]` guard before applying error class
 - **FIX**: Arrow keys scroll page at board edges — `e.preventDefault()` was only called inside movement condition branches, so pressing ArrowUp on row 0 or ArrowDown on row 8 didn't prevent page scroll. Moved `preventDefault()` outside all directional conditions so it always fires for arrow keys
