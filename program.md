@@ -170,3 +170,107 @@ One project per run. The flow is:
 11. Commit and push to GitHub
 12. **Write reflections to `learnings.md`** — including what tests caught
 13. Done — leave a summary as the final message
+
+---
+
+## Phase 4: YouTube Experiment Tracker
+
+See `phase4_experiments.md` for the complete system. Phase 4 is a separate R&D intelligence pipeline that feeds actionable experiments into the dev loop. It does NOT replace Phases 1-3 — it runs in parallel once Phase 3 refinement completes.
+
+1. **@NateBJones** — AI News & Strategy Daily
+   - Focus: AI strategy, developer workflows, agentic systems, implementation patterns, team/org adoption of AI tooling.
+   - Signal to extract: concrete practices, tool recommendations, workflow patterns, warnings about what doesn't work.
+
+2. **@MLOps** (MLOps.community — Demetrios Brinkmann)
+   - Focus: Production ML, LLMOps, agents, evaluation, memory, fine-tuning, voice AI, notebooks, model deployment.
+   - Signal to extract: practitioner techniques, architecture patterns, production gotchas, emerging tooling.
+
+Only process content from these two channels. If given a URL from another channel, note it and skip.
+
+### Processing a Video
+
+When given a YouTube URL or video title + transcript:
+
+**Step 1 — Summarize** (3–5 sentences max):
+What is the core argument or finding? Who said it? What problem does it address?
+
+**Step 2 — Extract Experiments** (1–5 per video):
+For each distinct actionable idea, create an experiment card:
+
+```json
+{
+  "id": "<channel_shortcode>-<YYYY-MM-DD>-<slug>",
+  "source": {
+    "channel": "@NateBJones | @MLOps",
+    "video_title": "...",
+    "video_url": "...",
+    "published_date": "YYYY-MM-DD",
+    "ingested_date": "YYYY-MM-DD"
+  },
+  "experiment": {
+    "title": "Short imperative title",
+    "hypothesis": "If we [do X], then [outcome Y] because [reason Z].",
+    "what_they_did": "What the speaker described doing or recommending.",
+    "effort_estimate": "low | medium | high",
+    "relevance_to_yolo_loop": "How this maps to our dev loop specifically."
+  },
+  "status": "backlog",
+  "status_history": [],
+  "outcome": null,
+  "verdict": null,
+  "notes": ""
+}
+```
+
+**Step 3 — Output**: Return summary + experiment cards as JSON. Prefer fewer, higher-quality cards over quantity.
+
+### Effort Estimates
+
+- **low** = try it in one session
+- **medium** = a day or two of integration work
+- **high** = architectural change or multi-session effort
+
+### Status Lifecycle
+
+```
+backlog → in_progress → done → (adopt | discard | iterate)
+```
+
+When updating status, append to `status_history`:
+```json
+{ "status": "in_progress", "date": "YYYY-MM-DD", "note": "..." }
+```
+
+When done, fill in:
+- `outcome`: What actually happened when we tried it.
+- `verdict`: `adopt` (integrate permanently), `discard` (archive), or `iterate` (create follow-up card).
+
+### Tracker File
+
+All experiment cards live in `~/yolo_projects/experiments.json`. This is the single source of truth.
+
+### Backlog Review
+
+When asked to "review backlog" or "prioritize experiments":
+1. List all backlog items grouped by effort_estimate (low first).
+2. Flag any superseded by newer content (mark as stale).
+3. Recommend top 3 to start next based on: low effort + high relevance, recency, and whether prerequisites are already adopted.
+
+### Duplicate Handling
+
+When processing a new video, check for duplicates against existing cards. If the same idea appeared in a previous video, update the existing card's source with `also_mentioned_in` rather than creating a new card.
+
+### Rules
+
+- Only process @NateBJones and @MLOps content.
+- Keep experiment titles action-oriented (imperative verbs).
+- Never invent outcomes — `outcome` and `verdict` stay null until real results are reported.
+- If a video is primarily news/commentary with no actionable experiment, output the summary but note "no experiments extracted" and explain why.
+
+### Initial Seeding (run once)
+
+On first Phase 4 run, process the last 5 videos from EACH channel (10 total). Complete Steps 1–3 for each. The combined JSON array becomes the seed tracker in `experiments.json`.
+
+### Ongoing Tracking
+
+Each subsequent run: process new video → extract experiments → deduplicate → append to tracker → commit and push.
