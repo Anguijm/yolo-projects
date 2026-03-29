@@ -68,7 +68,7 @@ function seedNoise(s){
   // Fisher-Yates with seeded random
   for(var i=255;i>0;i--){
     s=(s*16807+0)%2147483647;
-    var j=s%i;
+    var j=s%(i+1);
     var t=p[i];p[i]=p[j];p[j]=t;
   }
   for(var i=0;i<512;i++)perm[i]=p[i&255];
@@ -96,6 +96,7 @@ function noise2d(x,y){
 }
 
 function fbm(x,y,oct){
+  if(oct<=0)return 0;
   var val=0,amp=1,f=1,maxAmp=0;
   for(var i=0;i<oct;i++){
     val+=noise2d(x*f,y*f)*amp;
@@ -205,8 +206,8 @@ function render(){
 function resize(){
   // Render at half resolution for performance, CSS scales up
   var dpr=1;
-  W=Math.floor(window.innerWidth*0.5);
-  H=Math.floor(window.innerHeight*0.5);
+  W=Math.max(1,Math.floor(window.innerWidth*0.5));
+  H=Math.max(1,Math.floor(window.innerHeight*0.5));
   canvas.width=W;canvas.height=H;
   canvas.style.width=window.innerWidth+'px';
   canvas.style.height=window.innerHeight+'px';
@@ -228,7 +229,7 @@ canvas.addEventListener('mousemove',function(e){
   tooltip.style.display='block';
   tooltip.style.left=(e.clientX+14)+'px';
   tooltip.style.top=(e.clientY+14)+'px';
-  tooltip.innerHTML=biome+'<br>elev: '+(elev*100|0)+'%<br>moist: '+(moist*100|0)+'%';
+  tooltip.innerHTML=biome+'<br>elev: '+Math.max(0,Math.min(100,elev*100|0))+'%<br>moist: '+Math.max(0,Math.min(100,(moist+0.5)*100|0))+'%';
 });
 canvas.addEventListener('mouseleave',function(){tooltip.style.display='none'});
 
@@ -263,7 +264,8 @@ document.getElementById('btn-continent').addEventListener('click',function(){
 
 // ============ INIT ============
 resize();
-window.addEventListener('resize',function(){resize()});
+var resizeTimer=null;
+window.addEventListener('resize',function(){clearTimeout(resizeTimer);resizeTimer=setTimeout(resize,200);});
 document.getElementById('seed-display').textContent='seed: '+seed;
 
 })();

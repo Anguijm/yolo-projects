@@ -57,7 +57,7 @@ var COLORS=['#0ff','#f0f','#3fb950','#ffcc33'];
 
 // Boid data (SoA)
 var count=600;
-var bx,by,bvx,bvy,bgroup; // Float32Array / Uint8Array
+var bx,by,bvx,bvy,bgroup,nfx,nfy; // Float32Array / Uint8Array
 var sepWeight=1.5,aliWeight=1.0,cohWeight=0.8;
 var maxSpeed=3,viewRange=50;
 var predatorMode=false;
@@ -72,6 +72,7 @@ function initBoids(){
   bx=new Float32Array(count);by=new Float32Array(count);
   bvx=new Float32Array(count);bvy=new Float32Array(count);
   bgroup=new Uint8Array(count);
+  nfx=new Float32Array(count);nfy=new Float32Array(count);
   for(var i=0;i<count;i++){
     bx[i]=Math.random()*W;by[i]=Math.random()*H;
     var angle=Math.random()*Math.PI*2;
@@ -87,7 +88,8 @@ function update(){
   var sepR=viewRange*0.4;var sepR2=sepR*sepR;
 
   // Two-pass: calculate all forces first, then apply
-  var nfx=new Float32Array(count),nfy=new Float32Array(count);
+  // (nfx/nfy are pre-allocated globals — reset each frame)
+  for(var i=0;i<count;i++){nfx[i]=0;nfy[i]=0;}
 
   // PASS 1: Calculate forces
   for(var i=0;i<count;i++){
@@ -121,8 +123,6 @@ function update(){
     // Mouse interaction (guard against phantom -9999 position)
     if((mouseDown||predatorMode)&&mouseX>-1){
       var mdx=mouseX-xi,mdy=mouseY-yi;
-      if(mdx>W/2)mdx-=W;else if(mdx<-W/2)mdx+=W;
-      if(mdy>H/2)mdy-=H;else if(mdy<-H/2)mdy+=H;
       var md2=mdx*mdx+mdy*mdy;
       if(md2<40000&&md2>1){
         var md=Math.sqrt(md2);
@@ -138,12 +138,13 @@ function update(){
   for(var i=0;i<count;i++){
     bvx[i]+=nfx[i];bvy[i]+=nfy[i];
     var spd=Math.sqrt(bvx[i]*bvx[i]+bvy[i]*bvy[i]);
-    if(spd===0){bvx[i]=(Math.random()-0.5);bvy[i]=(Math.random()-0.5);spd=0.7}
+    var minSpeed=Math.min(0.5,maxSpeed*0.5);
+    if(spd===0){bvx[i]=(Math.random()-0.5);bvy[i]=(Math.random()-0.5);spd=minSpeed||0.1}
     if(spd>maxSpeed){bvx[i]=bvx[i]/spd*maxSpeed;bvy[i]=bvy[i]/spd*maxSpeed}
-    else if(spd<0.5){bvx[i]=bvx[i]/spd*0.5;bvy[i]=bvy[i]/spd*0.5}
+    else if(spd<minSpeed){bvx[i]=bvx[i]/spd*minSpeed;bvy[i]=bvy[i]/spd*minSpeed}
     bx[i]+=bvx[i];by[i]+=bvy[i];
-    if(bx[i]<0)bx[i]+=W;else if(bx[i]>=W)bx[i]-=W;
-    if(by[i]<0)by[i]+=H;else if(by[i]>=H)by[i]-=H;
+    bx[i]=(bx[i]%W+W)%W;
+    by[i]=(by[i]%H+H)%H;
   }
 }
 
@@ -211,6 +212,7 @@ document.getElementById('btn-predator').addEventListener('click',function(){
 // Mouse
 canvas.addEventListener('pointerdown',function(e){mouseDown=true;mouseX=e.clientX;mouseY=e.clientY});
 canvas.addEventListener('pointermove',function(e){mouseX=e.clientX;mouseY=e.clientY});
+canvas.addEventListener('pointerleave',function(){mouseDown=false;mouseX=-9999;mouseY=-9999});
 window.addEventListener('pointerup',function(){mouseDown=false});
 
 // ============ LOOP ============

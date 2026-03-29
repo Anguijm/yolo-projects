@@ -2231,3 +2231,17 @@ Persistent knowledge base. Read this before every build.
 - **FIX**: Given cells marked as errors on Check — `isValid` flagged conflicting given cells with `.error` class (red) even though givens are immutable puzzle truths. Added `!given[i]` guard before applying error class
 - **FIX**: Arrow keys scroll page at board edges — `e.preventDefault()` was only called inside movement condition branches, so pressing ArrowUp on row 0 or ArrowDown on row 8 didn't prevent page scroll. Moved `preventDefault()` outside all directional conditions so it always fires for arrow keys
 - **FIX**: Keyboard `0` key didn't erase — numpad Erase button mapped to `0` but keyboard `0` was silently ignored. Added `e.key === '0'` to the erase condition alongside Backspace/Delete
+
+### terra-forge refinement (2026-03-29) — PHASE 2 #83
+- **FIX**: Fisher-Yates shuffle bias — `j = s % i` produced indices 0..i-1 only, preventing any element from staying in place. Fixed to `s % (i+1)` for correct uniform distribution in noise permutation table
+- **FIX**: `fbm()` NaN when octaves=0 — loop never ran so `val/maxAmp` was `0/0`. Added early return of 0 for `oct <= 0`
+- **FIX**: Zero canvas dimensions crash — `W` or `H` could be 0 on minimized windows causing `createImageData(0,0)` to throw. Added `Math.max(1, ...)` clamp
+- **FIX**: Resize event fired generate() on every pixel — debounced resize handler with 200ms delay like the slider debounce already had
+- **FIX**: Tooltip showed negative moisture % — moisture values range -0.5 to +0.5, mapped directly to % giving confusing "-45%". Remapped to `(moist+0.5)*100` for 0–100% display
+
+### flock-mind refinement (2026-03-29) — PHASE 2 #84
+- **FIX**: Per-frame Float32Array allocation causing GC stutter — `nfx`/`nfy` force arrays were `new Float32Array(count)` each frame (60×/s). Promoted to globals initialized in `initBoids()`, zeroed each frame with a loop
+- **FIX**: Mouse/predator torus-wrapping was wrong — boid-to-mouse distance incorrectly applied screen-wrap math, causing phantom attraction/repulsion at screen edges. Removed torus wrap for mouse coords since cursor lives in absolute screen space
+- **FIX**: Modulo wrapping for robust boundary handling — replaced single `+= W` / `-= W` with `(x % W + W) % W` so extreme out-of-bounds positions (e.g. after rapid resize) always land correctly on-screen
+- **FIX**: Min/max speed conflict — hardcoded minimum speed of 0.5 conflicted when user set `maxSpeed < 0.5` via slider, creating contradictory velocity enforcement. Changed to `minSpeed = Math.min(0.5, maxSpeed * 0.5)` so it always stays below maxSpeed
+- **FIX**: Missing `pointerleave` — mouse coordinates stuck at last edge position when cursor left canvas, causing predator force to keep firing from that ghost position. Added `pointerleave` handler to reset `mouseX/mouseY` to -9999
