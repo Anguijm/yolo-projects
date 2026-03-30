@@ -127,6 +127,8 @@ const add = (a, b) => a + b;
 
 The language tag appears as a small label above the code block.
 
+**Supported languages for syntax highlighting:** JavaScript (`js`, `javascript`), Python (`python`, `py`), HTML (`html`), CSS (`css`). Code blocks with a recognized language tag get full-color tokenization — keywords (purple), strings (green), numbers (orange), comments (grey), functions (blue), operators (cyan). Unrecognized languages render as plain monochrome.
+
 ---
 
 ## Blockquotes
@@ -188,6 +190,158 @@ Key points here.
 Remind the audience about the deadline.
 Mention the budget constraint.
 ```
+
+---
+
+## Progressive Reveal
+
+Use `--` on its own line within a slide to create fragment breaks. Content after each `--` is hidden until the presenter presses right arrow or space. Each press reveals the next fragment with a fade-in transition.
+
+```
+## Key Findings
+
+Our research revealed three insights:
+
+--
+
+**1. Speed matters** — Users abandon after 3 seconds
+
+--
+
+**2. Simplicity wins** — Fewer features, higher adoption
+
+--
+
+**3. Trust compounds** — Each good experience builds loyalty
+```
+
+### How it works in presentation mode
+- Right arrow / Space → reveals next fragment (0.3s fade)
+- Left arrow → hides last fragment, then goes to previous slide
+- Going back to a previous slide shows all its fragments
+
+### How it works in PPTX export
+Fragments are expanded into **duplicate slides** for maximum compatibility:
+- Slide 1a: Only "Our research revealed..."
+- Slide 1b: + "1. Speed matters"
+- Slide 1c: + "2. Simplicity wins"
+- Slide 1d: + "3. Trust compounds"
+
+This works in every PowerPoint viewer without animation support.
+
+### Notes
+- `--` must be on its own line with blank lines around it
+- Fragments work with any content: bullets, text, images, code blocks
+- In the preview panel, all fragments are visible (no progressive reveal in edit mode)
+- Combine with per-slide themes for dramatic section reveals
+
+---
+
+## Per-Slide Theme Overrides
+
+Override the global theme on any individual slide using HTML comment directives at the top of the slide.
+
+### Syntax
+```
+<!-- bg: #1e3a5f, text: #e2e8f0 -->
+```
+
+### Supported Properties
+| Property | Controls | Example |
+|----------|----------|---------|
+| `bg` | Slide background color | `bg: #1e3a5f` |
+| `text` | Default text color | `text: #e2e8f0` |
+| `font` | Font family | `font: Georgia, serif` |
+| `align` | Text alignment | `align: center` |
+| `padding` | Slide padding | `padding: 6rem` |
+| `size` | Base font size | `size: 1.6rem` |
+
+### Examples
+
+#### Title slide with dark blue background
+```
+<!-- bg: #0f172a, text: #e2e8f0, align: center -->
+
+# Company Name
+
+*Annual Report 2026*
+```
+
+#### Section divider with accent color
+```
+<!-- bg: #7c3aed, text: #ffffff, align: center -->
+
+# Part Two
+
+## Market Analysis
+```
+
+#### Light slide in a dark deck
+```
+<!-- bg: #f8fafc, text: #1e293b -->
+
+## Financial Summary
+
+| Quarter | Revenue | Growth |
+|---------|---------|--------|
+| Q1 | $2.1M | +12% |
+| Q2 | $2.8M | +33% |
+```
+
+### Notes
+- Multiple properties separated by commas in one comment
+- Overrides reset between slides — they don't bleed
+- Works in preview, presentation mode, and PPTX export
+- The comment is stripped from the rendered slide (invisible to audience)
+
+---
+
+## Presenter View
+
+Click the **Presenter** button to open a dual-window presentation setup:
+
+- **Main window** → enters fullscreen presentation mode (audience sees this)
+- **Presenter window** → opens as a pop-up showing:
+  - Current slide (large, left 2/3)
+  - Next slide preview (top right)
+  - Speaker notes from `???` (bottom right)
+  - Elapsed timer (bottom bar)
+  - Slide counter
+
+### How to use
+1. Click **Presenter** (not **Present**)
+2. Allow the pop-up if browser asks
+3. Drag the presenter window to your laptop screen
+4. The main window goes fullscreen on the projector/external display
+5. Navigate from either window — both stay synced
+
+### Notes
+- Syncs via localStorage events — no server needed
+- Fragment reveals (--) sync to the presenter window
+- Speaker notes update on each slide change
+- Timer starts when the presenter window opens
+- If the pop-up is blocked, the main window still enters presentation mode
+
+---
+
+## Save, Load, and File Operations
+
+### Auto-save
+Your deck auto-saves to the browser's localStorage every second while editing. Close the tab and reopen — your content is restored.
+
+### Ctrl+S / Cmd+S
+Press Ctrl+S (or Cmd+S on Mac) for an immediate save. The Save button flashes green to confirm.
+
+### Save to file
+Click **Save** to download your deck as a `.md` file. On supported browsers (Chrome/Edge), you'll get a native file picker. On others, it downloads directly.
+
+### Open a file
+Click **Open** to load a `.md` file from your computer. This replaces the current editor content (auto-saved to localStorage).
+
+### Tips
+- Save your `.md` files to version control for history
+- The design.md theme tokens are saved separately in localStorage
+- Opening a new file doesn't change your theme — themes persist independently
 
 ---
 
@@ -256,8 +410,10 @@ A roadmap for the next decade
 ```
 ---        Separates slides (must be on its own line with blank lines above/below)
 |||        Splits content into two columns (simpler alternative to positioning)
+--         Fragment break for progressive reveal (content hidden until click)
 [@...]     Starts a positioned block (absolute placement on slide)
 ???        Starts speaker notes (hidden from presentation)
+<!-- -->    Per-slide theme override (bg, text, font, align, padding, size)
 ```
 
 ---
@@ -384,12 +540,14 @@ Click **Export** to download a `.pptx` file. The export:
 
 ---
 
-## Example: Complete Deck
+## Example: Complete Deck (showcasing all features)
 
 ```markdown
+<!-- bg: #0f172a, text: #e2e8f0, align: center -->
+
 # Q4 Product Update
 
-Engineering Team — December 2024
+Engineering Team — December 2026
 
 ---
 
@@ -400,19 +558,13 @@ Engineering Team — December 2024
 - [x] API rate limiting
 - [ ] Mobile app beta (in progress)
 
----
+--
 
-## Performance Gains
-
-Before (Q3)
-
-|||
-
-After (Q4)
+#### And what we learned along the way...
 
 ---
 
-## Performance Gains
+## Performance: Before vs After
 
 - API latency: **420ms**
 - Page load: **3.2s**
@@ -426,7 +578,11 @@ After (Q4)
 
 ---
 
-## Architecture
+## Key Insight
+
+The single biggest improvement came from one change:
+
+--
 
 ```python
 # New caching layer
@@ -435,7 +591,9 @@ def get_user(id):
     return db.users.find(id)
 ```
 
-> Reduced database queries by 73%
+--
+
+> Reduced database queries by ==73%==
 
 ---
 
@@ -447,15 +605,48 @@ def get_user(id):
 | API v3 | Mike | Feb 1 |
 | Analytics | Chen | Feb 15 |
 
+???
+Budget discussion is confidential — only share if asked directly.
+Mobile beta delay was due to iOS review process, not engineering.
+
 ---
+
+<!-- bg: #7c3aed, text: #ffffff, align: center -->
+
+# Part Two
+
+## Strategic Outlook
+
+---
+
+## Market Position
+
+[@ x:5% y:20% w:45%]
+### Strengths
+- 98% uptime SLA
+- 2M+ active users
+- Zero-knowledge encryption
+
+[@ x:55% y:20% w:40%]
+### Opportunities
+- Mobile market untapped
+- Enterprise pilot pipeline
+- API marketplace
+
+[@ x:15% y:80% w:70% align:center]
+*Source: Internal analysis, Q4 2026*
+
+---
+
+<!-- bg: #0f172a, text: #e2e8f0, align: center -->
 
 # Thank You
 
 Questions?
 
 ???
-Budget discussion is confidential — only share if asked directly.
-Mobile beta delay was due to iOS review process, not engineering.
+If asked about headcount: we're hiring 12 engineers in Q1.
+If asked about competitors: redirect to the product differentiation slide.
 ```
 
 ---
