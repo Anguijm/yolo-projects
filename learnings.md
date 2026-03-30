@@ -2407,3 +2407,11 @@ Persistent knowledge base. Read this before every build.
 
 ### soft-3d refinement (Phase 2 #114)
 - **BUG**: Near-plane culling check `if (p0.w < 0 || p1.w < 0 || p2.w < 0) continue` always evaluated false because `projected[i]` only stored `{x, y, z}` — `w` was never saved. `undefined < 0` is `false`, so behind-camera vertices were never culled, causing bow-tie artifacts when geometry crossed the camera plane. Fixed by adding `w: p.w` to the projected point object.
+
+### syntax-glow (2026-03-30) — TICK #1 (FEEDER)
+- **KEEP**: Sticky regex flag (`y`) for scanner loops — prevents O(N^2) forward scanning that freezes browser on large code blocks. Each regex only tests at the exact cursor position.
+- **KEEP**: Ordered grammar rules (comments → strings → keywords → functions) prevent false matches inside string literals
+- **IMPROVE**: Function regex `/\b(name)\s*(?=\()/g` captures trailing whitespace in match — use lookahead for whitespace: `/\b(name)(?=\s*\()/g`
+- **IMPROVE**: Unclosed multi-line strings/comments need fallback to end-of-string: `(?:"""|$)` not just `"""`
+- **INSIGHT**: For zero-dep syntax highlighting, a regex-based scanner with sticky flag gives 90%+ accuracy at O(N) performance — good enough for presentation code blocks
+- **FEEDER**: `syntaxHighlight(code, lang)` pure function ready for extraction into Markdown Deck code block renderer

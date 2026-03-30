@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="theme-color" content="#000000">
+<title>Syntax Glow</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { height: 100%; background: #0a0a0a; color: #ccc; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Courier New", monospace; overflow: hidden; touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+#app { height: 100%; display: grid; grid-template-rows: auto 1fr; }
+
+#toolbar { display: flex; gap: 8px; padding: 8px 12px; background: #0d0d0d; border-bottom: 1px solid #1a1a1a; align-items: center; flex-wrap: wrap; }
+#toolbar h1 { font-size: 0.7rem; color: #444; letter-spacing: 0.3em; font-weight: 300; margin-right: auto; }
+.ctrl-btn { padding: 4px 10px; background: transparent; border: 1px solid #1a1a1a; color: #444; font-family: inherit; font-size: 0.55rem; cursor: pointer; letter-spacing: 0.1em; text-transform: uppercase; }
+.ctrl-btn:active { border-color: #555; color: #888; }
+.ctrl-btn.active { border-color: #58a6ff; color: #58a6ff; }
+.lang-display { font-size: 0.55rem; color: #555; letter-spacing: 0.1em; min-width: 60px; }
+
+#panes { display: grid; grid-template-columns: 1fr 1fr; min-height: 0; }
+@media (max-width: 600px) { #panes { grid-template-columns: 1fr; grid-template-rows: 1fr 1fr; } }
+
+#input-pane { display: flex; flex-direction: column; border-right: 1px solid #1a1a1a; min-height: 0; }
+#output-pane { display: flex; flex-direction: column; min-height: 0; overflow: auto; }
+
+.pane-header { padding: 4px 12px; font-size: 0.45rem; color: #333; letter-spacing: 0.15em; text-transform: uppercase; background: #0d0d0d; border-bottom: 1px solid #111; }
+
+textarea { flex: 1; background: #0a0a0a; border: none; color: #ccc; padding: 12px; font-family: inherit; font-size: 0.8rem; resize: none; line-height: 1.6; tab-size: 2; outline: none; min-height: 0; }
+
+#output { flex: 1; padding: 12px; font-size: 0.8rem; line-height: 1.6; overflow: auto; white-space: pre; }
+
+/* Token colors — extractable theme */
+.sg-keyword  { color: #c678dd; }
+.sg-string   { color: #98c379; }
+.sg-number   { color: #d19a66; }
+.sg-comment  { color: #5c6370; font-style: italic; }
+.sg-function { color: #61afef; }
+.sg-operator { color: #56b6c2; }
+.sg-type     { color: #e5c07b; }
+.sg-tag      { color: #e06c75; }
+.sg-attr     { color: #d19a66; }
+.sg-property { color: #e06c75; }
+.sg-selector { color: #e06c75; }
+.sg-value    { color: #98c379; }
+.sg-punct    { color: #abb2bf; }
+.sg-regex    { color: #56b6c2; }
+.sg-decorator{ color: #61afef; }
+.sg-builtin  { color: #e5c07b; }
+
+/* Toast */
+#toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: #222; color: #aaa; padding: 6px 16px; border-radius: 4px; font-size: 0.6rem; opacity: 0; transition: opacity 0.2s; pointer-events: none; z-index: 10; }
+#toast.show { opacity: 1; }
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="toolbar">
+    <h1>SYNTAX GLOW</h1>
+    <span class="lang-display" id="lang-display">auto</span>
+    <button class="ctrl-btn active" data-lang="auto">Auto</button>
+    <button class="ctrl-btn" data-lang="javascript">JS</button>
+    <button class="ctrl-btn" data-lang="python">Python</button>
+    <button class="ctrl-btn" data-lang="html">HTML</button>
+    <button class="ctrl-btn" data-lang="css">CSS</button>
+    <button class="ctrl-btn" id="btn-copy">Copy HTML</button>
+  </div>
+  <div id="panes">
+    <div id="input-pane">
+      <div class="pane-header">Input</div>
+      <textarea id="input" spellcheck="false">function fibonacci(n) {
+  // Generate Fibonacci sequence
+  const result = [0, 1];
+  for (let i = 2; i < n; i++) {
+    result.push(result[i - 1] + result[i - 2]);
+  }
+  return result.slice(0, n);
+}
+
+const nums = fibonacci(10);
+console.log(`First 10: ${nums.join(", ")}`);
+// Output: 0, 1, 1, 2, 3, 5, 8, 13, 21, 34</textarea>
+    </div>
+    <div id="output-pane">
+      <div class="pane-header">Output</div>
+      <pre id="output"></pre>
+    </div>
+  </div>
+</div>
+<div id="toast">Copied!</div>
+
+<script>
+(function() {
+'use strict';
+
+// ============ LANGUAGE GRAMMARS ============
+// Each grammar is an ordered array of {type, regex} rules.
+// Order matters: comments and strings must match before keywords.
+
+var GRAMMARS = {
+  javascript: [
+    { type: 'comment',  regex: /\/\/.*$|\/\*[\s\S]*?(?:\*\/|$)/gm },
+    { type: 'string',   regex: /`(?:[^`\\]|\\.)*`|"(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'/g },
+    { type: 'regex',    regex: /\/(?![*/])(?:[^/\\]|\\.)+\/[gimsuy]*/g },
+    { type: 'number',   regex: /\b(?:0[xXoObB][\da-fA-F_]+|\d[\d_]*\.?\d*(?:[eE][+-]?\d+)?)\b/g },
+    { type: 'keyword',  regex: /\b(?:async|await|break|case|catch|class|const|continue|debugger|default|delete|do|else|export|extends|finally|for|from|function|if|import|in|instanceof|let|new|of|return|static|super|switch|this|throw|try|typeof|var|void|while|with|yield)\b/g },
+    { type: 'builtin',  regex: /\b(?:true|false|null|undefined|NaN|Infinity|console|Math|JSON|Object|Array|String|Number|Boolean|Promise|Map|Set|Date|RegExp|Error)\b/g },
+    { type: 'function', regex: /\b[a-zA-Z_$][\w$]*(?=\s*\()/g },
+    { type: 'operator', regex: /=>|[+\-*/%]=?|[!=]==?|&&?|\|\|?|\?\??|<<?=?|>>?=?|[~^!]/g },
+    { type: 'punct',    regex: /[{}()\[\];:.,]/g }
+  ],
+  python: [
+    { type: 'comment',   regex: /#.*$/gm },
+    { type: 'string',    regex: /"""[\s\S]*?(?:"""|$)|'''[\s\S]*?(?:'''|$)|f"(?:[^"\\]|\\.)*"|f'(?:[^'\\]|\\.)*'|"(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'/g },
+    { type: 'decorator', regex: /@\w+/g },
+    { type: 'number',    regex: /\b(?:0[xXoObB][\da-fA-F_]+|\d[\d_]*\.?\d*(?:[eE][+-]?\d+)?j?)\b/g },
+    { type: 'keyword',   regex: /\b(?:and|as|assert|async|await|break|class|continue|def|del|elif|else|except|finally|for|from|global|if|import|in|is|lambda|nonlocal|not|or|pass|raise|return|try|while|with|yield)\b/g },
+    { type: 'builtin',   regex: /\b(?:True|False|None|self|cls|print|len|range|int|str|float|list|dict|tuple|set|type|isinstance|enumerate|zip|map|filter|sorted|reversed|open|super|property|staticmethod|classmethod|__\w+__)\b/g },
+    { type: 'function',  regex: /\b[a-zA-Z_]\w*(?=\s*\()/g },
+    { type: 'operator',  regex: /[+\-*/%@]=?|[!=]=|<[=<]?|>[=>]?|\*\*=?|\/\/=?|[~^&|]/g },
+    { type: 'punct',     regex: /[{}()\[\]:;.,]/g }
+  ],
+  html: [
+    { type: 'comment', regex: /<!--[\s\S]*?-->/g },
+    { type: 'string',  regex: /"[^"]*"|'[^']*'/g },
+    { type: 'tag',     regex: /<\/?[a-zA-Z][\w-]*/g },
+    { type: 'attr',    regex: /\b[a-zA-Z-]+(?==)/g },
+    { type: 'punct',   regex: /[<>\/=]/g }
+  ],
+  css: [
+    { type: 'comment',  regex: /\/\*[\s\S]*?\*\//g },
+    { type: 'string',   regex: /"(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'/g },
+    { type: 'selector', regex: /[.#][\w-]+|@[\w-]+|\b[a-z][\w-]*(?=\s*[{,])/g },
+    { type: 'property', regex: /[\w-]+(?=\s*:)/g },
+    { type: 'number',   regex: /\b\d+\.?\d*(?:%|px|em|rem|vh|vw|s|ms|deg|fr)?\b/g },
+    { type: 'value',    regex: /#[0-9a-fA-F]{3,8}\b/g },
+    { type: 'keyword',  regex: /\b(?:important|inherit|initial|unset|none|auto|solid|flex|grid|block|inline|absolute|relative|fixed|sticky)\b/g },
+    { type: 'function', regex: /\b[\w-]+(?=\()/g },
+    { type: 'operator', regex: /[{}():;,>~+*]/g }
+  ]
+};
+
+// ============ PURE TOKENIZER ============
+// This function is designed to be extractable into Markdown Deck.
+// Input: code string, language string
+// Output: HTML string with <span class="sg-*"> wrappers
+
+function syntaxHighlight(code, lang) {
+  if (typeof code !== 'string' || !code) return '';
+  if (!lang || lang === 'auto') lang = detectLanguage(code);
+  var grammar = GRAMMARS[lang];
+  if (!grammar) return escHtml(code);
+
+  // Build sticky versions of each regex for O(N) scanning.
+  // Sticky flag (y) only matches at lastIndex — no forward scanning.
+  if (!grammar._sticky) {
+    grammar._sticky = grammar.map(function(rule) {
+      var baseFlags = rule.regex.flags.replace(/[gy]/g, '');
+      return { type: rule.type, regex: new RegExp(rule.regex.source, baseFlags + 'y') };
+    });
+  }
+  var sticky = grammar._sticky;
+
+  var result = '';
+  var pos = 0;
+
+  while (pos < code.length) {
+    var bestMatch = null;
+    var bestType = '';
+
+    for (var g = 0; g < sticky.length; g++) {
+      var rule = sticky[g];
+      rule.regex.lastIndex = pos;
+      var m = rule.regex.exec(code);
+      if (m && m.index === pos && m[0].length > 0) {
+        if (!bestMatch || m[0].length > bestMatch[0].length) {
+          bestMatch = m;
+          bestType = rule.type;
+        }
+      }
+    }
+
+    if (bestMatch) {
+      result += '<span class="sg-' + bestType + '">' + escHtml(bestMatch[0]) + '</span>';
+      pos += bestMatch[0].length;
+    } else {
+      result += escHtml(code[pos]);
+      pos++;
+    }
+  }
+
+  return result;
+}
+
+function escHtml(s) {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+// ============ LANGUAGE AUTO-DETECTION ============
+function detectLanguage(code) {
+  var scores = { javascript: 0, python: 0, html: 0, css: 0 };
+
+  // HTML signals
+  if (/<\/?[a-z][\w-]*[\s>]/i.test(code)) scores.html += 10;
+  if (/<!DOCTYPE/i.test(code)) scores.html += 20;
+  if (/<\/\w+>/.test(code)) scores.html += 5;
+
+  // CSS signals
+  if (/[.#][\w-]+\s*\{/.test(code)) scores.css += 15;
+  if (/:\s*[\w#].*;\s*$/m.test(code)) scores.css += 10;
+  if (/@media|@keyframes|@import/.test(code)) scores.css += 15;
+
+  // Python signals
+  if (/\bdef\s+\w+\s*\(/.test(code)) scores.python += 15;
+  if (/\bimport\s+\w+/.test(code)) scores.python += 5;
+  if (/:\s*$\n\s+/m.test(code)) scores.python += 10;
+  if (/\bself\b/.test(code)) scores.python += 8;
+  if (/\bprint\s*\(/.test(code)) scores.python += 5;
+  if (/\belif\b/.test(code)) scores.python += 15;
+  if (/^\s*#(?!!).*$/m.test(code)) scores.python += 3;
+
+  // JavaScript signals
+  if (/\b(?:const|let|var)\s+\w+/.test(code)) scores.javascript += 12;
+  if (/\bfunction\s*\w*\s*\(/.test(code)) scores.javascript += 10;
+  if (/=>\s*[{(]?/.test(code)) scores.javascript += 12;
+  if (/\bconsole\./.test(code)) scores.javascript += 10;
+  if (/\bdocument\./.test(code)) scores.javascript += 8;
+  if (/\/\/.*$/.test(code)) scores.javascript += 2;
+  if (/\bnew\s+\w+/.test(code)) scores.javascript += 5;
+  if (/`[^`]*\$\{/.test(code)) scores.javascript += 10;
+
+  var best = 'javascript';
+  var bestScore = 0;
+  for (var lang in scores) {
+    if (scores[lang] > bestScore) { bestScore = scores[lang]; best = lang; }
+  }
+  return bestScore > 0 ? best : 'javascript';
+}
+
+// ============ UI ============
+var inputEl = document.getElementById('input');
+var outputEl = document.getElementById('output');
+var langDisplay = document.getElementById('lang-display');
+var selectedLang = 'auto';
+var toastTimer = null;
+
+function render() {
+  var code = inputEl.value;
+  var lang = selectedLang === 'auto' ? detectLanguage(code) : selectedLang;
+  outputEl.innerHTML = syntaxHighlight(code, lang);
+  langDisplay.textContent = lang;
+}
+
+// Debounced input
+var debounce;
+inputEl.addEventListener('input', function() {
+  clearTimeout(debounce);
+  debounce = setTimeout(render, 150);
+});
+
+// Tab key in textarea
+inputEl.addEventListener('keydown', function(e) {
+  if (e.key === 'Tab') {
+    e.preventDefault();
+    var start = this.selectionStart;
+    var end = this.selectionEnd;
+    this.value = this.value.substring(0, start) + '  ' + this.value.substring(end);
+    this.selectionStart = this.selectionEnd = start + 2;
+    render();
+  }
+});
+
+// Language buttons
+document.querySelectorAll('[data-lang]').forEach(function(btn) {
+  btn.addEventListener('click', function() {
+    selectedLang = btn.dataset.lang;
+    document.querySelectorAll('[data-lang]').forEach(function(b) { b.classList.remove('active'); });
+    btn.classList.add('active');
+    render();
+  });
+});
+
+// Copy HTML
+document.getElementById('btn-copy').addEventListener('click', function() {
+  var html = outputEl.innerHTML;
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(html).then(function() {
+      showToast('Copied HTML');
+    }).catch(function() {
+      fallbackCopy(html);
+    });
+  } else {
+    fallbackCopy(html);
+  }
+});
+
+function fallbackCopy(text) {
+  var ta = document.createElement('textarea');
+  ta.value = text;
+  ta.style.position = 'fixed';
+  ta.style.opacity = '0';
+  document.body.appendChild(ta);
+  ta.focus();
+  ta.select();
+  try {
+    document.execCommand('copy');
+    showToast('Copied HTML');
+  } catch(e) {
+    showToast('Copy failed');
+  }
+  document.body.removeChild(ta);
+}
+
+function showToast(msg) {
+  var toast = document.getElementById('toast');
+  toast.textContent = msg;
+  toast.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(function() { toast.classList.remove('show'); }, 1200);
+}
+
+// ============ INIT ============
+render();
+
+})();
+</script>
+</body>
+</html>
