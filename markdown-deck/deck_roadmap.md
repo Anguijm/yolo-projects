@@ -96,3 +96,4 @@ These are features complex enough to prototype as standalone YOLO single-session
 | 2026-03-31 | Tock | Presenter view: dual-window with notes, next slide, timer |
 | 2026-03-31 | Tick | commit-log: git history pattern analyzer |
 | 2026-03-31 | Tock | Diagram support via flow-ascii feeder integration |
+| 2026-03-31 | Tick | env-vault: .env file manager with diff and encrypt |
