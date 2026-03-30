@@ -1,0 +1,1536 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="theme-color" content="#000000">
+<title>commit-log</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body {
+  height: 100%;
+  background: #0a0a0a;
+  overflow-y: auto;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Courier New", monospace;
+  color: #ccc;
+  font-size: 13px;
+}
+
+:root {
+  --bg-page: #0a0a0a;
+  --bg-surface: #111;
+  --bg-elevated: #1a1a1a;
+  --bg-hover: #222;
+  --text-primary: #fff;
+  --text-body: #ccc;
+  --text-secondary: #aaa;
+  --text-tertiary: #555;
+  --text-label: #444;
+  --text-muted: #333;
+  --border-default: #1a1a1a;
+  --border-visible: #222;
+  --border-active: #444;
+  --accent: #0ff;
+  --color-success: #3fb950;
+  --color-warning: #d29922;
+  --color-error: #f85149;
+  --color-info: #58a6ff;
+}
+
+.layout {
+  display: grid;
+  grid-template-columns: 340px 1fr;
+  grid-template-rows: auto 1fr;
+  min-height: 100vh;
+  gap: 0;
+}
+
+/* ── Header ── */
+.header {
+  grid-column: 1 / -1;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border-default);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--bg-page);
+}
+.header-title {
+  font-size: 0.75rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+.header-sub {
+  font-size: 0.5rem;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--text-label);
+}
+.header-stats {
+  margin-left: auto;
+  display: flex;
+  gap: 16px;
+  align-items: center;
+}
+.stat-pill {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+}
+.stat-val {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+}
+.stat-lbl {
+  font-size: 0.42rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-label);
+}
+
+/* ── Left panel ── */
+.left-panel {
+  border-right: 1px solid var(--border-default);
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-page);
+}
+
+.input-section {
+  padding: 8px;
+  border-bottom: 1px solid var(--border-default);
+}
+.section-label {
+  font-size: 0.42rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--text-label);
+  margin-bottom: 6px;
+}
+textarea {
+  width: 100%;
+  height: 160px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-visible);
+  color: var(--text-secondary);
+  padding: 6px 8px;
+  font-family: inherit;
+  font-size: 0.65rem;
+  outline: none;
+  resize: vertical;
+  line-height: 1.5;
+}
+textarea:focus { border-color: var(--border-active); }
+textarea::placeholder { color: var(--text-muted); }
+
+.presets-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 6px;
+}
+.btn {
+  padding: 3px 8px;
+  background: transparent;
+  border: 1px solid var(--border-default);
+  color: var(--text-label);
+  font-family: inherit;
+  font-size: 0.5rem;
+  cursor: pointer;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+.btn:hover { border-color: var(--border-active); color: var(--text-secondary); }
+.btn:active { border-color: #555; color: #888; }
+.btn.active { border-color: var(--accent); color: var(--accent); }
+.btn-parse {
+  margin-top: 6px;
+  width: 100%;
+  padding: 5px 10px;
+  background: var(--accent);
+  border: none;
+  color: #000;
+  font-family: inherit;
+  font-size: 0.55rem;
+  cursor: pointer;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  font-weight: 700;
+}
+.btn-parse:hover { background: #33ffff; }
+
+/* Author filter */
+.filter-section {
+  padding: 8px;
+  border-bottom: 1px solid var(--border-default);
+}
+.author-list {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  max-height: 120px;
+  overflow-y: auto;
+}
+.author-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  padding: 2px 4px;
+}
+.author-item:hover { background: var(--bg-elevated); }
+.author-dot {
+  width: 8px;
+  height: 8px;
+  flex-shrink: 0;
+}
+.author-name {
+  font-size: 0.6rem;
+  color: var(--text-secondary);
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.author-count {
+  font-size: 0.5rem;
+  color: var(--text-tertiary);
+  font-variant-numeric: tabular-nums;
+}
+.author-item.muted .author-name,
+.author-item.muted .author-count { color: var(--text-muted); }
+.author-item.muted .author-dot { opacity: 0.2; }
+
+/* Commit list */
+.commit-list-section {
+  flex: 1;
+  overflow-y: auto;
+  padding: 4px 0;
+}
+.commit-item {
+  padding: 5px 8px;
+  cursor: pointer;
+  border-left: 2px solid transparent;
+  transition: none;
+}
+.commit-item:hover { background: var(--bg-elevated); }
+.commit-item.selected {
+  background: var(--bg-hover);
+  border-left-color: var(--accent);
+}
+.commit-item.filtered-out { opacity: 0.25; pointer-events: none; }
+.commit-hash {
+  font-size: 0.55rem;
+  color: var(--accent);
+  display: inline;
+  margin-right: 6px;
+}
+.commit-msg {
+  font-size: 0.6rem;
+  color: var(--text-body);
+  display: inline;
+}
+.commit-meta {
+  margin-top: 2px;
+  font-size: 0.48rem;
+  color: var(--text-tertiary);
+  display: flex;
+  gap: 8px;
+}
+
+/* ── Right panel ── */
+.right-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  overflow-y: auto;
+}
+
+.chart-section {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border-default);
+}
+.chart-title {
+  font-size: 0.45rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--text-label);
+  margin-bottom: 8px;
+}
+
+/* Heatmap */
+.heatmap-grid {
+  display: grid;
+  gap: 2px;
+}
+.heatmap-cell {
+  border-radius: 2px;
+  cursor: pointer;
+  transition: opacity 0.1s;
+}
+.heatmap-cell:hover { opacity: 0.8; }
+.heatmap-legend {
+  margin-top: 6px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.42rem;
+  color: var(--text-tertiary);
+}
+.heatmap-month-row {
+  display: flex;
+  gap: 0;
+  margin-bottom: 3px;
+  font-size: 0.4rem;
+  color: var(--text-tertiary);
+  letter-spacing: 0.05em;
+}
+.heatmap-wrapper {
+  overflow-x: auto;
+}
+.heatmap-day-labels {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-right: 4px;
+  justify-content: space-between;
+}
+.heatmap-day-label {
+  font-size: 0.4rem;
+  color: var(--text-tertiary);
+  height: 10px;
+  line-height: 10px;
+}
+.heatmap-outer {
+  display: flex;
+  align-items: flex-start;
+}
+
+/* Hour bar chart */
+.hour-bars {
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 60px;
+}
+.hour-bar-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  flex: 1;
+  cursor: pointer;
+}
+.hour-bar {
+  width: 100%;
+  min-height: 1px;
+  background: var(--bg-elevated);
+  transition: background 0.15s;
+}
+.hour-bar.active { background: var(--accent); }
+.hour-label {
+  font-size: 0.38rem;
+  color: var(--text-tertiary);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Timeline */
+.timeline-wrap {
+  overflow-x: auto;
+  padding-bottom: 4px;
+}
+#timeline-canvas {
+  display: block;
+}
+
+/* Detail panel */
+.detail-section {
+  padding: 10px 12px;
+  border-top: 1px solid var(--border-default);
+}
+.detail-empty {
+  font-size: 0.55rem;
+  color: var(--text-muted);
+  padding: 8px 0;
+}
+.detail-commit {
+  display: none;
+}
+.detail-commit.visible { display: block; }
+.detail-hash {
+  font-size: 0.7rem;
+  color: var(--accent);
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+.detail-msg {
+  font-size: 0.75rem;
+  color: var(--text-primary);
+  margin-bottom: 8px;
+  line-height: 1.4;
+}
+.detail-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+.detail-field {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.detail-field-label {
+  font-size: 0.42rem;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--text-label);
+}
+.detail-field-value {
+  font-size: 0.6rem;
+  color: var(--text-secondary);
+}
+
+/* Word cloud */
+.word-cloud {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  align-items: center;
+}
+.word-cloud-word {
+  color: var(--text-secondary);
+  cursor: default;
+  transition: color 0.1s;
+  line-height: 1;
+}
+.word-cloud-word:hover { color: var(--accent); }
+
+/* Top authors bar */
+.author-bars {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.author-bar-row {
+  display: grid;
+  grid-template-columns: 90px 1fr 40px;
+  align-items: center;
+  gap: 6px;
+}
+.author-bar-name {
+  font-size: 0.55rem;
+  color: var(--text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.author-bar-track {
+  height: 6px;
+  background: var(--bg-elevated);
+  position: relative;
+}
+.author-bar-fill {
+  height: 100%;
+  background: var(--accent);
+  opacity: 0.7;
+}
+.author-bar-count {
+  font-size: 0.5rem;
+  color: var(--text-tertiary);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+/* streak / summary stats row */
+.stats-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
+  gap: 8px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border-default);
+}
+.mini-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.mini-stat-val {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+}
+.mini-stat-lbl {
+  font-size: 0.4rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-label);
+}
+
+/* Empty state */
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 300px;
+  gap: 8px;
+}
+.empty-state-icon {
+  font-size: 2rem;
+  opacity: 0.15;
+}
+.empty-state-msg {
+  font-size: 0.55rem;
+  color: var(--text-muted);
+  text-align: center;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+/* scrollbar */
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border-visible); }
+
+.charts-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0;
+}
+.charts-grid .chart-section:first-child {
+  border-right: 1px solid var(--border-default);
+}
+</style>
+</head>
+<body>
+<div class="layout">
+  <!-- Header -->
+  <header class="header">
+    <div>
+      <div class="header-title">commit-log</div>
+      <div class="header-sub">git history analytics</div>
+    </div>
+    <div class="header-stats">
+      <div class="stat-pill">
+        <span class="stat-val" id="h-total">—</span>
+        <span class="stat-lbl">commits</span>
+      </div>
+      <div class="stat-pill">
+        <span class="stat-val" id="h-authors">—</span>
+        <span class="stat-lbl">authors</span>
+      </div>
+      <div class="stat-pill">
+        <span class="stat-val" id="h-span">—</span>
+        <span class="stat-lbl">days</span>
+      </div>
+      <div class="stat-pill">
+        <span class="stat-val" id="h-streak">—</span>
+        <span class="stat-lbl">streak</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- Left panel -->
+  <aside class="left-panel">
+    <div class="input-section">
+      <div class="section-label">Paste git log output</div>
+      <textarea id="log-input" placeholder="git log --oneline --graph
+git log --oneline
+git log --format=&quot;%h|%an|%ae|%ai|%s&quot;
+or plain commit messages…"></textarea>
+      <div class="presets-row" id="presets-row"></div>
+      <button class="btn-parse" onclick="parseAndRender()">Parse &amp; Analyze</button>
+    </div>
+
+    <div class="filter-section" id="filter-section" style="display:none">
+      <div class="section-label">Filter by author</div>
+      <div class="author-list" id="author-list"></div>
+    </div>
+
+    <div class="commit-list-section" id="commit-list-section">
+      <div class="empty-state">
+        <div class="empty-state-icon">⧖</div>
+        <div class="empty-state-msg">Paste a git log and hit Parse</div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- Right panel -->
+  <main class="right-panel" id="right-panel">
+    <div class="empty-state" id="right-empty" style="height:100%">
+      <div class="empty-state-icon">◈</div>
+      <div class="empty-state-msg">Analytics will appear here</div>
+    </div>
+    <div id="right-content" style="display:none">
+      <!-- Summary stats row -->
+      <div class="stats-row" id="stats-row"></div>
+
+      <!-- Heatmap -->
+      <div class="chart-section">
+        <div class="chart-title">Commit frequency — contribution heatmap</div>
+        <div class="heatmap-wrapper">
+          <div class="heatmap-outer">
+            <div class="heatmap-day-labels" id="heatmap-day-labels"></div>
+            <div>
+              <div class="heatmap-month-row" id="heatmap-month-row"></div>
+              <div class="heatmap-grid" id="heatmap-grid"></div>
+            </div>
+          </div>
+        </div>
+        <div class="heatmap-legend" id="heatmap-legend"></div>
+      </div>
+
+      <!-- Hour + Author charts -->
+      <div class="charts-grid">
+        <div class="chart-section">
+          <div class="chart-title">Commits by hour of day</div>
+          <div class="hour-bars" id="hour-bars"></div>
+          <div style="display:flex; justify-content:space-between; margin-top:4px; font-size:0.38rem; color:var(--text-tertiary)">
+            <span>00:00</span><span>06:00</span><span>12:00</span><span>18:00</span><span>23:00</span>
+          </div>
+        </div>
+        <div class="chart-section">
+          <div class="chart-title">Top contributors</div>
+          <div class="author-bars" id="author-bars"></div>
+        </div>
+      </div>
+
+      <!-- Timeline canvas -->
+      <div class="chart-section">
+        <div class="chart-title">Commit timeline</div>
+        <div class="timeline-wrap">
+          <canvas id="timeline-canvas" height="80"></canvas>
+        </div>
+      </div>
+
+      <!-- Word cloud -->
+      <div class="chart-section">
+        <div class="chart-title">Commit message vocabulary</div>
+        <div class="word-cloud" id="word-cloud"></div>
+      </div>
+
+      <!-- Detail panel -->
+      <div class="detail-section">
+        <div class="chart-title">Selected commit</div>
+        <div class="detail-empty" id="detail-empty">Click any commit to inspect it.</div>
+        <div class="detail-commit" id="detail-commit">
+          <div class="detail-hash" id="det-hash"></div>
+          <div class="detail-msg" id="det-msg"></div>
+          <div class="detail-grid">
+            <div class="detail-field">
+              <span class="detail-field-label">Author</span>
+              <span class="detail-field-value" id="det-author"></span>
+            </div>
+            <div class="detail-field">
+              <span class="detail-field-label">Date</span>
+              <span class="detail-field-value" id="det-date"></span>
+            </div>
+            <div class="detail-field">
+              <span class="detail-field-label">Time</span>
+              <span class="detail-field-value" id="det-time"></span>
+            </div>
+            <div class="detail-field">
+              <span class="detail-field-label">Email</span>
+              <span class="detail-field-value" id="det-email"></span>
+            </div>
+            <div class="detail-field">
+              <span class="detail-field-label">Day of week</span>
+              <span class="detail-field-value" id="det-dow"></span>
+            </div>
+            <div class="detail-field">
+              <span class="detail-field-label">Position</span>
+              <span class="detail-field-value" id="det-pos"></span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<script>
+// ─────────────────────────────────────────────
+// PRESETS
+// ─────────────────────────────────────────────
+const PRESETS = {
+  'react': `a1b2c3d fix: handle null ref in useEffect cleanup
+b2c3d4e feat: add concurrent mode scheduler improvements
+c3d4e5f docs: update hooks migration guide
+d4e5f6a refactor: extract shared reconciler logic
+e5f6a7b fix: batch updates in legacy mode
+f6a7b8c perf: optimize fiber tree traversal
+a7b8c9d feat: add useId hook for SSR hydration
+b8c9d0e fix: correct priority levels in scheduler
+c9d0e1f test: add concurrent mode stress tests
+d0e1f2a chore: bump react-dom peer dep version
+e1f2a3b feat: suspense list ordering improvements
+f2a3b4c fix: stale closure in useCallback deps
+a3b4c5d perf: memoize context selector computations
+b4c5d6e feat: add startTransition API`,
+
+  'vscode': `abc1234 editor: fix cursor blink on focus change
+def5678 terminal: support hyperlinks in integrated terminal
+ghi9012 git: improve diff viewer performance
+jkl3456 extensions: add workspace trust API
+mno7890 search: fix regex lookbehind support
+pqr1234 notebook: multi-cursor support in cells
+stu5678 debug: fix variable hover in remote sessions
+vwx9012 theme: add semantic token color customization
+yza3456 telemetry: redact sensitive paths from logs
+bcd7890 workbench: persist panel state across restarts
+efg1234 editor: smooth scrolling improvements
+hij5678 typescript: update to 5.1 language service
+klm9012 python: improve import sorting integration
+nop3456 auth: refresh token rotation support`,
+
+  'linux': `8a3f1e2 net: tcp: fix window scaling edge case
+9b4a2f3 mm: slab: reduce fragmentation in large allocs
+1c5b3a4 fs: ext4: handle journal recovery corner case
+2d6c4b5 drivers: usb: add quirk for webcam vendor 0x1234
+3e7d5c6 arch: x86: fix spectre mitigation on older cpus
+4f8e6d7 crypto: aes-ni: improve throughput on skylake
+5a9f7e8 block: nvme: fix timeout handling on reset
+6b0a8f9 net: ipv6: correct checksum offload flags
+7c1b9a0 sched: cfs: rebalance after cpu hotplug
+8d2c0b1 mm: oom: improve victim selection heuristic
+9e3d1c2 fs: btrfs: fix race in snapshot deletion
+0f4e2d3 drivers: gpu: amdgpu: fix vram leak on suspend
+1a5f3e4 security: landlock: add network socket rules
+2b6a4f5 init: speed up boot by deferring module init`,
+
+  'solo-dev': `a1b fix typo in readme
+b2c add dark mode toggle
+c3d fix login bug
+d4e update dependencies
+e5f add pagination to list view
+f6a refactor auth middleware
+a7b fix mobile layout
+b8c add loading spinner
+c9d fix null pointer in user service
+d0e add search feature
+e1f cleanup old api endpoints
+f2a fix cors headers
+a3b add unit tests for parser
+b4c deploy to staging
+c5d fix date formatting
+d6e add rate limiting
+e7f merge branch feature/payments
+f8a hotfix production crash
+a9b add export to csv
+b0c improve error messages`
+};
+
+// ─────────────────────────────────────────────
+// STATE
+// ─────────────────────────────────────────────
+let allCommits = [];
+let filteredAuthors = new Set(); // authors to HIDE
+let selectedCommitIdx = -1;
+let authorColors = {};
+
+const AUTHOR_PALETTE = [
+  '#0ff','#58a6ff','#3fb950','#d29922','#f85149',
+  '#f0f','#ffa657','#79c0ff','#56d364','#ff7b72',
+  '#cae8ff','#ffa198','#7ee787','#e3b341','#d2a8ff'
+];
+
+// ─────────────────────────────────────────────
+// PARSER
+// ─────────────────────────────────────────────
+function parseGitLog(raw) {
+  const lines = raw.split('\n').map(l => l.trim()).filter(Boolean);
+  const commits = [];
+
+  // Try pipe-delimited format: hash|author|email|date|subject
+  // Matches output of: git log --format="%h|%an|%ae|%ai|%s"
+  const pipeRe = /^([a-f0-9]{4,40})\|([^|]*)\|([^|]*)\|([^|]+)\|(.*)$/;
+
+  // Try full git log format
+  // commit <hash> or just <hash> <message>
+  const onelinerRe = /^[*|\\/\\ ]*\*?[|\\ ]*([a-f0-9]{6,40})\s+(.+)$/;
+  const graphNodeRe = /^[*|\\/\\ ]+$/;  // pure graph lines with no hash
+
+  // Full verbose format
+  const commitLineRe = /^commit ([a-f0-9]{40})/;
+  const authorLineRe = /^Author:\s+([^<]+?)(?:\s+<([^>]+)>)?$/;
+  const dateLineRe = /^Date:\s+(.+)/;
+
+  // First pass: try pipe-delimited
+  let pipeCount = lines.filter(l => pipeRe.test(l)).length;
+  if (pipeCount > lines.length * 0.5) {
+    for (const line of lines) {
+      const m = pipeRe.exec(line);
+      if (!m) continue;
+      const dt = new Date(m[4].trim());
+      if (isNaN(dt.getTime())) continue;
+      commits.push({
+        hash: m[1].trim(),
+        author: m[2].trim() || 'unknown',
+        email: m[3].trim() || '',
+        date: dt,
+        message: m[5].trim()
+      });
+    }
+    if (commits.length > 0) return commits;
+  }
+
+  // Second pass: try verbose git log
+  if (lines.some(l => commitLineRe.test(l))) {
+    let cur = null;
+    const msgLines = [];
+    for (const line of lines) {
+      let m;
+      if ((m = commitLineRe.exec(line))) {
+        if (cur) { cur.message = msgLines.join(' ').trim(); commits.push(cur); }
+        msgLines.length = 0;
+        cur = { hash: m[1], author: 'unknown', email: '', date: null, message: '' };
+      } else if (cur && (m = authorLineRe.exec(line))) {
+        cur.author = m[1];
+        cur.email = m[2];
+      } else if (cur && (m = dateLineRe.exec(line))) {
+        const dt = new Date(m[1].trim());
+        cur.date = isNaN(dt.getTime()) ? null : dt;
+      } else if (cur && line && !line.startsWith('Merge:') && !line.startsWith('commit ')) {
+        msgLines.push(line);
+      }
+    }
+    if (cur) { cur.message = msgLines.join(' ').trim(); commits.push(cur); }
+    const valid = commits.filter(c => c.date !== null);
+    if (valid.length > 0) return valid;
+    commits.length = 0;
+  }
+
+  // Third pass: --oneline and --oneline --graph
+  const syntheticBase = new Date('2024-01-01');
+  let idx = 0;
+  for (const line of lines) {
+    // Skip pure graph decoration lines
+    if (graphNodeRe.test(line)) continue;
+    const m = onelinerRe.exec(line);
+    if (m) {
+      // Assign synthetic dates going backwards from today
+      const dt = new Date(syntheticBase.getTime() - idx * 86400 * 1000 * 0.5);
+      commits.push({
+        hash: m[1].substring(0, 7),
+        author: 'unknown',
+        email: '',
+        date: dt,
+        message: m[2].trim(),
+        synthetic: true
+      });
+      idx++;
+    }
+  }
+
+  // Fourth pass: plain commit messages (no hash)
+  if (commits.length === 0) {
+    const plainRe = /^.{3,120}$/;
+    idx = 0;
+    for (const line of lines) {
+      if (!plainRe.test(line)) continue;
+      const dt = new Date(syntheticBase.getTime() - idx * 3600 * 1000 * 8);
+      commits.push({
+        hash: randomHash(),
+        author: 'unknown',
+        email: '',
+        date: dt,
+        message: line.trim(),
+        synthetic: true
+      });
+      idx++;
+    }
+  }
+
+  return commits;
+}
+
+function randomHash() {
+  return Math.random().toString(16).substring(2, 9);
+}
+
+// ─────────────────────────────────────────────
+// ANALYTICS
+// ─────────────────────────────────────────────
+function computeStats(commits) {
+  if (commits.length === 0) return {};
+
+  const sorted = [...commits].sort((a, b) => a.date - b.date);
+  const first = sorted[0].date;
+  const last = sorted[sorted.length - 1].date;
+  const spanDays = Math.max(1, Math.round((last - first) / 86400000));
+
+  // Per day counts
+  const dayMap = {};
+  for (const c of commits) {
+    const key = dateKey(c.date);
+    dayMap[key] = (dayMap[key] || 0) + 1;
+  }
+
+  // Streak
+  let maxStreak = 0, curStreak = 0, prevKey = null;
+  const sortedKeys = Object.keys(dayMap).sort();
+  for (const k of sortedKeys) {
+    if (prevKey === null) {
+      curStreak = 1;
+    } else {
+      const prev = new Date(prevKey);
+      const cur = new Date(k);
+      const diff = Math.round((cur - prev) / 86400000);
+      curStreak = diff === 1 ? curStreak + 1 : 1;
+    }
+    if (curStreak > maxStreak) maxStreak = curStreak;
+    prevKey = k;
+  }
+
+  // Author map
+  const authorMap = {};
+  for (const c of commits) {
+    authorMap[c.author] = (authorMap[c.author] || 0) + 1;
+  }
+
+  // Hour map
+  const hourMap = new Array(24).fill(0);
+  for (const c of commits) {
+    if (c.date) hourMap[c.date.getHours()]++;
+  }
+
+  // Day-of-week map
+  const dowMap = new Array(7).fill(0);
+  for (const c of commits) {
+    if (c.date) dowMap[c.date.getDay()]++;
+  }
+
+  // Peak hour
+  let peakHour = 0;
+  for (let h = 1; h < 24; h++) {
+    if (hourMap[h] > hourMap[peakHour]) peakHour = h;
+  }
+
+  // Avg per active day
+  const activeDays = Object.keys(dayMap).length;
+  const avgPerDay = activeDays > 0 ? (commits.length / activeDays).toFixed(1) : '0';
+
+  // Word freq
+  const stopWords = new Set([
+    'a','an','the','and','or','but','in','on','at','to','for','of','with',
+    'by','from','is','was','be','are','were','has','have','had','will','would',
+    'could','should','this','that','these','those','it','its','fix','add','update',
+    'change','changes','remove','use','using','also','not','no','new','old','some',
+    'all','into','up','out','if','as','do','done','now','get','set','can','may',
+    'via','just','make','made','when','then','after','before','more','less',
+  ]);
+  const wordMap = {};
+  for (const c of commits) {
+    const words = (c.message || '').toLowerCase()
+      .replace(/[^a-z0-9\s-]/g, ' ')
+      .split(/\s+/)
+      .filter(w => w.length > 2 && !stopWords.has(w));
+    for (const w of words) {
+      wordMap[w] = (wordMap[w] || 0) + 1;
+    }
+  }
+  const topWords = Object.entries(wordMap)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 60);
+
+  return {
+    sorted, first, last, spanDays, dayMap,
+    maxStreak, authorMap, hourMap, dowMap,
+    peakHour, activeDays, avgPerDay, topWords,
+    total: commits.length
+  };
+}
+
+function dateKey(d) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+// ─────────────────────────────────────────────
+// RENDER
+// ─────────────────────────────────────────────
+function parseAndRender() {
+  const raw = document.getElementById('log-input').value.trim();
+  if (!raw) return;
+
+  allCommits = parseGitLog(raw);
+  if (allCommits.length === 0) {
+    alert('Could not parse any commits. Try --oneline or pipe format.');
+    return;
+  }
+
+  filteredAuthors.clear();
+  selectedCommitIdx = -1;
+  // Reset detail panel from any previous parse
+  const detailPanel = document.getElementById('detail-commit');
+  if (detailPanel) detailPanel.classList.remove('visible');
+  const detailEmpty = document.getElementById('detail-empty');
+  if (detailEmpty) detailEmpty.style.display = 'block';
+  assignAuthorColors();
+  renderAll();
+}
+
+function assignAuthorColors() {
+  authorColors = {};
+  const stats = computeStats(allCommits);
+  const ranked = Object.entries(stats.authorMap || {}).sort((a, b) => b[1] - a[1]);
+  ranked.forEach(([author], i) => {
+    authorColors[author] = AUTHOR_PALETTE[i % AUTHOR_PALETTE.length];
+  });
+}
+
+function getVisibleCommits() {
+  return allCommits.filter(c => !filteredAuthors.has(c.author));
+}
+
+function renderAll() {
+  const visible = getVisibleCommits();
+  const stats = computeStats(visible);
+
+  renderHeader(stats);
+  renderAuthorFilter();
+  renderCommitList();
+  renderRightPanel(stats, visible);
+}
+
+function renderHeader(stats) {
+  document.getElementById('h-total').textContent = stats.total || '—';
+  document.getElementById('h-authors').textContent =
+    stats.authorMap ? Object.keys(stats.authorMap).length : '—';
+  document.getElementById('h-span').textContent = stats.spanDays || '—';
+  document.getElementById('h-streak').textContent = stats.maxStreak || '—';
+}
+
+function renderAuthorFilter() {
+  const stats = computeStats(allCommits);
+  if (!stats.authorMap) return;
+
+  const section = document.getElementById('filter-section');
+  section.style.display = 'block';
+
+  const ranked = Object.entries(stats.authorMap).sort((a, b) => b[1] - a[1]);
+  const list = document.getElementById('author-list');
+  list.innerHTML = '';
+  for (const [author, count] of ranked) {
+    const div = document.createElement('div');
+    div.className = 'author-item' + (filteredAuthors.has(author) ? ' muted' : '');
+    div.dataset.author = author;
+    div.innerHTML = `
+      <div class="author-dot" style="background:${authorColors[author]||'#555'}"></div>
+      <div class="author-name" title="${escHtml(author)}">${escHtml(author)}</div>
+      <div class="author-count">${count}</div>
+    `;
+    div.addEventListener('click', () => {
+      if (filteredAuthors.has(author)) {
+        filteredAuthors.delete(author);
+      } else {
+        filteredAuthors.add(author);
+      }
+      renderAll();
+    });
+    list.appendChild(div);
+  }
+}
+
+function renderCommitList() {
+  const section = document.getElementById('commit-list-section');
+  section.innerHTML = '';
+
+  if (allCommits.length === 0) {
+    section.innerHTML = '<div class="empty-state"><div class="empty-state-icon">⧖</div><div class="empty-state-msg">Paste a git log and hit Parse</div></div>';
+    return;
+  }
+
+  const sorted = [...allCommits].sort((a, b) => b.date - a.date);
+  const fragment = document.createDocumentFragment();
+  for (let i = 0; i < sorted.length; i++) {
+    const c = sorted[i];
+    const originalIdx = allCommits.indexOf(c);
+    const hidden = filteredAuthors.has(c.author);
+    const color = authorColors[c.author] || '#555';
+
+    const div = document.createElement('div');
+    div.className = 'commit-item' + (hidden ? ' filtered-out' : '') +
+      (originalIdx === selectedCommitIdx ? ' selected' : '');
+    div.dataset.idx = originalIdx;
+
+    const dateStr = c.date ? c.date.toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' }) : '';
+    const timeStr = c.date ? c.date.toLocaleTimeString('en-US', { hour:'2-digit', minute:'2-digit', hour12:false }) : '';
+
+    div.innerHTML = `
+      <div>
+        <span class="commit-hash">${escHtml(c.hash)}</span>
+        <span class="commit-msg">${escHtml(c.message.substring(0, 72))}</span>
+      </div>
+      <div class="commit-meta">
+        <span style="color:${color}">${escHtml(c.author)}</span>
+        <span>${dateStr}</span>
+        <span>${timeStr}</span>
+      </div>
+    `;
+    div.addEventListener('click', () => selectCommit(originalIdx));
+    fragment.appendChild(div);
+  }
+  section.appendChild(fragment);
+}
+
+function selectCommit(idx) {
+  selectedCommitIdx = idx;
+  // Update list selection
+  document.querySelectorAll('.commit-item').forEach(el => {
+    el.classList.toggle('selected', Number(el.dataset.idx) === idx);
+  });
+  renderDetail(allCommits[idx]);
+  // scroll selected into view
+  const sel = document.querySelector('.commit-item.selected');
+  if (sel) sel.scrollIntoView({ block: 'nearest' });
+}
+
+function renderDetail(c) {
+  document.getElementById('detail-empty').style.display = 'none';
+  const panel = document.getElementById('detail-commit');
+  panel.classList.add('visible');
+
+  const DAYS = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+  const sorted = [...getVisibleCommits()].sort((a, b) => b.date - a.date);
+  const pos = sorted.findIndex(x => x.hash === c.hash && x.message === c.message);
+
+  document.getElementById('det-hash').textContent = c.hash;
+  document.getElementById('det-msg').textContent = c.message;
+  document.getElementById('det-author').textContent = c.author + (c.email ? ` <${c.email}>` : '');
+  document.getElementById('det-date').textContent = c.date
+    ? c.date.toLocaleDateString('en-US', { weekday:'short', year:'numeric', month:'short', day:'numeric' })
+    : '—';
+  document.getElementById('det-time').textContent = c.date
+    ? c.date.toLocaleTimeString('en-US', { hour:'2-digit', minute:'2-digit', second:'2-digit', hour12:false })
+    : '—';
+  document.getElementById('det-email').textContent = c.email || '—';
+  document.getElementById('det-dow').textContent = c.date ? DAYS[c.date.getDay()] : '—';
+  document.getElementById('det-pos').textContent = pos >= 0
+    ? `#${pos + 1} of ${sorted.length}` : '—';
+}
+
+function renderRightPanel(stats, visible) {
+  document.getElementById('right-empty').style.display = 'none';
+  document.getElementById('right-content').style.display = 'block';
+
+  renderSummaryStats(stats);
+  renderHeatmap(stats, visible);
+  renderHourBars(stats);
+  renderAuthorBars(stats);
+  renderTimeline(visible);
+  renderWordCloud(stats);
+}
+
+function renderSummaryStats(stats) {
+  const DAYS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  const peakDow = (stats.dowMap && stats.dowMap.length)
+    ? stats.dowMap.indexOf(Math.max(...stats.dowMap))
+    : -1;
+
+  const fields = [
+    { val: stats.total || 0, lbl: 'total commits' },
+    { val: stats.activeDays || 0, lbl: 'active days' },
+    { val: stats.avgPerDay || 0, lbl: 'avg/active day' },
+    { val: (stats.maxStreak || 0) + 'd', lbl: 'max streak' },
+    {
+      val: stats.peakHour !== undefined
+        ? `${String(stats.peakHour).padStart(2,'0')}:00`
+        : '—',
+      lbl: 'peak hour'
+    },
+    {
+      val: peakDow >= 0 ? DAYS[peakDow] : '—',
+      lbl: 'peak day'
+    },
+  ];
+
+  const row = document.getElementById('stats-row');
+  row.innerHTML = fields.map(f => `
+    <div class="mini-stat">
+      <div class="mini-stat-val">${f.val}</div>
+      <div class="mini-stat-lbl">${f.lbl}</div>
+    </div>
+  `).join('');
+}
+
+// ─────────────────────────────────────────────
+// HEATMAP
+// ─────────────────────────────────────────────
+function renderHeatmap(stats, commits) {
+  const { dayMap } = stats;
+  if (!dayMap) return;
+
+  const maxVal = Math.max(...Object.values(dayMap), 1);
+
+  // Build 52-week grid ending today (or last commit date)
+  const lastDate = stats.last || new Date();
+  // Start from first Sunday on or before (lastDate - 52 weeks)
+  const endDate = new Date(lastDate);
+  endDate.setHours(23, 59, 59, 999);
+
+  const startDate = new Date(endDate);
+  startDate.setDate(startDate.getDate() - 52 * 7 + 1);
+  // Back up to Sunday
+  const dow = startDate.getDay();
+  startDate.setDate(startDate.getDate() - dow);
+
+  const totalDays = Math.round((endDate - startDate) / 86400000) + 1;
+  const cols = Math.ceil(totalDays / 7);
+
+  // Build columns (week = column, day = row)
+  const grid = document.getElementById('heatmap-grid');
+  grid.style.gridTemplateColumns = `repeat(${cols}, 10px)`;
+  grid.innerHTML = '';
+
+  // Month label row
+  const monthRow = document.getElementById('heatmap-month-row');
+  monthRow.innerHTML = '';
+  const monthNames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  let lastMonth = -1;
+
+  // Build cells column by column
+  const cells = [];
+  for (let col = 0; col < cols; col++) {
+    cells.push([]);
+  }
+  for (let d = 0; d < totalDays; d++) {
+    const date = new Date(startDate.getTime() + d * 86400000);
+    const col = Math.floor(d / 7);
+    const row = d % 7;
+    cells[col][row] = date;
+  }
+
+  for (let col = 0; col < cols; col++) {
+    // Month label
+    const firstDay = cells[col][0];
+    if (firstDay) {
+      const mo = firstDay.getMonth();
+      if (mo !== lastMonth) {
+        const span = document.createElement('span');
+        span.style.width = '10px';
+        span.style.display = 'inline-block';
+        span.style.textAlign = 'left';
+        span.style.fontSize = '0.38rem';
+        span.style.color = 'var(--text-tertiary)';
+        span.style.marginRight = '2px';
+        // Only label first occurrence
+        if (lastMonth === -1 || mo !== lastMonth) {
+          span.textContent = monthNames[mo];
+          span.style.width = '30px';
+        }
+        monthRow.appendChild(span);
+        lastMonth = mo;
+      } else {
+        const span = document.createElement('span');
+        span.style.width = '12px';
+        span.style.display = 'inline-block';
+        monthRow.appendChild(span);
+      }
+    }
+
+    // Column div
+    const colDiv = document.createElement('div');
+    colDiv.style.display = 'flex';
+    colDiv.style.flexDirection = 'column';
+    colDiv.style.gap = '2px';
+
+    for (let row = 0; row < 7; row++) {
+      const date = cells[col][row];
+      const cell = document.createElement('div');
+      cell.className = 'heatmap-cell';
+      cell.style.width = '10px';
+      cell.style.height = '10px';
+
+      if (!date || date > endDate) {
+        cell.style.background = 'transparent';
+      } else {
+        const k = dateKey(date);
+        const count = dayMap[k] || 0;
+        cell.style.background = count === 0
+          ? 'var(--bg-elevated)'
+          : heatColor(count / maxVal);
+        if (count > 0) {
+          const dateStr = date.toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' });
+          cell.title = `${dateStr}: ${count} commit${count !== 1 ? 's' : ''}`;
+          cell.addEventListener('click', () => {
+            // Filter commit list to this day
+            highlightDay(k);
+          });
+        }
+      }
+      colDiv.appendChild(cell);
+    }
+    grid.appendChild(colDiv);
+  }
+
+  // Day labels
+  const dayLabels = document.getElementById('heatmap-day-labels');
+  dayLabels.innerHTML = '';
+  const dayAbbr = ['S','M','T','W','T','F','S'];
+  for (let i = 0; i < 7; i++) {
+    const lbl = document.createElement('div');
+    lbl.className = 'heatmap-day-label';
+    lbl.textContent = i % 2 === 1 ? dayAbbr[i] : '';
+    dayLabels.appendChild(lbl);
+  }
+
+  // Legend
+  const legend = document.getElementById('heatmap-legend');
+  legend.innerHTML = '<span>less</span>';
+  for (let i = 0; i <= 4; i++) {
+    const box = document.createElement('div');
+    box.style.cssText = `width:10px;height:10px;background:${i===0?'var(--bg-elevated)':heatColor(i/4)};border-radius:2px;`;
+    legend.appendChild(box);
+  }
+  legend.innerHTML += '<span>more</span>';
+}
+
+function heatColor(t) {
+  // 0 = dark, 1 = bright cyan
+  const r = Math.round(0 * (1 - t) + 0 * t);
+  const g = Math.round(255 * t);
+  const b = Math.round(255 * t);
+  const a = 0.2 + t * 0.8;
+  return `rgba(${r},${g},${b},${a})`;
+}
+
+function highlightDay(dayKey) {
+  // Highlight commits from this day in the list
+  document.querySelectorAll('.commit-item').forEach(el => {
+    const idx = Number(el.dataset.idx);
+    const c = allCommits[idx];
+    if (!c) return;
+    const k = c.date ? dateKey(c.date) : '';
+    el.style.outline = k === dayKey ? '1px solid var(--accent)' : '';
+  });
+  // Scroll to first match
+  const first = [...document.querySelectorAll('.commit-item')].find(el => {
+    const idx = Number(el.dataset.idx);
+    const c = allCommits[idx];
+    return c && c.date && dateKey(c.date) === dayKey;
+  });
+  if (first) first.scrollIntoView({ block: 'center' });
+}
+
+// ─────────────────────────────────────────────
+// HOUR BARS
+// ─────────────────────────────────────────────
+function renderHourBars(stats) {
+  const { hourMap } = stats;
+  if (!hourMap) return;
+
+  const maxH = Math.max(...hourMap, 1);
+  const container = document.getElementById('hour-bars');
+  container.innerHTML = '';
+
+  for (let h = 0; h < 24; h++) {
+    const pct = hourMap[h] / maxH;
+    const wrap = document.createElement('div');
+    wrap.className = 'hour-bar-wrap';
+    wrap.title = `${String(h).padStart(2,'0')}:00 — ${hourMap[h]} commit${hourMap[h] !== 1 ? 's' : ''}`;
+
+    const bar = document.createElement('div');
+    bar.className = 'hour-bar' + (hourMap[h] === maxH ? ' active' : '');
+    bar.style.height = `${Math.max(2, pct * 52)}px`;
+    if (hourMap[h] > 0 && hourMap[h] !== maxH) {
+      bar.style.background = `rgba(0,255,255,${0.15 + pct * 0.5})`;
+    }
+
+    wrap.appendChild(bar);
+    container.appendChild(wrap);
+  }
+}
+
+// ─────────────────────────────────────────────
+// AUTHOR BARS
+// ─────────────────────────────────────────────
+function renderAuthorBars(stats) {
+  const { authorMap } = stats;
+  if (!authorMap) return;
+
+  const ranked = Object.entries(authorMap).sort((a, b) => b[1] - a[1]).slice(0, 8);
+  const maxCount = ranked[0][1];
+  const container = document.getElementById('author-bars');
+  container.innerHTML = '';
+
+  for (const [author, count] of ranked) {
+    const color = authorColors[author] || '#555';
+    const row = document.createElement('div');
+    row.className = 'author-bar-row';
+    row.innerHTML = `
+      <div class="author-bar-name" title="${escHtml(author)}" style="color:${color}">${escHtml(author)}</div>
+      <div class="author-bar-track">
+        <div class="author-bar-fill" style="width:${(count/maxCount*100).toFixed(1)}%;background:${color}"></div>
+      </div>
+      <div class="author-bar-count">${count}</div>
+    `;
+    container.appendChild(row);
+  }
+}
+
+// ─────────────────────────────────────────────
+// TIMELINE CANVAS
+// ─────────────────────────────────────────────
+function renderTimeline(commits) {
+  const canvas = document.getElementById('timeline-canvas');
+  const wrap = canvas.parentElement;
+  const W = wrap.clientWidth || 600;
+  canvas.width = W;
+  const H = 80;
+
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, W, H);
+
+  if (commits.length === 0) return;
+
+  const sorted = [...commits].sort((a, b) => a.date - b.date);
+  const tMin = sorted[0].date.getTime();
+  const tMax = sorted[sorted.length - 1].date.getTime();
+  const tRange = tMax - tMin || 1;
+
+  // Bucket into 100 bins for density
+  const bins = 120;
+  const counts = new Array(bins).fill(0);
+  for (const c of sorted) {
+    const i = Math.min(bins - 1, Math.floor(((c.date.getTime() - tMin) / tRange) * bins));
+    counts[i]++;
+  }
+  const maxBin = Math.max(...counts, 1);
+
+  // Draw area chart
+  const barW = W / bins;
+  for (let i = 0; i < bins; i++) {
+    if (counts[i] === 0) continue;
+    const h = (counts[i] / maxBin) * (H - 20);
+    const x = i * barW;
+    const alpha = 0.2 + (counts[i] / maxBin) * 0.7;
+    ctx.fillStyle = `rgba(0,255,255,${alpha})`;
+    ctx.fillRect(x, H - 16 - h, barW - 1, h);
+  }
+
+  // Axis line
+  ctx.strokeStyle = '#222';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(0, H - 16);
+  ctx.lineTo(W, H - 16);
+  ctx.stroke();
+
+  // Date labels
+  ctx.fillStyle = '#444';
+  ctx.font = '9px ui-monospace, monospace';
+  ctx.textAlign = 'left';
+  const startLabel = sorted[0].date.toLocaleDateString('en-US', { month:'short', year:'numeric' });
+  const endLabel = sorted[sorted.length-1].date.toLocaleDateString('en-US', { month:'short', year:'numeric' });
+  ctx.fillText(startLabel, 2, H - 4);
+  ctx.textAlign = 'right';
+  ctx.fillText(endLabel, W - 2, H - 4);
+
+  // Draw individual dots for smaller sets
+  if (sorted.length <= 500) {
+    for (const c of sorted) {
+      const x = ((c.date.getTime() - tMin) / tRange) * (W - 4) + 2;
+      const color = authorColors[c.author] || '#0ff';
+      ctx.fillStyle = color + '99';
+      ctx.beginPath();
+      ctx.arc(x, H - 24, 3, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
+  // Click to select nearest commit
+  canvas.onclick = (e) => {
+    const rect = canvas.getBoundingClientRect();
+    const mx = e.clientX - rect.left;
+    const clickT = (mx / W) * tRange + tMin;
+    let best = null, bestDist = Infinity;
+    for (let i = 0; i < allCommits.length; i++) {
+      const c = allCommits[i];
+      if (!c.date || filteredAuthors.has(c.author)) continue;
+      const dist = Math.abs(c.date.getTime() - clickT);
+      if (dist < bestDist) { bestDist = dist; best = i; }
+    }
+    if (best !== null) selectCommit(best);
+  };
+}
+
+// ─────────────────────────────────────────────
+// WORD CLOUD
+// ─────────────────────────────────────────────
+function renderWordCloud(stats) {
+  const { topWords } = stats;
+  if (!topWords || topWords.length === 0) return;
+
+  const maxFreq = topWords[0][1];
+  const container = document.getElementById('word-cloud');
+  container.innerHTML = '';
+
+  for (const [word, freq] of topWords) {
+    const t = freq / maxFreq;
+    const size = 0.45 + t * 0.8;
+    const opacity = 0.3 + t * 0.7;
+    const span = document.createElement('span');
+    span.className = 'word-cloud-word';
+    span.textContent = word;
+    span.style.fontSize = `${size}rem`;
+    span.style.opacity = opacity;
+    span.title = `"${word}" — ${freq} occurrence${freq !== 1 ? 's' : ''}`;
+    container.appendChild(span);
+  }
+}
+
+// ─────────────────────────────────────────────
+// PRESETS
+// ─────────────────────────────────────────────
+function loadPreset(name) {
+  document.getElementById('log-input').value = PRESETS[name] || '';
+  parseAndRender();
+}
+
+function initPresets() {
+  const row = document.getElementById('presets-row');
+  for (const name of Object.keys(PRESETS)) {
+    const btn = document.createElement('button');
+    btn.className = 'btn';
+    btn.textContent = name;
+    btn.addEventListener('click', () => {
+      row.querySelectorAll('.btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      loadPreset(name);
+    });
+    row.appendChild(btn);
+  }
+}
+
+// ─────────────────────────────────────────────
+// UTILS
+// ─────────────────────────────────────────────
+function escHtml(s) {
+  const map = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' };
+  return String(s).replace(/[&<>"]/g, ch => map[ch]);
+}
+
+// ─────────────────────────────────────────────
+// INIT
+// ─────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', function() {
+  initPresets();
+  const first = Object.keys(PRESETS)[0];
+  document.getElementById('log-input').value = PRESETS[first];
+  document.querySelector('#presets-row .btn').classList.add('active');
+  parseAndRender();
+});
+</script>
+</body>
+</html>
