@@ -69,6 +69,8 @@ textarea:focus { outline: none; }
 .fragment { opacity: 0; transition: opacity 0.3s ease; }
 .fragment.visible { opacity: 1; }
 
+.slide-diagram { margin: 0.5rem 0; text-align: center; }
+.slide-diagram svg { max-width: 100%; }
 .code-lang { display: block; font-size: 0.6rem; color: #555; letter-spacing: 0.1em; margin-bottom: -0.2rem; text-transform: uppercase; }
 /* Syntax highlighting tokens */
 .sg-keyword  { color: #c678dd; }
@@ -418,6 +420,97 @@ function sgHighlight(code, lang) {
   return result;
 }
 
+// ============ DIAGRAM RENDERER (extracted from flow-ascii) ============
+var FlowDiagram = (function() {
+  var NODE_W = 120, NODE_H = 36, H_GAP = 50, V_GAP = 40;
+  function parse(src) {
+    var nodes = {}, edges = [];
+    src.split('\n').forEach(function(raw) {
+      var line = raw.replace(/\/\/.*$/, '').trim();
+      if (!line) return;
+      var tokens = [], pos = 0;
+      while (pos < line.length) {
+        while (pos < line.length && /\s/.test(line[pos])) pos++;
+        if (pos >= line.length) break;
+        if (line[pos] === '[') {
+          var cl = line.indexOf(']', pos);
+          if (cl === -1) break;
+          var label = line.slice(pos + 1, cl).trim();
+          if (label) tokens.push({ type: 'node', label: label });
+          pos = cl + 1;
+        } else if (line[pos] === '-' && line[pos + 1] === '-') {
+          var ai = line.indexOf('-->', pos);
+          if (ai === -1) break;
+          var el = ai === pos ? '' : line.slice(pos + 2, ai).replace(/-+$/, '').trim();
+          tokens.push({ type: 'edge', label: el });
+          pos = ai + 3;
+        } else { pos++; }
+      }
+      tokens.forEach(function(t) { if (t.type === 'node') { var id = t.label.toLowerCase().replace(/\s+/g, '_'); nodes[id] = t.label; } });
+      for (var i = 0; i <= tokens.length - 3; i++) {
+        if (tokens[i].type === 'node' && tokens[i + 1].type === 'edge' && tokens[i + 2].type === 'node') {
+          edges.push({ from: tokens[i].label.toLowerCase().replace(/\s+/g, '_'), to: tokens[i + 2].label.toLowerCase().replace(/\s+/g, '_'), label: tokens[i + 1].label });
+          i++;
+        }
+      }
+    });
+    return { nodes: nodes, edges: edges };
+  }
+  function layout(nodes, edges) {
+    var ids = Object.keys(nodes);
+    if (ids.length === 0) return {};
+    var layers = {}; ids.forEach(function(id) { layers[id] = 0; });
+    for (var it = 0; it < ids.length * 2; it++) {
+      var changed = false;
+      edges.forEach(function(e) { if (nodes[e.from] && nodes[e.to]) { var p = (layers[e.from] || 0) + 1; if (p > (layers[e.to] || 0)) { layers[e.to] = p; changed = true; } } });
+      if (!changed) break;
+    }
+    var groups = {};
+    ids.forEach(function(id) { var l = layers[id]; if (!groups[l]) groups[l] = []; groups[l].push(id); });
+    var pos = {};
+    var maxW = 0;
+    Object.keys(groups).forEach(function(l) { maxW = Math.max(maxW, groups[l].length); });
+    Object.keys(groups).forEach(function(l) {
+      var arr = groups[l], count = arr.length;
+      var offset = ((maxW - count) * (NODE_W + H_GAP)) / 2;
+      arr.forEach(function(id, i) { pos[id] = { x: offset + i * (NODE_W + H_GAP), y: parseInt(l) * (NODE_H + V_GAP), label: nodes[id] }; });
+    });
+    return pos;
+  }
+  function toSvg(src) {
+    var p = parse(src), positions = layout(p.nodes, p.edges);
+    var ids = Object.keys(positions);
+    if (ids.length === 0) return '<svg></svg>';
+    var maxX = 0, maxY = 0;
+    ids.forEach(function(id) { var n = positions[id]; maxX = Math.max(maxX, n.x + NODE_W); maxY = Math.max(maxY, n.y + NODE_H); });
+    var pad = 20, w = maxX + pad * 2, h = maxY + pad * 2;
+    var svg = '<svg viewBox="0 0 ' + w + ' ' + h + '" style="width:100%;max-height:50vh" xmlns="http://www.w3.org/2000/svg">';
+    svg += '<defs><marker id="da" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0,8 3,0 6" fill="#0ff" opacity="0.7"/></marker></defs>';
+    // Edges
+    p.edges.forEach(function(e) {
+      var f = positions[e.from], t = positions[e.to];
+      if (!f || !t) return;
+      var x1 = pad + f.x + NODE_W / 2, y1 = pad + f.y + NODE_H;
+      var x2 = pad + t.x + NODE_W / 2, y2 = pad + t.y;
+      var my = (y1 + y2) / 2;
+      svg += '<path d="M' + x1 + ' ' + y1 + ' C' + x1 + ' ' + my + ',' + x2 + ' ' + my + ',' + x2 + ' ' + y2 + '" fill="none" stroke="#0ff" stroke-width="1" stroke-opacity="0.5" marker-end="url(#da)"/>';
+      if (e.label) {
+        var mx = (x1 + x2) / 2, mmy = (y1 + y2) / 2;
+        svg += '<text x="' + mx + '" y="' + (mmy + 3) + '" text-anchor="middle" font-size="9" fill="#555" font-family="monospace">' + esc(e.label) + '</text>';
+      }
+    });
+    // Nodes
+    ids.forEach(function(id) {
+      var n = positions[id], nx = pad + n.x, ny = pad + n.y;
+      svg += '<rect x="' + nx + '" y="' + ny + '" width="' + NODE_W + '" height="' + NODE_H + '" fill="#111" stroke="#1a1a1a" rx="4"/>';
+      svg += '<text x="' + (nx + NODE_W / 2) + '" y="' + (ny + NODE_H / 2 + 4) + '" text-anchor="middle" font-size="11" fill="#ccc" font-family="monospace">' + esc(n.label) + '</text>';
+    });
+    svg += '</svg>';
+    return svg;
+  }
+  return { toSvg: toSvg };
+})();
+
 // Full markdown parser with code-block protection
 // Parse per-slide theme overrides: <!-- bg: #color, text: #color, ... -->
 function parseSlideOverrides(text) {
@@ -467,8 +560,12 @@ function md(text) {
   var html = text.replace(/```(\w*)\n([\s\S]*?)```/g, function(_, lang, code) {
     var langAttr = lang ? ' data-lang="' + esc(lang) + '"' : '';
     var langLabel = lang ? '<span class="code-lang">' + esc(lang) + '</span>' : '';
-    var highlighted = lang ? sgHighlight(code.trimEnd(), lang.toLowerCase()) : esc(code.trimEnd());
-    codeBlocks.push(langLabel + '<pre' + langAttr + '><code>' + highlighted + '</code></pre>');
+    if (lang && lang.toLowerCase() === 'diagram') {
+      codeBlocks.push('<div class="slide-diagram">' + FlowDiagram.toSvg(code.trimEnd()) + '</div>');
+    } else {
+      var highlighted = lang ? sgHighlight(code.trimEnd(), lang.toLowerCase()) : esc(code.trimEnd());
+      codeBlocks.push(langLabel + '<pre' + langAttr + '><code>' + highlighted + '</code></pre>');
+    }
     return '\n__CODEBLOCK_' + (codeBlocks.length - 1) + '__\n';
   });
 

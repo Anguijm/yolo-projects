@@ -52,7 +52,7 @@ Markdown Deck is a graduated YOLO project operating under Flagship rules: multi-
 
 ### P1 — High Value (next 5-10 sessions)
 - [x] Per-slide theme overrides (<!-- bg: #color, text: #color --> directives)
-- [ ] Diagram support (simple flowcharts/boxes via ASCII or custom syntax) — flow-ascii feeder ready
+- [x] Diagram support (```diagram fenced blocks via flow-ascii feeder integration)
 - [ ] Image embedding in PPTX export (base64 inline images)
 - [ ] PDF export (via browser print or canvas rendering)
 - [x] Progressive reveal (-- fragment syntax with fade-in, PPTX slide duplication)
@@ -95,3 +95,4 @@ These are features complex enough to prototype as standalone YOLO single-session
 | 2026-03-31 | Tick | dep-graph: package manifest dependency visualizer |
 | 2026-03-31 | Tock | Presenter view: dual-window with notes, next slide, timer |
 | 2026-03-31 | Tick | commit-log: git history pattern analyzer |
+| 2026-03-31 | Tock | Diagram support via flow-ascii feeder integration |
