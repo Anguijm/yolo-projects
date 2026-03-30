@@ -148,34 +148,55 @@ Built overnight while you slept.</textarea>
 
 <div class="design-panel" id="design-panel">
   <div class="toolbar">
-    <h2>Theme CSS</h2>
+    <h2>design.md</h2>
     <button onclick="applyDesign()">Apply</button>
     <button onclick="toggleDesignPanel()">Close</button>
   </div>
-  <textarea id="design-input" spellcheck="false">/* Custom slide theme — edit and hit Apply */
-/* These styles target .slide and .present-slide */
+  <div style="padding:0.4rem 0.75rem;border-bottom:1px solid #1a1a1a;display:flex;gap:4px;flex-wrap:wrap">
+    <button class="preset-theme" onclick="loadTheme('default')" style="background:#1a1a1a;border:1px solid #333;color:#888;padding:2px 8px;font-size:0.6rem;cursor:pointer;border-radius:3px;font-family:inherit">Dark</button>
+    <button class="preset-theme" onclick="loadTheme('midnight')" style="background:#1a1a1a;border:1px solid #333;color:#888;padding:2px 8px;font-size:0.6rem;cursor:pointer;border-radius:3px;font-family:inherit">Midnight</button>
+    <button class="preset-theme" onclick="loadTheme('light')" style="background:#1a1a1a;border:1px solid #333;color:#888;padding:2px 8px;font-size:0.6rem;cursor:pointer;border-radius:3px;font-family:inherit">Light</button>
+    <button class="preset-theme" onclick="loadTheme('warm')" style="background:#1a1a1a;border:1px solid #333;color:#888;padding:2px 8px;font-size:0.6rem;cursor:pointer;border-radius:3px;font-family:inherit">Warm</button>
+    <button class="preset-theme" onclick="loadTheme('neon')" style="background:#1a1a1a;border:1px solid #333;color:#888;padding:2px 8px;font-size:0.6rem;cursor:pointer;border-radius:3px;font-family:inherit">Neon</button>
+    <button class="preset-theme" onclick="loadTheme('corporate')" style="background:#1a1a1a;border:1px solid #333;color:#888;padding:2px 8px;font-size:0.6rem;cursor:pointer;border-radius:3px;font-family:inherit">Corporate</button>
+  </div>
+  <textarea id="design-input" spellcheck="false"># Slide Design
 
-/*
-.slide, .present-slide {
-  background: #0f172a;
-  font-family: system-ui, sans-serif;
-}
+## Colors
+background: #0a0a0a
+text: #cccccc
+heading: #ffffff
+subheading: #60a5fa
+accent: #a78bfa
+strong: #ffffff
+emphasis: #fbbf24
+code-text: #4ade80
+code-bg: #1a1a1a
+pre-bg: #111111
+quote-text: #888888
+quote-border: #333333
+link: #60a5fa
+hr: #333333
 
-.slide h1, .present-slide h1 {
-  color: #38bdf8;
-}
+## Typography
+heading-font: SF Mono, Fira Code, monospace
+body-font: SF Mono, Fira Code, monospace
+code-font: SF Mono, Fira Code, monospace
+h1-size: 3.5rem
+h2-size: 2.2rem
+h3-size: 1.6rem
+body-size: 1.4rem
+code-size: 1.1rem
+line-height: 1.6
+h1-weight: 400
+h2-weight: 400
 
-.slide h2, .present-slide h2 {
-  color: #818cf8;
-}
-
-.slide code, .present-slide code {
-  color: #f472b6;
-  background: #1e1b4b;
-}
-*/</textarea>
+## Layout
+slide-padding: 4rem 5rem
+content-align: left
+border-radius: 8px</textarea>
   <div class="design-help">
-    Write CSS to theme your slides. Targets: .slide, .present-slide, h1-h3, p, code, pre, blockquote, ul, ol, strong, em. Hit Apply to inject.
+    Structured design tokens — edit values and hit Apply. Presets above load full themes. Tokens auto-generate all slide CSS.
   </div>
 </div>
 
@@ -328,33 +349,161 @@ inputEl.addEventListener('input', () => {
   debounce = setTimeout(() => { parseSlides(); renderPreview(); }, 200);
 });
 
-// Design panel
+// ============ DESIGN.MD SYSTEM ============
 let designStyleEl = null;
+
+// Parse design.md tokens into a flat object
+function parseDesignTokens(src) {
+  var tokens = {};
+  var lines = src.split('\n');
+  for (var i = 0; i < lines.length; i++) {
+    var line = lines[i].trim();
+    if (!line || line.startsWith('#')) continue;
+    var idx = line.indexOf(':');
+    if (idx < 1) continue;
+    var key = line.substring(0, idx).trim();
+    var val = line.substring(idx + 1).trim();
+    if (key && val) tokens[key] = val;
+  }
+  return tokens;
+}
+
+// Convert tokens to CSS targeting both .slide and .present-slide
+function tokensToCss(t) {
+  var S = '.slide, .present-slide';
+  var css = '';
+  // Background & base
+  css += S + ' {\n';
+  if (t['background']) css += '  background: ' + t['background'] + ';\n';
+  if (t['text']) css += '  color: ' + t['text'] + ';\n';
+  if (t['body-font']) css += '  font-family: ' + t['body-font'] + ';\n';
+  if (t['body-size']) css += '  font-size: ' + t['body-size'] + ';\n';
+  if (t['line-height']) css += '  line-height: ' + t['line-height'] + ';\n';
+  if (t['slide-padding']) css += '  padding: ' + t['slide-padding'] + ';\n';
+  if (t['border-radius']) css += '  border-radius: ' + t['border-radius'] + ';\n';
+  if (t['content-align']) css += '  text-align: ' + t['content-align'] + ';\n';
+  css += '}\n';
+  // Headings
+  if (t['heading'] || t['heading-font'] || t['h1-size']) {
+    css += S.replace(/, /g, ' h1, ') + ' h1 {\n';
+    if (t['heading']) css += '  color: ' + t['heading'] + ';\n';
+    if (t['heading-font']) css += '  font-family: ' + t['heading-font'] + ';\n';
+    if (t['h1-size']) css += '  font-size: ' + t['h1-size'] + ';\n';
+    if (t['h1-weight']) css += '  font-weight: ' + t['h1-weight'] + ';\n';
+    css += '}\n';
+  }
+  if (t['subheading'] || t['h2-size']) {
+    css += S.replace(/, /g, ' h2, ') + ' h2 {\n';
+    if (t['subheading']) css += '  color: ' + t['subheading'] + ';\n';
+    if (t['heading-font']) css += '  font-family: ' + t['heading-font'] + ';\n';
+    if (t['h2-size']) css += '  font-size: ' + t['h2-size'] + ';\n';
+    if (t['h2-weight']) css += '  font-weight: ' + t['h2-weight'] + ';\n';
+    css += '}\n';
+  }
+  if (t['accent'] || t['h3-size']) {
+    css += S.replace(/, /g, ' h3, ') + ' h3 {\n';
+    if (t['accent']) css += '  color: ' + t['accent'] + ';\n';
+    if (t['h3-size']) css += '  font-size: ' + t['h3-size'] + ';\n';
+    css += '}\n';
+  }
+  // Paragraphs & lists
+  if (t['text'] || t['body-size']) {
+    css += S.replace(/, /g, ' p, ') + ' p, ' + S.replace(/, /g, ' ul, ') + ' ul, ' + S.replace(/, /g, ' ol, ') + ' ol {\n';
+    if (t['text']) css += '  color: ' + t['text'] + ';\n';
+    css += '}\n';
+  }
+  // Strong
+  if (t['strong']) {
+    css += S.replace(/, /g, ' strong, ') + ' strong { color: ' + t['strong'] + '; }\n';
+  }
+  // Emphasis
+  if (t['emphasis']) {
+    css += S.replace(/, /g, ' em, ') + ' em { color: ' + t['emphasis'] + '; }\n';
+  }
+  // Code
+  if (t['code-text'] || t['code-bg'] || t['code-font'] || t['code-size']) {
+    css += S.replace(/, /g, ' code, ') + ' code {\n';
+    if (t['code-text']) css += '  color: ' + t['code-text'] + ';\n';
+    if (t['code-bg']) css += '  background: ' + t['code-bg'] + ';\n';
+    if (t['code-font']) css += '  font-family: ' + t['code-font'] + ';\n';
+    if (t['code-size']) css += '  font-size: ' + t['code-size'] + ';\n';
+    css += '}\n';
+  }
+  if (t['pre-bg']) {
+    css += S.replace(/, /g, ' pre, ') + ' pre { background: ' + t['pre-bg'] + '; }\n';
+    css += S.replace(/, /g, ' pre code, ') + ' pre code { background: none; }\n';
+  }
+  // Blockquote
+  if (t['quote-text'] || t['quote-border']) {
+    css += S.replace(/, /g, ' blockquote, ') + ' blockquote {\n';
+    if (t['quote-text']) css += '  color: ' + t['quote-text'] + ';\n';
+    if (t['quote-border']) css += '  border-left-color: ' + t['quote-border'] + ';\n';
+    css += '}\n';
+  }
+  // Links
+  if (t['link']) {
+    css += S.replace(/, /g, ' a, ') + ' a { color: ' + t['link'] + '; }\n';
+  }
+  // HR
+  if (t['hr']) {
+    css += S.replace(/, /g, ' hr, ') + ' hr { border-top-color: ' + t['hr'] + '; }\n';
+  }
+  return css;
+}
+
+// Theme presets as design.md token blocks
+var THEME_PRESETS = {
+  'default': '# Slide Design\n\n## Colors\nbackground: #0a0a0a\ntext: #cccccc\nheading: #ffffff\nsubheading: #60a5fa\naccent: #a78bfa\nstrong: #ffffff\nemphasis: #fbbf24\ncode-text: #4ade80\ncode-bg: #1a1a1a\npre-bg: #111111\nquote-text: #888888\nquote-border: #333333\nlink: #60a5fa\nhr: #333333\n\n## Typography\nheading-font: SF Mono, Fira Code, monospace\nbody-font: SF Mono, Fira Code, monospace\ncode-font: SF Mono, Fira Code, monospace\nh1-size: 3.5rem\nh2-size: 2.2rem\nh3-size: 1.6rem\nbody-size: 1.4rem\ncode-size: 1.1rem\nline-height: 1.6\nh1-weight: 400\nh2-weight: 400\n\n## Layout\nslide-padding: 4rem 5rem\ncontent-align: left\nborder-radius: 8px',
+
+  'midnight': '# Midnight Blue\n\n## Colors\nbackground: #0f172a\ntext: #cbd5e1\nheading: #e2e8f0\nsubheading: #38bdf8\naccent: #818cf8\nstrong: #f1f5f9\nemphasis: #fbbf24\ncode-text: #f472b6\ncode-bg: #1e1b4b\npre-bg: #1e293b\nquote-text: #64748b\nquote-border: #334155\nlink: #38bdf8\nhr: #1e293b\n\n## Typography\nheading-font: system-ui, sans-serif\nbody-font: system-ui, sans-serif\ncode-font: Consolas, monospace\nh1-size: 3.5rem\nh2-size: 2.2rem\nh3-size: 1.6rem\nbody-size: 1.4rem\ncode-size: 1rem\nline-height: 1.7\nh1-weight: 700\nh2-weight: 600\n\n## Layout\nslide-padding: 4rem 5rem\ncontent-align: left\nborder-radius: 12px',
+
+  'light': '# Light Mode\n\n## Colors\nbackground: #ffffff\ntext: #334155\nheading: #0f172a\nsubheading: #1d4ed8\naccent: #7c3aed\nstrong: #0f172a\nemphasis: #b45309\ncode-text: #be185d\ncode-bg: #f1f5f9\npre-bg: #f8fafc\nquote-text: #64748b\nquote-border: #cbd5e1\nlink: #2563eb\nhr: #e2e8f0\n\n## Typography\nheading-font: system-ui, sans-serif\nbody-font: system-ui, sans-serif\ncode-font: Menlo, monospace\nh1-size: 3.2rem\nh2-size: 2rem\nh3-size: 1.5rem\nbody-size: 1.3rem\ncode-size: 1rem\nline-height: 1.7\nh1-weight: 800\nh2-weight: 700\n\n## Layout\nslide-padding: 4rem 5rem\ncontent-align: left\nborder-radius: 8px',
+
+  'warm': '# Warm Earth\n\n## Colors\nbackground: #1c1917\ntext: #d6d3d1\nheading: #fafaf9\nsubheading: #f59e0b\naccent: #ef4444\nstrong: #fafaf9\nemphasis: #34d399\ncode-text: #fbbf24\ncode-bg: #292524\npre-bg: #1c1917\nquote-text: #a8a29e\nquote-border: #44403c\nlink: #f59e0b\nhr: #44403c\n\n## Typography\nheading-font: Georgia, serif\nbody-font: system-ui, sans-serif\ncode-font: Consolas, monospace\nh1-size: 3.5rem\nh2-size: 2rem\nh3-size: 1.5rem\nbody-size: 1.3rem\ncode-size: 1rem\nline-height: 1.7\nh1-weight: 400\nh2-weight: 400\n\n## Layout\nslide-padding: 4rem 6rem\ncontent-align: left\nborder-radius: 0px',
+
+  'neon': '# Neon Cyber\n\n## Colors\nbackground: #050510\ntext: #a5b4fc\nheading: #00ffff\nsubheading: #ff00ff\naccent: #00ff88\nstrong: #ffffff\nemphasis: #ff00ff\ncode-text: #00ff88\ncode-bg: #0a0a2e\npre-bg: #0a0a1a\nquote-text: #6366f1\nquote-border: #ff00ff\nlink: #00ffff\nhr: #1e1b4b\n\n## Typography\nheading-font: SF Mono, Fira Code, monospace\nbody-font: SF Mono, monospace\ncode-font: SF Mono, monospace\nh1-size: 3.5rem\nh2-size: 2.2rem\nh3-size: 1.6rem\nbody-size: 1.3rem\ncode-size: 1.1rem\nline-height: 1.6\nh1-weight: 300\nh2-weight: 300\n\n## Layout\nslide-padding: 4rem 5rem\ncontent-align: left\nborder-radius: 0px',
+
+  'corporate': '# Corporate Clean\n\n## Colors\nbackground: #f9fafb\ntext: #374151\nheading: #111827\nsubheading: #1f2937\naccent: #2563eb\nstrong: #111827\nemphasis: #059669\ncode-text: #dc2626\ncode-bg: #f3f4f6\npre-bg: #f3f4f6\nquote-text: #6b7280\nquote-border: #d1d5db\nlink: #2563eb\nhr: #e5e7eb\n\n## Typography\nheading-font: system-ui, sans-serif\nbody-font: system-ui, sans-serif\ncode-font: Menlo, monospace\nh1-size: 3rem\nh2-size: 2rem\nh3-size: 1.4rem\nbody-size: 1.3rem\ncode-size: 0.95rem\nline-height: 1.8\nh1-weight: 800\nh2-weight: 700\n\n## Layout\nslide-padding: 4rem 6rem\ncontent-align: left\nborder-radius: 4px'
+};
+
+window.loadTheme = function(name) {
+  if (THEME_PRESETS[name]) {
+    document.getElementById('design-input').value = THEME_PRESETS[name];
+    applyDesign();
+  }
+};
 
 window.toggleDesignPanel = function() {
   document.getElementById('design-panel').classList.toggle('open');
 };
 
 window.applyDesign = function() {
-  const css = document.getElementById('design-input').value;
+  var src = document.getElementById('design-input').value;
+  var tokens = parseDesignTokens(src);
+  var css = tokensToCss(tokens);
   if (!designStyleEl) {
     designStyleEl = document.createElement('style');
     designStyleEl.id = 'custom-theme';
     document.head.appendChild(designStyleEl);
   }
   designStyleEl.textContent = css;
-  try { localStorage.setItem('mdeck_theme', css); } catch(e) {}
+  // Also store the tokens for PPTX export
+  window._designTokens = tokens;
+  try { localStorage.setItem('mdeck_design', src); } catch(e) {}
 };
 
-// Load saved theme on startup
+// Load saved design on startup
 try {
-  const savedTheme = localStorage.getItem('mdeck_theme');
-  if (savedTheme) {
-    document.getElementById('design-input').value = savedTheme;
+  var savedDesign = localStorage.getItem('mdeck_design');
+  if (savedDesign) {
+    document.getElementById('design-input').value = savedDesign;
+    var tokens = parseDesignTokens(savedDesign);
+    var css = tokensToCss(tokens);
     designStyleEl = document.createElement('style');
     designStyleEl.id = 'custom-theme';
-    designStyleEl.textContent = savedTheme;
+    designStyleEl.textContent = css;
     document.head.appendChild(designStyleEl);
+    window._designTokens = tokens;
   }
 } catch(e) {}
 
@@ -455,33 +604,55 @@ function parseSlideContent(src) {
 // Convert inline markdown to PPTX runs
 function mdRuns(text, sz, color) {
   sz = sz || 1800; color = color || 'CCCCCC';
+  var tc = getThemeColors();
+  var bf = tc.bodyFont.split(',')[0].trim();
+  var cf = tc.codeFont.split(',')[0].trim();
   var runs = '', re = /(\*\*(.+?)\*\*|\*(.+?)\*|`([^`]+)`|([^*`]+))/g, m;
   while ((m = re.exec(text)) !== null) {
     if (m[2]) { // bold
-      runs += '<a:r><a:rPr lang="en-US" sz="'+sz+'" b="1" dirty="0"><a:solidFill><a:srgbClr val="FFFFFF"/></a:solidFill><a:latin typeface="Calibri"/></a:rPr><a:t>'+escXml(m[2])+'</a:t></a:r>';
+      runs += '<a:r><a:rPr lang="en-US" sz="'+sz+'" b="1" dirty="0"><a:solidFill><a:srgbClr val="'+tc.strong+'"/></a:solidFill><a:latin typeface="'+escXml(bf)+'"/></a:rPr><a:t>'+escXml(m[2])+'</a:t></a:r>';
     } else if (m[3]) { // italic
-      runs += '<a:r><a:rPr lang="en-US" sz="'+sz+'" i="1" dirty="0"><a:solidFill><a:srgbClr val="FBBF24"/></a:solidFill><a:latin typeface="Calibri"/></a:rPr><a:t>'+escXml(m[3])+'</a:t></a:r>';
+      runs += '<a:r><a:rPr lang="en-US" sz="'+sz+'" i="1" dirty="0"><a:solidFill><a:srgbClr val="'+tc.emphasis+'"/></a:solidFill><a:latin typeface="'+escXml(bf)+'"/></a:rPr><a:t>'+escXml(m[3])+'</a:t></a:r>';
     } else if (m[4]) { // code
-      runs += '<a:r><a:rPr lang="en-US" sz="'+(sz-200)+'" dirty="0"><a:solidFill><a:srgbClr val="4ADE80"/></a:solidFill><a:latin typeface="Consolas"/></a:rPr><a:t>'+escXml(m[4])+'</a:t></a:r>';
+      runs += '<a:r><a:rPr lang="en-US" sz="'+(sz-200)+'" dirty="0"><a:solidFill><a:srgbClr val="'+tc.codeText+'"/></a:solidFill><a:latin typeface="'+escXml(cf)+'"/></a:rPr><a:t>'+escXml(m[4])+'</a:t></a:r>';
     } else if (m[5]) { // plain
-      runs += '<a:r><a:rPr lang="en-US" sz="'+sz+'" dirty="0"><a:solidFill><a:srgbClr val="'+color+'"/></a:solidFill><a:latin typeface="Calibri"/></a:rPr><a:t>'+escXml(m[5])+'</a:t></a:r>';
+      runs += '<a:r><a:rPr lang="en-US" sz="'+sz+'" dirty="0"><a:solidFill><a:srgbClr val="'+color+'"/></a:solidFill><a:latin typeface="'+escXml(bf)+'"/></a:rPr><a:t>'+escXml(m[5])+'</a:t></a:r>';
     }
   }
-  return runs || '<a:r><a:rPr lang="en-US" sz="'+sz+'" dirty="0"><a:solidFill><a:srgbClr val="'+color+'"/></a:solidFill><a:latin typeface="Calibri"/></a:rPr><a:t>'+escXml(text)+'</a:t></a:r>';
+  return runs || '<a:r><a:rPr lang="en-US" sz="'+sz+'" dirty="0"><a:solidFill><a:srgbClr val="'+color+'"/></a:solidFill><a:latin typeface="'+escXml(bf)+'"/></a:rPr><a:t>'+escXml(text)+'</a:t></a:r>';
+}
+
+function getThemeColors() {
+  var t = window._designTokens || {};
+  return {
+    bg: (t['background'] || '#0a0a0a').replace('#',''),
+    text: (t['text'] || '#cccccc').replace('#',''),
+    heading: (t['heading'] || '#ffffff').replace('#',''),
+    subheading: (t['subheading'] || '#60a5fa').replace('#',''),
+    accent: (t['accent'] || '#a78bfa').replace('#',''),
+    strong: (t['strong'] || '#ffffff').replace('#',''),
+    emphasis: (t['emphasis'] || '#fbbf24').replace('#',''),
+    codeText: (t['code-text'] || '#4ade80').replace('#',''),
+    quoteText: (t['quote-text'] || '#888888').replace('#',''),
+    headingFont: t['heading-font'] || 'Calibri',
+    bodyFont: t['body-font'] || 'Calibri',
+    codeFont: t['code-font'] || 'Consolas'
+  };
 }
 
 function buildSlideXml(parsed, idx) {
-  var W = 12192000, H = 6858000; // 16:9 standard (EMU)
+  var W = 12192000, H = 6858000;
   var shapes = '', shapeId = 2;
-  var yPos = 457200; // start 0.5in from top
+  var yPos = 457200;
+  var tc = getThemeColors();
 
   // Title
   if (parsed.title) {
-    shapes += '<p:sp><p:nvSpPr><p:cNvPr id="'+(shapeId++)+'" name="Title"/><p:cNvSpPr><a:spLocks noGrp="1"/></p:cNvSpPr><p:nvPr/></p:nvSpPr><p:spPr><a:xfrm><a:off x="457200" y="'+yPos+'"/><a:ext cx="11277600" cy="1143000"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></p:spPr><p:txBody><a:bodyPr anchor="b"/><a:lstStyle/><a:p>'+mdRuns(parsed.title, 4000, 'FFFFFF')+'</a:p></p:txBody></p:sp>';
+    shapes += '<p:sp><p:nvSpPr><p:cNvPr id="'+(shapeId++)+'" name="Title"/><p:cNvSpPr><a:spLocks noGrp="1"/></p:cNvSpPr><p:nvPr/></p:nvSpPr><p:spPr><a:xfrm><a:off x="457200" y="'+yPos+'"/><a:ext cx="11277600" cy="1143000"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></p:spPr><p:txBody><a:bodyPr anchor="b"/><a:lstStyle/><a:p>'+mdRuns(parsed.title, 4000, tc.heading)+'</a:p></p:txBody></p:sp>';
     yPos += 1200000;
   }
   if (parsed.subtitle) {
-    shapes += '<p:sp><p:nvSpPr><p:cNvPr id="'+(shapeId++)+'" name="Subtitle"/><p:cNvSpPr><a:spLocks noGrp="1"/></p:cNvSpPr><p:nvPr/></p:nvSpPr><p:spPr><a:xfrm><a:off x="457200" y="'+yPos+'"/><a:ext cx="11277600" cy="571500"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></p:spPr><p:txBody><a:bodyPr/><a:lstStyle/><a:p>'+mdRuns(parsed.subtitle, 2400, '60A5FA')+'</a:p></p:txBody></p:sp>';
+    shapes += '<p:sp><p:nvSpPr><p:cNvPr id="'+(shapeId++)+'" name="Subtitle"/><p:cNvSpPr><a:spLocks noGrp="1"/></p:cNvSpPr><p:nvPr/></p:nvSpPr><p:spPr><a:xfrm><a:off x="457200" y="'+yPos+'"/><a:ext cx="11277600" cy="571500"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></p:spPr><p:txBody><a:bodyPr/><a:lstStyle/><a:p>'+mdRuns(parsed.subtitle, 2400, tc.subheading)+'</a:p></p:txBody></p:sp>';
     yPos += 700000;
   }
 
@@ -491,25 +662,25 @@ function buildSlideXml(parsed, idx) {
     for (var i = 0; i < parsed.body.length; i++) {
       var item = parsed.body[i];
       if (item.type === 'heading') {
-        bodyParas += '<a:p><a:pPr><a:spcBef><a:spcPts val="600"/></a:spcBef></a:pPr>'+mdRuns(item.text, 2200, 'A78BFA')+'</a:p>';
+        bodyParas += '<a:p><a:pPr><a:spcBef><a:spcPts val="600"/></a:spcBef></a:pPr>'+mdRuns(item.text, 2200, tc.accent)+'</a:p>';
       } else if (item.type === 'bullet') {
-        bodyParas += '<a:p><a:pPr marL="342900" indent="-342900"><a:buChar char="\u2022"/><a:spcBef><a:spcPts val="400"/></a:spcBef></a:pPr>'+mdRuns(item.text, 1800, 'CCCCCC')+'</a:p>';
+        bodyParas += '<a:p><a:pPr marL="342900" indent="-342900"><a:buChar char="\u2022"/><a:spcBef><a:spcPts val="400"/></a:spcBef></a:pPr>'+mdRuns(item.text, 1800, tc.text)+'</a:p>';
       } else if (item.type === 'quote') {
-        bodyParas += '<a:p><a:pPr marL="457200"><a:spcBef><a:spcPts val="400"/></a:spcBef></a:pPr><a:r><a:rPr lang="en-US" sz="1800" i="1" dirty="0"><a:solidFill><a:srgbClr val="888888"/></a:solidFill><a:latin typeface="Calibri"/></a:rPr><a:t>'+escXml(item.text)+'</a:t></a:r></a:p>';
+        bodyParas += '<a:p><a:pPr marL="457200"><a:spcBef><a:spcPts val="400"/></a:spcBef></a:pPr><a:r><a:rPr lang="en-US" sz="1800" i="1" dirty="0"><a:solidFill><a:srgbClr val="'+tc.quoteText+'"/></a:solidFill><a:latin typeface="'+escXml(tc.bodyFont)+'"/></a:rPr><a:t>'+escXml(item.text)+'</a:t></a:r></a:p>';
       } else if (item.type === 'code') {
         var codeLines = item.text.split('\n');
         for (var cl = 0; cl < codeLines.length; cl++) {
-          bodyParas += '<a:p><a:pPr><a:spcBef><a:spcPts val="0"/></a:spcBef></a:pPr><a:r><a:rPr lang="en-US" sz="1400" dirty="0"><a:solidFill><a:srgbClr val="CCCCCC"/></a:solidFill><a:latin typeface="Consolas"/></a:rPr><a:t>'+escXml(codeLines[cl])+'</a:t></a:r></a:p>';
+          bodyParas += '<a:p><a:pPr><a:spcBef><a:spcPts val="0"/></a:spcBef></a:pPr><a:r><a:rPr lang="en-US" sz="1400" dirty="0"><a:solidFill><a:srgbClr val="'+tc.text+'"/></a:solidFill><a:latin typeface="'+escXml(tc.codeFont)+'"/></a:rPr><a:t>'+escXml(codeLines[cl])+'</a:t></a:r></a:p>';
         }
       } else {
-        bodyParas += '<a:p><a:pPr><a:spcBef><a:spcPts val="400"/></a:spcBef></a:pPr>'+mdRuns(item.text, 1800, 'CCCCCC')+'</a:p>';
+        bodyParas += '<a:p><a:pPr><a:spcBef><a:spcPts val="400"/></a:spcBef></a:pPr>'+mdRuns(item.text, 1800, tc.text)+'</a:p>';
       }
     }
     var bodyH = H - yPos - 457200;
     shapes += '<p:sp><p:nvSpPr><p:cNvPr id="'+(shapeId++)+'" name="Body"/><p:cNvSpPr><a:spLocks noGrp="1"/></p:cNvSpPr><p:nvPr/></p:nvSpPr><p:spPr><a:xfrm><a:off x="457200" y="'+yPos+'"/><a:ext cx="11277600" cy="'+bodyH+'"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></p:spPr><p:txBody><a:bodyPr anchor="t" lIns="91440" tIns="45720" rIns="91440" bIns="45720"/><a:lstStyle/>'+bodyParas+'</p:txBody></p:sp>';
   }
 
-  return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<p:sld xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"><p:cSld><p:bg><p:bgPr><a:solidFill><a:srgbClr val="0A0A0A"/></a:solidFill><a:effectLst/></p:bgPr></p:bg><p:spTree><p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr><p:grpSpPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="0" cy="0"/><a:chOff x="0" y="0"/><a:chExt cx="0" cy="0"/></a:xfrm></p:grpSpPr>'+shapes+'</p:spTree></p:cSld></p:sld>';
+  return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<p:sld xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"><p:cSld><p:bg><p:bgPr><a:solidFill><a:srgbClr val="'+tc.bg+'"/></a:solidFill><a:effectLst/></p:bgPr></p:bg><p:spTree><p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr><p:grpSpPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="0" cy="0"/><a:chOff x="0" y="0"/><a:chExt cx="0" cy="0"/></a:xfrm></p:grpSpPr>'+shapes+'</p:spTree></p:cSld></p:sld>';
 }
 
 window.exportDeck = function() {
