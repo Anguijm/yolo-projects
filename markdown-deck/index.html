@@ -34,6 +34,8 @@ textarea:focus { outline: none; }
 .slide em { color: #fbbf24; }
 .slide hr { border: none; border-top: 1px solid #333; margin: 1rem 0; }
 .slide a { color: #60a5fa; }
+.columns { display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; align-items: start; flex: 1; }
+.columns .col { min-width: 0; }
 /* Presentation mode */
 .present-mode { display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: #0a0a0a; z-index: 1000; }
 .present-mode.active { display: flex; align-items: center; justify-content: center; }
@@ -50,6 +52,8 @@ textarea:focus { outline: none; }
 .present-slide strong { color: #fff; }
 .present-slide em { color: #fbbf24; }
 .present-slide a { color: #60a5fa; }
+.present-slide .columns { display: grid; grid-template-columns: 1fr 1fr; gap: 3rem; align-items: start; flex: 1; }
+.present-slide .columns .col { min-width: 0; }
 .slide del, .present-slide del { color: #666; text-decoration: line-through; }
 .slide mark, .present-slide mark { background: rgba(250,204,21,0.25); color: #fbbf24; padding: 0.1rem 0.3rem; border-radius: 3px; }
 .slide sup, .present-slide sup { font-size: 0.7em; vertical-align: super; }
@@ -134,6 +138,20 @@ def hello():
 > The best presentation is the one
 > you actually make. Multi-line
 > blockquotes just work.
+
+---
+
+## Two-Column Layout
+
+- Left column bullet
+- Another point
+- Third item
+
+|||
+
+- Right column bullet
+- Comparison data
+- Use `|||` to split
 
 ---
 
@@ -368,6 +386,25 @@ function md(text) {
   html = html.replace(/__CODEBLOCK_(\d+)__/g, function(_, i) { return codeBlocks[i]; });
   html = html.replace(/__INLINE_(\d+)__/g, function(_, i) { return inlineCodes[i]; });
   html = html.replace(/__TABLE_(\d+)__/g, function(_, i) { return tableBlocks[i]; });
+
+  // 9. Two-column layout: split on ||| separator
+  if (html.indexOf('|||') >= 0) {
+    // Find top-level content before first |||, and split the rest
+    // Strategy: extract any leading heading as slide title, then wrap columns
+    var parts = html.split(/\n?<p>\|\|\|<\/p>\n?|\n?\|\|\|\n?/);
+    if (parts.length >= 2) {
+      // Check if first part starts with a heading — keep it above columns
+      var titleHtml = '';
+      var leftContent = parts[0];
+      var headingMatch = leftContent.match(/^(\s*<h[1-3]>[\s\S]*?<\/h[1-3]>)\s*/);
+      if (headingMatch) {
+        titleHtml = headingMatch[1];
+        leftContent = leftContent.substring(headingMatch[0].length);
+      }
+      var rightContent = parts.slice(1).join('');
+      html = titleHtml + '<div class="columns"><div class="col">' + leftContent + '</div><div class="col">' + rightContent + '</div></div>';
+    }
+  }
 
   return html;
 }
@@ -711,14 +748,11 @@ var EMU_IN = 914400, PT = 12700;
 function escXml(s) { return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 
 // Parse markdown slide into structured elements
-function parseSlideContent(src) {
-  var lines = src.split('\n');
-  var title = '', subtitle = '', body = [];
+function parseBodyLines(lines) {
+  var body = [];
   for (var i = 0; i < lines.length; i++) {
     var l = lines[i];
-    if (/^# /.test(l) && !title) { title = l.replace(/^# /, ''); }
-    else if (/^## /.test(l) && !subtitle) { subtitle = l.replace(/^## /, ''); }
-    else if (/^### /.test(l)) { body.push({ type: 'heading', text: l.replace(/^### /, '') }); }
+    if (/^### /.test(l)) { body.push({ type: 'heading', text: l.replace(/^### /, '') }); }
     else if (/^> /.test(l)) { body.push({ type: 'quote', text: l.replace(/^> /, '') }); }
     else if (/^```/.test(l)) {
       var code = [];
@@ -730,7 +764,43 @@ function parseSlideContent(src) {
     else if (/^\d+\. /.test(l)) { body.push({ type: 'bullet', text: l.replace(/^\d+\. /, '') }); }
     else if (l.trim()) { body.push({ type: 'text', text: l.trim() }); }
   }
-  return { title: title, subtitle: subtitle, body: body };
+  return body;
+}
+
+function parseSlideContent(src) {
+  var lines = src.split('\n');
+  var title = '', subtitle = '';
+  var bodyStart = 0;
+
+  // Extract title and subtitle from top
+  for (var i = 0; i < lines.length; i++) {
+    var l = lines[i];
+    if (/^# /.test(l) && !title) { title = l.replace(/^# /, ''); bodyStart = i + 1; }
+    else if (/^## /.test(l) && !subtitle) { subtitle = l.replace(/^## /, ''); bodyStart = i + 1; }
+    else if (l.trim()) break;
+  }
+
+  var remaining = lines.slice(bodyStart);
+
+  // Check for two-column layout (||| separator)
+  var colIdx = -1;
+  for (var j = 0; j < remaining.length; j++) {
+    if (remaining[j].trim() === '|||') { colIdx = j; break; }
+  }
+
+  if (colIdx >= 0) {
+    var leftLines = remaining.slice(0, colIdx);
+    var rightLines = remaining.slice(colIdx + 1);
+    return {
+      title: title, subtitle: subtitle,
+      columns: true,
+      left: parseBodyLines(leftLines),
+      right: parseBodyLines(rightLines),
+      body: []
+    };
+  }
+
+  return { title: title, subtitle: subtitle, columns: false, body: parseBodyLines(remaining) };
 }
 
 // Convert inline markdown to PPTX runs
@@ -788,27 +858,42 @@ function buildSlideXml(parsed, idx) {
     yPos += 700000;
   }
 
-  // Body content
-  if (parsed.body.length > 0) {
-    var bodyParas = '';
-    for (var i = 0; i < parsed.body.length; i++) {
-      var item = parsed.body[i];
+  // Body content helper
+  function bodyToParas(items) {
+    var paras = '';
+    for (var i = 0; i < items.length; i++) {
+      var item = items[i];
       if (item.type === 'heading') {
-        bodyParas += '<a:p><a:pPr><a:spcBef><a:spcPts val="600"/></a:spcBef></a:pPr>'+mdRuns(item.text, 2200, tc.accent)+'</a:p>';
+        paras += '<a:p><a:pPr><a:spcBef><a:spcPts val="600"/></a:spcBef></a:pPr>'+mdRuns(item.text, 2200, tc.accent)+'</a:p>';
       } else if (item.type === 'bullet') {
-        bodyParas += '<a:p><a:pPr marL="342900" indent="-342900"><a:buChar char="\u2022"/><a:spcBef><a:spcPts val="400"/></a:spcBef></a:pPr>'+mdRuns(item.text, 1800, tc.text)+'</a:p>';
+        paras += '<a:p><a:pPr marL="342900" indent="-342900"><a:buChar char="\u2022"/><a:spcBef><a:spcPts val="400"/></a:spcBef></a:pPr>'+mdRuns(item.text, 1800, tc.text)+'</a:p>';
       } else if (item.type === 'quote') {
-        bodyParas += '<a:p><a:pPr marL="457200"><a:spcBef><a:spcPts val="400"/></a:spcBef></a:pPr><a:r><a:rPr lang="en-US" sz="1800" i="1" dirty="0"><a:solidFill><a:srgbClr val="'+tc.quoteText+'"/></a:solidFill><a:latin typeface="'+escXml(tc.bodyFont)+'"/></a:rPr><a:t>'+escXml(item.text)+'</a:t></a:r></a:p>';
+        paras += '<a:p><a:pPr marL="457200"><a:spcBef><a:spcPts val="400"/></a:spcBef></a:pPr><a:r><a:rPr lang="en-US" sz="1800" i="1" dirty="0"><a:solidFill><a:srgbClr val="'+tc.quoteText+'"/></a:solidFill><a:latin typeface="'+escXml(tc.bodyFont)+'"/></a:rPr><a:t>'+escXml(item.text)+'</a:t></a:r></a:p>';
       } else if (item.type === 'code') {
         var codeLines = item.text.split('\n');
         for (var cl = 0; cl < codeLines.length; cl++) {
-          bodyParas += '<a:p><a:pPr><a:spcBef><a:spcPts val="0"/></a:spcBef></a:pPr><a:r><a:rPr lang="en-US" sz="1400" dirty="0"><a:solidFill><a:srgbClr val="'+tc.text+'"/></a:solidFill><a:latin typeface="'+escXml(tc.codeFont)+'"/></a:rPr><a:t>'+escXml(codeLines[cl])+'</a:t></a:r></a:p>';
+          paras += '<a:p><a:pPr><a:spcBef><a:spcPts val="0"/></a:spcBef></a:pPr><a:r><a:rPr lang="en-US" sz="1400" dirty="0"><a:solidFill><a:srgbClr val="'+tc.text+'"/></a:solidFill><a:latin typeface="'+escXml(tc.codeFont)+'"/></a:rPr><a:t>'+escXml(codeLines[cl])+'</a:t></a:r></a:p>';
         }
       } else {
-        bodyParas += '<a:p><a:pPr><a:spcBef><a:spcPts val="400"/></a:spcBef></a:pPr>'+mdRuns(item.text, 1800, tc.text)+'</a:p>';
+        paras += '<a:p><a:pPr><a:spcBef><a:spcPts val="400"/></a:spcBef></a:pPr>'+mdRuns(item.text, 1800, tc.text)+'</a:p>';
       }
     }
-    var bodyH = H - yPos - 457200;
+    return paras;
+  }
+
+  var bodyH = H - yPos - 457200;
+
+  if (parsed.columns && parsed.left && parsed.right) {
+    // Two-column layout: left half and right half as separate text boxes
+    var colW = 5400000; // ~47% of slide width each
+    var gap = 228600;   // ~0.25in gap
+    var leftParas = bodyToParas(parsed.left);
+    var rightParas = bodyToParas(parsed.right);
+    shapes += '<p:sp><p:nvSpPr><p:cNvPr id="'+(shapeId++)+'" name="Left Column"/><p:cNvSpPr><a:spLocks noGrp="1"/></p:cNvSpPr><p:nvPr/></p:nvSpPr><p:spPr><a:xfrm><a:off x="457200" y="'+yPos+'"/><a:ext cx="'+colW+'" cy="'+bodyH+'"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></p:spPr><p:txBody><a:bodyPr anchor="t" lIns="91440" tIns="45720" rIns="91440" bIns="45720"/><a:lstStyle/>'+leftParas+'</p:txBody></p:sp>';
+    shapes += '<p:sp><p:nvSpPr><p:cNvPr id="'+(shapeId++)+'" name="Right Column"/><p:cNvSpPr><a:spLocks noGrp="1"/></p:cNvSpPr><p:nvPr/></p:nvSpPr><p:spPr><a:xfrm><a:off x="'+(457200 + colW + gap)+'" y="'+yPos+'"/><a:ext cx="'+colW+'" cy="'+bodyH+'"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></p:spPr><p:txBody><a:bodyPr anchor="t" lIns="91440" tIns="45720" rIns="91440" bIns="45720"/><a:lstStyle/>'+rightParas+'</p:txBody></p:sp>';
+  } else if (parsed.body.length > 0) {
+    // Single-column layout
+    var bodyParas = bodyToParas(parsed.body);
     shapes += '<p:sp><p:nvSpPr><p:cNvPr id="'+(shapeId++)+'" name="Body"/><p:cNvSpPr><a:spLocks noGrp="1"/></p:cNvSpPr><p:nvPr/></p:nvSpPr><p:spPr><a:xfrm><a:off x="457200" y="'+yPos+'"/><a:ext cx="11277600" cy="'+bodyH+'"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></p:spPr><p:txBody><a:bodyPr anchor="t" lIns="91440" tIns="45720" rIns="91440" bIns="45720"/><a:lstStyle/>'+bodyParas+'</p:txBody></p:sp>';
   }
 
