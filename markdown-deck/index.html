@@ -19,7 +19,9 @@ body { font-family: 'SF Mono', 'Fira Code', monospace; background: #0a0a0a; colo
 textarea { flex: 1; background: #0a0a0a; border: none; color: #ccc; padding: 1rem; font-family: inherit; font-size: 0.85rem; resize: none; line-height: 1.6; tab-size: 2; }
 textarea:focus { outline: none; }
 .slide-container { flex: 1; display: flex; align-items: center; justify-content: center; padding: 1rem; overflow: hidden; }
-.slide { width: 100%; max-width: 700px; aspect-ratio: 16/9; background: #0a0a0a; border-radius: 8px; border: 1px solid #222; padding: 3rem; display: flex; flex-direction: column; justify-content: center; overflow: auto; }
+.slide { width: 100%; max-width: 700px; aspect-ratio: 16/9; background: #0a0a0a; border-radius: 8px; border: 1px solid #222; padding: 3rem; display: flex; flex-direction: column; justify-content: center; overflow: auto; position: relative; }
+.slide.has-positioned { justify-content: flex-start; }
+.pos-block { position: absolute; box-sizing: border-box; }
 .slide h1 { font-size: 2rem; color: #fff; margin-bottom: 1rem; line-height: 1.2; }
 .slide h2 { font-size: 1.4rem; color: #60a5fa; margin-bottom: 0.8rem; }
 .slide h3 { font-size: 1.1rem; color: #a78bfa; margin-bottom: 0.6rem; }
@@ -39,7 +41,9 @@ textarea:focus { outline: none; }
 /* Presentation mode */
 .present-mode { display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: #0a0a0a; z-index: 1000; }
 .present-mode.active { display: flex; align-items: center; justify-content: center; }
-.present-slide { width: 90vw; height: 85vh; max-width: 1200px; padding: 4rem 5rem; display: flex; flex-direction: column; justify-content: center; }
+.present-slide { width: 90vw; height: 85vh; max-width: 1200px; padding: 4rem 5rem; display: flex; flex-direction: column; justify-content: center; position: relative; }
+.present-slide.has-positioned { justify-content: flex-start; }
+.present-slide .pos-block { position: absolute; box-sizing: border-box; }
 .present-slide h1 { font-size: 3.5rem; color: #fff; margin-bottom: 1.5rem; }
 .present-slide h2 { font-size: 2.2rem; color: #60a5fa; margin-bottom: 1rem; }
 .present-slide h3 { font-size: 1.6rem; color: #a78bfa; margin-bottom: 0.8rem; }
@@ -152,6 +156,23 @@ def hello():
 - Right column bullet
 - Comparison data
 - Use `|||` to split
+
+---
+
+## Positioned Elements
+
+[@ x:5% y:15% w:40%]
+### Left Block
+- Placed at 5%, 15%
+- Width 40%
+
+[@ x:55% y:15% w:40%]
+### Right Block
+- Placed at 55%, 15%
+- Side by side
+
+[@ x:20% y:75% w:60% align:center]
+*Use `[@ x:... y:... w:...]` to position anything*
 
 ---
 
@@ -387,7 +408,68 @@ function md(text) {
   html = html.replace(/__INLINE_(\d+)__/g, function(_, i) { return inlineCodes[i]; });
   html = html.replace(/__TABLE_(\d+)__/g, function(_, i) { return tableBlocks[i]; });
 
-  // 9. Two-column layout: split on ||| separator
+  // 9. Positioned blocks: [@ x:... y:... w:... h:... align:... size:...]
+  // Split HTML by position directives and wrap each in a positioned div
+  var posRe = /(?:<p>)?\[@\s*((?:[a-z]+:\s*[^\]\s]+\s*)+)\](?:<\/p>)?/g;
+  var posMatch = posRe.exec(html);
+  if (posMatch) {
+    posRe.lastIndex = 0; // reset
+    var segments = [];
+    var lastIdx = 0;
+    var hasPositioned = false;
+
+    while ((posMatch = posRe.exec(html)) !== null) {
+      hasPositioned = true;
+      // Content before this directive (if any, and if it follows a previous directive)
+      if (segments.length > 0) {
+        // Close the previous positioned block with content between last directive and this one
+        segments[segments.length - 1].content = html.substring(segments[segments.length - 1].contentStart, posMatch.index);
+      } else if (posMatch.index > 0) {
+        // Free-flowing content before the first directive — keep as normal flow
+        segments.push({ style: '', content: html.substring(0, posMatch.index), isFlow: true });
+      }
+
+      // Parse directive properties
+      var props = {};
+      var propRe = /([a-z]+):\s*([^\s\]]+)/g;
+      var pm;
+      while ((pm = propRe.exec(posMatch[1])) !== null) {
+        props[pm[1]] = pm[2];
+      }
+
+      var style = 'position:absolute;';
+      if (props.x) style += 'left:' + props.x + ';';
+      if (props.y) style += 'top:' + props.y + ';';
+      if (props.w) style += 'width:' + props.w + ';';
+      if (props.h) style += 'height:' + props.h + ';';
+      if (props.align) style += 'text-align:' + props.align + ';';
+      if (props.size) style += 'font-size:' + props.size + ';';
+
+      segments.push({ style: style, content: '', contentStart: posMatch.index + posMatch[0].length, props: props });
+    }
+
+    // Last segment gets remaining content
+    if (segments.length > 0 && !segments[segments.length - 1].isFlow) {
+      segments[segments.length - 1].content = html.substring(segments[segments.length - 1].contentStart);
+    }
+
+    if (hasPositioned) {
+      var rebuilt = '';
+      for (var si = 0; si < segments.length; si++) {
+        var seg = segments[si];
+        var trimmed = seg.content.trim();
+        if (!trimmed) continue;
+        if (seg.isFlow) {
+          rebuilt += trimmed;
+        } else {
+          rebuilt += '<div class="pos-block" style="' + seg.style + '">' + trimmed + '</div>';
+        }
+      }
+      html = '<div class="pos-flag"></div>' + rebuilt;
+    }
+  }
+
+  // 10. Two-column layout: split on ||| separator
   if (html.indexOf('|||') >= 0) {
     // Find top-level content before first |||, and split the rest
     // Strategy: extract any leading heading as slide title, then wrap columns
@@ -456,6 +538,13 @@ function renderPreview() {
     return;
   }
   previewEl.innerHTML = md(slides[currentSlide]);
+  // Toggle positioned layout mode
+  var slideEl = previewEl.closest('.slide') || previewEl;
+  if (previewEl.querySelector('.pos-flag')) {
+    slideEl.classList.add('has-positioned');
+  } else {
+    slideEl.classList.remove('has-positioned');
+  }
 
   // Thumbnails
   thumbsEl.innerHTML = slides.map((s, i) => {
@@ -467,6 +556,11 @@ function renderPreview() {
 function renderPresent() {
   if (slides.length === 0) return;
   presentSlideEl.innerHTML = md(slides[currentSlide]);
+  if (presentSlideEl.querySelector('.pos-flag')) {
+    presentSlideEl.classList.add('has-positioned');
+  } else {
+    presentSlideEl.classList.remove('has-positioned');
+  }
   document.getElementById('present-counter').textContent = `${currentSlide + 1} / ${slides.length}`;
 }
 
@@ -782,6 +876,36 @@ function parseSlideContent(src) {
 
   var remaining = lines.slice(bodyStart);
 
+  // Check for positioned blocks ([@ ...] directives)
+  var posBlocks = [];
+  var posBlockStart = -1;
+  var posProps = null;
+  for (var j = 0; j < remaining.length; j++) {
+    var posM = remaining[j].match(/^\[@\s*((?:[a-z]+:\s*\S+\s*)+)\]$/);
+    if (posM) {
+      // Close previous block
+      if (posBlockStart >= 0) {
+        posBlocks.push({ props: posProps, lines: remaining.slice(posBlockStart, j) });
+      }
+      posBlockStart = j + 1;
+      posProps = {};
+      var pRe = /([a-z]+):\s*(\S+)/g, pp;
+      while ((pp = pRe.exec(posM[1])) !== null) posProps[pp[1]] = pp[2];
+    }
+  }
+  if (posBlockStart >= 0) {
+    posBlocks.push({ props: posProps, lines: remaining.slice(posBlockStart) });
+  }
+
+  if (posBlocks.length > 0) {
+    return {
+      title: title, subtitle: subtitle,
+      columns: false, positioned: true,
+      blocks: posBlocks.map(function(b) { return { props: b.props, body: parseBodyLines(b.lines) }; }),
+      body: []
+    };
+  }
+
   // Check for two-column layout (||| separator)
   var colIdx = -1;
   for (var j = 0; j < remaining.length; j++) {
@@ -883,7 +1007,20 @@ function buildSlideXml(parsed, idx) {
 
   var bodyH = H - yPos - 457200;
 
-  if (parsed.columns && parsed.left && parsed.right) {
+  if (parsed.positioned && parsed.blocks) {
+    // Positioned blocks — convert % positions to EMU
+    for (var bi = 0; bi < parsed.blocks.length; bi++) {
+      var blk = parsed.blocks[bi];
+      var bp = blk.props;
+      var bx = bp.x ? Math.round(parseFloat(bp.x) / 100 * W) : 457200;
+      var by = bp.y ? Math.round(parseFloat(bp.y) / 100 * H) : yPos;
+      var bw = bp.w ? Math.round(parseFloat(bp.w) / 100 * W) : Math.round(W * 0.4);
+      var bh = bp.h ? Math.round(parseFloat(bp.h) / 100 * H) : Math.round(H * 0.3);
+      var blkParas = bodyToParas(blk.body);
+      if (!blkParas) continue;
+      shapes += '<p:sp><p:nvSpPr><p:cNvPr id="'+(shapeId++)+'" name="Block '+(bi+1)+'"/><p:cNvSpPr><a:spLocks noGrp="1"/></p:cNvSpPr><p:nvPr/></p:nvSpPr><p:spPr><a:xfrm><a:off x="'+bx+'" y="'+by+'"/><a:ext cx="'+bw+'" cy="'+bh+'"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></p:spPr><p:txBody><a:bodyPr anchor="t" lIns="91440" tIns="45720" rIns="91440" bIns="45720"/><a:lstStyle/>'+blkParas+'</p:txBody></p:sp>';
+    }
+  } else if (parsed.columns && parsed.left && parsed.right) {
     // Two-column layout: left half and right half as separate text boxes
     var colW = 5400000; // ~47% of slide width each
     var gap = 228600;   // ~0.25in gap

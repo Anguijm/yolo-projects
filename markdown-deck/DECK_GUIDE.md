@@ -191,11 +191,72 @@ Mention the budget constraint.
 
 ---
 
+## Positioned Elements
+
+Place `[@ x:... y:... w:...]` on its own line to start a positioned block. Everything after it until the next `[@...]` or end of slide goes into that block.
+
+### Syntax
+```
+[@ x:10% y:20% w:45%]
+```
+
+### Properties
+| Property | Description | Example |
+|----------|-------------|---------|
+| `x` | Left position (% of slide width) | `x:10%` |
+| `y` | Top position (% of slide height) | `y:20%` |
+| `w` | Width (% of slide width) | `w:45%` |
+| `h` | Height (% of slide height) | `h:30%` |
+| `align` | Text alignment within block | `align:center` |
+| `size` | Font size override | `size:2rem` |
+
+### Example: Custom Layout
+```
+# Product Launch
+
+[@ x:5% y:25% w:40%]
+### Features
+- Real-time sync
+- Offline support
+- End-to-end encryption
+
+[@ x:55% y:25% w:40%]
+### Pricing
+- Free tier: 1GB
+- Pro: $9/mo, 100GB
+- Enterprise: custom
+
+[@ x:15% y:80% w:70% align:center]
+**Available March 2026** — [Sign up now](https://example.com)
+```
+
+### Example: Title Slide with Positioned Subtitle
+```
+[@ x:10% y:25% w:80%]
+# The Future of AI
+
+[@ x:10% y:55% w:60%]
+A roadmap for the next decade
+
+[@ x:10% y:75% w:50% size:0.8rem]
+*John Doe — CTO, Acme Corp*
+*March 2026*
+```
+
+### Notes
+- All positions use **percentages** relative to the slide dimensions
+- Positioned blocks work in preview, presentation mode, and PPTX export
+- Mixing positioned and flow content on the same slide is possible — flow content appears normally, positioned blocks overlay on top
+- Don't use `|||` (two-column) and `[@]` (positioning) on the same slide — use positioning to create columns instead
+
+---
+
 ## Slide Separator Reference
 
 ```
 ---        Separates slides (must be on its own line with blank lines above/below)
-|||        Splits content into two columns
+|||        Splits content into two columns (simpler alternative to positioning)
+[@...]     Starts a positioned block (absolute placement on slide)
 ???        Starts speaker notes (hidden from presentation)
 ```
 
