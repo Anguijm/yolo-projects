@@ -2424,3 +2424,12 @@ Persistent knowledge base. Read this before every build.
 - **IMPROVE**: Unclosed multi-line strings/comments need fallback to end-of-string: `(?:"""|$)` not just `"""`
 - **INSIGHT**: For zero-dep syntax highlighting, a regex-based scanner with sticky flag gives 90%+ accuracy at O(N) performance — good enough for presentation code blocks
 - **FEEDER**: `syntaxHighlight(code, lang)` pure function ready for extraction into Markdown Deck code block renderer
+
+### cron-calc (2026-03-30) — TICK #3
+- **BUG**: Cron parsers that omit text alias expansion fail silently on `MON-FRI`, `JAN`, etc. — normalize aliases before numeric parsing using a simple string substitution map.
+- **BUG**: `parseCronField` with step from string (e.g. `*/foo`) — `parseInt('foo')` returns `NaN`, `NaN < 1` is false, and `i += NaN` causes an infinite loop. Always guard `if (isNaN(step) || step < 1) throw`.
+- **BUG**: Sunday=7 is a valid cron convention; `parseCronField(dowF, 0, 6)` rejects it with "out of range". Normalize `\b7\b → 0` in DOW field before parsing.
+- **BUG**: Reversed ranges like `10-5` silently produce empty sets (loop never executes). Add explicit `if (a > b) throw` to surface the mistake to the user.
+- **KEEP**: Pre-compute daily fire arrays at `render()` entry point and thread them down to sub-renderers — eliminates redundant O(jobs * hours * minutes) recalculation in `renderStats`.
+- **KEEP**: Tooltip de-thrash by keying on nearest-minute value: skip `innerHTML` rewrite if `currentTooltipKey` unchanged. Eliminates layout reflow on every mousemove pixel.
+- **INSIGHT**: Multi-track timeline tools need a shared collision map computed before rendering tracks — computing it per-track misses cross-job collisions and wastes cycles.

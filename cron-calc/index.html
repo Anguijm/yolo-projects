@@ -1,0 +1,1209 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="theme-color" content="#000000">
+<title>cron-calc</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body {
+  height: 100%;
+  background: #0a0a0a;
+  overflow-y: auto;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Courier New", monospace;
+  color: #ccc;
+}
+
+:root {
+  --accent: #0ff;
+  --bg-page: #0a0a0a;
+  --bg-surface: #111;
+  --bg-elevated: #1a1a1a;
+  --bg-hover: #222;
+  --text-primary: #fff;
+  --text-body: #ccc;
+  --text-secondary: #aaa;
+  --text-tertiary: #555;
+  --text-label: #444;
+  --border-default: #1a1a1a;
+  --border-active: #444;
+  --border-focus: #555;
+  --color-success: #3fb950;
+  --color-warning: #d29922;
+  --color-error: #f85149;
+  --color-info: #58a6ff;
+}
+
+#app {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 12px;
+}
+
+header {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 10px;
+  border-bottom: 1px solid #1a1a1a;
+  padding-bottom: 8px;
+}
+header h1 {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--accent);
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+}
+header span {
+  font-size: 0.55rem;
+  color: #444;
+  letter-spacing: 0.1em;
+}
+
+.layout {
+  display: grid;
+  grid-template-columns: 320px 1fr;
+  gap: 10px;
+  align-items: start;
+}
+
+@media (max-width: 700px) {
+  .layout { grid-template-columns: 1fr; }
+}
+
+.panel {
+  border: 1px solid #1a1a1a;
+  padding: 8px;
+}
+
+.panel-title {
+  font-size: 0.5rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: #444;
+  margin-bottom: 6px;
+}
+
+textarea {
+  width: 100%;
+  background: #111;
+  border: 1px solid #222;
+  color: #aaa;
+  padding: 6px 8px;
+  font-family: inherit;
+  font-size: 0.7rem;
+  outline: none;
+  resize: vertical;
+  min-height: 160px;
+  line-height: 1.6;
+}
+textarea:focus { border-color: #555; }
+
+.hint {
+  font-size: 0.45rem;
+  color: #333;
+  margin-top: 4px;
+  letter-spacing: 0.05em;
+}
+.hint .hl { color: #555; }
+
+.presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-bottom: 6px;
+}
+.btn {
+  padding: 4px 10px;
+  background: transparent;
+  border: 1px solid #1a1a1a;
+  color: #444;
+  font-family: inherit;
+  font-size: 0.55rem;
+  cursor: pointer;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+.btn:hover { border-color: #444; color: #888; }
+.btn:active { border-color: #555; color: #888; }
+.btn.primary {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.btn.primary:hover { background: rgba(0,255,255,0.05); }
+
+.view-toggle {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 6px;
+}
+.view-toggle .btn.active {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+/* Timeline */
+.timeline-wrap {
+  overflow-x: auto;
+}
+
+.timeline-header {
+  display: flex;
+  align-items: center;
+  margin-bottom: 4px;
+  gap: 8px;
+}
+
+.timeline-title {
+  font-size: 0.5rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: #444;
+}
+
+.stats-row {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 8px;
+  flex-wrap: wrap;
+}
+.stat {
+  font-size: 0.5rem;
+  color: #444;
+  letter-spacing: 0.08em;
+}
+.stat span {
+  color: #aaa;
+}
+.stat.warn span { color: var(--color-warning); }
+.stat.err span { color: var(--color-error); }
+
+/* Canvas-based timeline */
+#timeline-canvas {
+  display: block;
+  width: 100%;
+  cursor: crosshair;
+  image-rendering: pixelated;
+}
+
+/* Legend */
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.5rem;
+  color: #555;
+}
+.legend-swatch {
+  width: 10px;
+  height: 10px;
+  flex-shrink: 0;
+}
+
+/* Tooltip */
+#tooltip {
+  position: fixed;
+  background: #111;
+  border: 1px solid #333;
+  padding: 6px 8px;
+  font-size: 0.55rem;
+  color: #aaa;
+  pointer-events: none;
+  z-index: 100;
+  display: none;
+  max-width: 220px;
+  line-height: 1.6;
+}
+#tooltip .tt-header {
+  color: var(--accent);
+  font-size: 0.6rem;
+  margin-bottom: 3px;
+}
+#tooltip .tt-row {
+  color: #666;
+  margin-top: 2px;
+}
+#tooltip .tt-row span {
+  color: #aaa;
+}
+#tooltip .tt-collision {
+  color: var(--color-error);
+  margin-top: 3px;
+}
+
+/* Error panel */
+.errors {
+  margin-top: 6px;
+}
+.error-row {
+  font-size: 0.55rem;
+  color: var(--color-error);
+  padding: 2px 0;
+  border-bottom: 1px solid #1a1a1a;
+}
+
+/* Job list */
+.job-list {
+  margin-top: 8px;
+}
+.job-row {
+  display: grid;
+  grid-template-columns: 12px 120px 1fr auto;
+  gap: 6px;
+  align-items: center;
+  padding: 3px 0;
+  border-bottom: 1px solid #111;
+  font-size: 0.55rem;
+}
+.job-swatch {
+  width: 10px;
+  height: 10px;
+}
+.job-cron {
+  color: #666;
+  font-size: 0.5rem;
+}
+.job-label {
+  color: #aaa;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.job-count {
+  color: #444;
+  text-align: right;
+  white-space: nowrap;
+}
+
+/* Day view grid */
+.day-grid {
+  overflow-x: auto;
+  margin-top: 8px;
+}
+.day-grid-inner {
+  min-width: 600px;
+}
+.dg-row {
+  display: flex;
+  align-items: center;
+  height: 22px;
+  border-bottom: 1px solid #111;
+  margin-bottom: 1px;
+}
+.dg-label {
+  width: 130px;
+  flex-shrink: 0;
+  font-size: 0.5rem;
+  color: #555;
+  padding-right: 6px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.dg-track {
+  flex: 1;
+  height: 100%;
+  position: relative;
+  background: #0d0d0d;
+}
+.dg-tick {
+  position: absolute;
+  top: 2px;
+  bottom: 2px;
+  width: 3px;
+  transform: translateX(-50%);
+}
+.dg-tick.collision {
+  width: 5px;
+  background: var(--color-error) !important;
+  z-index: 2;
+}
+.dg-hour-line {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: #151515;
+  pointer-events: none;
+}
+
+/* Hour axis */
+.dg-axis {
+  display: flex;
+  margin-left: 130px;
+  margin-bottom: 2px;
+  position: relative;
+  min-width: calc(100% - 130px);
+}
+.dg-axis-label {
+  position: absolute;
+  font-size: 0.4rem;
+  color: #333;
+  transform: translateX(-50%);
+  letter-spacing: 0;
+}
+
+/* Week view */
+.week-grid {
+  overflow-x: auto;
+}
+.wg-header {
+  display: flex;
+  margin-left: 130px;
+  gap: 1px;
+  margin-bottom: 2px;
+}
+.wg-day-label {
+  flex: 1;
+  text-align: center;
+  font-size: 0.4rem;
+  color: #333;
+  letter-spacing: 0.05em;
+}
+.wg-row {
+  display: flex;
+  align-items: center;
+  margin-bottom: 2px;
+}
+.wg-label {
+  width: 130px;
+  flex-shrink: 0;
+  font-size: 0.5rem;
+  color: #555;
+  padding-right: 6px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.wg-days {
+  flex: 1;
+  display: flex;
+  gap: 1px;
+}
+.wg-cell {
+  flex: 1;
+  height: 18px;
+  background: #0d0d0d;
+  border: 1px solid #111;
+  position: relative;
+  overflow: hidden;
+}
+
+/* Collision heat row */
+.collision-row {
+  background: #111;
+  border: 1px solid #1a1a1a;
+  padding: 6px 8px;
+  margin-top: 8px;
+}
+.collision-title {
+  font-size: 0.5rem;
+  color: #444;
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
+  margin-bottom: 4px;
+}
+.collision-list {
+  font-size: 0.5rem;
+}
+.collision-entry {
+  padding: 2px 0;
+  border-bottom: 1px solid #111;
+}
+.collision-time {
+  color: var(--color-error);
+}
+.collision-jobs {
+  color: #555;
+  margin-left: 8px;
+}
+
+/* Empty state */
+.empty {
+  padding: 24px;
+  text-align: center;
+  font-size: 0.6rem;
+  color: #333;
+  letter-spacing: 0.1em;
+}
+
+/* Error message inline */
+.parse-error {
+  font-size: 0.5rem;
+  color: var(--color-error);
+  padding: 2px 0;
+}
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <h1>cron-calc</h1>
+    <span>multi-cron visual timeline</span>
+  </header>
+
+  <div class="layout">
+    <div class="left-col">
+      <div class="panel">
+        <div class="panel-title">Scheduled Jobs</div>
+        <div class="presets">
+          <button class="btn" onclick="loadPreset('web')">WEB SERVER</button>
+          <button class="btn" onclick="loadPreset('db')">DATABASE</button>
+          <button class="btn" onclick="loadPreset('ci')">CI/CD</button>
+          <button class="btn" onclick="loadPreset('mixed')">MIXED</button>
+        </div>
+        <textarea id="jobs-input" spellcheck="false" placeholder="cron-expression  label
+* * * * *  heartbeat
+0 * * * *  hourly-report
+0 0 * * *  nightly-backup
+"></textarea>
+        <div class="hint">
+          Format: <span class="hl">MIN HR DOM MON DOW  label</span><br>
+          One job per line. Lines starting with # are ignored.
+        </div>
+        <div id="parse-errors" class="errors"></div>
+      </div>
+
+      <div class="panel" style="margin-top:8px">
+        <div class="panel-title">View</div>
+        <div class="view-toggle">
+          <button class="btn active" id="btn-day" onclick="setView('day')">24H DAY</button>
+          <button class="btn" id="btn-week" onclick="setView('week')">7-DAY</button>
+        </div>
+        <div id="day-range-row" style="display:flex;align-items:center;gap:6px;margin-top:4px;">
+          <span style="font-size:0.5rem;color:#444;letter-spacing:0.1em;">DATE</span>
+          <input type="date" id="date-picker" style="background:#111;border:1px solid #222;color:#aaa;padding:3px 6px;font-family:inherit;font-size:0.6rem;outline:none;flex:1;">
+        </div>
+      </div>
+
+      <div class="panel" style="margin-top:8px">
+        <div class="panel-title">Statistics</div>
+        <div id="stats" class="stats-row"></div>
+        <div id="job-list" class="job-list"></div>
+      </div>
+    </div>
+
+    <div class="right-col">
+      <div class="panel">
+        <div class="panel-title" id="timeline-panel-title">24-Hour Timeline</div>
+        <div id="view-container">
+          <div class="empty" id="empty-msg">Enter cron expressions on the left to visualize the schedule.</div>
+          <div id="day-view" style="display:none">
+            <div class="dg-axis" id="dg-axis" style="height:14px;"></div>
+            <div class="day-grid" id="day-view-grid"></div>
+          </div>
+          <div id="week-view" style="display:none">
+            <div class="wg-header" id="wg-header"></div>
+            <div id="week-view-grid"></div>
+          </div>
+        </div>
+        <div class="legend" id="legend"></div>
+      </div>
+
+      <div id="collision-panel" style="display:none" class="collision-row">
+        <div class="collision-title">Collisions (same minute)</div>
+        <div id="collision-list" class="collision-list"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="tooltip"></div>
+
+<script>
+(function() {
+  'use strict';
+
+  // CONFIG
+  const CONFIG = {
+    COLORS: [
+      '#0ff','#f0f','#ff0','#0f8','#f80','#80f','#0af','#f0a',
+      '#af0','#fa0','#0fa','#a0f','#5f5','#f55','#55f','#ff5'
+    ],
+    COLLISION_COLOR: '#f85149',
+    TRACK_HEIGHT: 22,
+    TICK_WIDTH: 3,
+    MIN_PER_DAY: 1440,
+    DAYS: ['SUN','MON','TUE','WED','THU','FRI','SAT'],
+    DOW_NAMES: ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'],
+  };
+
+  const PRESETS = {
+    web: `0 * * * *  health-check
+*/5 * * * *  cache-warm
+0 2 * * *  log-rotate
+30 3 * * *  ssl-renew
+0 0 * * 0  weekly-report
+*/15 * * * *  cdn-purge`,
+    db: `0 1 * * *  full-backup
+0 */4 * * *  incremental-backup
+*/30 * * * *  vacuum
+0 0 * * 0  index-rebuild
+0 6 * * *  stats-analyze
+15 2 * * *  archive-old`,
+    ci: `0 */2 * * *  build-main
+30 * * * *  run-tests
+0 4 * * 1-5  nightly-deploy
+0 8 * * 1  weekly-scan
+*/10 * * * *  poll-queue
+0 0 1 * *  monthly-release`,
+    mixed: `* * * * *  heartbeat
+*/5 * * * *  metrics-push
+0 * * * *  hourly-rollup
+0 2 * * *  nightly-backup
+0 9 * * 1-5  morning-report
+30 17 * * 5  weekend-prep
+0 0 1 * *  billing-run
+0 3 * * 0  db-cleanup`,
+  };
+
+  // State
+  let jobs = [];
+  let view = 'day';
+  let selectedDate = new Date();
+  let tooltip = document.getElementById('tooltip');
+  let currentTooltipKey = null; // for tooltip de-thrashing
+
+  // Initialize date picker to today
+  const dp = document.getElementById('date-picker');
+  dp.value = fmtDateInput(new Date());
+  dp.addEventListener('change', () => {
+    selectedDate = dp.value ? new Date(dp.value + 'T00:00:00') : new Date();
+    render();
+  });
+
+  function fmtDateInput(d) {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const dy = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${dy}`;
+  }
+
+  // ── Cron Parser ──────────────────────────────────────────────────────────
+
+  // Text aliases for month and day-of-week fields
+  const MONTH_ALIASES = { JAN:1, FEB:2, MAR:3, APR:4, MAY:5, JUN:6, JUL:7, AUG:8, SEP:9, OCT:10, NOV:11, DEC:12 };
+  const DOW_ALIASES   = { SUN:0, MON:1, TUE:2, WED:3, THU:4, FRI:5, SAT:6 };
+
+  function normalizeAliases(field, aliases) {
+    let f = field.toUpperCase();
+    for (const [key, val] of Object.entries(aliases)) {
+      f = f.split(key).join(String(val));
+    }
+    return f;
+  }
+
+  // Normalize Sunday=7 to Sunday=0
+  function normalizeSunday7(field) {
+    // Replace standalone 7 (not part of larger number) with 0
+    return field.replace(/\b7\b/g, '0');
+  }
+
+  function parseCronField(field, min, max) {
+    // Returns Set of matching values in [min, max]
+    const values = new Set();
+
+    const parts = field.split(',');
+    for (const part of parts) {
+      if (part === '*') {
+        for (let i = min; i <= max; i++) values.add(i);
+        continue;
+      }
+      const stepMatch = part.match(/^(.+)\/(\d+)$/);
+      if (stepMatch) {
+        const step = parseInt(stepMatch[2], 10);
+        if (isNaN(step) || step < 1) throw new Error(`Invalid step: ${part}`);
+        const rangeStr = stepMatch[1];
+        let start = min;
+        if (rangeStr === '*') {
+          start = min;
+        } else if (rangeStr.includes('-')) {
+          const [a, b] = rangeStr.split('-').map(Number);
+          if (isNaN(a) || isNaN(b) || a > b) throw new Error(`Invalid range: ${rangeStr}`);
+          start = a;
+        } else {
+          start = parseInt(rangeStr, 10);
+          if (isNaN(start)) throw new Error(`Invalid value: ${rangeStr}`);
+        }
+        for (let i = start; i <= max; i += step) {
+          if (i >= min) values.add(i);
+        }
+        continue;
+      }
+      if (part.includes('-')) {
+        const [a, b] = part.split('-').map(Number);
+        if (isNaN(a) || isNaN(b)) throw new Error(`Invalid range: ${part}`);
+        if (a > b) throw new Error(`Invalid range (start > end): ${part}`);
+        for (let i = a; i <= b; i++) {
+          if (i >= min && i <= max) values.add(i);
+        }
+        continue;
+      }
+      const n = parseInt(part, 10);
+      if (isNaN(n)) throw new Error(`Invalid value: ${part}`);
+      if (n < min || n > max) throw new Error(`Value ${n} out of range [${min},${max}]`);
+      values.add(n);
+    }
+    return values;
+  }
+
+  function parseCron(expr) {
+    // Returns { mins, hours, doms, months, dows } as Sets
+    const parts = expr.trim().split(/\s+/);
+    if (parts.length !== 5) throw new Error(`Expected 5 fields, got ${parts.length}`);
+    const [minF, hrF, domF, monF, dowF] = parts;
+    // Normalize text aliases and Sunday=7
+    const monNorm = normalizeAliases(monF, MONTH_ALIASES);
+    const dowNorm = normalizeSunday7(normalizeAliases(dowF, DOW_ALIASES));
+    return {
+      mins:   parseCronField(minF, 0, 59),
+      hours:  parseCronField(hrF,  0, 23),
+      doms:   parseCronField(domF, 1, 31),
+      months: parseCronField(monNorm, 1, 12),
+      dows:   parseCronField(dowNorm, 0, 6),
+    };
+  }
+
+  // Get all fire minutes (0..1439) for a given date
+  function getFireMinutesForDate(parsed, date) {
+    const dom = date.getDate();
+    const month = date.getMonth() + 1;
+    const dow = date.getDay(); // 0=Sun
+
+    if (!parsed.months.has(month)) return [];
+    if (!parsed.doms.has(dom) && !parsed.dows.has(dow)) return [];
+    // Standard cron: dom OR dow (when both are restricted, match either)
+    // But if both are *, then no restriction
+    const domRestricted = !isAllValues(parsed.doms, 1, 31);
+    const dowRestricted = !isAllValues(parsed.dows, 0, 6);
+    let dayMatch = false;
+    if (!domRestricted && !dowRestricted) {
+      dayMatch = true;
+    } else if (domRestricted && dowRestricted) {
+      dayMatch = parsed.doms.has(dom) || parsed.dows.has(dow);
+    } else if (domRestricted) {
+      dayMatch = parsed.doms.has(dom);
+    } else {
+      dayMatch = parsed.dows.has(dow);
+    }
+    if (!dayMatch) return [];
+
+    const minutes = [];
+    for (const h of parsed.hours) {
+      for (const m of parsed.mins) {
+        minutes.push(h * 60 + m);
+      }
+    }
+    minutes.sort((a, b) => a - b);
+    return minutes;
+  }
+
+  function isAllValues(set, min, max) {
+    for (let i = min; i <= max; i++) {
+      if (!set.has(i)) return false;
+    }
+    return true;
+  }
+
+  // Get fire minutes for a week starting at weekStart date
+  function getFireMinutesForWeek(parsed, weekStart) {
+    const result = []; // array of 7 arrays
+    for (let d = 0; d < 7; d++) {
+      const date = new Date(weekStart);
+      date.setDate(date.getDate() + d);
+      result.push(getFireMinutesForDate(parsed, date));
+    }
+    return result;
+  }
+
+  // ── Parse Input ──────────────────────────────────────────────────────────
+  function parseInput(text) {
+    const lines = text.split('\n');
+    const result = [];
+    const errors = [];
+
+    for (let i = 0; i < lines.length; i++) {
+      const raw = lines[i];
+      const line = raw.trim();
+      if (!line || line.startsWith('#')) continue;
+
+      // Split into cron (5 fields) + label
+      const tokens = line.split(/\s+/);
+      if (tokens.length < 5) {
+        errors.push({ line: i + 1, msg: `Line ${i + 1}: Expected at least 5 cron fields` });
+        continue;
+      }
+      const cronExpr = tokens.slice(0, 5).join(' ');
+      const label = tokens.slice(5).join(' ') || cronExpr;
+
+      try {
+        const parsed = parseCron(cronExpr);
+        result.push({ expr: cronExpr, label, parsed });
+      } catch (e) {
+        errors.push({ line: i + 1, msg: `Line ${i + 1}: ${e.message}` });
+      }
+    }
+    return { jobs: result, errors };
+  }
+
+  // ── Render ───────────────────────────────────────────────────────────────
+  function render() {
+    const text = document.getElementById('jobs-input').value;
+    const { jobs: parsed, errors } = parseInput(text);
+    jobs = parsed;
+
+    // Show errors
+    const errDiv = document.getElementById('parse-errors');
+    errDiv.innerHTML = errors.map(e => `<div class="parse-error">${e.msg}</div>`).join('');
+
+    if (jobs.length === 0) {
+      document.getElementById('empty-msg').style.display = 'block';
+      document.getElementById('day-view').style.display = 'none';
+      document.getElementById('week-view').style.display = 'none';
+      document.getElementById('legend').innerHTML = '';
+      document.getElementById('stats').innerHTML = '';
+      document.getElementById('job-list').innerHTML = '';
+      document.getElementById('collision-panel').style.display = 'none';
+      return;
+    }
+
+    document.getElementById('empty-msg').style.display = 'none';
+
+    // Pre-compute daily fires once — reused by renderDayView and renderStats
+    const date = selectedDate;
+    const dailyFires = jobs.map(j => ({
+      ...j,
+      minutes: getFireMinutesForDate(j.parsed, date)
+    }));
+
+    if (view === 'day') {
+      renderDayView(dailyFires);
+    } else {
+      renderWeekView();
+    }
+
+    renderLegend();
+    renderStats(dailyFires);
+  }
+
+  // ── Day View ─────────────────────────────────────────────────────────────
+  function renderDayView(jobFires) {
+    document.getElementById('day-view').style.display = 'block';
+    document.getElementById('week-view').style.display = 'none';
+
+    const date = selectedDate;
+    document.getElementById('timeline-panel-title').textContent =
+      `24-Hour Timeline — ${date.toLocaleDateString('en-US', { weekday:'short', month:'short', day:'numeric', year:'numeric' })}`;
+
+    // Build axis
+    buildAxis();
+
+    // Build rows
+    const grid = document.getElementById('day-view-grid');
+    grid.innerHTML = '';
+
+    // Collision map: minute -> [job indices]
+    const collisionMap = new Map();
+    jobFires.forEach((j, idx) => {
+      j.minutes.forEach(m => {
+        if (!collisionMap.has(m)) collisionMap.set(m, []);
+        collisionMap.get(m).push(idx);
+      });
+    });
+
+    jobFires.forEach((j, idx) => {
+      const color = CONFIG.COLORS[idx % CONFIG.COLORS.length];
+      const row = document.createElement('div');
+      row.className = 'dg-row';
+
+      const label = document.createElement('div');
+      label.className = 'dg-label';
+      label.textContent = j.label;
+      label.title = j.expr;
+      label.style.color = color;
+
+      const track = document.createElement('div');
+      track.className = 'dg-track';
+
+      // Hour lines
+      for (let h = 1; h < 24; h++) {
+        const line = document.createElement('div');
+        line.className = 'dg-hour-line';
+        line.style.left = (h / 24 * 100) + '%';
+        track.appendChild(line);
+      }
+
+      // Ticks
+      j.minutes.forEach(m => {
+        const pct = m / CONFIG.MIN_PER_DAY * 100;
+        const tick = document.createElement('div');
+        tick.className = 'dg-tick';
+        const isCollision = collisionMap.get(m).length > 1;
+        if (isCollision) {
+          tick.classList.add('collision');
+        } else {
+          tick.style.background = color;
+          tick.style.width = CONFIG.TICK_WIDTH + 'px';
+        }
+        tick.style.left = pct + '%';
+        tick.dataset.minute = m;
+        tick.dataset.jobIdx = idx;
+        track.appendChild(tick);
+      });
+
+      // Track hover
+      track.addEventListener('mousemove', (e) => showDayTooltip(e, jobFires, collisionMap));
+      track.addEventListener('mouseleave', hideTooltip);
+
+      row.appendChild(label);
+      row.appendChild(track);
+      grid.appendChild(row);
+    });
+
+    renderCollisions(collisionMap, jobFires);
+  }
+
+  function buildAxis() {
+    const axis = document.getElementById('dg-axis');
+    axis.innerHTML = '';
+    axis.style.position = 'relative';
+    for (let h = 0; h <= 24; h += 2) {
+      const lbl = document.createElement('div');
+      lbl.className = 'dg-axis-label';
+      lbl.style.left = (h / 24 * 100) + '%';
+      lbl.textContent = h === 24 ? '' : String(h).padStart(2, '0') + ':00';
+      axis.appendChild(lbl);
+    }
+  }
+
+  function showDayTooltip(e, jobFires, collisionMap) {
+    const track = e.currentTarget;
+    const rect = track.getBoundingClientRect();
+    const pct = (e.clientX - rect.left) / rect.width;
+    const minute = Math.round(pct * CONFIG.MIN_PER_DAY);
+    const clampedMin = Math.max(0, Math.min(CONFIG.MIN_PER_DAY - 1, minute));
+
+    // Find nearest tick within 5 min
+    let nearest = null;
+    let nearestDist = Infinity;
+    jobFires.forEach((j, idx) => {
+      j.minutes.forEach(m => {
+        const dist = Math.abs(m - clampedMin);
+        if (dist < nearestDist && dist <= 5) {
+          nearestDist = dist;
+          nearest = { m, idx };
+        }
+      });
+    });
+
+    const tt = document.getElementById('tooltip');
+    const ttKey = nearest ? `d:${nearest.m}` : `d:t${clampedMin}`;
+    tt.style.display = 'block';
+    tt.style.left = (e.clientX + 12) + 'px';
+    tt.style.top = (e.clientY - 10) + 'px';
+    if (ttKey === currentTooltipKey) return; // avoid DOM thrash
+    currentTooltipKey = ttKey;
+
+    if (!nearest) {
+      // Show time cursor
+      const h = Math.floor(clampedMin / 60);
+      const mn = clampedMin % 60;
+      tt.innerHTML = `<div class="tt-row" style="color:#555">${String(h).padStart(2,'0')}:${String(mn).padStart(2,'0')}</div>`;
+    } else {
+      const h = Math.floor(nearest.m / 60);
+      const mn = nearest.m % 60;
+      const timeStr = `${String(h).padStart(2,'0')}:${String(mn).padStart(2,'0')}`;
+      const jobs_at = collisionMap.get(nearest.m) || [];
+      const jobsHtml = jobs_at.map(i =>
+        `<div class="tt-row"><span>${jobFires[i].label}</span></div>`
+      ).join('');
+      const collision = jobs_at.length > 1;
+      tt.innerHTML = `
+        <div class="tt-header">${timeStr}</div>
+        ${jobsHtml}
+        ${collision ? `<div class="tt-collision">&#9889; ${jobs_at.length} jobs collide</div>` : ''}
+      `;
+    }
+  }
+
+  function hideTooltip() {
+    document.getElementById('tooltip').style.display = 'none';
+    currentTooltipKey = null;
+  }
+
+  // ── Week View ────────────────────────────────────────────────────────────
+  function renderWeekView() {
+    document.getElementById('day-view').style.display = 'none';
+    document.getElementById('week-view').style.display = 'block';
+
+    // Week starts on the Sunday of selectedDate's week
+    const weekStart = new Date(selectedDate);
+    weekStart.setDate(weekStart.getDate() - weekStart.getDay());
+
+    document.getElementById('timeline-panel-title').textContent =
+      `7-Day Timeline — Week of ${weekStart.toLocaleDateString('en-US', { month:'short', day:'numeric' })}`;
+
+    // Day labels
+    const header = document.getElementById('wg-header');
+    header.innerHTML = '';
+    for (let d = 0; d < 7; d++) {
+      const dayDate = new Date(weekStart);
+      dayDate.setDate(dayDate.getDate() + d);
+      const lbl = document.createElement('div');
+      lbl.className = 'wg-day-label';
+      lbl.textContent = CONFIG.DAYS[d] + ' ' + dayDate.getDate();
+      header.appendChild(lbl);
+    }
+
+    // Build per-job weekly fires
+    const jobWeekFires = jobs.map((j, idx) => ({
+      ...j,
+      weekFires: getFireMinutesForWeek(j.parsed, weekStart),
+      color: CONFIG.COLORS[idx % CONFIG.COLORS.length]
+    }));
+
+    // Collision map per day: minute -> [job idx]
+    const dayCollisions = Array.from({length: 7}, () => new Map());
+    jobWeekFires.forEach((j, idx) => {
+      j.weekFires.forEach((mins, d) => {
+        mins.forEach(m => {
+          if (!dayCollisions[d].has(m)) dayCollisions[d].set(m, []);
+          dayCollisions[d].get(m).push(idx);
+        });
+      });
+    });
+
+    const grid = document.getElementById('week-view-grid');
+    grid.innerHTML = '';
+
+    jobWeekFires.forEach((j, idx) => {
+      const row = document.createElement('div');
+      row.className = 'wg-row';
+
+      const label = document.createElement('div');
+      label.className = 'wg-label';
+      label.textContent = j.label;
+      label.title = j.expr;
+      label.style.color = j.color;
+
+      const days = document.createElement('div');
+      days.className = 'wg-days';
+
+      for (let d = 0; d < 7; d++) {
+        const cell = document.createElement('div');
+        cell.className = 'wg-cell';
+
+        j.weekFires[d].forEach(m => {
+          const pct = m / CONFIG.MIN_PER_DAY * 100;
+          const tick = document.createElement('div');
+          tick.style.cssText = `position:absolute;top:2px;bottom:2px;left:${pct}%;width:2px;transform:translateX(-50%);`;
+          const isCollision = dayCollisions[d].get(m).length > 1;
+          tick.style.background = isCollision ? CONFIG.COLLISION_COLOR : j.color;
+          tick.dataset.minute = m;
+          tick.dataset.day = d;
+          cell.appendChild(tick);
+        });
+
+        cell.addEventListener('mousemove', (e) => showWeekTooltip(e, d, jobWeekFires, dayCollisions, weekStart));
+        cell.addEventListener('mouseleave', hideTooltip);
+        days.appendChild(cell);
+      }
+
+      row.appendChild(label);
+      row.appendChild(days);
+      grid.appendChild(row);
+    });
+  }
+
+  function showWeekTooltip(e, d, jobWeekFires, dayCollisions, weekStart) {
+    const cell = e.currentTarget;
+    const rect = cell.getBoundingClientRect();
+    const pct = (e.clientX - rect.left) / rect.width;
+    const minute = Math.round(pct * CONFIG.MIN_PER_DAY);
+    const clampedMin = Math.max(0, Math.min(CONFIG.MIN_PER_DAY - 1, minute));
+
+    let nearest = null;
+    let nearestDist = Infinity;
+    jobWeekFires.forEach((j, idx) => {
+      j.weekFires[d].forEach(m => {
+        const dist = Math.abs(m - clampedMin);
+        if (dist < nearestDist && dist <= 5) {
+          nearestDist = dist;
+          nearest = { m, idx };
+        }
+      });
+    });
+
+    const dayDate = new Date(weekStart);
+    dayDate.setDate(dayDate.getDate() + d);
+    const dayStr = dayDate.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+
+    const tt = document.getElementById('tooltip');
+    const ttKey = nearest ? `w:${d}:${nearest.m}` : `w:${d}:t${clampedMin}`;
+    tt.style.display = 'block';
+    tt.style.left = (e.clientX + 12) + 'px';
+    tt.style.top = (e.clientY - 10) + 'px';
+    if (ttKey === currentTooltipKey) return; // avoid DOM thrash
+    currentTooltipKey = ttKey;
+
+    if (!nearest) {
+      const h = Math.floor(clampedMin / 60);
+      const mn = clampedMin % 60;
+      tt.innerHTML = `<div class="tt-header">${dayStr}</div><div class="tt-row" style="color:#555">${String(h).padStart(2,'0')}:${String(mn).padStart(2,'0')}</div>`;
+    } else {
+      const h = Math.floor(nearest.m / 60);
+      const mn = nearest.m % 60;
+      const timeStr = `${String(h).padStart(2,'0')}:${String(mn).padStart(2,'0')}`;
+      const jobs_at = dayCollisions[d].get(nearest.m) || [];
+      const jobsHtml = jobs_at.map(i =>
+        `<div class="tt-row"><span>${jobWeekFires[i].label}</span></div>`
+      ).join('');
+      const collision = jobs_at.length > 1;
+      tt.innerHTML = `
+        <div class="tt-header">${dayStr} ${timeStr}</div>
+        ${jobsHtml}
+        ${collision ? `<div class="tt-collision">&#9889; ${jobs_at.length} jobs collide</div>` : ''}
+      `;
+    }
+  }
+
+  // ── Collision Report ─────────────────────────────────────────────────────
+  function renderCollisions(collisionMap, jobFires) {
+    const collisions = [];
+    collisionMap.forEach((jobIdxs, minute) => {
+      if (jobIdxs.length > 1) {
+        const h = Math.floor(minute / 60);
+        const m = minute % 60;
+        collisions.push({
+          time: `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`,
+          jobs: jobIdxs.map(i => jobFires[i].label)
+        });
+      }
+    });
+    collisions.sort((a, b) => a.time.localeCompare(b.time));
+
+    const panel = document.getElementById('collision-panel');
+    const list = document.getElementById('collision-list');
+
+    if (collisions.length === 0) {
+      panel.style.display = 'none';
+      return;
+    }
+    panel.style.display = 'block';
+    list.innerHTML = collisions.slice(0, 20).map(c =>
+      `<div class="collision-entry">
+        <span class="collision-time">${c.time}</span>
+        <span class="collision-jobs">${c.jobs.join(', ')}</span>
+      </div>`
+    ).join('') + (collisions.length > 20 ? `<div class="collision-entry" style="color:#444">+${collisions.length - 20} more...</div>` : '');
+  }
+
+  // ── Legend ───────────────────────────────────────────────────────────────
+  function renderLegend() {
+    const legend = document.getElementById('legend');
+    legend.innerHTML = jobs.map((j, idx) => {
+      const color = CONFIG.COLORS[idx % CONFIG.COLORS.length];
+      return `<div class="legend-item">
+        <div class="legend-swatch" style="background:${color}"></div>
+        <span style="color:${color}">${j.label}</span>
+      </div>`;
+    }).join('');
+  }
+
+  // ── Stats ────────────────────────────────────────────────────────────────
+  function renderStats(jobFires) {
+    const totalFires = jobFires.reduce((s, j) => s + j.minutes.length, 0);
+
+    // Collisions
+    const collisionMap = new Map();
+    jobFires.forEach((j, idx) => {
+      j.minutes.forEach(m => {
+        if (!collisionMap.has(m)) collisionMap.set(m, []);
+        collisionMap.get(m).push(idx);
+      });
+    });
+    let collisionCount = 0;
+    collisionMap.forEach(arr => { if (arr.length > 1) collisionCount++; });
+
+    // Peak hour
+    const hourCounts = new Array(24).fill(0);
+    jobFires.forEach(j => j.minutes.forEach(m => { hourCounts[Math.floor(m / 60)]++; }));
+    const peakHour = hourCounts.indexOf(Math.max(...hourCounts));
+
+    const statsDiv = document.getElementById('stats');
+    statsDiv.innerHTML = `
+      <div class="stat"><span>${jobs.length}</span> jobs</div>
+      <div class="stat"><span>${totalFires}</span> fires/day</div>
+      <div class="stat ${collisionCount > 0 ? 'err' : ''}"><span>${collisionCount}</span> collisions</div>
+      <div class="stat"><span>${String(peakHour).padStart(2,'0')}:00</span> peak hour</div>
+    `;
+
+    // Job list
+    const jobList = document.getElementById('job-list');
+    jobList.innerHTML = jobFires.map((j, idx) => {
+      const color = CONFIG.COLORS[idx % CONFIG.COLORS.length];
+      return `<div class="job-row">
+        <div class="job-swatch" style="background:${color}"></div>
+        <div class="job-cron" title="${j.expr}">${j.expr}</div>
+        <div class="job-label" style="color:${color}">${j.label}</div>
+        <div class="job-count">${j.minutes.length}/day</div>
+      </div>`;
+    }).join('');
+  }
+
+  // ── Controls ─────────────────────────────────────────────────────────────
+  window.setView = function(v) {
+    view = v;
+    document.getElementById('btn-day').classList.toggle('active', v === 'day');
+    document.getElementById('btn-week').classList.toggle('active', v === 'week');
+    document.getElementById('day-range-row').style.display = v === 'day' ? 'flex' : 'none';
+    render();
+  };
+
+  window.loadPreset = function(name) {
+    document.getElementById('jobs-input').value = PRESETS[name] || '';
+    render();
+  };
+
+  // Live update on input
+  let debounceTimer = null;
+  document.getElementById('jobs-input').addEventListener('input', () => {
+    clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(render, 200);
+  });
+
+  // Keyboard shortcuts
+  document.addEventListener('keydown', (e) => {
+    if (e.target.tagName === 'TEXTAREA' || e.target.tagName === 'INPUT') return;
+    if (e.key === 'd') setView('day');
+    if (e.key === 'w') setView('week');
+  });
+
+  // Tooltip follows mouse globally
+  document.addEventListener('mousemove', (e) => {
+    const tt = document.getElementById('tooltip');
+    if (tt.style.display === 'block') {
+      tt.style.left = (e.clientX + 12) + 'px';
+      tt.style.top = (e.clientY - 10) + 'px';
+    }
+  });
+
+  // Initial render with default preset
+  loadPreset('web');
+
+})();
+</script>
+</body>
+</html>
