@@ -66,6 +66,23 @@ textarea:focus { outline: none; }
 .slide h4, .present-slide h4 { font-size: 1.2rem; color: #888; margin-bottom: 0.4rem; }
 .slide .task, .present-slide .task { list-style: none; margin-left: -1.2em; }
 .code-lang { display: block; font-size: 0.6rem; color: #555; letter-spacing: 0.1em; margin-bottom: -0.2rem; text-transform: uppercase; }
+/* Syntax highlighting tokens */
+.sg-keyword  { color: #c678dd; }
+.sg-string   { color: #98c379; }
+.sg-number   { color: #d19a66; }
+.sg-comment  { color: #5c6370; font-style: italic; }
+.sg-function { color: #61afef; }
+.sg-operator { color: #56b6c2; }
+.sg-type     { color: #e5c07b; }
+.sg-builtin  { color: #e5c07b; }
+.sg-tag      { color: #e06c75; }
+.sg-attr     { color: #d19a66; }
+.sg-property { color: #e06c75; }
+.sg-selector { color: #e06c75; }
+.sg-value    { color: #98c379; }
+.sg-punct    { color: #abb2bf; }
+.sg-regex    { color: #56b6c2; }
+.sg-decorator{ color: #61afef; }
 .slide th, .present-slide th { text-align: left; }
 .present-counter { position: fixed; bottom: 1rem; right: 1.5rem; font-size: 0.9rem; color: #444; z-index: 1001; }
 .present-help { position: fixed; bottom: 1rem; left: 1.5rem; font-size: 0.7rem; color: #333; z-index: 1001; }
@@ -283,6 +300,86 @@ let slides = [];
 let currentSlide = 0;
 let presenting = false;
 
+// ============ SYNTAX HIGHLIGHTER (extracted from syntax-glow) ============
+var SG_GRAMMARS = {
+  javascript: [
+    { type: 'comment',  regex: /\/\/.*$|\/\*[\s\S]*?(?:\*\/|$)/gm },
+    { type: 'string',   regex: /`(?:[^`\\]|\\.)*`|"(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'/g },
+    { type: 'regex',    regex: /\/(?![*/])(?:[^/\\]|\\.)+\/[gimsuy]*/g },
+    { type: 'number',   regex: /\b(?:0[xXoObB][\da-fA-F_]+|\d[\d_]*\.?\d*(?:[eE][+-]?\d+)?)\b/g },
+    { type: 'keyword',  regex: /\b(?:async|await|break|case|catch|class|const|continue|debugger|default|delete|do|else|export|extends|finally|for|from|function|if|import|in|instanceof|let|new|of|return|static|super|switch|this|throw|try|typeof|var|void|while|with|yield)\b/g },
+    { type: 'builtin',  regex: /\b(?:true|false|null|undefined|NaN|Infinity|console|Math|JSON|Object|Array|String|Number|Boolean|Promise|Map|Set|Date|RegExp|Error)\b/g },
+    { type: 'function', regex: /\b[a-zA-Z_$][\w$]*(?=\s*\()/g },
+    { type: 'operator', regex: /=>|[+\-*/%]=?|[!=]==?|&&?|\|\|?|\?\??|<<?=?|>>?=?|[~^!]/g },
+    { type: 'punct',    regex: /[{}()\[\];:.,]/g }
+  ],
+  js: 'javascript',
+  python: [
+    { type: 'comment',   regex: /#.*$/gm },
+    { type: 'string',    regex: /"""[\s\S]*?(?:"""|$)|'''[\s\S]*?(?:'''|$)|f"(?:[^"\\]|\\.)*"|f'(?:[^'\\]|\\.)*'|"(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'/g },
+    { type: 'decorator', regex: /@\w+/g },
+    { type: 'number',    regex: /\b(?:0[xXoObB][\da-fA-F_]+|\d[\d_]*\.?\d*(?:[eE][+-]?\d+)?j?)\b/g },
+    { type: 'keyword',   regex: /\b(?:and|as|assert|async|await|break|class|continue|def|del|elif|else|except|finally|for|from|global|if|import|in|is|lambda|nonlocal|not|or|pass|raise|return|try|while|with|yield)\b/g },
+    { type: 'builtin',   regex: /\b(?:True|False|None|self|cls|print|len|range|int|str|float|list|dict|tuple|set|type|isinstance|enumerate|zip|map|filter|sorted|reversed|open|super|property|staticmethod|classmethod|__\w+__)\b/g },
+    { type: 'function',  regex: /\b[a-zA-Z_]\w*(?=\s*\()/g },
+    { type: 'operator',  regex: /[+\-*/%@]=?|[!=]=|<[=<]?|>[=>]?|\*\*=?|\/\/=?|[~^&|]/g },
+    { type: 'punct',     regex: /[{}()\[\]:;.,]/g }
+  ],
+  py: 'python',
+  html: [
+    { type: 'comment', regex: /<!--[\s\S]*?-->/g },
+    { type: 'string',  regex: /"[^"]*"|'[^']*'/g },
+    { type: 'tag',     regex: /<\/?[a-zA-Z][\w-]*/g },
+    { type: 'attr',    regex: /\b[a-zA-Z-]+(?==)/g },
+    { type: 'punct',   regex: /[<>\/=]/g }
+  ],
+  css: [
+    { type: 'comment',  regex: /\/\*[\s\S]*?\*\//g },
+    { type: 'string',   regex: /"(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'/g },
+    { type: 'selector', regex: /[.#][\w-]+|@[\w-]+|\b[a-z][\w-]*(?=\s*[{,])/g },
+    { type: 'property', regex: /[\w-]+(?=\s*:)/g },
+    { type: 'number',   regex: /\b\d+\.?\d*(?:%|px|em|rem|vh|vw|s|ms|deg|fr)?\b/g },
+    { type: 'value',    regex: /#[0-9a-fA-F]{3,8}\b/g },
+    { type: 'keyword',  regex: /\b(?:important|inherit|initial|unset|none|auto|solid|flex|grid|block|inline|absolute|relative|fixed|sticky)\b/g },
+    { type: 'function', regex: /\b[\w-]+(?=\()/g },
+    { type: 'operator', regex: /[{}():;,>~+*]/g }
+  ]
+};
+
+function sgHighlight(code, lang) {
+  if (typeof code !== 'string' || !code) return '';
+  var grammar = SG_GRAMMARS[lang];
+  if (typeof grammar === 'string') grammar = SG_GRAMMARS[grammar]; // alias
+  if (!grammar) return esc(code);
+  if (!grammar._sticky) {
+    grammar._sticky = grammar.map(function(rule) {
+      var baseFlags = rule.regex.flags.replace(/[gy]/g, '');
+      return { type: rule.type, regex: new RegExp(rule.regex.source, baseFlags + 'y') };
+    });
+  }
+  var sticky = grammar._sticky;
+  var result = '', pos = 0;
+  while (pos < code.length) {
+    var bestMatch = null, bestType = '';
+    for (var g = 0; g < sticky.length; g++) {
+      var rule = sticky[g];
+      rule.regex.lastIndex = pos;
+      var m = rule.regex.exec(code);
+      if (m && m.index === pos && m[0].length > 0) {
+        if (!bestMatch || m[0].length > bestMatch[0].length) { bestMatch = m; bestType = rule.type; }
+      }
+    }
+    if (bestMatch) {
+      result += '<span class="sg-' + bestType + '">' + esc(bestMatch[0]) + '</span>';
+      pos += bestMatch[0].length;
+    } else {
+      result += esc(code[pos]);
+      pos++;
+    }
+  }
+  return result;
+}
+
 // Full markdown parser with code-block protection
 function md(text) {
   // 0. Split off speaker notes (after ???)
@@ -298,7 +395,8 @@ function md(text) {
   var html = text.replace(/```(\w*)\n([\s\S]*?)```/g, function(_, lang, code) {
     var langAttr = lang ? ' data-lang="' + esc(lang) + '"' : '';
     var langLabel = lang ? '<span class="code-lang">' + esc(lang) + '</span>' : '';
-    codeBlocks.push(langLabel + '<pre' + langAttr + '><code>' + esc(code.trimEnd()) + '</code></pre>');
+    var highlighted = lang ? sgHighlight(code.trimEnd(), lang.toLowerCase()) : esc(code.trimEnd());
+    codeBlocks.push(langLabel + '<pre' + langAttr + '><code>' + highlighted + '</code></pre>');
     return '\n__CODEBLOCK_' + (codeBlocks.length - 1) + '__\n';
   });
 
