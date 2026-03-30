@@ -89,3 +89,4 @@ These are features complex enough to prototype as standalone YOLO single-session
 | 2026-03-30 | Tock | Save/load: localStorage auto-save, Ctrl+S, file open/save |
 | 2026-03-30 | Tick | cron-calc: multi-cron visual timeline |
 | 2026-03-30 | Tock | Per-slide theme overrides (<!-- bg/text/font/align --> directives) |
+| 2026-03-31 | Tick | api-bench: browser-based API latency benchmarker |
