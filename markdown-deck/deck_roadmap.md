@@ -51,6 +51,7 @@ Markdown Deck is a graduated YOLO project operating under Flagship rules: multi-
 - [x] Save/load deck to localStorage + file open/save (.md files)
 
 ### P1 — High Value (next 5-10 sessions)
+- [x] Per-slide theme overrides (<!-- bg: #color, text: #color --> directives)
 - [ ] Diagram support (simple flowcharts/boxes via ASCII or custom syntax) — flow-ascii feeder ready
 - [ ] Image embedding in PPTX export (base64 inline images)
 - [ ] PDF export (via browser print or canvas rendering)
@@ -87,3 +88,4 @@ These are features complex enough to prototype as standalone YOLO single-session
 | 2026-03-30 | Tick | flow-ascii feeder: text diagram renderer |
 | 2026-03-30 | Tock | Save/load: localStorage auto-save, Ctrl+S, file open/save |
 | 2026-03-30 | Tick | cron-calc: multi-cron visual timeline |
+| 2026-03-30 | Tock | Per-slide theme overrides (<!-- bg/text/font/align --> directives) |

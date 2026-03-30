@@ -193,6 +193,18 @@ def hello():
 
 ---
 
+## Per-Slide Themes
+
+<!-- bg: #1e3a5f, text: #e2e8f0 -->
+
+This slide has a **custom blue background** via HTML comment directives.
+
+Use `&lt;!-- bg: #color, text: #color -->` at the top of any slide.
+
+Supports: `bg`, `text`, `font`, `align`, `padding`, `size`
+
+---
+
 ## Tables
 
 | Feature | Status | Notes |
@@ -384,6 +396,35 @@ function sgHighlight(code, lang) {
 }
 
 // Full markdown parser with code-block protection
+// Parse per-slide theme overrides: <!-- bg: #color, text: #color, ... -->
+function parseSlideOverrides(text) {
+  var overrides = {};
+  var cleaned = text.replace(/<!--\s*((?:\w[\w-]*:\s*[^,>]+,?\s*)+)\s*-->/g, function(match, content) {
+    var pairs = content.split(',');
+    for (var i = 0; i < pairs.length; i++) {
+      var idx = pairs[i].indexOf(':');
+      if (idx > 0) {
+        var key = pairs[i].substring(0, idx).trim();
+        var val = pairs[i].substring(idx + 1).trim();
+        overrides[key] = val;
+      }
+    }
+    return ''; // Strip the directive from content
+  });
+  return { text: cleaned, overrides: overrides };
+}
+
+function overridesToStyle(ov) {
+  var style = '';
+  if (ov.bg) style += 'background:' + ov.bg + ';';
+  if (ov.text) style += 'color:' + ov.text + ';';
+  if (ov.font) style += 'font-family:' + ov.font + ';';
+  if (ov.align) style += 'text-align:' + ov.align + ';';
+  if (ov.padding) style += 'padding:' + ov.padding + ';';
+  if (ov.size) style += 'font-size:' + ov.size + ';';
+  return style;
+}
+
 function md(text) {
   // 0. Split off speaker notes (after ???)
   var notesSep = text.indexOf('\n???');
@@ -392,6 +433,11 @@ function md(text) {
     speakerNotes = text.substring(notesSep + 4).trim();
     text = text.substring(0, notesSep);
   }
+
+  // 0.5. Extract per-slide theme overrides
+  var parsed = parseSlideOverrides(text);
+  text = parsed.text;
+  window._currentSlideOverrides = parsed.overrides;
 
   // 1. Extract fenced code blocks into placeholders
   var codeBlocks = [];
@@ -639,8 +685,11 @@ function renderPreview() {
     return;
   }
   previewEl.innerHTML = md(slides[currentSlide]);
-  // Toggle positioned layout mode
+  // Apply per-slide theme overrides
   var slideEl = previewEl.closest('.slide') || previewEl;
+  var ovStyle = overridesToStyle(window._currentSlideOverrides || {});
+  slideEl.style.cssText = ovStyle; // Reset + apply (clears previous slide's overrides)
+  // Toggle positioned layout mode
   if (previewEl.querySelector('.pos-flag')) {
     slideEl.classList.add('has-positioned');
   } else {
@@ -657,6 +706,8 @@ function renderPreview() {
 function renderPresent() {
   if (slides.length === 0) return;
   presentSlideEl.innerHTML = md(slides[currentSlide]);
+  var ovStyleP = overridesToStyle(window._currentSlideOverrides || {});
+  presentSlideEl.style.cssText = ovStyleP;
   if (presentSlideEl.querySelector('.pos-flag')) {
     presentSlideEl.classList.add('has-positioned');
   } else {
@@ -1072,6 +1123,10 @@ function buildSlideXml(parsed, idx) {
   var shapes = '', shapeId = 2;
   var yPos = 457200;
   var tc = getThemeColors();
+  // Per-slide overrides for PPTX
+  var ov = parsed.overrides || {};
+  var slideBg = ov.bg ? ov.bg.replace('#','') : tc.bg;
+  var slideText = ov.text ? ov.text.replace('#','') : tc.text;
 
   // Title
   if (parsed.title) {
@@ -1135,7 +1190,7 @@ function buildSlideXml(parsed, idx) {
     shapes += '<p:sp><p:nvSpPr><p:cNvPr id="'+(shapeId++)+'" name="Body"/><p:cNvSpPr><a:spLocks noGrp="1"/></p:cNvSpPr><p:nvPr/></p:nvSpPr><p:spPr><a:xfrm><a:off x="457200" y="'+yPos+'"/><a:ext cx="11277600" cy="'+bodyH+'"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></p:spPr><p:txBody><a:bodyPr anchor="t" lIns="91440" tIns="45720" rIns="91440" bIns="45720"/><a:lstStyle/>'+bodyParas+'</p:txBody></p:sp>';
   }
 
-  return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<p:sld xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"><p:cSld><p:bg><p:bgPr><a:solidFill><a:srgbClr val="'+tc.bg+'"/></a:solidFill><a:effectLst/></p:bgPr></p:bg><p:spTree><p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr><p:grpSpPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="0" cy="0"/><a:chOff x="0" y="0"/><a:chExt cx="0" cy="0"/></a:xfrm></p:grpSpPr>'+shapes+'</p:spTree></p:cSld></p:sld>';
+  return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<p:sld xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"><p:cSld><p:bg><p:bgPr><a:solidFill><a:srgbClr val="'+slideBg+'"/></a:solidFill><a:effectLst/></p:bgPr></p:bg><p:spTree><p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr><p:grpSpPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="0" cy="0"/><a:chOff x="0" y="0"/><a:chExt cx="0" cy="0"/></a:xfrm></p:grpSpPr>'+shapes+'</p:spTree></p:cSld></p:sld>';
 }
 
 window.exportDeck = function() {
@@ -1168,7 +1223,9 @@ window.exportDeck = function() {
 
   // Slide files
   for (var i = 0; i < slides.length; i++) {
-    var parsed = parseSlideContent(slides[i]);
+    var slideOv = parseSlideOverrides(slides[i]);
+    var parsed = parseSlideContent(slideOv.text);
+    parsed.overrides = slideOv.overrides;
     files.push({ name: 'ppt/slides/slide'+(i+1)+'.xml', data: buildSlideXml(parsed, i) });
     files.push({ name: 'ppt/slides/_rels/slide'+(i+1)+'.xml.rels', data: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"/>' });
   }
