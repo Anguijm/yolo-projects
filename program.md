@@ -17,6 +17,7 @@ This workspace operates on a **Tick-Tock cadence** to maintain momentum on both 
 - Multi-session development is expected (features span multiple Tock sessions)
 - Higher quality bar: regression test all existing features after changes
 - Integrate proven feeder project logic when available
+- **Update `markdown-deck/DECK_GUIDE.md`** after adding any new feature (syntax, behavior, examples)
 - Update the session log in `deck_roadmap.md` after each Tock
 
 ### How to decide which mode:

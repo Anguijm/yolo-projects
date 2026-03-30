@@ -131,6 +131,64 @@ The language tag appears as a small label above the code block.
 
 ---
 
+## Diagrams
+
+Use ````diagram` fenced blocks to render flowcharts directly in your slides. Uses a simple text DSL — no external tools needed.
+
+### Syntax
+````
+```diagram
+[Start] --> [Process Data] --> [Output]
+[Process Data] --error--> [Error Handler]
+[Error Handler] --> [Start]
+```
+````
+
+### DSL Rules
+- `[Node Name]` — defines a box/node
+- `-->` — creates a directed arrow between nodes
+- `--label-->` — creates a labeled arrow
+- Chain multiple: `[A] --> [B] --> [C]`
+- `//` at end of line — comment (ignored)
+- Nodes auto-deduplicate by name (case-insensitive)
+
+### Layout
+- Nodes are auto-positioned using layered graph layout (no manual coordinates)
+- Direction is always top-to-bottom
+- Layers are centered relative to the widest layer
+- Bezier curve edges with arrowheads
+
+### Example: Software Architecture
+````
+```diagram
+[Browser] --> [API Gateway]
+[API Gateway] --> [Auth Service]
+[API Gateway] --> [App Server]
+[App Server] --> [Database]
+[App Server] --> [Cache]
+[Auth Service] --> [Database]
+```
+````
+
+### Example: Decision Flow
+````
+```diagram
+[Input] --> [Validate]
+[Validate] --valid--> [Process]
+[Validate] --invalid--> [Error]
+[Process] --> [Output]
+[Error] --retry--> [Input]
+```
+````
+
+### Notes
+- Renders as inline SVG (scales responsively, max-height 50vh)
+- Works in preview and presentation mode
+- In PPTX export, diagrams are not yet embedded (appears as blank — use screenshots for now)
+- Self-referencing edges (`[A] --> [A]`) are not supported in the deck renderer
+
+---
+
 ## Blockquotes
 
 ```
@@ -408,12 +466,13 @@ A roadmap for the next decade
 ## Slide Separator Reference
 
 ```
----        Separates slides (must be on its own line with blank lines above/below)
-|||        Splits content into two columns (simpler alternative to positioning)
---         Fragment break for progressive reveal (content hidden until click)
-[@...]     Starts a positioned block (absolute placement on slide)
-???        Starts speaker notes (hidden from presentation)
-<!-- -->    Per-slide theme override (bg, text, font, align, padding, size)
+---           Separates slides (must be on its own line with blank lines above/below)
+|||           Splits content into two columns (simpler alternative to positioning)
+--            Fragment break for progressive reveal (content hidden until click)
+[@...]        Starts a positioned block (absolute placement on slide)
+???           Starts speaker notes (hidden from presentation)
+<!-- -->      Per-slide theme override (bg, text, font, align, padding, size)
+```diagram    Renders a flowchart/diagram from text DSL ([Node] --> [Node])
 ```
 
 ---
