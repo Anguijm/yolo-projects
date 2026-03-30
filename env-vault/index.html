@@ -1,0 +1,1527 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="theme-color" content="#000000">
+<title>env-vault</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body {
+  height: 100%;
+  background: #0a0a0a;
+  color: #ccc;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Courier New", monospace;
+  overflow-y: auto;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+:root {
+  --bg-page: #0a0a0a;
+  --bg-surface: #111;
+  --bg-elevated: #1a1a1a;
+  --bg-hover: #222;
+  --text-primary: #fff;
+  --text-body: #ccc;
+  --text-secondary: #aaa;
+  --text-tertiary: #555;
+  --text-label: #444;
+  --border-default: #1a1a1a;
+  --border-active: #444;
+  --border-focus: #555;
+  --color-success: #3fb950;
+  --color-warning: #d29922;
+  --color-error: #f85149;
+  --color-info: #58a6ff;
+  --accent: #0ff;
+}
+
+.container {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 12px;
+}
+
+header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 0 12px;
+  border-bottom: 1px solid #1a1a1a;
+  margin-bottom: 12px;
+}
+
+.logo {
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
+.logo span { color: #444; }
+
+.tab-bar {
+  display: flex;
+  gap: 4px;
+  margin-left: auto;
+}
+
+.btn {
+  padding: 4px 10px;
+  background: transparent;
+  border: 1px solid #1a1a1a;
+  color: #444;
+  font-family: inherit;
+  font-size: 0.55rem;
+  cursor: pointer;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  transition: border-color 0.1s, color 0.1s;
+}
+.btn:hover { border-color: #333; color: #666; }
+.btn:active { border-color: #555; color: #888; }
+.btn.active { border-color: var(--accent); color: var(--accent); }
+.btn.danger { border-color: #2a1515; color: #553333; }
+.btn.danger:hover { border-color: var(--color-error); color: var(--color-error); }
+
+/* TAB PANELS */
+.tab-panel { display: none; }
+.tab-panel.active { display: block; }
+
+/* VAULT TAB */
+.toolbar {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  margin-bottom: 8px;
+  flex-wrap: wrap;
+}
+
+.toolbar-spacer { flex: 1; }
+
+.search-input {
+  background: #111;
+  border: 1px solid #222;
+  color: #aaa;
+  padding: 4px 8px;
+  font-family: inherit;
+  font-size: 0.65rem;
+  outline: none;
+  width: 160px;
+}
+.search-input:focus { border-color: #555; }
+.search-input::placeholder { color: #333; }
+
+/* Groups */
+.group-section {
+  margin-bottom: 8px;
+  border: 1px solid #1a1a1a;
+}
+
+.group-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 8px;
+  background: #111;
+  cursor: pointer;
+  user-select: none;
+}
+.group-header:hover { background: #161616; }
+
+.group-label {
+  font-size: 0.5rem;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: #555;
+}
+
+.group-label.group-DB { color: #58a6ff; }
+.group-label.group-AUTH { color: #d29922; }
+.group-label.group-API { color: #3fb950; }
+.group-label.group-APP { color: #a371f7; }
+.group-label.group-REDIS { color: #ff7b72; }
+.group-label.group-S3 { color: #ffa657; }
+.group-label.group-SMTP { color: #79c0ff; }
+.group-label.group-MISC { color: #444; }
+
+.group-count {
+  font-size: 0.45rem;
+  color: #333;
+  letter-spacing: 0.05em;
+}
+
+.group-toggle-btn {
+  margin-left: auto;
+  font-size: 0.45rem;
+  color: #333;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-family: inherit;
+  padding: 2px 4px;
+}
+.group-toggle-btn:hover { color: #666; }
+
+.group-body { display: block; }
+.group-body.collapsed { display: none; }
+
+/* Env Row */
+.env-row {
+  display: grid;
+  grid-template-columns: 200px 1fr auto;
+  gap: 0;
+  align-items: stretch;
+  border-top: 1px solid #111;
+  min-height: 32px;
+}
+.env-row:hover { background: #0e0e0e; }
+.env-row.env-comment {
+  grid-template-columns: 1fr auto;
+}
+.env-row.env-blank {
+  min-height: 8px;
+  border-top: 1px solid #111;
+}
+
+.env-key {
+  padding: 6px 8px;
+  color: #aaa;
+  font-size: 0.65rem;
+  border-right: 1px solid #111;
+  display: flex;
+  align-items: center;
+  cursor: text;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.env-key:focus-within { border-right-color: #333; }
+
+.env-value-wrap {
+  padding: 6px 8px;
+  font-size: 0.65rem;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.env-value-text {
+  flex: 1;
+  color: #aaa;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+  min-width: 0;
+}
+
+.env-value-text.hidden {
+  color: #333;
+  letter-spacing: 0.15em;
+}
+
+.env-comment-text {
+  padding: 6px 8px;
+  font-size: 0.6rem;
+  color: #333;
+  font-style: italic;
+  flex: 1;
+}
+
+.env-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 4px 6px;
+  border-left: 1px solid #0d0d0d;
+}
+
+.icon-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 2px 4px;
+  font-size: 0.6rem;
+  color: #333;
+  font-family: inherit;
+  line-height: 1;
+}
+.icon-btn:hover { color: #666; }
+.icon-btn.reveal-btn.active { color: var(--accent); }
+
+/* Inline edit */
+.editable-key, .editable-value {
+  background: transparent;
+  border: none;
+  outline: none;
+  font-family: inherit;
+  font-size: inherit;
+  color: inherit;
+  width: 100%;
+  min-width: 0;
+}
+.editable-key:focus { color: #fff; }
+.editable-value:focus { color: #fff; }
+
+/* Add row */
+.add-row {
+  display: grid;
+  grid-template-columns: 200px 1fr auto;
+  gap: 0;
+  border-top: 1px solid #111;
+  background: #0d0d0d;
+}
+
+.add-key-input, .add-val-input {
+  background: transparent;
+  border: none;
+  outline: none;
+  font-family: inherit;
+  font-size: 0.65rem;
+  color: #666;
+  padding: 6px 8px;
+  width: 100%;
+}
+.add-key-input:focus, .add-val-input:focus { color: #aaa; }
+.add-key-input::placeholder, .add-val-input::placeholder { color: #2a2a2a; }
+.add-key-input { border-right: 1px solid #111; }
+
+.add-actions { padding: 4px 6px; display: flex; align-items: center; }
+
+/* IMPORT PANEL */
+.import-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+@media (max-width: 600px) {
+  .import-grid { grid-template-columns: 1fr; }
+  .env-row { grid-template-columns: 140px 1fr auto; }
+}
+
+.section-label {
+  font-size: 0.45rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: #444;
+  margin-bottom: 4px;
+}
+
+.big-textarea {
+  width: 100%;
+  background: #111;
+  border: 1px solid #1a1a1a;
+  color: #aaa;
+  font-family: inherit;
+  font-size: 0.65rem;
+  padding: 8px;
+  outline: none;
+  resize: vertical;
+  min-height: 200px;
+}
+.big-textarea:focus { border-color: #444; }
+.big-textarea::placeholder { color: #2a2a2a; }
+
+/* DIFF TAB */
+.diff-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+@media (max-width: 600px) { .diff-grid { grid-template-columns: 1fr; } }
+
+.diff-results { margin-top: 4px; }
+
+.diff-row {
+  display: grid;
+  grid-template-columns: 200px 1fr 1fr;
+  gap: 0;
+  border-top: 1px solid #111;
+  font-size: 0.65rem;
+  min-height: 28px;
+  align-items: center;
+}
+.diff-row:first-child { border-top: none; }
+
+.diff-row-key { padding: 5px 8px; color: #777; border-right: 1px solid #111; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.diff-row-a, .diff-row-b { padding: 5px 8px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.diff-row.diff-added { background: rgba(63,185,80,0.05); }
+.diff-row.diff-removed { background: rgba(248,81,73,0.05); }
+.diff-row.diff-changed { background: rgba(210,153,34,0.05); }
+.diff-row.diff-same { opacity: 0.4; }
+
+.diff-row-key.diff-added { color: var(--color-success); }
+.diff-row-key.diff-removed { color: var(--color-error); }
+.diff-row-key.diff-changed { color: var(--color-warning); }
+
+.diff-val-a.diff-removed, .diff-val-a.diff-changed-old { color: var(--color-error); }
+.diff-val-b.diff-added, .diff-val-b.diff-changed-new { color: var(--color-success); }
+.diff-val-b.diff-changed-new { color: var(--color-success); }
+.diff-val-a.diff-same-val, .diff-val-b.diff-same-val { color: #444; }
+
+.diff-summary {
+  display: flex;
+  gap: 12px;
+  padding: 6px 0;
+  font-size: 0.55rem;
+  letter-spacing: 0.1em;
+}
+
+.diff-stat { color: #444; }
+.diff-stat .num { font-weight: 700; }
+.diff-stat.added .num { color: var(--color-success); }
+.diff-stat.removed .num { color: var(--color-error); }
+.diff-stat.changed .num { color: var(--color-warning); }
+.diff-stat.same .num { color: #555; }
+
+/* EXPORT TAB */
+.export-section { margin-bottom: 12px; }
+.export-output {
+  width: 100%;
+  background: #111;
+  border: 1px solid #1a1a1a;
+  color: #666;
+  font-family: inherit;
+  font-size: 0.65rem;
+  padding: 8px;
+  outline: none;
+  resize: vertical;
+  min-height: 160px;
+}
+.export-output:focus { border-color: #333; }
+
+.encrypt-panel {
+  border: 1px solid #1a1a1a;
+  padding: 8px;
+  margin-top: 8px;
+}
+
+.encrypt-row {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  margin-bottom: 6px;
+}
+
+.pass-input {
+  background: #111;
+  border: 1px solid #222;
+  color: #aaa;
+  padding: 4px 8px;
+  font-family: inherit;
+  font-size: 0.65rem;
+  outline: none;
+  flex: 1;
+}
+.pass-input:focus { border-color: #555; }
+.pass-input::placeholder { color: #333; }
+
+/* Toast */
+.toast {
+  position: fixed;
+  bottom: 16px;
+  right: 16px;
+  background: #1a1a1a;
+  border: 1px solid #333;
+  color: #aaa;
+  padding: 6px 12px;
+  font-size: 0.6rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  opacity: 0;
+  transition: opacity 0.2s;
+  pointer-events: none;
+  border-radius: 2px;
+  z-index: 100;
+}
+.toast.show { opacity: 1; }
+.toast.success { border-color: #3fb950; color: #3fb950; }
+.toast.error { border-color: var(--color-error); color: var(--color-error); }
+
+/* empty state */
+.empty-state {
+  padding: 24px;
+  text-align: center;
+  color: #222;
+  font-size: 0.6rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+/* presets */
+.preset-bar {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+  margin-bottom: 6px;
+}
+
+.section-divider {
+  border: none;
+  border-top: 1px solid #1a1a1a;
+  margin: 10px 0;
+}
+
+.visibility-badge {
+  font-size: 0.45rem;
+  letter-spacing: 0.1em;
+  color: #333;
+  text-transform: uppercase;
+  padding: 2px 4px;
+  border: 1px solid #1a1a1a;
+}
+</style>
+</head>
+<body>
+<div class="container">
+  <header>
+    <div class="logo">env<span>-</span>vault</div>
+    <div class="tab-bar">
+      <button class="btn active" onclick="switchTab('vault')" id="tab-vault">Vault</button>
+      <button class="btn" onclick="switchTab('import')" id="tab-import">Import</button>
+      <button class="btn" onclick="switchTab('diff')" id="tab-diff">Diff</button>
+      <button class="btn" onclick="switchTab('export')" id="tab-export">Export</button>
+    </div>
+  </header>
+
+  <!-- VAULT TAB -->
+  <div class="tab-panel active" id="panel-vault">
+    <div class="toolbar">
+      <button class="btn active" id="visibility-all-btn" onclick="setVisibilityMode('hidden')">
+        <span id="visibility-label">● secrets hidden</span>
+      </button>
+      <button class="btn" onclick="revealAll()">reveal all</button>
+      <button class="btn" onclick="hideAll()">hide all</button>
+      <div class="toolbar-spacer"></div>
+      <input class="search-input" type="text" placeholder="search keys..." id="search-input" oninput="renderVault()" />
+      <button class="btn" onclick="addNewKey()">+ add</button>
+      <button class="btn danger" onclick="clearAll()">clear</button>
+    </div>
+    <div id="vault-container"></div>
+    <div class="empty-state" id="vault-empty" style="display:none">no variables — import or add one</div>
+  </div>
+
+  <!-- IMPORT TAB -->
+  <div class="tab-panel" id="panel-import">
+    <div class="preset-bar">
+      <span style="font-size:0.45rem;color:#333;letter-spacing:0.1em;text-transform:uppercase;align-self:center;">presets:</span>
+      <button class="btn" onclick="loadPreset('node')">Node.js App</button>
+      <button class="btn" onclick="loadPreset('django')">Django</button>
+      <button class="btn" onclick="loadPreset('postgres')">Postgres</button>
+      <button class="btn" onclick="loadPreset('redis')">Redis + Queue</button>
+      <button class="btn" onclick="loadPreset('aws')">AWS / S3</button>
+    </div>
+    <div class="section-label">paste .env content</div>
+    <textarea class="big-textarea" id="import-textarea" placeholder="# Paste .env content here&#10;DB_HOST=localhost&#10;DB_PORT=5432&#10;SECRET_KEY=my-secret-key&#10;"></textarea>
+    <div style="display:flex;gap:6px;margin-top:8px;">
+      <button class="btn active" onclick="importEnv()">import → vault</button>
+      <button class="btn" onclick="mergeEnv()">merge (keep existing)</button>
+      <button class="btn danger" onclick="document.getElementById('import-textarea').value=''">clear</button>
+    </div>
+    <div style="margin-top:6px;font-size:0.5rem;color:#333;letter-spacing:0.05em;">
+      import replaces vault • merge adds new keys without overwriting existing
+    </div>
+  </div>
+
+  <!-- DIFF TAB -->
+  <div class="tab-panel" id="panel-diff">
+    <div class="diff-grid">
+      <div>
+        <div class="section-label">file A (base)</div>
+        <textarea class="big-textarea" id="diff-a" placeholder="# Paste first .env..." oninput="runDiff()"></textarea>
+      </div>
+      <div>
+        <div class="section-label">file B (compare)</div>
+        <textarea class="big-textarea" id="diff-b" placeholder="# Paste second .env..." oninput="runDiff()"></textarea>
+      </div>
+    </div>
+    <div style="display:flex;gap:6px;align-items:center;margin-bottom:8px;flex-wrap:wrap;">
+      <button class="btn" onclick="loadDiffPreset()">load example diff</button>
+      <button class="btn" onclick="diffFromVault()">use vault as A</button>
+      <label style="display:flex;align-items:center;gap:4px;cursor:pointer;">
+        <input type="checkbox" id="diff-hide-same" onchange="renderDiffResults()" style="accent-color:var(--accent);">
+        <span style="font-size:0.5rem;letter-spacing:0.1em;color:#444;text-transform:uppercase;">hide unchanged</span>
+      </label>
+    </div>
+    <div class="diff-results" id="diff-results"></div>
+  </div>
+
+  <!-- EXPORT TAB -->
+  <div class="tab-panel" id="panel-export">
+    <div class="export-section">
+      <div style="display:flex;gap:6px;margin-bottom:6px;flex-wrap:wrap;">
+        <button class="btn active" onclick="setExportFormat('env')" id="fmt-env">.env</button>
+        <button class="btn" onclick="setExportFormat('json')" id="fmt-json">JSON</button>
+        <button class="btn" onclick="setExportFormat('docker')" id="fmt-docker">docker-compose</button>
+        <button class="btn" onclick="setExportFormat('shell')" id="fmt-shell">shell export</button>
+        <div style="flex:1"></div>
+        <button class="btn" onclick="copyExport()">copy</button>
+        <button class="btn" onclick="downloadExport()">download</button>
+      </div>
+      <textarea class="export-output" id="export-output" readonly></textarea>
+    </div>
+
+    <hr class="section-divider">
+
+    <div class="section-label">aes-256-gcm encrypted export</div>
+    <div class="encrypt-panel">
+      <div class="encrypt-row">
+        <input class="pass-input" type="password" id="enc-password" placeholder="passphrase for encryption..." autocomplete="new-password">
+        <button class="btn" onclick="togglePassVis()">show</button>
+      </div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;">
+        <button class="btn active" onclick="encryptAndExport()">encrypt + copy</button>
+        <button class="btn" onclick="decryptImport()">decrypt + import</button>
+      </div>
+      <div style="margin-top:6px;">
+        <div class="section-label" style="margin-bottom:4px;">encrypted blob</div>
+        <textarea class="export-output" id="encrypted-output" placeholder="encrypted output will appear here..." style="min-height:80px;font-size:0.55rem;"></textarea>
+      </div>
+      <div style="margin-top:4px;font-size:0.45rem;color:#2a2a2a;letter-spacing:0.05em;">
+        pbkdf2-hmac-sha256 • 600k iterations • aes-256-gcm • no server, no cloud
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+'use strict';
+
+// ============ STATE ============
+var entries = []; // { type: 'pair'|'comment'|'blank', key, value, group, revealed }
+var secretsHidden = true;
+var exportFormat = 'env';
+var diffResultsCache = [];
+
+// ============ PARSING ============
+function parseEnv(text) {
+  var lines = text.split('\n');
+  var result = [];
+  for (var i = 0; i < lines.length; i++) {
+    var line = lines[i];
+    if (/^\s*$/.test(line)) {
+      result.push({ type: 'blank' });
+    } else if (/^\s*#/.test(line)) {
+      result.push({ type: 'comment', text: line.trim() });
+    } else {
+      var eqIdx = line.indexOf('=');
+      if (eqIdx === -1) {
+        // bare key
+        result.push({ type: 'pair', key: line.trim(), value: '', group: inferGroup(line.trim()), revealed: false });
+      } else {
+        var key = line.substring(0, eqIdx).trim();
+        var val = line.substring(eqIdx + 1);
+        // strip inline comment (naive: only if not inside quotes)
+        val = stripInlineComment(val);
+        // strip surrounding quotes
+        val = stripQuotes(val);
+        result.push({ type: 'pair', key: key, value: val, group: inferGroup(key), revealed: false });
+      }
+    }
+  }
+  return result;
+}
+
+function stripInlineComment(val) {
+  // Only strip if not inside a quoted string
+  val = val.trimEnd();
+  if (val.length === 0) return val;
+  var c0 = val[0];
+  if (c0 === '"' || c0 === "'") {
+    // quoted value — don't strip comment
+    return val;
+  }
+  var hashIdx = val.indexOf(' #');
+  if (hashIdx !== -1) {
+    return val.substring(0, hashIdx).trim();
+  }
+  return val;
+}
+
+function stripQuotes(val) {
+  val = val.trim();
+  if (val.length >= 2) {
+    if ((val[0] === '"' && val[val.length-1] === '"') ||
+        (val[0] === "'" && val[val.length-1] === "'")) {
+      return val.slice(1, -1);
+    }
+  }
+  return val;
+}
+
+function inferGroup(key) {
+  var prefixes = ['DB', 'DATABASE', 'AUTH', 'OAUTH', 'API', 'APP', 'REDIS', 'CACHE', 'S3', 'AWS', 'SMTP', 'MAIL', 'EMAIL'];
+  var upper = key.toUpperCase();
+  for (var i = 0; i < prefixes.length; i++) {
+    if (upper.startsWith(prefixes[i] + '_') || upper === prefixes[i]) {
+      var g = prefixes[i];
+      if (g === 'DATABASE') return 'DB';
+      if (g === 'OAUTH') return 'AUTH';
+      if (g === 'CACHE') return 'REDIS';
+      if (g === 'AWS') return 'S3';
+      if (g === 'MAIL' || g === 'EMAIL') return 'SMTP';
+      return g;
+    }
+  }
+  return 'MISC';
+}
+
+function isSecret(key) {
+  var k = key.toUpperCase();
+  return /SECRET|PASSWORD|PASSWD|TOKEN|KEY|PRIVATE|CREDENTIAL|PWD|PASS|CERT/.test(k);
+}
+
+// ============ GROUPS ============
+function getGroups() {
+  var order = ['DB', 'AUTH', 'API', 'APP', 'REDIS', 'S3', 'SMTP', 'MISC'];
+  var seen = {};
+  var result = [];
+  for (var i = 0; i < entries.length; i++) {
+    if (entries[i].type === 'pair') {
+      var g = entries[i].group || 'MISC';
+      if (!seen[g]) { seen[g] = true; }
+    }
+  }
+  // add ordered groups first
+  for (var i = 0; i < order.length; i++) {
+    if (seen[order[i]]) { result.push(order[i]); delete seen[order[i]]; }
+  }
+  // remaining custom groups
+  var extra = Object.keys(seen).sort();
+  for (var i = 0; i < extra.length; i++) result.push(extra[i]);
+  return result;
+}
+
+var collapsedGroups = {};
+
+// ============ RENDER VAULT ============
+function renderVault() {
+  var container = document.getElementById('vault-container');
+  var emptyEl = document.getElementById('vault-empty');
+  var searchVal = document.getElementById('search-input').value.toLowerCase().trim();
+
+  var pairs = entries.filter(function(e) { return e.type === 'pair'; });
+  if (pairs.length === 0) {
+    container.innerHTML = '';
+    emptyEl.style.display = 'block';
+    return;
+  }
+  emptyEl.style.display = 'none';
+
+  var groups = getGroups();
+  var html = '';
+
+  for (var gi = 0; gi < groups.length; gi++) {
+    var gname = groups[gi];
+    var groupEntries = entries.filter(function(e) {
+      return e.type === 'pair' && (e.group || 'MISC') === gname;
+    });
+
+    if (searchVal) {
+      groupEntries = groupEntries.filter(function(e) {
+        return e.key.toLowerCase().includes(searchVal) || e.value.toLowerCase().includes(searchVal);
+      });
+      if (groupEntries.length === 0) continue;
+    }
+
+    var isCollapsed = collapsedGroups[gname];
+    html += '<div class="group-section" id="group-' + escAttr(gname) + '">';
+    html += '<div class="group-header" data-group="' + escAttr(gname) + '" onclick="handleGroupClick(this)">';
+    html += '<span class="group-label group-' + escAttr(gname) + '">' + escHtml(gname) + '</span>';
+    html += '<span class="group-count">' + groupEntries.length + ' var' + (groupEntries.length !== 1 ? 's' : '') + '</span>';
+    html += '<button class="group-toggle-btn">' + (isCollapsed ? '▶' : '▼') + '</button>';
+    html += '</div>';
+    html += '<div class="group-body' + (isCollapsed ? ' collapsed' : '') + '" id="group-body-' + escAttr(gname) + '">';
+
+    for (var ei = 0; ei < groupEntries.length; ei++) {
+      var e = groupEntries[ei];
+      var idx = entries.indexOf(e);
+      var secret = isSecret(e.key);
+      var showVal = e.revealed || !secret || !secretsHidden;
+      var valDisplay = showVal ? escHtml(e.value) : maskValue(e.value);
+      var valClass = (!showVal) ? 'env-value-text hidden' : 'env-value-text';
+
+      html += '<div class="env-row" id="row-' + idx + '">';
+      html += '<div class="env-key"><input class="editable-key" value="' + escAttr(e.key) + '" onblur="updateKey(' + idx + ', this.value)" onkeydown="keyRowNav(event,' + idx + ')" spellcheck="false" autocomplete="off"></div>';
+      html += '<div class="env-value-wrap">';
+      html += '<span class="' + valClass + '" title="click to edit" onclick="startEditValue(' + idx + ', this)">' + valDisplay + '</span>';
+      html += '</div>';
+      html += '<div class="env-actions">';
+      if (secret) {
+        html += '<button class="icon-btn reveal-btn' + (e.revealed ? ' active' : '') + '" onclick="toggleReveal(' + idx + ')" title="toggle visibility">' + (e.revealed ? '●' : '○') + '</button>';
+      }
+      html += '<button class="icon-btn" onclick="deleteEntry(' + idx + ')" title="delete">✕</button>';
+      html += '</div>';
+      html += '</div>';
+    }
+
+    // add row inside group
+    html += '<div class="add-row">';
+    html += '<input class="add-key-input" placeholder="NEW_KEY" id="add-key-' + escAttr(gname) + '" data-group="' + escAttr(gname) + '" onkeydown="addRowKeydownEvt(event)">';
+    html += '<input class="add-val-input" placeholder="value" id="add-val-' + escAttr(gname) + '" data-group="' + escAttr(gname) + '" onkeydown="addRowKeydownEvt(event)">';
+    html += '<div class="add-actions"><button class="icon-btn" data-group="' + escAttr(gname) + '" onclick="addToGroupEvt(this)">+</button></div>';
+    html += '</div>';
+
+    html += '</div></div>';
+  }
+
+  container.innerHTML = html;
+}
+
+function maskValue(val) {
+  if (!val) return '••••••••';
+  return '•'.repeat(Math.min(val.length, 12));
+}
+
+function escForEnvValue(v) {
+  // Escape backslash then double-quote
+  var out = '';
+  for (var i = 0; i < v.length; i++) {
+    var c = v[i];
+    if (c === '\\') out += '\\\\';
+    else if (c === '"') out += '\\"';
+    else out += c;
+  }
+  return out;
+}
+
+function escForShell(v) {
+  var out = '';
+  for (var i = 0; i < v.length; i++) {
+    var c = v[i];
+    if (c === '\\') out += '\\\\';
+    else if (c === '"') out += '\\"';
+    else if (c === '$') out += '\\$';
+    else out += c;
+  }
+  return out;
+}
+
+function needsQuoting(v) {
+  if (!v) return false;
+  for (var i = 0; i < v.length; i++) {
+    var c = v[i];
+    if (c === ' ' || c === '\t' || c === '#' || c === '"' || c === "'" || c === '\\') return true;
+  }
+  return false;
+}
+
+function escHtml(s) {
+  return String(s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+function escAttr(s) {
+  var result = '';
+  var str = String(s);
+  for (var i = 0; i < str.length; i++) {
+    var code = str.charCodeAt(i);
+    var ok = (code >= 48 && code <= 57) || (code >= 65 && code <= 90) || (code >= 97 && code <= 122) || code === 95 || code === 45;
+    result += ok ? str[i] : '_';
+  }
+  return result;
+}
+
+function handleGroupClick(el) {
+  var gname = el.getAttribute('data-group');
+  toggleGroup(gname);
+}
+
+function addToGroupEvt(el) {
+  var gname = el.getAttribute('data-group');
+  addToGroup(gname);
+}
+
+function addRowKeydownEvt(event) {
+  var gname = event.target.getAttribute('data-group');
+  if (event.key === 'Enter') addToGroup(gname);
+}
+
+function toggleGroup(gname) {
+  collapsedGroups[gname] = !collapsedGroups[gname];
+  renderVault();
+}
+
+// ============ ENTRY EDITS ============
+function updateKey(idx, val) {
+  if (!entries[idx]) return;
+  var trimmed = val.trim();
+  if (!trimmed) { deleteEntry(idx); return; }
+  entries[idx].key = trimmed;
+  entries[idx].group = inferGroup(trimmed);
+  renderVault();
+}
+
+function startEditValue(idx, el) {
+  if (!entries[idx]) return;
+  var input = document.createElement('input');
+  input.className = 'editable-value';
+  var originalValue = entries[idx].value;
+  input.value = originalValue;
+  input.spellcheck = false;
+  input.autocomplete = 'off';
+  var isCancelled = false;
+  input.onblur = function() {
+    if (!isCancelled) entries[idx].value = input.value;
+    renderVault();
+  };
+  input.onkeydown = function(e) {
+    if (e.key === 'Escape') {
+      isCancelled = true;
+      input.blur();
+    } else if (e.key === 'Enter') {
+      input.blur();
+    }
+  };
+  el.parentNode.replaceChild(input, el);
+  input.focus();
+  input.select();
+}
+
+function toggleReveal(idx) {
+  if (!entries[idx]) return;
+  entries[idx].revealed = !entries[idx].revealed;
+  renderVault();
+}
+
+function deleteEntry(idx) {
+  entries.splice(idx, 1);
+  renderVault();
+}
+
+function addNewKey() {
+  entries.push({ type: 'pair', key: 'NEW_KEY', value: '', group: 'MISC', revealed: false });
+  renderVault();
+  // focus new key
+  setTimeout(function() {
+    var inputs = document.querySelectorAll('.editable-key');
+    if (inputs.length) inputs[inputs.length - 1].focus();
+  }, 50);
+}
+
+function addToGroup(gname) {
+  var keyEl = document.getElementById('add-key-' + escAttr(gname));
+  var valEl = document.getElementById('add-val-' + escAttr(gname));
+  if (!keyEl || !valEl) return;
+  var key = keyEl.value.trim();
+  var val = valEl.value;
+  if (!key) { keyEl.focus(); return; }
+  // find last entry in this group to insert after
+  var insertIdx = -1;
+  for (var i = entries.length - 1; i >= 0; i--) {
+    if (entries[i].type === 'pair' && (entries[i].group || 'MISC') === gname) {
+      insertIdx = i;
+      break;
+    }
+  }
+  var newEntry = { type: 'pair', key: key, value: val, group: gname, revealed: false };
+  if (insertIdx === -1) {
+    entries.push(newEntry);
+  } else {
+    entries.splice(insertIdx + 1, 0, newEntry);
+  }
+  // clear add-row inputs (they'll be replaced by renderVault anyway, but clear state)
+  renderVault();
+  showToast('Added ' + key, 'success');
+}
+
+
+function keyRowNav(event, idx) {
+  if (event.key === 'Enter') {
+    event.preventDefault();
+    // Tab to value
+    var row = document.getElementById('row-' + idx);
+    if (row) {
+      var valEl = row.querySelector('.env-value-text');
+      if (valEl) startEditValue(idx, valEl);
+    }
+  }
+}
+
+function revealAll() {
+  for (var i = 0; i < entries.length; i++) {
+    if (entries[i].type === 'pair') entries[i].revealed = true;
+  }
+  secretsHidden = false;
+  updateVisibilityBtn();
+  renderVault();
+}
+
+function hideAll() {
+  for (var i = 0; i < entries.length; i++) {
+    if (entries[i].type === 'pair') entries[i].revealed = false;
+  }
+  secretsHidden = true;
+  updateVisibilityBtn();
+  renderVault();
+}
+
+function setVisibilityMode(mode) {
+  secretsHidden = (mode === 'hidden');
+  updateVisibilityBtn();
+  renderVault();
+}
+
+function updateVisibilityBtn() {
+  var btn = document.getElementById('visibility-all-btn');
+  var lbl = document.getElementById('visibility-label');
+  if (secretsHidden) {
+    btn.classList.add('active');
+    lbl.textContent = '● secrets hidden';
+  } else {
+    btn.classList.remove('active');
+    lbl.textContent = '○ secrets visible';
+  }
+}
+
+function clearAll() {
+  if (!confirm('Clear all variables?')) return;
+  entries = [];
+  renderVault();
+}
+
+// ============ IMPORT ============
+function importEnv() {
+  var text = document.getElementById('import-textarea').value;
+  var parsed = parseEnv(text);
+  entries = parsed;
+  renderVault();
+  switchTab('vault');
+  showToast('Imported ' + parsed.filter(function(e) { return e.type === 'pair'; }).length + ' vars', 'success');
+}
+
+function mergeEnv() {
+  var text = document.getElementById('import-textarea').value;
+  var parsed = parseEnv(text);
+  var existingKeys = {};
+  for (var i = 0; i < entries.length; i++) {
+    if (entries[i].type === 'pair') existingKeys[entries[i].key] = true;
+  }
+  var added = 0;
+  for (var i = 0; i < parsed.length; i++) {
+    if (parsed[i].type === 'pair' && !existingKeys[parsed[i].key]) {
+      entries.push(parsed[i]);
+      added++;
+    }
+  }
+  renderVault();
+  switchTab('vault');
+  showToast('Merged ' + added + ' new vars', 'success');
+}
+
+// ============ PRESETS ============
+var PRESETS = {
+  node: [
+    '# Node.js Application',
+    'NODE_ENV=development',
+    'PORT=3000',
+    '',
+    '# Database',
+    'DB_HOST=localhost',
+    'DB_PORT=5432',
+    'DB_NAME=myapp',
+    'DB_USER=postgres',
+    'DB_PASSWORD=supersecret',
+    '',
+    '# Auth',
+    'AUTH_SECRET=jwt-secret-key-change-me',
+    'AUTH_EXPIRY=7d',
+    '',
+    '# API Keys',
+    'API_KEY=sk-abc123',
+    'API_BASE_URL=http:' + '//' + 'api.example.com'
+  ].join('\n'),
+
+  django: [
+    '# Django Settings',
+    'DEBUG=False',
+    'APP_SECRET_KEY=django-secret-key-replace-this',
+    'APP_ALLOWED_HOSTS=localhost,127.0.0.1',
+    '',
+    '# Database',
+    'DATABASE_URL=postgres:' + '//' + 'user:password@localhost:5432/mydb',
+    'DB_ENGINE=django.db.backends.postgresql',
+    '',
+    '# Email (SMTP)',
+    'SMTP_HOST=smtp.sendgrid.net',
+    'SMTP_PORT=587',
+    'SMTP_USER=apikey',
+    'SMTP_PASSWORD=SG.abc123',
+    'SMTP_FROM=noreply@example.com',
+    '',
+    '# AWS S3',
+    'S3_BUCKET=my-bucket',
+    'AWS_ACCESS_KEY_ID=AKIAIOSFODNN7EXAMPLE',
+    'AWS_SECRET_ACCESS_KEY=wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY'
+  ].join('\n'),
+
+  postgres: [
+    '# PostgreSQL',
+    'DB_HOST=localhost',
+    'DB_PORT=5432',
+    'DB_NAME=mydb',
+    'DB_USER=postgres',
+    'DB_PASSWORD=secret',
+    'DB_POOL_MIN=2',
+    'DB_POOL_MAX=10',
+    'DB_SSL=false'
+  ].join('\n'),
+
+  redis: [
+    '# Redis',
+    'REDIS_HOST=localhost',
+    'REDIS_PORT=6379',
+    'REDIS_PASSWORD=',
+    'REDIS_DB=0',
+    '',
+    '# Queue',
+    'REDIS_QUEUE_NAME=jobs',
+    'REDIS_MAX_RETRIES=3',
+    'REDIS_JOB_TIMEOUT=30000'
+  ].join('\n'),
+
+  aws: [
+    '# AWS Credentials',
+    'AWS_REGION=us-east-1',
+    'AWS_ACCESS_KEY_ID=AKIAIOSFODNN7EXAMPLE',
+    'AWS_SECRET_ACCESS_KEY=wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY',
+    '',
+    '# S3',
+    'S3_BUCKET=my-bucket-name',
+    'S3_PREFIX=uploads/',
+    'S3_ACL=private',
+    '',
+    '# API Gateway',
+    'API_GATEWAY_URL=https:' + '//' + 'example.execute-api.us-east-1.amazonaws.com/prod'
+  ].join('\n')
+};
+
+function loadPreset(name) {
+  document.getElementById('import-textarea').value = PRESETS[name] || '';
+}
+
+// ============ DIFF ============
+var diffParsedA = {};
+var diffParsedB = {};
+
+function parseEnvToMap(text) {
+  var lines = text.split('\n');
+  var map = {};
+  var order = [];
+  for (var i = 0; i < lines.length; i++) {
+    var line = lines[i].trim();
+    if (!line || line.startsWith('#')) continue;
+    var eqIdx = line.indexOf('=');
+    if (eqIdx === -1) continue;
+    var k = line.substring(0, eqIdx).trim();
+    var v = stripQuotes(stripInlineComment(line.substring(eqIdx + 1)));
+    if (!(k in map)) order.push(k);
+    map[k] = v;
+  }
+  return { map: map, order: order };
+}
+
+function runDiff() {
+  var textA = document.getElementById('diff-a').value;
+  var textB = document.getElementById('diff-b').value;
+  if (!textA.trim() && !textB.trim()) {
+    document.getElementById('diff-results').innerHTML = '';
+    return;
+  }
+  var a = parseEnvToMap(textA);
+  var b = parseEnvToMap(textB);
+
+  var allKeys = [];
+  var seen = {};
+  a.order.forEach(function(k) { if (!seen[k]) { seen[k] = true; allKeys.push(k); } });
+  b.order.forEach(function(k) { if (!seen[k]) { seen[k] = true; allKeys.push(k); } });
+
+  diffResultsCache = allKeys.map(function(k) {
+    var inA = k in a.map;
+    var inB = k in b.map;
+    if (inA && inB) {
+      if (a.map[k] === b.map[k]) return { key: k, type: 'same', valA: a.map[k], valB: b.map[k] };
+      return { key: k, type: 'changed', valA: a.map[k], valB: b.map[k] };
+    } else if (inA) {
+      return { key: k, type: 'removed', valA: a.map[k], valB: '' };
+    } else {
+      return { key: k, type: 'added', valA: '', valB: b.map[k] };
+    }
+  });
+
+  renderDiffResults();
+}
+
+function renderDiffResults() {
+  var hideSame = document.getElementById('diff-hide-same').checked;
+  var rows = diffResultsCache;
+  if (!rows || rows.length === 0) {
+    document.getElementById('diff-results').innerHTML = '<div class="empty-state">no differences found</div>';
+    return;
+  }
+
+  var added = 0, removed = 0, changed = 0, same = 0;
+  rows.forEach(function(r) {
+    if (r.type === 'added') added++;
+    else if (r.type === 'removed') removed++;
+    else if (r.type === 'changed') changed++;
+    else same++;
+  });
+
+  var display = hideSame ? rows.filter(function(r) { return r.type !== 'same'; }) : rows;
+
+  var html = '<div class="diff-summary">';
+  html += '<span class="diff-stat added"><span class="num">+' + added + '</span> added</span>';
+  html += '<span class="diff-stat removed"><span class="num">-' + removed + '</span> removed</span>';
+  html += '<span class="diff-stat changed"><span class="num">~' + changed + '</span> changed</span>';
+  html += '<span class="diff-stat same"><span class="num">' + same + '</span> same</span>';
+  html += '</div>';
+
+  html += '<div style="border:1px solid #1a1a1a;">';
+  html += '<div class="diff-row" style="background:#111;">';
+  html += '<div class="diff-row-key" style="color:#444;font-size:0.5rem;letter-spacing:0.1em;text-transform:uppercase;">key</div>';
+  html += '<div class="diff-row-a" style="color:#444;font-size:0.5rem;letter-spacing:0.1em;text-transform:uppercase;">file A</div>';
+  html += '<div class="diff-row-b" style="color:#444;font-size:0.5rem;letter-spacing:0.1em;text-transform:uppercase;">file B</div>';
+  html += '</div>';
+
+  for (var i = 0; i < display.length; i++) {
+    var r = display[i];
+    var keyClass = 'diff-row-key diff-' + r.type;
+    var aClass = 'diff-row-a ';
+    var bClass = 'diff-row-b ';
+
+    if (r.type === 'removed') { aClass += 'diff-val-a diff-removed'; bClass += 'diff-val-b'; }
+    else if (r.type === 'added') { aClass += 'diff-val-a'; bClass += 'diff-val-b diff-added'; }
+    else if (r.type === 'changed') { aClass += 'diff-val-a diff-changed-old'; bClass += 'diff-val-b diff-changed-new'; }
+    else { aClass += 'diff-val-a diff-same-val'; bClass += 'diff-val-b diff-same-val'; }
+
+    var secret = isSecret(r.key);
+    var aVal = secret ? maskValue(r.valA) : escHtml(r.valA);
+    var bVal = secret ? maskValue(r.valB) : escHtml(r.valB);
+
+    html += '<div class="diff-row diff-' + r.type + '">';
+    html += '<div class="' + keyClass + '">' + escHtml(r.key) + '</div>';
+    html += '<div class="' + aClass + '">' + (r.valA ? aVal : '<span style="color:#222">—</span>') + '</div>';
+    html += '<div class="' + bClass + '">' + (r.valB ? bVal : '<span style="color:#222">—</span>') + '</div>';
+    html += '</div>';
+  }
+  html += '</div>';
+
+  document.getElementById('diff-results').innerHTML = html;
+}
+
+function diffFromVault() {
+  var text = entriesToEnv();
+  document.getElementById('diff-a').value = text;
+  runDiff();
+}
+
+function loadDiffPreset() {
+  document.getElementById('diff-a').value = [
+    'DB_HOST=localhost',
+    'DB_PORT=5432',
+    'DB_NAME=mydb',
+    'DB_PASSWORD=oldpassword',
+    'API_KEY=sk-old-key',
+    'APP_DEBUG=true',
+    'APP_PORT=3000'
+  ].join('\n');
+  document.getElementById('diff-b').value = [
+    'DB_HOST=prod-db.example.com',
+    'DB_PORT=5432',
+    'DB_NAME=mydb_prod',
+    'DB_PASSWORD=newpassword',
+    'API_KEY=sk-new-key',
+    'APP_DEBUG=false',
+    'APP_PORT=8080',
+    'REDIS_URL=redis:' + '//' + 'localhost:6379'
+  ].join('\n');
+  runDiff();
+}
+
+// ============ EXPORT ============
+function entriesToEnv() {
+  var lines = [];
+  var pairs = entries.filter(function(e) { return e.type === 'pair'; });
+  var groups = getGroups();
+  var seen = {};
+  for (var gi = 0; gi < groups.length; gi++) {
+    var gname = groups[gi];
+    var groupPairs = pairs.filter(function(e) { return (e.group || 'MISC') === gname; });
+    if (groupPairs.length === 0) continue;
+    if (lines.length > 0) lines.push('');
+    lines.push('# ' + gname);
+    for (var ei = 0; ei < groupPairs.length; ei++) {
+      var e = groupPairs[ei];
+      var v = e.value;
+      // quote if contains spaces or special chars
+      if (needsQuoting(v)) v = '"' + escForEnvValue(v) + '"';
+      lines.push(e.key + '=' + v);
+    }
+  }
+  return lines.join('\n');
+}
+
+function entriesToJson() {
+  var obj = {};
+  entries.forEach(function(e) {
+    if (e.type === 'pair') obj[e.key] = e.value;
+  });
+  return JSON.stringify(obj, null, 2);
+}
+
+function entriesToDocker() {
+  var lines = ['environment:'];
+  entries.forEach(function(e) {
+    if (e.type === 'pair') {
+      var v = e.value;
+      if (needsQuoting(v)) v = '"' + escForEnvValue(v) + '"';
+      lines.push('  - ' + e.key + '=' + v);
+    }
+  });
+  return lines.join('\n');
+}
+
+function entriesToShell() {
+  var lines = [];
+  entries.forEach(function(e) {
+    if (e.type === 'pair') {
+      var v = e.value;
+      v = '"' + escForShell(v) + '"';
+      lines.push('export ' + e.key + '=' + v);
+    }
+  });
+  return lines.join('\n');
+}
+
+function setExportFormat(fmt) {
+  exportFormat = fmt;
+  ['env','json','docker','shell'].forEach(function(f) {
+    document.getElementById('fmt-' + f).classList.toggle('active', f === fmt);
+  });
+  updateExportOutput();
+}
+
+function updateExportOutput() {
+  var out = '';
+  if (exportFormat === 'env') out = entriesToEnv();
+  else if (exportFormat === 'json') out = entriesToJson();
+  else if (exportFormat === 'docker') out = entriesToDocker();
+  else if (exportFormat === 'shell') out = entriesToShell();
+  document.getElementById('export-output').value = out;
+}
+
+function copyExport() {
+  updateExportOutput();
+  var text = document.getElementById('export-output').value;
+  if (!text) { showToast('Nothing to copy', 'error'); return; }
+  copyToClipboard(text);
+  showToast('Copied', 'success');
+}
+
+function downloadExport() {
+  updateExportOutput();
+  var text = document.getElementById('export-output').value;
+  if (!text) { showToast('Nothing to export', 'error'); return; }
+  var ext = exportFormat === 'env' ? '.env' : exportFormat === 'json' ? '.json' : exportFormat === 'docker' ? '.yml' : '.sh';
+  var blob = new Blob([text], { type: 'text/plain' });
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement('a');
+  a.href = url;
+  a.download = 'env-vault' + ext;
+  a.click();
+  URL.revokeObjectURL(url);
+  showToast('Downloaded', 'success');
+}
+
+// ============ CRYPTO ============
+var ITERATIONS = 600000;
+
+function generateSalt() { return crypto.getRandomValues(new Uint8Array(16)); }
+function generateIV() { return crypto.getRandomValues(new Uint8Array(12)); }
+
+async function deriveKey(password, salt) {
+  var enc = new TextEncoder();
+  var km = await crypto.subtle.importKey('raw', enc.encode(password), 'PBKDF2', false, ['deriveKey']);
+  return crypto.subtle.deriveKey(
+    { name: 'PBKDF2', salt: salt, iterations: ITERATIONS, hash: 'SHA-256' },
+    km,
+    { name: 'AES-GCM', length: 256 },
+    false,
+    ['encrypt', 'decrypt']
+  );
+}
+
+async function encryptText(text, key) {
+  var enc = new TextEncoder();
+  var iv = generateIV();
+  var ct = await crypto.subtle.encrypt({ name: 'AES-GCM', iv: iv }, key, enc.encode(text));
+  return { iv: iv, ciphertext: new Uint8Array(ct) };
+}
+
+async function decryptText(ctBytes, iv, key) {
+  var dec = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: iv }, key, ctBytes);
+  return new TextDecoder().decode(dec);
+}
+
+function uint8ToBase64(arr) {
+  var binary = '';
+  var chunk = 8192;
+  for (var i = 0; i < arr.length; i += chunk) {
+    binary += String.fromCharCode.apply(null, arr.subarray(i, i + chunk));
+  }
+  return btoa(binary);
+}
+
+function base64ToUint8(b64) {
+  var binary = atob(b64);
+  var arr = new Uint8Array(binary.length);
+  for (var i = 0; i < binary.length; i++) arr[i] = binary.charCodeAt(i);
+  return arr;
+}
+
+async function encryptAndExport() {
+  if (!window.crypto || !window.crypto.subtle) {
+    showToast('Encryption requires HTTPS or localhost', 'error');
+    return;
+  }
+  var password = document.getElementById('enc-password').value;
+  if (!password) { showToast('Enter a passphrase', 'error'); return; }
+  var pairs = entries.filter(function(e) { return e.type === 'pair'; });
+  if (pairs.length === 0) { showToast('Vault is empty', 'error'); return; }
+  try {
+    var salt = generateSalt();
+    var key = await deriveKey(password, salt);
+    var plain = entriesToEnv();
+    var { iv, ciphertext } = await encryptText(plain, key);
+    var blob = JSON.stringify({
+      v: 1,
+      salt: uint8ToBase64(salt),
+      iv: uint8ToBase64(iv),
+      ct: uint8ToBase64(ciphertext)
+    });
+    document.getElementById('encrypted-output').value = blob;
+    copyToClipboard(blob);
+    showToast('Encrypted + copied', 'success');
+  } catch(err) {
+    showToast('Encrypt failed', 'error');
+  }
+}
+
+async function decryptImport() {
+  if (!window.crypto || !window.crypto.subtle) {
+    showToast('Encryption requires HTTPS or localhost', 'error');
+    return;
+  }
+  var password = document.getElementById('enc-password').value;
+  if (!password) { showToast('Enter a passphrase', 'error'); return; }
+  var blobText = document.getElementById('encrypted-output').value.trim();
+  if (!blobText) { showToast('No encrypted blob', 'error'); return; }
+  try {
+    var blob = JSON.parse(blobText);
+    var salt = base64ToUint8(blob.salt);
+    var iv = base64ToUint8(blob.iv);
+    var ct = base64ToUint8(blob.ct);
+    var key = await deriveKey(password, salt);
+    var plain = await decryptText(ct, iv, key);
+    var parsed = parseEnv(plain);
+    entries = parsed;
+    renderVault();
+    switchTab('vault');
+    showToast('Decrypted + imported', 'success');
+  } catch(err) {
+    showToast('Wrong passphrase or corrupt blob', 'error');
+  }
+}
+
+function togglePassVis() {
+  var input = document.getElementById('enc-password');
+  input.type = input.type === 'password' ? 'text' : 'password';
+}
+
+// ============ TABS ============
+function switchTab(name) {
+  ['vault','import','diff','export'].forEach(function(t) {
+    document.getElementById('panel-' + t).classList.toggle('active', t === name);
+    document.getElementById('tab-' + t).classList.toggle('active', t === name);
+  });
+  if (name === 'export') updateExportOutput();
+}
+
+// ============ UTILS ============
+function copyToClipboard(text) {
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).catch(function() { fallbackCopy(text); });
+  } else {
+    fallbackCopy(text);
+  }
+}
+
+function fallbackCopy(text) {
+  var ta = document.createElement('textarea');
+  ta.value = text;
+  ta.style.position = 'fixed';
+  ta.style.opacity = '0';
+  document.body.appendChild(ta);
+  ta.select();
+  try { document.execCommand('copy'); } catch(e) {}
+  document.body.removeChild(ta);
+}
+
+var toastTimer = null;
+function showToast(msg, type) {
+  var el = document.getElementById('toast');
+  el.textContent = msg;
+  el.className = 'toast show' + (type ? ' ' + type : '');
+  if (toastTimer) clearTimeout(toastTimer);
+  toastTimer = setTimeout(function() { el.className = 'toast'; }, 1800);
+}
+
+// ============ INIT ============
+function init() {
+  // Load a sample vault so the first view is useful
+  var sample = [
+    '# App',
+    'APP_NAME=My Application',
+    'APP_ENV=development',
+    'APP_PORT=3000',
+    '',
+    '# Database',
+    'DB_HOST=localhost',
+    'DB_PORT=5432',
+    'DB_NAME=myapp',
+    'DB_USER=postgres',
+    'DB_PASSWORD=supersecretpassword',
+    '',
+    '# Auth',
+    'AUTH_SECRET=jwt-secret-key-change-this-in-production',
+    'AUTH_TOKEN_EXPIRY=7d',
+    '',
+    '# API',
+    'API_KEY=sk-abc123def456',
+    'API_BASE_URL=api.example.com/v1'
+  ].join('\n');
+  entries = parseEnv(sample);
+  renderVault();
+}
+
+init();
+</script>
+</body>
+</html>
