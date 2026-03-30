@@ -94,3 +94,4 @@ These are features complex enough to prototype as standalone YOLO single-session
 | 2026-03-31 | Tock | Progressive reveal (-- fragments) + PPTX slide duplication |
 | 2026-03-31 | Tick | dep-graph: package manifest dependency visualizer |
 | 2026-03-31 | Tock | Presenter view: dual-window with notes, next slide, timer |
+| 2026-03-31 | Tick | commit-log: git history pattern analyzer |
