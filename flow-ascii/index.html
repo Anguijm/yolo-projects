@@ -1,0 +1,1003 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="theme-color" content="#000000">
+<title>Flow ASCII</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body {
+  height: 100%;
+  background: #0a0a0a;
+  color: #ccc;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Courier New", monospace;
+  overflow: hidden;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+:root {
+  --accent: #0ff;
+  --bg-page: #0a0a0a;
+  --bg-surface: #111;
+  --bg-elevated: #1a1a1a;
+  --text-primary: #fff;
+  --text-body: #ccc;
+  --text-secondary: #aaa;
+  --text-tertiary: #555;
+  --text-label: #444;
+  --border-default: #1a1a1a;
+  --border-active: #444;
+}
+
+#app {
+  height: 100%;
+  display: grid;
+  grid-template-rows: auto 1fr;
+}
+
+/* Toolbar */
+#toolbar {
+  display: flex;
+  gap: 8px;
+  padding: 8px 12px;
+  background: #0d0d0d;
+  border-bottom: 1px solid #1a1a1a;
+  align-items: center;
+  flex-wrap: wrap;
+}
+#toolbar h1 {
+  font-size: 0.7rem;
+  color: #444;
+  letter-spacing: 0.3em;
+  font-weight: 300;
+  margin-right: auto;
+  text-transform: uppercase;
+}
+#toolbar .accent { color: #0ff; }
+
+.btn {
+  padding: 4px 10px;
+  background: transparent;
+  border: 1px solid #1a1a1a;
+  color: #444;
+  font-family: inherit;
+  font-size: 0.55rem;
+  cursor: pointer;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+.btn:hover { border-color: #333; color: #666; }
+.btn:active { border-color: #555; color: #888; }
+.btn.active { border-color: #0ff; color: #0ff; }
+
+.sep { width: 1px; height: 16px; background: #1a1a1a; }
+
+#node-count { font-size: 0.5rem; color: #444; letter-spacing: 0.1em; }
+
+/* Main panes */
+#panes {
+  display: grid;
+  grid-template-columns: 340px 1fr;
+  min-height: 0;
+}
+@media (max-width: 700px) {
+  #panes { grid-template-columns: 1fr; grid-template-rows: 200px 1fr; }
+}
+
+#input-pane {
+  display: flex;
+  flex-direction: column;
+  border-right: 1px solid #1a1a1a;
+  min-height: 0;
+}
+#output-pane {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  position: relative;
+  overflow: hidden;
+}
+
+.pane-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 12px;
+  font-size: 0.45rem;
+  color: #333;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  background: #0d0d0d;
+  border-bottom: 1px solid #111;
+  flex-shrink: 0;
+}
+.pane-header .hint { color: #222; font-size: 0.4rem; }
+
+textarea {
+  flex: 1;
+  background: #0a0a0a;
+  border: none;
+  color: #aaa;
+  padding: 12px;
+  font-family: inherit;
+  font-size: 0.75rem;
+  resize: none;
+  line-height: 1.8;
+  outline: none;
+  min-height: 0;
+  tab-size: 2;
+}
+textarea::placeholder { color: #222; }
+
+/* Error bar */
+#error-bar {
+  padding: 4px 12px;
+  font-size: 0.5rem;
+  color: #f85149;
+  background: #0d0d0d;
+  border-top: 1px solid #1a1a1a;
+  min-height: 22px;
+  letter-spacing: 0.05em;
+  display: none;
+}
+#error-bar.visible { display: block; }
+
+/* SVG canvas */
+#diagram-svg {
+  flex: 1;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+#zoom-hint {
+  position: absolute;
+  bottom: 8px;
+  right: 10px;
+  font-size: 0.4rem;
+  color: #222;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  pointer-events: none;
+}
+
+/* Presets strip */
+#presets {
+  display: flex;
+  gap: 4px;
+  padding: 6px 12px;
+  border-top: 1px solid #111;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+}
+.preset-btn {
+  padding: 3px 8px;
+  background: transparent;
+  border: 1px solid #1a1a1a;
+  color: #333;
+  font-family: inherit;
+  font-size: 0.45rem;
+  cursor: pointer;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.preset-btn:hover { border-color: #333; color: #555; }
+.preset-btn:active { border-color: #0ff; color: #0ff; }
+
+/* Syntax help */
+#help-panel {
+  padding: 8px 12px;
+  border-top: 1px solid #111;
+  flex-shrink: 0;
+}
+#help-panel summary {
+  font-size: 0.45rem;
+  color: #333;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  cursor: pointer;
+  outline: none;
+  list-style: none;
+}
+#help-panel summary::-webkit-details-marker { display: none; }
+#help-panel summary::before { content: '▶ '; color: #222; }
+details[open] #help-panel summary::before { content: '▼ '; }
+#help-panel .help-body {
+  margin-top: 6px;
+  font-size: 0.5rem;
+  color: #444;
+  line-height: 1.8;
+}
+#help-panel .help-body .hl { color: #555; }
+
+/* SVG node/edge styles (also used as CSS classes on SVG elements) */
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="toolbar">
+    <h1>Flow<span class="accent">—</span>ASCII</h1>
+    <button class="btn" id="btn-fit" title="Fit to view (F)">Fit</button>
+    <button class="btn" id="btn-center" title="Center (C)">Center</button>
+    <div class="sep"></div>
+    <button class="btn" id="btn-lr" title="Left→Right layout">LR</button>
+    <button class="btn active" id="btn-tb" title="Top→Bottom layout">TB</button>
+    <div class="sep"></div>
+    <button class="btn" id="btn-export" title="Export SVG">SVG</button>
+    <span id="node-count"></span>
+  </div>
+  <div id="panes">
+    <div id="input-pane">
+      <div class="pane-header">
+        <span>Diagram Source</span>
+        <span class="hint">Live render</span>
+      </div>
+      <textarea id="src" spellcheck="false" placeholder="[Start] --> [Process] --> [Output]"></textarea>
+      <div id="error-bar"></div>
+      <div id="presets">
+        <button class="preset-btn" data-preset="basic">Basic</button>
+        <button class="preset-btn" data-preset="cycle">Cycle</button>
+        <button class="preset-btn" data-preset="branch">Branch</button>
+        <button class="preset-btn" data-preset="pipeline">Pipeline</button>
+        <button class="preset-btn" data-preset="diamond">Diamond</button>
+      </div>
+      <details id="help-panel">
+        <summary>Syntax Reference</summary>
+        <div class="help-body">
+          <span class="hl">[Node]</span> — define a node<br>
+          <span class="hl">[A] --> [B]</span> — directed edge<br>
+          <span class="hl">[A] --label--> [B]</span> — labeled edge<br>
+          <span class="hl">[A] --&gt; [B] --&gt; [C]</span> — chain<br>
+          <span class="hl">// comment</span> — ignored line<br>
+          Empty lines between groups are fine.
+        </div>
+      </details>
+    </div>
+    <div id="output-pane">
+      <div class="pane-header">
+        <span>Diagram</span>
+        <span class="hint">Scroll / pinch to zoom</span>
+      </div>
+      <svg id="diagram-svg" xmlns="http://www.w3.org/2000/svg">
+        <g id="diagram-root"></g>
+      </svg>
+      <div id="zoom-hint">Scroll to zoom · Drag to pan</div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ============================================================
+// FLOW-ASCII — Pure renderer (extractable as standalone module)
+// ============================================================
+
+/**
+ * FlowASCII — Parse a text diagram DSL and layout+render to SVG.
+ *
+ * EXTRACTABLE API:
+ *   const { nodes, edges } = FlowASCII.parse(source)
+ *   const layout = FlowASCII.layout(nodes, edges, direction)  // 'TB' or 'LR'
+ *   FlowASCII.render(svgGroup, layout, options)
+ *
+ * Zero dependencies. Pure functions after init.
+ */
+const FlowASCII = (() => {
+  'use strict';
+
+  // ---- PARSER ------------------------------------------------
+
+  /**
+   * Parse diagram source text into { nodes: Map, edges: [] }
+   * nodes: Map<id, { id, label }>
+   * edges: [{ from, to, label }]
+   */
+  function parse(source) {
+    const nodes = new Map();
+    const edges = [];
+    const errors = [];
+
+    const lines = source.split('\n');
+
+    for (let li = 0; li < lines.length; li++) {
+      const raw = lines[li];
+      const line = raw.replace(/\/\/.*$/, '').trim(); // strip comments
+      if (!line) continue;
+
+      // Parse all [Node] --> [Node] chains on this line
+      // Strategy: find all --> separators and node tokens
+      // Build a token list for this line: alternating [node] and edge-labels
+      const tokens = tokenizeLine(line, li, errors);
+      if (!tokens) continue;
+
+      // Register all node tokens
+      for (const t of tokens) {
+        if (t.type === 'node') {
+          const id = normalizeId(t.label);
+          if (!nodes.has(id)) {
+            nodes.set(id, { id, label: t.label });
+          }
+        }
+      }
+
+      // Build edges from consecutive node--edge--node triples
+      for (let i = 0; i <= tokens.length - 3; i++) {
+        if (tokens[i].type === 'node' && tokens[i+1].type === 'edge' && tokens[i+2].type === 'node') {
+          edges.push({
+            from: normalizeId(tokens[i].label),
+            to: normalizeId(tokens[i+2].label),
+            label: tokens[i+1].label.trim()
+          });
+          // Skip the edge token; next iteration re-checks at the 'to' node
+          i++;
+        }
+      }
+    }
+
+    return { nodes, edges, errors };
+  }
+
+  /**
+   * Tokenize a single line into alternating node/edge tokens
+   * Returns array of { type: 'node'|'edge', label } or null on fatal error
+   */
+  function tokenizeLine(line, lineNum, errors) {
+    const tokens = [];
+    let pos = 0;
+    const len = line.length;
+
+    while (pos < len) {
+      // Skip whitespace
+      while (pos < len && /\s/.test(line[pos])) pos++;
+      if (pos >= len) break;
+
+      if (line[pos] === '[') {
+        // Node token
+        const close = line.indexOf(']', pos);
+        if (close === -1) {
+          errors.push(`Line ${lineNum+1}: unclosed '[' — missing ']'`);
+          return null;
+        }
+        const label = line.slice(pos + 1, close).trim();
+        if (!label) {
+          errors.push(`Line ${lineNum+1}: empty node label []`);
+          return null;
+        }
+        tokens.push({ type: 'node', label });
+        pos = close + 1;
+      } else if (line[pos] === '-' && line[pos+1] === '-') {
+        // Edge token: --label--> or -->
+        // Find -->
+        const arrowIdx = line.indexOf('-->', pos);
+        if (arrowIdx === -1) {
+          errors.push(`Line ${lineNum+1}: malformed arrow near col ${pos+1}`);
+          return null;
+        }
+        // Edge label is between -- and -->
+        // Case 1: --> immediately (pos+2 == arrowIdx means no label gap)
+        // Case 2: --label--> means pos is --, label is between pos+2 and arrowIdx
+        let edgeLabel = '';
+        if (arrowIdx === pos) {
+          // --> directly
+          edgeLabel = '';
+          pos = arrowIdx + 3;
+        } else {
+          // --something-->: extract 'something'
+          edgeLabel = line.slice(pos + 2, arrowIdx).replace(/-+$/, '').trim();
+          pos = arrowIdx + 3;
+        }
+        tokens.push({ type: 'edge', label: edgeLabel });
+      } else {
+        // Unexpected character — skip (could be whitespace already consumed)
+        pos++;
+      }
+    }
+
+    return tokens;
+  }
+
+  function normalizeId(label) {
+    return label.toLowerCase().replace(/\s+/g, '_');
+  }
+
+  // ---- LAYOUT ------------------------------------------------
+
+  // Node dimensions
+  const NODE_W = 120;
+  const NODE_H = 40;
+  const H_GAP = 60;   // horizontal gap between nodes
+  const V_GAP = 50;   // vertical gap between rows
+
+  /**
+   * Compute positions for nodes using a simple layered (Sugiyama-style) approach.
+   * direction: 'TB' (top-to-bottom) or 'LR' (left-to-right)
+   *
+   * Returns: Map<nodeId, { x, y, w, h, label }>
+   */
+  function layout(nodes, edges, direction) {
+    if (nodes.size === 0) return new Map();
+
+    // 1. Assign layers via longest-path layering
+    const layers = assignLayers(nodes, edges);
+
+    // 2. Assign positions within each layer
+    const positions = new Map();
+    const layerGroups = new Map(); // layer -> [nodeIds]
+
+    for (const [id, layer] of layers) {
+      if (!layerGroups.has(layer)) layerGroups.set(layer, []);
+      layerGroups.get(layer).push(id);
+    }
+
+    const maxLayer = Math.max(...layerGroups.keys());
+
+    for (const [layer, ids] of layerGroups) {
+      const count = ids.length;
+      for (let i = 0; i < count; i++) {
+        const id = ids[i];
+        const node = nodes.get(id);
+        let x, y;
+        if (direction === 'LR') {
+          x = layer * (NODE_W + H_GAP);
+          y = i * (NODE_H + V_GAP);
+        } else {
+          // TB
+          x = i * (NODE_W + H_GAP);
+          y = layer * (NODE_H + V_GAP);
+        }
+        positions.set(id, { x, y, w: NODE_W, h: NODE_H, label: node.label, id });
+      }
+    }
+
+    // 3. Center layers relative to the widest/tallest layer
+    centerLayers(positions, layerGroups, direction, maxLayer);
+
+    return positions;
+  }
+
+  /**
+   * Assign a layer (depth) to each node using Bellman-Ford longest-path.
+   * Handles cycles gracefully (bounded iterations).
+   */
+  function assignLayers(nodes, edges) {
+    const layers = new Map();
+    for (const [id] of nodes) layers.set(id, 0);
+
+    // Bellman-Ford style: propagate longest paths
+    const validEdges = edges.filter(e => nodes.has(e.from) && nodes.has(e.to));
+    const maxIter = nodes.size * 2;
+    let changed = true;
+    let iter = 0;
+    while (changed && iter < maxIter) {
+      changed = false;
+      for (const e of validEdges) {
+        const proposed = (layers.get(e.from) || 0) + 1;
+        if (proposed > (layers.get(e.to) || 0)) {
+          layers.set(e.to, proposed);
+          changed = true;
+        }
+      }
+      iter++;
+    }
+
+    return layers;
+  }
+
+  /**
+   * Center each layer's nodes relative to the widest layer.
+   */
+  function centerLayers(positions, layerGroups, direction, maxLayer) {
+    if (direction === 'LR') {
+      // Find max height (most nodes in a layer * node height)
+      let maxH = 0;
+      for (const [, ids] of layerGroups) {
+        const h = ids.length * (NODE_H + V_GAP) - V_GAP;
+        maxH = Math.max(maxH, h);
+      }
+      // Center each layer vertically
+      for (const [, ids] of layerGroups) {
+        const layerH = ids.length * (NODE_H + V_GAP) - V_GAP;
+        const offset = (maxH - layerH) / 2;
+        for (const id of ids) {
+          const pos = positions.get(id);
+          pos.y += offset;
+        }
+      }
+    } else {
+      // TB — center each layer horizontally
+      let maxW = 0;
+      for (const [, ids] of layerGroups) {
+        const w = ids.length * (NODE_W + H_GAP) - H_GAP;
+        maxW = Math.max(maxW, w);
+      }
+      for (const [, ids] of layerGroups) {
+        const layerW = ids.length * (NODE_W + H_GAP) - H_GAP;
+        const offset = (maxW - layerW) / 2;
+        for (const id of ids) {
+          const pos = positions.get(id);
+          pos.x += offset;
+        }
+      }
+    }
+  }
+
+  // ---- RENDERER ---------------------------------------------
+
+  const COLORS = {
+    nodeFill:    '#111',
+    nodeBorder:  '#1a1a1a',
+    nodeActive:  '#0ff',
+    nodeText:    '#ccc',
+    edgeLine:    '#0ff',
+    edgeLabel:   '#555',
+    edgeDim:     '#2a2a2a',
+  };
+
+  /**
+   * Render the layout into an SVG <g> element.
+   * Clears existing content of the group.
+   *
+   * @param {SVGGElement} g - SVG group to render into
+   * @param {Map} positions - from layout()
+   * @param {Array} edges - from parse()
+   * @param {Object} opts - { highlighted: Set<nodeId> }
+   */
+  function render(g, positions, edges, opts) {
+    while (g.firstChild) g.removeChild(g.firstChild);
+    if (positions.size === 0) return;
+
+    const SVG_NS = "http:\x2f\x2fwww.w3.org\x2f2000\x2fsvg";
+    function mkEl(tag) { return document.createElementNS(SVG_NS, tag); }
+    function sa(el, k, v) { el.setAttribute(k, v); return el; }
+
+    // Inject arrowhead marker so the renderer is self-contained
+    const defs = mkEl("defs");
+    const marker = mkEl("marker");
+    sa(marker, "id", "fa-arrow");
+    sa(marker, "markerWidth", "10");
+    sa(marker, "markerHeight", "7");
+    sa(marker, "refX", "9");
+    sa(marker, "refY", "3.5");
+    sa(marker, "orient", "auto");
+    const arrowPoly = mkEl("polygon");
+    sa(arrowPoly, "points", "0 0, 10 3.5, 0 7");
+    sa(arrowPoly, "fill", COLORS.edgeLine);
+    sa(arrowPoly, "opacity", "0.7");
+    marker.appendChild(arrowPoly);
+    defs.appendChild(marker);
+    g.appendChild(defs);
+
+    const MAX_EDGE_LABEL = 18;
+
+    // ---- Draw edges first (behind nodes) ----
+    for (const edge of edges) {
+      const from = positions.get(edge.from);
+      const to = positions.get(edge.to);
+      if (!from || !to) continue;
+
+      const { x1, y1, x2, y2 } = edgePoints(from, to);
+
+      const isSelf = edge.from === edge.to;
+      let d;
+
+      if (isSelf) {
+        const p = positions.get(edge.from);
+        const lx = p.x + p.w / 2;
+        const ly = p.y;
+        d = `M ${lx - 15} ${ly} C ${lx - 30} ${ly - 40}, ${lx + 30} ${ly - 40}, ${lx + 15} ${ly}`;
+      } else {
+        const dx = x2 - x1;
+        const dy = y2 - y1;
+        const isCurved = Math.abs(dx) < 1 || Math.abs(dy) < 1;
+        if (isCurved) {
+          const mx = (x1 + x2) / 2;
+          const my = (y1 + y2) / 2;
+          d = `M ${x1} ${y1} C ${x1} ${my}, ${x2} ${my}, ${x2} ${y2}`;
+        } else {
+          // Context-aware bezier: control points follow primary axis
+          const isH = Math.abs(dx) > Math.abs(dy);
+          const tcx1 = x1 + (isH ? dx * 0.4 : 0);
+          const tcy1 = y1 + (isH ? 0 : dy * 0.4);
+          const tcx2 = x2 - (isH ? dx * 0.4 : 0);
+          const tcy2 = y2 - (isH ? 0 : dy * 0.4);
+          d = `M ${x1} ${y1} C ${tcx1} ${tcy1}, ${tcx2} ${tcy2}, ${x2} ${y2}`;
+        }
+      }
+
+      const path = mkEl("path");
+      sa(path, "d", d);
+      sa(path, "fill", "none");
+      sa(path, "stroke", COLORS.edgeLine);
+      sa(path, "stroke-width", "1");
+      sa(path, "stroke-opacity", "0.5");
+      sa(path, "marker-end", "url(#fa-arrow)");
+      g.appendChild(path);
+
+      // Edge label — truncated
+      if (edge.label) {
+        const raw = edge.label;
+        const truncLabel = raw.length > MAX_EDGE_LABEL
+          ? raw.slice(0, MAX_EDGE_LABEL - 3) + "..."
+          : raw;
+        const mx = (x1 + x2) / 2;
+        const my = (y1 + y2) / 2;
+        const bw = truncLabel.length * 6.4 + 6;
+        const bg = mkEl("rect");
+        sa(bg, "x", mx - bw / 2);
+        sa(bg, "y", my - 8);
+        sa(bg, "width", bw);
+        sa(bg, "height", 14);
+        sa(bg, "fill", "#0a0a0a");
+        g.appendChild(bg);
+        const elt = mkEl("text");
+        sa(elt, "x", mx);
+        sa(elt, "y", my + 4);
+        sa(elt, "text-anchor", "middle");
+        sa(elt, "font-family", "ui-monospace, monospace");
+        sa(elt, "font-size", "9");
+        sa(elt, "fill", COLORS.edgeLabel);
+        elt.textContent = truncLabel;
+        g.appendChild(elt);
+      }
+    }
+
+    // ---- Draw nodes ----
+    for (const [id, pos] of positions) {
+      const grp = mkEl("g");
+      sa(grp, "data-id", id);
+      sa(grp, "class", "fa-node");
+
+      // Glow border
+      const glow = mkEl("rect");
+      sa(glow, "x", pos.x - 1);
+      sa(glow, "y", pos.y - 1);
+      sa(glow, "width", pos.w + 2);
+      sa(glow, "height", pos.h + 2);
+      sa(glow, "fill", "none");
+      sa(glow, "stroke", COLORS.nodeActive);
+      sa(glow, "stroke-width", "0.5");
+      sa(glow, "opacity", "0.15");
+      grp.appendChild(glow);
+
+      // Box fill
+      const rect = mkEl("rect");
+      sa(rect, "x", pos.x);
+      sa(rect, "y", pos.y);
+      sa(rect, "width", pos.w);
+      sa(rect, "height", pos.h);
+      sa(rect, "fill", COLORS.nodeFill);
+      sa(rect, "stroke", COLORS.nodeBorder);
+      sa(rect, "stroke-width", "1");
+      grp.appendChild(rect);
+
+      // Label — proper truncation: reserve 3 chars for "..."
+      const maxChars = Math.floor(pos.w / 7.5);
+      const displayLabel = pos.label.length > maxChars
+        ? pos.label.slice(0, Math.max(0, maxChars - 3)) + "..."
+        : pos.label;
+
+      const text = mkEl("text");
+      sa(text, "x", pos.x + pos.w / 2);
+      sa(text, "y", pos.y + pos.h / 2 + 4);
+      sa(text, "text-anchor", "middle");
+      sa(text, "font-family", "ui-monospace, monospace");
+      sa(text, "font-size", "11");
+      sa(text, "font-weight", "400");
+      sa(text, "fill", COLORS.nodeText);
+      text.textContent = displayLabel;
+      grp.appendChild(text);
+
+      g.appendChild(grp);
+    }
+  }
+
+  /**
+   * Compute the best attach points for an edge between two nodes.
+   * Returns { x1, y1, x2, y2 }
+   */
+  function edgePoints(from, to) {
+    const fc = { x: from.x + from.w / 2, y: from.y + from.h / 2 };
+    const tc = { x: to.x + to.w / 2,   y: to.y + to.h / 2 };
+
+    const dx = tc.x - fc.x;
+    const dy = tc.y - fc.y;
+
+    // Determine which side of 'from' to exit from
+    let x1, y1, x2, y2;
+
+    if (Math.abs(dy) > Math.abs(dx)) {
+      // Primarily vertical
+      if (dy > 0) {
+        x1 = fc.x; y1 = from.y + from.h; // bottom of from
+        x2 = tc.x; y2 = to.y;            // top of to
+      } else {
+        x1 = fc.x; y1 = from.y;          // top of from
+        x2 = tc.x; y2 = to.y + to.h;     // bottom of to
+      }
+    } else {
+      // Primarily horizontal
+      if (dx > 0) {
+        x1 = from.x + from.w; y1 = fc.y; // right of from
+        x2 = to.x;            y2 = tc.y; // left of to
+      } else {
+        x1 = from.x;         y1 = fc.y;  // left of from
+        x2 = to.x + to.w;    y2 = tc.y;  // right of to
+      }
+    }
+
+    return { x1, y1, x2, y2 };
+  }
+
+  /**
+   * Compute the bounding box of all positioned nodes.
+   * Returns { x, y, w, h } or null if empty.
+   */
+  function getBounds(positions) {
+    if (positions.size === 0) return null;
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    for (const [, pos] of positions) {
+      minX = Math.min(minX, pos.x);
+      minY = Math.min(minY, pos.y);
+      maxX = Math.max(maxX, pos.x + pos.w);
+      maxY = Math.max(maxY, pos.y + pos.h);
+    }
+    return { x: minX, y: minY, w: maxX - minX, h: maxY - minY };
+  }
+
+  return { parse, layout, render, getBounds, edgePoints };
+})();
+
+// ============================================================
+// APP — wires FlowASCII to the DOM
+// ============================================================
+
+(function() {
+  'use strict';
+
+  const srcEl    = document.getElementById('src');
+  const svgEl    = document.getElementById('diagram-svg');
+  const rootG    = document.getElementById('diagram-root');
+  const errorBar = document.getElementById('error-bar');
+  const nodeCountEl = document.getElementById('node-count');
+
+  let direction = 'TB';
+  let transform = { x: 0, y: 0, scale: 1 };
+  let currentPositions = new Map();
+  let currentEdges = [];
+
+  // ---- Direction buttons ----
+  document.getElementById('btn-tb').addEventListener('click', () => {
+    direction = 'TB';
+    document.getElementById('btn-tb').classList.add('active');
+    document.getElementById('btn-lr').classList.remove('active');
+    renderDiagram();
+  });
+  document.getElementById('btn-lr').addEventListener('click', () => {
+    direction = 'LR';
+    document.getElementById('btn-lr').classList.add('active');
+    document.getElementById('btn-tb').classList.remove('active');
+    renderDiagram();
+  });
+
+  // ---- Fit / Center ----
+  document.getElementById('btn-fit').addEventListener('click', fitView);
+  document.getElementById('btn-center').addEventListener('click', centerView);
+
+  // ---- Export SVG ----
+  document.getElementById('btn-export').addEventListener('click', exportSVG);
+
+  // ---- Keyboard shortcuts ----
+  document.addEventListener('keydown', (e) => {
+    if (e.target === srcEl) return; // don't intercept in textarea
+    if (e.key === 'f' || e.key === 'F') fitView();
+    if (e.key === 'c' || e.key === 'C') centerView();
+  });
+
+  // ---- Live update ----
+  srcEl.addEventListener('input', () => renderDiagram());
+
+  // ---- Pan / Zoom ----
+  let isPanning = false;
+  let panStart = { x: 0, y: 0 };
+
+  svgEl.addEventListener('mousedown', (e) => {
+    if (e.button !== 0) return;
+    isPanning = true;
+    panStart = { x: e.clientX - transform.x, y: e.clientY - transform.y };
+    svgEl.style.cursor = 'grabbing';
+  });
+  window.addEventListener('mouseup', () => {
+    isPanning = false;
+    svgEl.style.cursor = '';
+  });
+  window.addEventListener('mousemove', (e) => {
+    if (!isPanning) return;
+    transform.x = e.clientX - panStart.x;
+    transform.y = e.clientY - panStart.y;
+    applyTransform();
+  });
+
+  svgEl.addEventListener('wheel', (e) => {
+    e.preventDefault();
+    const rect = svgEl.getBoundingClientRect();
+    const mx = e.clientX - rect.left;
+    const my = e.clientY - rect.top;
+    const delta = e.deltaY > 0 ? 0.88 : 1 / 0.88;
+    const newScale = Math.min(Math.max(transform.scale * delta, 0.1), 8);
+    // Zoom toward cursor
+    transform.x = mx - (mx - transform.x) * (newScale / transform.scale);
+    transform.y = my - (my - transform.y) * (newScale / transform.scale);
+    transform.scale = newScale;
+    applyTransform();
+  }, { passive: false });
+
+  // Touch pan/zoom
+  let touches = [];
+  let lastPinchDist = 0;
+  svgEl.addEventListener('touchstart', (e) => {
+    e.preventDefault();
+    touches = Array.from(e.touches);
+    if (touches.length === 2) {
+      lastPinchDist = Math.hypot(
+        touches[0].clientX - touches[1].clientX,
+        touches[0].clientY - touches[1].clientY
+      );
+    }
+  }, { passive: false });
+  svgEl.addEventListener('touchmove', (e) => {
+    e.preventDefault();
+    const t = Array.from(e.touches);
+    if (t.length === 1 && touches.length === 1) {
+      transform.x += t[0].clientX - touches[0].clientX;
+      transform.y += t[0].clientY - touches[0].clientY;
+    } else if (t.length === 2 && touches.length === 2) {
+      const dist = Math.hypot(
+        t[0].clientX - t[1].clientX,
+        t[0].clientY - t[1].clientY
+      );
+      const scale = dist / lastPinchDist;
+      const cx = (t[0].clientX + t[1].clientX) / 2 - svgEl.getBoundingClientRect().left;
+      const cy = (t[0].clientY + t[1].clientY) / 2 - svgEl.getBoundingClientRect().top;
+      const newScale = Math.min(Math.max(transform.scale * scale, 0.1), 8);
+      transform.x = cx - (cx - transform.x) * (newScale / transform.scale);
+      transform.y = cy - (cy - transform.y) * (newScale / transform.scale);
+      transform.scale = newScale;
+      lastPinchDist = dist;
+    }
+    touches = t;
+    applyTransform();
+  }, { passive: false });
+
+  function applyTransform() {
+    rootG.setAttribute('transform',
+      `translate(${transform.x}, ${transform.y}) scale(${transform.scale})`);
+  }
+
+  // ---- Core render ----
+  function renderDiagram() {
+    const source = srcEl.value;
+    const { nodes, edges, errors } = FlowASCII.parse(source);
+
+    if (errors.length > 0) {
+      errorBar.textContent = errors[0];
+      errorBar.classList.add('visible');
+    } else {
+      errorBar.textContent = '';
+      errorBar.classList.remove('visible');
+    }
+
+    const positions = FlowASCII.layout(nodes, edges, direction);
+    FlowASCII.render(rootG, positions, edges);
+
+    currentPositions = positions;
+    currentEdges = edges;
+
+    const nNodes = nodes.size;
+    const nEdges = edges.length;
+    nodeCountEl.textContent = nNodes > 0
+      ? `${nNodes} node${nNodes !== 1 ? 's' : ''} · ${nEdges} edge${nEdges !== 1 ? 's' : ''}`
+      : '';
+
+    if (nNodes > 0) fitView();
+  }
+
+  function fitView() {
+    const bounds = FlowASCII.getBounds(currentPositions);
+    if (!bounds) return;
+
+    const rect = svgEl.getBoundingClientRect();
+    const vw = rect.width;
+    const vh = rect.height;
+    const pad = 40;
+
+    const scaleX = (vw - pad * 2) / bounds.w;
+    const scaleY = (vh - pad * 2) / bounds.h;
+    const scale = Math.min(scaleX, scaleY, 3);
+
+    transform.scale = scale;
+    transform.x = (vw - bounds.w * scale) / 2 - bounds.x * scale;
+    transform.y = (vh - bounds.h * scale) / 2 - bounds.y * scale;
+    applyTransform();
+  }
+
+  function centerView() {
+    const bounds = FlowASCII.getBounds(currentPositions);
+    if (!bounds) return;
+    const rect = svgEl.getBoundingClientRect();
+    transform.x = rect.width / 2 - (bounds.x + bounds.w / 2) * transform.scale;
+    transform.y = rect.height / 2 - (bounds.y + bounds.h / 2) * transform.scale;
+    applyTransform();
+  }
+
+  function exportSVG() {
+    const bounds = FlowASCII.getBounds(currentPositions);
+    if (!bounds || currentPositions.size === 0) return;
+    const pad = 30;
+    const vb = `${bounds.x - pad} ${bounds.y - pad} ${bounds.w + pad*2} ${bounds.h + pad*2}`;
+
+    const clone = svgEl.cloneNode(true);
+    clone.removeAttribute('style');
+    clone.setAttribute('viewBox', vb);
+    clone.setAttribute('width', bounds.w + pad*2);
+    clone.setAttribute('height', bounds.h + pad*2);
+    // Reset transform on root group in clone
+    const cloneRoot = clone.querySelector('#diagram-root');
+    if (cloneRoot) cloneRoot.removeAttribute('transform');
+
+    const xml = new XMLSerializer().serializeToString(clone);
+    const blob = new Blob([xml], { type: 'image/svg+xml' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'flow-ascii.svg';
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  // ---- Presets ----
+  const PRESETS = {
+    basic: `[Start] --> [Process] --> [Output]
+[Process] --> [Error]
+[Error] --> [Start]`,
+
+    cycle: `[Login] --> [Dashboard]
+[Dashboard] --> [Edit Profile]
+[Dashboard] --> [Logout]
+[Edit Profile] --> [Dashboard]
+[Logout] --> [Login]`,
+
+    branch: `[Input] --> [Validate]
+[Validate] --valid--> [Transform]
+[Validate] --invalid--> [Error Handler]
+[Transform] --> [Save]
+[Error Handler] --> [Input]
+[Save] --> [Done]`,
+
+    pipeline: `[Fetch] --> [Parse] --> [Filter] --> [Map] --> [Reduce] --> [Output]`,
+
+    diamond: `[Start]
+[Start] --> [Check A]
+[Start] --> [Check B]
+[Check A] --> [Result]
+[Check B] --> [Result]
+[Result] --> [End]`,
+  };
+
+  document.querySelectorAll('.preset-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      srcEl.value = PRESETS[btn.dataset.preset] || '';
+      renderDiagram();
+    });
+  });
+
+  // ---- Init ----
+  srcEl.value = PRESETS.branch;
+  renderDiagram();
+
+})();
+</script>
+</body>
+</html>

@@ -2408,6 +2408,15 @@ Persistent knowledge base. Read this before every build.
 ### soft-3d refinement (Phase 2 #114)
 - **BUG**: Near-plane culling check `if (p0.w < 0 || p1.w < 0 || p2.w < 0) continue` always evaluated false because `projected[i]` only stored `{x, y, z}` — `w` was never saved. `undefined < 0` is `false`, so behind-camera vertices were never culled, causing bow-tie artifacts when geometry crossed the camera plane. Fixed by adding `w: p.w` to the projected point object.
 
+### flow-ascii (2026-03-30) — TICK #2 (FEEDER)
+- **BUG**: Naive BFS layer assignment with a `visited` set fails on diamond-shaped DAGs — node C reachable via A→C (layer 1) and A→B→C (should be layer 2) gets locked at layer 1. Fixed with Bellman-Ford longest-path: iterate all edges, propagate `layer[to] = max(layer[to], layer[from]+1)`, repeat until stable (bounded by `nodes.size*2` iterations).
+- **BUG**: Text truncation `slice(0, maxChars - 1) + "..."` produces strings longer than `maxChars` because 3 chars of `...` aren't accounted for. Correct: `slice(0, Math.max(0, maxChars - 3)) + "..."`.
+- **BUG**: `render()` referenced `url(#arrowhead)` from a static HTML `<defs>` block — not extractable as a standalone function. Fixed by injecting `<defs><marker id="fa-arrow">...</marker></defs>` directly inside `render()`. Now truly self-contained.
+- **BUG**: SVG namespace string `"http://www.w3.org/2000/svg"` — test tooling comment stripper `//.*$` truncates it to `"http:` (unclosed string). Use `\x2f\x2f` hex escapes: `"http:\x2f\x2fwww.w3.org\x2f2000\x2fsvg"`.
+- **KEEP**: Bellman-Ford is the right algorithm for DAG longest-path layering — O(V*E) worst case but in practice fast for typical diagrams (<50 nodes).
+- **INSIGHT**: Bezier control points for edge curves must follow the primary layout axis — for TB layout, pull CPs vertically (`cy += dy*0.4`); for LR, pull horizontally (`cx += dx*0.4`). Mixing axes produces awkward diagonal artifacts.
+- **FEEDER**: `FlowASCII.parse(src)` + `FlowASCII.layout(nodes, edges, dir)` + `FlowASCII.render(g, positions, edges)` ready for integration as a diagram block type in Markdown Deck.
+
 ### syntax-glow (2026-03-30) — TICK #1 (FEEDER)
 - **KEEP**: Sticky regex flag (`y`) for scanner loops — prevents O(N^2) forward scanning that freezes browser on large code blocks. Each regex only tests at the exact cursor position.
 - **KEEP**: Ordered grammar rules (comments → strings → keywords → functions) prevent false matches inside string literals
