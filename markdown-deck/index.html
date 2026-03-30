@@ -219,7 +219,10 @@ These are speaker notes. They won't appear in the presentation but are preserved
       <button onclick="nextSlide()">Next</button>
       <button class="primary" onclick="startPresent()">Present</button>
       <button onclick="toggleDesignPanel()">Theme</button>
-      <button onclick="exportDeck()">Export</button>
+      <button onclick="exportDeck()">PPTX</button>
+      <button onclick="saveDeck()">Save</button>
+      <button onclick="document.getElementById('file-open').click()">Open</button>
+      <input type="file" id="file-open" accept=".md,.txt,.markdown" style="display:none" onchange="openFile(this)">
     </div>
     <div class="slide-container">
       <div class="slide" id="slide-preview"></div>
@@ -1179,6 +1182,88 @@ window.exportDeck = function() {
   a.click();
   setTimeout(function() { URL.revokeObjectURL(url); }, 1000);
 };
+
+// ============ SAVE / LOAD / OPEN ============
+var STORAGE_KEY = 'mdeck_content';
+var saveIndicatorTimer = null;
+
+function autoSave() {
+  try { localStorage.setItem(STORAGE_KEY, inputEl.value); } catch(e) {}
+}
+
+// Debounced auto-save on every edit
+var autoSaveDebounce;
+inputEl.addEventListener('input', function() {
+  clearTimeout(autoSaveDebounce);
+  autoSaveDebounce = setTimeout(autoSave, 1000);
+});
+
+// Ctrl+S / Cmd+S to save immediately
+document.addEventListener('keydown', function(e) {
+  if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+    e.preventDefault();
+    autoSave();
+    // Flash the Save button briefly
+    var btns = document.querySelectorAll('.toolbar button');
+    btns.forEach(function(b) {
+      if (b.textContent === 'Save') {
+        b.style.color = '#4ade80';
+        b.style.borderColor = '#4ade80';
+        clearTimeout(saveIndicatorTimer);
+        saveIndicatorTimer = setTimeout(function() {
+          b.style.color = ''; b.style.borderColor = '';
+        }, 600);
+      }
+    });
+  }
+});
+
+// Download as .md file
+window.saveDeck = function() {
+  var content = inputEl.value;
+  autoSave(); // Also persist to localStorage
+  // Try modern File System Access API first
+  if (window.showSaveFilePicker) {
+    window.showSaveFilePicker({
+      suggestedName: 'presentation.md',
+      types: [{ description: 'Markdown', accept: { 'text/markdown': ['.md'] } }]
+    }).then(function(handle) {
+      return handle.createWritable().then(function(w) {
+        return w.write(content).then(function() { return w.close(); });
+      });
+    }).catch(function() {}); // User cancelled
+  } else {
+    // Fallback: Blob download
+    var blob = new Blob([content], { type: 'text/markdown' });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url; a.download = 'presentation.md'; a.click();
+    setTimeout(function() { URL.revokeObjectURL(url); }, 1000);
+  }
+};
+
+// Open .md file
+window.openFile = function(input) {
+  var file = input.files[0];
+  if (!file) return;
+  var reader = new FileReader();
+  reader.onload = function(e) {
+    inputEl.value = e.target.result;
+    autoSave();
+    parseSlides();
+    renderPreview();
+  };
+  reader.readAsText(file);
+  input.value = ''; // Reset so same file can be re-opened
+};
+
+// Load saved content on startup
+try {
+  var saved = localStorage.getItem(STORAGE_KEY);
+  if (saved && saved.trim()) {
+    inputEl.value = saved;
+  }
+} catch(e) {}
 
 parseSlides();
 renderPreview();

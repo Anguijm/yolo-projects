@@ -48,7 +48,7 @@ Markdown Deck is a graduated YOLO project operating under Flagship rules: multi-
 - [ ] Slide transitions (fade, slide-left, zoom) for presentation mode
 - [x] Syntax highlighting for code blocks (keyword coloring by language) — integrated from syntax-glow feeder
 - [ ] Markdown editor improvements: line numbers, tab indentation, auto-closing pairs
-- [ ] Save/load deck to localStorage (persist slide content between sessions)
+- [x] Save/load deck to localStorage + file open/save (.md files)
 
 ### P1 — High Value (next 5-10 sessions)
 - [ ] Diagram support (simple flowcharts/boxes via ASCII or custom syntax) — flow-ascii feeder ready
@@ -85,3 +85,4 @@ These are features complex enough to prototype as standalone YOLO single-session
 | 2026-03-30 | Tock | DECK_GUIDE.md authoring guide |
 | 2026-03-30 | Tock | Syntax highlighting via syntax-glow feeder integration |
 | 2026-03-30 | Tick | flow-ascii feeder: text diagram renderer |
+| 2026-03-30 | Tock | Save/load: localStorage auto-save, Ctrl+S, file open/save |
