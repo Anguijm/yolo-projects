@@ -86,3 +86,4 @@ These are features complex enough to prototype as standalone YOLO single-session
 | 2026-03-30 | Tock | Syntax highlighting via syntax-glow feeder integration |
 | 2026-03-30 | Tick | flow-ascii feeder: text diagram renderer |
 | 2026-03-30 | Tock | Save/load: localStorage auto-save, Ctrl+S, file open/save |
+| 2026-03-30 | Tick | cron-calc: multi-cron visual timeline |
