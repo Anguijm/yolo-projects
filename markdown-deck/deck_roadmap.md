@@ -98,3 +98,4 @@ These are features complex enough to prototype as standalone YOLO single-session
 | 2026-03-31 | Tock | Diagram support via flow-ascii feeder integration |
 | 2026-03-31 | Tick | env-vault: .env file manager with diff and encrypt |
 | 2026-03-31 | Tock | Slide reordering via drag-and-drop thumbnails |
+| 2026-03-31 | Tick | snap-mock: device frame mockup generator |
