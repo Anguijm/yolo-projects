@@ -58,7 +58,7 @@ Markdown Deck is a graduated YOLO project operating under Flagship rules: multi-
 - [x] Progressive reveal (-- fragment syntax with fade-in, PPTX slide duplication)
 - [ ] Drag-and-drop visual positioning mode (GUI for `[@...]` blocks)
 - [x] Presenter view (current slide + next slide + speaker notes + timer)
-- [ ] Slide reordering via drag in thumbnail strip
+- [x] Slide reordering via drag in thumbnail strip
 
 ### P2 — Nice to Have
 - [ ] Collaborative editing (WebRTC or shared localStorage)
@@ -97,3 +97,4 @@ These are features complex enough to prototype as standalone YOLO single-session
 | 2026-03-31 | Tick | commit-log: git history pattern analyzer |
 | 2026-03-31 | Tock | Diagram support via flow-ascii feeder integration |
 | 2026-03-31 | Tick | env-vault: .env file manager with diff and encrypt |
+| 2026-03-31 | Tock | Slide reordering via drag-and-drop thumbnails |

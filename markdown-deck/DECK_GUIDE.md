@@ -382,6 +382,17 @@ Click the **Presenter** button to open a dual-window presentation setup:
 
 ---
 
+## Slide Reordering
+
+Drag and drop thumbnails in the bottom strip to reorder slides. The markdown source is automatically updated to match.
+
+- Grab any thumbnail and drag it to a new position
+- The active slide follows the move
+- The textarea content is rewritten with the new slide order
+- Auto-saves after every reorder
+
+---
+
 ## Save, Load, and File Operations
 
 ### Auto-save
