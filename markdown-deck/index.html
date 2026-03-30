@@ -50,6 +50,15 @@ textarea:focus { outline: none; }
 .present-slide strong { color: #fff; }
 .present-slide em { color: #fbbf24; }
 .present-slide a { color: #60a5fa; }
+.slide del, .present-slide del { color: #666; text-decoration: line-through; }
+.slide mark, .present-slide mark { background: rgba(250,204,21,0.25); color: #fbbf24; padding: 0.1rem 0.3rem; border-radius: 3px; }
+.slide sup, .present-slide sup { font-size: 0.7em; vertical-align: super; }
+.slide sub, .present-slide sub { font-size: 0.7em; vertical-align: sub; }
+.slide img, .present-slide img { display: block; margin: 0.8rem 0; max-width: 100%; max-height: 50vh; border-radius: 4px; }
+.slide h4, .present-slide h4 { font-size: 1.2rem; color: #888; margin-bottom: 0.4rem; }
+.slide .task, .present-slide .task { list-style: none; margin-left: -1.2em; }
+.code-lang { display: block; font-size: 0.6rem; color: #555; letter-spacing: 0.1em; margin-bottom: -0.2rem; text-transform: uppercase; }
+.slide th, .present-slide th { text-align: left; }
 .present-counter { position: fixed; bottom: 1rem; right: 1.5rem; font-size: 0.9rem; color: #444; z-index: 1001; }
 .present-help { position: fixed; bottom: 1rem; left: 1.5rem; font-size: 0.7rem; color: #333; z-index: 1001; }
 .thumb-strip { display: flex; gap: 4px; padding: 0.5rem 1rem; overflow-x: auto; border-top: 1px solid #1a1a1a; background: #0d0d0d; min-height: 60px; }
@@ -84,20 +93,37 @@ Your instant presentation tool
 - Write markdown in the left panel
 - Separate slides with `---`
 - Hit **Present** to go fullscreen
+- Click **Theme** to style with design tokens
+- Click **Export** to download as `.pptx`
 
 ---
 
-## Features
+## Rich Formatting
 
-- Live preview as you type
-- **Bold**, *italic*, `code`
-- Lists, blockquotes, headings
-- Code blocks with syntax highlighting
-- Keyboard navigation
+- **Bold text** and *italic text*
+- ~~Strikethrough~~ for deletions
+- ==Highlighted text== for emphasis
+- `inline code` with distinct styling
+- H~2~O for subscript, x^2^ for superscript
+- [Links](https://example.com) open in new tabs
 
 ---
 
-## Code Example
+## Lists &amp; Tasks
+
+- Top-level bullet
+  - Nested bullet
+    - Deep nested bullet
+- Back to top level
+
+#### Task List
+- [x] Design the slides
+- [x] Add PPTX export
+- [ ] Present to the team
+
+---
+
+## Code Blocks
 
 ```python
 def hello():
@@ -105,24 +131,30 @@ def hello():
     print("over planned and pretty")
 ```
 
-> The best presentation is the one you actually make.
+> The best presentation is the one
+> you actually make. Multi-line
+> blockquotes just work.
 
 ---
 
-## Keyboard Shortcuts
+## Tables
 
-| Key | Action |
-|-----|--------|
-| Right / Space | Next slide |
-| Left | Previous slide |
-| Escape | Exit presentation |
-| F | Enter presentation |
+| Feature | Status | Notes |
+|---------|--------|-------|
+| Bold/Italic | Done | Standard markdown |
+| Strikethrough | Done | `~~text~~` syntax |
+| Images | Done | `![alt](url)` |
+| Nested Lists | Done | Indent with spaces |
+| Speaker Notes | Done | After `???` |
 
 ---
 
 # Thank You
 
-Built overnight while you slept.</textarea>
+Built overnight while you slept.
+
+???
+These are speaker notes. They won't appear in the presentation but are preserved in the markdown source.</textarea>
   </div>
   <div class="preview-panel">
     <div class="toolbar">
@@ -212,64 +244,164 @@ let slides = [];
 let currentSlide = 0;
 let presenting = false;
 
-// Minimal markdown parser with code-block protection
+// Full markdown parser with code-block protection
 function md(text) {
-  // 1. Extract code blocks into placeholders (protect from inner parsing)
+  // 0. Split off speaker notes (after ???)
+  var notesSep = text.indexOf('\n???');
+  var speakerNotes = '';
+  if (notesSep >= 0) {
+    speakerNotes = text.substring(notesSep + 4).trim();
+    text = text.substring(0, notesSep);
+  }
+
+  // 1. Extract fenced code blocks into placeholders
   var codeBlocks = [];
   var html = text.replace(/```(\w*)\n([\s\S]*?)```/g, function(_, lang, code) {
-    codeBlocks.push('<pre><code>' + esc(code.trim()) + '</code></pre>');
-    return '__CODEBLOCK_' + (codeBlocks.length - 1) + '__';
+    var langAttr = lang ? ' data-lang="' + esc(lang) + '"' : '';
+    var langLabel = lang ? '<span class="code-lang">' + esc(lang) + '</span>' : '';
+    codeBlocks.push(langLabel + '<pre' + langAttr + '><code>' + esc(code.trimEnd()) + '</code></pre>');
+    return '\n__CODEBLOCK_' + (codeBlocks.length - 1) + '__\n';
   });
 
-  // 2. Extract inline code into placeholders (and escape content)
+  // 2. Extract inline code
   var inlineCodes = [];
   html = html.replace(/`([^`]+)`/g, function(_, code) {
     inlineCodes.push('<code>' + esc(code) + '</code>');
     return '__INLINE_' + (inlineCodes.length - 1) + '__';
   });
 
-  // 3. Parse markdown
+  // 3. Block-level elements
+  // Headings
   html = html
+    .replace(/^#### (.+)$/gm, '<h4>$1</h4>')
     .replace(/^### (.+)$/gm, '<h3>$1</h3>')
     .replace(/^## (.+)$/gm, '<h2>$1</h2>')
-    .replace(/^# (.+)$/gm, '<h1>$1</h1>')
+    .replace(/^# (.+)$/gm, '<h1>$1</h1>');
+
+  // Multi-line blockquotes: merge consecutive > lines
+  html = html.replace(/(^> .+\n?)+/gm, function(match) {
+    var lines = match.trim().split('\n').map(function(l) { return l.replace(/^> ?/, ''); });
+    return '<blockquote>' + lines.join('<br>') + '</blockquote>';
+  });
+
+  // Horizontal rules (standalone --- or *** or ___)
+  html = html.replace(/^([-*_]){3,}\s*$/gm, '<hr>');
+
+  // Images (before links so ![...](...) isn't caught by link regex)
+  html = html.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, function(_, alt, src) {
+    return '<img src="' + esc(src.trim()) + '" alt="' + esc(alt) + '" style="max-width:100%;max-height:60vh;border-radius:4px">';
+  });
+
+  // Links
+  html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, function(_, t, url) {
+    var safeUrl = url.trim().toLowerCase().startsWith('javascript:') ? '#' : url;
+    return '<a href="' + esc(safeUrl) + '" target="_blank">' + t + '</a>';
+  });
+
+  // 4. List handling — supports nested indentation
+  html = html.replace(/^( *)([-*]) \[([xX ])\] (.+)$/gm, function(_, indent, bullet, check, text) {
+    var depth = Math.floor(indent.length / 2);
+    var icon = (check === 'x' || check === 'X') ? '&#9745;' : '&#9744;';
+    return '<li class="uli task" data-depth="' + depth + '">' + icon + ' ' + text + '</li>';
+  });
+  html = html.replace(/^( *)[*-] (.+)$/gm, function(_, indent, text) {
+    var depth = Math.floor(indent.length / 2);
+    return '<li class="uli" data-depth="' + depth + '">' + text + '</li>';
+  });
+  html = html.replace(/^( *)\d+\. (.+)$/gm, function(_, indent, text) {
+    var depth = Math.floor(indent.length / 2);
+    return '<li class="oli" data-depth="' + depth + '">' + text + '</li>';
+  });
+
+  // Wrap consecutive list items
+  html = html.replace(/((?:<li class="uli[^"]*"[^>]*>.*<\/li>\n?)+)/g, function(match) {
+    return buildNestedList(match, 'ul');
+  });
+  html = html.replace(/((?:<li class="oli"[^>]*>.*<\/li>\n?)+)/g, function(match) {
+    return buildNestedList(match, 'ol');
+  });
+
+  // 5. Tables — with header row support
+  var tableBlocks = [];
+  html = html.replace(/((?:^\|.+\|$\n?)+)/gm, function(block) {
+    var rows = block.trim().split('\n');
+    var result = '<table style="border-collapse:collapse;font-size:0.85rem;margin:0.5rem 0;width:auto">';
+    var isHeader = true;
+    for (var r = 0; r < rows.length; r++) {
+      var content = rows[r].replace(/^\||\|$/g, '');
+      if (content.match(/^[\s\-:|]+$/)) { isHeader = false; continue; } // separator row
+      var cells = content.split('|').map(function(c) { return c.trim(); });
+      var tag = isHeader ? 'th' : 'td';
+      var style = isHeader
+        ? 'padding:0.4rem 1rem;border-bottom:2px solid #444;text-align:left;font-weight:600;color:#fff'
+        : 'padding:0.3rem 1rem;border-bottom:1px solid #222';
+      result += '<tr>' + cells.map(function(c) { return '<' + tag + ' style="' + style + '">' + c + '</' + tag + '>'; }).join('') + '</tr>';
+      if (isHeader && r === 0 && rows.length > 1 && rows[1].match(/^\|[\s\-:|]+\|$/)) {
+        // Keep isHeader true only for first row
+      }
+      isHeader = false;
+    }
+    result += '</table>';
+    tableBlocks.push(result);
+    return '\n__TABLE_' + (tableBlocks.length - 1) + '__\n';
+  });
+
+  // 6. Inline formatting
+  html = html
     .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
     .replace(/\*(.+?)\*/g, '<em>$1</em>')
-    .replace(/^> (.+)$/gm, '<blockquote>$1</blockquote>')
-    .replace(/^---$/gm, '<hr>')
-    .replace(/\[([^\]]+)\]\(([^)]+)\)/g, function(_, t, url) {
-      var safeUrl = url.trim().toLowerCase().startsWith('javascript:') ? '#' : url;
-      return '<a href="' + safeUrl + '">' + t + '</a>';
-    })
-    .replace(/^[*-] (.+)$/gm, '<li class="uli">$1</li>')
-    .replace(/^\d+\. (.+)$/gm, '<li class="oli">$1</li>');
+    .replace(/~~(.+?)~~/g, '<del>$1</del>')
+    .replace(/==(.+?)==/g, '<mark>$1</mark>')
+    .replace(/\^(.+?)\^/g, '<sup>$1</sup>')
+    .replace(/~([^~]+)~/g, '<sub>$1</sub>');
 
-  // 4. Wrap consecutive list items in proper list tags
-  html = html.replace(/((?:<li class="uli">.*<\/li>\n?)+)/g, '<ul>$1</ul>');
-  html = html.replace(/((?:<li class="oli">.*<\/li>\n?)+)/g, '<ol>$1</ol>');
-
-  // 5. Tables
-  html = html.replace(/^\|(.+)\|$/gm, function(match, content) {
-    if (content.match(/^[\s\-|]+$/)) return '';
-    var cells = content.split('|').map(function(c) { return c.trim(); });
-    return '<tr>' + cells.map(function(c) { return '<td style="padding:0.3rem 0.8rem;border-bottom:1px solid #222">' + c + '</td>'; }).join('') + '</tr>';
-  });
-  html = html.replace(/((?:<tr>.*<\/tr>\n?)+)/g, '<table style="border-collapse:collapse;font-size:0.85rem;margin:0.5rem 0">$1</table>');
-
-  // 6. Paragraphs (split by double newline for proper paragraph breaks)
+  // 7. Paragraphs
   html = html.split(/\n\n+/).map(function(block) {
     block = block.trim();
     if (!block) return '';
-    if (block.match(/^<(h[1-3]|ul|ol|li|pre|blockquote|hr|table|tr|td|__CODEBLOCK)/)) return block;
-    if (block.match(/<\/(h[1-3]|ul|ol|pre|blockquote|table)>/)) return block;
+    if (block.match(/^<(h[1-4]|ul|ol|li|pre|blockquote|hr|table|tr|td|th|img|__CODEBLOCK|__TABLE)/)) return block;
+    if (block.match(/<\/(h[1-4]|ul|ol|pre|blockquote|table)>$/)) return block;
     return '<p>' + block.replace(/\n/g, '<br>') + '</p>';
   }).join('\n');
 
-  // 7. Re-inject code blocks and inline code
+  // 8. Re-inject protected blocks
   html = html.replace(/__CODEBLOCK_(\d+)__/g, function(_, i) { return codeBlocks[i]; });
   html = html.replace(/__INLINE_(\d+)__/g, function(_, i) { return inlineCodes[i]; });
+  html = html.replace(/__TABLE_(\d+)__/g, function(_, i) { return tableBlocks[i]; });
 
   return html;
+}
+
+// Build nested list from flat li elements with data-depth
+function buildNestedList(liBlock, tag) {
+  var re = /<li class="[^"]*"(?: data-depth="(\d+)")?>([\s\S]*?)<\/li>/g;
+  var items = [], m;
+  while ((m = re.exec(liBlock)) !== null) {
+    items.push({ depth: parseInt(m[1] || '0', 10), content: m[2] });
+  }
+  if (items.length === 0) return liBlock;
+
+  var result = '';
+  var stack = []; // stack of open list depths
+
+  for (var i = 0; i < items.length; i++) {
+    var d = items[i].depth;
+    while (stack.length > 0 && stack[stack.length - 1] >= d) {
+      result += '</li></' + tag + '>';
+      stack.pop();
+    }
+    if (stack.length === 0 || d > stack[stack.length - 1]) {
+      var indent = d * 1.2;
+      result += '<' + tag + ' style="margin-left:' + indent + 'rem">';
+      stack.push(d);
+    }
+    result += '<li>' + items[i].content;
+  }
+  while (stack.length > 0) {
+    result += '</li></' + tag + '>';
+    stack.pop();
+  }
+  return result;
 }
 
 function esc(s) { return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
