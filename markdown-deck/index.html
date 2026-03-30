@@ -65,6 +65,10 @@ textarea:focus { outline: none; }
 .slide img, .present-slide img { display: block; margin: 0.8rem 0; max-width: 100%; max-height: 50vh; border-radius: 4px; }
 .slide h4, .present-slide h4 { font-size: 1.2rem; color: #888; margin-bottom: 0.4rem; }
 .slide .task, .present-slide .task { list-style: none; margin-left: -1.2em; }
+/* Progressive reveal fragments */
+.fragment { opacity: 0; transition: opacity 0.3s ease; }
+.fragment.visible { opacity: 1; }
+
 .code-lang { display: block; font-size: 0.6rem; color: #555; letter-spacing: 0.1em; margin-bottom: -0.2rem; text-transform: uppercase; }
 /* Syntax highlighting tokens */
 .sg-keyword  { color: #c678dd; }
@@ -190,6 +194,24 @@ def hello():
 
 [@ x:20% y:75% w:60% align:center]
 *Use `[@ x:... y:... w:...]` to position anything*
+
+---
+
+## Progressive Reveal
+
+Content appears step by step. Press right arrow:
+
+--
+
+**Step 1:** This appears first
+
+--
+
+**Step 2:** Then this appears
+
+--
+
+**Step 3:** Finally this. Use `--` on its own line to create fragments.
 
 ---
 
@@ -635,6 +657,18 @@ function md(text) {
     }
   }
 
+  // 12. Progressive reveal: -- on its own line splits into fragments
+  if (html.indexOf('\n--\n') >= 0 || html.match(/<p>--<\/p>/)) {
+    var fragParts = html.split(/\n?<p>--<\/p>\n?|\n--\n/);
+    if (fragParts.length >= 2) {
+      html = fragParts[0];
+      for (var fi = 1; fi < fragParts.length; fi++) {
+        html += '<div class="fragment" data-fragment="' + fi + '">' + fragParts[fi] + '</div>';
+      }
+      html = '<div class="has-fragments" data-total-fragments="' + (fragParts.length - 1) + '">' + html + '</div>';
+    }
+  }
+
   return html;
 }
 
@@ -718,16 +752,69 @@ function renderPresent() {
 
 window.goSlide = function(i) {
   currentSlide = i;
+  currentFragment = 0;
   renderPreview();
   if (presenting) renderPresent();
 };
 
+var currentFragment = 0; // 0 = all fragments hidden, N = fragments 1..N visible
+
+function getFragmentCount(container) {
+  var el = container.querySelector('.has-fragments');
+  return el ? parseInt(el.dataset.totalFragments, 10) || 0 : 0;
+}
+
+function updateFragments(container) {
+  var frags = container.querySelectorAll('.fragment');
+  frags.forEach(function(f) {
+    var idx = parseInt(f.dataset.fragment, 10);
+    f.classList.toggle('visible', idx <= currentFragment);
+  });
+}
+
+function getActiveContainer() {
+  return presenting ? presentSlideEl : previewEl;
+}
+
 window.nextSlide = function() {
-  if (currentSlide < slides.length - 1) { currentSlide++; renderPreview(); if (presenting) renderPresent(); }
+  var totalFrags = getFragmentCount(getActiveContainer());
+  if (totalFrags > 0 && currentFragment < totalFrags) {
+    // Reveal next fragment
+    currentFragment++;
+    updateFragments(previewEl);
+    if (presenting) updateFragments(presentSlideEl);
+    return;
+  }
+  // Advance to next slide
+  if (currentSlide < slides.length - 1) {
+    currentSlide++;
+    currentFragment = 0;
+    renderPreview();
+    if (presenting) renderPresent();
+  }
 };
 
 window.prevSlide = function() {
-  if (currentSlide > 0) { currentSlide--; renderPreview(); if (presenting) renderPresent(); }
+  var totalFrags = getFragmentCount(getActiveContainer());
+  if (currentFragment > 0) {
+    // Hide last fragment
+    currentFragment--;
+    updateFragments(previewEl);
+    if (presenting) updateFragments(presentSlideEl);
+    return;
+  }
+  // Go to previous slide (show all its fragments)
+  if (currentSlide > 0) {
+    currentSlide--;
+    currentFragment = 0;
+    renderPreview();
+    if (presenting) renderPresent();
+    // Show all fragments of the previous slide
+    var prevFrags = getFragmentCount(getActiveContainer());
+    currentFragment = prevFrags;
+    updateFragments(previewEl);
+    if (presenting) updateFragments(presentSlideEl);
+  }
 };
 
 window.startPresent = function() {
@@ -1195,11 +1282,34 @@ function buildSlideXml(parsed, idx) {
 
 window.exportDeck = function() {
   if (slides.length === 0) return;
+
+  // Expand slides with fragments (--) into duplicate slides for PPTX
+  var expandedSlides = [];
+  for (var i = 0; i < slides.length; i++) {
+    var raw = slides[i];
+    // Strip speaker notes before fragment split
+    var noteIdx = raw.indexOf('\n???');
+    var content = noteIdx >= 0 ? raw.substring(0, noteIdx) : raw;
+    var fragments = content.split(/\n--\n/);
+    if (fragments.length > 1) {
+      // Generate cumulative slides: slide with frag1, slide with frag1+2, etc.
+      var cumulative = fragments[0];
+      expandedSlides.push(cumulative);
+      for (var f = 1; f < fragments.length; f++) {
+        cumulative += '\n' + fragments[f];
+        expandedSlides.push(cumulative);
+      }
+    } else {
+      expandedSlides.push(content);
+    }
+  }
+
+  var totalSlides = expandedSlides.length;
   var files = [];
 
   // [Content_Types].xml
   var ctSlides = '';
-  for (var i = 0; i < slides.length; i++) {
+  for (var i = 0; i < totalSlides; i++) {
     ctSlides += '<Override PartName="/ppt/slides/slide'+(i+1)+'.xml" ContentType="application/vnd.openxmlformats-officedocument.presentationml.slide+xml"/>';
   }
   files.push({ name: '[Content_Types].xml', data: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/ppt/presentation.xml" ContentType="application/vnd.openxmlformats-officedocument.presentationml.presentation.main+xml"/>'+ctSlides+'</Types>' });
@@ -1209,21 +1319,21 @@ window.exportDeck = function() {
 
   // ppt/presentation.xml
   var sldIdList = '';
-  for (var i = 0; i < slides.length; i++) {
+  for (var i = 0; i < totalSlides; i++) {
     sldIdList += '<p:sldId id="'+(256+i)+'" r:id="rId'+(i+1)+'"/>';
   }
   files.push({ name: 'ppt/presentation.xml', data: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><p:presentation xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"><p:sldMasterIdLst/><p:sldIdLst>'+sldIdList+'</p:sldIdLst><p:sldSz cx="12192000" cy="6858000"/><p:notesSz cx="6858000" cy="9144000"/></p:presentation>' });
 
   // ppt/_rels/presentation.xml.rels
   var presRels = '';
-  for (var i = 0; i < slides.length; i++) {
+  for (var i = 0; i < totalSlides; i++) {
     presRels += '<Relationship Id="rId'+(i+1)+'" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide" Target="slides/slide'+(i+1)+'.xml"/>';
   }
   files.push({ name: 'ppt/_rels/presentation.xml.rels', data: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'+presRels+'</Relationships>' });
 
-  // Slide files
-  for (var i = 0; i < slides.length; i++) {
-    var slideOv = parseSlideOverrides(slides[i]);
+  // Slide files (using expanded slides)
+  for (var i = 0; i < totalSlides; i++) {
+    var slideOv = parseSlideOverrides(expandedSlides[i]);
     var parsed = parseSlideContent(slideOv.text);
     parsed.overrides = slideOv.overrides;
     files.push({ name: 'ppt/slides/slide'+(i+1)+'.xml', data: buildSlideXml(parsed, i) });
