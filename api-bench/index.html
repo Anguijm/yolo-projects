@@ -1,0 +1,1126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="theme-color" content="#000000">
+<title>api-bench</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body {
+  height: 100%;
+  background: #0a0a0a;
+  overflow-y: auto;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Courier New", monospace;
+  color: #ccc;
+}
+
+:root {
+  --bg-page:     #0a0a0a;
+  --bg-surface:  #111;
+  --bg-elevated: #1a1a1a;
+  --bg-hover:    #222;
+  --text-primary:   #fff;
+  --text-body:      #ccc;
+  --text-secondary: #aaa;
+  --text-tertiary:  #555;
+  --text-label:     #444;
+  --text-muted:     #333;
+  --border-default: #1a1a1a;
+  --border-visible: #222;
+  --border-active:  #444;
+  --border-focus:   #555;
+  --color-success:  #3fb950;
+  --color-warning:  #d29922;
+  --color-error:    #f85149;
+  --color-info:     #58a6ff;
+  --accent:         #0ff;
+}
+
+.container {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 12px;
+}
+
+header {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  margin-bottom: 16px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border-default);
+}
+
+.title {
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.25em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
+.subtitle {
+  font-size: 0.5rem;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--text-label);
+}
+
+.section {
+  margin-bottom: 10px;
+  border: 1px solid var(--border-default);
+  padding: 8px;
+}
+
+.section-label {
+  font-size: 0.45rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--text-label);
+  margin-bottom: 6px;
+}
+
+.row {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  margin-bottom: 6px;
+}
+
+.row:last-child { margin-bottom: 0; }
+
+label {
+  font-size: 0.45rem;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+  white-space: nowrap;
+  min-width: 80px;
+}
+
+input[type="text"],
+input[type="number"],
+input[type="url"],
+select,
+textarea {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-visible);
+  color: var(--text-secondary);
+  padding: 5px 8px;
+  font-family: inherit;
+  font-size: 0.65rem;
+  outline: none;
+  width: 100%;
+}
+input[type="text"]:focus,
+input[type="number"]:focus,
+input[type="url"]:focus,
+select:focus,
+textarea:focus { border-color: var(--border-focus); }
+
+select {
+  cursor: pointer;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='5'%3E%3Cpath d='M0 0l4 5 4-5z' fill='%23444'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 8px center;
+  padding-right: 24px;
+}
+
+textarea {
+  resize: vertical;
+  min-height: 60px;
+  font-size: 0.6rem;
+}
+
+.btn {
+  padding: 5px 12px;
+  background: transparent;
+  border: 1px solid var(--border-default);
+  color: var(--text-label);
+  font-family: inherit;
+  font-size: 0.55rem;
+  cursor: pointer;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.btn:hover { border-color: var(--border-active); color: var(--text-secondary); }
+.btn:active { border-color: var(--border-focus); color: #aaa; }
+.btn.active { border-color: var(--accent); color: var(--accent); }
+.btn.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #000;
+  font-weight: 700;
+  padding: 6px 20px;
+}
+.btn.primary:hover { background: #00cccc; }
+.btn.danger {
+  border-color: var(--color-error);
+  color: var(--color-error);
+}
+
+.presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+/* URL row */
+.url-row {
+  display: flex;
+  gap: 6px;
+}
+.method-select {
+  width: 80px;
+  flex-shrink: 0;
+}
+
+/* Number inputs */
+.num-group {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 6px;
+}
+.num-field {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.num-field label {
+  min-width: unset;
+}
+.num-field input {
+  width: 100%;
+  text-align: center;
+}
+
+/* Headers textarea */
+.collapsible { display: none; }
+.collapsible.open { display: block; }
+.toggle-btn {
+  background: none;
+  border: none;
+  color: var(--text-tertiary);
+  font-family: inherit;
+  font-size: 0.45rem;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  cursor: pointer;
+  padding: 0;
+}
+.toggle-btn:hover { color: var(--text-secondary); }
+
+/* Run controls */
+.run-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+/* Progress */
+.progress-wrap {
+  border: 1px solid var(--border-default);
+  padding: 8px;
+  display: none;
+}
+.progress-wrap.visible { display: block; }
+
+.progress-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+}
+.progress-label {
+  font-size: 0.45rem;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--text-label);
+}
+.progress-pct {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+}
+
+.progress-bar-track {
+  height: 3px;
+  background: var(--bg-elevated);
+  margin-bottom: 8px;
+  position: relative;
+}
+.progress-bar-fill {
+  height: 100%;
+  background: var(--accent);
+  width: 0%;
+  transition: width 0.1s linear;
+}
+
+/* Live stats during run */
+.live-stats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+}
+.live-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.live-stat-label {
+  font-size: 0.4rem;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--text-label);
+}
+.live-stat-value {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Results panel */
+.results-wrap {
+  display: none;
+  margin-top: 10px;
+}
+.results-wrap.visible { display: block; }
+
+/* Stats grid */
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 1px;
+  background: var(--border-default);
+  border: 1px solid var(--border-default);
+  margin-bottom: 10px;
+}
+.stat-cell {
+  background: var(--bg-page);
+  padding: 8px 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  align-items: center;
+}
+.stat-cell-label {
+  font-size: 0.4rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--text-label);
+}
+.stat-cell-value {
+  font-size: clamp(0.9rem, 2vw, 1.1rem);
+  font-weight: 700;
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+}
+.stat-cell-unit {
+  font-size: 0.4rem;
+  color: var(--text-tertiary);
+  letter-spacing: 0.1em;
+}
+
+/* Two-column results layout */
+.results-cols {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+/* Histogram */
+.histogram-panel {
+  border: 1px solid var(--border-default);
+  padding: 8px;
+}
+.histogram-title {
+  font-size: 0.45rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--text-label);
+  margin-bottom: 6px;
+}
+canvas#histogram {
+  display: block;
+  width: 100%;
+}
+
+/* Status distribution */
+.status-panel {
+  border: 1px solid var(--border-default);
+  padding: 8px;
+}
+.status-title {
+  font-size: 0.45rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--text-label);
+  margin-bottom: 6px;
+}
+.status-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+  font-size: 0.6rem;
+}
+.status-code {
+  min-width: 36px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.status-bar-wrap {
+  flex: 1;
+  height: 6px;
+  background: var(--bg-elevated);
+}
+.status-bar-fill {
+  height: 100%;
+}
+.status-count {
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+  min-width: 30px;
+  text-align: right;
+}
+.status-pct {
+  color: var(--text-tertiary);
+  font-size: 0.5rem;
+  min-width: 36px;
+  text-align: right;
+}
+
+/* Error display */
+.errors-panel {
+  border: 1px solid var(--border-default);
+  padding: 8px;
+  margin-top: 10px;
+  display: none;
+}
+.errors-panel.visible { display: block; }
+.errors-title {
+  font-size: 0.45rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--color-error);
+  margin-bottom: 6px;
+}
+.error-list {
+  font-size: 0.55rem;
+  color: var(--color-error);
+  max-height: 80px;
+  overflow-y: auto;
+}
+.error-item {
+  border-bottom: 1px solid var(--border-default);
+  padding: 3px 0;
+}
+
+/* CORS warning */
+.cors-note {
+  font-size: 0.45rem;
+  color: var(--text-muted);
+  letter-spacing: 0.1em;
+  margin-top: 4px;
+}
+
+/* Throughput suffix */
+.throughput-note {
+  font-size: 0.4rem;
+  color: var(--text-tertiary);
+}
+
+@media (max-width: 500px) {
+  .stats-grid { grid-template-columns: repeat(3, 1fr); }
+  .results-cols { grid-template-columns: 1fr; }
+  .live-stats { grid-template-columns: repeat(2, 1fr); }
+  .num-group { grid-template-columns: 1fr 1fr; }
+}
+</style>
+</head>
+<body>
+<div class="container">
+  <header>
+    <span class="title">api-bench</span>
+    <span class="subtitle">Browser Load Tester</span>
+  </header>
+
+  <!-- Presets -->
+  <div class="section">
+    <div class="section-label">Presets</div>
+    <div class="presets" id="presets"></div>
+  </div>
+
+  <!-- Target URL -->
+  <div class="section">
+    <div class="section-label">Target</div>
+    <div class="url-row" style="margin-bottom:6px">
+      <select id="method" class="method-select">
+        <option>GET</option>
+        <option>POST</option>
+        <option>PUT</option>
+        <option>PATCH</option>
+        <option>DELETE</option>
+        <option>HEAD</option>
+      </select>
+      <input type="url" id="url" placeholder="https://api.example.com/endpoint" value="https://httpbin.org/get">
+    </div>
+    <p class="cors-note">Note: Target must allow CORS. Use httpbin.org or your own CORS-enabled API.</p>
+  </div>
+
+  <!-- Config -->
+  <div class="section">
+    <div class="section-label">Config</div>
+    <div class="num-group">
+      <div class="num-field">
+        <label>Requests</label>
+        <input type="number" id="req-count" value="50" min="1" max="500">
+      </div>
+      <div class="num-field">
+        <label>Concurrency</label>
+        <input type="number" id="concurrency" value="10" min="1" max="50">
+      </div>
+      <div class="num-field">
+        <label>Timeout (ms)</label>
+        <input type="number" id="timeout" value="5000" min="100" max="30000">
+      </div>
+    </div>
+  </div>
+
+  <!-- Advanced: Headers + Body -->
+  <div class="section">
+    <div class="row" style="justify-content: space-between; margin-bottom:0">
+      <div class="section-label" style="margin-bottom:0">Headers &amp; Body</div>
+      <button class="toggle-btn" id="toggle-advanced" onclick="toggleAdvanced()">▶ expand</button>
+    </div>
+    <div class="collapsible" id="advanced-panel">
+      <div style="margin-top:6px">
+        <div class="section-label">Headers (JSON)</div>
+        <textarea id="headers-input" placeholder='{"Content-Type":"application/json","Authorization":"Bearer token"}'></textarea>
+      </div>
+      <div style="margin-top:6px">
+        <div class="section-label">Request Body (POST/PUT/PATCH)</div>
+        <textarea id="body-input" placeholder='{"key":"value"}'></textarea>
+      </div>
+    </div>
+  </div>
+
+  <!-- Run -->
+  <div class="run-row">
+    <button class="btn primary" id="run-btn" onclick="startBench()">▶ Run</button>
+    <button class="btn danger" id="stop-btn" onclick="stopBench()" style="display:none">■ Stop</button>
+    <span id="status-msg" style="font-size:0.5rem;color:var(--text-tertiary);letter-spacing:0.1em"></span>
+  </div>
+
+  <!-- Progress -->
+  <div class="progress-wrap" id="progress-wrap">
+    <div class="progress-header">
+      <span class="progress-label">Progress</span>
+      <span class="progress-pct" id="progress-pct">0%</span>
+    </div>
+    <div class="progress-bar-track">
+      <div class="progress-bar-fill" id="progress-fill"></div>
+    </div>
+    <div class="live-stats">
+      <div class="live-stat">
+        <span class="live-stat-label">Completed</span>
+        <span class="live-stat-value" id="ls-done">0</span>
+      </div>
+      <div class="live-stat">
+        <span class="live-stat-label">Errors</span>
+        <span class="live-stat-value" id="ls-errors" style="color:var(--color-error)">0</span>
+      </div>
+      <div class="live-stat">
+        <span class="live-stat-label">Avg (ms)</span>
+        <span class="live-stat-value" id="ls-avg">—</span>
+      </div>
+      <div class="live-stat">
+        <span class="live-stat-label">Req/s</span>
+        <span class="live-stat-value" id="ls-rps" style="color:var(--accent)">—</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Results -->
+  <div class="results-wrap" id="results-wrap">
+    <div class="stats-grid">
+      <div class="stat-cell">
+        <span class="stat-cell-label">Min</span>
+        <span class="stat-cell-value" id="r-min">—</span>
+        <span class="stat-cell-unit">ms</span>
+      </div>
+      <div class="stat-cell">
+        <span class="stat-cell-label">Avg</span>
+        <span class="stat-cell-value" id="r-avg">—</span>
+        <span class="stat-cell-unit">ms</span>
+      </div>
+      <div class="stat-cell">
+        <span class="stat-cell-label">Median</span>
+        <span class="stat-cell-value" id="r-p50">—</span>
+        <span class="stat-cell-unit">ms</span>
+      </div>
+      <div class="stat-cell">
+        <span class="stat-cell-label">p95</span>
+        <span class="stat-cell-value" id="r-p95">—</span>
+        <span class="stat-cell-unit">ms</span>
+      </div>
+      <div class="stat-cell">
+        <span class="stat-cell-label">p99</span>
+        <span class="stat-cell-value" id="r-p99">—</span>
+        <span class="stat-cell-unit">ms</span>
+      </div>
+      <div class="stat-cell">
+        <span class="stat-cell-label">Max</span>
+        <span class="stat-cell-value" id="r-max">—</span>
+        <span class="stat-cell-unit">ms</span>
+      </div>
+    </div>
+
+    <div class="stats-grid" style="margin-bottom:10px">
+      <div class="stat-cell" style="grid-column:span 2">
+        <span class="stat-cell-label">Throughput</span>
+        <span class="stat-cell-value" id="r-rps">—</span>
+        <span class="stat-cell-unit">req/s</span>
+      </div>
+      <div class="stat-cell" style="grid-column:span 2">
+        <span class="stat-cell-label">Total Time</span>
+        <span class="stat-cell-value" id="r-total">—</span>
+        <span class="stat-cell-unit">ms</span>
+      </div>
+      <div class="stat-cell" style="grid-column:span 2">
+        <span class="stat-cell-label">Success Rate</span>
+        <span class="stat-cell-value" id="r-success">—</span>
+        <span class="stat-cell-unit">%</span>
+      </div>
+    </div>
+
+    <div class="results-cols">
+      <div class="histogram-panel">
+        <div class="histogram-title">Latency Distribution</div>
+        <canvas id="histogram" height="120"></canvas>
+      </div>
+      <div class="status-panel">
+        <div class="status-title">Status Codes</div>
+        <div id="status-dist"></div>
+      </div>
+    </div>
+
+    <div class="errors-panel" id="errors-panel">
+      <div class="errors-title">Errors</div>
+      <div class="error-list" id="error-list"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function() {
+'use strict';
+
+// ─── Config ───────────────────────────────────────────────────────────────────
+const PRESETS = [
+  {
+    label: 'httpbin GET',
+    method: 'GET',
+    url: 'https://httpbin.org/get',
+    count: 30,
+    concurrency: 5,
+    timeout: 5000,
+    headers: '',
+    body: ''
+  },
+  {
+    label: 'httpbin POST',
+    method: 'POST',
+    url: 'https://httpbin.org/post',
+    count: 20,
+    concurrency: 5,
+    timeout: 5000,
+    headers: '{"Content-Type":"application/json"}',
+    body: '{"test":true,"ts":1}'
+  },
+  {
+    label: 'httpbin delay/1',
+    method: 'GET',
+    url: 'https://httpbin.org/delay/1',
+    count: 10,
+    concurrency: 3,
+    timeout: 10000,
+    headers: '',
+    body: ''
+  },
+  {
+    label: 'httpbin status/200',
+    method: 'GET',
+    url: 'https://httpbin.org/status/200,201,404,500',
+    count: 50,
+    concurrency: 10,
+    timeout: 5000,
+    headers: '',
+    body: ''
+  },
+  {
+    label: 'JSONPlaceholder',
+    method: 'GET',
+    url: 'https://jsonplaceholder.typicode.com/posts/1',
+    count: 40,
+    concurrency: 8,
+    timeout: 5000,
+    headers: '',
+    body: ''
+  },
+  {
+    label: 'High concurrency',
+    method: 'GET',
+    url: 'https://httpbin.org/get',
+    count: 100,
+    concurrency: 20,
+    timeout: 8000,
+    headers: '',
+    body: ''
+  }
+];
+
+// ─── State ────────────────────────────────────────────────────────────────────
+let running = false;
+let aborted = false;
+let activeControllers = new Set();
+let results = [];        // {latency, status, error, ts}
+let errors = [];
+let startTime = 0;
+let updateTimer = null;
+
+// ─── DOM refs ─────────────────────────────────────────────────────────────────
+const $ = id => document.getElementById(id);
+
+// ─── Init ─────────────────────────────────────────────────────────────────────
+function init() {
+  buildPresets();
+}
+
+function buildPresets() {
+  const wrap = $('presets');
+  PRESETS.forEach((p, i) => {
+    const btn = document.createElement('button');
+    btn.className = 'btn';
+    btn.textContent = p.label;
+    btn.onclick = () => applyPreset(p);
+    wrap.appendChild(btn);
+  });
+}
+
+function applyPreset(p) {
+  $('method').value = p.method;
+  $('url').value = p.url;
+  $('req-count').value = p.count;
+  $('concurrency').value = p.concurrency;
+  $('timeout').value = p.timeout;
+  $('headers-input').value = p.headers;
+  $('body-input').value = p.body;
+  if (p.headers || p.body) openAdvanced();
+}
+
+function toggleAdvanced() {
+  const panel = $('advanced-panel');
+  const btn = $('toggle-advanced');
+  if (panel.classList.contains('open')) {
+    panel.classList.remove('open');
+    btn.textContent = '▶ expand';
+  } else {
+    openAdvanced();
+  }
+}
+
+function openAdvanced() {
+  $('advanced-panel').classList.add('open');
+  $('toggle-advanced').textContent = '▼ collapse';
+}
+
+// ─── Bench core ───────────────────────────────────────────────────────────────
+async function startBench() {
+  if (running) return;
+
+  const url = $('url').value.trim();
+  if (!url) { setStatus('Enter a URL first.'); return; }
+
+  const method = $('method').value;
+  const total = Math.max(1, Math.min(500, parseInt($('req-count').value) || 50));
+  const concurrency = Math.max(1, Math.min(50, parseInt($('concurrency').value) || 10));
+  const timeoutMs = Math.max(100, Math.min(30000, parseInt($('timeout').value) || 5000));
+
+  // Parse headers
+  let extraHeaders = {};
+  const headersRaw = $('headers-input').value.trim();
+  if (headersRaw) {
+    try { extraHeaders = JSON.parse(headersRaw); }
+    catch (e) { setStatus('Invalid headers JSON.'); return; }
+  }
+
+  // Parse body — allow body for any method except GET/HEAD
+  let bodyPayload = undefined;
+  const bodyRaw = $('body-input').value.trim();
+  if (bodyRaw && !['GET', 'HEAD'].includes(method.toUpperCase())) {
+    bodyPayload = bodyRaw;
+  }
+
+  // Reset state
+  running = true;
+  aborted = false;
+  results = [];
+  errors = [];
+  activeControllers = new Set();
+
+  $('run-btn').style.display = 'none';
+  $('stop-btn').style.display = '';
+  $('progress-wrap').classList.add('visible');
+  $('results-wrap').classList.remove('visible');
+  $('errors-panel').classList.remove('visible');
+  setStatus('Running…');
+  setProgress(0, total);
+
+  startTime = performance.now();
+
+  // Start live update loop
+  updateTimer = setInterval(updateLiveStats, 200);
+
+  // ── Concurrency pool ──────────────────────────────────────────────────────
+  let launched = 0;
+  let completed = 0;
+
+  async function worker() {
+    while (launched < total && !aborted) {
+      const myIndex = launched++;
+      const ac = new AbortController();
+      const timer = setTimeout(() => ac.abort(), timeoutMs);
+      activeControllers.add(ac);
+
+      const t0 = performance.now();
+      try {
+        const opts = {
+          method,
+          signal: ac.signal,
+          headers: { ...extraHeaders }
+        };
+        if (bodyPayload !== undefined) opts.body = bodyPayload;
+
+        const res = await fetch(url, opts);
+        const latency = performance.now() - t0;
+        results.push({ latency, status: res.status, error: null });
+      } catch (err) {
+        const latency = performance.now() - t0;
+        const isTimeout = err.name === 'AbortError';
+        // Detect CORS errors specifically (TypeError: Failed to fetch)
+        const isCors = err instanceof TypeError && err.message.includes('fetch');
+        const msg = isTimeout ? 'Timeout' : isCors ? 'CORS/Network error' : err.message;
+        results.push({ latency, status: 0, error: msg });
+        errors.push(msg);
+      } finally {
+        clearTimeout(timer);
+        activeControllers.delete(ac);
+        completed++;
+        setProgress(completed, total);
+      }
+    }
+  }
+
+  // Launch N workers — wrap in try/finally to guarantee interval cleanup
+  try {
+    const workers = [];
+    for (let i = 0; i < Math.min(concurrency, total); i++) {
+      workers.push(worker());
+    }
+    await Promise.all(workers);
+  } finally {
+    clearInterval(updateTimer);
+    updateTimer = null;
+    running = false;
+    activeControllers.clear();
+
+    $('run-btn').style.display = '';
+    $('stop-btn').style.display = 'none';
+
+    if (aborted) {
+      setStatus(`Stopped at ${results.length}/${total} requests.`);
+    } else {
+      setStatus(`Done — ${results.length} requests in ${fmt(performance.now() - startTime)} ms`);
+    }
+
+    renderResults(total);
+  }
+}
+
+function stopBench() {
+  if (!running) return;
+  aborted = true;
+  activeControllers.forEach(ac => { try { ac.abort(); } catch(e) {} });
+}
+
+// ─── Progress / live stats ────────────────────────────────────────────────────
+function setProgress(done, total) {
+  const pct = total > 0 ? Math.round((done / total) * 100) : 0;
+  $('progress-fill').style.width = pct + '%';
+  $('progress-pct').textContent = pct + '%';
+  $('ls-done').textContent = done;
+}
+
+function updateLiveStats() {
+  const successLatencies = results.filter(r => !r.error).map(r => r.latency);
+  const errCount = results.filter(r => r.error).length;
+  $('ls-errors').textContent = errCount;
+
+  if (successLatencies.length > 0) {
+    const avg = successLatencies.reduce((a, b) => a + b, 0) / successLatencies.length;
+    $('ls-avg').textContent = fmt(avg);
+  }
+
+  const elapsed = (performance.now() - startTime) / 1000;
+  // Wait 500ms before showing RPS to avoid jarring initial spike
+  if (elapsed > 0.5 && results.length > 0) {
+    const rps = results.length / elapsed;
+    $('ls-rps').textContent = rps.toFixed(1);
+  } else {
+    $('ls-rps').textContent = '—';
+  }
+}
+
+// ─── Results rendering ────────────────────────────────────────────────────────
+function renderResults(total) {
+  $('results-wrap').classList.add('visible');
+
+  const latencies = results.map(r => r.latency).sort((a, b) => a - b);
+  const successLatencies = results.filter(r => !r.error).map(r => r.latency).sort((a, b) => a - b);
+  const elapsed = performance.now() - startTime;
+
+  // Stats
+  if (latencies.length > 0) {
+    $('r-min').textContent = fmt(latencies[0]);
+    $('r-max').textContent = fmt(latencies[latencies.length - 1]);
+    $('r-avg').textContent = fmt(latencies.reduce((a, b) => a + b, 0) / latencies.length);
+    $('r-p50').textContent = fmt(percentile(latencies, 50));
+    $('r-p95').textContent = fmt(percentile(latencies, 95));
+    $('r-p99').textContent = fmt(percentile(latencies, 99));
+  }
+
+  $('r-total').textContent = fmt(elapsed);
+  const rps = results.length / (elapsed / 1000);
+  $('r-rps').textContent = rps.toFixed(2);
+
+  const successCount = results.filter(r => r.status >= 200 && r.status < 300).length;
+  const successRate = results.length > 0 ? ((successCount / results.length) * 100).toFixed(1) : '0.0';
+  const successEl = $('r-success');
+  successEl.textContent = successRate;
+  successEl.style.color = parseFloat(successRate) >= 95
+    ? 'var(--color-success)'
+    : parseFloat(successRate) >= 80
+      ? 'var(--color-warning)'
+      : 'var(--color-error)';
+
+  // Histogram — defer to next frame so display:block has been applied and clientWidth is correct
+  requestAnimationFrame(() => drawHistogram(latencies));
+
+  // Status distribution
+  renderStatusDist();
+
+  // Errors
+  if (errors.length > 0) {
+    $('errors-panel').classList.add('visible');
+    const list = $('error-list');
+    list.innerHTML = '';
+    const counts = {};
+    errors.forEach(e => { counts[e] = (counts[e] || 0) + 1; });
+    Object.entries(counts).forEach(([msg, count]) => {
+      const div = document.createElement('div');
+      div.className = 'error-item';
+      div.textContent = `${msg} (x${count})`;
+      list.appendChild(div);
+    });
+  }
+}
+
+function renderStatusDist() {
+  const dist = {};
+  results.forEach(r => {
+    const key = r.error ? (r.error === 'Timeout' ? 'timeout' : 'network-error') : String(r.status);
+    dist[key] = (dist[key] || 0) + 1;
+  });
+
+  const total = results.length;
+  const container = $('status-dist');
+  container.innerHTML = '';
+
+  const sorted = Object.entries(dist).sort((a, b) => b[1] - a[1]);
+  sorted.forEach(([code, count]) => {
+    const pct = total > 0 ? ((count / total) * 100).toFixed(1) : '0.0';
+    const barPct = total > 0 ? (count / total) * 100 : 0;
+
+    let barColor = 'var(--text-tertiary)';
+    const codeNum = parseInt(code);
+    if (!isNaN(codeNum)) {
+      if (codeNum >= 200 && codeNum < 300) barColor = 'var(--color-success)';
+      else if (codeNum >= 300 && codeNum < 400) barColor = 'var(--color-info)';
+      else if (codeNum >= 400 && codeNum < 500) barColor = 'var(--color-warning)';
+      else if (codeNum >= 500) barColor = 'var(--color-error)';
+    } else {
+      barColor = 'var(--color-error)';
+    }
+
+    const row = document.createElement('div');
+    row.className = 'status-row';
+    row.innerHTML = `
+      <span class="status-code" style="color:${barColor}">${code}</span>
+      <div class="status-bar-wrap">
+        <div class="status-bar-fill" style="width:${barPct}%;background:${barColor}"></div>
+      </div>
+      <span class="status-count">${count}</span>
+      <span class="status-pct">${pct}%</span>
+    `;
+    container.appendChild(row);
+  });
+}
+
+function drawHistogram(latencies) {
+  if (latencies.length === 0) return;
+
+  const canvas = $('histogram');
+  const dpr = window.devicePixelRatio || 1;
+  const W = canvas.parentElement.clientWidth - 16;
+  const H = 120;
+  canvas.width = W * dpr;
+  canvas.height = H * dpr;
+  canvas.style.width = W + 'px';
+  canvas.style.height = H + 'px';
+
+  const ctx = canvas.getContext('2d');
+  ctx.scale(dpr, dpr);
+
+  const BINS = 20;
+  const minL = latencies[0];
+  const maxL = latencies[latencies.length - 1];
+  const range = maxL - minL || 1;
+  const binSize = range / BINS;
+
+  const bins = new Array(BINS).fill(0);
+  latencies.forEach(l => {
+    let b = Math.floor((l - minL) / binSize);
+    if (b >= BINS) b = BINS - 1;
+    bins[b]++;
+  });
+
+  const maxCount = Math.max(...bins);
+
+  const padL = 4, padR = 4, padT = 6, padB = 16;
+  const chartW = W - padL - padR;
+  const chartH = H - padT - padB;
+  const barW = chartW / BINS;
+
+  ctx.clearRect(0, 0, W, H);
+
+  // Background
+  ctx.fillStyle = '#0a0a0a';
+  ctx.fillRect(0, 0, W, H);
+
+  // p95, p99 lines
+  const p95v = percentile(latencies, 95);
+  const p99v = percentile(latencies, 99);
+
+  function xForLatency(l) {
+    return padL + ((l - minL) / range) * chartW;
+  }
+
+  // Draw bars
+  bins.forEach((count, i) => {
+    if (count === 0) return;
+    const x = padL + i * barW;
+    const barH = maxCount > 0 ? (count / maxCount) * chartH : 0;
+    const y = padT + chartH - barH;
+
+    // Color by position relative to p95
+    const binMid = minL + (i + 0.5) * binSize;
+    let color;
+    if (binMid > p99v) color = 'rgba(248,81,73,0.8)';
+    else if (binMid > p95v) color = 'rgba(210,153,34,0.8)';
+    else color = 'rgba(0,255,255,0.6)';
+
+    ctx.fillStyle = color;
+    ctx.fillRect(x + 1, y, barW - 2, barH);
+  });
+
+  // p95 line
+  const x95 = xForLatency(p95v);
+  ctx.strokeStyle = 'rgba(210,153,34,0.7)';
+  ctx.lineWidth = 1;
+  ctx.setLineDash([3, 3]);
+  ctx.beginPath();
+  ctx.moveTo(x95, padT);
+  ctx.lineTo(x95, padT + chartH);
+  ctx.stroke();
+
+  // p99 line
+  const x99 = xForLatency(p99v);
+  ctx.strokeStyle = 'rgba(248,81,73,0.7)';
+  ctx.beginPath();
+  ctx.moveTo(x99, padT);
+  ctx.lineTo(x99, padT + chartH);
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  // X-axis labels
+  ctx.fillStyle = '#444';
+  ctx.font = `${9 * dpr / dpr}px ui-monospace, monospace`;
+  ctx.textAlign = 'center';
+  ctx.fillText(fmt(minL) + 'ms', padL + barW / 2, H - 2);
+  ctx.fillText(fmt(maxL) + 'ms', padL + chartW - barW / 2, H - 2);
+
+  // p95/p99 labels
+  ctx.font = `${8 * dpr / dpr}px ui-monospace, monospace`;
+  ctx.fillStyle = 'rgba(210,153,34,0.9)';
+  ctx.textAlign = 'left';
+  if (x95 + 24 < W) ctx.fillText('p95', x95 + 2, padT + 10);
+
+  ctx.fillStyle = 'rgba(248,81,73,0.9)';
+  if (x99 + 24 < W) ctx.fillText('p99', x99 + 2, padT + 10);
+  else {
+    ctx.textAlign = 'right';
+    ctx.fillText('p99', x99 - 2, padT + 10);
+  }
+}
+
+// ─── Utilities ────────────────────────────────────────────────────────────────
+function percentile(sorted, p) {
+  if (sorted.length === 0) return 0;
+  const idx = (p / 100) * (sorted.length - 1);
+  const lo = Math.floor(idx);
+  const hi = Math.ceil(idx);
+  if (lo === hi) return sorted[lo];
+  return sorted[lo] + (sorted[hi] - sorted[lo]) * (idx - lo);
+}
+
+function fmt(ms) {
+  if (ms === undefined || ms === null) return '—';
+  return ms.toFixed(1);
+}
+
+function setStatus(msg) {
+  $('status-msg').textContent = msg;
+}
+
+// ─── Boot ─────────────────────────────────────────────────────────────────────
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', init);
+} else {
+  init();
+}
+
+})();
+</script>
+</body>
+</html>

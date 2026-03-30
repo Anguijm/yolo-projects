@@ -6,6 +6,13 @@ Persistent knowledge base. Read this before every build.
 
 ## Accumulated Principles
 
+### Browser Load Testing (api-bench)
+- **Canvas clientWidth is 0 after display:none→block toggle** — The browser hasn't repainted when you call `clientWidth` synchronously right after adding a `.visible` class. Always wrap canvas draw calls in `requestAnimationFrame()` when the canvas parent was previously hidden.
+- **Wrap Promise.all(workers) in try/finally** — Any unhandled exception inside an async concurrency pool will skip your cleanup code. Use `try { await Promise.all(...) } finally { clearInterval(); running = false; }` to guarantee UI state resets.
+- **Gate live RPS display on elapsed > 0.5s** — If the first request completes in 2ms, computed req/s is 500+. Show `—` until at least 500ms have elapsed to prevent jarring initial spike in the UI.
+- **HTTP body whitelist should be a blacklist** — Restricting body to POST/PUT/PATCH misses valid cases (DELETE with body, custom methods). Check `!['GET','HEAD'].includes(method)` instead.
+- **AbortController + setTimeout timeout pattern** — `const ac = new AbortController(); const t = setTimeout(() => ac.abort(), ms);` is the correct zero-dep fetch timeout. Always `clearTimeout(t)` in the finally block to prevent timer leak even on success.
+
 ### Architecture & Performance
 - **Uint32Array pixel writes** are 4x faster than writing R,G,B,A separately to ImageData. Use for any pixel-level rendering (fractals, raycasters, image processing).
 - **Object pooling** eliminates GC pauses. Pre-allocate arrays of particle/entity objects and toggle `.active` instead of push/splice. Critical for any animation with >100 entities.
