@@ -2440,3 +2440,12 @@ Persistent knowledge base. Read this before every build.
 - **KEEP**: Pre-compute daily fire arrays at `render()` entry point and thread them down to sub-renderers — eliminates redundant O(jobs * hours * minutes) recalculation in `renderStats`.
 - **KEEP**: Tooltip de-thrash by keying on nearest-minute value: skip `innerHTML` rewrite if `currentTooltipKey` unchanged. Eliminates layout reflow on every mousemove pixel.
 - **INSIGHT**: Multi-track timeline tools need a shared collision map computed before rendering tracks — computing it per-track misses cross-job collisions and wastes cycles.
+
+### dep-graph (2026-03-29) — TICK
+- **BUG**: Regex literals containing unmatched `{`, `[`, or `}` characters (e.g. `/[^}]*/`) confuse naive brace-balance checkers that strip strings but not regex literals. Always use `new RegExp(string)` constructor for patterns containing structural chars — this also allows safe concatenation of dynamic quote chars.
+- **BUG**: `mouseup` on canvas leaves dragged nodes permanently stuck when user releases outside the canvas bounds. Attach `mouseup` to `window`, not `canvas`, to catch all releases regardless of cursor position.
+- **BUG**: Click event fires after mouseup always, so drag-end triggers `selectNode()`. Use a `hasDragged` boolean set in `mousemove` and reset via `setTimeout(..., 50)` after `mouseup`; gate the `click` handler: `if (hasDragged) return`.
+- **BUG**: npm `devDependencies` may repeat a package from `dependencies`. Unconditional `edges.push()` creates duplicate edges and inflates `degree`, making nodes render too large. Check `edges.find(e => e.source === root && e.target === name)` before pushing.
+- **KEEP**: Force simulation loop optimization — `requestAnimationFrame` runs at 60fps even when nothing moves. Gate `tickSim()` + `drawGraph()` inside `if (simRunning || isDraggingCanvas || isDraggingNode)`. Call `drawGraph()` directly after zoom/pan events instead.
+- **KEEP**: Cargo `workspace = true` is a valid dep entry with no version string. Return the sentinel string `'workspace'` rather than `'—'` to clearly communicate the package inherits its version from the workspace root.
+- **KEEP**: Pip inline comments (`requests==2.0 # http library`) must be stripped before name/version parsing — `rawLine.split('#')[0].trim()` handles this cleanly before the regex match.

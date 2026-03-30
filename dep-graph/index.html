@@ -1,0 +1,1343 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="theme-color" content="#000000">
+<title>dep-graph</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body {
+  height: 100%;
+  background: #0a0a0a;
+  overflow: hidden;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Courier New", monospace;
+  color: #ccc;
+}
+
+:root {
+  --bg-page: #0a0a0a;
+  --bg-surface: #111;
+  --bg-elevated: #1a1a1a;
+  --bg-hover: #222;
+  --text-primary: #fff;
+  --text-body: #ccc;
+  --text-secondary: #aaa;
+  --text-tertiary: #555;
+  --text-label: #444;
+  --border-default: #1a1a1a;
+  --border-visible: #222;
+  --border-active: #444;
+  --color-success: #3fb950;
+  --color-warning: #d29922;
+  --color-error: #f85149;
+  --color-info: #58a6ff;
+  --accent: #0ff;
+}
+
+#app {
+  display: flex;
+  height: 100vh;
+  overflow: hidden;
+}
+
+/* LEFT PANEL */
+#left-panel {
+  width: 280px;
+  min-width: 280px;
+  display: flex;
+  flex-direction: column;
+  border-right: 1px solid var(--border-default);
+  background: var(--bg-surface);
+  z-index: 10;
+}
+
+#header {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border-default);
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+#header h1 {
+  font-size: 0.75rem;
+  font-weight: 400;
+  color: var(--accent);
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+}
+
+#header .subtitle {
+  font-size: 0.45rem;
+  color: var(--text-label);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+#format-bar {
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border-default);
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.format-badge {
+  font-size: 0.5rem;
+  padding: 2px 6px;
+  border: 1px solid var(--border-visible);
+  color: var(--text-label);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  cursor: default;
+}
+
+.format-badge.detected {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+#format-label {
+  font-size: 0.5rem;
+  color: var(--text-tertiary);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  margin-left: auto;
+}
+
+#input-area {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  padding: 8px 12px;
+  gap: 6px;
+  overflow: hidden;
+}
+
+#manifest-input {
+  flex: 1;
+  background: var(--bg-page);
+  border: 1px solid var(--border-visible);
+  color: var(--text-secondary);
+  font-family: inherit;
+  font-size: 0.6rem;
+  padding: 8px;
+  resize: none;
+  outline: none;
+  line-height: 1.6;
+  overflow-y: auto;
+}
+
+#manifest-input:focus { border-color: var(--border-active); }
+#manifest-input::placeholder { color: var(--text-label); }
+
+.btn-row {
+  display: flex;
+  gap: 6px;
+}
+
+.btn {
+  padding: 4px 10px;
+  background: transparent;
+  border: 1px solid var(--border-default);
+  color: var(--text-label);
+  font-family: inherit;
+  font-size: 0.55rem;
+  cursor: pointer;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.btn:hover { border-color: var(--border-active); color: var(--text-secondary); }
+.btn:active { border-color: #555; color: #888; }
+.btn.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #000;
+}
+.btn.primary:hover { opacity: 0.85; }
+
+/* Presets */
+#presets {
+  padding: 6px 12px 8px;
+  border-top: 1px solid var(--border-default);
+}
+
+#presets-label {
+  font-size: 0.45rem;
+  color: var(--text-label);
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  margin-bottom: 5px;
+}
+
+.preset-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.preset-btn {
+  padding: 2px 7px;
+  background: transparent;
+  border: 1px solid var(--border-default);
+  color: var(--text-tertiary);
+  font-family: inherit;
+  font-size: 0.5rem;
+  cursor: pointer;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.preset-btn:hover { border-color: var(--border-active); color: var(--text-secondary); }
+
+/* Stats bar */
+#stats-bar {
+  padding: 6px 12px;
+  border-top: 1px solid var(--border-default);
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.stat {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.stat-val {
+  font-size: 0.75rem;
+  color: var(--text-primary);
+  font-weight: 200;
+}
+
+.stat-key {
+  font-size: 0.4rem;
+  color: var(--text-label);
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+}
+
+/* LEGEND */
+#legend {
+  padding: 6px 12px;
+  border-top: 1px solid var(--border-default);
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.45rem;
+  color: var(--text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+
+.legend-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+}
+
+/* CANVAS AREA */
+#canvas-area {
+  flex: 1;
+  position: relative;
+  overflow: hidden;
+}
+
+#graph-canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  cursor: grab;
+}
+
+#graph-canvas.dragging { cursor: grabbing; }
+
+/* TOOLTIP / NODE DETAIL */
+#node-detail {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: 200px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-active);
+  padding: 10px;
+  display: none;
+  z-index: 100;
+}
+
+#node-detail.visible { display: block; }
+
+#node-detail h3 {
+  font-size: 0.7rem;
+  color: var(--text-primary);
+  margin-bottom: 6px;
+  word-break: break-all;
+}
+
+.detail-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 3px;
+  gap: 8px;
+}
+
+.detail-key {
+  font-size: 0.45rem;
+  color: var(--text-label);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  flex-shrink: 0;
+}
+
+.detail-val {
+  font-size: 0.55rem;
+  color: var(--text-secondary);
+  text-align: right;
+  word-break: break-all;
+}
+
+.detail-val.accent { color: var(--accent); }
+
+#close-detail {
+  margin-top: 8px;
+  width: 100%;
+}
+
+/* Controls overlay */
+#controls-overlay {
+  position: absolute;
+  bottom: 12px;
+  left: 12px;
+  display: flex;
+  gap: 6px;
+}
+
+/* Empty state */
+#empty-state {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  pointer-events: none;
+}
+
+#empty-state.hidden { display: none; }
+
+.empty-title {
+  font-size: 0.65rem;
+  color: var(--text-label);
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+}
+
+.empty-hint {
+  font-size: 0.5rem;
+  color: var(--text-tertiary);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+/* Error toast */
+#error-toast {
+  position: absolute;
+  bottom: 12px;
+  right: 12px;
+  background: var(--bg-surface);
+  border: 1px solid var(--color-error);
+  color: var(--color-error);
+  font-size: 0.55rem;
+  padding: 6px 10px;
+  display: none;
+  z-index: 200;
+  letter-spacing: 0.05em;
+  max-width: 240px;
+}
+
+#error-toast.visible { display: block; }
+</style>
+</head>
+<body>
+<div id="app">
+  <!-- LEFT PANEL -->
+  <div id="left-panel">
+    <div id="header">
+      <h1>dep-graph</h1>
+      <span class="subtitle">package dependency visualizer</span>
+    </div>
+
+    <div id="format-bar">
+      <div class="format-badge" id="badge-npm">npm</div>
+      <div class="format-badge" id="badge-pip">pip</div>
+      <div class="format-badge" id="badge-cargo">cargo</div>
+      <span id="format-label">auto-detect</span>
+    </div>
+
+    <div id="input-area">
+      <textarea id="manifest-input" placeholder="Paste package.json, requirements.txt, or Cargo.toml here…" spellcheck="false"></textarea>
+      <div class="btn-row">
+        <button class="btn primary" onclick="parseAndRender()">Parse →</button>
+        <button class="btn" onclick="clearInput()">Clear</button>
+        <button class="btn" onclick="resetView()">Reset View</button>
+      </div>
+    </div>
+
+    <div id="presets">
+      <div id="presets-label">Presets</div>
+      <div class="preset-list">
+        <button class="preset-btn" onclick="loadPreset('react-app')">React App</button>
+        <button class="preset-btn" onclick="loadPreset('express-api')">Express API</button>
+        <button class="preset-btn" onclick="loadPreset('python-ml')">Python ML</button>
+        <button class="preset-btn" onclick="loadPreset('python-web')">Python Web</button>
+        <button class="preset-btn" onclick="loadPreset('rust-web')">Rust Web</button>
+        <button class="preset-btn" onclick="loadPreset('rust-cli')">Rust CLI</button>
+      </div>
+    </div>
+
+    <div id="stats-bar">
+      <div class="stat">
+        <span class="stat-val" id="stat-nodes">—</span>
+        <span class="stat-key">packages</span>
+      </div>
+      <div class="stat">
+        <span class="stat-val" id="stat-deps">—</span>
+        <span class="stat-key">deps</span>
+      </div>
+      <div class="stat">
+        <span class="stat-val" id="stat-dev">—</span>
+        <span class="stat-key">dev deps</span>
+      </div>
+      <div class="stat">
+        <span class="stat-val" id="stat-format">—</span>
+        <span class="stat-key">format</span>
+      </div>
+    </div>
+
+    <div id="legend">
+      <div class="legend-item">
+        <div class="legend-dot" style="background:#0ff"></div>
+        root
+      </div>
+      <div class="legend-item">
+        <div class="legend-dot" style="background:#3fb950"></div>
+        dep
+      </div>
+      <div class="legend-item">
+        <div class="legend-dot" style="background:#d29922"></div>
+        dev dep
+      </div>
+      <div class="legend-item">
+        <div class="legend-dot" style="background:#58a6ff"></div>
+        peer/opt
+      </div>
+    </div>
+  </div>
+
+  <!-- CANVAS AREA -->
+  <div id="canvas-area">
+    <canvas id="graph-canvas"></canvas>
+
+    <div id="empty-state">
+      <div class="empty-title">No graph loaded</div>
+      <div class="empty-hint">Paste a manifest and click Parse</div>
+    </div>
+
+    <div id="node-detail">
+      <h3 id="detail-name">package-name</h3>
+      <div class="detail-row">
+        <span class="detail-key">Version</span>
+        <span class="detail-val accent" id="detail-version">—</span>
+      </div>
+      <div class="detail-row">
+        <span class="detail-key">Type</span>
+        <span class="detail-val" id="detail-type">—</span>
+      </div>
+      <div class="detail-row">
+        <span class="detail-key">Connections</span>
+        <span class="detail-val" id="detail-connections">—</span>
+      </div>
+      <div class="detail-row">
+        <span class="detail-key">Registry</span>
+        <span class="detail-val" id="detail-registry">—</span>
+      </div>
+      <button class="btn" id="close-detail" onclick="closeDetail()">Close</button>
+    </div>
+
+    <div id="controls-overlay">
+      <button class="btn" onclick="zoomIn()">+</button>
+      <button class="btn" onclick="zoomOut()">−</button>
+      <button class="btn" onclick="resetView()">⌂</button>
+    </div>
+
+    <div id="error-toast"></div>
+  </div>
+</div>
+
+<script>
+// ============================================================
+// PRESETS
+// ============================================================
+const PRESETS = {
+  'react-app': {
+    format: 'package.json',
+    content: `{
+  "name": "my-react-app",
+  "version": "1.0.0",
+  "dependencies": {
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-router-dom": "^6.11.0",
+    "axios": "^1.4.0",
+    "zustand": "^4.3.8",
+    "react-query": "^3.39.3",
+    "date-fns": "^2.30.0",
+    "clsx": "^1.2.1"
+  },
+  "devDependencies": {
+    "vite": "^4.3.9",
+    "@vitejs/plugin-react": "^4.0.0",
+    "eslint": "^8.42.0",
+    "prettier": "^2.8.8",
+    "typescript": "^5.1.3",
+    "@types/react": "^18.2.12",
+    "@types/react-dom": "^18.2.5",
+    "vitest": "^0.32.2"
+  }
+}`
+  },
+  'express-api': {
+    format: 'package.json',
+    content: `{
+  "name": "express-api",
+  "version": "2.0.0",
+  "dependencies": {
+    "express": "^4.18.2",
+    "cors": "^2.8.5",
+    "helmet": "^7.0.0",
+    "morgan": "^1.10.0",
+    "dotenv": "^16.1.4",
+    "jsonwebtoken": "^9.0.0",
+    "bcrypt": "^5.1.0",
+    "mongoose": "^7.3.0",
+    "joi": "^17.9.2",
+    "multer": "^1.4.5-lts.1"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.1",
+    "jest": "^29.5.0",
+    "supertest": "^6.3.3",
+    "@types/express": "^4.17.17",
+    "typescript": "^5.1.3"
+  }
+}`
+  },
+  'python-ml': {
+    format: 'requirements.txt',
+    content: `# ML stack
+numpy==1.24.3
+pandas==2.0.2
+scikit-learn==1.2.2
+matplotlib==3.7.1
+seaborn==0.12.2
+scipy==1.10.1
+joblib==1.3.0
+
+# Deep learning
+torch==2.0.1
+torchvision==0.15.2
+transformers==4.29.2
+
+# Data & utils
+requests==2.31.0
+tqdm==4.65.0
+pyyaml==6.0
+click==8.1.3
+
+# Dev
+pytest==7.3.1
+black==23.3.0
+mypy==1.3.0`
+  },
+  'python-web': {
+    format: 'requirements.txt',
+    content: `# Core web
+fastapi==0.100.0
+uvicorn==0.22.0
+pydantic==2.0.2
+httpx==0.24.1
+starlette==0.27.0
+
+# DB
+sqlalchemy==2.0.17
+alembic==1.11.1
+psycopg2-binary==2.9.6
+redis==4.6.0
+
+# Auth & utils
+python-jose==3.3.0
+passlib==1.7.4
+python-multipart==0.0.6
+aiofiles==23.1.0
+
+# Dev
+pytest==7.3.1
+pytest-asyncio==0.21.0
+httpx==0.24.1`
+  },
+  'rust-web': {
+    format: 'Cargo.toml',
+    content: `[package]
+name = "rust-web-server"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+tokio = { version = "1.29", features = ["full"] }
+axum = "0.6"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+sqlx = { version = "0.7", features = ["postgres", "runtime-tokio"] }
+tower = "0.4"
+tower-http = { version = "0.4", features = ["cors", "trace"] }
+tracing = "0.1"
+tracing-subscriber = "0.3"
+anyhow = "1.0"
+thiserror = "1.0"
+uuid = { version = "1.4", features = ["v4", "serde"] }
+chrono = { version = "0.4", features = ["serde"] }
+dotenv = "0.15"
+
+[dev-dependencies]
+tower = { version = "0.4", features = ["util"] }
+hyper = "0.14"`
+  },
+  'rust-cli': {
+    format: 'Cargo.toml',
+    content: `[package]
+name = "rust-cli-tool"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+clap = { version = "4.3", features = ["derive"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+toml = "0.7"
+anyhow = "1.0"
+thiserror = "1.0"
+indicatif = "0.17"
+console = "0.15"
+colored = "2.0"
+walkdir = "2.3"
+glob = "0.3"
+regex = "1.9"
+chrono = "0.4"
+
+[dev-dependencies]
+assert_cmd = "2.0"
+predicates = "3.0"
+tempfile = "3.6"`
+  }
+};
+
+// ============================================================
+// PARSERS
+// ============================================================
+
+function detectFormat(text) {
+  const trimmed = text.trim();
+  // JSON → package.json
+  if (trimmed.startsWith('{')) return 'npm';
+  // TOML → Cargo.toml
+  if (/^\[package\]/m.test(trimmed) || /^\[dependencies\]/m.test(trimmed)) return 'cargo';
+  // requirements.txt
+  return 'pip';
+}
+
+function parseNpm(text) {
+  let pkg;
+  try { pkg = JSON.parse(text); }
+  catch(e) { throw new Error('Invalid JSON: ' + e.message); }
+
+  const nodes = [];
+  const edges = [];
+  const rootName = pkg.name || 'root';
+
+  nodes.push({ id: rootName, label: rootName, version: pkg.version || '—', type: 'root', degree: 0 });
+
+  function addDeps(depObj, type) {
+    if (!depObj) return;
+    for (const [name, version] of Object.entries(depObj)) {
+      if (!nodes.find(n => n.id === name)) {
+        nodes.push({ id: name, label: name, version: version, type: type, degree: 0 });
+      }
+      // Avoid duplicate edges (e.g. same package in deps + devDeps)
+      if (!edges.find(e => e.source === rootName && e.target === name)) {
+        edges.push({ source: rootName, target: name, type: type });
+      }
+    }
+  }
+
+  addDeps(pkg.dependencies, 'dep');
+  addDeps(pkg.devDependencies, 'dev');
+  addDeps(pkg.peerDependencies, 'peer');
+  addDeps(pkg.optionalDependencies, 'optional');
+
+  // degree count
+  for (const e of edges) {
+    const s = nodes.find(n => n.id === e.source);
+    const t = nodes.find(n => n.id === e.target);
+    if (s) s.degree++;
+    if (t) t.degree++;
+  }
+
+  return { nodes, edges, format: 'npm', rootName };
+}
+
+function parsePip(text) {
+  const nodes = [];
+  const edges = [];
+  const rootName = 'project';
+
+  nodes.push({ id: rootName, label: rootName, version: '—', type: 'root', degree: 0 });
+
+  const lines = text.split('\n');
+  for (const rawLine of lines) {
+    // Strip inline comments first
+    const line = rawLine.split('#')[0].trim();
+    if (!line || line.startsWith('-')) continue;
+
+    // Match: name==version, name>=version, name~=version, name[extra]==version, name @ url
+    const match = line.match(/^([A-Za-z0-9_.\-\[\]]+?)\s*([=<>!~@]+.*)?$/);
+    if (!match) continue;
+
+    let name = match[1].replace(/\[.*\]/, '').trim().toLowerCase().replace(/_/g, '-'); // normalize
+    if (!name) continue;
+    const version = match[2] ? match[2].trim() : '—';
+
+    if (!nodes.find(n => n.id === name)) {
+      nodes.push({ id: name, label: name, version: version, type: 'dep', degree: 0 });
+    }
+    edges.push({ source: rootName, target: name, type: 'dep' });
+  }
+
+  for (const e of edges) {
+    const s = nodes.find(n => n.id === e.source);
+    const t = nodes.find(n => n.id === e.target);
+    if (s) s.degree++;
+    if (t) t.degree++;
+  }
+
+  return { nodes, edges, format: 'pip', rootName };
+}
+
+function parseCargo(text) {
+  const nodes = [];
+  const edges = [];
+  const rootName = extractCargoPackageName(text) || 'crate';
+
+  nodes.push({ id: rootName, label: rootName, version: extractCargoVersion(text) || '—', type: 'root', degree: 0 });
+
+  let currentSection = null;
+
+  const lines = text.split('\n');
+  for (const rawLine of lines) {
+    const line = rawLine.trim();
+
+    if (line === '[dependencies]') { currentSection = 'dep'; continue; }
+    if (line === '[dev-dependencies]') { currentSection = 'dev'; continue; }
+    if (line === '[build-dependencies]') { currentSection = 'build'; continue; }
+    if (line.startsWith('[')) { currentSection = null; continue; }
+    if (!line || line.startsWith('#')) continue;
+    if (currentSection === null) continue;
+
+    // name = "version" / name = 'version'  or  name = { version = "x" } / { workspace = true }
+    const QQ = '[\'"]';
+    const simpleRe = new RegExp('^([a-zA-Z0-9_\\-]+)\\s*=\\s*' + QQ + '([^\'\"]+)' + QQ);
+    const tableRe  = new RegExp('^([a-zA-Z0-9_\\-]+)\\s*=\\s*\\{[^}]*(?:version\\s*=\\s*' + QQ + '([^\'\"]+)' + QQ + '|workspace\\s*=\\s*(true))[^}]*\\}');
+    const simpleMatch = line.match(simpleRe);
+    const tableMatch  = line.match(tableRe);
+
+    const name = simpleMatch ? simpleMatch[1] : (tableMatch ? tableMatch[1] : null);
+    const version = simpleMatch ? simpleMatch[2] : (tableMatch ? (tableMatch[2] || 'workspace') : '—');
+
+    if (!name) continue;
+    const type = currentSection === 'dev' ? 'dev' : (currentSection === 'build' ? 'build' : 'dep');
+
+    if (!nodes.find(n => n.id === name)) {
+      nodes.push({ id: name, label: name, version: version, type: type, degree: 0 });
+    }
+    edges.push({ source: rootName, target: name, type: type });
+  }
+
+  for (const e of edges) {
+    const s = nodes.find(n => n.id === e.source);
+    const t = nodes.find(n => n.id === e.target);
+    if (s) s.degree++;
+    if (t) t.degree++;
+  }
+
+  return { nodes, edges, format: 'cargo', rootName };
+}
+
+function extractCargoPackageName(text) {
+  const Q = '"';
+  const re = new RegExp('\\[package\\][^\\[]*name\\s*=\\s*' + Q + '([^' + Q + ']+)' + Q, 's');
+  const m = text.match(re);
+  return m ? m[1] : null;
+}
+
+function extractCargoVersion(text) {
+  const Q = '"';
+  const re = new RegExp('\\[package\\][^\\[]*version\\s*=\\s*' + Q + '([^' + Q + ']+)' + Q, 's');
+  const m = text.match(re);
+  return m ? m[1] : null;
+}
+
+// ============================================================
+// FORCE SIMULATION
+// ============================================================
+
+const SIM_ALPHA_DECAY = 0.02;
+const SIM_VELOCITY_DECAY = 0.4;
+const LINK_DISTANCE = 120;
+const LINK_STRENGTH = 0.08;
+const REPULSION = 6000;
+const CENTER_STRENGTH = 0.03;
+
+let simNodes = [];
+let simEdges = [];
+let simAlpha = 1;
+let simRunning = false;
+let animFrame = null;
+
+function initSim(graph) {
+  const { nodes, edges } = graph;
+  const W = canvas.width;
+  const H = canvas.height;
+
+  simNodes = nodes.map((n, i) => {
+    const angle = (i / nodes.length) * Math.PI * 2;
+    const r = Math.min(W, H) * 0.3;
+    return {
+      ...n,
+      x: W/2 + (i === 0 ? 0 : Math.cos(angle) * r),
+      y: H/2 + (i === 0 ? 0 : Math.sin(angle) * r),
+      vx: 0, vy: 0,
+      fx: null, fy: null  // fixed position when dragged
+    };
+  });
+
+  simEdges = edges.map(e => ({
+    ...e,
+    source: simNodes.find(n => n.id === e.source),
+    target: simNodes.find(n => n.id === e.target)
+  })).filter(e => e.source && e.target);
+
+  simAlpha = 1;
+  simRunning = true;
+}
+
+function tickSim() {
+  if (!simRunning) return;
+
+  simAlpha = Math.max(0, simAlpha - SIM_ALPHA_DECAY);
+  if (simAlpha < 0.001) { simRunning = false; return; }
+
+  // Link force
+  for (const e of simEdges) {
+    const dx = e.target.x - e.source.x;
+    const dy = e.target.y - e.source.y;
+    const dist = Math.sqrt(dx*dx + dy*dy) || 1;
+    const force = (dist - LINK_DISTANCE) * LINK_STRENGTH * simAlpha;
+    const fx = (dx / dist) * force;
+    const fy = (dy / dist) * force;
+
+    if (!e.source.fx) { e.source.vx += fx; e.source.vy += fy; }
+    if (!e.target.fx) { e.target.vx -= fx; e.target.vy -= fy; }
+  }
+
+  // Repulsion (n-body approximation)
+  for (let i = 0; i < simNodes.length; i++) {
+    for (let j = i + 1; j < simNodes.length; j++) {
+      const a = simNodes[i], b = simNodes[j];
+      const dx = b.x - a.x;
+      const dy = b.y - a.y;
+      const dist2 = dx*dx + dy*dy || 1;
+      const dist = Math.sqrt(dist2);
+      const force = (REPULSION / dist2) * simAlpha;
+      const fx = (dx / dist) * force;
+      const fy = (dy / dist) * force;
+      if (!a.fx) { a.vx -= fx; a.vy -= fy; }
+      if (!b.fx) { b.vx += fx; b.vy += fy; }
+    }
+  }
+
+  // Center force
+  const cx = canvas.width / 2;
+  const cy = canvas.height / 2;
+  for (const n of simNodes) {
+    if (!n.fx) {
+      n.vx += (cx - n.x) * CENTER_STRENGTH * simAlpha;
+      n.vy += (cy - n.y) * CENTER_STRENGTH * simAlpha;
+    }
+  }
+
+  // Integrate
+  for (const n of simNodes) {
+    if (n.fx !== null) { n.x = n.fx; n.y = n.fy; continue; }
+    n.vx *= (1 - SIM_VELOCITY_DECAY);
+    n.vy *= (1 - SIM_VELOCITY_DECAY);
+    n.x += n.vx;
+    n.y += n.vy;
+  }
+}
+
+// ============================================================
+// RENDERING
+// ============================================================
+
+const canvas = document.getElementById('graph-canvas');
+const ctx = canvas.getContext('2d');
+
+let camX = 0, camY = 0, camScale = 1;
+let currentGraph = null;
+let selectedNode = null;
+
+const NODE_COLORS = {
+  root: '#0ff',
+  dep: '#3fb950',
+  dev: '#d29922',
+  peer: '#58a6ff',
+  optional: '#58a6ff',
+  build: '#f85149'
+};
+
+const EDGE_COLORS = {
+  dep: 'rgba(63,185,80,0.25)',
+  dev: 'rgba(210,153,34,0.25)',
+  peer: 'rgba(88,166,255,0.25)',
+  optional: 'rgba(88,166,255,0.2)',
+  build: 'rgba(248,81,73,0.25)'
+};
+
+function resizeCanvas() {
+  const area = document.getElementById('canvas-area');
+  canvas.width = area.clientWidth;
+  canvas.height = area.clientHeight;
+}
+
+function nodeRadius(n) {
+  if (n.type === 'root') return 14;
+  return 7 + Math.min(n.degree * 1.5, 8);
+}
+
+function drawGraph() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  if (!currentGraph || simNodes.length === 0) return;
+
+  ctx.save();
+  ctx.translate(camX, camY);
+  ctx.scale(camScale, camScale);
+
+  // Draw edges
+  for (const e of simEdges) {
+    ctx.beginPath();
+    ctx.moveTo(e.source.x, e.source.y);
+    ctx.lineTo(e.target.x, e.target.y);
+    ctx.strokeStyle = EDGE_COLORS[e.type] || 'rgba(255,255,255,0.1)';
+    ctx.lineWidth = 1 / camScale;
+    ctx.stroke();
+  }
+
+  // Draw nodes
+  for (const n of simNodes) {
+    const r = nodeRadius(n);
+    const color = NODE_COLORS[n.type] || '#aaa';
+    const isSelected = selectedNode && selectedNode.id === n.id;
+
+    // Glow for root / selected
+    if (n.type === 'root' || isSelected) {
+      ctx.beginPath();
+      ctx.arc(n.x, n.y, r + 4, 0, Math.PI * 2);
+      ctx.fillStyle = isSelected ? 'rgba(0,255,255,0.08)' : 'rgba(0,255,255,0.05)';
+      ctx.fill();
+    }
+
+    // Node circle
+    ctx.beginPath();
+    ctx.arc(n.x, n.y, r, 0, Math.PI * 2);
+    ctx.fillStyle = isSelected ? '#fff' : (n.type === 'root' ? color : '#1a1a1a');
+    ctx.fill();
+    ctx.strokeStyle = color;
+    ctx.lineWidth = isSelected ? 2 / camScale : 1.5 / camScale;
+    ctx.stroke();
+
+    // Label
+    const fontSize = Math.max(9, Math.min(11, 10 / camScale));
+    ctx.font = `${fontSize}px ui-monospace, monospace`;
+    ctx.fillStyle = isSelected ? '#fff' : (n.type === 'root' ? '#000' : '#888');
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+
+    if (n.type === 'root') {
+      ctx.fillText(n.label.length > 12 ? n.label.slice(0, 11) + '…' : n.label, n.x, n.y);
+    } else if (camScale > 0.5) {
+      ctx.fillStyle = '#666';
+      ctx.fillText(n.label.length > 14 ? n.label.slice(0, 13) + '…' : n.label, n.x, n.y + r + 10 / camScale);
+    }
+  }
+
+  ctx.restore();
+}
+
+function loop() {
+  // Only do work if simulation is running or camera is being manipulated
+  if (simRunning || isDraggingCanvas || isDraggingNode) {
+    tickSim();
+    drawGraph();
+  }
+  animFrame = requestAnimationFrame(loop);
+}
+
+// ============================================================
+// INTERACTION
+// ============================================================
+
+let isDraggingNode = null;
+let isDraggingCanvas = false;
+let hasDragged = false;
+let dragStartX = 0, dragStartY = 0;
+let lastCamX = 0, lastCamY = 0;
+
+function screenToWorld(sx, sy) {
+  return {
+    x: (sx - camX) / camScale,
+    y: (sy - camY) / camScale
+  };
+}
+
+function hitTest(wx, wy) {
+  let closest = null;
+  let closestDist = Infinity;
+  for (const n of simNodes) {
+    const r = nodeRadius(n) + 4;
+    const dx = wx - n.x, dy = wy - n.y;
+    const dist = Math.sqrt(dx*dx + dy*dy);
+    if (dist < r && dist < closestDist) {
+      closest = n;
+      closestDist = dist;
+    }
+  }
+  return closest;
+}
+
+canvas.addEventListener('mousedown', (e) => {
+  const rect = canvas.getBoundingClientRect();
+  const sx = e.clientX - rect.left;
+  const sy = e.clientY - rect.top;
+  const w = screenToWorld(sx, sy);
+  const hit = hitTest(w.x, w.y);
+
+  if (hit) {
+    isDraggingNode = hit;
+    hit.fx = hit.x;
+    hit.fy = hit.y;
+    simAlpha = Math.max(simAlpha, 0.3);
+    simRunning = true;
+  } else {
+    isDraggingCanvas = true;
+    dragStartX = e.clientX;
+    dragStartY = e.clientY;
+    lastCamX = camX;
+    lastCamY = camY;
+    canvas.classList.add('dragging');
+  }
+});
+
+canvas.addEventListener('mousemove', (e) => {
+  if (isDraggingNode) {
+    hasDragged = true;
+    const rect = canvas.getBoundingClientRect();
+    const w = screenToWorld(e.clientX - rect.left, e.clientY - rect.top);
+    isDraggingNode.fx = w.x;
+    isDraggingNode.fy = w.y;
+  } else if (isDraggingCanvas) {
+    hasDragged = true;
+    camX = lastCamX + (e.clientX - dragStartX);
+    camY = lastCamY + (e.clientY - dragStartY);
+    drawGraph();
+  }
+});
+
+// Attach mouseup to window so releasing outside canvas still unsets drag
+window.addEventListener('mouseup', (e) => {
+  if (isDraggingNode) {
+    isDraggingNode.fx = null;
+    isDraggingNode.fy = null;
+    isDraggingNode = null;
+  }
+  if (isDraggingCanvas) {
+    isDraggingCanvas = false;
+    canvas.classList.remove('dragging');
+  }
+  // Defer hasDragged reset so the click event (fires after mouseup) can read it
+  setTimeout(() => { hasDragged = false; }, 50);
+});
+
+canvas.addEventListener('click', (e) => {
+  if (!currentGraph || hasDragged) return; // ignore clicks that follow a drag
+  const rect = canvas.getBoundingClientRect();
+  const w = screenToWorld(e.clientX - rect.left, e.clientY - rect.top);
+  const hit = hitTest(w.x, w.y);
+  if (hit) {
+    selectNode(hit);
+  } else {
+    closeDetail();
+  }
+});
+
+canvas.addEventListener('wheel', (e) => {
+  e.preventDefault();
+  const rect = canvas.getBoundingClientRect();
+  const mx = e.clientX - rect.left;
+  const my = e.clientY - rect.top;
+
+  const delta = e.deltaY > 0 ? 0.9 : 1.1;
+  const newScale = Math.max(0.1, Math.min(5, camScale * delta));
+
+  camX = mx - (mx - camX) * (newScale / camScale);
+  camY = my - (my - camY) * (newScale / camScale);
+  camScale = newScale;
+  drawGraph();
+}, { passive: false });
+
+// Touch support
+let lastTouchDist = 0;
+let touchStart = null;
+
+canvas.addEventListener('touchstart', (e) => {
+  if (e.touches.length === 1) {
+    const t = e.touches[0];
+    const rect = canvas.getBoundingClientRect();
+    const w = screenToWorld(t.clientX - rect.left, t.clientY - rect.top);
+    const hit = hitTest(w.x, w.y);
+    if (hit) {
+      isDraggingNode = hit;
+      hit.fx = hit.x;
+      hit.fy = hit.y;
+      simAlpha = Math.max(simAlpha, 0.3);
+      simRunning = true;
+    } else {
+      isDraggingCanvas = true;
+      dragStartX = t.clientX;
+      dragStartY = t.clientY;
+      lastCamX = camX;
+      lastCamY = camY;
+    }
+    touchStart = { x: t.clientX, y: t.clientY };
+  } else if (e.touches.length === 2) {
+    const dx = e.touches[0].clientX - e.touches[1].clientX;
+    const dy = e.touches[0].clientY - e.touches[1].clientY;
+    lastTouchDist = Math.sqrt(dx*dx + dy*dy);
+    isDraggingNode = null;
+    isDraggingCanvas = false;
+  }
+}, { passive: true });
+
+canvas.addEventListener('touchmove', (e) => {
+  e.preventDefault();
+  if (e.touches.length === 1) {
+    const t = e.touches[0];
+    const rect = canvas.getBoundingClientRect();
+    if (isDraggingNode) {
+      const w = screenToWorld(t.clientX - rect.left, t.clientY - rect.top);
+      isDraggingNode.fx = w.x;
+      isDraggingNode.fy = w.y;
+    } else if (isDraggingCanvas) {
+      camX = lastCamX + (t.clientX - dragStartX);
+      camY = lastCamY + (t.clientY - dragStartY);
+    }
+  } else if (e.touches.length === 2) {
+    const dx = e.touches[0].clientX - e.touches[1].clientX;
+    const dy = e.touches[0].clientY - e.touches[1].clientY;
+    const newDist = Math.sqrt(dx*dx + dy*dy);
+    const scale = newDist / (lastTouchDist || newDist);
+    const midX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+    const midY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+    const rect = canvas.getBoundingClientRect();
+    const mx = midX - rect.left;
+    const my = midY - rect.top;
+    const newScale = Math.max(0.1, Math.min(5, camScale * scale));
+    camX = mx - (mx - camX) * (newScale / camScale);
+    camY = my - (my - camY) * (newScale / camScale);
+    camScale = newScale;
+    lastTouchDist = newDist;
+  }
+}, { passive: false });
+
+canvas.addEventListener('touchend', (e) => {
+  if (isDraggingNode) {
+    isDraggingNode.fx = null;
+    isDraggingNode.fy = null;
+    // Tap to select
+    if (touchStart) {
+      const t = e.changedTouches[0];
+      const dx = t.clientX - touchStart.x;
+      const dy = t.clientY - touchStart.y;
+      if (Math.sqrt(dx*dx+dy*dy) < 8) {
+        const rect = canvas.getBoundingClientRect();
+        const w = screenToWorld(t.clientX - rect.left, t.clientY - rect.top);
+        const hit = hitTest(w.x, w.y);
+        if (hit) selectNode(hit);
+      }
+    }
+    isDraggingNode = null;
+  }
+  isDraggingCanvas = false;
+  touchStart = null;
+});
+
+// ============================================================
+// NODE DETAIL
+// ============================================================
+
+function selectNode(n) {
+  selectedNode = n;
+  document.getElementById('detail-name').textContent = n.label;
+  document.getElementById('detail-version').textContent = n.version || '—';
+  document.getElementById('detail-type').textContent = n.type;
+  document.getElementById('detail-connections').textContent = n.degree;
+
+  let registry = '—';
+  if (currentGraph.format === 'npm') registry = 'npmjs.com';
+  else if (currentGraph.format === 'pip') registry = 'pypi.org';
+  else if (currentGraph.format === 'cargo') registry = 'crates.io';
+  document.getElementById('detail-registry').textContent = registry;
+
+  document.getElementById('node-detail').classList.add('visible');
+}
+
+function closeDetail() {
+  selectedNode = null;
+  document.getElementById('node-detail').classList.remove('visible');
+}
+
+// ============================================================
+// MAIN ACTIONS
+// ============================================================
+
+function parseAndRender() {
+  const text = document.getElementById('manifest-input').value.trim();
+  if (!text) { showError('Paste a manifest file first.'); return; }
+
+  let graph;
+  try {
+    const format = detectFormat(text);
+    updateFormatBadges(format);
+    if (format === 'npm') graph = parseNpm(text);
+    else if (format === 'pip') graph = parsePip(text);
+    else graph = parseCargo(text);
+  } catch(e) {
+    showError('Parse error: ' + e.message);
+    return;
+  }
+
+  if (graph.nodes.length <= 1) {
+    showError('No dependencies found.');
+    return;
+  }
+
+  currentGraph = graph;
+  closeDetail();
+  resizeCanvas();
+  initSim(graph);
+  resetView();
+
+  // Update stats
+  const deps = graph.nodes.filter(n => n.type === 'dep').length;
+  const devDeps = graph.nodes.filter(n => n.type === 'dev').length;
+  document.getElementById('stat-nodes').textContent = graph.nodes.length - 1;
+  document.getElementById('stat-deps').textContent = deps;
+  document.getElementById('stat-dev').textContent = devDeps;
+  document.getElementById('stat-format').textContent = graph.format;
+
+  document.getElementById('empty-state').classList.add('hidden');
+}
+
+function clearInput() {
+  document.getElementById('manifest-input').value = '';
+  updateFormatBadges(null);
+}
+
+function resetView() {
+  if (!currentGraph) return;
+  camX = 0;
+  camY = 0;
+  camScale = 1;
+}
+
+function zoomIn() { camScale = Math.min(5, camScale * 1.2); }
+function zoomOut() { camScale = Math.max(0.1, camScale / 1.2); }
+
+function loadPreset(key) {
+  const preset = PRESETS[key];
+  if (!preset) return;
+  document.getElementById('manifest-input').value = preset.content;
+  parseAndRender();
+}
+
+function updateFormatBadges(format) {
+  document.getElementById('badge-npm').classList.toggle('detected', format === 'npm');
+  document.getElementById('badge-pip').classList.toggle('detected', format === 'pip');
+  document.getElementById('badge-cargo').classList.toggle('detected', format === 'cargo');
+  document.getElementById('format-label').textContent = format ? format.toUpperCase() + ' DETECTED' : 'auto-detect';
+}
+
+// Live auto-detect on input
+document.getElementById('manifest-input').addEventListener('input', (e) => {
+  const text = e.target.value.trim();
+  if (text.length > 10) updateFormatBadges(detectFormat(text));
+  else updateFormatBadges(null);
+});
+
+function showError(msg) {
+  const el = document.getElementById('error-toast');
+  el.textContent = msg;
+  el.classList.add('visible');
+  setTimeout(() => el.classList.remove('visible'), 3000);
+}
+
+// ============================================================
+// INIT
+// ============================================================
+
+window.addEventListener('resize', () => {
+  resizeCanvas();
+  drawGraph();
+});
+
+resizeCanvas();
+animFrame = requestAnimationFrame(loop);
+
+// Load default preset
+loadPreset('react-app');
+</script>
+</body>
+</html>
