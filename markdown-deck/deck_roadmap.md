@@ -57,7 +57,7 @@ Markdown Deck is a graduated YOLO project operating under Flagship rules: multi-
 - [ ] PDF export (via browser print or canvas rendering)
 - [x] Progressive reveal (-- fragment syntax with fade-in, PPTX slide duplication)
 - [ ] Drag-and-drop visual positioning mode (GUI for `[@...]` blocks)
-- [ ] Presenter view (current slide + next slide + speaker notes + timer)
+- [x] Presenter view (current slide + next slide + speaker notes + timer)
 - [ ] Slide reordering via drag in thumbnail strip
 
 ### P2 — Nice to Have
@@ -92,4 +92,5 @@ These are features complex enough to prototype as standalone YOLO single-session
 | 2026-03-30 | Tock | Per-slide theme overrides (<!-- bg/text/font/align --> directives) |
 | 2026-03-31 | Tick | api-bench: browser-based API latency benchmarker |
 | 2026-03-31 | Tock | Progressive reveal (-- fragments) + PPTX slide duplication |
-| 2026-03-29 | Tick | dep-graph: package manifest dependency visualizer |
+| 2026-03-31 | Tick | dep-graph: package manifest dependency visualizer |
+| 2026-03-31 | Tock | Presenter view: dual-window with notes, next slide, timer |
