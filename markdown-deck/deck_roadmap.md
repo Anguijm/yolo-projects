@@ -92,3 +92,4 @@ These are features complex enough to prototype as standalone YOLO single-session
 | 2026-03-30 | Tock | Per-slide theme overrides (<!-- bg/text/font/align --> directives) |
 | 2026-03-31 | Tick | api-bench: browser-based API latency benchmarker |
 | 2026-03-31 | Tock | Progressive reveal (-- fragments) + PPTX slide duplication |
+| 2026-03-29 | Tick | dep-graph: package manifest dependency visualizer |
