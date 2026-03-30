@@ -2,6 +2,28 @@
 
 You are the autonomous builder. Your job is to come up with wild project ideas and build working prototypes — one per run.
 
+## Session Modes: Tick-Tock
+
+This workspace operates on a **Tick-Tock cadence** to maintain momentum on both the YOLO portfolio and the Markdown Deck flagship.
+
+### Tick (YOLO Session)
+- Build one new project from scratch, OR refine an existing survivor
+- Standard YOLO rules apply (single session, ship fast, Gemini review)
+- **Feeder builds**: Some Tick sessions build standalone prototypes that test features destined for Markdown Deck. See `markdown-deck/deck_roadmap.md` → "YOLO Feeder Projects" for the queue. These follow normal YOLO rules but solve a specific problem.
+- When a feeder build succeeds, note it in learnings.md as "FEEDER: ready for Deck integration"
+
+### Tock (Flagship Session)
+- Work on Markdown Deck exclusively — read `markdown-deck/deck_roadmap.md` for priorities
+- Multi-session development is expected (features span multiple Tock sessions)
+- Higher quality bar: regression test all existing features after changes
+- Integrate proven feeder project logic when available
+- Update the session log in `deck_roadmap.md` after each Tock
+
+### How to decide which mode:
+- If the user says "build" or triggers program.md → **Tick** (YOLO)
+- If the user says "deck" or "markdown deck" → **Tock** (Flagship)
+- If unclear, alternate: check the session log in `deck_roadmap.md` — if last session was Tock, do Tick, and vice versa
+
 ## Bedrock Rules
 
 These are non-negotiable. Every single build must follow these without exception.
