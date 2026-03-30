@@ -1,0 +1,1461 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="theme-color" content="#000000">
+<title>snap-mock</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body {
+  height: 100%;
+  background: #0a0a0a;
+  overflow-y: auto;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+  color: #ccc;
+}
+
+:root {
+  --bg-page: #0a0a0a;
+  --bg-surface: #111;
+  --bg-elevated: #1a1a1a;
+  --bg-hover: #222;
+  --text-primary: #fff;
+  --text-body: #ccc;
+  --text-secondary: #aaa;
+  --text-tertiary: #555;
+  --text-label: #444;
+  --border-default: #1a1a1a;
+  --border-active: #444;
+  --border-focus: #555;
+  --accent: #0ff;
+  --color-info: #58a6ff;
+}
+
+/* Layout */
+.app {
+  display: grid;
+  grid-template-columns: 220px 1fr;
+  grid-template-rows: 36px 1fr;
+  height: 100vh;
+  min-height: 600px;
+}
+
+.header {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 12px;
+  border-bottom: 1px solid var(--border-default);
+  background: var(--bg-surface);
+}
+
+.header-title {
+  font-size: 0.65rem;
+  font-weight: 600;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--text-primary);
+}
+
+.header-sub {
+  font-size: 0.5rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-label);
+}
+
+.header-actions {
+  margin-left: auto;
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+/* Controls panel */
+.controls {
+  border-right: 1px solid var(--border-default);
+  background: var(--bg-surface);
+  padding: 8px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.section-label {
+  font-size: 0.45rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--text-label);
+  margin-bottom: 4px;
+  padding-bottom: 3px;
+  border-bottom: 1px solid var(--border-default);
+}
+
+/* Device selector */
+.device-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+}
+
+/* Buttons */
+.btn {
+  padding: 4px 8px;
+  background: transparent;
+  border: 1px solid var(--border-default);
+  color: var(--text-label);
+  font-family: inherit;
+  font-size: 0.5rem;
+  cursor: pointer;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  transition: border-color 0.1s, color 0.1s;
+  white-space: nowrap;
+}
+.btn:hover { border-color: var(--border-active); color: var(--text-secondary); }
+.btn:active { border-color: var(--border-focus); color: #aaa; }
+.btn.active { border-color: var(--accent); color: var(--accent); }
+.btn.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #000;
+  font-weight: 700;
+  padding: 5px 10px;
+}
+.btn.primary:hover { background: #33ffff; }
+.btn.warn {
+  background: #f85149;
+  border-color: #f85149;
+  color: #000;
+  font-weight: 700;
+  padding: 5px 10px;
+}
+
+.btn-row {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+/* Controls */
+.control-row {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.control-label {
+  font-size: 0.45rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-label);
+}
+
+input[type="range"] {
+  width: 100%;
+  height: 3px;
+  accent-color: #555;
+  cursor: pointer;
+}
+
+input[type="text"], input[type="color"], textarea, select {
+  background: var(--bg-page);
+  border: 1px solid var(--border-default);
+  color: var(--text-secondary);
+  padding: 4px 6px;
+  font-family: inherit;
+  font-size: 0.6rem;
+  outline: none;
+  width: 100%;
+}
+input[type="text"]:focus, textarea:focus, select:focus {
+  border-color: var(--border-focus);
+}
+select {
+  cursor: pointer;
+}
+textarea {
+  resize: vertical;
+  min-height: 80px;
+  font-size: 0.55rem;
+  line-height: 1.4;
+}
+
+input[type="color"] {
+  height: 24px;
+  padding: 2px;
+  cursor: pointer;
+}
+
+.range-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.range-val {
+  font-size: 0.45rem;
+  color: var(--text-tertiary);
+  min-width: 28px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+/* BG options */
+.bg-options {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 4px;
+}
+
+.bg-swatch {
+  height: 20px;
+  border: 1px solid var(--border-default);
+  cursor: pointer;
+  position: relative;
+}
+.bg-swatch.active {
+  border-color: var(--accent);
+}
+.bg-swatch:hover {
+  border-color: var(--border-active);
+}
+
+/* Preset sizes */
+.preset-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+}
+
+/* Canvas area */
+.canvas-wrap {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--bg-page);
+}
+
+.canvas-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 8px;
+  border-bottom: 1px solid var(--border-default);
+  background: var(--bg-surface);
+  font-size: 0.45rem;
+  color: var(--text-tertiary);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.canvas-area {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: auto;
+  padding: 20px;
+  position: relative;
+}
+
+/* The actual mock stage — where we compose the mockup */
+#stage {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+/* Device frame wrapper */
+.device-wrapper {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* iPhone frame */
+.frame-iphone {
+  position: relative;
+  width: 220px;
+  height: 476px;
+  background: #1a1a1a;
+  border-radius: 36px;
+  border: 2px solid #333;
+  box-shadow: 0 0 0 1px #111, inset 0 0 0 2px #0a0a0a, 0 20px 60px rgba(0,0,0,0.6);
+  overflow: hidden;
+}
+.frame-iphone::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 90px;
+  height: 28px;
+  background: #1a1a1a;
+  border-radius: 0 0 18px 18px;
+  z-index: 10;
+}
+/* Side buttons */
+.frame-iphone::after {
+  content: '';
+  position: absolute;
+  right: -4px;
+  top: 80px;
+  width: 3px;
+  height: 50px;
+  background: #222;
+  border-radius: 0 2px 2px 0;
+  box-shadow: 0 60px 0 #222, 0 80px 0 #222, -200px 60px 0 #222;
+}
+.frame-iphone .screen {
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  border-radius: 34px;
+  overflow: hidden;
+  background: #000;
+}
+
+/* Android frame */
+.frame-android {
+  position: relative;
+  width: 200px;
+  height: 440px;
+  background: #1e1e1e;
+  border-radius: 24px;
+  border: 2px solid #2a2a2a;
+  box-shadow: 0 0 0 1px #111, 0 20px 60px rgba(0,0,0,0.6);
+  overflow: hidden;
+}
+.frame-android::before {
+  content: '';
+  position: absolute;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 10px;
+  height: 10px;
+  background: #2a2a2a;
+  border-radius: 50%;
+  z-index: 10;
+  box-shadow: 0 0 0 2px #1a1a1a;
+}
+.frame-android .screen {
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  border-radius: 22px;
+  overflow: hidden;
+  background: #000;
+}
+
+/* iPad frame */
+.frame-ipad {
+  position: relative;
+  width: 380px;
+  height: 520px;
+  background: #1a1a1a;
+  border-radius: 20px;
+  border: 2px solid #2a2a2a;
+  box-shadow: 0 0 0 1px #111, 0 20px 60px rgba(0,0,0,0.6);
+  overflow: hidden;
+}
+.frame-ipad::before {
+  content: '';
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 8px;
+  height: 8px;
+  background: #2a2a2a;
+  border-radius: 50%;
+  z-index: 10;
+}
+.frame-ipad .screen {
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  border-radius: 18px;
+  overflow: hidden;
+  background: #000;
+}
+
+/* MacBook frame */
+.frame-macbook {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.frame-macbook .lid {
+  position: relative;
+  width: 540px;
+  height: 340px;
+  background: #1e1e1e;
+  border-radius: 10px 10px 0 0;
+  border: 2px solid #2a2a2a;
+  border-bottom: none;
+  box-shadow: 0 -4px 20px rgba(0,0,0,0.4);
+  overflow: hidden;
+  padding: 12px;
+}
+.frame-macbook .lid::before {
+  content: '';
+  position: absolute;
+  top: 6px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 6px;
+  height: 6px;
+  background: #2a2a2a;
+  border-radius: 50%;
+}
+.frame-macbook .lid .screen {
+  width: 100%;
+  height: 100%;
+  border-radius: 2px;
+  overflow: hidden;
+  background: #000;
+}
+.frame-macbook .base {
+  width: 580px;
+  height: 16px;
+  background: linear-gradient(to bottom, #2a2a2a, #1e1e1e);
+  border-radius: 0 0 6px 6px;
+  position: relative;
+}
+.frame-macbook .base::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 120px;
+  height: 5px;
+  background: #111;
+  border-radius: 3px 3px 0 0;
+}
+/* No separate screen for macbook, it's inside lid */
+
+/* Desktop/browser frame */
+.frame-browser {
+  position: relative;
+  width: 560px;
+  height: 380px;
+  background: #1a1a1a;
+  border-radius: 8px 8px 4px 4px;
+  border: 1px solid #2a2a2a;
+  box-shadow: 0 10px 40px rgba(0,0,0,0.5);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+.frame-browser .chrome {
+  height: 34px;
+  background: #1e1e1e;
+  border-bottom: 1px solid #2a2a2a;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  padding: 0 10px;
+  gap: 5px;
+}
+.frame-browser .chrome .dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+.frame-browser .chrome .dot:nth-child(1) { background: #555; }
+.frame-browser .chrome .dot:nth-child(2) { background: #444; }
+.frame-browser .chrome .dot:nth-child(3) { background: #333; }
+.frame-browser .chrome .url-bar {
+  flex: 1;
+  margin: 0 8px;
+  height: 18px;
+  background: #111;
+  border: 1px solid #2a2a2a;
+  border-radius: 3px;
+  display: flex;
+  align-items: center;
+  padding: 0 6px;
+  font-size: 0.45rem;
+  color: #444;
+  letter-spacing: 0.04em;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.frame-browser .screen {
+  flex: 1;
+  overflow: hidden;
+  background: #000;
+}
+
+/* No frame / raw */
+.frame-none {
+  position: relative;
+}
+.frame-none .screen {
+  overflow: hidden;
+  background: #fff;
+}
+
+/* Screen content */
+.screen {
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-start;
+}
+.screen-content {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  position: relative;
+}
+
+/* Paste target overlay */
+.paste-overlay {
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  background: #111;
+  cursor: pointer;
+  z-index: 5;
+  transition: background 0.15s;
+}
+.paste-overlay:hover { background: #151515; }
+.paste-overlay.has-content { display: none; }
+.paste-overlay .paste-icon {
+  font-size: 1.5rem;
+  opacity: 0.3;
+}
+.paste-overlay .paste-hint {
+  font-size: 0.45rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #444;
+  text-align: center;
+  line-height: 1.6;
+}
+
+/* Paste content inside screen */
+.screen-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.screen-html {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  font-size: 0.6rem;
+  padding: 8px;
+  color: #ccc;
+  background: #fff;
+  color: #000;
+  line-height: 1.5;
+}
+
+/* Stage background fills */
+#stage.bg-solid { }
+#stage.bg-gradient { }
+#stage.bg-mesh { }
+
+/* Export canvas (hidden) */
+#exportCanvas { display: none; }
+
+/* Toast */
+.toast {
+  position: fixed;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%) translateY(80px);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-active);
+  color: var(--text-primary);
+  padding: 6px 14px;
+  font-size: 0.55rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  border-radius: 4px;
+  transition: transform 0.2s ease;
+  z-index: 100;
+  pointer-events: none;
+}
+.toast.show { transform: translateX(-50%) translateY(0); }
+
+/* Divider */
+.divider { border: none; border-top: 1px solid var(--border-default); }
+
+/* Color presets */
+.color-presets {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+.color-dot {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  cursor: pointer;
+  border: 1px solid transparent;
+  flex-shrink: 0;
+}
+.color-dot.active, .color-dot:hover {
+  border-color: #fff;
+}
+
+/* Gradient presets */
+.grad-presets {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+.grad-swatch {
+  width: 30px;
+  height: 18px;
+  cursor: pointer;
+  border: 1px solid transparent;
+  flex-shrink: 0;
+}
+.grad-swatch.active, .grad-swatch:hover {
+  border-color: var(--accent);
+}
+
+/* Responsive: stack on narrow */
+@media (max-width: 700px) {
+  .app {
+    grid-template-columns: 1fr;
+    grid-template-rows: 36px auto 1fr;
+    height: auto;
+  }
+  .controls {
+    border-right: none;
+    border-bottom: 1px solid var(--border-default);
+  }
+}
+</style>
+</head>
+<body>
+
+<div class="app">
+  <!-- Header -->
+  <header class="header">
+    <span class="header-title">snap-mock</span>
+    <span class="header-sub">device frame mockup generator</span>
+    <div class="header-actions">
+      <button class="btn" id="btnClear">clear</button>
+      <button class="btn primary" id="btnExport">export png</button>
+    </div>
+  </header>
+
+  <!-- Controls -->
+  <aside class="controls">
+
+    <!-- Device -->
+    <div>
+      <div class="section-label">device frame</div>
+      <div class="device-grid">
+        <button class="btn active" data-device="iphone">iPhone 15</button>
+        <button class="btn" data-device="android">Android</button>
+        <button class="btn" data-device="ipad">iPad</button>
+        <button class="btn" data-device="macbook">MacBook</button>
+        <button class="btn" data-device="browser">Browser</button>
+        <button class="btn" data-device="none">No Frame</button>
+      </div>
+    </div>
+
+    <hr class="divider">
+
+    <!-- Content -->
+    <div>
+      <div class="section-label">screen content</div>
+      <div class="btn-row" style="margin-bottom:6px">
+        <button class="btn active" id="btnModeImage">image</button>
+        <button class="btn" id="btnModeHTML">html</button>
+        <button class="btn" id="btnModeURL">url bar</button>
+      </div>
+      <div id="imgControls">
+        <div class="control-row">
+          <div class="control-label">paste image (ctrl+v)</div>
+          <button class="btn" id="btnPasteTrigger" style="width:100%;text-align:center">click to paste</button>
+        </div>
+        <div class="control-row" style="margin-top:6px">
+          <div class="control-label">or upload file</div>
+          <input type="file" id="fileInput" accept="image/*" style="display:none">
+          <button class="btn" id="btnUpload" style="width:100%;text-align:center">browse...</button>
+        </div>
+      </div>
+      <div id="htmlControls" style="display:none">
+        <textarea id="htmlInput" placeholder="<h1>Hello World</h1>&#10;<p>Type HTML here...</p>"></textarea>
+        <button class="btn" id="btnApplyHTML" style="width:100%;margin-top:4px">apply</button>
+      </div>
+      <div id="urlControls" style="display:none">
+        <div class="control-label" style="margin-bottom:3px">url bar text</div>
+        <input type="text" id="urlInput" value="https://yoursite.com" placeholder="https://...">
+      </div>
+    </div>
+
+    <hr class="divider">
+
+    <!-- Background -->
+    <div>
+      <div class="section-label">background</div>
+      <div class="btn-row" style="margin-bottom:6px">
+        <button class="btn active" id="btnBgSolid">solid</button>
+        <button class="btn" id="btnBgGradient">gradient</button>
+      </div>
+
+      <div id="solidBgCtl">
+        <div class="control-label" style="margin-bottom:3px">color</div>
+        <div class="color-presets" id="solidPresets">
+          <div class="color-dot active" style="background:#0a0a0a" data-color="#0a0a0a"></div>
+          <div class="color-dot" style="background:#fff" data-color="#ffffff"></div>
+          <div class="color-dot" style="background:#1a1a2e" data-color="#1a1a2e"></div>
+          <div class="color-dot" style="background:#0d1117" data-color="#0d1117"></div>
+          <div class="color-dot" style="background:#161b22" data-color="#161b22"></div>
+          <div class="color-dot" style="background:#f0f0f0" data-color="#f0f0f0"></div>
+          <div class="color-dot" style="background:#1e293b" data-color="#1e293b"></div>
+          <div class="color-dot" style="background:#0f172a" data-color="#0f172a"></div>
+        </div>
+        <div style="display:flex;gap:4px;margin-top:4px;align-items:center">
+          <input type="color" id="bgColorPicker" value="#0a0a0a" style="flex:1;height:22px">
+          <span style="font-size:0.45rem;color:#444;letter-spacing:0.08em">custom</span>
+        </div>
+      </div>
+
+      <div id="gradBgCtl" style="display:none">
+        <div class="grad-presets" id="gradPresets">
+          <div class="grad-swatch active" style="background:linear-gradient(135deg,#0a0a0a,#1a1a2e)" data-grad="linear-gradient(135deg,#0a0a0a,#1a1a2e)"></div>
+          <div class="grad-swatch" style="background:linear-gradient(135deg,#0d1117,#161b22)" data-grad="linear-gradient(135deg,#0d1117,#161b22)"></div>
+          <div class="grad-swatch" style="background:linear-gradient(135deg,#1a1a2e,#16213e,#0f3460)" data-grad="linear-gradient(135deg,#1a1a2e,#16213e,#0f3460)"></div>
+          <div class="grad-swatch" style="background:linear-gradient(135deg,#0f0c29,#302b63,#24243e)" data-grad="linear-gradient(135deg,#0f0c29,#302b63,#24243e)"></div>
+          <div class="grad-swatch" style="background:linear-gradient(135deg,#000428,#004e92)" data-grad="linear-gradient(135deg,#000428,#004e92)"></div>
+          <div class="grad-swatch" style="background:linear-gradient(135deg,#200122,#6f0000)" data-grad="linear-gradient(135deg,#200122,#6f0000)"></div>
+          <div class="grad-swatch" style="background:linear-gradient(135deg,#f8f9fa,#e9ecef)" data-grad="linear-gradient(135deg,#f8f9fa,#e9ecef)"></div>
+          <div class="grad-swatch" style="background:linear-gradient(135deg,#667eea,#764ba2)" data-grad="linear-gradient(135deg,#667eea,#764ba2)"></div>
+          <div class="grad-swatch" style="background:linear-gradient(135deg,#11998e,#38ef7d)" data-grad="linear-gradient(135deg,#11998e,#38ef7d)"></div>
+          <div class="grad-swatch" style="background:linear-gradient(135deg,#fc4a1a,#f7b733)" data-grad="linear-gradient(135deg,#fc4a1a,#f7b733)"></div>
+          <div class="grad-swatch" style="background:linear-gradient(135deg,#0ff,#00f)" data-grad="linear-gradient(135deg,#0ff,#00f)"></div>
+          <div class="grad-swatch" style="background:linear-gradient(135deg,#f0f,#0ff)" data-grad="linear-gradient(135deg,#f0f,#0ff)"></div>
+        </div>
+      </div>
+    </div>
+
+    <hr class="divider">
+
+    <!-- Padding -->
+    <div>
+      <div class="section-label">padding / shadow</div>
+      <div class="control-row">
+        <div class="control-label">padding</div>
+        <div class="range-row">
+          <input type="range" id="paddingRange" min="0" max="120" value="40">
+          <span class="range-val" id="paddingVal">40</span>
+        </div>
+      </div>
+      <div class="control-row" style="margin-top:6px">
+        <div class="control-label">shadow intensity</div>
+        <div class="range-row">
+          <input type="range" id="shadowRange" min="0" max="100" value="60">
+          <span class="range-val" id="shadowVal">60</span>
+        </div>
+      </div>
+      <div class="control-row" style="margin-top:6px">
+        <div class="control-label">device scale</div>
+        <div class="range-row">
+          <input type="range" id="scaleRange" min="50" max="150" value="100">
+          <span class="range-val" id="scaleVal">100%</span>
+        </div>
+      </div>
+    </div>
+
+    <hr class="divider">
+
+    <!-- Export presets -->
+    <div>
+      <div class="section-label">export size preset</div>
+      <div class="preset-row">
+        <button class="btn active" data-preset="auto">auto</button>
+        <button class="btn" data-preset="twitter">Twitter card</button>
+        <button class="btn" data-preset="og">OG image</button>
+        <button class="btn" data-preset="instagram">Instagram</button>
+        <button class="btn" data-preset="linkedin">LinkedIn</button>
+        <button class="btn" data-preset="1080p">1080p</button>
+      </div>
+    </div>
+
+  </aside>
+
+  <!-- Canvas / Preview -->
+  <div class="canvas-wrap">
+    <div class="canvas-toolbar">
+      <span id="sizeInfo">—</span>
+      <span style="margin-left:auto;color:#333">ctrl+v to paste image</span>
+    </div>
+    <div class="canvas-area" id="canvasArea">
+      <div id="stage">
+        <div class="device-wrapper" id="deviceWrapper">
+          <!-- Device frame injected by JS -->
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<canvas id="exportCanvas"></canvas>
+<div class="toast" id="toast"></div>
+
+<input type="file" id="fileInput" accept="image/*" style="display:none">
+
+<script>
+// ── State ──────────────────────────────────────────────────────────────────
+const state = {
+  device: 'iphone',
+  mode: 'image',       // image | html | url
+  bgType: 'solid',
+  bgColor: '#0a0a0a',
+  bgGrad: 'linear-gradient(135deg,#0a0a0a,#1a1a2e)',
+  padding: 40,
+  shadow: 60,
+  scale: 100,
+  imageDataUrl: null,
+  htmlContent: '',
+  urlText: 'https://yoursite.com',
+  exportPreset: 'auto',
+  urlBarText: 'https://yoursite.com',
+};
+
+// ── Device configs ─────────────────────────────────────────────────────────
+const DEVICES = {
+  iphone: {
+    frameClass: 'frame-iphone',
+    screenW: 216,  // inner screen width
+    screenH: 468,
+    label: 'iPhone 15',
+  },
+  android: {
+    frameClass: 'frame-android',
+    screenW: 196,
+    screenH: 436,
+    label: 'Android',
+  },
+  ipad: {
+    frameClass: 'frame-ipad',
+    screenW: 376,
+    screenH: 516,
+    label: 'iPad',
+  },
+  macbook: {
+    frameClass: 'frame-macbook',
+    screenW: 516,  // lid inner
+    screenH: 316,
+    label: 'MacBook',
+  },
+  browser: {
+    frameClass: 'frame-browser',
+    screenW: 558,
+    screenH: 346,
+    label: 'Browser',
+  },
+  none: {
+    frameClass: 'frame-none',
+    screenW: 400,
+    screenH: 300,
+    label: 'No Frame',
+  },
+};
+
+// ── Export presets ─────────────────────────────────────────────────────────
+const PRESETS = {
+  auto: null,
+  twitter: { w: 1200, h: 628, label: 'Twitter 1200×628' },
+  og: { w: 1200, h: 630, label: 'OG 1200×630' },
+  instagram: { w: 1080, h: 1080, label: 'Instagram 1080×1080' },
+  linkedin: { w: 1200, h: 627, label: 'LinkedIn 1200×627' },
+  '1080p': { w: 1920, h: 1080, label: '1080p 1920×1080' },
+};
+
+// ── DOM refs ───────────────────────────────────────────────────────────────
+const stage = document.getElementById('stage');
+const deviceWrapper = document.getElementById('deviceWrapper');
+const sizeInfo = document.getElementById('sizeInfo');
+const toast = document.getElementById('toast');
+const exportCanvas = document.getElementById('exportCanvas');
+
+// ── Build device frame ─────────────────────────────────────────────────────
+function buildFrame() {
+  const cfg = DEVICES[state.device];
+  deviceWrapper.innerHTML = '';
+
+  if (state.device === 'macbook') {
+    deviceWrapper.innerHTML = `
+      <div class="frame-macbook">
+        <div class="lid">
+          <div class="screen" id="screenEl">
+            <div class="screen-content" id="screenContent">
+              <div class="paste-overlay" id="pasteOverlay">
+                <span class="paste-icon">⎘</span>
+                <span class="paste-hint">paste image<br>ctrl+v or click</span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="base"></div>
+      </div>`;
+  } else if (state.device === 'browser') {
+    const urlDisplay = escHtml(state.urlBarText);
+    deviceWrapper.innerHTML = `
+      <div class="frame-browser">
+        <div class="chrome">
+          <div class="dot"></div>
+          <div class="dot"></div>
+          <div class="dot"></div>
+          <div class="url-bar" id="urlDisplay">${urlDisplay}</div>
+        </div>
+        <div class="screen" id="screenEl">
+          <div class="screen-content" id="screenContent">
+            <div class="paste-overlay" id="pasteOverlay">
+              <span class="paste-icon">⎘</span>
+              <span class="paste-hint">paste image<br>ctrl+v or click</span>
+            </div>
+          </div>
+        </div>
+      </div>`;
+  } else if (state.device === 'none') {
+    const sw = cfg.screenW;
+    const sh = cfg.screenH;
+    deviceWrapper.innerHTML = `
+      <div class="frame-none">
+        <div class="screen" id="screenEl" style="width:${sw}px;height:${sh}px">
+          <div class="screen-content" id="screenContent">
+            <div class="paste-overlay" id="pasteOverlay">
+              <span class="paste-icon">⎘</span>
+              <span class="paste-hint">paste image<br>ctrl+v or click</span>
+            </div>
+          </div>
+        </div>
+      </div>`;
+  } else {
+    deviceWrapper.innerHTML = `
+      <div class="${cfg.frameClass}">
+        <div class="screen" id="screenEl">
+          <div class="screen-content" id="screenContent">
+            <div class="paste-overlay" id="pasteOverlay">
+              <span class="paste-icon">⎘</span>
+              <span class="paste-hint">paste image<br>ctrl+v or click</span>
+            </div>
+          </div>
+        </div>
+      </div>`;
+  }
+
+  // Rebind paste overlay click
+  const overlay = document.getElementById('pasteOverlay');
+  if (overlay) {
+    overlay.addEventListener('click', () => triggerPaste());
+  }
+
+  renderContent();
+  updateSizeInfo();
+}
+
+// ── Render content inside screen ───────────────────────────────────────────
+function renderContent() {
+  const content = document.getElementById('screenContent');
+  if (!content) return;
+
+  // Keep overlay, replace rest
+  const overlay = document.getElementById('pasteOverlay');
+
+  // Remove any existing media
+  content.querySelectorAll('.screen-img, .screen-html').forEach(el => el.remove());
+
+  if (state.mode === 'image' && state.imageDataUrl) {
+    overlay.classList.add('has-content');
+    const img = document.createElement('img');
+    img.className = 'screen-img';
+    img.src = state.imageDataUrl;
+    content.appendChild(img);
+  } else if (state.mode === 'html' && state.htmlContent) {
+    overlay.classList.add('has-content');
+    const div = document.createElement('div');
+    div.className = 'screen-html';
+    div.innerHTML = state.htmlContent;
+    content.appendChild(div);
+  } else {
+    overlay.classList.remove('has-content');
+  }
+}
+
+// ── Background ─────────────────────────────────────────────────────────────
+function applyBackground() {
+  const pad = state.padding;
+  if (state.bgType === 'solid') {
+    stage.style.background = state.bgColor;
+  } else {
+    stage.style.background = state.bgGrad;
+  }
+  stage.style.padding = `${pad}px`;
+}
+
+// ── Scale ──────────────────────────────────────────────────────────────────
+function applyScale() {
+  deviceWrapper.style.transform = `scale(${state.scale / 100})`;
+  deviceWrapper.style.transformOrigin = 'center center';
+}
+
+// ── Shadow (on device wrapper) ─────────────────────────────────────────────
+function applyShadow() {
+  const s = state.shadow / 100;
+  const blur = Math.round(s * 80);
+  const spread = Math.round(s * 20);
+  const alpha = (s * 0.7).toFixed(2);
+  deviceWrapper.style.filter = `drop-shadow(0 ${Math.round(s * 30)}px ${blur}px rgba(0,0,0,${alpha}))`;
+}
+
+// ── Size info ──────────────────────────────────────────────────────────────
+function updateSizeInfo() {
+  const preset = PRESETS[state.exportPreset];
+  if (preset) {
+    sizeInfo.textContent = 'export: ' + preset.label;
+  } else {
+    // Use offsetWidth/offsetHeight to get true layout size, ignoring CSS transforms on children
+    sizeInfo.textContent = 'stage: ' + stage.offsetWidth + ' x ' + stage.offsetHeight + 'px';
+  }
+}
+
+// ── HTML helpers ───────────────────────────────────────────────────────────
+function escHtml(s) {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+// ── Toast ──────────────────────────────────────────────────────────────────
+let toastTimer = null;
+function showToast(msg) {
+  toast.textContent = msg;
+  toast.classList.add('show');
+  if (toastTimer) clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => toast.classList.remove('show'), 2500);
+}
+
+// ── Paste handling ─────────────────────────────────────────────────────────
+function handlePastedImage(file) {
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    state.imageDataUrl = e.target.result;
+    state.mode = 'image';
+    setMode('image');
+    renderContent();
+    showToast('image pasted');
+    updateSizeInfo();
+  };
+  reader.readAsDataURL(file);
+}
+
+function triggerPaste() {
+  if (navigator.clipboard && navigator.clipboard.read) {
+    navigator.clipboard.read().then(items => {
+      for (const item of items) {
+        for (const type of item.types) {
+          if (type.startsWith('image/')) {
+            item.getType(type).then(blob => handlePastedImage(blob));
+            return;
+          }
+        }
+      }
+      showToast('no image in clipboard');
+    }).catch(() => {
+      showToast('paste permission denied — use ctrl+v');
+    });
+  } else {
+    showToast('use ctrl+v to paste');
+  }
+}
+
+// ── File upload ────────────────────────────────────────────────────────────
+const fileInput = document.getElementById('fileInput');
+
+document.getElementById('btnUpload').addEventListener('click', () => fileInput.click());
+
+fileInput.addEventListener('change', (e) => {
+  const file = e.target.files[0];
+  if (file) handlePastedImage(file);
+  fileInput.value = '';
+});
+
+// ── Keyboard paste ─────────────────────────────────────────────────────────
+document.addEventListener('paste', (e) => {
+  const items = e.clipboardData && e.clipboardData.items;
+  if (!items) return;
+  for (let i = 0; i < items.length; i++) {
+    if (items[i].type.startsWith('image/')) {
+      const blob = items[i].getAsFile();
+      handlePastedImage(blob);
+      break;
+    }
+  }
+});
+
+// ── Mode switching ─────────────────────────────────────────────────────────
+function setMode(mode) {
+  state.mode = mode;
+  document.getElementById('imgControls').style.display = mode === 'image' ? '' : 'none';
+  document.getElementById('htmlControls').style.display = mode === 'html' ? '' : 'none';
+  document.getElementById('urlControls').style.display = mode === 'url' ? '' : 'none';
+
+  document.getElementById('btnModeImage').classList.toggle('active', mode === 'image');
+  document.getElementById('btnModeHTML').classList.toggle('active', mode === 'html');
+  document.getElementById('btnModeURL').classList.toggle('active', mode === 'url');
+
+  renderContent();
+}
+
+document.getElementById('btnModeImage').addEventListener('click', () => setMode('image'));
+document.getElementById('btnModeHTML').addEventListener('click', () => setMode('html'));
+document.getElementById('btnModeURL').addEventListener('click', () => setMode('url'));
+
+// ── Paste trigger button ───────────────────────────────────────────────────
+document.getElementById('btnPasteTrigger').addEventListener('click', triggerPaste);
+
+// ── Apply HTML ─────────────────────────────────────────────────────────────
+document.getElementById('btnApplyHTML').addEventListener('click', () => {
+  state.htmlContent = document.getElementById('htmlInput').value;
+  renderContent();
+  showToast('html applied');
+});
+
+// ── URL bar ────────────────────────────────────────────────────────────────
+document.getElementById('urlInput').addEventListener('input', (e) => {
+  state.urlBarText = e.target.value;
+  const display = document.getElementById('urlDisplay');
+  if (display) display.textContent = state.urlBarText;
+});
+
+// ── Device buttons ─────────────────────────────────────────────────────────
+document.querySelectorAll('[data-device]').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('[data-device]').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    state.device = btn.dataset.device;
+    buildFrame();
+    applyBackground();
+    applyScale();
+    applyShadow();
+  });
+});
+
+// ── Export preset buttons ──────────────────────────────────────────────────
+document.querySelectorAll('[data-preset]').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('[data-preset]').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    state.exportPreset = btn.dataset.preset;
+    updateSizeInfo();
+  });
+});
+
+// ── Background type ────────────────────────────────────────────────────────
+document.getElementById('btnBgSolid').addEventListener('click', () => {
+  state.bgType = 'solid';
+  document.getElementById('btnBgSolid').classList.add('active');
+  document.getElementById('btnBgGradient').classList.remove('active');
+  document.getElementById('solidBgCtl').style.display = '';
+  document.getElementById('gradBgCtl').style.display = 'none';
+  applyBackground();
+});
+document.getElementById('btnBgGradient').addEventListener('click', () => {
+  state.bgType = 'gradient';
+  document.getElementById('btnBgGradient').classList.add('active');
+  document.getElementById('btnBgSolid').classList.remove('active');
+  document.getElementById('gradBgCtl').style.display = '';
+  document.getElementById('solidBgCtl').style.display = 'none';
+  applyBackground();
+});
+
+// ── Solid color presets ────────────────────────────────────────────────────
+document.querySelectorAll('#solidPresets .color-dot').forEach(dot => {
+  dot.addEventListener('click', () => {
+    document.querySelectorAll('#solidPresets .color-dot').forEach(d => d.classList.remove('active'));
+    dot.classList.add('active');
+    state.bgColor = dot.dataset.color;
+    document.getElementById('bgColorPicker').value = state.bgColor;
+    applyBackground();
+  });
+});
+document.getElementById('bgColorPicker').addEventListener('input', (e) => {
+  state.bgColor = e.target.value;
+  document.querySelectorAll('#solidPresets .color-dot').forEach(d => d.classList.remove('active'));
+  applyBackground();
+});
+
+// ── Gradient presets ───────────────────────────────────────────────────────
+document.querySelectorAll('#gradPresets .grad-swatch').forEach(sw => {
+  sw.addEventListener('click', () => {
+    document.querySelectorAll('#gradPresets .grad-swatch').forEach(s => s.classList.remove('active'));
+    sw.classList.add('active');
+    state.bgGrad = sw.dataset.grad;
+    applyBackground();
+  });
+});
+
+// ── Sliders ────────────────────────────────────────────────────────────────
+document.getElementById('paddingRange').addEventListener('input', (e) => {
+  state.padding = parseInt(e.target.value);
+  document.getElementById('paddingVal').textContent = state.padding;
+  applyBackground();
+  updateSizeInfo();
+});
+
+document.getElementById('shadowRange').addEventListener('input', (e) => {
+  state.shadow = parseInt(e.target.value);
+  document.getElementById('shadowVal').textContent = state.shadow;
+  applyShadow();
+});
+
+document.getElementById('scaleRange').addEventListener('input', (e) => {
+  state.scale = parseInt(e.target.value);
+  document.getElementById('scaleVal').textContent = state.scale + '%';
+  applyScale();
+  updateSizeInfo();
+});
+
+// ── Clear ──────────────────────────────────────────────────────────────────
+document.getElementById('btnClear').addEventListener('click', () => {
+  state.imageDataUrl = null;
+  state.htmlContent = '';
+  document.getElementById('htmlInput').value = '';
+  renderContent();
+  showToast('cleared');
+});
+
+// ── Export PNG ─────────────────────────────────────────────────────────────
+async function exportPNG() {
+  showToast('rendering...');
+
+  const preset = PRESETS[state.exportPreset];
+
+  // We need to render the stage to canvas
+  // Strategy: use html-to-canvas approach via blob+image
+  // Since we're zero-dep, we draw everything manually on canvas
+
+  const stageEl = stage;
+
+  let outW, outH, stageW, stageH;
+  // Use offsetWidth/offsetHeight — not getBoundingClientRect — so CSS scale() on
+  // child elements doesn't shrink the reported stage dimensions.
+  stageW = stageEl.offsetWidth;
+  stageH = stageEl.offsetHeight;
+
+  if (preset) {
+    outW = preset.w;
+    outH = preset.h;
+  } else {
+    outW = Math.round(stageW * 2);  // 2x for retina quality
+    outH = Math.round(stageH * 2);
+  }
+
+  const canvas = exportCanvas;
+  canvas.width = outW;
+  canvas.height = outH;
+  const ctx = canvas.getContext('2d');
+
+  const scaleX = outW / stageW;
+  const scaleY = outH / stageH;
+
+  // Draw background
+  if (state.bgType === 'solid') {
+    ctx.fillStyle = state.bgColor;
+    ctx.fillRect(0, 0, outW, outH);
+  } else {
+    // Parse and draw gradient
+    const grd = parseGradient(ctx, state.bgGrad, outW, outH);
+    ctx.fillStyle = grd || state.bgColor;
+    ctx.fillRect(0, 0, outW, outH);
+  }
+
+  // Draw device frame + content via html2canvas-like approach:
+  // We'll serialize the stage to SVG foreignObject, then draw to canvas
+  const svgData = await stageToSVG(stageEl, stageW, stageH);
+  if (svgData) {
+    const img = new Image();
+    await new Promise((resolve, reject) => {
+      img.onload = resolve;
+      img.onerror = reject;
+      img.src = svgData;
+    });
+    // Preserve aspect ratio when fitting into preset canvas
+    const fitScale = Math.min(outW / stageW, outH / stageH);
+    const drawW = Math.round(stageW * fitScale);
+    const drawH = Math.round(stageH * fitScale);
+    const offsetX = Math.round((outW - drawW) / 2);
+    const offsetY = Math.round((outH - drawH) / 2);
+    ctx.drawImage(img, offsetX, offsetY, drawW, drawH);
+    // Revoke object URL to prevent memory leak
+    URL.revokeObjectURL(svgData);
+  } else {
+    // Fallback: if we have a pasted image, draw it centered
+    if (state.imageDataUrl) {
+      await drawFallbackMockup(ctx, outW, outH, scaleX, scaleY);
+    }
+  }
+
+  const dataURL = canvas.toDataURL('image/png');
+  const a = document.createElement('a');
+  a.href = dataURL;
+  a.download = 'snap-mock.png';
+  a.click();
+  showToast('png exported!');
+}
+
+// ── Parse gradient string to canvas gradient ───────────────────────────────
+function parseGradient(ctx, gradStr, w, h) {
+  try {
+    const prefix = 'linear-gradient(';
+    const startIdx = gradStr.indexOf(prefix);
+    if (startIdx < 0) return null;
+    const inner = gradStr.slice(startIdx + prefix.length, gradStr.lastIndexOf(')'));
+
+    // Paren-aware split: splits on ',' only when not inside parentheses
+    // This correctly handles rgb(a,b,c) and rgba(a,b,c,d) color values
+    const tokens = [];
+    let depth = 0;
+    let current = '';
+    for (let ci = 0; ci < inner.length; ci++) {
+      const ch = inner[ci];
+      if (ch === '(') {
+        depth++;
+        current += ch;
+      } else if (ch === ')') {
+        depth--;
+        current += ch;
+      } else if (ch === ',' && depth === 0) {
+        tokens.push(current.trim());
+        current = '';
+      } else {
+        current += ch;
+      }
+    }
+    if (current.trim()) tokens.push(current.trim());
+
+    // First token: angle (e.g. "135deg") or a color
+    let angle = 135;
+    let colorTokens = tokens;
+    if (tokens.length > 0 && /^\d/.test(tokens[0])) {
+      angle = parseFloat(tokens[0]) || 135;
+      colorTokens = tokens.slice(1);
+    }
+
+    const rad = (angle - 90) * Math.PI / 180;
+    const cos = Math.cos(rad);
+    const sin = Math.sin(rad);
+    const len = Math.abs(w * cos) + Math.abs(h * sin);
+    const cx = w / 2;
+    const cy = h / 2;
+    const x0 = cx - cos * len / 2;
+    const y0 = cy - sin * len / 2;
+    const x1 = cx + cos * len / 2;
+    const y1 = cy + sin * len / 2;
+    const grd = ctx.createLinearGradient(x0, y0, x1, y1);
+    const colors = colorTokens.filter(function(p) { return p.length > 0; });
+    colors.forEach(function(c, i) {
+      grd.addColorStop(i / Math.max(colors.length - 1, 1), c);
+    });
+    return grd;
+  } catch (e) {
+    return null;
+  }
+}
+
+// ── SVG foreignObject render (works for modern browsers) ──────────────────
+async function stageToSVG(el, w, h) {
+  try {
+    // Inline all stylesheets into the SVG
+    let css = '';
+    for (const sheet of document.styleSheets) {
+      try {
+        for (const rule of sheet.cssRules) {
+          css += rule.cssText + '\n';
+        }
+      } catch (e) {}
+    }
+    const wStr = String(w);
+    const hStr = String(h);
+    const wPx = wStr + 'px';
+    const hPx = hStr + 'px';
+    const svgNs = 'http://www.w3.org/2000/svg';
+    const xhtmlNs = 'http://www.w3.org/1999/xhtml';
+    const divStyle = 'width:' + wPx + ';height:' + hPx + ';overflow:hidden;background:transparent;display:flex;align-items:center;justify-content:center';
+    const svgOpen = '<svg xmlns="' + svgNs + '" width="' + wStr + '" height="' + hStr + '">';
+    const svgClose = '</svg>';
+    const foOpen = '<foreignObject width="' + wStr + '" height="' + hStr + '">';
+    const foClose = '</foreignObject>';
+    const divOpen = '<div xmlns="' + xhtmlNs + '" style="' + divStyle + '">';
+    const divClose = '</div>';
+    const styleTag = '<defs><style>' + css + '</style></defs>';
+    const svgWithStyle = svgOpen + styleTag + foOpen + divOpen + el.outerHTML + divClose + foClose + svgClose;
+
+    const mimeType = 'image' + '/' + 'svg+xml;charset=utf-8';
+    const blob = new Blob([svgWithStyle], { type: mimeType });
+    const url = URL.createObjectURL(blob);
+    return url;
+  } catch (e) {
+    console.error('SVG render failed:', e);
+    return null;
+  }
+}
+
+// ── Fallback mockup draw ───────────────────────────────────────────────────
+async function drawFallbackMockup(ctx, outW, outH, scaleX, scaleY) {
+  if (!state.imageDataUrl) return;
+  const img = new Image();
+  await new Promise((resolve) => {
+    img.onload = resolve;
+    img.src = state.imageDataUrl;
+  });
+
+  const cfg = DEVICES[state.device];
+  const sw = cfg.screenW * scaleX * (state.scale / 100);
+  const sh = cfg.screenH * scaleY * (state.scale / 100);
+  const sx = (outW - sw) / 2;
+  const sy = (outH - sh) / 2;
+
+  // Shadow
+  if (state.shadow > 0) {
+    ctx.save();
+    ctx.shadowColor = 'rgba(0,0,0,' + (state.shadow / 150).toFixed(2) + ')';
+    ctx.shadowBlur = state.shadow * scaleX;
+    ctx.shadowOffsetY = state.shadow * 0.3 * scaleY;
+    ctx.fillStyle = '#1a1a1a';
+    ctx.fillRect(sx, sy, sw, sh);
+    ctx.restore();
+  }
+
+  ctx.drawImage(img, sx, sy, sw, sh);
+}
+
+// ── Export button ──────────────────────────────────────────────────────────
+document.getElementById('btnExport').addEventListener('click', exportPNG);
+
+// ── Init ───────────────────────────────────────────────────────────────────
+buildFrame();
+applyBackground();
+applyScale();
+applyShadow();
+updateSizeInfo();
+</script>
+</body>
+</html>
