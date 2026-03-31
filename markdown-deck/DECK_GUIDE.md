@@ -466,11 +466,26 @@ A roadmap for the next decade
 *March 2026*
 ```
 
+### Visual Layout Mode
+
+Click the **Layout** button to enter visual positioning mode:
+
+1. An overlay appears over the slide preview
+2. Click **+ Block** to add a positioned element
+3. **Drag** blocks to move them
+4. **Drag the corner handle** to resize
+5. **Double-click** a block to edit its content
+6. **Delete key** while hovering removes a block
+7. Click **Layout** again to exit — all positions are written back to the markdown as `[@...]` directives
+
+This gives you a visual alternative to typing `[@ x:... y:... w:...]` by hand. The output is identical — the Layout mode just generates the directives for you.
+
 ### Notes
 - All positions use **percentages** relative to the slide dimensions
 - Positioned blocks work in preview, presentation mode, and PPTX export
 - Mixing positioned and flow content on the same slide is possible — flow content appears normally, positioned blocks overlay on top
 - Don't use `|||` (two-column) and `[@]` (positioning) on the same slide — use positioning to create columns instead
+- Visual Layout mode reads existing `[@...]` blocks from the current slide and makes them draggable
 
 ---
 
