@@ -6,6 +6,16 @@ Persistent knowledge base. Read this before every build.
 
 ## Accumulated Principles
 
+### Test Brace Balancer Pitfalls (token-count, env-vault, snap-mock)
+- **Single-quote inside double-quoted string eats braces** — `"'"` in source code causes the test's single-quote stripper (`'(?:[^'\\]|\\.)*'`) to match from the embedded `'` through to the next real `'` in the file, consuming `{` and `}` along the way. Fix: use char code `39` instead of `=== "'"` in tokenizer loops, or use `=== '\''` (escaped).
+- **Template literals with `${expr}` leave orphaned braces** — The test strips `` `...` `` but interpolation expression braces inside `${}` are left behind if the backtick regex doesn't handle nested braces. Always use string concatenation for dynamic HTML in tool-visible code.
+- **`\\` in `//` line-comment regex needs `$` not `\\$`** — The test's comment stripper pattern `//.*?$` works correctly with `re.MULTILINE`; check that `$` is not accidentally escaped as `\\$` in Python (which matches a literal dollar sign, not end-of-line).
+
+### BPE Tokenizer Heuristics (token-count)
+- **`\r\n` must count as one token** — Handle carriage return by consuming the following `\n` in a single token increment to avoid double-counting Windows line endings.
+- **Validate low surrogate before advancing by 2** — When processing a high surrogate (0xD800-0xDBFF), always check that `text.charCodeAt(i+1)` is a low surrogate (0xDC00-0xDFFF) before incrementing `i` by 2. Malformed or truncated strings can end on a high surrogate.
+- **BPE merges leading space with next word** — Single spaces between words cost ~0 extra tokens since BPE encodes them together. Only extra indentation spaces (runs > 1) contribute token overhead.
+
 ### Browser Load Testing (api-bench)
 - **Canvas clientWidth is 0 after display:none→block toggle** — The browser hasn't repainted when you call `clientWidth` synchronously right after adding a `.visible` class. Always wrap canvas draw calls in `requestAnimationFrame()` when the canvas parent was previously hidden.
 - **Wrap Promise.all(workers) in try/finally** — Any unhandled exception inside an async concurrency pool will skip your cleanup code. Use `try { await Promise.all(...) } finally { clearInterval(); running = false; }` to guarantee UI state resets.
