@@ -104,3 +104,4 @@ These are features complex enough to prototype as standalone YOLO single-session
 | 2026-03-31 | Tock | PPTX image infrastructure + PDF export + image parsing |
 | 2026-03-31 | Tick | drag-layout feeder: visual positioning GUI for [@ directives] |
 | 2026-03-31 | Tock | Visual Layout mode: drag-and-drop positioning integrated from feeder |
+| 2026-03-31 | Tock | P0 CRITICAL: Fix PPTX (slideMaster/layout/theme/notes), IL2 CSP, auto-close fences |

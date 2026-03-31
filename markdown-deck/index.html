@@ -3,6 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' data: blob:; img-src 'self' data: blob: https:; connect-src 'none'; font-src 'self'; style-src 'self' 'unsafe-inline'">
 <title>Markdown Deck</title>
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -591,7 +592,11 @@ function md(text) {
     text = text.substring(0, notesSep);
   }
 
-  // 0.5. Extract per-slide theme overrides
+  // 0.5. Auto-close unclosed code fences (resilience to LLM-generated markdown)
+  var fenceCount = (text.match(/```/g) || []).length;
+  if (fenceCount % 2 !== 0) text += '\n```';
+
+  // 0.6. Extract per-slide theme overrides
   var parsed = parseSlideOverrides(text);
   text = parsed.text;
   window._currentSlideOverrides = parsed.overrides;
@@ -1457,47 +1462,97 @@ window.exportDeck = function() {
 
   var totalSlides = expandedSlides.length;
   var files = [];
+  var NS = 'http://schemas.openxmlformats.org/';
+  var NSDR = NS + 'drawingml/2006/main';
+  var NSREL = NS + 'package/2006/relationships';
+  var NSOFF = NS + 'officeDocument/2006/relationships';
+  var NSPML = NS + 'presentationml/2006/main';
 
-  // [Content_Types].xml
+  // ---- Required structural parts (fixes PowerPoint repair warning) ----
+
+  // Theme (minimal but valid)
+  var themeXml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+    '<a:theme xmlns:a="' + NSDR + '" name="MDeck">' +
+    '<a:themeElements>' +
+    '<a:clrScheme name="MDeck"><a:dk1><a:srgbClr val="0A0A0A"/></a:dk1><a:lt1><a:srgbClr val="FFFFFF"/></a:lt1><a:dk2><a:srgbClr val="1A1A1A"/></a:dk2><a:lt2><a:srgbClr val="CCCCCC"/></a:lt2><a:accent1><a:srgbClr val="58A6FF"/></a:accent1><a:accent2><a:srgbClr val="4ADE80"/></a:accent2><a:accent3><a:srgbClr val="A78BFA"/></a:accent3><a:accent4><a:srgbClr val="FBBF24"/></a:accent4><a:accent5><a:srgbClr val="F85149"/></a:accent5><a:accent6><a:srgbClr val="56B6C2"/></a:accent6><a:hlink><a:srgbClr val="58A6FF"/></a:hlink><a:folHlink><a:srgbClr val="A78BFA"/></a:folHlink></a:clrScheme>' +
+    '<a:fontScheme name="MDeck"><a:majorFont><a:latin typeface="Calibri"/><a:ea typeface=""/><a:cs typeface=""/></a:majorFont><a:minorFont><a:latin typeface="Calibri"/><a:ea typeface=""/><a:cs typeface=""/></a:minorFont></a:fontScheme>' +
+    '<a:fmtScheme name="MDeck"><a:fillStyleLst><a:solidFill><a:schemeClr val="phClr"/></a:solidFill><a:solidFill><a:schemeClr val="phClr"/></a:solidFill><a:solidFill><a:schemeClr val="phClr"/></a:solidFill></a:fillStyleLst><a:lnStyleLst><a:ln w="9525"><a:solidFill><a:schemeClr val="phClr"/></a:solidFill></a:ln><a:ln w="9525"><a:solidFill><a:schemeClr val="phClr"/></a:solidFill></a:ln><a:ln w="9525"><a:solidFill><a:schemeClr val="phClr"/></a:solidFill></a:ln></a:lnStyleLst><a:effectStyleLst><a:effectStyle><a:effectLst/></a:effectStyle><a:effectStyle><a:effectLst/></a:effectStyle><a:effectStyle><a:effectLst/></a:effectStyle></a:effectStyleLst><a:bgFillStyleLst><a:solidFill><a:schemeClr val="phClr"/></a:solidFill><a:solidFill><a:schemeClr val="phClr"/></a:solidFill><a:solidFill><a:schemeClr val="phClr"/></a:solidFill></a:bgFillStyleLst></a:fmtScheme>' +
+    '</a:themeElements></a:theme>';
+  files.push({ name: 'ppt/theme/theme1.xml', data: themeXml });
+
+  // Slide Layout (minimal blank layout)
+  files.push({ name: 'ppt/slideLayouts/slideLayout1.xml', data: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><p:sldLayout xmlns:a="' + NSDR + '" xmlns:r="' + NSOFF + '" xmlns:p="' + NSPML + '" type="blank"><p:cSld><p:spTree><p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr><p:grpSpPr/></p:spTree></p:cSld></p:sldLayout>' });
+  files.push({ name: 'ppt/slideLayouts/_rels/slideLayout1.xml.rels', data: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="' + NSREL + '"><Relationship Id="rId1" Type="' + NSOFF + '/slideMaster" Target="../slideMasters/slideMaster1.xml"/></Relationships>' });
+
+  // Slide Master (minimal, references layout + theme)
+  files.push({ name: 'ppt/slideMasters/slideMaster1.xml', data: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><p:sldMaster xmlns:a="' + NSDR + '" xmlns:r="' + NSOFF + '" xmlns:p="' + NSPML + '"><p:cSld><p:bg><p:bgPr><a:solidFill><a:srgbClr val="0A0A0A"/></a:solidFill><a:effectLst/></p:bgPr></p:bg><p:spTree><p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr><p:grpSpPr/></p:spTree></p:cSld><p:sldLayoutIdLst><p:sldLayoutId id="2147483649" r:id="rId1"/></p:sldLayoutIdLst></p:sldMaster>' });
+  files.push({ name: 'ppt/slideMasters/_rels/slideMaster1.xml.rels', data: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="' + NSREL + '"><Relationship Id="rId1" Type="' + NSOFF + '/slideLayout" Target="../slideLayouts/slideLayout1.xml"/><Relationship Id="rId2" Type="' + NSOFF + '/theme" Target="../theme/theme1.xml"/></Relationships>' });
+
+  // ---- Content Types (must list ALL parts) ----
   var ctSlides = '';
   for (var i = 0; i < totalSlides; i++) {
     ctSlides += '<Override PartName="/ppt/slides/slide'+(i+1)+'.xml" ContentType="application/vnd.openxmlformats-officedocument.presentationml.slide+xml"/>';
   }
-  files.push({ name: '[Content_Types].xml', data: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/ppt/presentation.xml" ContentType="application/vnd.openxmlformats-officedocument.presentationml.presentation.main+xml"/>'+ctSlides+'</Types>' });
+  // Add notes content types
+  var ctNotes = '';
+  for (var i = 0; i < totalSlides; i++) {
+    ctNotes += '<Override PartName="/ppt/notesSlides/notesSlide'+(i+1)+'.xml" ContentType="application/vnd.openxmlformats-officedocument.presentationml.notesSlide+xml"/>';
+  }
+  files.push({ name: '[Content_Types].xml', data: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="' + NS + 'package/2006/content-types">' +
+    '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>' +
+    '<Default Extension="xml" ContentType="application/xml"/>' +
+    '<Default Extension="png" ContentType="image/png"/>' +
+    '<Override PartName="/ppt/presentation.xml" ContentType="application/vnd.openxmlformats-officedocument.presentationml.presentation.main+xml"/>' +
+    '<Override PartName="/ppt/slideMasters/slideMaster1.xml" ContentType="application/vnd.openxmlformats-officedocument.presentationml.slideMaster+xml"/>' +
+    '<Override PartName="/ppt/slideLayouts/slideLayout1.xml" ContentType="application/vnd.openxmlformats-officedocument.presentationml.slideLayout+xml"/>' +
+    '<Override PartName="/ppt/theme/theme1.xml" ContentType="application/vnd.openxmlformats-officedocument.theme+xml"/>' +
+    ctSlides + ctNotes + '</Types>' });
 
-  // _rels/.rels
-  files.push({ name: '_rels/.rels', data: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="ppt/presentation.xml"/></Relationships>' });
+  // ---- Root rels ----
+  files.push({ name: '_rels/.rels', data: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="' + NSREL + '"><Relationship Id="rId1" Type="' + NSOFF + '/officeDocument" Target="ppt/presentation.xml"/></Relationships>' });
 
-  // ppt/presentation.xml
+  // ---- Presentation ----
   var sldIdList = '';
   for (var i = 0; i < totalSlides; i++) {
-    sldIdList += '<p:sldId id="'+(256+i)+'" r:id="rId'+(i+1)+'"/>';
+    sldIdList += '<p:sldId id="'+(256+i)+'" r:id="rId'+(i+10)+'"/>';
   }
-  files.push({ name: 'ppt/presentation.xml', data: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><p:presentation xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"><p:sldMasterIdLst/><p:sldIdLst>'+sldIdList+'</p:sldIdLst><p:sldSz cx="12192000" cy="6858000"/><p:notesSz cx="6858000" cy="9144000"/></p:presentation>' });
+  files.push({ name: 'ppt/presentation.xml', data: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><p:presentation xmlns:a="' + NSDR + '" xmlns:r="' + NSOFF + '" xmlns:p="' + NSPML + '">' +
+    '<p:sldMasterIdLst><p:sldMasterId id="2147483648" r:id="rId1"/></p:sldMasterIdLst>' +
+    '<p:sldIdLst>' + sldIdList + '</p:sldIdLst>' +
+    '<p:sldSz cx="12192000" cy="6858000"/><p:notesSz cx="6858000" cy="9144000"/></p:presentation>' });
 
-  // ppt/_rels/presentation.xml.rels
-  var presRels = '';
+  // ---- Presentation rels (master + slides) ----
+  var presRels = '<Relationship Id="rId1" Type="' + NSOFF + '/slideMaster" Target="slideMasters/slideMaster1.xml"/>';
+  presRels += '<Relationship Id="rId2" Type="' + NSOFF + '/theme" Target="theme/theme1.xml"/>';
   for (var i = 0; i < totalSlides; i++) {
-    presRels += '<Relationship Id="rId'+(i+1)+'" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide" Target="slides/slide'+(i+1)+'.xml"/>';
+    presRels += '<Relationship Id="rId'+(i+10)+'" Type="' + NSOFF + '/slide" Target="slides/slide'+(i+1)+'.xml"/>';
   }
-  files.push({ name: 'ppt/_rels/presentation.xml.rels', data: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'+presRels+'</Relationships>' });
+  files.push({ name: 'ppt/_rels/presentation.xml.rels', data: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="' + NSREL + '">' + presRels + '</Relationships>' });
 
-  // Slide files (using expanded slides)
-  var imageRegistry = []; // collect all images across slides
+  // ---- Slide files + Notes ----
+  var imageRegistry = [];
   for (var i = 0; i < totalSlides; i++) {
     var slideOv = parseSlideOverrides(expandedSlides[i]);
     var parsed = parseSlideContent(slideOv.text);
     parsed.overrides = slideOv.overrides;
     var slideResult = buildSlideXml(parsed, i, imageRegistry);
     files.push({ name: 'ppt/slides/slide'+(i+1)+'.xml', data: slideResult.xml });
-    // Build slide rels — include image relationships if any
-    var slideRels = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">';
+
+    // Slide rels — link to layout + notes + images
+    var sRels = '<Relationship Id="rId1" Type="' + NSOFF + '/slideLayout" Target="../slideLayouts/slideLayout1.xml"/>';
+    sRels += '<Relationship Id="rId2" Type="' + NSOFF + '/notesSlide" Target="../notesSlides/notesSlide'+(i+1)+'.xml"/>';
     for (var ri = 0; ri < slideResult.images.length; ri++) {
-      var img = slideResult.images[ri];
-      slideRels += '<Relationship Id="'+img.rId+'" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="../media/'+img.rId+'.png"/>';
+      sRels += '<Relationship Id="'+slideResult.images[ri].rId+'" Type="' + NSOFF + '/image" Target="../media/'+slideResult.images[ri].rId+'.png"/>';
     }
-    slideRels += '</Relationships>';
-    files.push({ name: 'ppt/slides/_rels/slide'+(i+1)+'.xml.rels', data: slideRels });
+    files.push({ name: 'ppt/slides/_rels/slide'+(i+1)+'.xml.rels', data: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="' + NSREL + '">' + sRels + '</Relationships>' });
+
+    // Speaker notes
+    var rawSlide = expandedSlides[i];
+    var notesSep = rawSlide.indexOf('\n???');
+    var notesText = notesSep >= 0 ? rawSlide.substring(notesSep + 4).trim() : '';
+    var notesBody = notesText ? '<a:p><a:r><a:rPr lang="en-US" dirty="0"/><a:t>' + escXml(notesText) + '</a:t></a:r></a:p>' : '<a:p><a:endParaRPr lang="en-US"/></a:p>';
+    files.push({ name: 'ppt/notesSlides/notesSlide'+(i+1)+'.xml', data: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><p:notes xmlns:a="' + NSDR + '" xmlns:r="' + NSOFF + '" xmlns:p="' + NSPML + '"><p:cSld><p:spTree><p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr><p:grpSpPr/><p:sp><p:nvSpPr><p:cNvPr id="2" name="Notes Placeholder"/><p:cNvSpPr><a:spLocks noGrp="1"/></p:cNvSpPr><p:nvPr><p:ph type="body" idx="1"/></p:nvPr></p:nvSpPr><p:spPr/><p:txBody><a:bodyPr/><a:lstStyle/>' + notesBody + '</p:txBody></p:sp></p:spTree></p:cSld></p:notes>' });
+    files.push({ name: 'ppt/notesSlides/_rels/notesSlide'+(i+1)+'.xml.rels', data: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="' + NSREL + '"><Relationship Id="rId1" Type="' + NSOFF + '/slide" Target="../slides/slide'+(i+1)+'.xml"/></Relationships>' });
   }
 
   var zipData = miniZip(files);
