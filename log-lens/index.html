@@ -1,0 +1,1421 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="theme-color" content="#000000">
+<title>LOG·LENS</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body {
+  height: 100%;
+  background: #0a0a0a;
+  overflow: hidden;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Courier New", monospace;
+  color: #ccc;
+  font-size: 12px;
+}
+
+:root {
+  --bg-page: #0a0a0a;
+  --bg-surface: #111;
+  --bg-elevated: #1a1a1a;
+  --bg-hover: #222;
+  --text-primary: #fff;
+  --text-body: #ccc;
+  --text-secondary: #aaa;
+  --text-tertiary: #555;
+  --text-label: #444;
+  --border-default: #1a1a1a;
+  --border-visible: #222;
+  --border-active: #444;
+  --border-focus: #555;
+  --color-success: #3fb950;
+  --color-warning: #d29922;
+  --color-error: #f85149;
+  --color-info: #58a6ff;
+  --accent: #0ff;
+}
+
+/* ===== LAYOUT ===== */
+#app {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  width: 100%;
+}
+
+#header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 6px 12px;
+  border-bottom: 1px solid var(--border-default);
+  flex-shrink: 0;
+}
+
+#title {
+  font-size: 0.75rem;
+  font-weight: 900;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
+#format-badge {
+  font-size: 0.5rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-label);
+  border: 1px solid var(--border-default);
+  padding: 2px 6px;
+}
+
+#stats-row {
+  display: flex;
+  gap: 16px;
+  margin-left: auto;
+  font-size: 0.5rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.stat { color: var(--text-label); }
+.stat span { color: var(--text-secondary); font-variant-numeric: tabular-nums; }
+.stat-error span { color: var(--color-error); }
+.stat-warn span { color: var(--color-warning); }
+.stat-ok span { color: var(--color-success); }
+
+#main {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+}
+
+/* ===== SIDEBAR ===== */
+#sidebar {
+  width: 200px;
+  flex-shrink: 0;
+  border-right: 1px solid var(--border-default);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.sidebar-section {
+  border-bottom: 1px solid var(--border-default);
+  padding: 6px 8px;
+}
+
+.sidebar-label {
+  font-size: 0.45rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--text-label);
+  margin-bottom: 6px;
+}
+
+/* Severity toggles */
+#severity-filters {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.sev-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 6px;
+  background: transparent;
+  border: 1px solid var(--border-default);
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 0.5rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-label);
+  transition: none;
+}
+
+.sev-btn.active { border-color: var(--sev-color); color: var(--sev-color); }
+.sev-btn .dot { width: 6px; height: 6px; background: var(--sev-color); flex-shrink: 0; }
+.sev-btn .count { margin-left: auto; color: var(--text-tertiary); font-variant-numeric: tabular-nums; }
+
+/* Search */
+#search-box {
+  width: 100%;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-visible);
+  color: var(--text-secondary);
+  padding: 5px 7px;
+  font-family: inherit;
+  font-size: 0.6rem;
+  outline: none;
+}
+#search-box:focus { border-color: var(--border-focus); }
+#search-box::placeholder { color: var(--text-label); }
+
+#regex-toggle {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 4px;
+  cursor: pointer;
+  font-size: 0.45rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-label);
+}
+#regex-toggle input[type="checkbox"] { accent-color: var(--accent); width: 10px; height: 10px; }
+#regex-toggle.active { color: var(--accent); }
+
+/* Top errors */
+#top-errors {
+  flex: 1;
+  overflow-y: auto;
+  padding: 6px 8px;
+}
+
+#top-errors::-webkit-scrollbar { width: 3px; }
+#top-errors::-webkit-scrollbar-track { background: transparent; }
+#top-errors::-webkit-scrollbar-thumb { background: var(--border-visible); }
+
+.error-item {
+  padding: 3px 0;
+  border-bottom: 1px solid var(--border-default);
+  cursor: pointer;
+}
+.error-item:hover .err-msg { color: var(--text-primary); }
+.err-count {
+  font-size: 0.45rem;
+  color: var(--color-error);
+  font-variant-numeric: tabular-nums;
+  margin-bottom: 1px;
+}
+.err-msg {
+  font-size: 0.5rem;
+  color: var(--text-tertiary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 182px;
+}
+
+/* Presets */
+.preset-list {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.preset-btn {
+  padding: 3px 6px;
+  background: transparent;
+  border: 1px solid var(--border-default);
+  color: var(--text-label);
+  font-family: inherit;
+  font-size: 0.5rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  cursor: pointer;
+  text-align: left;
+}
+.preset-btn:hover { border-color: var(--border-active); color: var(--text-secondary); }
+
+/* ===== CENTER ===== */
+#center {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* Timeline */
+#timeline-panel {
+  border-bottom: 1px solid var(--border-default);
+  padding: 6px 8px 4px;
+  flex-shrink: 0;
+}
+
+#timeline-label {
+  font-size: 0.45rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--text-label);
+  margin-bottom: 4px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+#timeline-canvas {
+  width: 100%;
+  height: 48px;
+  display: block;
+  cursor: crosshair;
+}
+
+/* Log area */
+#log-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 8px;
+  border-bottom: 1px solid var(--border-default);
+  flex-shrink: 0;
+}
+
+#visible-count {
+  font-size: 0.5rem;
+  color: var(--text-label);
+  margin-left: auto;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.08em;
+}
+
+.tool-btn {
+  padding: 3px 8px;
+  background: transparent;
+  border: 1px solid var(--border-default);
+  color: var(--text-label);
+  font-family: inherit;
+  font-size: 0.5rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+.tool-btn:hover { border-color: var(--border-active); color: var(--text-secondary); }
+.tool-btn.active { border-color: var(--accent); color: var(--accent); }
+
+#log-output {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 0;
+}
+
+#log-output::-webkit-scrollbar { width: 4px; }
+#log-output::-webkit-scrollbar-track { background: transparent; }
+#log-output::-webkit-scrollbar-thumb { background: var(--border-visible); }
+
+.log-line {
+  display: flex;
+  align-items: baseline;
+  padding: 1px 8px;
+  gap: 8px;
+  border-bottom: 1px solid transparent;
+  cursor: pointer;
+  font-variant-numeric: tabular-nums;
+}
+.log-line:hover { background: var(--bg-elevated); }
+
+.ll-num {
+  font-size: 0.45rem;
+  color: var(--text-label);
+  min-width: 36px;
+  text-align: right;
+  flex-shrink: 0;
+}
+
+.ll-ts {
+  font-size: 0.5rem;
+  color: var(--text-tertiary);
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.ll-badge {
+  font-size: 0.45rem;
+  letter-spacing: 0.08em;
+  padding: 0 4px;
+  text-transform: uppercase;
+  flex-shrink: 0;
+  font-weight: 700;
+  min-width: 38px;
+  text-align: center;
+}
+
+.ll-src {
+  font-size: 0.5rem;
+  color: var(--text-tertiary);
+  flex-shrink: 0;
+  min-width: 80px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ll-msg {
+  font-size: 0.55rem;
+  color: var(--text-body);
+  flex: 1;
+  word-break: break-all;
+  white-space: pre-wrap;
+  line-height: 1.4;
+}
+
+/* Severity colors */
+.sev-error .ll-badge { color: var(--color-error); border: 1px solid var(--color-error); }
+.sev-warn  .ll-badge { color: var(--color-warning); border: 1px solid var(--color-warning); }
+.sev-info  .ll-badge { color: var(--color-success); border: 1px solid #2d6e3a; }
+.sev-debug .ll-badge { color: var(--text-tertiary); border: 1px solid var(--border-visible); }
+.sev-trace .ll-badge { color: var(--text-label); border: 1px solid var(--border-default); }
+
+.sev-error .ll-msg { color: #e87070; }
+.sev-warn  .ll-msg { color: #c9a84c; }
+.sev-info  .ll-msg { color: var(--text-body); }
+
+.sev-error { background: rgba(248, 81, 73, 0.03); }
+.sev-warn  { background: rgba(210, 153, 34, 0.03); }
+
+/* Search highlight */
+.hl { background: rgba(0, 255, 255, 0.2); color: var(--accent); }
+
+/* Drop zone */
+#drop-zone {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  cursor: pointer;
+}
+
+#drop-zone.drag-over {
+  background: rgba(0, 255, 255, 0.03);
+  border: 1px dashed var(--accent);
+}
+
+.dz-icon {
+  font-size: 2rem;
+  color: var(--text-label);
+}
+
+.dz-title {
+  font-size: 0.7rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+}
+
+.dz-sub {
+  font-size: 0.5rem;
+  letter-spacing: 0.1em;
+  color: var(--text-label);
+  text-align: center;
+  line-height: 1.6;
+}
+
+#paste-btn {
+  padding: 6px 18px;
+  background: transparent;
+  border: 1px solid var(--border-active);
+  color: var(--text-secondary);
+  font-family: inherit;
+  font-size: 0.55rem;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+#paste-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+#file-input { display: none; }
+
+/* Paste modal */
+#paste-modal {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.85);
+  z-index: 100;
+  align-items: center;
+  justify-content: center;
+}
+#paste-modal.open { display: flex; }
+
+#paste-box-container {
+  width: 680px;
+  max-width: 95vw;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-active);
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+#paste-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+#paste-title {
+  font-size: 0.6rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+}
+
+#close-paste {
+  background: transparent;
+  border: none;
+  color: var(--text-label);
+  font-size: 1rem;
+  cursor: pointer;
+  line-height: 1;
+}
+#close-paste:hover { color: var(--text-secondary); }
+
+#paste-textarea {
+  width: 100%;
+  height: 280px;
+  background: #0a0a0a;
+  border: 1px solid var(--border-visible);
+  color: var(--text-body);
+  font-family: inherit;
+  font-size: 0.6rem;
+  padding: 8px;
+  outline: none;
+  resize: vertical;
+  line-height: 1.5;
+}
+#paste-textarea:focus { border-color: var(--border-focus); }
+
+#paste-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.modal-btn {
+  padding: 5px 14px;
+  background: transparent;
+  border: 1px solid var(--border-active);
+  color: var(--text-secondary);
+  font-family: inherit;
+  font-size: 0.55rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+.modal-btn.primary { border-color: var(--accent); color: var(--accent); }
+.modal-btn:hover { border-color: var(--border-focus); }
+.modal-btn.primary:hover { background: rgba(0,255,255,0.05); }
+
+/* Empty / Error states */
+#log-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 60px;
+  font-size: 0.5rem;
+  color: var(--text-label);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+/* Scroll-to-bottom fab */
+#scroll-fab {
+  position: fixed;
+  bottom: 12px;
+  right: 12px;
+  padding: 5px 10px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-active);
+  color: var(--text-secondary);
+  font-family: inherit;
+  font-size: 0.5rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  cursor: pointer;
+  display: none;
+}
+#scroll-fab.visible { display: block; }
+
+/* Tooltip on timeline hover */
+#timeline-tooltip {
+  position: fixed;
+  pointer-events: none;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-active);
+  padding: 3px 7px;
+  font-size: 0.5rem;
+  color: var(--text-secondary);
+  display: none;
+  z-index: 50;
+  white-space: nowrap;
+}
+</style>
+</head>
+<body>
+<div id="app">
+  <!-- Header -->
+  <div id="header">
+    <div id="title">Log·Lens</div>
+    <div id="format-badge">no data</div>
+    <div id="stats-row">
+      <div class="stat stat-error">ERR <span id="s-error">0</span></div>
+      <div class="stat stat-warn">WARN <span id="s-warn">0</span></div>
+      <div class="stat stat-ok">INFO <span id="s-info">0</span></div>
+      <div class="stat">DBG <span id="s-debug">0</span></div>
+      <div class="stat">TOTAL <span id="s-total">0</span></div>
+      <div class="stat">SPAN <span id="s-span">—</span></div>
+    </div>
+  </div>
+
+  <!-- Main layout -->
+  <div id="main">
+    <!-- Sidebar -->
+    <div id="sidebar">
+      <div class="sidebar-section">
+        <div class="sidebar-label">Severity</div>
+        <div id="severity-filters">
+          <button class="sev-btn active" data-sev="error" style="--sev-color: var(--color-error)">
+            <div class="dot"></div>ERROR<span class="count" id="c-error">0</span>
+          </button>
+          <button class="sev-btn active" data-sev="warn" style="--sev-color: var(--color-warning)">
+            <div class="dot"></div>WARN<span class="count" id="c-warn">0</span>
+          </button>
+          <button class="sev-btn active" data-sev="info" style="--sev-color: var(--color-success)">
+            <div class="dot"></div>INFO<span class="count" id="c-info">0</span>
+          </button>
+          <button class="sev-btn active" data-sev="debug" style="--sev-color: var(--text-tertiary)">
+            <div class="dot"></div>DEBUG<span class="count" id="c-debug">0</span>
+          </button>
+          <button class="sev-btn active" data-sev="trace" style="--sev-color: #333">
+            <div class="dot"></div>TRACE<span class="count" id="c-trace">0</span>
+          </button>
+        </div>
+      </div>
+
+      <div class="sidebar-section">
+        <div class="sidebar-label">Search</div>
+        <input type="text" id="search-box" placeholder="filter logs..." spellcheck="false">
+        <label id="regex-toggle">
+          <input type="checkbox" id="regex-cb"> regex mode
+        </label>
+      </div>
+
+      <div class="sidebar-section">
+        <div class="sidebar-label">Top Errors</div>
+      </div>
+      <div id="top-errors"></div>
+
+      <div class="sidebar-section" style="margin-top: auto;">
+        <div class="sidebar-label">Presets</div>
+        <div class="preset-list">
+          <button class="preset-btn" data-preset="nginx">Nginx Access</button>
+          <button class="preset-btn" data-preset="syslog">Syslog</button>
+          <button class="preset-btn" data-preset="json">JSON Lines</button>
+          <button class="preset-btn" data-preset="apache">Apache</button>
+          <button class="preset-btn" data-preset="mixed">Mixed/Plain</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Center -->
+    <div id="center">
+      <!-- Timeline -->
+      <div id="timeline-panel">
+        <div id="timeline-label">
+          <span>Timeline</span>
+          <span id="timeline-range" style="color: var(--text-tertiary); font-size: 0.45rem;"></span>
+        </div>
+        <canvas id="timeline-canvas"></canvas>
+      </div>
+
+      <!-- Log toolbar -->
+      <div id="log-toolbar">
+        <button class="tool-btn" id="btn-load">Load File</button>
+        <button class="tool-btn" id="btn-paste">Paste</button>
+        <button class="tool-btn" id="btn-clear">Clear</button>
+        <button class="tool-btn" id="btn-wrap" title="Toggle word wrap">Wrap</button>
+        <span id="visible-count"></span>
+      </div>
+
+      <!-- Log output or drop zone -->
+      <div id="log-output-wrapper" style="flex: 1; overflow: hidden; display: flex; flex-direction: column;">
+        <div id="drop-zone">
+          <div class="dz-icon">▤</div>
+          <div class="dz-title">Drop a log file here</div>
+          <div class="dz-sub">or paste raw log text<br>nginx · apache · syslog · json-lines · plaintext</div>
+          <button id="paste-btn">Paste Log Text</button>
+          <input type="file" id="file-input" accept=".log,.txt,.json,.jsonl,text/*">
+        </div>
+        <div id="log-output" style="display: none;"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Paste modal -->
+<div id="paste-modal">
+  <div id="paste-box-container">
+    <div id="paste-header">
+      <span id="paste-title">Paste Log Text</span>
+      <button id="close-paste">&times;</button>
+    </div>
+    <textarea id="paste-textarea" placeholder="Paste your log content here...&#10;&#10;Supports: nginx access, syslog, JSON lines, Apache combined, generic timestamped text"></textarea>
+    <div id="paste-actions">
+      <button class="modal-btn" id="cancel-paste">Cancel</button>
+      <button class="modal-btn primary" id="confirm-paste">Analyze</button>
+    </div>
+  </div>
+</div>
+
+<div id="timeline-tooltip"></div>
+<button id="scroll-fab">↓ Bottom</button>
+<script>
+'use strict';
+
+// ===== STATE =====
+const state = {
+  rawLines: [],       // parsed log entries
+  filtered: [],       // after filter
+  activeSev: new Set(['error','warn','info','debug','trace']),
+  searchText: '',
+  searchRegex: false,
+  wrapMode: false,
+  counts: { error: 0, warn: 0, info: 0, debug: 0, trace: 0 },
+  format: 'unknown',
+  timeMin: null,
+  timeMax: null,
+};
+
+// ===== LOG PARSERS =====
+
+// Normalize severity string
+function normSev(s) {
+  if (s === null || s === undefined || s === '') return 'info';
+  const u = String(s).toUpperCase();
+  if (u === 'ERROR' || u === 'ERR' || u === 'CRIT' || u === 'CRITICAL' || u === 'FATAL' || u === 'ALERT' || u === 'EMERG') return 'error';
+  if (u === 'WARN' || u === 'WARNING') return 'warn';
+  if (u === 'INFO' || u === 'NOTICE' || u === 'SUCCESS') return 'info';
+  if (u === 'DEBUG' || u === 'VERBOSE' || u === 'FINE') return 'debug';
+  if (u === 'TRACE') return 'trace';
+  return 'info';
+}
+
+// Try to detect and parse timestamp from various formats
+function parseTimestamp(s) {
+  if (!s) return null;
+  // ISO8601: 2024-01-15T10:30:00.123Z or 2024-01-15 10:30:00
+  let m = s.match(/(\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}(?:[.,]\d+)?(?:Z|[+-]\d{2}:?\d{2})?)/);
+  if (m) { const d = new Date(m[1].replace(' ', 'T')); if (!isNaN(d)) return d; }
+  // syslog: Mar  5 14:22:11 or Jan 15 10:30:00
+  m = s.match(/([A-Z][a-z]{2}\s+\d{1,2}\s+\d{2}:\d{2}:\d{2})/);
+  if (m) { const d = new Date(m[1] + ' ' + new Date().getFullYear()); if (!isNaN(d)) return d; }
+  // nginx: 15/Jan/2024:10:30:00 +0000
+  m = s.match(/(\d{2}\/[A-Z][a-z]{2}\/\d{4}:\d{2}:\d{2}:\d{2})/);
+  if (m) { const parts = m[1].match(/(\d{2})\/([A-Za-z]{3})\/(\d{4}):(\d{2}):(\d{2}):(\d{2})/); if (parts) { const d = new Date(`${parts[3]}-${parts[2]}-${parts[1]}T${parts[4]}:${parts[5]}:${parts[6]}`); if (!isNaN(d)) return d; } }
+  // epoch ms: large number
+  m = s.match(/\b(1[4-9]\d{11}|[2-9]\d{12})\b/);
+  if (m) { const d = new Date(parseInt(m[1])); if (!isNaN(d)) return d; }
+  return null;
+}
+
+// Format timestamp for display
+function fmtTs(d) {
+  if (!d) return '';
+  const pad = n => String(n).padStart(2, '0');
+  return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+}
+
+function fmtTsFull(d) {
+  if (!d) return '';
+  const pad = n => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+}
+
+// ---- Format detectors / parsers ----
+
+const RE_ACCESS_LOG = new RegExp('^(\\S+)\\s+\\S+\\s+\\S+\\s+\\[([^\\]]+)\\]\\s+"([^"]+)"\\s+(\\d{3})\\s+(\\d+|-)');
+
+function tryNginxAccess(line) {
+  // 192.168.1.1 - user [15/Jan/2024:10:30:00 +0000] "GET /path HTTP/1.1" 200 1234 "ref" "ua"
+  const m = line.match(RE_ACCESS_LOG);
+  if (!m) return null;
+  const [, ip, tsRaw, req, status, bytes] = m;
+  const ts = parseTimestamp(tsRaw);
+  const code = parseInt(status);
+  let sev = 'info';
+  if (code >= 500) sev = 'error';
+  else if (code >= 400) sev = 'warn';
+  return { ts, sev, src: ip, msg: `${status} ${req}`, raw: line, format: 'nginx' };
+}
+
+function tryApacheCombined(line) {
+  // Same as nginx essentially
+  const m = line.match(RE_ACCESS_LOG);
+  if (!m) return null;
+  const [, ip, tsRaw, req, status] = m;
+  const ts = parseTimestamp(tsRaw);
+  const code = parseInt(status);
+  let sev = 'info';
+  if (code >= 500) sev = 'error';
+  else if (code >= 400) sev = 'warn';
+  return { ts, sev, src: ip, msg: `${status} ${req}`, raw: line, format: 'apache' };
+}
+
+function trySyslog(line) {
+  // Mar  5 14:22:11 hostname process[pid]: message
+  // or: 2024-01-15T10:30:00.123Z hostname process[pid]: message
+  const m = line.match(/^([A-Z][a-z]{2}\s+\d{1,2}\s+\d{2}:\d{2}:\d{2})\s+(\S+)\s+(\S+?)(?:\[\d+\])?:\s+(.*)/);
+  if (!m) {
+    // RFC5424: <pri>version ts host app pid msgid msg
+    const m2 = line.match(/^<\d+>(\d+)?\s*(\S+)\s+(\S+)\s+(\S+)\s+\S+\s+\S+\s+(.*)/);
+    if (m2) {
+      const ts = parseTimestamp(m2[2]);
+      return { ts, sev: 'info', src: m2[3], msg: m2[5], raw: line, format: 'syslog' };
+    }
+    return null;
+  }
+  const [, tsRaw, host, proc, msg] = m;
+  const ts = parseTimestamp(tsRaw);
+  // Detect severity from message
+  const sevMatch = msg.match(/\b(error|warn|warning|crit|critical|info|debug|notice|alert|emerg|fatal)\b/i);
+  const sev = sevMatch ? normSev(sevMatch[1]) : 'info';
+  return { ts, sev, src: host + ' ' + proc, msg, raw: line, format: 'syslog' };
+}
+
+function tryJsonLine(line) {
+  try {
+    const obj = JSON.parse(line);
+    if (typeof obj !== 'object' || obj === null) return null;
+    // Common field names
+    const tsRaw = obj.timestamp || obj.time || obj.ts || obj['@timestamp'] || obj.datetime || obj.date || obj.t || null;
+    const ts = tsRaw ? parseTimestamp(String(tsRaw)) : null;
+    const level = obj.level || obj.severity || obj.lvl || obj.loglevel || obj.log_level || obj.priority || null;
+    const sev = normSev(level);
+    const msgRaw = obj.message ?? obj.msg ?? obj.text ?? obj.body ?? obj.log ?? null;
+    const msg = msgRaw != null ? msgRaw : JSON.stringify(obj);
+    const src = obj.service || obj.app || obj.name || obj.logger || obj.source || obj.host || obj.hostname || '';
+    return { ts, sev, src: String(src), msg: String(msg), raw: line, format: 'json' };
+  } catch(e) { return null; }
+}
+
+function tryGenericTimestamped(line) {
+  // Try to find any timestamp + optional level
+  const isoMatch = line.match(/^(\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}(?:[.,]\d+)?(?:Z|[+-]\d{2}:?\d{2})?)\s*[\|\s,-]*\s*(?:\[?(\w+)\]?)?\s*[\|\s,-]*\s*(.*)/);
+  if (isoMatch) {
+    const ts = parseTimestamp(isoMatch[1]);
+    if (ts) {
+      const level = isoMatch[2] || '';
+      const sev = level ? normSev(level) : detectSevFromText(line);
+      const msg = isoMatch[3] || line;
+      return { ts, sev, src: '', msg, raw: line, format: 'generic' };
+    }
+  }
+  // Pattern: [LEVEL] timestamp message or timestamp [LEVEL] message
+  const bracketLevel = line.match(/^\[(\w+)\]\s+(\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}[^\s]*)\s+(.*)/);
+  if (bracketLevel) {
+    const ts = parseTimestamp(bracketLevel[2]);
+    if (ts) return { ts, sev: normSev(bracketLevel[1]), src: '', msg: bracketLevel[3], raw: line, format: 'generic' };
+  }
+  return null;
+}
+
+function detectSevFromText(line) {
+  const u = line.toUpperCase();
+  if (u.match(/\b(ERROR|CRITICAL|FATAL|EXCEPTION|TRACEBACK)\b/)) return 'error';
+  if (u.match(/\b(WARN|WARNING)\b/)) return 'warn';
+  if (u.match(/\b(DEBUG)\b/)) return 'debug';
+  if (u.match(/\b(TRACE)\b/)) return 'trace';
+  return 'info';
+}
+
+function parseLine(line, idx) {
+  if (!line.trim()) return null;
+  // Try formats in order of specificity
+  const entry =
+    tryJsonLine(line) ||
+    trySyslog(line) ||
+    tryNginxAccess(line) ||
+    tryApacheCombined(line) ||
+    tryGenericTimestamped(line) ||
+    { ts: null, sev: detectSevFromText(line), src: '', msg: line, raw: line, format: 'plain' };
+
+  entry.idx = idx;
+  return entry;
+}
+
+function detectOverallFormat(entries) {
+  const counts = {};
+  entries.forEach(e => { counts[e.format] = (counts[e.format] || 0) + 1; });
+  return Object.entries(counts).sort((a,b) => b[1]-a[1])[0]?.[0] || 'plain';
+}
+
+// ===== PARSE FULL TEXT =====
+function parseText(text) {
+  const lines = text.split(/\r?\n/);
+  const entries = [];
+  lines.forEach((line, i) => {
+    const e = parseLine(line, i);
+    if (e) entries.push(e);
+  });
+  return entries;
+}
+
+// ===== LOAD =====
+function loadEntries(entries) {
+  state.rawLines = entries;
+  // Counts
+  const c = { error: 0, warn: 0, info: 0, debug: 0, trace: 0 };
+  let timeMin = Infinity, timeMax = -Infinity;
+  entries.forEach(e => {
+    c[e.sev] = (c[e.sev] || 0) + 1;
+    if (e.ts) {
+      const t = e.ts.getTime();
+      if (t < timeMin) timeMin = t;
+      if (t > timeMax) timeMax = t;
+    }
+  });
+  state.counts = c;
+  state.timeMin = timeMin === Infinity ? null : timeMin;
+  state.timeMax = timeMax === -Infinity ? null : timeMax;
+  state.format = detectOverallFormat(entries);
+
+  updateHeader();
+  updateSevCounts();
+  applyFilters();
+  buildTopErrors();
+  drawTimeline();
+
+  // Switch from drop zone to log output
+  document.getElementById('drop-zone').style.display = 'none';
+  document.getElementById('log-output').style.display = 'block';
+}
+
+// ===== FILTER =====
+function applyFilters() {
+  const { rawLines, activeSev, searchText, searchRegex } = state;
+  let rx = null;
+  if (searchText) {
+    try {
+      rx = searchRegex ? new RegExp(searchText, 'gi') : null;
+    } catch(e) { rx = null; }
+  }
+
+  state.filtered = rawLines.filter(e => {
+    if (!activeSev.has(e.sev)) return false;
+    if (searchText) {
+      const haystack = e.raw.toLowerCase();
+      if (rx) {
+        rx.lastIndex = 0;
+        return rx.test(e.raw);
+      }
+      return haystack.includes(searchText.toLowerCase());
+    }
+    return true;
+  });
+
+  renderLog();
+  updateVisibleCount();
+}
+
+// ===== RENDER =====
+function escHtml(s) {
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function highlightMatch(text, searchText, searchRegex) {
+  if (!searchText) return escHtml(text);
+  if (searchRegex) {
+    try {
+      const rx = new RegExp('(' + searchText + ')', 'gi');
+      return text.split(rx).map((part, i) =>
+        i % 2 === 1 ? `<span class="hl">${escHtml(part)}</span>` : escHtml(part)
+      ).join('');
+    } catch(e) { return escHtml(text); }
+  }
+  // Plain text: search in raw text, escape each segment
+  const lower = text.toLowerCase();
+  const lowerSearch = searchText.toLowerCase();
+  let out = '';
+  let i = 0;
+  while (i < text.length) {
+    const idx = lower.indexOf(lowerSearch, i);
+    if (idx === -1) { out += escHtml(text.slice(i)); break; }
+    out += escHtml(text.slice(i, idx)) + `<span class="hl">${escHtml(text.slice(idx, idx + searchText.length))}</span>`;
+    i = idx + searchText.length;
+  }
+  return out;
+}
+
+const RENDER_CHUNK = 500;
+
+function renderLog() {
+  const output = document.getElementById('log-output');
+  const { filtered, searchText, searchRegex, wrapMode } = state;
+
+  if (!filtered.length) {
+    output.innerHTML = '<div id="log-empty">NO MATCHING ENTRIES</div>';
+    return;
+  }
+
+  // Build all at once for reasonable sizes, chunked for large
+  const frag = document.createDocumentFragment();
+
+  for (let i = 0; i < filtered.length; i++) {
+    const e = filtered[i];
+    const row = document.createElement('div');
+    row.className = `log-line sev-${e.sev}`;
+
+    const tsStr = e.ts ? fmtTs(e.ts) : '—';
+    const badgeLabel = e.sev.toUpperCase().slice(0, 5);
+    const srcStr = e.src ? escHtml(e.src.slice(0, 18)) : '';
+    const msgHtml = highlightMatch(e.msg, searchText, searchRegex);
+
+    row.innerHTML =
+      `<span class="ll-num">${e.idx + 1}</span>` +
+      `<span class="ll-ts">${tsStr}</span>` +
+      `<span class="ll-badge">${badgeLabel}</span>` +
+      (srcStr ? `<span class="ll-src">${srcStr}</span>` : '') +
+      `<span class="ll-msg" style="${wrapMode ? '' : 'white-space: nowrap; overflow: hidden; text-overflow: ellipsis;'}">${msgHtml}</span>`;
+
+    frag.appendChild(row);
+  }
+
+  output.innerHTML = '';
+  output.appendChild(frag);
+}
+
+function updateVisibleCount() {
+  const el = document.getElementById('visible-count');
+  const { filtered, rawLines } = state;
+  el.textContent = `${filtered.length} / ${rawLines.length} lines`;
+}
+
+// ===== HEADER =====
+function updateHeader() {
+  document.getElementById('format-badge').textContent = state.format;
+  const total = state.rawLines.length;
+  document.getElementById('s-total').textContent = total;
+
+  if (state.timeMin && state.timeMax) {
+    const spanMs = state.timeMax - state.timeMin;
+    const spanSec = Math.round(spanMs / 1000);
+    let spanStr;
+    if (spanSec < 60) spanStr = `${spanSec}s`;
+    else if (spanSec < 3600) spanStr = `${Math.round(spanSec/60)}m`;
+    else spanStr = `${(spanSec/3600).toFixed(1)}h`;
+    document.getElementById('s-span').textContent = spanStr;
+  } else {
+    document.getElementById('s-span').textContent = '—';
+  }
+}
+
+function updateSevCounts() {
+  const c = state.counts;
+  document.getElementById('s-error').textContent = c.error || 0;
+  document.getElementById('s-warn').textContent = c.warn || 0;
+  document.getElementById('s-info').textContent = c.info || 0;
+  document.getElementById('s-debug').textContent = c.debug || 0;
+
+  document.getElementById('c-error').textContent = c.error || 0;
+  document.getElementById('c-warn').textContent = c.warn || 0;
+  document.getElementById('c-info').textContent = c.info || 0;
+  document.getElementById('c-debug').textContent = c.debug || 0;
+  document.getElementById('c-trace').textContent = c.trace || 0;
+}
+
+// ===== TOP ERRORS =====
+function buildTopErrors() {
+  const errors = state.rawLines.filter(e => e.sev === 'error' || e.sev === 'warn');
+  const freq = {};
+  errors.forEach(e => {
+    const key = e.msg.slice(0, 80).replace(/\d+/g, 'N').replace(/[a-f0-9]{8,}/gi, 'HASH');
+    freq[key] = (freq[key] || 0) + 1;
+  });
+  const sorted = Object.entries(freq).sort((a,b) => b[1]-a[1]).slice(0, 10);
+
+  const container = document.getElementById('top-errors');
+  container.innerHTML = '';
+
+  if (!sorted.length) {
+    container.innerHTML = '<div style="font-size:0.45rem;color:var(--text-label);padding:4px 0;">No errors found</div>';
+    return;
+  }
+
+  sorted.forEach(([msg, count]) => {
+    const div = document.createElement('div');
+    div.className = 'error-item';
+    div.innerHTML = `<div class="err-count">${count}×</div><div class="err-msg" title="${escHtml(msg)}">${escHtml(msg)}</div>`;
+    div.addEventListener('click', () => {
+      document.getElementById('search-box').value = msg.slice(0, 40);
+      state.searchText = msg.slice(0, 40);
+      applyFilters();
+    });
+    container.appendChild(div);
+  });
+}
+
+// ===== TIMELINE =====
+function drawTimeline() {
+  const canvas = document.getElementById('timeline-canvas');
+  const rect = canvas.parentElement.getBoundingClientRect();
+  canvas.width = rect.width - 16;
+  canvas.height = 48;
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  const entries = state.rawLines.filter(e => e.ts);
+  if (!entries.length || !state.timeMin || !state.timeMax) {
+    ctx.fillStyle = '#222';
+    ctx.fillRect(0, 20, canvas.width, 8);
+    return;
+  }
+
+  const BINS = Math.min(Math.floor(canvas.width / 4), 200);
+  const timeSpan = state.timeMax - state.timeMin;
+  const binSize = timeSpan / BINS || 1;
+
+  const bins = Array.from({ length: BINS }, () => ({ error: 0, warn: 0, info: 0, debug: 0, trace: 0, total: 0 }));
+
+  entries.forEach(e => {
+    const bin = Math.min(Math.floor((e.ts.getTime() - state.timeMin) / binSize), BINS - 1);
+    bins[bin][e.sev]++;
+    bins[bin].total++;
+  });
+
+  const maxTotal = Math.max(...bins.map(b => b.total), 1);
+  const bw = canvas.width / BINS;
+  const maxH = canvas.height - 2;
+
+  for (let i = 0; i < BINS; i++) {
+    const b = bins[i];
+    if (!b.total) continue;
+    const x = i * bw;
+    const totalH = (b.total / maxTotal) * maxH;
+
+    // Stacked bar: error on top
+    let y = canvas.height;
+    const drawSeg = (count, color) => {
+      if (!count) return;
+      const h = (count / maxTotal) * maxH;
+      y -= h;
+      ctx.fillStyle = color;
+      ctx.fillRect(x, y, Math.max(bw - 0.5, 1), h);
+    };
+    drawSeg(b.debug + b.trace, '#2a2a2a');
+    drawSeg(b.info,  '#1a3a22');
+    drawSeg(b.warn,  '#3a2e0a');
+    // Draw error bar and capture its top y position for the highlight overlay
+    const errorTopY = y - (b.error ? (b.error / maxTotal) * maxH : 0);
+    drawSeg(b.error, '#3a1010');
+
+    // Error highlight overlay on top of error bar
+    if (b.error) {
+      const eh = (b.error / maxTotal) * maxH;
+      ctx.fillStyle = 'rgba(248, 81, 73, 0.7)';
+      ctx.fillRect(x, errorTopY, Math.max(bw - 0.5, 1), eh);
+    }
+  }
+
+  // Range label
+  const d1 = new Date(state.timeMin);
+  const d2 = new Date(state.timeMax);
+  document.getElementById('timeline-range').textContent =
+    `${fmtTsFull(d1)} → ${fmtTsFull(d2)}`;
+}
+
+// ===== TIMELINE HOVER =====
+const timelineCanvas = document.getElementById('timeline-canvas');
+const tooltip = document.getElementById('timeline-tooltip');
+
+timelineCanvas.addEventListener('mousemove', (e) => {
+  if (!state.timeMin || !state.timeMax) return;
+  const rect = timelineCanvas.getBoundingClientRect();
+  const x = e.clientX - rect.left;
+  const frac = x / rect.width;
+  const t = state.timeMin + frac * (state.timeMax - state.timeMin);
+  const d = new Date(t);
+
+  // Count entries near this bin
+  const BINS = Math.min(Math.floor(rect.width / 4), 200);
+  const binSize = (state.timeMax - state.timeMin) / BINS;
+  const binIdx = Math.floor(frac * BINS);
+  const near = state.rawLines.filter(entry => {
+    if (!entry.ts) return false;
+    const b = Math.floor((entry.ts.getTime() - state.timeMin) / binSize);
+    return b === binIdx;
+  });
+
+  const errCnt = near.filter(e => e.sev === 'error').length;
+  const warnCnt = near.filter(e => e.sev === 'warn').length;
+
+  tooltip.style.display = 'block';
+  tooltip.style.left = (e.clientX + 10) + 'px';
+  tooltip.style.top = (e.clientY - 24) + 'px';
+  tooltip.textContent = `${fmtTsFull(d)} — ${near.length} events${errCnt ? `, ${errCnt} err` : ''}${warnCnt ? `, ${warnCnt} warn` : ''}`;
+});
+
+timelineCanvas.addEventListener('mouseleave', () => {
+  tooltip.style.display = 'none';
+});
+
+timelineCanvas.addEventListener('click', (e) => {
+  if (!state.timeMin || !state.timeMax) return;
+  const rect = timelineCanvas.getBoundingClientRect();
+  const x = e.clientX - rect.left;
+  const frac = x / rect.width;
+  const t = new Date(state.timeMin + frac * (state.timeMax - state.timeMin));
+  // Scroll to first entry near this time
+  const target = state.filtered.find(entry => entry.ts && Math.abs(entry.ts.getTime() - t.getTime()) < (state.timeMax - state.timeMin) / 50);
+  if (target) {
+    const output = document.getElementById('log-output');
+    const rows = output.querySelectorAll('.log-line');
+    const rowIdx = state.filtered.indexOf(target);
+    if (rows[rowIdx]) rows[rowIdx].scrollIntoView({ block: 'center' });
+  }
+});
+
+// ===== CONTROLS =====
+
+// Severity buttons
+document.getElementById('severity-filters').addEventListener('click', (e) => {
+  const btn = e.target.closest('.sev-btn');
+  if (!btn) return;
+  const sev = btn.dataset.sev;
+  if (state.activeSev.has(sev)) {
+    state.activeSev.delete(sev);
+    btn.classList.remove('active');
+  } else {
+    state.activeSev.add(sev);
+    btn.classList.add('active');
+  }
+  applyFilters();
+});
+
+// Search
+document.getElementById('search-box').addEventListener('input', (e) => {
+  state.searchText = e.target.value;
+  applyFilters();
+});
+
+// Regex toggle
+document.getElementById('regex-cb').addEventListener('change', (e) => {
+  state.searchRegex = e.target.checked;
+  document.getElementById('regex-toggle').classList.toggle('active', state.searchRegex);
+  applyFilters();
+});
+
+// Wrap toggle
+document.getElementById('btn-wrap').addEventListener('click', () => {
+  state.wrapMode = !state.wrapMode;
+  document.getElementById('btn-wrap').classList.toggle('active', state.wrapMode);
+  renderLog();
+});
+
+// Clear
+document.getElementById('btn-clear').addEventListener('click', () => {
+  state.rawLines = [];
+  state.filtered = [];
+  state.counts = { error: 0, warn: 0, info: 0, debug: 0, trace: 0 };
+  state.timeMin = null;
+  state.timeMax = null;
+  state.format = 'unknown';
+  updateHeader();
+  updateSevCounts();
+  document.getElementById('log-output').style.display = 'none';
+  document.getElementById('drop-zone').style.display = 'flex';
+  document.getElementById('log-output').innerHTML = '';
+  document.getElementById('top-errors').innerHTML = '';
+  document.getElementById('visible-count').textContent = '';
+  drawTimeline();
+});
+
+// Load file
+document.getElementById('btn-load').addEventListener('click', () => {
+  document.getElementById('file-input').click();
+});
+
+// Paste button (toolbar)
+document.getElementById('btn-paste').addEventListener('click', () => {
+  openPasteModal();
+});
+
+// Paste button (drop zone)
+document.getElementById('paste-btn').addEventListener('click', () => {
+  openPasteModal();
+});
+
+// ===== PASTE MODAL =====
+function openPasteModal() {
+  document.getElementById('paste-modal').classList.add('open');
+  document.getElementById('paste-textarea').focus();
+}
+
+function closePasteModal() {
+  document.getElementById('paste-modal').classList.remove('open');
+}
+
+document.getElementById('close-paste').addEventListener('click', closePasteModal);
+document.getElementById('cancel-paste').addEventListener('click', closePasteModal);
+
+document.getElementById('paste-modal').addEventListener('click', (e) => {
+  if (e.target === document.getElementById('paste-modal')) closePasteModal();
+});
+
+document.getElementById('confirm-paste').addEventListener('click', () => {
+  const text = document.getElementById('paste-textarea').value.trim();
+  if (!text) return;
+  const entries = parseText(text);
+  loadEntries(entries);
+  document.getElementById('paste-textarea').value = '';
+  closePasteModal();
+});
+
+// Ctrl+Enter in textarea
+document.getElementById('paste-textarea').addEventListener('keydown', (e) => {
+  if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+    document.getElementById('confirm-paste').click();
+  }
+});
+
+// ===== FILE INPUT =====
+document.getElementById('file-input').addEventListener('change', (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    const entries = parseText(ev.target.result);
+    loadEntries(entries);
+  };
+  reader.readAsText(file);
+  e.target.value = '';
+});
+
+// ===== DRAG AND DROP =====
+const dropZone = document.getElementById('drop-zone');
+
+document.body.addEventListener('dragover', (e) => {
+  e.preventDefault();
+  dropZone.classList.add('drag-over');
+});
+
+document.body.addEventListener('dragleave', (e) => {
+  if (e.relatedTarget === null) dropZone.classList.remove('drag-over');
+});
+
+document.body.addEventListener('drop', (e) => {
+  e.preventDefault();
+  dropZone.classList.remove('drag-over');
+  const file = e.dataTransfer.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    const entries = parseText(ev.target.result);
+    loadEntries(entries);
+  };
+  reader.readAsText(file);
+});
+
+// ===== SCROLL FAB =====
+const logOutput = document.getElementById('log-output');
+const scrollFab = document.getElementById('scroll-fab');
+
+logOutput.addEventListener('scroll', () => {
+  const atBottom = logOutput.scrollTop + logOutput.clientHeight >= logOutput.scrollHeight - 50;
+  scrollFab.classList.toggle('visible', !atBottom && logOutput.scrollHeight > logOutput.clientHeight * 2);
+});
+
+scrollFab.addEventListener('click', () => {
+  logOutput.scrollTop = logOutput.scrollHeight;
+});
+
+// ===== RESIZE =====
+window.addEventListener('resize', () => {
+  drawTimeline();
+});
+
+// ===== PRESETS =====
+const PRESETS = {
+  nginx: `192.168.1.10 - frank [15/Jan/2024:10:00:01 +0000] "GET /index.html HTTP/1.1" 200 1234 "-" "Mozilla/5.0"
+10.0.0.5 - - [15/Jan/2024:10:00:02 +0000] "POST /api/login HTTP/1.1" 200 432 "https://example.com" "curl/7.68"
+172.16.0.2 - - [15/Jan/2024:10:00:05 +0000] "GET /admin HTTP/1.1" 403 287 "-" "python-requests/2.28"
+192.168.1.10 - - [15/Jan/2024:10:00:07 +0000] "GET /missing.html HTTP/1.1" 404 153 "-" "Mozilla/5.0"
+10.0.0.5 - - [15/Jan/2024:10:00:09 +0000] "POST /api/data HTTP/1.1" 500 89 "-" "axios/1.0"
+192.168.1.20 - bob [15/Jan/2024:10:00:11 +0000] "GET /static/app.js HTTP/1.1" 200 45678 "-" "Mozilla/5.0"
+10.0.0.5 - - [15/Jan/2024:10:00:13 +0000] "DELETE /api/session HTTP/1.1" 500 0 "-" "axios/1.0"
+172.16.0.2 - - [15/Jan/2024:10:00:15 +0000] "GET /wp-login.php HTTP/1.1" 404 312 "-" "Googlebot/2.1"
+192.168.1.10 - frank [15/Jan/2024:10:00:18 +0000] "GET /dashboard HTTP/1.1" 200 9823 "-" "Mozilla/5.0"
+10.0.0.5 - - [15/Jan/2024:10:00:20 +0000] "GET /api/status HTTP/1.1" 200 67 "-" "curl/7.68"`,
+
+  syslog: `Jan 15 10:00:01 webserver01 kernel: [UFW BLOCK] IN=eth0 OUT= MAC=... SRC=1.2.3.4 DST=10.0.0.1 LEN=44
+Jan 15 10:00:03 webserver01 sshd[1234]: Accepted publickey for deploy from 192.168.1.5 port 42312
+Jan 15 10:00:05 webserver01 nginx[5678]: error: bind() to 0.0.0.0:80 failed (98: Address already in use)
+Jan 15 10:00:06 webserver01 systemd[1]: Starting nginx.service...
+Jan 15 10:00:07 webserver01 systemd[1]: Started nginx.service.
+Jan 15 10:00:10 webserver01 cron[890]: (root) CMD (/usr/bin/backup.sh)
+Jan 15 10:00:12 webserver01 sshd[1235]: Failed password for root from 45.33.32.156 port 49812
+Jan 15 10:00:13 webserver01 sshd[1235]: Failed password for root from 45.33.32.156 port 49812
+Jan 15 10:00:14 webserver01 sshd[1235]: error: maximum authentication attempts exceeded for root
+Jan 15 10:00:15 webserver01 kernel: Out of memory: Kill process 9823 (python3) score 892 or sacrifice child
+Jan 15 10:00:16 webserver01 kernel: Killed process 9823 (python3) total-vm:1234567kB
+Jan 15 10:00:20 webserver01 sshd[1236]: Accepted publickey for admin from 10.0.0.5 port 51234`,
+
+  json: `{"timestamp":"2024-01-15T10:00:01.123Z","level":"INFO","service":"api-gateway","msg":"Server started on port 8080","version":"2.1.0"}
+{"timestamp":"2024-01-15T10:00:02.456Z","level":"DEBUG","service":"auth","msg":"Token validated","user_id":"u_123","duration_ms":2}
+{"timestamp":"2024-01-15T10:00:03.789Z","level":"INFO","service":"api-gateway","msg":"GET /api/users 200","latency_ms":14}
+{"timestamp":"2024-01-15T10:00:05.012Z","level":"WARN","service":"db","msg":"Slow query detected","query":"SELECT * FROM events","duration_ms":450}
+{"timestamp":"2024-01-15T10:00:06.345Z","level":"ERROR","service":"payment","msg":"Stripe API timeout","error":"ETIMEDOUT","attempt":1}
+{"timestamp":"2024-01-15T10:00:06.890Z","level":"ERROR","service":"payment","msg":"Stripe API timeout","error":"ETIMEDOUT","attempt":2}
+{"timestamp":"2024-01-15T10:00:07.123Z","level":"ERROR","service":"payment","msg":"Payment processing failed - max retries exceeded","order_id":"ord_456"}
+{"timestamp":"2024-01-15T10:00:08.456Z","level":"WARN","service":"cache","msg":"Cache miss rate above threshold","miss_rate":0.42}
+{"timestamp":"2024-01-15T10:00:09.789Z","level":"INFO","service":"api-gateway","msg":"POST /api/checkout 500","latency_ms":3021}
+{"timestamp":"2024-01-15T10:00:10.012Z","level":"DEBUG","service":"auth","msg":"Session created","session_id":"sess_789","ttl":3600}
+{"timestamp":"2024-01-15T10:00:11.345Z","level":"INFO","service":"worker","msg":"Job processed","job_id":"job_012","queue":"emails"}
+{"timestamp":"2024-01-15T10:00:12.678Z","level":"ERROR","service":"db","msg":"Connection pool exhausted","pool_size":10,"waiting":23}`,
+
+  apache: `127.0.0.1 - james [09/May/2024:21:15:09 +0000] "GET /report HTTP/1.0" 200 4523
+127.0.0.1 - jsmith [10/May/2024:12:34:12 +0000] "GET /index.html HTTP/1.1" 200 2326
+127.0.0.1 - - [11/May/2024:09:22:18 +0000] "POST /login HTTP/1.1" 401 0
+127.0.0.1 - - [11/May/2024:09:22:25 +0000] "POST /login HTTP/1.1" 401 0
+127.0.0.1 - - [11/May/2024:09:22:31 +0000] "POST /login HTTP/1.1" 200 1256
+127.0.0.1 - admin [11/May/2024:09:30:00 +0000] "GET /admin/dashboard HTTP/1.1" 200 8934
+127.0.0.1 - - [11/May/2024:10:00:00 +0000] "GET /../../etc/passwd HTTP/1.1" 400 0
+127.0.0.1 - - [11/May/2024:10:00:01 +0000] "GET /shell?cmd=ls HTTP/1.1" 403 0
+127.0.0.1 - admin [11/May/2024:10:15:00 +0000] "DELETE /api/record/42 HTTP/1.1" 500 0
+127.0.0.1 - admin [11/May/2024:10:15:01 +0000] "DELETE /api/record/42 HTTP/1.1" 500 0`,
+
+  mixed: `2024-01-15 10:00:01 INFO  Starting application v3.2.1
+2024-01-15 10:00:01 DEBUG Loading config from /etc/app/config.yaml
+2024-01-15 10:00:02 INFO  Database connection established (pool=5)
+2024-01-15 10:00:02 WARN  Redis not available, using in-memory cache
+2024-01-15 10:00:03 INFO  HTTP server listening on :8080
+2024-01-15 10:00:15 ERROR Failed to send welcome email: SMTP connection refused
+2024-01-15 10:00:16 WARN  Retry 1/3 for email delivery
+2024-01-15 10:00:17 ERROR Retry 2/3 failed: SMTP connection refused
+2024-01-15 10:00:18 ERROR Retry 3/3 failed: SMTP connection refused - giving up
+2024-01-15 10:00:30 INFO  User login: alice@example.com
+2024-01-15 10:01:00 DEBUG GC pause 12ms
+2024-01-15 10:01:05 WARN  Memory usage high: 78% (threshold: 75%)
+2024-01-15 10:01:10 ERROR Unhandled exception in request handler: NullPointerException at line 234
+2024-01-15 10:01:10 ERROR   at com.example.Handler.process(Handler.java:234)
+2024-01-15 10:01:10 ERROR   at com.example.Server.dispatch(Server.java:89)
+2024-01-15 10:02:00 INFO  Backup completed successfully (2.3GB, 45s)
+2024-01-15 10:03:00 INFO  Health check OK`
+};
+
+document.querySelector('.preset-list').addEventListener('click', (e) => {
+  const btn = e.target.closest('.preset-btn');
+  if (!btn) return;
+  const preset = btn.dataset.preset;
+  const text = PRESETS[preset];
+  if (!text) return;
+  const entries = parseText(text);
+  loadEntries(entries);
+});
+
+// ===== INITIAL DRAW =====
+drawTimeline();
+</script>
+</body>
+</html>
