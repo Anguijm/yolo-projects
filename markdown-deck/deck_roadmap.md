@@ -59,7 +59,7 @@ Markdown Deck is a graduated YOLO project operating under Flagship rules: multi-
 - [x] Diagrams in PPTX (SVG→Canvas→PNG)
 - [x] IL2+ security (CSP, zero external URLs)
 - [x] Auto-close unclosed code fences
-- [ ] DECK_GUIDE.md stricter Gemini prompting instructions
+- [x] DECK_GUIDE.md stricter Gemini prompting instructions + validation checklist
 - [ ] Math/LaTeX rendering (KaTeX inline, zero-dep)
 - [ ] Custom slide aspect ratios (4:3, 1:1, vertical)
 - [ ] Template library (pre-built slide layouts)
@@ -116,4 +116,5 @@ These are features complex enough to prototype as standalone YOLO single-session
 | 2026-03-31 | Tock | PPTX tables: parse markdown tables + render as formatted text in export |
 | 2026-03-31 | Tick | jwt-decode: JWT token inspector with expiry timeline |
 | 2026-03-31 | Tock | PPTX diagrams: SVG→Canvas→PNG pipeline for embedded diagram images |
-| 2026-03-29 | Tick | schema-viz: JSON Schema / OpenAPI spec visualizer |
+| 2026-03-31 | Tick | schema-viz: JSON Schema / OpenAPI spec visualizer |
+| 2026-04-01 | Tock | DECK_GUIDE.md: strict AI prompting rules, failure table, example prompt, validation checklist |

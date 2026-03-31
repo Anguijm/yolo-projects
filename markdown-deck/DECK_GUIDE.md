@@ -4,6 +4,83 @@ Use this guide to generate slide decks and design themes for the Markdown Deck t
 
 ---
 
+## CRITICAL: Rules for AI-Generated Slides
+
+When using an AI model (Gemini, Claude, GPT, etc.) to generate slide markdown, include these instructions in your prompt to prevent common failures:
+
+### Must-Have Prompt Instructions
+
+```
+Generate a markdown slide deck following these STRICT rules:
+
+1. OUTPUT RAW MARKDOWN ONLY — do NOT wrap the entire output in a code fence.
+   Your response should start with the first slide heading, not with ```markdown.
+
+2. EVERY code block MUST have both opening and closing triple backticks.
+   Opening: ```language
+   Closing: ```
+   Count your backticks. If you opened one, you MUST close it.
+
+3. Slide separator is --- on its own line with blank lines above and below.
+   Do NOT use --- inside a slide (use *** for horizontal rules within slides).
+
+4. Do NOT nest code blocks. Never put ``` inside another ``` block.
+
+5. For the design.md theme, output it SEPARATELY from the slides — not inline.
+
+6. Fragment breaks use -- on its own line (two dashes, not three).
+   Three dashes (---) = slide break. Two dashes (--) = fragment reveal.
+
+7. Two-column layout uses ||| on its own line between the two columns.
+
+8. Per-slide theme overrides use HTML comments: <!-- bg: #color, text: #color -->
+   Place these at the very top of a slide, before any content.
+
+9. Positioned elements use [@ x:10% y:20% w:40%] on its own line.
+
+10. Speaker notes go after ??? at the end of a slide.
+```
+
+### Common AI Failures and How to Avoid Them
+
+| Failure | Cause | Fix |
+|---------|-------|-----|
+| Broken code blocks | AI wraps entire output in ``` | Tell it: "do NOT wrap output in a code fence" |
+| Missing closing ``` | AI forgets to close a code block | Tell it: "count your backticks" |
+| Slides don't separate | AI uses `---` without blank lines | Tell it: "blank line before and after ---" |
+| Fragment breaks create new slides | AI uses `---` instead of `--` | Tell it: "-- for fragments, --- for slides" |
+| Theme overrides don't work | AI puts `<!-- -->` after content | Tell it: "theme comments go FIRST in the slide" |
+| Nested code blocks | AI puts ``` inside another ``` | Tell it: "never nest code blocks" |
+
+### Example Prompt
+
+```
+Using the Markdown Deck format, create a 6-slide deck about [TOPIC].
+
+Rules:
+- Output raw markdown, NOT wrapped in a code fence
+- Every code block must have opening AND closing ```
+- Separate slides with --- (blank line above and below)
+- Use ## for slide titles, ### for subtitles
+- Use -- for progressive reveal (NOT ---)
+- Use ||| for two-column layouts
+- Include speaker notes after ??? on at least 2 slides
+- First slide should use <!-- bg: #0f172a, text: #e2e8f0, align: center -->
+
+Include: a title slide, an agenda slide, 3 content slides with a mix of
+bullets/code/tables, and a closing slide.
+```
+
+### Validating AI Output
+
+After receiving AI-generated markdown:
+1. Count backtick pairs — every opening ``` needs a closing ```
+2. Check that `---` slide separators have blank lines around them
+3. Verify `--` (fragments) vs `---` (slides) are correct
+4. Paste into Markdown Deck — the auto-close heuristic will fix one unclosed fence, but not multiple
+
+---
+
 ## Slide Structure
 
 Slides are separated by `---` on its own line. Each slide is an independent markdown block.
