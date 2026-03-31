@@ -100,3 +100,4 @@ These are features complex enough to prototype as standalone YOLO single-session
 | 2026-03-31 | Tock | Slide reordering via drag-and-drop thumbnails |
 | 2026-03-31 | Tick | snap-mock: device frame mockup generator |
 | 2026-03-31 | Tock | PDF export via print dialog with per-slide themes |
+| 2026-03-29 | Tick | log-lens: log file viewer with filtering and timeline |
