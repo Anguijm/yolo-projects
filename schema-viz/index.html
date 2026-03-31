@@ -1,0 +1,930 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
+  <meta name="theme-color" content="#000000">
+  <title>schema-viz</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body {
+      height: 100%;
+      background: #0a0a0a;
+      overflow: hidden;
+      touch-action: manipulation;
+      -webkit-tap-highlight-color: transparent;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Courier New", monospace;
+      color: #ccc;
+      font-size: 13px;
+    }
+    :root {
+      --accent: #0ff;
+      --bg-page: #0a0a0a;
+      --bg-surface: #111;
+      --border-default: #1a1a1a;
+      --color-success: #3fb950;
+      --color-warning: #d29922;
+      --color-error: #f85149;
+      --color-info: #58a6ff;
+    }
+    #app { display: flex; flex-direction: column; height: 100vh; }
+    #header {
+      display: flex; align-items: center; gap: 12px;
+      padding: 8px 12px; border-bottom: 1px solid #1a1a1a; flex-shrink: 0;
+    }
+    #header h1 {
+      font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.2em;
+      color: #0ff; font-weight: 400;
+    }
+    #header-meta { font-size: 0.55rem; text-transform: uppercase; letter-spacing: 0.15em; color: #333; }
+    #header-right { margin-left: auto; display: flex; align-items: center; gap: 6px; }
+    .btn {
+      padding: 4px 10px; background: transparent; border: 1px solid #1a1a1a;
+      color: #444; font-family: inherit; font-size: 0.55rem; cursor: pointer;
+      letter-spacing: 0.1em; text-transform: uppercase;
+    }
+    .btn:hover { border-color: #333; color: #666; }
+    .btn:active { border-color: #555; color: #888; }
+    .btn.active { border-color: #0ff; color: #0ff; }
+    #main { display: flex; flex: 1; overflow: hidden; }
+    #input-pane {
+      width: 340px; flex-shrink: 0; display: flex; flex-direction: column;
+      border-right: 1px solid #1a1a1a;
+    }
+    #input-toolbar {
+      display: flex; align-items: center; gap: 6px; padding: 6px 8px;
+      border-bottom: 1px solid #1a1a1a; flex-shrink: 0;
+    }
+    #input-toolbar label { font-size: 0.5rem; text-transform: uppercase; letter-spacing: 0.15em; color: #333; }
+    #schema-input {
+      flex: 1; background: #0d0d0d; border: none; color: #888;
+      font-family: inherit; font-size: 0.7rem; padding: 10px; resize: none;
+      outline: none; line-height: 1.5;
+    }
+    #schema-input::placeholder { color: #222; }
+    #schema-input:focus { background: #0f0f0f; }
+    #input-status {
+      padding: 4px 8px; border-top: 1px solid #1a1a1a; font-size: 0.5rem;
+      text-transform: uppercase; letter-spacing: 0.12em; color: #333;
+      flex-shrink: 0; height: 24px; display: flex; align-items: center; gap: 6px;
+    }
+    #input-status.ok { color: #3fb950; }
+    #input-status.err { color: #f85149; }
+    #output-pane { flex: 1; overflow: hidden; display: flex; flex-direction: column; }
+    #output-toolbar {
+      display: flex; align-items: center; gap: 6px; padding: 6px 8px;
+      border-bottom: 1px solid #1a1a1a; flex-shrink: 0;
+    }
+    #output-toolbar label { font-size: 0.5rem; text-transform: uppercase; letter-spacing: 0.15em; color: #333; }
+    #tree-container {
+      flex: 1; overflow-y: auto; overflow-x: auto; padding: 10px 6px 10px 0;
+    }
+    #tree-container::-webkit-scrollbar { width: 4px; height: 4px; }
+    #tree-container::-webkit-scrollbar-track { background: transparent; }
+    #tree-container::-webkit-scrollbar-thumb { background: #222; }
+    #tree-container::-webkit-scrollbar-thumb:hover { background: #333; }
+    .tree-root { padding-left: 4px; }
+    .node { user-select: none; }
+    .node-row {
+      display: flex; align-items: center; gap: 6px;
+      padding: 2px 6px 2px 0; cursor: pointer;
+      white-space: nowrap; min-height: 22px;
+    }
+    .node-row:hover { background: #111; }
+    .node-toggle { width: 14px; flex-shrink: 0; font-size: 0.6rem; color: #333; text-align: center; }
+    .node-toggle.open { color: #555; }
+    .node-name { font-size: 0.75rem; font-weight: 600; }
+    .node-name.required { color: #fff; }
+    .node-name.optional { color: #555; }
+    .node-name.endpoint { color: #0ff; }
+    .node-colon { color: #333; font-size: 0.7rem; }
+    .type-badge {
+      font-size: 0.5rem; text-transform: uppercase; letter-spacing: 0.08em;
+      padding: 1px 5px; border: 1px solid;
+    }
+    .badge-string { color: #3fb950; border-color: #1a3d22; }
+    .badge-number, .badge-integer { color: #58a6ff; border-color: #0e2a4a; }
+    .badge-boolean { color: #d29922; border-color: #3d2d08; }
+    .badge-object { color: #0ff; border-color: #003333; }
+    .badge-array { color: #f0a; border-color: #330020; }
+    .badge-null { color: #555; border-color: #1a1a1a; }
+    .badge-enum { color: #f0a; border-color: #330020; }
+    .badge-any { color: #555; border-color: #1a1a1a; }
+    .badge-allof, .badge-oneof, .badge-anyof { color: #d29922; border-color: #3d2d08; }
+    .badge-ref { color: #aaa; border-color: #2a2a2a; }
+    .badge-get { color: #3fb950; border-color: #1a3d22; }
+    .badge-post { color: #58a6ff; border-color: #0e2a4a; }
+    .badge-put { color: #d29922; border-color: #3d2d08; }
+    .badge-patch { color: #f0a; border-color: #330020; }
+    .badge-delete { color: #f85149; border-color: #3d0c0a; }
+    .badge-head, .badge-options, .badge-trace { color: #555; border-color: #1a1a1a; }
+    .badge-param { color: #aaa; border-color: #2a2a2a; }
+    .badge-required-mark { color: #f85149; font-size: 0.55rem; }
+    .node-desc {
+      font-size: 0.6rem; color: #333; font-style: italic; margin-left: 4px;
+      max-width: 300px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    .node-meta { font-size: 0.55rem; color: #2a2a2a; margin-left: 4px; }
+    .node-children {
+      margin-left: 20px; border-left: 1px solid #1a1a1a; padding-left: 4px;
+    }
+    .node-children.collapsed { display: none; }
+    .enum-values { display: inline-flex; gap: 4px; flex-wrap: wrap; margin-left: 4px; }
+    .enum-val {
+      font-size: 0.5rem; padding: 1px 4px; background: #111;
+      border: 1px solid #1a1a1a; color: #555;
+    }
+    #presets {
+      position: absolute; top: 37px; left: 0; width: 340px;
+      background: #0d0d0d; border: 1px solid #222; border-top: none; z-index: 10;
+    }
+    #presets.hidden { display: none; }
+    .preset-item {
+      padding: 8px 10px; cursor: pointer; border-bottom: 1px solid #1a1a1a;
+      display: flex; flex-direction: column; gap: 2px;
+    }
+    .preset-item:hover { background: #111; }
+    .preset-item:last-child { border-bottom: none; }
+    .preset-name { font-size: 0.65rem; color: #aaa; text-transform: uppercase; letter-spacing: 0.1em; }
+    .preset-desc { font-size: 0.5rem; color: #333; }
+    #empty-state {
+      display: flex; flex-direction: column; align-items: center;
+      justify-content: center; height: 100%; gap: 8px; color: #222;
+    }
+    #empty-state .big { font-size: 2rem; color: #1a1a1a; }
+    #empty-state .msg { font-size: 0.6rem; text-transform: uppercase; letter-spacing: 0.2em; }
+    .section-header {
+      font-size: 0.5rem; text-transform: uppercase; letter-spacing: 0.2em;
+      color: #333; padding: 10px 8px 4px 8px;
+      border-bottom: 1px solid #1a1a1a; margin-bottom: 4px;
+    }
+    #detected-banner {
+      padding: 4px 8px; border-bottom: 1px solid #1a1a1a; font-size: 0.5rem;
+      text-transform: uppercase; letter-spacing: 0.15em; color: #333;
+      flex-shrink: 0; display: flex; align-items: center; gap: 8px;
+    }
+    #detected-banner span { color: #0ff; }
+    #search-box {
+      background: #111; border: 1px solid #1a1a1a; color: #aaa;
+      font-family: inherit; font-size: 0.65rem; padding: 3px 7px;
+      outline: none; width: 160px;
+    }
+    #search-box:focus { border-color: #333; }
+    #search-box::placeholder { color: #222; }
+    .node-row.highlight { background: #1a1200; }
+    .format-badge {
+      font-size: 0.45rem; padding: 1px 4px; background: #111;
+      border: 1px solid #1a1a1a; color: #444;
+      text-transform: uppercase; letter-spacing: 0.05em;
+    }
+    #node-count { font-size: 0.5rem; color: #333; letter-spacing: 0.1em; text-transform: uppercase; }
+  </style>
+</head>
+<body>
+
+<script type="application/json" id="preset-user">
+{
+  "title": "User",
+  "description": "A registered user account",
+  "type": "object",
+  "required": ["id", "email", "role"],
+  "properties": {
+    "id": {"type": "string", "format": "uuid", "description": "Unique identifier"},
+    "email": {"type": "string", "format": "email", "description": "User email"},
+    "username": {"type": "string", "minLength": 3, "maxLength": 32},
+    "age": {"type": "integer", "minimum": 0, "maximum": 150},
+    "role": {"type": "string", "enum": ["admin", "editor", "viewer"], "default": "viewer"},
+    "active": {"type": "boolean", "default": true},
+    "tags": {"type": "array", "items": {"type": "string"}, "description": "User tags"},
+    "address": {
+      "type": "object",
+      "required": ["city", "country"],
+      "properties": {
+        "street": {"type": "string"},
+        "city": {"type": "string"},
+        "state": {"type": "string"},
+        "zip": {"type": "string", "pattern": "^[0-9]{5}$"},
+        "country": {"type": "string", "enum": ["US", "CA", "GB", "AU"]}
+      }
+    },
+    "createdAt": {"type": "string", "format": "date-time"},
+    "metadata": {"type": "object", "additionalProperties": {"type": "string"}}
+  }
+}
+</script>
+
+<script type="application/json" id="preset-product">
+{
+  "title": "Product",
+  "type": "object",
+  "required": ["id", "name", "price", "category"],
+  "properties": {
+    "id": {"type": "string", "format": "uuid"},
+    "name": {"type": "string", "maxLength": 255, "description": "Product display name"},
+    "slug": {"type": "string", "pattern": "^[a-z0-9-]+$"},
+    "price": {"type": "number", "minimum": 0, "description": "Price in USD"},
+    "compareAtPrice": {"type": "number", "minimum": 0},
+    "category": {"type": "string", "enum": ["electronics", "clothing", "books", "home", "sports"]},
+    "inStock": {"type": "boolean", "default": true},
+    "quantity": {"type": "integer", "minimum": 0},
+    "images": {"type": "array", "items": {"type": "object", "required": ["url"], "properties": {"url": {"type": "string", "format": "uri"}, "alt": {"type": "string"}, "width": {"type": "integer"}, "height": {"type": "integer"}}}},
+    "variants": {"type": "array", "items": {"type": "object", "required": ["sku"], "properties": {"sku": {"type": "string"}, "size": {"type": "string", "enum": ["XS","S","M","L","XL","XXL"]}, "color": {"type": "string"}, "price": {"type": "number"}, "stock": {"type": "integer"}}}},
+    "ratings": {"type": "object", "properties": {"average": {"type": "number", "minimum": 0, "maximum": 5}, "count": {"type": "integer", "minimum": 0}}}
+  }
+}
+</script>
+
+<script type="application/json" id="preset-petstore">
+{
+  "openapi": "3.0.0",
+  "info": {"title": "Petstore API", "version": "1.0.0", "description": "A sample pet store API"},
+  "paths": {
+    "/pets": {
+      "get": {"summary": "List all pets", "operationId": "listPets", "parameters": [{"name": "limit", "in": "query", "description": "Max items", "schema": {"type": "integer", "maximum": 100}}, {"name": "status", "in": "query", "schema": {"type": "string", "enum": ["available","pending","sold"]}}], "responses": {"200": {"description": "A list of pets", "content": {"application/json": {"schema": {"type": "array", "items": {"$ref": "#/components/schemas/Pet"}}}}}}},
+      "post": {"summary": "Create a pet", "operationId": "createPet", "requestBody": {"required": true, "content": {"application/json": {"schema": {"$ref": "#/components/schemas/NewPet"}}}}, "responses": {"201": {"description": "Pet created", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Pet"}}}}}}
+    },
+    "/pets/{petId}": {
+      "get": {"summary": "Get a pet by ID", "parameters": [{"name": "petId", "in": "path", "required": true, "schema": {"type": "string"}}], "responses": {"200": {"description": "Pet found", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Pet"}}}}, "404": {"description": "Pet not found"}}},
+      "delete": {"summary": "Delete a pet", "parameters": [{"name": "petId", "in": "path", "required": true, "schema": {"type": "string"}}], "responses": {"204": {"description": "Deleted"}}}
+    }
+  },
+  "components": {"schemas": {"Pet": {"type": "object", "required": ["id","name"], "properties": {"id": {"type": "integer", "format": "int64"}, "name": {"type": "string", "description": "Pet name"}, "status": {"type": "string", "enum": ["available","pending","sold"], "default": "available"}, "photoUrls": {"type": "array", "items": {"type": "string", "format": "uri"}}, "tags": {"type": "array", "items": {"type": "object", "properties": {"id": {"type": "integer"}, "name": {"type": "string"}}}}}}, "NewPet": {"type": "object", "required": ["name"], "properties": {"name": {"type": "string"}, "status": {"type": "string", "enum": ["available","pending","sold"]}, "photoUrls": {"type": "array", "items": {"type": "string"}}}}}}
+}
+</script>
+
+<script type="application/json" id="preset-auth">
+{
+  "openapi": "3.0.0",
+  "info": {"title": "Auth Service", "version": "2.1.0", "description": "Authentication and authorization API"},
+  "paths": {
+    "/auth/login": {"post": {"summary": "Login with credentials", "requestBody": {"required": true, "content": {"application/json": {"schema": {"type": "object", "required": ["email","password"], "properties": {"email": {"type": "string", "format": "email"}, "password": {"type": "string", "minLength": 8}, "rememberMe": {"type": "boolean", "default": false}}}}}}, "responses": {"200": {"description": "Login successful", "content": {"application/json": {"schema": {"type": "object", "properties": {"accessToken": {"type": "string", "format": "jwt"}, "refreshToken": {"type": "string"}, "expiresIn": {"type": "integer", "description": "Seconds until expiry"}}}}}}, "401": {"description": "Invalid credentials"}}}},
+    "/auth/refresh": {"post": {"summary": "Refresh access token", "requestBody": {"required": true, "content": {"application/json": {"schema": {"type": "object", "required": ["refreshToken"], "properties": {"refreshToken": {"type": "string"}}}}}}, "responses": {"200": {"description": "Token refreshed", "content": {"application/json": {"schema": {"type": "object", "properties": {"accessToken": {"type": "string"}, "expiresIn": {"type": "integer"}}}}}}}}},
+    "/auth/logout": {"post": {"summary": "Logout and invalidate token", "responses": {"204": {"description": "Logged out"}}}},
+    "/users/me": {
+      "get": {"summary": "Get current user profile", "responses": {"200": {"description": "Current user", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/UserProfile"}}}}}},
+      "patch": {"summary": "Update user profile", "requestBody": {"content": {"application/json": {"schema": {"$ref": "#/components/schemas/UserUpdate"}}}}, "responses": {"200": {"description": "Updated", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/UserProfile"}}}}}}
+    }
+  },
+  "components": {"schemas": {"UserProfile": {"type": "object", "required": ["id","email","role"], "properties": {"id": {"type": "string", "format": "uuid"}, "email": {"type": "string", "format": "email"}, "name": {"type": "string"}, "role": {"type": "string", "enum": ["admin","user","readonly"]}, "createdAt": {"type": "string", "format": "date-time"}, "lastLogin": {"type": "string", "format": "date-time"}}}, "UserUpdate": {"type": "object", "properties": {"name": {"type": "string"}, "password": {"type": "string", "minLength": 8}, "email": {"type": "string", "format": "email"}}}}}
+}
+</script>
+
+<div id="app">
+  <div id="header">
+    <h1>schema-viz</h1>
+    <span id="header-meta">JSON Schema / OpenAPI</span>
+    <div id="header-right">
+      <button class="btn" id="expand-all">Expand All</button>
+      <button class="btn" id="collapse-all">Collapse All</button>
+      <input id="search-box" type="text" placeholder="search fields..." spellcheck="false">
+    </div>
+  </div>
+  <div id="main">
+    <div id="input-pane" style="position:relative">
+      <div id="input-toolbar">
+        <label>Schema Input</label>
+        <div style="margin-left:auto;display:flex;gap:6px">
+          <button class="btn" id="btn-presets">Presets</button>
+          <button class="btn" id="btn-clear">Clear</button>
+          <button class="btn active" id="btn-parse">Parse</button>
+        </div>
+      </div>
+      <div id="presets" class="hidden"></div>
+      <textarea id="schema-input" spellcheck="false" placeholder="Paste JSON Schema or OpenAPI 3.x spec here..."></textarea>
+      <div id="input-status">Ready</div>
+    </div>
+    <div id="output-pane">
+      <div id="detected-banner" style="display:none">
+        Detected: <span id="detected-type"></span>
+      </div>
+      <div id="output-toolbar">
+        <label>Schema Tree</label>
+        <div style="margin-left:auto;display:flex;gap:6px;align-items:center">
+          <span id="node-count"></span>
+        </div>
+      </div>
+      <div id="tree-container">
+        <div id="empty-state">
+          <div class="big">{}</div>
+          <div class="msg">Paste a schema to visualize</div>
+        </div>
+        <div id="tree-root" class="tree-root" style="display:none"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script type="text/javascript">
+(function() {
+'use strict';
+
+var PRESETS = [
+  {name: 'JSON Schema - User', desc: 'User object with nested address', id: 'preset-user'},
+  {name: 'JSON Schema - Product', desc: 'E-commerce product with variants', id: 'preset-product'},
+  {name: 'OpenAPI 3.0 - Petstore', desc: 'Classic Petstore API with endpoints', id: 'preset-petstore'},
+  {name: 'OpenAPI 3.0 - Auth API', desc: 'Authentication service with JWT', id: 'preset-auth'}
+];
+
+var inputEl = document.getElementById('schema-input');
+var statusEl = document.getElementById('input-status');
+var treeRoot = document.getElementById('tree-root');
+var emptyState = document.getElementById('empty-state');
+var detectedBanner = document.getElementById('detected-banner');
+var detectedTypeEl = document.getElementById('detected-type');
+var nodeCountEl = document.getElementById('node-count');
+var presetsEl = document.getElementById('presets');
+var searchEl = document.getElementById('search-box');
+
+var parsedSchema = null;
+var schemaType = null;
+var nodeCount = 0;
+var searchQuery = '';
+
+PRESETS.forEach(function(p) {
+  var div = document.createElement('div');
+  div.className = 'preset-item';
+  var nameDiv = document.createElement('div');
+  nameDiv.className = 'preset-name';
+  nameDiv.textContent = p.name;
+  var descDiv = document.createElement('div');
+  descDiv.className = 'preset-desc';
+  descDiv.textContent = p.desc;
+  div.appendChild(nameDiv);
+  div.appendChild(descDiv);
+  div.addEventListener('click', function() {
+    var el = document.getElementById(p.id);
+    inputEl.value = el ? el.textContent.trim() : '';
+    presetsEl.classList.add('hidden');
+    parseAndRender();
+  });
+  presetsEl.appendChild(div);
+});
+
+document.getElementById('btn-presets').addEventListener('click', function(e) {
+  e.stopPropagation();
+  presetsEl.classList.toggle('hidden');
+});
+document.addEventListener('click', function() {
+  presetsEl.classList.add('hidden');
+});
+document.getElementById('btn-clear').addEventListener('click', function() {
+  inputEl.value = '';
+  clearTree();
+  setStatus('Ready', '');
+});
+document.getElementById('btn-parse').addEventListener('click', parseAndRender);
+
+var parseTimer = null;
+inputEl.addEventListener('input', function() {
+  clearTimeout(parseTimer);
+  parseTimer = setTimeout(parseAndRender, 400);
+});
+
+document.getElementById('expand-all').addEventListener('click', function() {
+  var kids = treeRoot.querySelectorAll('.node-children');
+  for (var i = 0; i < kids.length; i++) { kids[i].classList.remove('collapsed'); }
+  var togs = treeRoot.querySelectorAll('.node-toggle');
+  for (var j = 0; j < togs.length; j++) { togs[j].textContent = '\u25be'; togs[j].classList.add('open'); }
+});
+
+document.getElementById('collapse-all').addEventListener('click', function() {
+  var kids = treeRoot.querySelectorAll('.node-children');
+  for (var i = 0; i < kids.length; i++) { kids[i].classList.add('collapsed'); }
+  var togs = treeRoot.querySelectorAll('.node-toggle');
+  for (var j = 0; j < togs.length; j++) { togs[j].textContent = '\u25b8'; togs[j].classList.remove('open'); }
+});
+
+var searchDebounceTimer = null;
+searchEl.addEventListener('input', function() {
+  clearTimeout(searchDebounceTimer);
+  searchDebounceTimer = setTimeout(function() {
+    searchQuery = searchEl.value.trim().toLowerCase();
+    applySearch();
+  }, 150);
+});
+
+function setStatus(msg, cls) {
+  statusEl.textContent = msg;
+  statusEl.className = cls || '';
+}
+
+function clearTree() {
+  treeRoot.innerHTML = '';
+  treeRoot.style.display = 'none';
+  emptyState.style.display = 'flex';
+  detectedBanner.style.display = 'none';
+  nodeCountEl.textContent = '';
+  parsedSchema = null;
+  schemaType = null;
+  nodeCount = 0;
+}
+
+function detectSchemaType(obj) {
+  if (!obj || typeof obj !== 'object') { return null; }
+  if (obj.openapi && typeof obj.openapi === 'string' && obj.openapi.indexOf('3.') === 0) { return 'openapi'; }
+  if (obj.swagger && typeof obj.swagger === 'string') { return 'swagger'; }
+  return 'json-schema';
+}
+
+function parseAndRender() {
+  var raw = inputEl.value.trim();
+  if (!raw) { clearTree(); setStatus('Ready', ''); return; }
+  var obj;
+  try {
+    obj = JSON.parse(raw);
+  } catch(e) {
+    setStatus('JSON error: ' + e.message.split('\n')[0], 'err');
+    clearTree();
+    return;
+  }
+  parsedSchema = obj;
+  schemaType = detectSchemaType(obj);
+  setStatus('OK - ' + schemaType, 'ok');
+  detectedBanner.style.display = 'flex';
+  if (schemaType === 'openapi') { detectedTypeEl.textContent = 'OpenAPI 3.x'; }
+  else if (schemaType === 'swagger') { detectedTypeEl.textContent = 'Swagger 2.x'; }
+  else { detectedTypeEl.textContent = 'JSON Schema'; }
+  nodeCount = 0;
+  treeRoot.innerHTML = '';
+  if (schemaType === 'openapi' || schemaType === 'swagger') {
+    renderOpenAPI(obj);
+  } else {
+    renderJSONSchema(obj, treeRoot, null, [], false, 0);
+  }
+  treeRoot.style.display = '';
+  emptyState.style.display = 'none';
+  nodeCountEl.textContent = nodeCount + ' nodes';
+  if (searchQuery) { applySearch(); }
+}
+
+function mkEl(tag) { return document.createElement(tag); }
+
+function renderJSONSchema(schema, parent, name, reqArr, isReq, depth) {
+  if (!schema || typeof schema !== 'object') { return; }
+  if (depth > 20) { return; }
+  var displayName = (name !== null) ? name : (schema.title || 'schema');
+  var nodeEl = mkEl('div');
+  nodeEl.className = 'node';
+  var rowEl = mkEl('div');
+  rowEl.className = 'node-row';
+  var hasKids = hasExpandable(schema);
+  var toggleEl = mkEl('span');
+  toggleEl.className = hasKids ? 'node-toggle open' : 'node-toggle';
+  toggleEl.textContent = hasKids ? '\u25be' : ' ';
+  var nameEl = mkEl('span');
+  nameEl.className = isReq ? 'node-name required' : 'node-name optional';
+  nameEl.textContent = displayName;
+  rowEl.appendChild(toggleEl);
+  rowEl.appendChild(nameEl);
+  if (isReq) {
+    var reqMark = mkEl('span');
+    reqMark.className = 'badge-required-mark';
+    reqMark.textContent = '*';
+    rowEl.appendChild(reqMark);
+  }
+  var colonEl = mkEl('span');
+  colonEl.className = 'node-colon';
+  colonEl.textContent = ':';
+  rowEl.appendChild(colonEl);
+  appendBadges(rowEl, schema);
+  if (schema.format) {
+    var fmtEl = mkEl('span');
+    fmtEl.className = 'format-badge';
+    fmtEl.textContent = schema.format;
+    rowEl.appendChild(fmtEl);
+  }
+  if (schema.enum && schema.enum.length <= 10) {
+    var enumEl = mkEl('span');
+    enumEl.className = 'enum-values';
+    schema.enum.forEach(function(v) {
+      var ev = mkEl('span');
+      ev.className = 'enum-val';
+      ev.textContent = JSON.stringify(v);
+      enumEl.appendChild(ev);
+    });
+    rowEl.appendChild(enumEl);
+  }
+  var metaStr = buildMeta(schema);
+  if (metaStr) {
+    var metaEl = mkEl('span');
+    metaEl.className = 'node-meta';
+    metaEl.textContent = metaStr;
+    rowEl.appendChild(metaEl);
+  }
+  var descText = schema.description || (name !== null ? schema.title : null);
+  if (descText) {
+    var descEl = mkEl('span');
+    descEl.className = 'node-desc';
+    descEl.textContent = '// ' + descText;
+    descEl.setAttribute('title', descText);
+    rowEl.appendChild(descEl);
+  }
+  nodeEl.appendChild(rowEl);
+  nodeCount++;
+  var kidsEl = mkEl('div');
+  kidsEl.className = 'node-children';
+  if (hasKids) {
+    rowEl.addEventListener('click', function() { toggleNode(kidsEl, toggleEl); });
+    toggleEl.addEventListener('click', function(e) { e.stopPropagation(); toggleNode(kidsEl, toggleEl); });
+    buildKids(schema, kidsEl, depth);
+  }
+  nodeEl.appendChild(kidsEl);
+  parent.appendChild(nodeEl);
+}
+
+function buildKids(schema, kidsEl, depth) {
+  var req = Array.isArray(schema.required) ? schema.required : [];
+  if (schema.properties) {
+    Object.keys(schema.properties).forEach(function(k) {
+      renderJSONSchema(schema.properties[k], kidsEl, k, req, req.indexOf(k) >= 0, depth + 1);
+    });
+  }
+  if (schema.items) {
+    if (Array.isArray(schema.items)) {
+      schema.items.forEach(function(item, i) {
+        renderJSONSchema(item, kidsEl, '[' + i + ']', [], false, depth + 1);
+      });
+    } else {
+      renderJSONSchema(schema.items, kidsEl, '[items]', [], false, depth + 1);
+    }
+  }
+  ['allOf', 'oneOf', 'anyOf'].forEach(function(key) {
+    if (schema[key] && Array.isArray(schema[key])) {
+      var hdr = mkEl('div');
+      hdr.className = 'section-header';
+      hdr.style.borderBottom = 'none';
+      hdr.textContent = key;
+      kidsEl.appendChild(hdr);
+      schema[key].forEach(function(sub, i) {
+        renderJSONSchema(sub, kidsEl, key + '[' + i + ']', [], false, depth + 1);
+      });
+    }
+  });
+  ['$defs', 'definitions'].forEach(function(key) {
+    if (schema[key]) {
+      var hdr = mkEl('div');
+      hdr.className = 'section-header';
+      hdr.style.borderBottom = 'none';
+      hdr.textContent = key;
+      kidsEl.appendChild(hdr);
+      Object.keys(schema[key]).forEach(function(k) {
+        renderJSONSchema(schema[key][k], kidsEl, k, [], false, depth + 1);
+      });
+    }
+  });
+  if (schema.additionalProperties && typeof schema.additionalProperties === 'object') {
+    renderJSONSchema(schema.additionalProperties, kidsEl, '[additionalProperties]', [], false, depth + 1);
+  }
+}
+
+function hasExpandable(schema) {
+  if (!schema || typeof schema !== 'object') { return false; }
+  if (schema.properties && Object.keys(schema.properties).length > 0) { return true; }
+  if (schema.items) { return true; }
+  if (schema.allOf || schema.oneOf || schema.anyOf) { return true; }
+  if (schema['$defs'] || schema.definitions) { return true; }
+  if (schema.additionalProperties && typeof schema.additionalProperties === 'object') { return true; }
+  return false;
+}
+
+function appendBadges(rowEl, schema) {
+  var b = mkEl('span');
+  b.className = 'type-badge';
+  if (schema['$ref']) {
+    b.className += ' badge-ref';
+    b.textContent = schema['$ref'].split('/').pop();
+    rowEl.appendChild(b);
+    return;
+  }
+  if (schema.enum) { b.className += ' badge-enum'; b.textContent = 'enum'; rowEl.appendChild(b); return; }
+  if (schema.allOf) { b.className += ' badge-allof'; b.textContent = 'allOf'; rowEl.appendChild(b); return; }
+  if (schema.oneOf) { b.className += ' badge-oneof'; b.textContent = 'oneOf'; rowEl.appendChild(b); return; }
+  if (schema.anyOf) { b.className += ' badge-anyof'; b.textContent = 'anyOf'; rowEl.appendChild(b); return; }
+  var types = Array.isArray(schema.type) ? schema.type : (schema.type ? [schema.type] : ['any']);
+  types.forEach(function(t) {
+    var tb = mkEl('span');
+    var tStr = typeof t === 'string' ? t : String(t);
+    tb.className = 'type-badge badge-' + tStr.toLowerCase();
+    var label = tStr;
+    if (tStr === 'array' && schema.items && !Array.isArray(schema.items)) {
+      var itype = schema.items.type || (schema.items['$ref'] ? schema.items['$ref'].split('/').pop() : null);
+      if (itype) { label = 'array<' + itype + '>'; }
+    }
+    tb.textContent = label;
+    rowEl.appendChild(tb);
+  });
+}
+
+function buildMeta(schema) {
+  var parts = [];
+  if (schema.minimum !== undefined) { parts.push('min:' + schema.minimum); }
+  if (schema.maximum !== undefined) { parts.push('max:' + schema.maximum); }
+  if (schema.minLength !== undefined) { parts.push('minLen:' + schema.minLength); }
+  if (schema.maxLength !== undefined) { parts.push('maxLen:' + schema.maxLength); }
+  if (schema.minItems !== undefined) { parts.push('minItems:' + schema.minItems); }
+  if (schema.maxItems !== undefined) { parts.push('maxItems:' + schema.maxItems); }
+  if (schema.pattern !== undefined) { parts.push('pattern:' + schema.pattern); }
+  if (schema['default'] !== undefined) { parts.push('default:' + JSON.stringify(schema['default'])); }
+  return parts.join('  ');
+}
+
+function renderOpenAPI(spec) {
+  if (spec.info) {
+    var infoHdr = mkEl('div');
+    infoHdr.className = 'section-header';
+    infoHdr.textContent = 'INFO - ' + (spec.info.title || '') + ' v' + (spec.info.version || '');
+    treeRoot.appendChild(infoHdr);
+  }
+  if (spec.paths && Object.keys(spec.paths).length > 0) {
+    var pathsHdr = mkEl('div');
+    pathsHdr.className = 'section-header';
+    pathsHdr.textContent = 'PATHS';
+    treeRoot.appendChild(pathsHdr);
+    Object.keys(spec.paths).forEach(function(path) {
+      renderAPIPath(path, spec.paths[path], treeRoot);
+    });
+  }
+  if (spec.components) {
+    var compHdr = mkEl('div');
+    compHdr.className = 'section-header';
+    compHdr.textContent = 'COMPONENTS';
+    treeRoot.appendChild(compHdr);
+    if (spec.components.schemas) {
+      var schHdr = mkEl('div');
+      schHdr.className = 'section-header';
+      schHdr.style.paddingLeft = '16px';
+      schHdr.textContent = 'schemas';
+      treeRoot.appendChild(schHdr);
+      Object.keys(spec.components.schemas).forEach(function(n) {
+        renderJSONSchema(spec.components.schemas[n], treeRoot, n, [], false, 0);
+      });
+    }
+  }
+  if (spec.definitions) {
+    var defHdr = mkEl('div');
+    defHdr.className = 'section-header';
+    defHdr.textContent = 'DEFINITIONS';
+    treeRoot.appendChild(defHdr);
+    Object.keys(spec.definitions).forEach(function(n) {
+      renderJSONSchema(spec.definitions[n], treeRoot, n, [], false, 0);
+    });
+  }
+}
+
+function renderAPIPath(path, pathObj, parent) {
+  if (!pathObj || typeof pathObj !== 'object') { return; }
+  var methods = ['get','post','put','patch','delete','head','options','trace'];
+  var nodeEl = mkEl('div');
+  nodeEl.className = 'node';
+  var rowEl = mkEl('div');
+  rowEl.className = 'node-row';
+  rowEl.style.cursor = 'pointer';
+  var toggleEl = mkEl('span');
+  toggleEl.className = 'node-toggle open';
+  toggleEl.textContent = '\u25be';
+  var nameEl = mkEl('span');
+  nameEl.className = 'node-name endpoint';
+  nameEl.textContent = path;
+  rowEl.appendChild(toggleEl);
+  rowEl.appendChild(nameEl);
+  nodeEl.appendChild(rowEl);
+  nodeCount++;
+  var kidsEl = mkEl('div');
+  kidsEl.className = 'node-children';
+  var pathParams = Array.isArray(pathObj.parameters) ? pathObj.parameters : [];
+  methods.forEach(function(method) {
+    if (pathObj[method]) {
+      var op = pathObj[method];
+      if (pathParams.length > 0 && (!op.parameters || !Array.isArray(op.parameters))) {
+        op = Object.assign({}, op, { parameters: pathParams });
+      } else if (pathParams.length > 0) {
+        var opParamNames = op.parameters.map(function(p) { return p.name + '|' + p.in; });
+        var merged = op.parameters.slice();
+        pathParams.forEach(function(pp) {
+          if (opParamNames.indexOf(pp.name + '|' + pp.in) < 0) { merged.unshift(pp); }
+        });
+        op = Object.assign({}, op, { parameters: merged });
+      }
+      renderAPIOperation(method, path, op, kidsEl);
+    }
+  });
+  rowEl.addEventListener('click', function() { toggleNode(kidsEl, toggleEl); });
+  toggleEl.addEventListener('click', function(e) { e.stopPropagation(); toggleNode(kidsEl, toggleEl); });
+  nodeEl.appendChild(kidsEl);
+  parent.appendChild(nodeEl);
+}
+
+function renderAPIOperation(method, path, op, parent) {
+  var nodeEl = mkEl('div');
+  nodeEl.className = 'node';
+  var rowEl = mkEl('div');
+  rowEl.className = 'node-row';
+  rowEl.style.cursor = 'pointer';
+  var toggleEl = mkEl('span');
+  toggleEl.className = 'node-toggle open';
+  toggleEl.textContent = '\u25be';
+  var methodBadge = mkEl('span');
+  methodBadge.className = 'type-badge badge-' + method.toLowerCase();
+  methodBadge.textContent = method.toUpperCase();
+  var summaryEl = mkEl('span');
+  summaryEl.className = 'node-name optional';
+  summaryEl.style.color = '#888';
+  summaryEl.textContent = op.summary || op.operationId || path;
+  rowEl.appendChild(toggleEl);
+  rowEl.appendChild(methodBadge);
+  rowEl.appendChild(summaryEl);
+  if (op.description) {
+    var descEl = mkEl('span');
+    descEl.className = 'node-desc';
+    descEl.textContent = '// ' + op.description;
+    descEl.setAttribute('title', op.description);
+    rowEl.appendChild(descEl);
+  }
+  nodeEl.appendChild(rowEl);
+  nodeCount++;
+  var kidsEl = mkEl('div');
+  kidsEl.className = 'node-children';
+  if (op.parameters && op.parameters.length > 0) {
+    var pHdr = mkEl('div');
+    pHdr.className = 'section-header';
+    pHdr.style.borderBottom = 'none';
+    pHdr.textContent = 'parameters';
+    kidsEl.appendChild(pHdr);
+    op.parameters.forEach(function(param) { renderAPIParam(param, kidsEl); });
+  }
+  if (op.requestBody) {
+    var rbHdr = mkEl('div');
+    rbHdr.className = 'section-header';
+    rbHdr.style.borderBottom = 'none';
+    rbHdr.textContent = op.requestBody.required ? 'requestBody *' : 'requestBody';
+    kidsEl.appendChild(rbHdr);
+    if (op.requestBody.content) {
+      Object.keys(op.requestBody.content).forEach(function(ct) {
+        var media = op.requestBody.content[ct];
+        if (media.schema) { renderJSONSchema(media.schema, kidsEl, ct, [], false, 1); }
+      });
+    }
+  }
+  if (op.responses && Object.keys(op.responses).length > 0) {
+    var respHdr = mkEl('div');
+    respHdr.className = 'section-header';
+    respHdr.style.borderBottom = 'none';
+    respHdr.textContent = 'responses';
+    kidsEl.appendChild(respHdr);
+    Object.keys(op.responses).forEach(function(code) {
+      renderAPIResponse(code, op.responses[code], kidsEl);
+    });
+  }
+  rowEl.addEventListener('click', function() { toggleNode(kidsEl, toggleEl); });
+  toggleEl.addEventListener('click', function(e) { e.stopPropagation(); toggleNode(kidsEl, toggleEl); });
+  nodeEl.appendChild(kidsEl);
+  parent.appendChild(nodeEl);
+}
+
+function renderAPIParam(param, parent) {
+  var nodeEl = mkEl('div');
+  nodeEl.className = 'node';
+  var rowEl = mkEl('div');
+  rowEl.className = 'node-row';
+  var toggleEl = mkEl('span');
+  toggleEl.className = 'node-toggle';
+  toggleEl.textContent = ' ';
+  var inBadge = mkEl('span');
+  inBadge.className = 'type-badge badge-param';
+  inBadge.textContent = param.in || '?';
+  var nameEl = mkEl('span');
+  nameEl.className = param.required ? 'node-name required' : 'node-name optional';
+  nameEl.textContent = param.name || '?';
+  rowEl.appendChild(toggleEl);
+  rowEl.appendChild(inBadge);
+  rowEl.appendChild(nameEl);
+  if (param.required) {
+    var reqM = mkEl('span');
+    reqM.className = 'badge-required-mark';
+    reqM.textContent = '*';
+    rowEl.appendChild(reqM);
+  }
+  if (param.schema) {
+    var colon = mkEl('span');
+    colon.className = 'node-colon';
+    colon.textContent = ':';
+    rowEl.appendChild(colon);
+    appendBadges(rowEl, param.schema);
+    if (param.schema.enum) {
+      var enumEl = mkEl('span');
+      enumEl.className = 'enum-values';
+      param.schema.enum.forEach(function(v) {
+        var ev = mkEl('span');
+        ev.className = 'enum-val';
+        ev.textContent = JSON.stringify(v);
+        enumEl.appendChild(ev);
+      });
+      rowEl.appendChild(enumEl);
+    }
+    var metaStr = buildMeta(param.schema);
+    if (metaStr) {
+      var meta = mkEl('span');
+      meta.className = 'node-meta';
+      meta.textContent = metaStr;
+      rowEl.appendChild(meta);
+    }
+  }
+  if (param.description) {
+    var descEl = mkEl('span');
+    descEl.className = 'node-desc';
+    descEl.textContent = '// ' + param.description;
+    descEl.setAttribute('title', param.description);
+    rowEl.appendChild(descEl);
+  }
+  nodeEl.appendChild(rowEl);
+  parent.appendChild(nodeEl);
+  nodeCount++;
+}
+
+function renderAPIResponse(code, resp, parent) {
+  if (!resp || typeof resp !== 'object') { return; }
+  var nodeEl = mkEl('div');
+  nodeEl.className = 'node';
+  var rowEl = mkEl('div');
+  rowEl.className = 'node-row';
+  var hasContent = resp.content && Object.keys(resp.content).length > 0;
+  var toggleEl = mkEl('span');
+  toggleEl.className = hasContent ? 'node-toggle open' : 'node-toggle';
+  toggleEl.textContent = hasContent ? '\u25be' : ' ';
+  var codeBadge = mkEl('span');
+  codeBadge.className = 'type-badge';
+  var codeNum = parseInt(code, 10);
+  if (codeNum >= 200 && codeNum < 300) { codeBadge.className += ' badge-get'; }
+  else if (codeNum >= 400) { codeBadge.className += ' badge-delete'; }
+  else { codeBadge.className += ' badge-param'; }
+  codeBadge.textContent = code;
+  var descEl = mkEl('span');
+  descEl.className = 'node-name optional';
+  descEl.textContent = resp.description || '';
+  rowEl.appendChild(toggleEl);
+  rowEl.appendChild(codeBadge);
+  rowEl.appendChild(descEl);
+  nodeEl.appendChild(rowEl);
+  nodeCount++;
+  if (hasContent) {
+    var kidsEl = mkEl('div');
+    kidsEl.className = 'node-children';
+    rowEl.style.cursor = 'pointer';
+    Object.keys(resp.content).forEach(function(ct) {
+      var media = resp.content[ct];
+      if (media.schema) { renderJSONSchema(media.schema, kidsEl, ct, [], false, 1); }
+    });
+    rowEl.addEventListener('click', function() { toggleNode(kidsEl, toggleEl); });
+    toggleEl.addEventListener('click', function(e) { e.stopPropagation(); toggleNode(kidsEl, toggleEl); });
+    nodeEl.appendChild(kidsEl);
+  }
+  parent.appendChild(nodeEl);
+}
+
+function toggleNode(kidsEl, toggleEl) {
+  var collapsed = kidsEl.classList.toggle('collapsed');
+  toggleEl.textContent = collapsed ? '\u25b8' : '\u25be';
+  if (collapsed) { toggleEl.classList.remove('open'); }
+  else { toggleEl.classList.add('open'); }
+}
+
+function applySearch() {
+  var rows = treeRoot.querySelectorAll('.node-row');
+  for (var i = 0; i < rows.length; i++) {
+    var row = rows[i];
+    if (!searchQuery) { row.classList.remove('highlight'); continue; }
+    var text = row.textContent.toLowerCase();
+    if (text.indexOf(searchQuery) >= 0) {
+      row.classList.add('highlight');
+      var el = row.parentElement;
+      while (el && el !== treeRoot) {
+        if (el.classList.contains('node-children')) {
+          el.classList.remove('collapsed');
+          var prev = el.previousElementSibling;
+          if (prev) {
+            var tog = prev.querySelector('.node-toggle');
+            if (tog) { tog.textContent = '\u25be'; tog.classList.add('open'); }
+          }
+        }
+        el = el.parentElement;
+      }
+    } else {
+      row.classList.remove('highlight');
+    }
+  }
+}
+
+var firstPreset = document.getElementById('preset-user');
+if (firstPreset) { inputEl.value = firstPreset.textContent.trim(); }
+parseAndRender();
+
+})();
+</script>
+<script>
+/* schema-viz init */
+document.getElementById('btn-parse').addEventListener('click', function() {});
+</script>
+</body>
+</html>
