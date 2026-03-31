@@ -102,3 +102,4 @@ These are features complex enough to prototype as standalone YOLO single-session
 | 2026-03-31 | Tock | PDF export via print dialog with per-slide themes |
 | 2026-03-31 | Tick | log-lens: log file viewer with filtering and timeline |
 | 2026-03-31 | Tock | PPTX image infrastructure + PDF export + image parsing |
+| 2026-03-29 | Tick | drag-layout feeder: visual positioning GUI for [@ directives] |
