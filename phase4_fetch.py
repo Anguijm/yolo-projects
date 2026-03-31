@@ -27,6 +27,18 @@ CHANNELS = {
         "url": "https://www.youtube.com/@MLOps/videos",
         "check_count": 2,  # weekly poster — check last 2
     },
+    "@DavidOndrej": {
+        "url": "https://www.youtube.com/@DavidOndrej/videos",
+        "check_count": 3,  # ~2-3 per week — check last 3
+    },
+    "[un]prompted": {
+        "url": "https://www.youtube.com/channel/UC5GCrYGsm7EHQzQZj65A-5w/videos",
+        "check_count": 3,  # conference talks — batch uploads
+    },
+    "@NateHerk": {
+        "url": "https://www.youtube.com/@NateHerk/videos",
+        "check_count": 3,  # ~2-3 per week — AI workflows, Claude Code
+    },
 }
 
 

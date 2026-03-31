@@ -20,7 +20,19 @@ Phase 4 does NOT replace the build/refine cycle — it injects new ideas into su
    - Focus: Production ML, LLMOps, agents, evaluation, memory, fine-tuning, deployment.
    - Signal: practitioner techniques, architecture patterns, production gotchas, emerging tooling.
 
-Only process content from these two channels. If given a URL from another channel, note it and skip.
+3. **@DavidOndrej** — David Ondrej
+   - Focus: AI agents, autoresearch, agentic coding, self-improving systems, privacy-first tools.
+   - Signal: hands-on tutorials, agent architectures, tool comparisons, implementation walkthroughs.
+
+4. **[un]prompted** — Conference channel (Daniel Miessler, security researchers)
+   - Focus: Personal AI infrastructure, agentic systems, AI security, ML vs LLMs, vibe coding.
+   - Signal: conference talks on building personal AI stacks, security-aware agent architectures, research methodologies.
+
+5. **@NateHerk** — Nate Herk
+   - Focus: AI workflows, Claude Code integrations, business automation, agentic tool comparisons.
+   - Signal: practical AI workflow builds, tool reviews, integration patterns, what businesses actually want.
+
+Only process content from these five channels. If given a URL from another channel, note it and skip.
 
 ## Processing a Video
 
