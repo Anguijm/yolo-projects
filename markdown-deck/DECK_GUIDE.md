@@ -599,6 +599,23 @@ Click these in the Theme panel to load a full token set:
 
 ---
 
+## PDF Export
+
+Click **PDF** to export your deck as a PDF via the browser's print dialog.
+
+- Each slide renders as a full landscape page
+- All fragments are shown (no progressive reveal in PDF)
+- Per-slide theme overrides (backgrounds, colors) are preserved
+- Syntax highlighting, diagrams, and columns carry through
+- Select "Save as PDF" in the print dialog
+
+### Tips
+- Use Chrome/Edge for best PDF quality
+- Set margins to "None" in print settings for full-bleed slides
+- The dark background prints correctly (enable "Background graphics" in print options if needed)
+
+---
+
 ## PPTX Export
 
 Click **Export** to download a `.pptx` file. The export:

@@ -54,7 +54,7 @@ Markdown Deck is a graduated YOLO project operating under Flagship rules: multi-
 - [x] Per-slide theme overrides (<!-- bg: #color, text: #color --> directives)
 - [x] Diagram support (```diagram fenced blocks via flow-ascii feeder integration)
 - [ ] Image embedding in PPTX export (base64 inline images)
-- [ ] PDF export (via browser print or canvas rendering)
+- [x] PDF export (via browser print dialog with print-specific stylesheet)
 - [x] Progressive reveal (-- fragment syntax with fade-in, PPTX slide duplication)
 - [ ] Drag-and-drop visual positioning mode (GUI for `[@...]` blocks)
 - [x] Presenter view (current slide + next slide + speaker notes + timer)
@@ -99,3 +99,4 @@ These are features complex enough to prototype as standalone YOLO single-session
 | 2026-03-31 | Tick | env-vault: .env file manager with diff and encrypt |
 | 2026-03-31 | Tock | Slide reordering via drag-and-drop thumbnails |
 | 2026-03-31 | Tick | snap-mock: device frame mockup generator |
+| 2026-03-31 | Tock | PDF export via print dialog with per-slide themes |

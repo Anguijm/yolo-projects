@@ -98,6 +98,31 @@ textarea:focus { outline: none; }
 .thumb.active { border-color: #4ade80; }
 .thumb.dragging { opacity: 0.3; }
 .thumb.drag-over { border-color: #58a6ff; border-style: dashed; }
+/* Print / PDF */
+#print-container { display: none; }
+@media print {
+  body * { visibility: hidden !important; }
+  #print-container, #print-container * { visibility: visible !important; }
+  #print-container { display: block !important; position: absolute; left: 0; top: 0; width: 100%; }
+  .print-slide { page-break-after: always; width: 100vw; height: 100vh; padding: 3rem 4rem; display: flex; flex-direction: column; justify-content: center; background: #0a0a0a; color: #ccc; font-family: 'SF Mono', 'Fira Code', monospace; box-sizing: border-box; position: relative; }
+  .print-slide:last-child { page-break-after: avoid; }
+  .print-slide h1 { font-size: 2.8rem; color: #fff; margin-bottom: 1rem; }
+  .print-slide h2 { font-size: 1.8rem; color: #60a5fa; margin-bottom: 0.8rem; }
+  .print-slide h3 { font-size: 1.3rem; color: #a78bfa; margin-bottom: 0.6rem; }
+  .print-slide p { font-size: 1.1rem; color: #ccc; margin-bottom: 0.6rem; line-height: 1.5; }
+  .print-slide ul, .print-slide ol { font-size: 1.1rem; margin: 0.3rem 0 0.3rem 1.5rem; color: #ccc; line-height: 1.7; }
+  .print-slide code { background: #1a1a1a; padding: 0.1rem 0.3rem; border-radius: 3px; font-size: 0.9rem; color: #4ade80; }
+  .print-slide pre { background: #111; padding: 0.8rem; border-radius: 4px; margin: 0.3rem 0; }
+  .print-slide pre code { background: none; padding: 0; font-size: 0.8rem; }
+  .print-slide strong { color: #fff; }
+  .print-slide em { color: #fbbf24; }
+  .print-slide blockquote { border-left: 3px solid #333; padding-left: 0.8rem; color: #888; font-style: italic; }
+  .print-slide a { color: #60a5fa; }
+  .print-slide .fragment { opacity: 1 !important; }
+  .print-slide .columns { display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; }
+  .sg-keyword{color:#c678dd}.sg-string{color:#98c379}.sg-number{color:#d19a66}.sg-comment{color:#5c6370;font-style:italic}.sg-function{color:#61afef}.sg-operator{color:#56b6c2}.sg-builtin{color:#e5c07b}
+  @page { size: landscape; margin: 0; }
+}
 /* Design panel */
 .design-panel { display: none; position: fixed; top: 0; right: 0; width: 340px; height: 100vh; background: #0d0d0d; border-left: 1px solid #1a1a1a; z-index: 900; flex-direction: column; }
 .design-panel.open { display: flex; }
@@ -259,6 +284,7 @@ These are speaker notes. They won't appear in the presentation but are preserved
       <button onclick="openPresenterView()">Presenter</button>
       <button onclick="toggleDesignPanel()">Theme</button>
       <button onclick="exportDeck()">PPTX</button>
+      <button onclick="exportPDF()">PDF</button>
       <button onclick="saveDeck()">Save</button>
       <button onclick="document.getElementById('file-open').click()">Open</button>
       <input type="file" id="file-open" accept=".md,.txt,.markdown" style="display:none" onchange="openFile(this)">
@@ -275,6 +301,8 @@ These are speaker notes. They won't appear in the presentation but are preserved
   <div class="present-counter" id="present-counter"></div>
   <div class="present-help">ESC to exit &middot; Arrow keys to navigate</div>
 </div>
+
+<div id="print-container"></div>
 
 <div class="design-panel" id="design-panel">
   <div class="toolbar">
@@ -1448,6 +1476,27 @@ window.exportDeck = function() {
   a.download = 'presentation.pptx';
   a.click();
   setTimeout(function() { URL.revokeObjectURL(url); }, 1000);
+};
+
+// ============ PDF EXPORT (via browser print dialog) ============
+window.exportPDF = function() {
+  var container = document.getElementById('print-container');
+  // Render all slides into the print container
+  var html = '';
+  for (var i = 0; i < slides.length; i++) {
+    var slideHtml = md(slides[i]);
+    // Parse per-slide theme overrides for print
+    var ovParsed = parseSlideOverrides(slides[i]);
+    var ovStyle = overridesToStyle(ovParsed.overrides);
+    html += '<div class="print-slide" style="' + ovStyle + '">' + slideHtml + '</div>';
+  }
+  container.innerHTML = html;
+  // Make all fragments visible for print
+  container.querySelectorAll('.fragment').forEach(function(f) { f.classList.add('visible'); });
+  // Trigger print dialog (user selects "Save as PDF")
+  window.print();
+  // Clean up after print
+  setTimeout(function() { container.innerHTML = ''; }, 1000);
 };
 
 // ============ SLIDE REORDER (drag thumbnails) ============
