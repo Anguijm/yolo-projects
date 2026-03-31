@@ -109,3 +109,4 @@ These are features complex enough to prototype as standalone YOLO single-session
 | 2026-03-31 | Tock | PPTX tables: parse markdown tables + render as formatted text in export |
 | 2026-03-31 | Tick | jwt-decode: JWT token inspector with expiry timeline |
 | 2026-03-31 | Tock | PPTX diagrams: SVG→Canvas→PNG pipeline for embedded diagram images |
+| 2026-03-29 | Tick | schema-viz: JSON Schema / OpenAPI spec visualizer |
