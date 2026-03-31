@@ -1231,6 +1231,12 @@ function parseBodyLines(lines) {
     var l = lines[i];
     if (/^### /.test(l)) { body.push({ type: 'heading', text: l.replace(/^### /, '') }); }
     else if (/^> /.test(l)) { body.push({ type: 'quote', text: l.replace(/^> /, '') }); }
+    else if (/^```diagram/.test(l)) {
+      var diag = [];
+      i++;
+      while (i < lines.length && !/^```/.test(lines[i])) { diag.push(lines[i]); i++; }
+      body.push({ type: 'diagram', text: diag.join('\n') });
+    }
     else if (/^```/.test(l)) {
       var code = [];
       i++;
@@ -1402,6 +1408,13 @@ function buildSlideXml(parsed, idx, imageRegistry) {
         for (var cl = 0; cl < codeLines.length; cl++) {
           paras += '<a:p><a:pPr><a:spcBef><a:spcPts val="0"/></a:spcBef></a:pPr><a:r><a:rPr lang="en-US" sz="1400" dirty="0"><a:solidFill><a:srgbClr val="'+tc.text+'"/></a:solidFill><a:latin typeface="'+escXml(tc.codeFont)+'"/></a:rPr><a:t>'+escXml(codeLines[cl])+'</a:t></a:r></a:p>';
         }
+      } else if (item.type === 'diagram') {
+        // Register diagram as an image — will be rendered to PNG during export
+        var diagRId = 'rDiag' + imageRegistry.length;
+        var diagSvg = FlowDiagram.toSvg(item.text);
+        slideImages.push({ rId: diagRId, src: '__diagram__', svgData: diagSvg });
+        imageRegistry.push({ src: '__diagram__', slideIdx: idx, rId: diagRId, svgData: diagSvg });
+        paras += '<a:p><a:pPr algn="ctr"><a:spcBef><a:spcPts val="200"/></a:spcBef></a:pPr><a:r><a:rPr lang="en-US" sz="1000" dirty="0"><a:solidFill><a:srgbClr val="555555"/></a:solidFill></a:rPr><a:t>[diagram]</a:t></a:r></a:p>';
       } else if (item.type === 'table') {
         // OOXML table — rendered as a separate shape, but inlined as paragraph placeholder
         // We'll build a mini table XML and wrap it as text since true <a:tbl> requires a separate shape
@@ -1465,7 +1478,35 @@ function buildSlideXml(parsed, idx, imageRegistry) {
   return { xml: xml, images: slideImages };
 }
 
-window.exportDeck = function() {
+// SVG string → base64 PNG (returns Promise<Uint8Array>)
+function svgToPng(svgString, width, height) {
+  return new Promise(function(resolve) {
+    var canvas = document.createElement('canvas');
+    canvas.width = width || 800;
+    canvas.height = height || 400;
+    var ctx = canvas.getContext('2d');
+    // Dark background
+    ctx.fillStyle = '#0a0a0a';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    var img = new Image();
+    var blob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' });
+    var url = URL.createObjectURL(blob);
+    img.onload = function() {
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      URL.revokeObjectURL(url);
+      canvas.toBlob(function(b) {
+        if (!b) { resolve(null); return; }
+        var reader = new FileReader();
+        reader.onload = function() { resolve(new Uint8Array(reader.result)); };
+        reader.readAsArrayBuffer(b);
+      }, 'image/png');
+    };
+    img.onerror = function() { URL.revokeObjectURL(url); resolve(null); };
+    img.src = url;
+  });
+}
+
+window.exportDeck = async function() {
   if (slides.length === 0) return;
 
   // Expand slides with fragments (--) into duplicate slides for PPTX
@@ -1582,6 +1623,17 @@ window.exportDeck = function() {
     var notesBody = notesText ? '<a:p><a:r><a:rPr lang="en-US" dirty="0"/><a:t>' + escXml(notesText) + '</a:t></a:r></a:p>' : '<a:p><a:endParaRPr lang="en-US"/></a:p>';
     files.push({ name: 'ppt/notesSlides/notesSlide'+(i+1)+'.xml', data: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><p:notes xmlns:a="' + NSDR + '" xmlns:r="' + NSOFF + '" xmlns:p="' + NSPML + '"><p:cSld><p:spTree><p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr><p:grpSpPr/><p:sp><p:nvSpPr><p:cNvPr id="2" name="Notes Placeholder"/><p:cNvSpPr><a:spLocks noGrp="1"/></p:cNvSpPr><p:nvPr><p:ph type="body" idx="1"/></p:nvPr></p:nvSpPr><p:spPr/><p:txBody><a:bodyPr/><a:lstStyle/>' + notesBody + '</p:txBody></p:sp></p:spTree></p:cSld></p:notes>' });
     files.push({ name: 'ppt/notesSlides/_rels/notesSlide'+(i+1)+'.xml.rels', data: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="' + NSREL + '"><Relationship Id="rId1" Type="' + NSOFF + '/slide" Target="../slides/slide'+(i+1)+'.xml"/></Relationships>' });
+  }
+
+  // Render diagram SVGs to PNGs and add as media files
+  for (var di = 0; di < imageRegistry.length; di++) {
+    var imgEntry = imageRegistry[di];
+    if (imgEntry.svgData) {
+      var pngData = await svgToPng(imgEntry.svgData, 800, 400);
+      if (pngData) {
+        files.push({ name: 'ppt/media/' + imgEntry.rId + '.png', data: pngData });
+      }
+    }
   }
 
   var zipData = miniZip(files);

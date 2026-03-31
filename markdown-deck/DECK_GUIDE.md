@@ -184,7 +184,7 @@ Use ````diagram` fenced blocks to render flowcharts directly in your slides. Use
 ### Notes
 - Renders as inline SVG (scales responsively, max-height 50vh)
 - Works in preview and presentation mode
-- In PPTX export, diagrams are not yet embedded (appears as blank — use screenshots for now)
+- In PPTX export, diagrams are rendered as embedded PNG images (SVG → Canvas → PNG pipeline)
 - Self-referencing edges (`[A] --> [A]`) are not supported in the deck renderer
 
 ---

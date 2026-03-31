@@ -108,3 +108,4 @@ These are features complex enough to prototype as standalone YOLO single-session
 | 2026-03-31 | Tick | token-count: LLM token counter and cost estimator |
 | 2026-03-31 | Tock | PPTX tables: parse markdown tables + render as formatted text in export |
 | 2026-03-31 | Tick | jwt-decode: JWT token inspector with expiry timeline |
+| 2026-03-31 | Tock | PPTX diagrams: SVG→Canvas→PNG pipeline for embedded diagram images |
