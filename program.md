@@ -20,10 +20,14 @@ This workspace operates on a **Tick-Tock cadence** to maintain momentum on both 
 - **Update `markdown-deck/DECK_GUIDE.md`** after adding any new feature (syntax, behavior, examples)
 - Update the session log in `deck_roadmap.md` after each Tock
 
+### Session State (durable execution)
+At the start of every session, read `session_state.json` for full context recovery — it tells you exactly where to resume. At the end of every session (or after every commit), run `python3 update_session_state.py` to persist state. This ensures any new session can pick up exactly where the last one left off without context reconstruction.
+
 ### How to decide which mode:
+- Read `session_state.json` → `tick_tock.next_session_type` tells you what to do
 - If the user says "build" or triggers program.md → **Tick** (YOLO)
 - If the user says "deck" or "markdown deck" → **Tock** (Flagship)
-- If unclear, alternate: check the session log in `deck_roadmap.md` — if last session was Tock, do Tick, and vice versa
+- If unclear, follow session_state.json
 
 ## Bedrock Rules
 
