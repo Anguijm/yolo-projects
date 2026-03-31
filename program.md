@@ -20,8 +20,15 @@ This workspace operates on a **Tick-Tock cadence** to maintain momentum on both 
 - **Update `markdown-deck/DECK_GUIDE.md`** after adding any new feature (syntax, behavior, examples)
 - Update the session log in `deck_roadmap.md` after each Tock
 
-### Session State (durable execution)
-At the start of every session, read `session_state.json` for full context recovery — it tells you exactly where to resume. At the end of every session (or after every commit), run `python3 update_session_state.py` to persist state. This ensures any new session can pick up exactly where the last one left off without context reconstruction.
+### Session State & Skills (harness)
+At the start of every session:
+1. Read `session_state.json` for full context recovery
+2. Read `skills/00-bootstrap.md` to determine what skill to execute
+3. Follow the routed skill's methodology step by step
+
+At the end of every session, run `python3 update_session_state.py` to persist state.
+
+Skills are in `skills/` — each is a focused, chainable unit under 150 lines with defined Input/Output contracts. They are the executable decomposition of this program.md. See `skills/README.md` for the full skill catalog.
 
 ### How to decide which mode:
 - Read `session_state.json` → `tick_tock.next_session_type` tells you what to do
