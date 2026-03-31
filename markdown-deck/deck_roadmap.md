@@ -44,29 +44,36 @@ Markdown Deck is a graduated YOLO project operating under Flagship rules: multi-
 
 ## Roadmap
 
-### P0 — Critical (next 2-3 sessions)
-- [ ] Slide transitions (fade, slide-left, zoom) for presentation mode
-- [x] Syntax highlighting for code blocks (keyword coloring by language) — integrated from syntax-glow feeder
-- [ ] Markdown editor improvements: line numbers, tab indentation, auto-closing pairs
+### P0 — Authoring & Export (primary focus)
+- [x] Syntax highlighting for code blocks — integrated from syntax-glow feeder
 - [x] Save/load deck to localStorage + file open/save (.md files)
-
-### P1 — High Value (next 5-10 sessions)
 - [x] Per-slide theme overrides (<!-- bg: #color, text: #color --> directives)
-- [x] Diagram support (```diagram fenced blocks via flow-ascii feeder integration)
-- [x] Image references in PPTX export (relationship infrastructure + placeholder text; full base64 embedding deferred)
-- [x] PDF export (via browser print dialog with print-specific stylesheet)
-- [x] Progressive reveal (-- fragment syntax with fade-in, PPTX slide duplication)
-- [x] Drag-and-drop visual positioning mode (Layout button, drag/resize overlay)
-- [x] Presenter view (current slide + next slide + speaker notes + timer)
+- [x] Diagram support (```diagram fenced blocks via flow-ascii feeder)
+- [x] PDF export (via browser print dialog)
+- [x] Progressive reveal (-- fragment syntax, PPTX slide duplication)
+- [x] Drag-and-drop visual positioning mode (Layout button)
 - [x] Slide reordering via drag in thumbnail strip
-
-### P2 — Nice to Have
-- [ ] Collaborative editing (WebRTC or shared localStorage)
+- [x] PPTX structure fix (slideMaster/layout/theme/notes)
+- [x] Speaker notes in PPTX
+- [x] Tables in PPTX
+- [x] Diagrams in PPTX (SVG→Canvas→PNG)
+- [x] IL2+ security (CSP, zero external URLs)
+- [x] Auto-close unclosed code fences
+- [ ] DECK_GUIDE.md stricter Gemini prompting instructions
+- [ ] Math/LaTeX rendering (KaTeX inline, zero-dep)
 - [ ] Custom slide aspect ratios (4:3, 1:1, vertical)
-- [ ] Animation within slides (fade-in bullets, progressive reveal)
 - [ ] Template library (pre-built slide layouts)
-- [ ] Import from .pptx (parse OOXML back to markdown)
-- [ ] Math/LaTeX rendering (KaTeX inline)
+
+### P1 — Presentation Features (lowest priority per user)
+- [x] Presenter view (current slide + next slide + speaker notes + timer)
+- [ ] Slide transitions (fade, slide-left, zoom) — deprioritized
+- [ ] Markdown editor improvements: line numbers, tab indentation — deprioritized
+- [ ] Animation within slides — deprioritized
+
+### P2 — Parking Lot
+- [ ] Collaborative editing (WebRTC or shared localStorage)
+- [ ] Import from .pptx (parse OOXML back to markdown) — rejected (violates zero-dep)
+- [x] Image references in PPTX export (relationship infrastructure)
 
 ## YOLO Feeder Projects
 
