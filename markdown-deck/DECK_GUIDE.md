@@ -618,12 +618,15 @@ Click **PDF** to export your deck as a PDF via the browser's print dialog.
 
 ## PPTX Export
 
-Click **Export** to download a `.pptx` file. The export:
+Click **PPTX** to download a `.pptx` file. The export:
 - Applies your current design tokens (colors, fonts) to the PowerPoint slides
 - Converts markdown formatting to PPTX text runs (bold, italic, code, bullets)
 - Renders two-column layouts as side-by-side text boxes
+- Per-slide theme overrides applied to individual slide backgrounds
+- Progressive reveal fragments expanded into duplicate slides
 - Uses dark/light background from your theme
 - Opens in PowerPoint, Keynote, and Google Slides
+- Images appear as `[image: url]` placeholders (full embedding coming soon)
 
 ---
 
