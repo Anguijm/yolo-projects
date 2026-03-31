@@ -1237,6 +1237,18 @@ function parseBodyLines(lines) {
       while (i < lines.length && !/^```/.test(lines[i])) { code.push(lines[i]); i++; }
       body.push({ type: 'code', text: code.join('\n') });
     }
+    else if (/^\|/.test(l)) {
+      // Table: collect consecutive | rows
+      var rows = [];
+      while (i < lines.length && /^\|/.test(lines[i])) {
+        var row = lines[i].replace(/^\||\|$/g, '').split('|').map(function(c) { return c.trim(); });
+        // Skip separator rows (---|---|---)
+        if (!row.join('').match(/^[\s\-:]+$/)) rows.push(row);
+        i++;
+      }
+      i--; // Back up one since the for loop will increment
+      if (rows.length > 0) body.push({ type: 'table', rows: rows });
+    }
     else if (/^!\[/.test(l)) {
       var imgM = l.match(/^!\[([^\]]*)\]\(([^)]+)\)/);
       if (imgM) body.push({ type: 'image', alt: imgM[1], src: imgM[2].trim() });
@@ -1389,6 +1401,23 @@ function buildSlideXml(parsed, idx, imageRegistry) {
         var codeLines = item.text.split('\n');
         for (var cl = 0; cl < codeLines.length; cl++) {
           paras += '<a:p><a:pPr><a:spcBef><a:spcPts val="0"/></a:spcBef></a:pPr><a:r><a:rPr lang="en-US" sz="1400" dirty="0"><a:solidFill><a:srgbClr val="'+tc.text+'"/></a:solidFill><a:latin typeface="'+escXml(tc.codeFont)+'"/></a:rPr><a:t>'+escXml(codeLines[cl])+'</a:t></a:r></a:p>';
+        }
+      } else if (item.type === 'table') {
+        // OOXML table — rendered as a separate shape, but inlined as paragraph placeholder
+        // We'll build a mini table XML and wrap it as text since true <a:tbl> requires a separate shape
+        // For now: render as aligned text rows with tab-separated columns
+        var tblRows = item.rows;
+        for (var tr = 0; tr < tblRows.length; tr++) {
+          var rowText = tblRows[tr].join('    |    ');
+          var rowSz = tr === 0 ? 1600 : 1400;
+          var rowColor = tr === 0 ? tc.heading : tc.text;
+          var rowBold = tr === 0 ? ' b="1"' : '';
+          paras += '<a:p><a:pPr><a:spcBef><a:spcPts val="' + (tr === 0 ? '400' : '100') + '"/></a:spcBef></a:pPr><a:r><a:rPr lang="en-US" sz="' + rowSz + '"' + rowBold + ' dirty="0"><a:solidFill><a:srgbClr val="' + rowColor + '"/></a:solidFill><a:latin typeface="' + escXml(tc.bodyFont) + '"/></a:rPr><a:t>' + escXml(rowText) + '</a:t></a:r></a:p>';
+          // Add underline after header row
+          if (tr === 0) {
+            var underline = tblRows[tr].map(function() { return '────────'; }).join('────');
+            paras += '<a:p><a:pPr><a:spcBef><a:spcPts val="0"/></a:spcBef></a:pPr><a:r><a:rPr lang="en-US" sz="1000" dirty="0"><a:solidFill><a:srgbClr val="333333"/></a:solidFill><a:latin typeface="' + escXml(tc.codeFont) + '"/></a:rPr><a:t>' + escXml(underline) + '</a:t></a:r></a:p>';
+          }
         }
       } else if (item.type === 'image') {
         // Register image for this slide — will be added as a pic shape after the text body

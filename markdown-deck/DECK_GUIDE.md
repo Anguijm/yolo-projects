@@ -641,6 +641,7 @@ Click **PPTX** to download a `.pptx` file. The export:
 - Progressive reveal fragments expanded into duplicate slides
 - Uses dark/light background from your theme
 - Opens in PowerPoint, Keynote, and Google Slides
+- Tables rendered as formatted text rows with bold header + underline separator
 - Images appear as `[image: url]` placeholders (full embedding coming soon)
 
 ---
