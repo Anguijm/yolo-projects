@@ -1,0 +1,1096 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="theme-color" content="#000000">
+<title>drag-layout — Markdown Deck Positioning GUI</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body {
+  height: 100%;
+  background: #0a0a0a;
+  overflow: hidden;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Courier New", monospace;
+  color: #ccc;
+  user-select: none;
+}
+
+:root {
+  --bg-page:     #0a0a0a;
+  --bg-surface:  #111;
+  --bg-elevated: #1a1a1a;
+  --bg-hover:    #222;
+  --text-primary:   #fff;
+  --text-body:      #ccc;
+  --text-secondary: #aaa;
+  --text-tertiary:  #555;
+  --text-label:     #444;
+  --border-default: #1a1a1a;
+  --border-visible: #222;
+  --border-active:  #444;
+  --border-focus:   #555;
+  --color-success:  #3fb950;
+  --color-error:    #f85149;
+  --accent:         #0ff;
+}
+
+/* LAYOUT */
+#app {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+}
+
+#toolbar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--border-default);
+  background: var(--bg-surface);
+  flex-shrink: 0;
+}
+
+#toolbar .title {
+  font-size: 0.55rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--text-label);
+  margin-right: 6px;
+}
+
+#toolbar .sep {
+  width: 1px;
+  height: 14px;
+  background: var(--border-default);
+  margin: 0 2px;
+}
+
+.btn {
+  padding: 4px 10px;
+  background: transparent;
+  border: 1px solid var(--border-default);
+  color: var(--text-label);
+  font-family: inherit;
+  font-size: 0.55rem;
+  cursor: pointer;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.btn:hover { border-color: var(--border-active); color: var(--text-secondary); }
+.btn:active { border-color: var(--border-focus); color: #888; }
+.btn.primary {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.btn.primary:hover { background: rgba(0,255,255,0.05); }
+.btn.danger:hover { border-color: var(--color-error); color: var(--color-error); }
+
+#status-bar {
+  margin-left: auto;
+  font-size: 0.45rem;
+  color: var(--text-tertiary);
+  letter-spacing: 0.1em;
+  font-variant-numeric: tabular-nums;
+}
+
+/* MAIN AREA */
+#main {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+  min-height: 0;
+}
+
+/* CANVAS AREA */
+#canvas-area {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  overflow: hidden;
+  min-width: 0;
+}
+
+#slide-canvas {
+  position: relative;
+  background: #0d0d0d;
+  border: 1px solid var(--border-visible);
+  cursor: default;
+  overflow: hidden;
+}
+
+/* GRID */
+#slide-canvas .grid-overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* BLOCKS */
+.block {
+  position: absolute;
+  border: 1px solid var(--border-visible);
+  cursor: move;
+  min-width: 20px;
+  min-height: 16px;
+  z-index: 10;
+}
+.block:hover { border-color: var(--border-active); }
+.block.selected {
+  border-color: var(--accent);
+  z-index: 20;
+}
+.block .block-content {
+  position: absolute;
+  inset: 0;
+  padding: 4px 6px;
+  overflow: hidden;
+  font-size: 12px;
+  color: var(--text-body);
+  white-space: pre-wrap;
+  word-break: break-word;
+  line-height: 1.4;
+  pointer-events: none;
+}
+.block .block-delete {
+  position: absolute;
+  top: -8px;
+  right: -8px;
+  width: 16px;
+  height: 16px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-active);
+  color: var(--text-tertiary);
+  font-size: 9px;
+  cursor: pointer;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  z-index: 30;
+  line-height: 1;
+  pointer-events: auto;
+}
+.block.selected .block-delete { display: flex; }
+.block .block-label {
+  position: absolute;
+  top: -14px;
+  left: 0;
+  font-size: 9px;
+  color: var(--accent);
+  letter-spacing: 0.05em;
+  white-space: nowrap;
+  opacity: 0.7;
+  pointer-events: none;
+  display: none;
+}
+.block.selected .block-label { display: block; }
+
+/* RESIZE HANDLES */
+.handle {
+  position: absolute;
+  background: var(--accent);
+  z-index: 25;
+  pointer-events: auto;
+}
+.handle-corner {
+  width: 7px;
+  height: 7px;
+}
+.handle-edge {
+  background: rgba(0,255,255,0.3);
+}
+.handle-nw { top: -3px; left: -3px; cursor: nw-resize; }
+.handle-ne { top: -3px; right: -3px; cursor: ne-resize; }
+.handle-sw { bottom: -3px; left: -3px; cursor: sw-resize; }
+.handle-se { bottom: -3px; right: -3px; cursor: se-resize; }
+.handle-n  { top: -2px; left: 20%; right: 20%; height: 4px; cursor: n-resize; }
+.handle-s  { bottom: -2px; left: 20%; right: 20%; height: 4px; cursor: s-resize; }
+.handle-w  { left: -2px; top: 20%; bottom: 20%; width: 4px; cursor: w-resize; }
+.handle-e  { right: -2px; top: 20%; bottom: 20%; width: 4px; cursor: e-resize; }
+
+/* OUTPUT PANEL */
+#output-panel {
+  width: 280px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  border-left: 1px solid var(--border-default);
+  background: var(--bg-surface);
+}
+
+#output-header {
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--border-default);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+#output-header .label {
+  font-size: 0.45rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--text-label);
+  flex: 1;
+}
+
+#output-code {
+  flex: 1;
+  padding: 8px;
+  font-family: inherit;
+  font-size: 0.6rem;
+  color: var(--text-secondary);
+  overflow-y: auto;
+  line-height: 1.7;
+  white-space: pre;
+  background: var(--bg-page);
+  word-break: break-all;
+  white-space: pre-wrap;
+}
+
+/* Syntax highlighting in output */
+#output-code .dir { color: var(--accent); }
+#output-code .key { color: #58a6ff; }
+#output-code .val { color: #d29922; }
+#output-code .content { color: var(--text-body); }
+
+/* BLOCK EDITOR MODAL */
+#block-editor {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.85);
+  z-index: 1000;
+  align-items: center;
+  justify-content: center;
+}
+#block-editor.open { display: flex; }
+#block-editor-inner {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-active);
+  padding: 16px;
+  width: 400px;
+  max-width: 90vw;
+}
+#block-editor h3 {
+  font-size: 0.55rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--text-label);
+  margin-bottom: 10px;
+}
+#block-editor label {
+  display: block;
+  font-size: 0.45rem;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--text-label);
+  margin-bottom: 4px;
+}
+#block-editor input[type="text"],
+#block-editor textarea,
+#block-editor select {
+  width: 100%;
+  background: var(--bg-page);
+  border: 1px solid var(--border-visible);
+  color: var(--text-secondary);
+  padding: 6px 8px;
+  font-family: inherit;
+  font-size: 0.7rem;
+  outline: none;
+  display: block;
+  margin-bottom: 10px;
+}
+#block-editor input[type="text"]:focus,
+#block-editor textarea:focus,
+#block-editor select:focus { border-color: var(--border-focus); }
+#block-editor textarea { resize: vertical; min-height: 80px; }
+#block-editor select { margin-bottom: 10px; }
+#block-editor .row {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+#block-editor .row > * { flex: 1; }
+#block-editor .actions {
+  display: flex;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+/* Copy toast */
+#copy-toast {
+  position: fixed;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%) translateY(20px);
+  background: var(--bg-elevated);
+  border: 1px solid var(--color-success);
+  color: var(--color-success);
+  padding: 6px 14px;
+  font-size: 0.55rem;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  opacity: 0;
+  transition: opacity 0.2s, transform 0.2s;
+  pointer-events: none;
+  z-index: 2000;
+  border-radius: 4px;
+}
+#copy-toast.show {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
+/* Scrollbar */
+#output-code::-webkit-scrollbar { width: 4px; }
+#output-code::-webkit-scrollbar-track { background: transparent; }
+#output-code::-webkit-scrollbar-thumb { background: var(--border-visible); }
+</style>
+</head>
+<body>
+
+<div id="app">
+  <!-- TOOLBAR -->
+  <div id="toolbar">
+    <span class="title">drag-layout</span>
+    <div class="sep"></div>
+    <button class="btn primary" id="btn-add" title="Add block (A)">+ Add Block</button>
+    <button class="btn" id="btn-clear-all" title="Clear all">Clear</button>
+    <div class="sep"></div>
+    <button class="btn" id="btn-grid" title="Toggle grid (G)">Grid</button>
+    <button class="btn" id="btn-snap" title="Toggle snap (S)">Snap</button>
+    <div class="sep"></div>
+    <button class="btn" id="btn-presets" title="Load preset">Presets</button>
+    <span id="status-bar">no selection</span>
+  </div>
+
+  <!-- MAIN -->
+  <div id="main">
+    <!-- CANVAS AREA -->
+    <div id="canvas-area">
+      <div id="slide-canvas">
+        <canvas id="grid-canvas"></canvas>
+        <div id="blocks-container"></div>
+      </div>
+    </div>
+
+    <!-- OUTPUT PANEL -->
+    <div id="output-panel">
+      <div id="output-header">
+        <span class="label">Markdown Deck Output</span>
+        <button class="btn primary" id="btn-copy" title="Copy output (C)">Copy</button>
+      </div>
+      <div id="output-code"></div>
+    </div>
+  </div>
+</div>
+
+<!-- BLOCK EDITOR MODAL -->
+<div id="block-editor">
+  <div id="block-editor-inner">
+    <h3 id="editor-title">Add Block</h3>
+    <label>Label (for reference)</label>
+    <input type="text" id="editor-label" placeholder="e.g. title, subtitle, body...">
+    <label>Content (Markdown supported)</label>
+    <textarea id="editor-content" placeholder="# Slide Title&#10;&#10;Body text here..."></textarea>
+    <label>Block Type</label>
+    <select id="editor-type">
+      <option value="">Auto (no type tag)</option>
+      <option value="h1">Heading 1</option>
+      <option value="h2">Heading 2</option>
+      <option value="p">Paragraph</option>
+      <option value="code">Code Block</option>
+      <option value="img">Image</option>
+    </select>
+    <div class="actions">
+      <button class="btn primary" id="editor-ok">OK</button>
+      <button class="btn" id="editor-cancel">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<div id="copy-toast">Copied!</div>
+
+<script>
+(function() {
+  'use strict';
+
+  // === CONFIG ===
+  var CONFIG = {
+    ASPECT: 16 / 9,
+    GRID_COLS: 32,
+    GRID_ROWS: 18,
+    SNAP_GRID: true,
+    SHOW_GRID: true,
+    GRID_COLOR: 'rgba(255,255,255,0.03)',
+    GRID_MAJOR_COLOR: 'rgba(255,255,255,0.06)',
+    MAJOR_EVERY: 4,
+    MIN_BLOCK_W: 5,   // percent
+    MIN_BLOCK_H: 5,   // percent
+    DEFAULT_W: 40,    // percent
+    DEFAULT_H: 20,    // percent
+  };
+
+  // === STATE ===
+  var state = {
+    blocks: [],
+    selected: null,
+    nextId: 1,
+    canvasW: 0,
+    canvasH: 0,
+    drag: null,   // { type, blockId, startX, startY, origX, origY, origW, origH, dir }
+    snapEnabled: CONFIG.SNAP_GRID,
+    gridEnabled: CONFIG.SHOW_GRID,
+    editorMode: null,  // 'add' or 'edit'
+    editorTarget: null,
+  };
+
+  // === DOM REFS ===
+  var $ = function(id) { return document.getElementById(id); };
+  var slideCanvas = $('slide-canvas');
+  var gridCanvas = $('grid-canvas');
+  var blocksContainer = $('blocks-container');
+  var outputCode = $('output-code');
+  var statusBar = $('status-bar');
+  var blockEditor = $('block-editor');
+  var editorLabel = $('editor-label');
+  var editorContent = $('editor-content');
+  var editorType = $('editor-type');
+  var copyToast = $('copy-toast');
+
+  // === CANVAS SIZING ===
+  function resizeCanvas() {
+    var area = $('canvas-area');
+    var areaW = area.clientWidth - 40;
+    var areaH = area.clientHeight - 40;
+    var w, h;
+    if (areaW / areaH > CONFIG.ASPECT) {
+      h = areaH;
+      w = h * CONFIG.ASPECT;
+    } else {
+      w = areaW;
+      h = w / CONFIG.ASPECT;
+    }
+    w = Math.floor(w);
+    h = Math.floor(h);
+    state.canvasW = w;
+    state.canvasH = h;
+    slideCanvas.style.width = w + 'px';
+    slideCanvas.style.height = h + 'px';
+    gridCanvas.width = w;
+    gridCanvas.height = h;
+    gridCanvas.style.position = 'absolute';
+    gridCanvas.style.top = '0';
+    gridCanvas.style.left = '0';
+    gridCanvas.style.pointerEvents = 'none';
+    gridCanvas.style.zIndex = '1';
+    drawGrid();
+    renderAllBlocks();
+  }
+
+  var resizeTimer = null;
+  window.addEventListener('resize', function() {
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(resizeCanvas, 50);
+  });
+
+  // === GRID ===
+  function drawGrid() {
+    var ctx = gridCanvas.getContext('2d');
+    var w = state.canvasW;
+    var h = state.canvasH;
+    ctx.clearRect(0, 0, w, h);
+    if (!state.gridEnabled) return;
+
+    var cols = CONFIG.GRID_COLS;
+    var rows = CONFIG.GRID_ROWS;
+
+    for (var c = 0; c <= cols; c++) {
+      var x = Math.round((c / cols) * w);
+      var isMajor = (c % CONFIG.MAJOR_EVERY === 0);
+      ctx.strokeStyle = isMajor ? CONFIG.GRID_MAJOR_COLOR : CONFIG.GRID_COLOR;
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(x, 0);
+      ctx.lineTo(x, h);
+      ctx.stroke();
+    }
+    for (var r = 0; r <= rows; r++) {
+      var y = Math.round((r / rows) * h);
+      var isMajorR = (r % CONFIG.MAJOR_EVERY === 0);
+      ctx.strokeStyle = isMajorR ? CONFIG.GRID_MAJOR_COLOR : CONFIG.GRID_COLOR;
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(0, y);
+      ctx.lineTo(w, y);
+      ctx.stroke();
+    }
+  }
+
+  // === BLOCK MANAGEMENT ===
+  function createBlock(opts) {
+    var block = {
+      id: state.nextId++,
+      label: opts.label || ('block' + (state.nextId - 1)),
+      content: opts.content || '',
+      type: opts.type || '',
+      x: opts.x !== undefined ? opts.x : 10,
+      y: opts.y !== undefined ? opts.y : 10,
+      w: opts.w !== undefined ? opts.w : CONFIG.DEFAULT_W,
+      h: opts.h !== undefined ? opts.h : CONFIG.DEFAULT_H,
+    };
+    state.blocks.push(block);
+    renderBlock(block);
+    updateOutput();
+    return block;
+  }
+
+  function deleteBlock(id) {
+    var idx = state.blocks.findIndex(function(b) { return b.id === id; });
+    if (idx < 0) return;
+    var el = document.getElementById('block-' + id);
+    if (el) el.parentNode.removeChild(el);
+    state.blocks.splice(idx, 1);
+    if (state.selected === id) {
+      state.selected = null;
+      updateStatus();
+    }
+    updateOutput();
+  }
+
+  function getBlock(id) {
+    return state.blocks.find(function(b) { return b.id === id; });
+  }
+
+  function selectBlock(id) {
+    // Deselect previous
+    if (state.selected !== null && state.selected !== id) {
+      var prevEl = document.getElementById('block-' + state.selected);
+      if (prevEl) {
+        prevEl.classList.remove('selected');
+        prevEl.style.zIndex = '';
+      }
+    }
+    state.selected = id;
+    if (id !== null) {
+      var el = document.getElementById('block-' + id);
+      if (el) {
+        el.classList.add('selected');
+        el.style.zIndex = '100'; // bring to front
+      }
+    }
+    updateStatus();
+  }
+
+  // === RENDER BLOCK ===
+  function renderBlock(block) {
+    var existing = document.getElementById('block-' + block.id);
+    if (!existing) {
+      existing = createBlockEl(block);
+      blocksContainer.appendChild(existing);
+    }
+    positionBlockEl(existing, block);
+    // Update content
+    var contentEl = existing.querySelector('.block-content');
+    if (contentEl) contentEl.textContent = block.content;
+    var labelEl = existing.querySelector('.block-label');
+    if (labelEl) labelEl.textContent = block.label;
+  }
+
+  function createBlockEl(block) {
+    var el = document.createElement('div');
+    el.className = 'block';
+    el.id = 'block-' + block.id;
+    el.dataset.id = block.id;
+
+    var label = document.createElement('div');
+    label.className = 'block-label';
+    label.textContent = block.label;
+    el.appendChild(label);
+
+    var content = document.createElement('div');
+    content.className = 'block-content';
+    content.textContent = block.content;
+    el.appendChild(content);
+
+    var del = document.createElement('div');
+    del.className = 'block-delete';
+    del.textContent = '×';
+    del.title = 'Delete (Del)';
+    del.addEventListener('mousedown', function(e) {
+      e.stopPropagation();
+      e.preventDefault();
+      deleteBlock(block.id);
+    });
+    el.appendChild(del);
+
+    // Resize handles
+    var handles = ['nw','ne','sw','se','n','s','w','e'];
+    handles.forEach(function(dir) {
+      var h = document.createElement('div');
+      h.className = 'handle handle-' + (dir.length === 2 ? 'corner' : 'edge') + ' handle-' + dir;
+      h.dataset.dir = dir;
+      h.dataset.bid = block.id;
+      el.appendChild(h);
+    });
+
+    // Drag to move
+    el.addEventListener('mousedown', function(e) {
+      if (e.target.classList.contains('handle') || e.target.classList.contains('block-delete')) return;
+      e.preventDefault();
+      e.stopPropagation();
+      selectBlock(block.id);
+      startDrag(e, block.id, 'move', null);
+    });
+
+    // Double-click to edit
+    el.addEventListener('dblclick', function(e) {
+      e.preventDefault();
+      openEditor('edit', block.id);
+    });
+
+    // Handle mousedown on resize handles
+    el.addEventListener('mousedown', function(e) {
+      if (!e.target.classList.contains('handle')) return;
+      e.preventDefault();
+      e.stopPropagation();
+      selectBlock(block.id);
+      startDrag(e, block.id, 'resize', e.target.dataset.dir);
+    });
+
+    return el;
+  }
+
+  function positionBlockEl(el, block) {
+    var w = state.canvasW;
+    var h = state.canvasH;
+    el.style.left   = (block.x / 100 * w) + 'px';
+    el.style.top    = (block.y / 100 * h) + 'px';
+    el.style.width  = (block.w / 100 * w) + 'px';
+    el.style.height = (block.h / 100 * h) + 'px';
+  }
+
+  function renderAllBlocks() {
+    state.blocks.forEach(function(block) {
+      renderBlock(block);
+    });
+  }
+
+  // === DRAGGING ===
+  function startDrag(e, blockId, type, dir) {
+    var block = getBlock(blockId);
+    state.drag = {
+      type: type,
+      blockId: blockId,
+      startMouseX: e.clientX,
+      startMouseY: e.clientY,
+      origX: block.x,
+      origY: block.y,
+      origW: block.w,
+      origH: block.h,
+      dir: dir,
+    };
+  }
+
+  function snapVal(val, gridPct) {
+    if (!state.snapEnabled) return val;
+    return Math.round(val / gridPct) * gridPct;
+  }
+
+  document.addEventListener('mousemove', function(e) {
+    if (!state.drag) return;
+    var drag = state.drag;
+    var block = getBlock(drag.blockId);
+    if (!block) { state.drag = null; return; }
+
+    var dx = (e.clientX - drag.startMouseX) / state.canvasW * 100;
+    var dy = (e.clientY - drag.startMouseY) / state.canvasH * 100;
+
+    // Snap grid size in percent
+    var snapW = 100 / CONFIG.GRID_COLS;
+    var snapH = 100 / CONFIG.GRID_ROWS;
+
+    if (drag.type === 'move') {
+      var nx = drag.origX + dx;
+      var ny = drag.origY + dy;
+      nx = Math.max(0, Math.min(100 - block.w, nx));
+      ny = Math.max(0, Math.min(100 - block.h, ny));
+      if (state.snapEnabled) {
+        nx = snapVal(nx, snapW);
+        ny = snapVal(ny, snapH);
+      }
+      block.x = nx;
+      block.y = ny;
+    } else if (drag.type === 'resize') {
+      var dir = drag.dir;
+      var nx2 = drag.origX, ny2 = drag.origY;
+      var nw = drag.origW, nh = drag.origH;
+      var rightEdge = drag.origX + drag.origW;
+      var bottomEdge = drag.origY + drag.origH;
+
+      // For W/N handles: snap the moving edge (X/Y), then derive width/height
+      // For E/S handles: derive width/height, then snap
+      if (dir.indexOf('w') >= 0) {
+        nx2 = drag.origX + dx;
+        if (state.snapEnabled) nx2 = snapVal(nx2, snapW);
+        nx2 = Math.max(0, Math.min(nx2, rightEdge - CONFIG.MIN_BLOCK_W));
+        nw = rightEdge - nx2;
+      } else if (dir.indexOf('e') >= 0) {
+        nw = drag.origW + dx;
+        if (state.snapEnabled) nw = snapVal(nw, snapW);
+        nw = Math.max(CONFIG.MIN_BLOCK_W, Math.min(100 - drag.origX, nw));
+      }
+
+      if (dir.indexOf('n') >= 0) {
+        ny2 = drag.origY + dy;
+        if (state.snapEnabled) ny2 = snapVal(ny2, snapH);
+        ny2 = Math.max(0, Math.min(ny2, bottomEdge - CONFIG.MIN_BLOCK_H));
+        nh = bottomEdge - ny2;
+      } else if (dir.indexOf('s') >= 0) {
+        nh = drag.origH + dy;
+        if (state.snapEnabled) nh = snapVal(nh, snapH);
+        nh = Math.max(CONFIG.MIN_BLOCK_H, Math.min(100 - drag.origY, nh));
+      }
+
+      block.x = nx2;
+      block.y = ny2;
+      block.w = Math.max(CONFIG.MIN_BLOCK_W, nw);
+      block.h = Math.max(CONFIG.MIN_BLOCK_H, nh);
+    }
+
+    var el = document.getElementById('block-' + drag.blockId);
+    if (el) positionBlockEl(el, block);
+    updateStatus();
+    updateOutput();
+  });
+
+  document.addEventListener('mouseup', function() {
+    if (state.drag) {
+      state.drag = null;
+      updateOutput();
+    }
+  });
+
+  // Click outside to deselect
+  slideCanvas.addEventListener('mousedown', function(e) {
+    if (e.target === slideCanvas || e.target === gridCanvas || e.target === blocksContainer) {
+      selectBlock(null);
+    }
+  });
+
+  // === OUTPUT ===
+  function fmt(n) {
+    var rounded = parseFloat(n.toFixed(1));
+    return rounded === 0 ? 0 : rounded; // prevent -0
+  }
+
+  function buildOutput() {
+    if (state.blocks.length === 0) {
+      return '<!-- No blocks yet.\nClick "+ Add Block" to start. -->';
+    }
+    var lines = [];
+    state.blocks.forEach(function(block) {
+      var dirParts = [
+        'x:' + fmt(block.x) + '%',
+        'y:' + fmt(block.y) + '%',
+        'w:' + fmt(block.w) + '%',
+      ];
+      // h is optional — only include if not default-ish
+      if (block.h) {
+        dirParts.push('h:' + fmt(block.h) + '%');
+      }
+      var directive = '[@ ' + dirParts.join(' ') + ']';
+      lines.push(directive);
+      lines.push(block.content || '');
+      lines.push('');
+    });
+    return lines.join('\n').trimEnd();
+  }
+
+  function updateOutput() {
+    var text = buildOutput();
+    outputCode.textContent = text;
+    // Simple syntax highlight by rewriting innerHTML
+    var html = text
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(new RegExp('(\\[@[^\\]]*\\])', 'g'), function(m) {
+        return m.replace(new RegExp('(\\[@\\s*)((?:[a-z]+:[^\\]\\s]+\\s*)+)(\\])'),
+          '<span class="dir">[@</span> $2<span class="dir">]</span>');
+      })
+      .replace(/(\b(?:x|y|w|h|align|size|font):\S+)/g, function(m) {
+        var parts = m.split(':');
+        return '<span class="key">' + parts[0] + ':</span><span class="val">' + parts[1] + '</span>';
+      });
+    outputCode.innerHTML = html;
+  }
+
+  // === STATUS BAR ===
+  function updateStatus() {
+    if (state.selected === null) {
+      statusBar.textContent = state.blocks.length + ' block' + (state.blocks.length === 1 ? '' : 's');
+      return;
+    }
+    var block = getBlock(state.selected);
+    if (!block) { statusBar.textContent = 'no selection'; return; }
+    statusBar.textContent =
+      'x:' + fmt(block.x) + '% ' +
+      'y:' + fmt(block.y) + '% ' +
+      'w:' + fmt(block.w) + '% ' +
+      'h:' + fmt(block.h) + '%';
+  }
+
+  // === EDITOR MODAL ===
+  function openEditor(mode, blockId) {
+    state.editorMode = mode;
+    state.editorTarget = blockId;
+    $('editor-title').textContent = mode === 'add' ? 'Add Block' : 'Edit Block';
+    if (mode === 'edit') {
+      var block = getBlock(blockId);
+      if (block) {
+        editorLabel.value = block.label;
+        editorContent.value = block.content;
+        editorType.value = block.type || '';
+      }
+    } else {
+      editorLabel.value = '';
+      editorContent.value = '';
+      editorType.value = '';
+    }
+    blockEditor.classList.add('open');
+    setTimeout(function() {
+      (editorContent.value ? editorContent : editorLabel).focus();
+    }, 50);
+  }
+
+  function closeEditor() {
+    blockEditor.classList.remove('open');
+    state.editorMode = null;
+    state.editorTarget = null;
+  }
+
+  $('editor-ok').addEventListener('click', function() {
+    var label = editorLabel.value.trim() || ('block' + state.nextId);
+    var content = editorContent.value;
+    var type = editorType.value;
+
+    if (state.editorMode === 'add') {
+      // Place in a free spot
+      var x = 10, y = 10;
+      // Stagger new blocks
+      var count = state.blocks.length;
+      x = 10 + (count % 3) * 30;
+      y = 10 + Math.floor(count / 3) * 25;
+      x = Math.min(x, 55);
+      y = Math.min(y, 70);
+      var block = createBlock({ label: label, content: content, type: type, x: x, y: y });
+      selectBlock(block.id);
+    } else if (state.editorMode === 'edit') {
+      var block2 = getBlock(state.editorTarget);
+      if (block2) {
+        block2.label = label;
+        block2.content = content;
+        block2.type = type;
+        renderBlock(block2);
+        updateOutput();
+      }
+    }
+    closeEditor();
+  });
+
+  $('editor-cancel').addEventListener('click', closeEditor);
+
+  // Close modal on backdrop click
+  blockEditor.addEventListener('mousedown', function(e) {
+    if (e.target === blockEditor) closeEditor();
+  });
+
+  // Enter key in label jumps to content
+  editorLabel.addEventListener('keydown', function(e) {
+    if (e.key === 'Enter') { e.preventDefault(); editorContent.focus(); }
+  });
+
+  // Ctrl+Enter to confirm
+  blockEditor.addEventListener('keydown', function(e) {
+    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+      e.preventDefault();
+      $('editor-ok').click();
+    }
+    if (e.key === 'Escape') closeEditor();
+  });
+
+  // === COPY ===
+  $('btn-copy').addEventListener('click', function() {
+    var text = buildOutput();
+    navigator.clipboard.writeText(text).then(function() {
+      copyToast.classList.add('show');
+      setTimeout(function() { copyToast.classList.remove('show'); }, 1800);
+    }).catch(function() {
+      // Fallback
+      var ta = document.createElement('textarea');
+      ta.value = text;
+      ta.style.position = 'fixed';
+      ta.style.top = '-9999px';
+      ta.style.left = '-9999px';
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      document.body.removeChild(ta);
+      copyToast.classList.add('show');
+      setTimeout(function() { copyToast.classList.remove('show'); }, 1800);
+    });
+  });
+
+  // === TOOLBAR BUTTONS ===
+  $('btn-add').addEventListener('click', function() { openEditor('add', null); });
+
+  $('btn-clear-all').addEventListener('click', function() {
+    if (state.blocks.length === 0) return;
+    if (!confirm('Delete all blocks?')) return;
+    while (state.blocks.length > 0) {
+      deleteBlock(state.blocks[0].id);
+    }
+    state.nextId = 1;
+    updateOutput();
+  });
+
+  $('btn-grid').addEventListener('click', function() {
+    state.gridEnabled = !state.gridEnabled;
+    var btn = $('btn-grid');
+    btn.style.borderColor = state.gridEnabled ? 'var(--accent)' : '';
+    btn.style.color = state.gridEnabled ? 'var(--accent)' : '';
+    drawGrid();
+  });
+
+  $('btn-snap').addEventListener('click', function() {
+    state.snapEnabled = !state.snapEnabled;
+    var btn = $('btn-snap');
+    btn.style.borderColor = state.snapEnabled ? 'var(--accent)' : '';
+    btn.style.color = state.snapEnabled ? 'var(--accent)' : '';
+  });
+
+  // Initial grid/snap state
+  (function() {
+    if (state.gridEnabled) {
+      $('btn-grid').style.borderColor = 'var(--accent)';
+      $('btn-grid').style.color = 'var(--accent)';
+    }
+    if (state.snapEnabled) {
+      $('btn-snap').style.borderColor = 'var(--accent)';
+      $('btn-snap').style.color = 'var(--accent)';
+    }
+  })();
+
+  // === PRESETS ===
+  var PRESETS = {
+    'Title Slide': [
+      { label: 'title', content: '# Slide Title', x: 10, y: 30, w: 80, h: 20 },
+      { label: 'subtitle', content: '## Subtitle or author', x: 20, y: 55, w: 60, h: 15 },
+    ],
+    'Two Column': [
+      { label: 'left', content: '## Left Column\n\nContent here', x: 5, y: 15, w: 42, h: 70 },
+      { label: 'right', content: '## Right Column\n\nContent here', x: 53, y: 15, w: 42, h: 70 },
+    ],
+    'Hero + Caption': [
+      { label: 'hero', content: '# Big Statement', x: 5, y: 20, w: 90, h: 30 },
+      { label: 'caption', content: 'Supporting detail or context', x: 15, y: 60, w: 70, h: 15 },
+    ],
+    'Code Slide': [
+      { label: 'heading', content: '## Code Example', x: 5, y: 5, w: 90, h: 12 },
+      { label: 'code', content: '```js\nfunction hello() {\n  return "world";\n}\n```', x: 5, y: 20, w: 90, h: 60 },
+    ],
+    'Three Points': [
+      { label: 'title', content: '## Key Points', x: 10, y: 5, w: 80, h: 12 },
+      { label: 'pt1', content: '**01** First point', x: 5, y: 25, w: 28, h: 50 },
+      { label: 'pt2', content: '**02** Second point', x: 36, y: 25, w: 28, h: 50 },
+      { label: 'pt3', content: '**03** Third point', x: 67, y: 25, w: 28, h: 50 },
+    ],
+  };
+
+  $('btn-presets').addEventListener('click', function() {
+    var names = Object.keys(PRESETS);
+    var choice = prompt(
+      'Choose preset:\n' + names.map(function(n, i) { return (i+1) + '. ' + n; }).join('\n')
+    );
+    if (!choice) return;
+    var idx = parseInt(choice, 10) - 1;
+    if (isNaN(idx) || idx < 0 || idx >= names.length) return;
+    // Clear existing
+    while (state.blocks.length > 0) deleteBlock(state.blocks[0].id);
+    state.nextId = 1;
+    var preset = PRESETS[names[idx]];
+    preset.forEach(function(b) {
+      createBlock(b);
+    });
+    updateOutput();
+  });
+
+  // === KEYBOARD ===
+  document.addEventListener('keydown', function(e) {
+    if (state.drag) return; // prevent key events while mouse dragging
+    if (blockEditor.classList.contains('open')) return;
+    var tag = document.activeElement ? document.activeElement.tagName : '';
+    if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+
+    if (e.key === 'a' || e.key === 'A') {
+      e.preventDefault();
+      openEditor('add', null);
+    } else if (e.key === 'g' || e.key === 'G') {
+      $('btn-grid').click();
+    } else if (e.key === 's' || e.key === 'S') {
+      $('btn-snap').click();
+    } else if (e.key === 'c' || e.key === 'C') {
+      if (e.ctrlKey || e.metaKey) return; // Allow system copy
+      $('btn-copy').click();
+    } else if (e.key === 'Delete' || e.key === 'Backspace') {
+      if (state.selected !== null) {
+        e.preventDefault();
+        deleteBlock(state.selected);
+      }
+    } else if (e.key === 'Escape') {
+      selectBlock(null);
+    } else if (e.key === 'Enter') {
+      if (state.selected !== null) {
+        openEditor('edit', state.selected);
+      }
+    } else if (e.key === 'ArrowLeft' || e.key === 'ArrowRight' || e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+      if (state.selected !== null) {
+        e.preventDefault();
+        var block = getBlock(state.selected);
+        if (!block) return;
+        var step = e.shiftKey ? 0.5 : (state.snapEnabled ? (100 / CONFIG.GRID_COLS) : 1);
+        if (e.key === 'ArrowLeft')  block.x = Math.max(0, block.x - step);
+        if (e.key === 'ArrowRight') block.x = Math.min(100 - block.w, block.x + step);
+        if (e.key === 'ArrowUp')    block.y = Math.max(0, block.y - step);
+        if (e.key === 'ArrowDown')  block.y = Math.min(100 - block.h, block.y + step);
+        var el = document.getElementById('block-' + state.selected);
+        if (el) positionBlockEl(el, block);
+        updateStatus();
+        updateOutput();
+      }
+    }
+  });
+
+  // === INIT ===
+  resizeCanvas();
+  updateOutput();
+
+  // Load a demo preset to start
+  var demoPreset = PRESETS['Title Slide'];
+  demoPreset.forEach(function(b) { createBlock(b); });
+  selectBlock(state.blocks[0] ? state.blocks[0].id : null);
+
+})();
+</script>
+</body>
+</html>

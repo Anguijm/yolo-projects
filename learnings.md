@@ -2474,6 +2474,14 @@ Persistent knowledge base. Read this before every build.
 - **BUG**: `gradStr.split(',')` breaks on `rgb(a,b,c)` and `rgba(a,b,c,d)` colors in gradient strings. Use a paren-depth-aware token splitter: walk characters, increment depth on `(`, decrement on `)`, split on `,` only when depth is 0.
 - **KEEP**: Test brace-balancer strips backtick template literals with a regex but does NOT handle `${...}` expression braces inside them — those orphaned `{` and `}` cause false brace-balance failures. Avoid template literals that contain expression interpolations (`${val}`) in code the test will see. Use string concatenation instead (`'prefix' + val + 'suffix'`).
 
+### drag-layout [FEEDER] — Drag-and-Drop Positioning GUI (2026-03-29)
+- **BUG CRITICAL**: Snap-to-grid for W/N resize handles has a double-snap bug. Original code: snap the width → derive X → snap X again. This overwrites the derived X and breaks the stationary-edge invariant (`rightEdge = X + W`). Fix: snap the *moving edge position* first (`nx2 = snapVal(nx2, snapW)`), then derive the dimension (`nw = rightEdge - nx2`). For E/S handles the old order (snap dimension, derive position) is fine because the origin is the fixed edge.
+- **BUG**: `parseFloat(n.toFixed(1))` returns `-0` for values like `-0.01`. Floating point drag math generates small negative numbers near zero. Fix: `return rounded === 0 ? 0 : rounded` after `parseFloat`.
+- **BUG**: Clipboard fallback `ta.style.opacity = '0'` fails in some security contexts — browsers may refuse `execCommand('copy')` on hidden elements. Fix: `ta.style.top = '-9999px'; ta.style.left = '-9999px'` (off-screen, not invisible).
+- **KEEP**: `selectBlock()` should set `zIndex = '100'` on the selected element and clear it on deselect — this naturally handles overlapping block stacking without a full z-index management system.
+- **KEEP**: Guard `keydown` with `if (state.drag) return` to prevent arrow keys from interfering with ongoing mouse drags.
+- **KEEP**: For resize handles, separating the W/E and N/S axes into `else if` branches (not both `if`) prevents diagonal handle from applying both W and E logic simultaneously — only the direction present in the handle string fires.
+
 ### Log Parser / Data Tool Patterns (log-lens)
 - **BUG**: Regex character classes like `[^\]]` contain a `]` that confuses naive brace-balance checkers after they strip string literals. Fix: use `new RegExp('...')` string form for any complex pattern containing `[` or `]` — the test's string stripper removes double-quoted strings, making the regex invisible to the bracket counter.
 - **BUG**: Applying `escHtml()` BEFORE searching for match indices breaks highlighting. `<` → `&lt;` makes literal `<` searches fail, and searching for `lt` incorrectly highlights inside HTML entities. Always search in the raw string, then escape each segment: `escHtml(text.slice(i, matchIdx))`.
