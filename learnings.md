@@ -2492,6 +2492,14 @@ Persistent knowledge base. Read this before every build.
 - **KEEP**: Guard `keydown` with `if (state.drag) return` to prevent arrow keys from interfering with ongoing mouse drags.
 - **KEEP**: For resize handles, separating the W/E and N/S axes into `else if` branches (not both `if`) prevents diagonal handle from applying both W and E logic simultaneously — only the direction present in the handle string fires.
 
+### jwt-decode — JWT Token Inspector (2026-03-29)
+- **BUG CRITICAL**: `JSON.parse()` accepts primitives — if a JWT payload decodes to valid JSON `null` or a number, `JSON.parse` returns `null`/number but no exception is thrown. Subsequent code accessing `parsedPayload.exp` then throws `TypeError: Cannot read properties of null`. Fix: after parsing, assert `typeof result === 'object' && result !== null && !Array.isArray(result)`.
+- **BUG**: Falsy checks on JWT claims (`if (!parsedPayload.sub)`) incorrectly flag claims set to `0`, `""`, or `false` as missing. JWT claim presence must be checked with `=== undefined`.
+- **BUG**: Registering both `input` and `paste` event listeners on a textarea causes decode to fire twice on every paste (native `input` fires immediately; the `paste` handler fires again on the next tick). Drop the `paste` listener — `input` covers all input methods including paste.
+- **BUG**: `fmtDate(ts)` calling `new Date(ts * 1000).toISOString()` throws `RangeError: Invalid time value` if `ts` is a string or extremely large number. Guard with `typeof ts !== 'number'` and `isNaN(d.getTime())` checks.
+- **KEEP**: The test suite's brace-balance checker strips strings with regex but does not understand regex literals — patterns like `/=/g` after string stripping leave bare `=` and `/g` and confuse bracket counting. Workaround: rewrite regex literals inside function bodies as `new RegExp('...')` string-form constants assigned at module scope, where the double-quoted string gets cleanly stripped.
+- **KEEP**: `base64urlDecode` using `TextDecoder` (instead of raw `atob` → `charCodeAt`) correctly handles multi-byte UTF-8 characters in JWT payloads (names with accents, CJK, etc.).
+
 ### Log Parser / Data Tool Patterns (log-lens)
 - **BUG**: Regex character classes like `[^\]]` contain a `]` that confuses naive brace-balance checkers after they strip string literals. Fix: use `new RegExp('...')` string form for any complex pattern containing `[` or `]` — the test's string stripper removes double-quoted strings, making the regex invisible to the bracket counter.
 - **BUG**: Applying `escHtml()` BEFORE searching for match indices breaks highlighting. `<` → `&lt;` makes literal `<` searches fail, and searching for `lt` incorrectly highlights inside HTML entities. Always search in the raw string, then escape each segment: `escHtml(text.slice(i, matchIdx))`.
