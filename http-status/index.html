@@ -1,0 +1,790 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="theme-color" content="#000000">
+<title>HTTP Status</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body {
+  height: 100%;
+  background: #0a0a0a;
+  color: #ccc;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Courier New", monospace;
+  overflow-y: auto;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+:root {
+  --accent: #0ff;
+  --bg-page: #0a0a0a;
+  --bg-surface: #111;
+  --bg-elevated: #1a1a1a;
+  --bg-hover: #222;
+  --text-primary: #fff;
+  --text-body: #ccc;
+  --text-secondary: #aaa;
+  --text-tertiary: #555;
+  --text-label: #444;
+  --border-default: #1a1a1a;
+  --border-active: #444;
+  --border-focus: #555;
+  --color-success: #3fb950;
+  --color-warning: #d29922;
+  --color-error: #f85149;
+  --color-info: #58a6ff;
+}
+
+header {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  background: #0a0a0a;
+  border-bottom: 1px solid #1a1a1a;
+  padding: 8px 12px;
+}
+
+.header-top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.title {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.2em;
+  color: #555;
+  flex: 1;
+}
+
+.title span {
+  color: var(--accent);
+}
+
+.mode-toggle {
+  padding: 3px 8px;
+  background: transparent;
+  border: 1px solid #1a1a1a;
+  color: #444;
+  font-family: inherit;
+  font-size: 0.55rem;
+  cursor: pointer;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+.mode-toggle:hover { border-color: #333; color: #666; }
+.mode-toggle.active { border-color: var(--accent); color: var(--accent); }
+
+.search-row {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  margin-bottom: 6px;
+}
+
+#search {
+  flex: 1;
+  background: #111;
+  border: 1px solid #222;
+  color: #aaa;
+  padding: 5px 8px;
+  font-family: inherit;
+  font-size: 0.7rem;
+  outline: none;
+}
+#search:focus { border-color: #555; }
+#search::placeholder { color: #333; }
+
+.filter-row {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.filter-btn {
+  padding: 3px 8px;
+  background: transparent;
+  border: 1px solid #1a1a1a;
+  color: #444;
+  font-family: inherit;
+  font-size: 0.55rem;
+  cursor: pointer;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+.filter-btn:hover { border-color: #333; color: #666; }
+.filter-btn.active { border-color: var(--accent); color: var(--accent); }
+
+.copy-all-btn {
+  padding: 3px 8px;
+  background: transparent;
+  border: 1px solid #1a1a1a;
+  color: #444;
+  font-family: inherit;
+  font-size: 0.55rem;
+  cursor: pointer;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  margin-left: auto;
+}
+.copy-all-btn:hover { border-color: #333; color: #666; }
+.copy-all-btn.copied { border-color: var(--color-success); color: var(--color-success); }
+
+main {
+  padding: 8px 12px;
+}
+
+.result-count {
+  font-size: 0.5rem;
+  color: #333;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  margin-bottom: 8px;
+}
+
+/* NORMAL MODE: card grid */
+.cards-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 6px;
+}
+
+.card {
+  border: 1px solid #1a1a1a;
+  padding: 8px 10px;
+  cursor: pointer;
+  transition: border-color 0.1s;
+  background: transparent;
+}
+.card:hover { border-color: #333; }
+.card.expanded { border-color: #444; }
+
+.card-header {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.code-num {
+  font-size: 1.1rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-primary);
+}
+
+.code-1xx .code-num { color: #aaa; }
+.code-2xx .code-num { color: var(--color-success); }
+.code-3xx .code-num { color: var(--color-warning); }
+.code-4xx .code-num { color: var(--color-error); }
+.code-5xx .code-num { color: #c678dd; }
+
+.code-name {
+  font-size: 0.65rem;
+  color: #888;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  flex: 1;
+}
+
+.card-desc {
+  font-size: 0.62rem;
+  color: #666;
+  line-height: 1.4;
+  margin-bottom: 4px;
+}
+
+.card-actions {
+  display: flex;
+  gap: 4px;
+  margin-top: 6px;
+}
+
+.copy-btn {
+  padding: 2px 6px;
+  background: transparent;
+  border: 1px solid #1a1a1a;
+  color: #333;
+  font-family: inherit;
+  font-size: 0.5rem;
+  cursor: pointer;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+.copy-btn:hover { border-color: #333; color: #555; }
+.copy-btn.copied { border-color: var(--color-success); color: var(--color-success); }
+
+/* EXPANDED DETAIL */
+.detail-section {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid #1a1a1a;
+}
+
+.detail-label {
+  font-size: 0.45rem;
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
+  color: #333;
+  margin-bottom: 4px;
+}
+
+.detail-list {
+  list-style: none;
+  margin-bottom: 8px;
+}
+
+.detail-list li {
+  font-size: 0.6rem;
+  color: #666;
+  padding: 1px 0;
+  padding-left: 8px;
+  position: relative;
+  line-height: 1.4;
+}
+.detail-list li::before {
+  content: "—";
+  position: absolute;
+  left: 0;
+  color: #333;
+}
+
+.headers-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-bottom: 8px;
+}
+
+.header-tag {
+  font-size: 0.5rem;
+  padding: 1px 5px;
+  border: 1px solid #222;
+  color: #555;
+  letter-spacing: 0.05em;
+}
+
+/* CHEAT SHEET MODE */
+body.cheatsheet main { padding: 6px 8px; }
+
+.cheatsheet-grid {
+  display: none;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 3px;
+}
+
+body.cheatsheet .cards-grid { display: none; }
+body.cheatsheet .cheatsheet-grid { display: grid; }
+
+.cs-card {
+  border: 1px solid #1a1a1a;
+  padding: 5px 7px;
+  cursor: pointer;
+}
+.cs-card:hover { border-color: #333; background: #111; }
+
+.cs-num {
+  font-size: 0.85rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.cs-name {
+  font-size: 0.45rem;
+  color: #555;
+  margin-top: 1px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cs-1xx .cs-num { color: #aaa; }
+.cs-2xx .cs-num { color: var(--color-success); }
+.cs-3xx .cs-num { color: var(--color-warning); }
+.cs-4xx .cs-num { color: var(--color-error); }
+.cs-5xx .cs-num { color: #c678dd; }
+
+/* MODAL overlay for cheatsheet click */
+.modal-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.85);
+  z-index: 200;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+.modal-overlay.open { display: flex; }
+
+.modal-box {
+  background: #111;
+  border: 1px solid #333;
+  max-width: 520px;
+  width: 100%;
+  max-height: 80vh;
+  overflow-y: auto;
+  padding: 14px 16px;
+  position: relative;
+}
+
+.modal-close {
+  position: absolute;
+  top: 8px;
+  right: 10px;
+  background: transparent;
+  border: none;
+  color: #444;
+  font-family: inherit;
+  font-size: 0.6rem;
+  cursor: pointer;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+.modal-close:hover { color: #888; }
+
+.modal-code-num { font-size: 2rem; font-weight: 700; color: var(--text-primary); }
+.modal-code-name { font-size: 0.7rem; color: #777; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 8px; }
+.modal-desc { font-size: 0.65rem; color: #888; line-height: 1.5; margin-bottom: 12px; }
+
+/* Toast */
+.toast {
+  position: fixed;
+  bottom: 16px;
+  right: 16px;
+  background: #1a1a1a;
+  border: 1px solid #333;
+  color: #0ff;
+  font-family: inherit;
+  font-size: 0.55rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  padding: 6px 12px;
+  border-radius: 4px;
+  opacity: 0;
+  transition: opacity 0.2s;
+  z-index: 300;
+  pointer-events: none;
+}
+.toast.show { opacity: 1; }
+
+/* No results */
+.no-results {
+  font-size: 0.6rem;
+  color: #333;
+  text-align: center;
+  padding: 32px 0;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="header-top">
+    <div class="title"><span>HTTP</span> STATUS</div>
+    <button class="mode-toggle" id="cheatsheetToggle">Cheat Sheet</button>
+  </div>
+  <div class="search-row">
+    <input type="text" id="search" placeholder="Search code or name..." autocomplete="off" spellcheck="false">
+    <button class="copy-all-btn" id="copyAllBtn">Copy All</button>
+  </div>
+  <div class="filter-row">
+    <button class="filter-btn active" data-filter="all">All</button>
+    <button class="filter-btn" data-filter="1xx">1xx</button>
+    <button class="filter-btn" data-filter="2xx">2xx</button>
+    <button class="filter-btn" data-filter="3xx">3xx</button>
+    <button class="filter-btn" data-filter="4xx">4xx</button>
+    <button class="filter-btn" data-filter="5xx">5xx</button>
+  </div>
+</header>
+
+<main>
+  <div class="result-count" id="resultCount"></div>
+  <div class="cards-grid" id="cardsGrid"></div>
+  <div class="cheatsheet-grid" id="cheatsheetGrid"></div>
+  <div class="no-results" id="noResults" style="display:none">No codes match</div>
+</main>
+
+<div class="modal-overlay" id="modalOverlay">
+  <div class="modal-box" id="modalBox">
+    <button class="modal-close" id="modalClose">Close</button>
+    <div class="modal-code-num" id="modalNum"></div>
+    <div class="modal-code-name" id="modalName"></div>
+    <div class="modal-desc" id="modalDesc"></div>
+    <div class="detail-label">Common Causes</div>
+    <ul class="detail-list" id="modalCauses"></ul>
+    <div class="detail-label">Fix Suggestions</div>
+    <ul class="detail-list" id="modalFixes"></ul>
+    <div class="detail-label">Related Headers</div>
+    <div class="headers-row" id="modalHeaders"></div>
+    <div class="card-actions" style="margin-top:8px">
+      <button class="copy-btn" id="modalCopyBtn">Copy as Markdown</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script type="application/json" id="status-data">
+[
+  {"code":100,"name":"Continue","desc":"Server received request headers and client should proceed to send body.","causes":["Large file upload using Expect: 100-continue header","POST body sent in two phases","Client waiting for server acknowledgment"],"fixes":["Ensure Expect header is properly handled","Client may proceed sending request body","Check server supports 100-continue"],"headers":["Expect","Content-Length"]},
+  {"code":101,"name":"Switching Protocols","desc":"Server is switching protocols as requested by the client via the Upgrade header.","causes":["WebSocket upgrade request","HTTP/2 upgrade from HTTP/1.1","Protocol negotiation in progress"],"fixes":["Ensure client handles new protocol correctly","Check Upgrade header matches server capability","Verify connection upgrade handshake"],"headers":["Upgrade","Connection"]},
+  {"code":102,"name":"Processing","desc":"Server has received and is processing the request, but no response is available yet.","causes":["Long-running WebDAV requests","Complex server-side processing","Bulk operations taking significant time"],"fixes":["Implement progress endpoints for long operations","Use polling if 102 not supported","Consider async job pattern with 202"],"headers":[]},
+  {"code":103,"name":"Early Hints","desc":"Returns preliminary headers before the final response, allowing browser to start preloading resources.","causes":["Server wants client to preload CSS/JS/fonts","CDN-level optimization","Link preload headers available before full response"],"fixes":["Use Link headers to preload critical assets","Verify browser support for early hints","Pair with 200 OK final response"],"headers":["Link"]},
+  {"code":200,"name":"OK","desc":"Request succeeded. Response body contains the requested resource or result.","causes":["Successful GET, POST, PUT, DELETE","Resource found and returned","Action completed successfully"],"fixes":["This is the ideal success response","Ensure body is correctly formatted","Use appropriate Content-Type header"],"headers":["Content-Type","Content-Length","Cache-Control"]},
+  {"code":201,"name":"Created","desc":"Request succeeded and a new resource was created. Location header points to new resource.","causes":["Successful POST creating a new resource","New user/record/entity created","File or resource successfully uploaded"],"fixes":["Return Location header pointing to created resource","Include created resource in body","Use for POST creating new entities"],"headers":["Location","Content-Type"]},
+  {"code":202,"name":"Accepted","desc":"Request accepted for processing but not yet completed. Processing happens asynchronously.","causes":["Background job queued","Async processing initiated","Batch operation started"],"fixes":["Provide status endpoint or polling mechanism","Return job ID or status URL","Confirm operation will eventually complete"],"headers":["Location","Retry-After"]},
+  {"code":203,"name":"Non-Authoritative Information","desc":"Response is a transformed or modified version from a proxy or intermediary, not the origin server.","causes":["Proxy modifying response headers","CDN transforming content","Third-party cache returning modified data"],"fixes":["Usually transparent to clients","Check if proxy is altering security-sensitive headers","Use Warning header to indicate modification"],"headers":["Warning"]},
+  {"code":204,"name":"No Content","desc":"Request succeeded but there is no content to return. Often used for DELETE or update confirmations.","causes":["DELETE operation succeeded","PUT update with no body needed","Action completed, nothing to return"],"fixes":["Do not include a response body","Useful for form submissions that redirect","Client should stay on current page"],"headers":[]},
+  {"code":205,"name":"Reset Content","desc":"Request succeeded. Client should reset the view (e.g., clear form inputs).","causes":["Form submitted successfully","Client UI should be refreshed","Action complete, UI state should reset"],"fixes":["Client must reset the document view","Use after form submission that clears input","Do not include a response body"],"headers":[]},
+  {"code":206,"name":"Partial Content","desc":"Server is delivering part of the resource due to a Range header in the request.","causes":["Video/audio streaming with range requests","Resume interrupted download","Chunked file delivery"],"fixes":["Ensure Content-Range header is correct","Support Range header on static file servers","Verify byte range arithmetic"],"headers":["Content-Range","Range","Accept-Ranges"]},
+  {"code":207,"name":"Multi-Status","desc":"Response body contains multiple separate responses, typically used in WebDAV operations.","causes":["WebDAV PROPFIND or COPY with multiple resources","Batch operations with mixed outcomes","Multiple resource state report"],"fixes":["Parse XML body for individual status codes","Handle partial failures in batch ops","Use only when multiple responses needed"],"headers":["Content-Type"]},
+  {"code":208,"name":"Already Reported","desc":"Members of a DAV binding already enumerated in a previous part of the multi-status response.","causes":["WebDAV PROPFIND with Depth header","Circular DAV collection references","Avoid infinite loops in DAV traversal"],"fixes":["Only used in WebDAV 207 responses","Not typically encountered outside WebDAV","Check DAV client/server compatibility"],"headers":[]},
+  {"code":226,"name":"IM Used","desc":"Server fulfilled a GET request with instance manipulations applied (HTTP Delta Encoding).","causes":["HTTP Delta Encoding response","Differential content transfer","A-IM request header was used"],"fixes":["Rarely used in practice","Apply delta to cached resource","Verify A-IM and If-None-Match headers"],"headers":["A-IM","ETag"]},
+  {"code":300,"name":"Multiple Choices","desc":"Request has multiple possible responses. Client or user must choose one.","causes":["Multiple content formats available","Language negotiation with multiple options","Resource has several representations"],"fixes":["Use Content-Location or Link headers to list options","Prefer 301/302 for single redirect","Let client or user select via body or UI"],"headers":["Location","Content-Location"]},
+  {"code":301,"name":"Moved Permanently","desc":"Resource permanently moved to new URL. Browsers and crawlers update bookmarks and links.","causes":["Domain migration","URL restructuring","HTTP to HTTPS redirect"],"fixes":["Update all links to the new URL","Ensure redirect is truly permanent","Search engines will update indexed URL"],"headers":["Location","Cache-Control"]},
+  {"code":302,"name":"Found","desc":"Resource temporarily at a different URL. Client should continue using original URL for future requests.","causes":["Temporary content relocation","Feature under maintenance","Load balancer redirect"],"fixes":["Use 301 if redirect is permanent","Preserve original URL for future requests","Avoid caching 302 aggressively"],"headers":["Location"]},
+  {"code":303,"name":"See Other","desc":"Response to the request can be found at a different URL using GET method.","causes":["Post/Redirect/Get pattern after form submission","Redirect to confirmation page","Prevent form resubmission on refresh"],"fixes":["Always redirect POST to GET via 303","Browser will follow with GET request","Use after successful form/action"],"headers":["Location"]},
+  {"code":304,"name":"Not Modified","desc":"Resource has not changed since the version specified in the request headers. Use cached version.","causes":["Conditional GET with If-None-Match or If-Modified-Since","Resource unchanged since client's cache version","CDN cache validation"],"fixes":["Ensure ETag and Last-Modified headers are correct","Client should use cached response","Verify cache invalidation logic"],"headers":["ETag","Last-Modified","Cache-Control","If-None-Match","If-Modified-Since"]},
+  {"code":305,"name":"Use Proxy","desc":"Deprecated. Resource must be accessed through the specified proxy.","causes":["Legacy proxy enforcement (deprecated)","Old server configurations","Security gateway redirect"],"fixes":["Avoid using — deprecated in HTTP/1.1","Use network-level proxy configuration instead","Modern clients may not support this"],"headers":["Location"]},
+  {"code":307,"name":"Temporary Redirect","desc":"Resource temporarily at different URL. Method and body must not change on redirect.","causes":["Temporary content move preserving POST method","Load balancing with method preservation","Maintenance redirect for non-GET requests"],"fixes":["Use when POST must remain POST after redirect","Differs from 302 which may change method","Client should retry with same method"],"headers":["Location"]},
+  {"code":308,"name":"Permanent Redirect","desc":"Resource permanently moved. Method and body must not change, unlike 301.","causes":["Permanent URL change for POST/PUT endpoints","API version migration","REST endpoint relocation"],"fixes":["Use over 301 when preserving HTTP method matters","Update all client endpoint references","Search engines should follow this"],"headers":["Location"]},
+  {"code":400,"name":"Bad Request","desc":"Server cannot process the request due to malformed syntax, invalid parameters, or missing required data.","causes":["Malformed JSON or XML body","Missing required fields","Invalid query parameter values","URL encoding issues"],"fixes":["Validate request body against schema","Check required fields are present","Ensure content-type matches body format","URL-encode special characters properly"],"headers":["Content-Type"]},
+  {"code":401,"name":"Unauthorized","desc":"Authentication is required and has failed or not been provided. Client must authenticate.","causes":["Missing Authorization header","Expired or invalid token","Wrong credentials","Session expired"],"fixes":["Include valid Authorization header","Refresh expired tokens","Redirect to login flow","Check token expiry and renewal"],"headers":["Authorization","WWW-Authenticate","Bearer"]},
+  {"code":402,"name":"Payment Required","desc":"Reserved for future use. Sometimes used for payment-gated API features.","causes":["API rate limit exceeded (informal use)","Payment required to access feature","Subscription expired"],"fixes":["Check API quota and billing","Upgrade plan or add payment method","Use 403 for more standard access denial"],"headers":[]},
+  {"code":403,"name":"Forbidden","desc":"Server understood request but refuses to authorize it. Authentication won't help.","causes":["Insufficient permissions for the resource","IP allowlist restriction","CORS policy violation","Resource requires elevated role"],"fixes":["Check user has required role or permission","Verify CORS configuration","Check IP allowlist rules","Use 404 instead to avoid information leakage"],"headers":["WWW-Authenticate"]},
+  {"code":404,"name":"Not Found","desc":"Server cannot find the requested resource. URL may be incorrect or resource deleted.","causes":["Incorrect URL or path","Resource deleted or moved","Typo in endpoint","Stale bookmark or link"],"fixes":["Verify URL spelling and path","Check if resource was deleted or renamed","Implement custom 404 page","Log 404s to detect broken links"],"headers":[]},
+  {"code":405,"name":"Method Not Allowed","desc":"HTTP method is not supported for the requested resource.","causes":["GET on a POST-only endpoint","DELETE not supported on resource","Wrong method for the action"],"fixes":["Check Allow header for supported methods","Use the correct HTTP method","Verify API documentation for endpoint methods"],"headers":["Allow"]},
+  {"code":406,"name":"Not Acceptable","desc":"Server cannot produce a response matching the Accept headers sent by the client.","causes":["Accept header specifies unsupported media type","Language negotiation failure","Server only supports JSON but client requests XML"],"fixes":["Check server supported content types","Update Accept header to supported type","Implement content negotiation on server"],"headers":["Accept","Content-Type"]},
+  {"code":407,"name":"Proxy Authentication Required","desc":"Client must authenticate with a proxy server before the request can be processed.","causes":["Corporate proxy requires authentication","VPN or gateway authentication needed","Missing proxy credentials"],"fixes":["Configure proxy credentials in client","Use Proxy-Authorization header","Check proxy settings in network config"],"headers":["Proxy-Authenticate","Proxy-Authorization"]},
+  {"code":408,"name":"Request Timeout","desc":"Server timed out waiting for the request to be completed by the client.","causes":["Slow client connection","Network latency or packet loss","Large upload taking too long","Client disconnected mid-request"],"fixes":["Increase server timeout settings","Retry the request","Check network stability","Use streaming or chunked upload for large files"],"headers":["Connection"]},
+  {"code":409,"name":"Conflict","desc":"Request conflicts with the current state of the server, often due to version or uniqueness violation.","causes":["Duplicate key/unique constraint violation","Optimistic locking conflict","Concurrent edit collision","Resource version mismatch"],"fixes":["Resolve conflict before retrying","Implement optimistic concurrency control","Return current state in body","Use ETag for version management"],"headers":["ETag","Content-Location"]},
+  {"code":410,"name":"Gone","desc":"Resource is permanently gone and will not return. More definitive than 404.","causes":["Content intentionally deleted","API version deprecated and removed","User account permanently deleted"],"fixes":["Remove all links to this resource","Search engines de-index gone resources faster","Use over 404 when permanent removal confirmed"],"headers":[]},
+  {"code":411,"name":"Length Required","desc":"Server requires Content-Length header but it was not provided.","causes":["Missing Content-Length header on POST/PUT","Chunked transfer without declared length","Middleware stripping Content-Length"],"fixes":["Add Content-Length header with byte count","Or use Transfer-Encoding: chunked","Check middleware is not stripping headers"],"headers":["Content-Length"]},
+  {"code":412,"name":"Precondition Failed","desc":"Server cannot meet one or more conditions set in the request headers.","causes":["If-Match header mismatch (optimistic lock)","If-Unmodified-Since violation","ETag conflict on conditional update"],"fixes":["Fetch current resource and retry with latest ETag","Handle 412 as concurrent modification signal","Update optimistic locking logic"],"headers":["If-Match","If-Unmodified-Since","ETag"]},
+  {"code":413,"name":"Content Too Large","desc":"Request body exceeds the server's configured limit.","causes":["File upload exceeds max size","JSON payload too large","Server has strict payload limits"],"fixes":["Reduce payload size","Increase server max body size limit","Use chunked uploads for large files","Compress payload with gzip"],"headers":["Content-Length","Retry-After"]},
+  {"code":414,"name":"URI Too Long","desc":"Request URL exceeds the server's maximum URI length.","causes":["Very long query strings","Deeply nested URL paths","Encoding bug generating huge URLs"],"fixes":["Move params to request body (POST)","Shorten query string length","Check for encoding loops in client"],"headers":[]},
+  {"code":415,"name":"Unsupported Media Type","desc":"Server refuses request because the Content-Type is not supported.","causes":["Sending XML to JSON-only endpoint","Wrong MIME type in Content-Type header","Missing Content-Type header"],"fixes":["Set Content-Type to application/json","Check API docs for accepted MIME types","Match Content-Type to actual body format"],"headers":["Content-Type","Accept"]},
+  {"code":416,"name":"Range Not Satisfiable","desc":"Client requested a range that is outside the bounds of the resource.","causes":["Range header beyond file size","Incorrect byte range calculation","File changed size between requests"],"fixes":["Re-fetch Content-Range to get actual size","Check Accept-Ranges header","Validate range before requesting"],"headers":["Content-Range","Range"]},
+  {"code":417,"name":"Expectation Failed","desc":"Server cannot meet requirements set in the Expect request header.","causes":["Expect: 100-continue rejected by server","Server does not support the Expect header","Load balancer strips Expect headers"],"fixes":["Remove Expect header and retry","Check server support for 100-continue","Verify proxy is not modifying Expect headers"],"headers":["Expect"]},
+  {"code":418,"name":"I'm a Teapot","desc":"RFC 2324 April Fools joke. Server refuses to brew coffee because it is a teapot.","causes":["The request asked a teapot to brew coffee","Easter egg or humor endpoint","Testing 4xx handling in clients"],"fixes":["Don't ask a teapot to make coffee","Use a real coffee machine API","Check if the server is really a teapot"],"headers":[]},
+  {"code":421,"name":"Misdirected Request","desc":"Request was sent to a server that cannot produce a response for the target URI.","causes":["HTTP/2 connection reuse with wrong host","SNI mismatch","Request routed to wrong origin"],"fixes":["Open a new connection to the correct server","Verify SSL/TLS SNI configuration","Check load balancer routing rules"],"headers":[]},
+  {"code":422,"name":"Unprocessable Content","desc":"Server understood request syntax but cannot process the contained instructions — validation failed.","causes":["Semantic validation failure","Invalid field values passing syntax check","Business rule violation","Required relationship missing"],"fixes":["Return detailed validation errors in body","Validate input against schema before sending","Check for semantic constraints, not just syntax"],"headers":["Content-Type"]},
+  {"code":423,"name":"Locked","desc":"Resource being accessed is locked (WebDAV).","causes":["WebDAV lock held by another user","Concurrent edit lock active","Resource under exclusive lock"],"fixes":["Wait for lock to release","Use UNLOCK method if you own the lock","Check lock timeout settings"],"headers":["Lock-Token"]},
+  {"code":424,"name":"Failed Dependency","desc":"Request failed because a previous request it depends on failed (WebDAV).","causes":["Batch operation where earlier request failed","WebDAV ordered operation failure","Multi-step transaction dependency failure"],"fixes":["Retry the failed dependency first","Check order of operations in batch requests","Return detailed error chain in response"],"headers":[]},
+  {"code":425,"name":"Too Early","desc":"Server unwilling to risk processing a request that might be replayed (TLS early data).","causes":["TLS 1.3 0-RTT early data request","Replay attack risk","Server policy rejects early data for this endpoint"],"fixes":["Retry request after TLS handshake completes","Disable 0-RTT for sensitive endpoints","Client should retry without early data"],"headers":[]},
+  {"code":426,"name":"Upgrade Required","desc":"Server refuses to perform request using current protocol. Client must switch protocols.","causes":["Endpoint requires HTTPS but HTTP used","WebSocket upgrade required","HTTP/2 required for this endpoint"],"fixes":["Upgrade to required protocol","Use HTTPS instead of HTTP","Add Upgrade and Connection headers"],"headers":["Upgrade","Connection"]},
+  {"code":428,"name":"Precondition Required","desc":"Server requires request to be conditional to prevent lost-update problems.","causes":["Missing If-Match header on update","Endpoint requires optimistic lock token","Server enforces conditional writes"],"fixes":["Add If-Match header with current ETag","Fetch resource first to get ETag","Implement conditional request in client"],"headers":["If-Match","ETag"]},
+  {"code":429,"name":"Too Many Requests","desc":"Client has sent too many requests in a given time window. Rate limit exceeded.","causes":["API rate limit hit","DDoS or burst traffic","Missing rate limit handling in client","Retry loop without backoff"],"fixes":["Implement exponential backoff retry","Respect Retry-After header","Cache responses to reduce request volume","Request rate limit increase"],"headers":["Retry-After","X-RateLimit-Limit","X-RateLimit-Remaining","X-RateLimit-Reset"]},
+  {"code":431,"name":"Request Header Fields Too Large","desc":"Server refuses to process request because one or more headers are too large.","causes":["Very large Cookie header","Oversized Authorization token","Too many headers in request","Custom headers with huge values"],"fixes":["Reduce cookie size or count","Trim JWT or token payloads","Clear unused cookies","Audit header sizes in client"],"headers":["Cookie","Authorization"]},
+  {"code":451,"name":"Unavailable For Legal Reasons","desc":"Server is denying access to resource as a consequence of a legal demand or court order.","causes":["GDPR data removal request","DMCA takedown notice","Government censorship or court order","Geo-restriction compliance"],"fixes":["Check local legal restrictions","Use VPN if legally permitted","Contact content owner for licensing","Consult local copyright law"],"headers":["Link"]},
+  {"code":500,"name":"Internal Server Error","desc":"Generic server error. The server encountered an unexpected condition that prevented it from fulfilling the request.","causes":["Unhandled exception in application code","Database connection failure","Null pointer or type error","Misconfiguration on server"],"fixes":["Check server error logs immediately","Add try/catch around request handlers","Implement proper error handling middleware","Monitor and alert on 500 rate"],"headers":[]},
+  {"code":501,"name":"Not Implemented","desc":"Server does not support the functionality required to fulfill the request.","causes":["Unsupported HTTP method","Feature not yet implemented","Server does not handle this request type"],"fixes":["Check API documentation for supported features","Verify HTTP method is implemented","Return Allow header with supported methods"],"headers":["Allow"]},
+  {"code":502,"name":"Bad Gateway","desc":"Server acting as a gateway received an invalid response from an upstream server.","causes":["Upstream server crashed or is down","Load balancer cannot reach backend","Nginx/proxy got bad response from app server","Network issue between gateway and upstream"],"fixes":["Check upstream server health","Review reverse proxy error logs","Verify backend is running and reachable","Check firewall rules between services"],"headers":[]},
+  {"code":503,"name":"Service Unavailable","desc":"Server temporarily unable to handle requests, usually due to overload or maintenance.","causes":["Server overloaded under high traffic","Scheduled maintenance downtime","Resource exhaustion (memory/CPU)","Dependency service down"],"fixes":["Add Retry-After header","Implement load shedding or queuing","Scale up server capacity","Return maintenance page with ETA"],"headers":["Retry-After"]},
+  {"code":504,"name":"Gateway Timeout","desc":"Server acting as a gateway did not receive a timely response from an upstream server.","causes":["Upstream service too slow","Database query timeout","Network latency between gateway and backend","Upstream service hung"],"fixes":["Increase proxy timeout settings","Optimize slow upstream queries","Add circuit breaker pattern","Monitor upstream response times"],"headers":["Retry-After"]},
+  {"code":505,"name":"HTTP Version Not Supported","desc":"Server does not support the HTTP protocol version used in the request.","causes":["Using HTTP/2 with server that only supports HTTP/1.1","Sending HTTP/1.0 to server requiring minimum 1.1","Protocol negotiation failure"],"fixes":["Use supported HTTP version","Check server protocol support","Enable HTTP/2 on the server","Verify TLS configuration for HTTP/2"],"headers":["Upgrade"]},
+  {"code":506,"name":"Variant Also Negotiates","desc":"Transparent content negotiation resulted in a circular reference.","causes":["Misconfigured content negotiation on server","Variant chosen is itself negotiable","Server configuration loop"],"fixes":["Fix content negotiation server configuration","Ensure negotiated variants are concrete resources","Rare — check TCN (RFC 2295) configuration"],"headers":[]},
+  {"code":507,"name":"Insufficient Storage","desc":"Server is unable to store representation needed to complete the request.","causes":["Disk full on server","Storage quota exceeded","WebDAV resource storage limit hit"],"fixes":["Free up server disk space","Increase storage allocation","Implement storage quota checks before writing","Alert on disk usage thresholds"],"headers":[]},
+  {"code":508,"name":"Loop Detected","desc":"Server terminated an operation because it encountered an infinite loop (WebDAV).","causes":["WebDAV Depth: infinity with circular references","Recursive collection processing","Binding loop in DAV namespace"],"fixes":["Detect and remove circular references","Limit recursion depth","Audit WebDAV collection structure"],"headers":[]},
+  {"code":510,"name":"Not Extended","desc":"Server requires further extensions to fulfill the request (HTTP Extension Framework).","causes":["Required HTTP extension not included","Extension declaration missing","Mandatory extension negotiation needed"],"fixes":["Include required extension declaration","Check server extension requirements","Use M-GET or M-POST with extensions"],"headers":[]},
+  {"code":511,"name":"Network Authentication Required","desc":"Client needs to authenticate to gain network access — typically from captive portals.","causes":["Hotel/cafe WiFi captive portal","Corporate network access control","Network-level authentication required"],"fixes":["Complete network authentication flow","Open browser to trigger captive portal","Check network-level credentials"],"headers":["Location"]}
+]
+</script>
+
+<script>
+(function() {
+  var dataEl = document.getElementById('status-data');
+  var allCodes = [];
+  if (dataEl) {
+    try { allCodes = JSON.parse(dataEl.textContent || '[]'); } catch(e) { console.error('Status data parse error', e); }
+  }
+
+  var currentFilter = 'all';
+  var currentSearch = '';
+  var expandedCard = null;
+  var toastTimeout = null;
+
+  function escHtml(s) {
+    return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/\x27/g,'&#039;');
+  }
+
+  function getCategory(code) {
+    if (code < 200) return '1xx';
+    if (code < 300) return '2xx';
+    if (code < 400) return '3xx';
+    if (code < 500) return '4xx';
+    return '5xx';
+  }
+
+  function getFilteredCodes() {
+    return allCodes.filter(function(c) {
+      var catMatch = currentFilter === 'all' || getCategory(c.code) === currentFilter;
+      var q = currentSearch.toLowerCase().trim();
+      var name = (c.name || '').toLowerCase();
+      var desc = (c.desc || '').toLowerCase();
+      var searchMatch = !q || String(c.code).includes(q) || name.includes(q) || desc.includes(q);
+      return catMatch && searchMatch;
+    });
+  }
+
+  function showToast(msg) {
+    var t = document.getElementById('toast');
+    if (!t) return;
+    t.textContent = msg;
+    t.classList.add('show');
+    clearTimeout(toastTimeout);
+    toastTimeout = setTimeout(function() { t.classList.remove('show'); }, 2000);
+  }
+
+  function triggerCopyUI(btn) {
+    showToast('Copied to clipboard');
+    if (!btn) return;
+    var orig = btn._origText !== undefined ? btn._origText : btn.textContent;
+    btn._origText = orig;
+    btn.textContent = 'Copied!';
+    btn.classList.add('copied');
+    clearTimeout(btn._copyTimeout);
+    btn._copyTimeout = setTimeout(function() {
+      btn.textContent = orig;
+      btn._origText = undefined;
+      btn.classList.remove('copied');
+    }, 1500);
+  }
+
+  function copyText(text, btn) {
+    function doFallback() {
+      var ta = document.createElement('textarea');
+      ta.value = text;
+      ta.style.position = 'fixed';
+      ta.style.top = '-9999px';
+      document.body.appendChild(ta);
+      ta.select();
+      try { document.execCommand('copy'); } catch(e) {}
+      document.body.removeChild(ta);
+      triggerCopyUI(btn);
+    }
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(function() { triggerCopyUI(btn); }).catch(doFallback);
+    } else {
+      doFallback();
+    }
+  }
+
+  function codeToMarkdown(c) {
+    var causes = c.causes || [];
+    var fixes = c.fixes || [];
+    var headers = c.headers || [];
+    var lines = [
+      '## ' + c.code + ' ' + (c.name || ''),
+      '',
+      c.desc || '',
+      '',
+      '**Common Causes:**',
+    ];
+    causes.forEach(function(ca) { lines.push('- ' + ca); });
+    lines.push('');
+    lines.push('**Fix Suggestions:**');
+    fixes.forEach(function(f) { lines.push('- ' + f); });
+    if (headers.length) {
+      lines.push('');
+      lines.push('**Related Headers:** ' + headers.join(', '));
+    }
+    return lines.join('\n');
+  }
+
+  function allToMarkdownTable() {
+    var filtered = getFilteredCodes();
+    var rows = ['| Code | Name | Description |', '|------|------|-------------|'];
+    filtered.forEach(function(c) {
+      rows.push('| ' + c.code + ' | ' + c.name + ' | ' + c.desc.replace(/\|/g, '\\|') + ' |');
+    });
+    return rows.join('\n');
+  }
+
+  function makeDetailHtml(c) {
+    var causes = c.causes || [];
+    var fixes = c.fixes || [];
+    var headers = c.headers || [];
+    var causesHtml = causes.map(function(x) { return '<li>' + escHtml(x) + '</li>'; }).join('');
+    var fixesHtml = fixes.map(function(x) { return '<li>' + escHtml(x) + '</li>'; }).join('');
+    var headersHtml = headers.length
+      ? headers.map(function(h) { return '<span class="header-tag">' + escHtml(h) + '</span>'; }).join('')
+      : '<span style="color:#333;font-size:0.5rem">None</span>';
+
+    return '<div class="detail-section">' +
+      '<div class="detail-label">Common Causes</div>' +
+      '<ul class="detail-list">' + causesHtml + '</ul>' +
+      '<div class="detail-label">Fix Suggestions</div>' +
+      '<ul class="detail-list">' + fixesHtml + '</ul>' +
+      '<div class="detail-label">Related Headers</div>' +
+      '<div class="headers-row">' + headersHtml + '</div>' +
+      '<div class="card-actions">' +
+      '<button class="copy-btn" data-code="' + c.code + '">Copy as Markdown</button>' +
+      '</div>' +
+      '</div>';
+  }
+
+  function renderCards() {
+    var filtered = getFilteredCodes();
+    var grid = document.getElementById('cardsGrid');
+    var noResults = document.getElementById('noResults');
+    var count = document.getElementById('resultCount');
+
+    count.textContent = filtered.length + ' of ' + allCodes.length + ' codes';
+    expandedCard = null;
+
+    if (!filtered.length) {
+      grid.innerHTML = '';
+      noResults.style.display = 'block';
+      return;
+    }
+    noResults.style.display = 'none';
+
+    grid.innerHTML = filtered.map(function(c) {
+      var cat = getCategory(c.code);
+      return '<div class="card code-' + cat + '" data-code="' + c.code + '">' +
+        '<div class="card-header">' +
+        '<span class="code-num">' + c.code + '</span>' +
+        '<span class="code-name">' + c.name + '</span>' +
+        '</div>' +
+        '<div class="card-desc">' + c.desc + '</div>' +
+        '</div>';
+    }).join('');
+
+    grid.querySelectorAll('.card').forEach(function(card) {
+      card.addEventListener('click', function(e) {
+        if (e.target.classList.contains('copy-btn')) return;
+        var code = parseInt(card.getAttribute('data-code'), 10);
+        var codeObj = allCodes.find(function(x) { return x.code === code; });
+        if (!codeObj) return;
+
+        if (expandedCard === card) {
+          var detail = card.querySelector('.detail-section');
+          if (detail) detail.remove();
+          card.classList.remove('expanded');
+          expandedCard = null;
+          return;
+        }
+        if (expandedCard) {
+          var oldDetail = expandedCard.querySelector('.detail-section');
+          if (oldDetail) oldDetail.remove();
+          expandedCard.classList.remove('expanded');
+        }
+        card.insertAdjacentHTML('beforeend', makeDetailHtml(codeObj));
+        card.classList.add('expanded');
+        expandedCard = card;
+
+        var copyBtn = card.querySelector('.copy-btn[data-code]');
+        if (copyBtn) {
+          copyBtn.addEventListener('click', function(ev) {
+            ev.stopPropagation();
+            copyText(codeToMarkdown(codeObj), copyBtn);
+          });
+        }
+      });
+    });
+  }
+
+  function renderCheatsheet() {
+    var filtered = getFilteredCodes();
+    var grid = document.getElementById('cheatsheetGrid');
+    grid.innerHTML = filtered.map(function(c) {
+      var cat = getCategory(c.code);
+      return '<div class="cs-card cs-' + cat + '" data-code="' + c.code + '">' +
+        '<div class="cs-num">' + c.code + '</div>' +
+        '<div class="cs-name">' + c.name + '</div>' +
+        '</div>';
+    }).join('');
+
+    grid.querySelectorAll('.cs-card').forEach(function(card) {
+      card.addEventListener('click', function() {
+        var code = parseInt(card.getAttribute('data-code'), 10);
+        var codeObj = allCodes.find(function(x) { return x.code === code; });
+        if (!codeObj) return;
+        openModal(codeObj);
+      });
+    });
+  }
+
+  function render() {
+    renderCards();
+    renderCheatsheet();
+  }
+
+  function openModal(c) {
+    var causes = c.causes || [];
+    var fixes = c.fixes || [];
+    var headers = c.headers || [];
+    document.getElementById('modalNum').textContent = c.code;
+    document.getElementById('modalName').textContent = c.name || '';
+    document.getElementById('modalDesc').textContent = c.desc || '';
+
+    var causesEl = document.getElementById('modalCauses');
+    causesEl.innerHTML = causes.map(function(x) { return '<li>' + escHtml(x) + '</li>'; }).join('');
+
+    var fixesEl = document.getElementById('modalFixes');
+    fixesEl.innerHTML = fixes.map(function(x) { return '<li>' + escHtml(x) + '</li>'; }).join('');
+
+    var headersEl = document.getElementById('modalHeaders');
+    headersEl.innerHTML = headers.length
+      ? headers.map(function(h) { return '<span class="header-tag">' + escHtml(h) + '</span>'; }).join('')
+      : '<span style="color:#333;font-size:0.5rem">None</span>';
+
+    var copyBtn = document.getElementById('modalCopyBtn');
+    copyBtn.onclick = function() { copyText(codeToMarkdown(c), copyBtn); };
+
+    document.getElementById('modalOverlay').classList.add('open');
+  }
+
+  function closeModal() {
+    var overlay = document.getElementById('modalOverlay');
+    overlay.classList.remove('open');
+    overlay.style.display = '';
+  }
+
+  document.getElementById('modalClose').addEventListener('click', closeModal);
+  document.getElementById('modalOverlay').addEventListener('click', function(e) {
+    if (e.target === this) closeModal();
+  });
+
+  document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') closeModal();
+  });
+
+  document.getElementById('search').addEventListener('input', function() {
+    currentSearch = this.value;
+    render();
+  });
+
+  document.querySelectorAll('.filter-btn').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      currentFilter = this.getAttribute('data-filter');
+      document.querySelectorAll('.filter-btn').forEach(function(b) { b.classList.remove('active'); });
+      this.classList.add('active');
+      render();
+    });
+  });
+
+  document.getElementById('copyAllBtn').addEventListener('click', function() {
+    copyText(allToMarkdownTable(), this);
+  });
+
+  document.getElementById('cheatsheetToggle').addEventListener('click', function() {
+    document.body.classList.toggle('cheatsheet');
+    this.classList.toggle('active');
+  });
+
+  render();
+})();
+</script>
+
+</body>
+</html>
