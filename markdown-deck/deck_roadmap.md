@@ -60,7 +60,7 @@ Markdown Deck is a graduated YOLO project operating under Flagship rules: multi-
 - [x] IL2+ security (CSP, zero external URLs)
 - [x] Auto-close unclosed code fences
 - [x] DECK_GUIDE.md stricter Gemini prompting instructions + validation checklist
-- [ ] Math/LaTeX rendering (KaTeX inline, zero-dep)
+- [x] Math/LaTeX rendering ($inline$, $$block$$, fractions, Greek, symbols — zero-dep)
 - [ ] Custom slide aspect ratios (4:3, 1:1, vertical)
 - [ ] Template library (pre-built slide layouts)
 
@@ -119,3 +119,4 @@ These are features complex enough to prototype as standalone YOLO single-session
 | 2026-03-31 | Tick | schema-viz: JSON Schema / OpenAPI spec visualizer |
 | 2026-04-01 | Tock | DECK_GUIDE.md: strict AI prompting rules, failure table, example prompt, validation checklist |
 | 2026-04-01 | Tick | http-status: interactive HTTP status code reference |
+| 2026-04-01 | Tock | Math/LaTeX rendering: $inline$, $$block$$, fractions, Greek, symbols |

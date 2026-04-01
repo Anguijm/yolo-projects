@@ -79,6 +79,14 @@ textarea:focus { outline: none; }
 #layout-overlay .layout-handle.se { right: -4px; bottom: -4px; }
 #layout-overlay .layout-add { position: absolute; bottom: 6px; right: 6px; background: #111; border: 1px solid #333; color: #888; padding: 3px 8px; font-size: 0.5rem; cursor: pointer; border-radius: 3px; font-family: inherit; }
 #layout-overlay .layout-add:hover { border-color: #58a6ff; color: #58a6ff; }
+/* Math rendering */
+.math-inline { font-family: 'Times New Roman', 'Cambria Math', serif; font-style: italic; }
+.math-block { font-family: 'Times New Roman', 'Cambria Math', serif; font-style: italic; font-size: 1.3em; text-align: center; margin: 1rem 0; padding: 0.5rem; }
+.math-frac { display: inline-flex; flex-direction: column; align-items: center; vertical-align: middle; font-size: 0.85em; line-height: 1.1; }
+.math-num { border-bottom: 1px solid currentColor; padding: 0 0.2em 0.1em; }
+.math-den { padding: 0.1em 0.2em 0; }
+.present-slide .math-block { font-size: 1.8em; }
+.present-slide .math-inline { font-size: 1.1em; }
 .slide-diagram { margin: 0.5rem 0; text-align: center; }
 .slide-diagram svg { max-width: 100%; }
 .code-lang { display: block; font-size: 0.6rem; color: #555; letter-spacing: 0.1em; margin-bottom: -0.2rem; text-transform: uppercase; }
@@ -553,6 +561,42 @@ var FlowDiagram = (function() {
   return { toSvg: toSvg };
 })();
 
+// ============ MATH RENDERER (zero-dep LaTeX subset) ============
+var MATH_GREEK = {alpha:'\u03B1',beta:'\u03B2',gamma:'\u03B3',delta:'\u03B4',epsilon:'\u03B5',zeta:'\u03B6',eta:'\u03B7',theta:'\u03B8',iota:'\u03B9',kappa:'\u03BA',lambda:'\u03BB',mu:'\u03BC',nu:'\u03BD',xi:'\u03BE',pi:'\u03C0',rho:'\u03C1',sigma:'\u03C3',tau:'\u03C4',upsilon:'\u03C5',phi:'\u03C6',chi:'\u03C7',psi:'\u03C8',omega:'\u03C9',Alpha:'\u0391',Beta:'\u0392',Gamma:'\u0393',Delta:'\u0394',Theta:'\u0398',Lambda:'\u039B',Pi:'\u03A0',Sigma:'\u03A3',Phi:'\u03A6',Psi:'\u03A8',Omega:'\u03A9'};
+var MATH_SYMS = {infty:'\u221E',pm:'\u00B1',mp:'\u2213',times:'\u00D7',div:'\u00F7',cdot:'\u22C5',leq:'\u2264',geq:'\u2265',neq:'\u2260',approx:'\u2248',equiv:'\u2261',sum:'\u2211',prod:'\u220F',int:'\u222B',partial:'\u2202',nabla:'\u2207',forall:'\u2200',exists:'\u2203',in:'\u2208',notin:'\u2209',subset:'\u2282',supset:'\u2283',cup:'\u222A',cap:'\u2229',emptyset:'\u2205',rightarrow:'\u2192',leftarrow:'\u2190',Rightarrow:'\u21D2',Leftarrow:'\u21D0',leftrightarrow:'\u2194',sqrt:'\u221A',langle:'\u27E8',rangle:'\u27E9',ldots:'\u2026',cdots:'\u22EF',star:'\u22C6',circ:'\u2218',bullet:'\u2022',neg:'\u00AC',land:'\u2227',lor:'\u2228'};
+
+function renderMath(tex) {
+  var s = tex.trim();
+  // Greek letters and symbols: \alpha, \infty, etc.
+  s = s.replace(/\\([a-zA-Z]+)/g, function(_, cmd) {
+    if (MATH_GREEK[cmd]) return MATH_GREEK[cmd];
+    if (MATH_SYMS[cmd]) return MATH_SYMS[cmd];
+    if (cmd === 'frac') return '__FRAC__';
+    if (cmd === 'sqrt') return '\u221A';
+    if (cmd === 'text') return '__TEXT__';
+    if (cmd === 'mathbf') return '__BOLD__';
+    if (cmd === 'left' || cmd === 'right') return '';
+    return '\\' + cmd;
+  });
+  // Fractions: \frac{a}{b} → <span class="math-frac">...</span>
+  s = s.replace(/__FRAC__\{([^}]*)\}\{([^}]*)\}/g, '<span class="math-frac"><span class="math-num">$1</span><span class="math-den">$2</span></span>');
+  // \text{...} → plain text
+  s = s.replace(/__TEXT__\{([^}]*)\}/g, '$1');
+  // \mathbf{...} → bold
+  s = s.replace(/__BOLD__\{([^}]*)\}/g, '<b>$1</b>');
+  // Superscripts: x^{abc} or x^2
+  s = s.replace(/\^{([^}]+)}/g, '<sup>$1</sup>');
+  s = s.replace(/\^(\w)/g, '<sup>$1</sup>');
+  // Subscripts: x_{abc} or x_2
+  s = s.replace(/_{([^}]+)}/g, '<sub>$1</sub>');
+  s = s.replace(/_(\w)/g, '<sub>$1</sub>');
+  // Sqrt with braces: √{content}
+  s = s.replace(/\u221A\{([^}]+)\}/g, '\u221A<span style="text-decoration:overline">$1</span>');
+  // Clean up stray braces
+  s = s.replace(/[{}]/g, '');
+  return s;
+}
+
 // Full markdown parser with code-block protection
 // Parse per-slide theme overrides: <!-- bg: #color, text: #color, ... -->
 function parseSlideOverrides(text) {
@@ -596,7 +640,14 @@ function md(text) {
   var fenceCount = (text.match(/```/g) || []).length;
   if (fenceCount % 2 !== 0) text += '\n```';
 
-  // 0.6. Extract per-slide theme overrides
+  // 0.6. Extract block math ($$...$$) into placeholders
+  var mathBlocks = [];
+  text = text.replace(/\$\$([\s\S]+?)\$\$/g, function(_, tex) {
+    mathBlocks.push('<div class="math-block">' + renderMath(tex) + '</div>');
+    return '\n__MATHBLOCK_' + (mathBlocks.length - 1) + '__\n';
+  });
+
+  // 0.7. Extract per-slide theme overrides
   var parsed = parseSlideOverrides(text);
   text = parsed.text;
   window._currentSlideOverrides = parsed.overrides;
@@ -707,6 +758,11 @@ function md(text) {
     .replace(/\^(.+?)\^/g, '<sup>$1</sup>')
     .replace(/~([^~]+)~/g, '<sub>$1</sub>');
 
+  // 6.5. Inline math: $...$
+  html = html.replace(/\$([^$\n]+)\$/g, function(_, tex) {
+    return '<span class="math-inline">' + renderMath(tex) + '</span>';
+  });
+
   // 7. Paragraphs
   html = html.split(/\n\n+/).map(function(block) {
     block = block.trim();
@@ -720,6 +776,7 @@ function md(text) {
   html = html.replace(/__CODEBLOCK_(\d+)__/g, function(_, i) { return codeBlocks[i]; });
   html = html.replace(/__INLINE_(\d+)__/g, function(_, i) { return inlineCodes[i]; });
   html = html.replace(/__TABLE_(\d+)__/g, function(_, i) { return tableBlocks[i]; });
+  html = html.replace(/__MATHBLOCK_(\d+)__/g, function(_, i) { return mathBlocks[i]; });
 
   // 9. Positioned blocks: [@ x:... y:... w:... h:... align:... size:...]
   // Split HTML by position directives and wrap each in a positioned div

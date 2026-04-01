@@ -88,6 +88,46 @@ After receiving AI-generated markdown:
 
 ---
 
+## Math / LaTeX
+
+Inline math uses single dollar signs, block math uses double dollar signs.
+
+### Inline Math
+```
+The equation $E = mc^2$ changed physics.
+The area is $A = \pi r^2$.
+```
+
+### Block Math (centered, larger)
+```
+$$
+\frac{\partial f}{\partial x} = \lim_{h \rightarrow 0} \frac{f(x+h) - f(x)}{h}
+$$
+```
+
+### Supported LaTeX Commands
+| Category | Commands |
+|----------|---------|
+| Greek letters | `\alpha` `\beta` `\gamma` `\delta` `\theta` `\pi` `\sigma` `\omega` (and uppercase) |
+| Operators | `\sum` `\prod` `\int` `\partial` `\nabla` `\sqrt` |
+| Relations | `\leq` `\geq` `\neq` `\approx` `\equiv` `\in` `\subset` |
+| Arrows | `\rightarrow` `\leftarrow` `\Rightarrow` `\Leftarrow` |
+| Symbols | `\infty` `\pm` `\times` `\div` `\cdot` `\emptyset` `\forall` `\exists` |
+| Fractions | `\frac{numerator}{denominator}` |
+| Superscript | `x^2` or `x^{2n+1}` |
+| Subscript | `x_i` or `x_{i,j}` |
+| Text in math | `\text{constant}` |
+| Bold | `\mathbf{v}` |
+
+### Notes
+- This is a lightweight zero-dependency renderer, not full LaTeX/KaTeX
+- Fractions render as stacked numerator/denominator with a dividing line
+- Greek letters and symbols use Unicode characters
+- Complex nested expressions may not render perfectly — keep formulas simple
+- Math renders in preview, presentation mode, and PDF export (not yet in PPTX)
+
+---
+
 ## Slide Structure
 
 Slides are separated by `---` on its own line. Each slide is an independent markdown block.
