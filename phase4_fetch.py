@@ -39,6 +39,10 @@ CHANNELS = {
         "url": "https://www.youtube.com/@NateHerk/videos",
         "check_count": 3,  # ~2-3 per week — AI workflows, Claude Code
     },
+    "@TwoMinutePapers": {
+        "url": "https://www.youtube.com/@TwoMinutePapers/videos",
+        "check_count": 3,  # ~2-3 per week — AI/ML research breakthroughs
+    },
 }
 
 

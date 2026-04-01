@@ -32,7 +32,11 @@ Phase 4 does NOT replace the build/refine cycle — it injects new ideas into su
    - Focus: AI workflows, Claude Code integrations, business automation, agentic tool comparisons.
    - Signal: practical AI workflow builds, tool reviews, integration patterns, what businesses actually want.
 
-Only process content from these five channels. If given a URL from another channel, note it and skip.
+6. **@TwoMinutePapers** — Károly Zsolnai-Fehér
+   - Focus: AI/ML research breakthroughs, physics simulations, computer graphics, generative AI.
+   - Signal: concise explainers of cutting-edge papers, practical implications of new techniques.
+
+Only process content from these six channels. If given a URL from another channel, note it and skip.
 
 ## Processing a Video
 
