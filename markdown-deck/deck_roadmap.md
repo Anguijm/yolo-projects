@@ -61,7 +61,7 @@ Markdown Deck is a graduated YOLO project operating under Flagship rules: multi-
 - [x] Auto-close unclosed code fences
 - [x] DECK_GUIDE.md stricter Gemini prompting instructions + validation checklist
 - [x] Math/LaTeX rendering ($inline$, $$block$$, fractions, Greek, symbols — zero-dep)
-- [ ] Custom slide aspect ratios (4:3, 1:1, vertical)
+- [x] Custom slide aspect ratios (16:9, 4:3, 1:1, 9:16 — dropdown + PPTX dims)
 - [ ] Template library (pre-built slide layouts)
 
 ### P1 — Presentation Features (lowest priority per user)
@@ -121,3 +121,4 @@ These are features complex enough to prototype as standalone YOLO single-session
 | 2026-04-01 | Tick | http-status: interactive HTTP status code reference |
 | 2026-04-01 | Tock | Math/LaTeX rendering: $inline$, $$block$$, fractions, Greek, symbols |
 | 2026-04-01 | Tick | color-a11y: WCAG contrast checker with CVD simulation |
+| 2026-04-01 | Tock | Custom aspect ratios: 16:9, 4:3, 1:1, 9:16 with PPTX dimension sync |

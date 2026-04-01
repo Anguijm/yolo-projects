@@ -296,6 +296,12 @@ These are speaker notes. They won't appear in the presentation but are preserved
   <div class="preview-panel">
     <div class="toolbar">
       <h2>Preview</h2>
+      <select id="ratio-select" onchange="setAspectRatio(this.value)" style="background:#1a1a1a;border:1px solid #333;color:#888;padding:2px 4px;font-family:inherit;font-size:0.6rem;border-radius:3px;cursor:pointer">
+        <option value="16/9">16:9</option>
+        <option value="4/3">4:3</option>
+        <option value="1/1">1:1</option>
+        <option value="9/16">9:16</option>
+      </select>
       <button onclick="prevSlide()">Prev</button>
       <button onclick="nextSlide()">Next</button>
       <button class="primary" onclick="startPresent()">Present</button>
@@ -1021,6 +1027,9 @@ window.prevSlide = function() {
 window.startPresent = function() {
   presenting = true;
   presentEl.classList.add('active');
+  // Apply current ratio to present slide
+  var r = RATIO_DIMS[currentRatio] || RATIO_DIMS['16/9'];
+  presentSlideEl.style.aspectRatio = r.css;
   renderPresent();
   document.body.requestFullscreen?.();
 };
@@ -1430,7 +1439,8 @@ function getThemeColors() {
 }
 
 function buildSlideXml(parsed, idx, imageRegistry) {
-  var W = 12192000, H = 6858000;
+  var dims = RATIO_DIMS[currentRatio] || RATIO_DIMS['16/9'];
+  var W = dims.pptW, H = dims.pptH;
   var shapes = '', shapeId = 2;
   var yPos = 457200;
   var tc = getThemeColors();
@@ -1646,7 +1656,7 @@ window.exportDeck = async function() {
   files.push({ name: 'ppt/presentation.xml', data: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><p:presentation xmlns:a="' + NSDR + '" xmlns:r="' + NSOFF + '" xmlns:p="' + NSPML + '">' +
     '<p:sldMasterIdLst><p:sldMasterId id="2147483648" r:id="rId1"/></p:sldMasterIdLst>' +
     '<p:sldIdLst>' + sldIdList + '</p:sldIdLst>' +
-    '<p:sldSz cx="12192000" cy="6858000"/><p:notesSz cx="6858000" cy="9144000"/></p:presentation>' });
+    '<p:sldSz cx="'+dims.pptW+'" cy="'+dims.pptH+'"/><p:notesSz cx="6858000" cy="9144000"/></p:presentation>' });
 
   // ---- Presentation rels (master + slides) ----
   var presRels = '<Relationship Id="rId1" Type="' + NSOFF + '/slideMaster" Target="slideMasters/slideMaster1.xml"/>';
@@ -1702,6 +1712,34 @@ window.exportDeck = async function() {
   a.click();
   setTimeout(function() { URL.revokeObjectURL(url); }, 1000);
 };
+
+// ============ ASPECT RATIO ============
+var currentRatio = '16/9';
+var RATIO_DIMS = {
+  '16/9': { css: '16/9', pptW: 12192000, pptH: 6858000 },
+  '4/3':  { css: '4/3',  pptW: 9144000,  pptH: 6858000 },
+  '1/1':  { css: '1/1',  pptW: 6858000,  pptH: 6858000 },
+  '9/16': { css: '9/16', pptW: 6858000,  pptH: 12192000 }
+};
+
+window.setAspectRatio = function(ratio) {
+  if (!RATIO_DIMS[ratio]) return;
+  currentRatio = ratio;
+  var slide = document.getElementById('slide-preview');
+  if (slide) slide.style.aspectRatio = RATIO_DIMS[ratio].css;
+  try { localStorage.setItem('mdeck_ratio', ratio); } catch(e) {}
+};
+
+// Restore saved ratio
+try {
+  var savedRatio = localStorage.getItem('mdeck_ratio');
+  if (savedRatio && RATIO_DIMS[savedRatio]) {
+    currentRatio = savedRatio;
+    document.getElementById('ratio-select').value = savedRatio;
+    var slide = document.getElementById('slide-preview');
+    if (slide) slide.style.aspectRatio = RATIO_DIMS[savedRatio].css;
+  }
+} catch(e) {}
 
 // ============ LAYOUT MODE (visual drag positioning) ============
 var layoutMode = false;

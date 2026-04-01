@@ -506,6 +506,23 @@ Click the **Presenter** button to open a dual-window presentation setup:
 
 ---
 
+## Slide Aspect Ratio
+
+Use the dropdown in the Preview toolbar to change the slide dimensions:
+
+| Ratio | Use Case |
+|-------|----------|
+| **16:9** | Standard widescreen (default) |
+| **4:3** | Legacy/projector format |
+| **1:1** | Square (social media) |
+| **9:16** | Vertical/mobile/stories |
+
+- The ratio applies to preview, presentation mode, and PPTX export
+- PPTX slide dimensions update automatically (e.g., 4:3 = 9144000x6858000 EMU)
+- Persists to localStorage — your choice is remembered
+
+---
+
 ## Slide Reordering
 
 Drag and drop thumbnails in the bottom strip to reorder slides. The markdown source is automatically updated to match.
