@@ -19,19 +19,21 @@ body { font-family: 'SF Mono', 'Fira Code', monospace; background: #0a0a0a; colo
 .toolbar .slide-nav { font-size: 0.75rem; color: #666; }
 textarea { flex: 1; background: #0a0a0a; border: none; color: #ccc; padding: 1rem; font-family: inherit; font-size: 0.85rem; resize: none; line-height: 1.6; tab-size: 2; }
 textarea:focus { outline: none; }
-.slide-container { flex: 1; display: flex; align-items: center; justify-content: center; padding: 1rem; overflow: hidden; }
-.slide { width: 100%; max-width: 700px; aspect-ratio: 16/9; background: #0a0a0a; border-radius: 8px; border: 1px solid #222; padding: 3rem; display: flex; flex-direction: column; justify-content: center; overflow: auto; position: relative; }
+.slide-container { flex: 1; display: flex; align-items: center; justify-content: center; padding: 0.5rem; overflow: hidden; position: relative; }
+/* Preview slide: render at presentation-size fonts, then scale to fit container */
+.slide { width: 960px; height: 540px; background: #0a0a0a; border-radius: 6px; border: 1px solid #222; padding: 3rem 4rem; display: flex; flex-direction: column; justify-content: center; overflow: hidden; position: relative; transform-origin: center center; }
 .slide.has-positioned { justify-content: flex-start; }
 .pos-block { position: absolute; box-sizing: border-box; }
-.slide h1 { font-size: 2rem; color: #fff; margin-bottom: 1rem; line-height: 1.2; }
-.slide h2 { font-size: 1.4rem; color: #60a5fa; margin-bottom: 0.8rem; }
-.slide h3 { font-size: 1.1rem; color: #a78bfa; margin-bottom: 0.6rem; }
-.slide p { font-size: 0.9rem; color: #ccc; margin-bottom: 0.7rem; line-height: 1.6; }
-.slide ul, .slide ol { margin: 0.5rem 0 0.5rem 1.5rem; font-size: 0.9rem; color: #ccc; line-height: 1.8; }
-.slide li { margin-bottom: 0.3rem; }
-.slide code { background: #1a1a1a; padding: 0.15rem 0.4rem; border-radius: 3px; font-size: 0.8rem; color: #4ade80; }
+/* Use presentation-scale fonts so preview matches presentation exactly */
+.slide h1 { font-size: 2.8rem; color: #fff; margin-bottom: 1.2rem; line-height: 1.2; }
+.slide h2 { font-size: 1.8rem; color: #60a5fa; margin-bottom: 0.8rem; }
+.slide h3 { font-size: 1.3rem; color: #a78bfa; margin-bottom: 0.6rem; }
+.slide p { font-size: 1.15rem; color: #ccc; margin-bottom: 0.7rem; line-height: 1.5; }
+.slide ul, .slide ol { margin: 0.4rem 0 0.4rem 1.5rem; font-size: 1.1rem; color: #ccc; line-height: 1.7; }
+.slide li { margin-bottom: 0.2rem; }
+.slide code { background: #1a1a1a; padding: 0.15rem 0.4rem; border-radius: 3px; font-size: 0.95rem; color: #4ade80; }
 .slide pre { background: #111; padding: 1rem; border-radius: 6px; overflow-x: auto; margin: 0.5rem 0; }
-.slide pre code { background: none; padding: 0; font-size: 0.75rem; color: #ccc; }
+.slide pre code { background: none; padding: 0; font-size: 0.85rem; color: #ccc; }
 .slide blockquote { border-left: 3px solid #333; padding-left: 1rem; color: #888; font-style: italic; margin: 0.5rem 0; }
 .slide strong { color: #fff; }
 .slide em { color: #fbbf24; }
@@ -920,6 +922,30 @@ function parseSlides() {
   if (currentSlide >= slides.length) currentSlide = Math.max(0, slides.length - 1);
 }
 
+// Scale the preview slide to fit its container while maintaining aspect ratio
+function scalePreviewSlide() {
+  var slide = document.getElementById('slide-preview');
+  var container = slide.parentElement;
+  if (!slide || !container) return;
+  var cw = container.clientWidth - 16; // padding
+  var ch = container.clientHeight - 16;
+  if (cw <= 0 || ch <= 0) return;
+  // Get the slide's natural dimensions from the aspect ratio
+  var r = RATIO_DIMS[currentRatio] || RATIO_DIMS['16/9'];
+  var parts = r.css.split('/');
+  var rw = parseInt(parts[0], 10);
+  var rh = parseInt(parts[1], 10);
+  // Set slide to a fixed "virtual" size (960px base width)
+  var sw = 960;
+  var sh = Math.round(sw * rh / rw);
+  slide.style.width = sw + 'px';
+  slide.style.height = sh + 'px';
+  slide.style.aspectRatio = '';
+  // Scale to fit container
+  var scale = Math.min(cw / sw, ch / sh);
+  slide.style.transform = 'scale(' + scale + ')';
+}
+
 function renderPreview() {
   if (slides.length === 0) {
     previewEl.innerHTML = '<p style="color:#555">Type markdown and separate slides with ---</p>';
@@ -929,13 +955,15 @@ function renderPreview() {
   // Apply per-slide theme overrides
   var slideEl = previewEl.closest('.slide') || previewEl;
   var ovStyle = overridesToStyle(window._currentSlideOverrides || {});
-  slideEl.style.cssText = ovStyle; // Reset + apply (clears previous slide's overrides)
+  slideEl.style.cssText = ovStyle;
   // Toggle positioned layout mode
   if (previewEl.querySelector('.pos-flag')) {
     slideEl.classList.add('has-positioned');
   } else {
     slideEl.classList.remove('has-positioned');
   }
+  // Scale slide to fit container
+  requestAnimationFrame(scalePreviewSlide);
 
   // Thumbnails (draggable for reordering)
   thumbsEl.innerHTML = slides.map((s, i) => {
@@ -1725,8 +1753,7 @@ var RATIO_DIMS = {
 window.setAspectRatio = function(ratio) {
   if (!RATIO_DIMS[ratio]) return;
   currentRatio = ratio;
-  var slide = document.getElementById('slide-preview');
-  if (slide) slide.style.aspectRatio = RATIO_DIMS[ratio].css;
+  scalePreviewSlide();
   try { localStorage.setItem('mdeck_ratio', ratio); } catch(e) {}
 };
 
@@ -1736,10 +1763,11 @@ try {
   if (savedRatio && RATIO_DIMS[savedRatio]) {
     currentRatio = savedRatio;
     document.getElementById('ratio-select').value = savedRatio;
-    var slide = document.getElementById('slide-preview');
-    if (slide) slide.style.aspectRatio = RATIO_DIMS[savedRatio].css;
   }
 } catch(e) {}
+
+// Re-scale on window resize
+window.addEventListener('resize', function() { requestAnimationFrame(scalePreviewSlide); });
 
 // ============ LAYOUT MODE (visual drag positioning) ============
 var layoutMode = false;
