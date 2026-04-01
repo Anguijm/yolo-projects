@@ -2541,3 +2541,10 @@ Persistent knowledge base. Read this before every build.
 - **KEEP**: WCAG 2.1 contrast ratio formula: luminance values go through `(L + 0.05) / (L + 0.05)` where the 0.05 offset prevents division by zero and matches the spec. The lighter color is always in the numerator.
 - **KEEP**: For "find closest passing color" algorithms: walk step 0→100, at each step test both directions (lighter and darker), track best-failure fallback for impossible targets, return immediately when a passing candidate is found.
 - **KEEP**: CVD simulation grid (3 types × swatch + ratio) is a high-signal UI pattern that reveals real-world accessibility issues invisible to normal contrast checkers.
+
+## readme-forge (2026-04-02)
+- **BUG**: `https://` in JS string literals breaks comment-stripping brace-balance checkers — the `//` inside `https://` triggers the `//.*$` comment regex, orphaning the opening quote and corrupting brace analysis. Fix: construct as `'https:' + '//' + 'host/path'`.
+- **BUG**: Inline markdown bold/italic regex must NOT run before inline code span extraction. If `inlineFormat` processes `**bold**` before stripping `` `code` ``, code spans get formatted inside. Fix: extract code spans first with a placeholder, format, then restore.
+- **BUG**: Install step generation used `.trim()` to filter empty lines but also destroyed indentation. Fix: filter with `if (l.trim() !== '') lines.push(l)` — keep the original `l`, not `l.trim()`.
+- **KEEP**: GitHub-style TOC anchors need `replace(/^-+|-+$/g, '')` at the end of `githubAnchor()` to strip leading/trailing hyphens generated from punctuation at heading boundaries.
+- **KEEP**: Shields.io badge URL values must have `-` replaced with `--` before URI encoding — single hyphens are separators in the badge format, double hyphens represent literal hyphens.

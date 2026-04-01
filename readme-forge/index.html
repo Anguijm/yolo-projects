@@ -1,0 +1,934 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="theme-color" content="#000000">
+<title>readme-forge</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body {
+  height: 100%;
+  background: #0a0a0a;
+  overflow: hidden;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Courier New", monospace;
+  color: #ccc;
+  font-size: 13px;
+}
+
+/* ── Layout ───────────────────────────────── */
+#app {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+#header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  border-bottom: 1px solid #1a1a1a;
+  flex-shrink: 0;
+}
+#header h1 {
+  font-size: 0.75rem;
+  font-weight: 400;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: #0ff;
+}
+#header span {
+  font-size: 0.45rem;
+  color: #444;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+#main {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+}
+
+/* ── Form panel ────────────────────────────── */
+#form-panel {
+  width: 380px;
+  flex-shrink: 0;
+  border-right: 1px solid #1a1a1a;
+  overflow-y: auto;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+#form-panel::-webkit-scrollbar { width: 3px; }
+#form-panel::-webkit-scrollbar-track { background: #0a0a0a; }
+#form-panel::-webkit-scrollbar-thumb { background: #222; }
+
+.section-label {
+  font-size: 0.45rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: #444;
+  margin-top: 4px;
+  margin-bottom: 2px;
+}
+.field-row {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.field-row label {
+  font-size: 0.5rem;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: #444;
+}
+input[type="text"], input[type="url"], select, textarea {
+  background: #111;
+  border: 1px solid #222;
+  color: #aaa;
+  padding: 5px 8px;
+  font-family: inherit;
+  font-size: 0.7rem;
+  outline: none;
+  width: 100%;
+  resize: vertical;
+}
+input[type="text"]:focus,
+input[type="url"]:focus,
+select:focus,
+textarea:focus { border-color: #555; color: #ccc; }
+textarea { min-height: 52px; line-height: 1.5; }
+textarea.tall { min-height: 80px; }
+select {
+  appearance: none;
+  cursor: pointer;
+}
+select option { background: #111; }
+
+/* Template + badge row */
+.row-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+/* Badge toggles */
+.badge-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.badge-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.badge-row label {
+  font-size: 0.5rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #555;
+  cursor: pointer;
+  flex: 1;
+}
+.badge-row input[type="checkbox"] {
+  width: 10px;
+  height: 10px;
+  accent-color: #0ff;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.badge-row input[type="text"] {
+  width: 80px;
+  flex-shrink: 0;
+  min-height: unset;
+  resize: none;
+}
+
+/* Tech stack tags */
+#tech-tags-display {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  min-height: 20px;
+  padding: 4px 0;
+}
+.tag {
+  font-size: 0.5rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #0ff;
+  border: 1px solid #0ff3;
+  padding: 2px 6px;
+  cursor: pointer;
+}
+.tag:hover { border-color: #f85149; color: #f85149; }
+
+/* ── Output panel ──────────────────────────── */
+#output-panel {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+#tab-bar {
+  display: flex;
+  border-bottom: 1px solid #1a1a1a;
+  flex-shrink: 0;
+  padding: 0 12px;
+  gap: 0;
+  align-items: flex-end;
+}
+.tab {
+  padding: 6px 12px;
+  font-size: 0.5rem;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: #444;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  border-top: none;
+  border-left: none;
+  border-right: none;
+  font-family: inherit;
+  margin-bottom: -1px;
+}
+.tab:hover { color: #888; }
+.tab.active { color: #0ff; border-bottom-color: #0ff; }
+
+#tab-content {
+  flex: 1;
+  overflow: hidden;
+  position: relative;
+}
+.tab-pane {
+  position: absolute;
+  inset: 0;
+  overflow-y: auto;
+  display: none;
+}
+.tab-pane.active { display: block; }
+.tab-pane::-webkit-scrollbar { width: 3px; }
+.tab-pane::-webkit-scrollbar-track { background: #0a0a0a; }
+.tab-pane::-webkit-scrollbar-thumb { background: #222; }
+
+/* Preview */
+#preview {
+  padding: 16px 20px;
+  line-height: 1.7;
+  color: #ccc;
+  max-width: 800px;
+}
+/* Markdown rendered styles */
+#preview h1 { font-size: 1.4rem; color: #fff; font-weight: 600; margin: 0.6em 0 0.3em; border-bottom: 1px solid #222; padding-bottom: 0.2em; }
+#preview h2 { font-size: 1.1rem; color: #fff; font-weight: 500; margin: 0.8em 0 0.3em; border-bottom: 1px solid #1a1a1a; padding-bottom: 0.15em; }
+#preview h3 { font-size: 0.9rem; color: #ddd; font-weight: 500; margin: 0.6em 0 0.25em; }
+#preview h4 { font-size: 0.8rem; color: #ccc; font-weight: 400; margin: 0.5em 0 0.2em; }
+#preview p { margin: 0.4em 0; }
+#preview ul, #preview ol { padding-left: 1.5em; margin: 0.3em 0; }
+#preview li { margin: 0.15em 0; }
+#preview code { background: #1a1a1a; color: #0ff; padding: 1px 5px; font-size: 0.85em; }
+#preview pre { background: #111; border: 1px solid #1a1a1a; padding: 10px 12px; margin: 0.5em 0; overflow-x: auto; }
+#preview pre code { background: none; color: #aaa; padding: 0; font-size: 0.8rem; }
+#preview blockquote { border-left: 2px solid #333; padding-left: 12px; color: #888; margin: 0.5em 0; }
+#preview a { color: #58a6ff; text-decoration: none; }
+#preview a:hover { text-decoration: underline; }
+#preview hr { border: none; border-top: 1px solid #222; margin: 0.8em 0; }
+#preview img { max-width: 100%; height: auto; display: inline; }
+#preview strong { color: #fff; font-weight: 600; }
+#preview em { color: #bbb; font-style: italic; }
+#preview table { border-collapse: collapse; margin: 0.5em 0; }
+#preview th, #preview td { border: 1px solid #333; padding: 4px 10px; font-size: 0.8rem; }
+#preview th { background: #111; color: #aaa; }
+
+/* Markdown raw output */
+#md-pane {
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  height: 100%;
+}
+#md-actions {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+}
+#md-output {
+  flex: 1;
+  background: #0a0a0a;
+  border: 1px solid #1a1a1a;
+  color: #888;
+  font-family: inherit;
+  font-size: 0.7rem;
+  padding: 10px 12px;
+  resize: none;
+  outline: none;
+  line-height: 1.6;
+  width: 100%;
+}
+#md-output:focus { border-color: #333; }
+
+/* Buttons */
+.btn {
+  padding: 4px 10px;
+  background: transparent;
+  border: 1px solid #1a1a1a;
+  color: #444;
+  font-family: inherit;
+  font-size: 0.55rem;
+  cursor: pointer;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.btn:hover { border-color: #333; color: #888; }
+.btn:active { border-color: #555; color: #aaa; }
+.btn.primary {
+  border-color: #0ff3;
+  color: #0ff;
+}
+.btn.primary:hover { border-color: #0ff8; }
+.btn.success { border-color: #3fb9503; color: #3fb950; }
+
+/* Divider */
+.divider { border: none; border-top: 1px solid #1a1a1a; margin: 2px 0; }
+
+/* Empty state */
+#preview-empty {
+  padding: 40px 20px;
+  color: #333;
+  font-size: 0.65rem;
+  letter-spacing: 0.1em;
+  text-align: center;
+}
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="header">
+    <h1>readme-forge</h1>
+    <span>README.md generator — zero deps — offline</span>
+  </div>
+  <div id="main">
+
+    <!-- ── FORM PANEL ──────────────────────── -->
+    <div id="form-panel">
+
+      <div class="section-label">Project Info</div>
+
+      <div class="field-row">
+        <label>Project Name</label>
+        <input type="text" id="f-name" placeholder="my-awesome-project" oninput="generate()">
+      </div>
+      <div class="field-row">
+        <label>Tagline</label>
+        <input type="text" id="f-tagline" placeholder="One sentence that sells it" oninput="generate()">
+      </div>
+      <div class="field-row">
+        <label>Description</label>
+        <textarea id="f-desc" placeholder="What does this project do and why does it exist?" oninput="generate()"></textarea>
+      </div>
+      <div class="field-row">
+        <label>Features (one per line)</label>
+        <textarea id="f-features" class="tall" placeholder="Fast and lightweight&#10;Zero configuration&#10;Works offline" oninput="generate()"></textarea>
+      </div>
+      <div class="field-row">
+        <label>Install Steps (one per line)</label>
+        <textarea id="f-install" placeholder="npm install my-project&#10;cd my-project" oninput="generate()"></textarea>
+      </div>
+      <div class="field-row">
+        <label>Usage Example</label>
+        <textarea id="f-usage" class="tall" placeholder="import { thing } from 'my-project'&#10;thing.run()" oninput="generate()"></textarea>
+      </div>
+
+      <hr class="divider">
+      <div class="section-label">Tech &amp; Meta</div>
+
+      <div class="field-row">
+        <label>Tech Stack (comma-separated)</label>
+        <input type="text" id="f-tech" placeholder="TypeScript, Node.js, SQLite" oninput="parseTags()">
+        <div id="tech-tags-display"></div>
+      </div>
+      <div class="row-2">
+        <div class="field-row">
+          <label>License</label>
+          <select id="f-license" onchange="generate()">
+            <option value="MIT">MIT</option>
+            <option value="Apache-2.0">Apache 2.0</option>
+            <option value="GPL-3.0">GPL v3</option>
+            <option value="BSD-2-Clause">BSD 2-Clause</option>
+            <option value="BSD-3-Clause">BSD 3-Clause</option>
+            <option value="ISC">ISC</option>
+            <option value="MPL-2.0">MPL 2.0</option>
+            <option value="LGPL-3.0">LGPL v3</option>
+            <option value="Unlicense">Unlicense</option>
+            <option value="UNLICENSED">Proprietary</option>
+          </select>
+        </div>
+        <div class="field-row">
+          <label>Template</label>
+          <select id="f-template" onchange="generate()">
+            <option value="minimal">Minimal</option>
+            <option value="standard" selected>Standard</option>
+            <option value="detailed">Detailed</option>
+          </select>
+        </div>
+      </div>
+      <div class="row-2">
+        <div class="field-row">
+          <label>Author</label>
+          <input type="text" id="f-author" placeholder="Your Name" oninput="generate()">
+        </div>
+        <div class="field-row">
+          <label>Repo URL</label>
+          <input type="url" id="f-repo" placeholder="https://github.com/user/repo" oninput="generate()">
+        </div>
+      </div>
+
+      <hr class="divider">
+      <div class="section-label">Badges</div>
+
+      <div class="badge-grid">
+        <div class="badge-row">
+          <input type="checkbox" id="b-build" onchange="generate()" checked>
+          <label for="b-build">Build Status</label>
+          <select id="b-build-val" onchange="generate()" style="width:90px;padding:3px 6px;font-size:0.6rem;">
+            <option value="passing">passing</option>
+            <option value="failing">failing</option>
+            <option value="unknown">unknown</option>
+          </select>
+        </div>
+        <div class="badge-row">
+          <input type="checkbox" id="b-license" onchange="generate()" checked>
+          <label for="b-license">License</label>
+        </div>
+        <div class="badge-row">
+          <input type="checkbox" id="b-version" onchange="generate()">
+          <label for="b-version">Version</label>
+          <input type="text" id="b-version-val" value="1.0.0" placeholder="1.0.0" oninput="generate()" style="width:80px;">
+        </div>
+        <div class="badge-row">
+          <input type="checkbox" id="b-prs" onchange="generate()">
+          <label for="b-prs">PRs Welcome</label>
+        </div>
+        <div class="badge-row">
+          <input type="checkbox" id="b-maintained" onchange="generate()">
+          <label for="b-maintained">Maintained</label>
+        </div>
+      </div>
+
+    </div><!-- /form-panel -->
+
+    <!-- ── OUTPUT PANEL ────────────────────── -->
+    <div id="output-panel">
+      <div id="tab-bar">
+        <button class="tab active" onclick="switchTab('preview', this)">Preview</button>
+        <button class="tab" onclick="switchTab('markdown', this)">Markdown</button>
+      </div>
+      <div id="tab-content">
+        <div class="tab-pane active" id="pane-preview">
+          <div id="preview">
+            <div id="preview-empty">Fill in the form to generate your README</div>
+          </div>
+        </div>
+        <div class="tab-pane" id="pane-markdown">
+          <div id="md-pane">
+            <div id="md-actions">
+              <button class="btn primary" id="btn-copy" onclick="copyMd()">Copy Markdown</button>
+              <button class="btn" id="btn-dl" onclick="downloadMd()">Download .md</button>
+            </div>
+            <textarea id="md-output" readonly spellcheck="false" placeholder="Generated markdown will appear here..."></textarea>
+          </div>
+        </div>
+      </div>
+    </div><!-- /output-panel -->
+
+  </div><!-- /main -->
+</div><!-- /app -->
+
+<script>
+// ── State ──────────────────────────────────────────
+var techTags = [];
+
+// ── Helpers ────────────────────────────────────────
+function v(id) { return document.getElementById(id); }
+function val(id) { return v(id).value.trim(); }
+function checked(id) { return v(id).checked; }
+
+function slugify(text) {
+  return text.toLowerCase()
+    .replace(/[^\w\s-]/g, '')
+    .replace(/[\s_]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+}
+
+function githubAnchor(heading) {
+  return heading.toLowerCase()
+    .replace(/[^\w\s-]/g, '')
+    .replace(/\s+/g, '-')
+    .replace(/^-+|-+$/g, '');
+}
+
+// ── Tag handling ───────────────────────────────────
+function parseTags() {
+  var raw = val('f-tech');
+  techTags = raw.split(',').map(function(t) { return t.trim(); }).filter(Boolean);
+  renderTags();
+  generate();
+}
+
+function renderTags() {
+  var el = v('tech-tags-display');
+  el.innerHTML = '';
+  techTags.forEach(function(tag, i) {
+    var span = document.createElement('span');
+    span.className = 'tag';
+    span.textContent = tag;
+    span.title = 'Click to remove';
+    span.onclick = function() {
+      techTags.splice(i, 1);
+      v('f-tech').value = techTags.join(', ');
+      renderTags();
+      generate();
+    };
+    el.appendChild(span);
+  });
+}
+
+// ── Tab switching ──────────────────────────────────
+function switchTab(name, btn) {
+  document.querySelectorAll('.tab').forEach(function(t) { t.classList.remove('active'); });
+  document.querySelectorAll('.tab-pane').forEach(function(p) { p.classList.remove('active'); });
+  btn.classList.add('active');
+  v('pane-' + name).classList.add('active');
+}
+
+// ── Markdown generation ────────────────────────────
+function generate() {
+  var md = buildMarkdown();
+  v('md-output').value = md;
+  renderPreview(md);
+}
+
+function getField(id) { return v(id).value.trim(); }
+
+function buildMarkdown() {
+  var name     = getField('f-name')     || 'your-project';
+  var tagline  = getField('f-tagline');
+  var desc     = getField('f-desc');
+  var features = getField('f-features');
+  var install  = getField('f-install');
+  var usage    = getField('f-usage');
+  var license  = getField('f-license');
+  var template = getField('f-template');
+  var author   = getField('f-author');
+  var repo     = getField('f-repo');
+
+  var isMinimal  = template === 'minimal';
+  var isStandard = template === 'standard';
+  var isDetailed = template === 'detailed';
+
+  // ── Badges ─────────────────────────────────────
+  var badges = [];
+  var shieldsBase = 'https:' + '//' + 'img.shields.io/badge/';
+  if (checked('b-build')) {
+    var bval = v('b-build-val').value;
+    var bcolor = bval === 'passing' ? 'brightgreen' : bval === 'failing' ? 'red' : 'lightgrey';
+    var safeBval = encodeURIComponent((bval || 'unknown').replace(/-/g, '--'));
+    var buildUrl = shieldsBase + 'build-' + safeBval + '-' + bcolor;
+    badges.push('![Build Status](' + buildUrl + ')');
+  }
+  if (checked('b-license')) {
+    var lic = encodeURIComponent(license).replace(/-/g, '--');
+    var licUrl = shieldsBase + 'license-' + lic + '-blue';
+    badges.push('![License](' + licUrl + ')');
+  }
+  if (checked('b-version')) {
+    var ver = getField('b-version-val') || '1.0.0';
+    var verSafe = ver.replace(/-/g, '--');
+    var verUrl = shieldsBase + 'version-' + verSafe + '-orange';
+    badges.push('![Version](' + verUrl + ')');
+  }
+  if (checked('b-prs')) {
+    var prsUrl = shieldsBase + 'PRs-welcome-brightgreen';
+    badges.push('![PRs Welcome](' + prsUrl + ')');
+  }
+  if (checked('b-maintained')) {
+    var maintUrl = shieldsBase + 'Maintained-yes-green';
+    badges.push('![Maintained](' + maintUrl + ')');
+  }
+
+  // ── Determine which sections are active ────────
+  var hasFeatures  = !isMinimal && features.length > 0;
+  var hasTech      = !isMinimal && techTags.length > 0;
+  var hasInstall   = install.length > 0;
+  var hasUsage     = usage.length > 0;
+  var hasAuthor    = !isMinimal && author.length > 0;
+  var hasContrib   = isDetailed;
+  var hasChangelog = isDetailed;
+
+  // ── Build TOC entries ──────────────────────────
+  var tocEntries = [];
+  if (hasFeatures)  tocEntries.push({ title: 'Features', anchor: 'features' });
+  if (hasInstall)   tocEntries.push({ title: 'Installation', anchor: 'installation' });
+  if (hasUsage)     tocEntries.push({ title: 'Usage', anchor: 'usage' });
+  if (hasTech)      tocEntries.push({ title: 'Tech Stack', anchor: 'tech-stack' });
+  if (hasAuthor)    tocEntries.push({ title: 'Author', anchor: 'author' });
+  if (hasContrib)   tocEntries.push({ title: 'Contributing', anchor: 'contributing' });
+  tocEntries.push({ title: 'License', anchor: 'license' });
+  if (hasChangelog) tocEntries.push({ title: 'Changelog', anchor: 'changelog' });
+
+  // ── Assemble markdown ──────────────────────────
+  var lines = [];
+
+  // Title
+  lines.push('# ' + name);
+  if (tagline) lines.push('');
+  if (tagline) lines.push('> ' + tagline);
+  lines.push('');
+
+  // Badges
+  if (badges.length > 0) {
+    lines.push(badges.join(' '));
+    lines.push('');
+  }
+
+  // Description
+  if (desc) {
+    lines.push(desc);
+    lines.push('');
+  }
+
+  // TOC
+  if (tocEntries.length > 0) {
+    lines.push('## Table of Contents');
+    lines.push('');
+    tocEntries.forEach(function(entry) {
+      lines.push('- [' + entry.title + '](#' + entry.anchor + ')');
+    });
+    lines.push('');
+  }
+
+  // Features
+  if (hasFeatures) {
+    lines.push('## Features');
+    lines.push('');
+    var fLines = features.split('\n').map(function(l) { return l.trim(); }).filter(Boolean);
+    fLines.forEach(function(f) {
+      lines.push('- ' + f);
+    });
+    lines.push('');
+  }
+
+  // Installation
+  if (hasInstall) {
+    lines.push('## Installation');
+    lines.push('');
+    lines.push('```bash');
+    install.split('\n').forEach(function(l) {
+      if (l.trim() !== '') lines.push(l);
+    });
+    lines.push('```');
+    lines.push('');
+  }
+
+  // Usage
+  if (hasUsage) {
+    lines.push('## Usage');
+    lines.push('');
+    lines.push('```');
+    usage.split('\n').forEach(function(l) {
+      lines.push(l);
+    });
+    lines.push('```');
+    lines.push('');
+  }
+
+  // Tech Stack
+  if (hasTech) {
+    lines.push('## Tech Stack');
+    lines.push('');
+    techTags.forEach(function(tag) {
+      lines.push('- ' + tag);
+    });
+    lines.push('');
+  }
+
+  // Author
+  if (hasAuthor) {
+    lines.push('## Author');
+    lines.push('');
+    if (repo) {
+      lines.push('**' + author + '** — [' + repo + '](' + repo + ')');
+    } else {
+      lines.push('**' + author + '**');
+    }
+    lines.push('');
+  }
+
+  // Contributing (detailed only)
+  if (hasContrib) {
+    lines.push('## Contributing');
+    lines.push('');
+    lines.push('Contributions are welcome! Please feel free to submit a Pull Request.');
+    lines.push('');
+    lines.push('1. Fork the repository');
+    lines.push('2. Create your feature branch (`git checkout -b feature/amazing-feature`)');
+    lines.push('3. Commit your changes (`git commit -m "Add amazing feature"`)');
+    lines.push('4. Push to the branch (`git push origin feature/amazing-feature`)');
+    lines.push('5. Open a Pull Request');
+    lines.push('');
+  }
+
+  // License
+  lines.push('## License');
+  lines.push('');
+  lines.push('This project is licensed under the [' + license + '](LICENSE) license.');
+  lines.push('');
+
+  // Changelog (detailed only)
+  if (hasChangelog) {
+    lines.push('## Changelog');
+    lines.push('');
+    lines.push('### [Unreleased]');
+    lines.push('');
+    lines.push('- Initial release');
+    lines.push('');
+  }
+
+  // Footer
+  if (isDetailed && (author || repo)) {
+    lines.push('---');
+    lines.push('');
+    if (author && repo) {
+      lines.push('Made with dedication by [' + author + '](' + repo + ')');
+    } else if (author) {
+      lines.push('Made with dedication by ' + author);
+    }
+    lines.push('');
+  }
+
+  return lines.join('\n');
+}
+
+// ── Markdown renderer ──────────────────────────────
+// Minimal inline renderer: headings, bold, italic, code, lists, links, hr, blockquote, images
+function renderMarkdown(md) {
+  var lines = md.split('\n');
+  var html = '';
+  var i = 0;
+  var inList = null; // 'ul' or 'ol'
+  var inPre = false;
+  var preBuf = [];
+
+  function flushList() {
+    if (inList) {
+      html += '</' + inList + '>\n';
+      inList = null;
+    }
+  }
+
+  function escapedHtml(s) {
+    return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  }
+
+  function inlineFormat(s) {
+    // Extract code spans first to protect their contents from formatting
+    var codeSpans = [];
+    s = s.replace(/`([^`]+)`/g, function(match, p1) {
+      codeSpans.push(escapedHtml(p1));
+      return '\x00CODE' + (codeSpans.length - 1) + '\x00';
+    });
+    // Images before links (order matters)
+    s = s.replace(/!\[(.*?)\]\((.*?)\)/g, '<img src="$2" alt="$1">');
+    // Links
+    s = s.replace(/\[(.*?)\]\((.*?)\)/g, '<a href="$2">$1</a>');
+    // Bold (non-greedy)
+    s = s.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+    s = s.replace(/__(.*?)__/g, '<strong>$1</strong>');
+    // Italic (non-greedy)
+    s = s.replace(/\*(.*?)\*/g, '<em>$1</em>');
+    s = s.replace(/_(.*?)_/g, '<em>$1</em>');
+    // Restore code spans
+    s = s.replace(/\x00CODE(\d+)\x00/g, function(match, idx) {
+      return '<code>' + codeSpans[parseInt(idx, 10)] + '</code>';
+    });
+    return s;
+  }
+
+  while (i < lines.length) {
+    var line = lines[i];
+
+    // Fenced code block
+    if (/^```/.test(line)) {
+      if (!inPre) {
+        flushList();
+        inPre = true;
+        preBuf = [];
+        i++;
+        continue;
+      } else {
+        inPre = false;
+        html += '<pre><code>' + escapedHtml(preBuf.join('\n')) + '</code></pre>\n';
+        preBuf = [];
+        i++;
+        continue;
+      }
+    }
+    if (inPre) {
+      preBuf.push(line);
+      i++;
+      continue;
+    }
+
+    // Headings
+    var hm = line.match(/^(#{1,4})\s+(.+)$/);
+    if (hm) {
+      flushList();
+      var level = hm[1].length;
+      var text = hm[2];
+      var id = githubAnchor(text);
+      html += '<h' + level + ' id="' + id + '">' + inlineFormat(text) + '</h' + level + '>\n';
+      i++;
+      continue;
+    }
+
+    // HR
+    if (/^(-{3,}|\*{3,}|_{3,})$/.test(line.trim())) {
+      flushList();
+      html += '<hr>\n';
+      i++;
+      continue;
+    }
+
+    // Blockquote
+    if (/^>\s?/.test(line)) {
+      flushList();
+      html += '<blockquote>' + inlineFormat(line.replace(/^>\s?/, '')) + '</blockquote>\n';
+      i++;
+      continue;
+    }
+
+    // Unordered list
+    var ulm = line.match(/^[-*+]\s+(.+)$/);
+    if (ulm) {
+      if (inList !== 'ul') {
+        flushList();
+        html += '<ul>\n';
+        inList = 'ul';
+      }
+      html += '<li>' + inlineFormat(ulm[1]) + '</li>\n';
+      i++;
+      continue;
+    }
+
+    // Ordered list
+    var olm = line.match(/^\d+\.\s+(.+)$/);
+    if (olm) {
+      if (inList !== 'ol') {
+        flushList();
+        html += '<ol>\n';
+        inList = 'ol';
+      }
+      html += '<li>' + inlineFormat(olm[1]) + '</li>\n';
+      i++;
+      continue;
+    }
+
+    // Empty line
+    if (line.trim() === '') {
+      flushList();
+      i++;
+      continue;
+    }
+
+    // Paragraph
+    flushList();
+    html += '<p>' + inlineFormat(line) + '</p>\n';
+    i++;
+  }
+
+  flushList();
+  if (inPre) {
+    html += '<pre><code>' + escapedHtml(preBuf.join('\n')) + '</code></pre>\n';
+  }
+  return html;
+}
+
+function renderPreview(md) {
+  var el = v('preview');
+  if (!md.trim()) {
+    el.innerHTML = '<div id="preview-empty">Fill in the form to generate your README</div>';
+    return;
+  }
+  el.innerHTML = renderMarkdown(md);
+}
+
+// ── Copy ────────────────────────────────────────────
+function copyMd() {
+  var text = v('md-output').value;
+  if (!text) return;
+  var btn = v('btn-copy');
+  if (navigator.clipboard && window.isSecureContext) {
+    navigator.clipboard.writeText(text).then(function() {
+      flashBtn(btn, 'Copied!');
+    }).catch(function() {
+      fallbackCopy(text, btn);
+    });
+  } else {
+    fallbackCopy(text, btn);
+  }
+}
+
+function fallbackCopy(text, btn) {
+  var el = v('md-output');
+  el.select();
+  el.setSelectionRange(0, 99999);
+  try {
+    document.execCommand('copy');
+    flashBtn(btn, 'Copied!');
+  } catch (e) {
+    flashBtn(btn, 'Select + copy manually');
+  }
+}
+
+function flashBtn(btn, msg) {
+  var orig = btn.textContent;
+  btn.textContent = msg;
+  btn.classList.add('success');
+  setTimeout(function() {
+    btn.textContent = orig;
+    btn.classList.remove('success');
+  }, 1800);
+}
+
+// ── Download ────────────────────────────────────────
+function downloadMd() {
+  var text = v('md-output').value;
+  if (!text) return;
+  var name = slugify(getField('f-name') || 'README') || 'README';
+  var filename = name.toUpperCase() === 'README' ? 'README.md' : name + '-README.md';
+  var blob = new Blob([text], { type: 'text/markdown;charset=utf-8' });
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  a.style.display = 'none';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(function() { URL.revokeObjectURL(url); }, 1000);
+}
+
+// ── Init ────────────────────────────────────────────
+generate();
+</script>
+</body>
+</html>
