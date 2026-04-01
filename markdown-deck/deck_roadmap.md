@@ -118,3 +118,4 @@ These are features complex enough to prototype as standalone YOLO single-session
 | 2026-03-31 | Tock | PPTX diagrams: SVG→Canvas→PNG pipeline for embedded diagram images |
 | 2026-03-31 | Tick | schema-viz: JSON Schema / OpenAPI spec visualizer |
 | 2026-04-01 | Tock | DECK_GUIDE.md: strict AI prompting rules, failure table, example prompt, validation checklist |
+| 2026-04-01 | Tick | http-status: interactive HTTP status code reference |
