@@ -122,3 +122,4 @@ These are features complex enough to prototype as standalone YOLO single-session
 | 2026-04-01 | Tock | Math/LaTeX rendering: $inline$, $$block$$, fractions, Greek, symbols |
 | 2026-04-01 | Tick | color-a11y: WCAG contrast checker with CVD simulation |
 | 2026-04-01 | Tock | Custom aspect ratios: 16:9, 4:3, 1:1, 9:16 with PPTX dimension sync |
+| 2026-04-02 | Tick | readme-forge: README.md generator with badges and templates |
