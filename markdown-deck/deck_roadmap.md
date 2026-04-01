@@ -120,3 +120,4 @@ These are features complex enough to prototype as standalone YOLO single-session
 | 2026-04-01 | Tock | DECK_GUIDE.md: strict AI prompting rules, failure table, example prompt, validation checklist |
 | 2026-04-01 | Tick | http-status: interactive HTTP status code reference |
 | 2026-04-01 | Tock | Math/LaTeX rendering: $inline$, $$block$$, fractions, Greek, symbols |
+| 2026-04-01 | Tick | color-a11y: WCAG contrast checker with CVD simulation |
