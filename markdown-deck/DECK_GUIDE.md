@@ -13,44 +13,49 @@ When using an AI model (Gemini, Claude, GPT, etc.) to generate slide markdown, i
 ```
 Generate a markdown slide deck following these STRICT rules:
 
-1. OUTPUT RAW MARKDOWN ONLY — do NOT wrap the entire output in a code fence.
-   Your response should start with the first slide heading, not with ```markdown.
+1. WRAP YOUR ENTIRE OUTPUT in a single markdown code block (```markdown ... ```).
+   ALL slide content must live INSIDE this code block. Do NOT drop out of it.
+   Do NOT close the code block early. The closing ``` goes at the very end,
+   after the last slide.
 
-2. EVERY code block MUST have both opening and closing triple backticks.
-   Opening: ```language
-   Closing: ```
-   Count your backticks. If you opened one, you MUST close it.
+2. For code examples WITHIN slides, use 4-backtick fences (````) to avoid
+   conflicting with the outer 3-backtick wrapper. Example:
+   ````python
+   def hello():
+       print("hello")
+   ````
 
 3. Slide separator is --- on its own line with blank lines above and below.
    Do NOT use --- inside a slide (use *** for horizontal rules within slides).
 
-4. Do NOT nest code blocks. Never put ``` inside another ``` block.
-
-5. For the design.md theme, output it SEPARATELY from the slides — not inline.
-
-6. Fragment breaks use -- on its own line (two dashes, not three).
+4. Fragment breaks use -- on its own line (two dashes, not three).
    Three dashes (---) = slide break. Two dashes (--) = fragment reveal.
 
-7. Two-column layout uses ||| on its own line between the two columns.
+5. Two-column layout uses ||| on its own line between the two columns.
 
-8. Per-slide theme overrides use HTML comments: <!-- bg: #color, text: #color -->
+6. Per-slide theme overrides use HTML comments: <!-- bg: #color, text: #color -->
    Place these at the very top of a slide, before any content.
 
-9. Positioned elements use [@ x:10% y:20% w:40%] on its own line.
+7. Positioned elements use [@ x:10% y:20% w:40%] on its own line.
 
-10. Speaker notes go after ??? at the end of a slide.
+8. Speaker notes go after ??? at the end of a slide.
+
+9. Diagrams use ```diagram fenced blocks with the DSL:
+   [Node] --> [Node] --label--> [Node]
+
+10. For the design.md theme tokens, output them SEPARATELY after the slide
+    code block — not inside it.
 ```
 
 ### Common AI Failures and How to Avoid Them
 
 | Failure | Cause | Fix |
 |---------|-------|-----|
-| Broken code blocks | AI wraps entire output in ``` | Tell it: "do NOT wrap output in a code fence" |
-| Missing closing ``` | AI forgets to close a code block | Tell it: "count your backticks" |
+| Content falls outside code block | AI closes ``` too early or drops out mid-slide | Tell it: "ALL content inside one code block, closing ``` at the very end" |
+| Inner code examples break outer block | AI uses ``` inside ``` | Tell it: "use 4-backtick fences (````) for code examples inside slides" |
 | Slides don't separate | AI uses `---` without blank lines | Tell it: "blank line before and after ---" |
 | Fragment breaks create new slides | AI uses `---` instead of `--` | Tell it: "-- for fragments, --- for slides" |
 | Theme overrides don't work | AI puts `<!-- -->` after content | Tell it: "theme comments go FIRST in the slide" |
-| Nested code blocks | AI puts ``` inside another ``` | Tell it: "never nest code blocks" |
 
 ### Example Prompt
 
@@ -58,8 +63,9 @@ Generate a markdown slide deck following these STRICT rules:
 Using the Markdown Deck format, create a 6-slide deck about [TOPIC].
 
 Rules:
-- Output raw markdown, NOT wrapped in a code fence
-- Every code block must have opening AND closing ```
+- Wrap your ENTIRE output in a single ```markdown code block
+- ALL slides live inside that one code block — do NOT close it early
+- For code examples in slides, use 4-backtick fences (````) not 3
 - Separate slides with --- (blank line above and below)
 - Use ## for slide titles, ### for subtitles
 - Use -- for progressive reveal (NOT ---)
@@ -74,10 +80,11 @@ bullets/code/tables, and a closing slide.
 ### Validating AI Output
 
 After receiving AI-generated markdown:
-1. Count backtick pairs — every opening ``` needs a closing ```
-2. Check that `---` slide separators have blank lines around them
-3. Verify `--` (fragments) vs `---` (slides) are correct
-4. Paste into Markdown Deck — the auto-close heuristic will fix one unclosed fence, but not multiple
+1. Verify the output is wrapped in a single ```markdown ... ``` block
+2. Copy everything INSIDE the code block (not the fences themselves) into Markdown Deck
+3. Check that `---` slide separators have blank lines around them
+4. Verify `--` (fragments) vs `---` (slides) are correct
+5. The app's auto-close heuristic will fix one unclosed fence as a fallback
 
 ---
 
