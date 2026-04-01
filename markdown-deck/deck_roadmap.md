@@ -125,3 +125,4 @@ These are features complex enough to prototype as standalone YOLO single-session
 | 2026-04-02 | Tick | readme-forge: README.md generator with badges and templates |
 | 2026-04-02 | Tock | Template library: 6 pre-built decks (pitch, tech review, sprint, lecture, status, blank) |
 | 2026-04-02 | Tick | ssl-check: SSL cert inspector (COUNCIL PILOT: bugs + security reviews) |
+| 2026-04-02 | Tock | Preview/present parity: both use 960px virtual slide + scale-to-fit, identical fonts |

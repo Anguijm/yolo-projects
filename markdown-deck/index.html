@@ -44,18 +44,19 @@ textarea:focus { outline: none; }
 /* Presentation mode */
 .present-mode { display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: #0a0a0a; z-index: 1000; }
 .present-mode.active { display: flex; align-items: center; justify-content: center; }
-.present-slide { width: 90vw; height: 85vh; max-width: 1200px; padding: 4rem 5rem; display: flex; flex-direction: column; justify-content: center; position: relative; }
+.present-slide { width: 960px; height: 540px; padding: 3rem 4rem; display: flex; flex-direction: column; justify-content: center; position: relative; transform-origin: center center; overflow: hidden; }
 .present-slide.has-positioned { justify-content: flex-start; }
 .present-slide .pos-block { position: absolute; box-sizing: border-box; }
-.present-slide h1 { font-size: 3.5rem; color: #fff; margin-bottom: 1.5rem; }
-.present-slide h2 { font-size: 2.2rem; color: #60a5fa; margin-bottom: 1rem; }
-.present-slide h3 { font-size: 1.6rem; color: #a78bfa; margin-bottom: 0.8rem; }
-.present-slide p { font-size: 1.4rem; color: #ccc; margin-bottom: 1rem; line-height: 1.6; }
-.present-slide ul, .present-slide ol { font-size: 1.3rem; margin: 0.5rem 0 0.5rem 2rem; line-height: 2; color: #ccc; }
-.present-slide code { font-size: 1.1rem; background: #1a1a1a; padding: 0.2rem 0.5rem; border-radius: 4px; color: #4ade80; }
-.present-slide pre { padding: 1.5rem; border-radius: 8px; background: #111; }
-.present-slide pre code { font-size: 1rem; background: none; padding: 0; color: #ccc; }
-.present-slide blockquote { border-left: 4px solid #333; padding-left: 1.5rem; font-size: 1.3rem; color: #888; }
+/* Present slide uses identical fonts to preview (both render at 960px, scale to fit) */
+.present-slide h1 { font-size: 2.8rem; color: #fff; margin-bottom: 1.2rem; line-height: 1.2; }
+.present-slide h2 { font-size: 1.8rem; color: #60a5fa; margin-bottom: 0.8rem; }
+.present-slide h3 { font-size: 1.3rem; color: #a78bfa; margin-bottom: 0.6rem; }
+.present-slide p { font-size: 1.15rem; color: #ccc; margin-bottom: 0.7rem; line-height: 1.5; }
+.present-slide ul, .present-slide ol { margin: 0.4rem 0 0.4rem 1.5rem; font-size: 1.1rem; color: #ccc; line-height: 1.7; }
+.present-slide code { font-size: 0.95rem; background: #1a1a1a; padding: 0.15rem 0.4rem; border-radius: 3px; color: #4ade80; }
+.present-slide pre { padding: 1rem; border-radius: 6px; background: #111; }
+.present-slide pre code { font-size: 0.85rem; background: none; padding: 0; color: #ccc; }
+.present-slide blockquote { border-left: 3px solid #333; padding-left: 1rem; color: #888; font-style: italic; margin: 0.5rem 0; }
 .present-slide strong { color: #fff; }
 .present-slide em { color: #fbbf24; }
 .present-slide a { color: #60a5fa; }
@@ -1066,12 +1067,25 @@ window.prevSlide = function() {
 window.startPresent = function() {
   presenting = true;
   presentEl.classList.add('active');
-  // Apply current ratio to present slide
-  var r = RATIO_DIMS[currentRatio] || RATIO_DIMS['16/9'];
-  presentSlideEl.style.aspectRatio = r.css;
+  scalePresentSlide();
   renderPresent();
   document.body.requestFullscreen?.();
 };
+
+function scalePresentSlide() {
+  var r = RATIO_DIMS[currentRatio] || RATIO_DIMS['16/9'];
+  var parts = r.css.split('/');
+  var rw = parseInt(parts[0], 10);
+  var rh = parseInt(parts[1], 10);
+  var sw = 960;
+  var sh = Math.round(sw * rh / rw);
+  presentSlideEl.style.width = sw + 'px';
+  presentSlideEl.style.height = sh + 'px';
+  var vw = window.innerWidth;
+  var vh = window.innerHeight;
+  var scale = Math.min(vw / sw, vh / sh) * 0.92; // 92% to leave slight margin
+  presentSlideEl.style.transform = 'scale(' + scale + ')';
+}
 
 function stopPresent() {
   presenting = false;
@@ -1842,7 +1856,10 @@ try {
 } catch(e) {}
 
 // Re-scale on window resize
-window.addEventListener('resize', function() { requestAnimationFrame(scalePreviewSlide); });
+window.addEventListener('resize', function() {
+  requestAnimationFrame(scalePreviewSlide);
+  if (presenting) requestAnimationFrame(scalePresentSlide);
+});
 
 // ============ LAYOUT MODE (visual drag positioning) ============
 var layoutMode = false;
