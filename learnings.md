@@ -2532,3 +2532,12 @@ Persistent knowledge base. Read this before every build.
 - **KEEP**: `<script type="application/json" id="...">` for large inline data arrays — completely avoids brace-balance issues with the test runner since the block is not extracted as JS.
 - **KEEP**: Category color-coding (1xx gray, 2xx green, 3xx amber, 4xx red, 5xx purple) via CSS class + CSS variable — clean and consistent with semantic color system.
 - **KEEP**: Single-card-at-a-time expansion (close old before opening new) — avoids cluttered multi-expanded layout without complex state tracking.
+
+### color-a11y — WCAG Contrast Checker with CVD Simulation (2026-03-31)
+- **BUG CRITICAL**: CVD color blindness simulation matrices (Viénot/Brettel) operate in **linear RGB space**, not gamma-encoded sRGB. Applying the 3×3 matrix directly to raw hex-decoded values produces wrong colors. Must linearize each channel with the WCAG piecewise function before matrix multiplication, then gamma-encode back with the inverse function.
+- **BUG**: `findClosestPassingFg` that tries lighter before darker and immediately `break`s on first match silently biases toward lighter colors. When `step=5` makes lighter pass but `step=3` would make darker pass, the algorithm misses the better answer. Fix: at each step, evaluate both directions simultaneously, then return or compare — never break out of the loop after checking only one direction.
+- **BUG**: `hexToRgb` with `parseInt(hex, 16)` on 8-character hex codes (CSS `#RRGGBBAA`) interprets the alpha channel as part of the color. `#000000FF` (opaque black) parses to `255`, and bitshifts yield `[0, 0, 255]` (blue). Fix: strip the last two characters if the hex string is 8 chars before parsing.
+- **BUG**: Using `padStart(2, '0')` in `rgbToHex` is an ES2017 method — in strict ES5 environments it throws. Use manual length-check: `s.length === 1 ? '0' + s : s`.
+- **KEEP**: WCAG 2.1 contrast ratio formula: luminance values go through `(L + 0.05) / (L + 0.05)` where the 0.05 offset prevents division by zero and matches the spec. The lighter color is always in the numerator.
+- **KEEP**: For "find closest passing color" algorithms: walk step 0→100, at each step test both directions (lighter and darker), track best-failure fallback for impossible targets, return immediately when a passing candidate is found.
+- **KEEP**: CVD simulation grid (3 types × swatch + ratio) is a high-signal UI pattern that reveals real-world accessibility issues invisible to normal contrast checkers.

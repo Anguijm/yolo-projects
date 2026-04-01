@@ -1,0 +1,732 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="theme-color" content="#000000">
+<title>color-a11y</title>
+<style>
+:root {
+  --bg-page:     #0a0a0a;
+  --bg-surface:  #111;
+  --bg-elevated: #1a1a1a;
+  --bg-hover:    #222;
+  --text-primary:   #fff;
+  --text-body:      #ccc;
+  --text-secondary: #aaa;
+  --text-tertiary:  #555;
+  --text-label:     #444;
+  --border-default: #1a1a1a;
+  --border-active:  #444;
+  --border-focus:   #555;
+  --color-success:  #3fb950;
+  --color-error:    #f85149;
+  --color-warning:  #d29922;
+  --accent: #0ff;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body {
+  height: 100%;
+  background: var(--bg-page);
+  overflow-y: auto;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+  color: var(--text-body);
+}
+#app {
+  max-width: 520px;
+  margin: 0 auto;
+  padding: 12px;
+}
+.title {
+  font-size: 0.6rem;
+  font-weight: 400;
+  color: var(--text-secondary);
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  text-align: center;
+  margin-bottom: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border-default);
+}
+.title span {
+  color: var(--accent);
+}
+.panel {
+  padding: 8px 10px;
+  border: 1px solid var(--border-default);
+  margin-bottom: 8px;
+}
+.panel-label {
+  font-size: 0.45rem;
+  color: var(--text-label);
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  margin-bottom: 6px;
+}
+
+/* Color pickers */
+.pickers-row {
+  display: flex;
+  gap: 8px;
+  align-items: stretch;
+}
+.color-slot {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.color-slot-label {
+  font-size: 0.4rem;
+  color: var(--text-tertiary);
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+}
+.color-input-row {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+input[type="color"] {
+  width: 36px;
+  height: 28px;
+  border: 1px solid var(--border-default);
+  background: transparent;
+  padding: 1px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+input[type="color"]:focus { border-color: var(--border-focus); outline: none; }
+.hex-input {
+  flex: 1;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-default);
+  color: var(--text-secondary);
+  padding: 5px 7px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.7rem;
+  outline: none;
+  text-transform: uppercase;
+}
+.hex-input:focus { border-color: var(--border-focus); }
+
+.swap-row {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 8px;
+  margin: 4px 0;
+}
+.btn {
+  padding: 4px 10px;
+  background: transparent;
+  border: 1px solid var(--border-default);
+  color: var(--text-label);
+  font-family: inherit;
+  font-size: 0.55rem;
+  cursor: pointer;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+.btn:hover { border-color: var(--border-active); color: var(--text-secondary); }
+.btn:active { border-color: var(--border-focus); color: var(--text-primary); }
+.btn.active { border-color: var(--accent); color: var(--accent); }
+
+/* Ratio display */
+.ratio-panel {
+  text-align: center;
+  padding: 12px 10px;
+  border: 1px solid var(--border-default);
+  margin-bottom: 8px;
+}
+#ratio-display {
+  font-size: clamp(1.8rem, 8vw, 2.8rem);
+  font-weight: 200;
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  margin-bottom: 6px;
+}
+.ratio-unit {
+  font-size: 0.7rem;
+  color: var(--text-tertiary);
+  font-weight: 400;
+}
+
+/* Badges */
+.badges {
+  display: flex;
+  gap: 4px;
+  justify-content: center;
+  flex-wrap: wrap;
+  margin-top: 8px;
+}
+.badge {
+  padding: 3px 8px;
+  font-size: 0.38rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  border: 1px solid;
+}
+.badge.pass {
+  background: rgba(63,185,80,0.08);
+  color: var(--color-success);
+  border-color: rgba(63,185,80,0.25);
+}
+.badge.fail {
+  background: rgba(248,81,73,0.08);
+  color: var(--color-error);
+  border-color: rgba(248,81,73,0.2);
+}
+
+/* Fix suggestion */
+.fix-panel {
+  padding: 8px 10px;
+  border: 1px solid var(--border-default);
+  margin-bottom: 8px;
+  display: none;
+}
+.fix-panel.visible { display: block; }
+.fix-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
+}
+.fix-swatch {
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--border-default);
+  flex-shrink: 0;
+}
+.fix-hex {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.7rem;
+  color: var(--accent);
+  flex: 1;
+}
+.fix-ratio {
+  font-size: 0.45rem;
+  color: var(--text-tertiary);
+}
+
+/* Preview */
+.preview-panel {
+  padding: 14px 16px;
+  border: 1px solid var(--border-default);
+  margin-bottom: 8px;
+  transition: background 0.15s, color 0.15s;
+}
+#preview-normal {
+  font-size: 1rem;
+  margin-bottom: 4px;
+}
+#preview-large {
+  font-size: 1.5rem;
+  font-weight: 700;
+}
+
+/* CVD simulation */
+.cvd-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  margin-top: 6px;
+}
+.cvd-card {
+  padding: 10px 8px;
+  border: 1px solid var(--border-default);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.cvd-label {
+  font-size: 0.38rem;
+  color: var(--text-tertiary);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+.cvd-preview {
+  font-size: 0.8rem;
+  padding: 6px 8px;
+  border: 1px solid rgba(255,255,255,0.04);
+}
+.cvd-ratio {
+  font-size: 0.4rem;
+  color: var(--text-tertiary);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+
+/* Presets */
+.presets-row {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+.preset-btn {
+  padding: 3px 8px;
+  background: transparent;
+  border: 1px solid var(--border-default);
+  color: var(--text-label);
+  font-family: inherit;
+  font-size: 0.45rem;
+  cursor: pointer;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.preset-btn:hover { border-color: var(--border-active); color: var(--text-secondary); }
+</style>
+</head>
+<body>
+<div id="app">
+  <div class="title"><span>color</span>-a11y — WCAG Contrast Checker</div>
+
+  <!-- Color Pickers -->
+  <div class="panel">
+    <div class="panel-label">Colors</div>
+    <div class="pickers-row">
+      <div class="color-slot">
+        <div class="color-slot-label">Foreground</div>
+        <div class="color-input-row">
+          <input type="color" id="fg-picker" value="#ffffff">
+          <input type="text" id="fg-hex" class="hex-input" value="#FFFFFF" maxlength="7">
+        </div>
+      </div>
+      <div class="color-slot">
+        <div class="color-slot-label">Background</div>
+        <div class="color-input-row">
+          <input type="color" id="bg-picker" value="#0a0a0a">
+          <input type="text" id="bg-hex" class="hex-input" value="#0A0A0A" maxlength="7">
+        </div>
+      </div>
+    </div>
+    <div class="swap-row">
+      <button class="btn" id="btn-swap">&#8645; Swap</button>
+    </div>
+  </div>
+
+  <!-- Presets -->
+  <div class="panel">
+    <div class="panel-label">Presets</div>
+    <div class="presets-row" id="presets-row"></div>
+  </div>
+
+  <!-- Contrast Ratio + Badges -->
+  <div class="ratio-panel">
+    <div id="ratio-display">—<span class="ratio-unit">:1</span></div>
+    <div class="badges" id="badges-row"></div>
+  </div>
+
+  <!-- Suggested Fix -->
+  <div class="fix-panel" id="fix-panel">
+    <div class="panel-label">Suggested Fix (AA Normal)</div>
+    <div class="fix-row">
+      <div class="fix-swatch" id="fix-swatch"></div>
+      <div class="fix-hex" id="fix-hex">—</div>
+      <div class="fix-ratio" id="fix-ratio">—</div>
+    </div>
+    <div style="font-size:0.38rem;color:var(--text-tertiary);margin-top:4px;">
+      Closest lightness adjustment on foreground to reach 4.5:1
+    </div>
+  </div>
+
+  <!-- Preview -->
+  <div class="panel" style="padding:0;overflow:hidden;margin-bottom:8px;">
+    <div class="panel-label" style="padding:6px 10px 0;">Preview</div>
+    <div class="preview-panel" id="preview-panel">
+      <div id="preview-normal">The quick brown fox jumps over the lazy dog</div>
+      <div id="preview-large">Aa Bb Cc 123</div>
+    </div>
+  </div>
+
+  <!-- Color Blindness Simulation -->
+  <div class="panel">
+    <div class="panel-label">Color Blindness Simulation</div>
+    <div class="cvd-grid" id="cvd-grid"></div>
+  </div>
+</div>
+
+<script>
+// ── Color math ──────────────────────────────────────────────────────────────
+
+function hexToRgb(hex) {
+  if (typeof hex !== 'string') return [0, 0, 0];
+  var h = hex.replace('#', '').toLowerCase();
+  // Expand 3-char shorthand
+  if (h.length === 3) {
+    h = h[0]+h[0]+h[1]+h[1]+h[2]+h[2];
+  }
+  // Strip alpha from 8-char hex
+  if (h.length === 8) {
+    h = h.substring(0, 6);
+  }
+  if (h.length !== 6 || !/^[0-9a-f]{6}$/.test(h)) return [0, 0, 0];
+  var n = parseInt(h, 16);
+  return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+}
+
+function rgbToHex(r, g, b) {
+  return '#' + [r, g, b].map(function(v) {
+    if (isNaN(v)) return '00';
+    var x = Math.max(0, Math.min(255, Math.round(v)));
+    var s = x.toString(16);
+    return s.length === 1 ? '0' + s : s;
+  }).join('').toUpperCase();
+}
+
+function linearize(c) {
+  var v = c / 255;
+  return v <= 0.04045 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
+}
+
+function delinearize(v) {
+  var c = v <= 0.0031308 ? v * 12.92 : 1.055 * Math.pow(v, 1/2.4) - 0.055;
+  return Math.round(Math.max(0, Math.min(1, c)) * 255);
+}
+
+function relativeLuminance(rgb) {
+  var r = linearize(rgb[0]);
+  var g = linearize(rgb[1]);
+  var b = linearize(rgb[2]);
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+}
+
+function contrastRatio(lum1, lum2) {
+  var lighter = Math.max(lum1, lum2);
+  var darker  = Math.min(lum1, lum2);
+  return (lighter + 0.05) / (darker + 0.05);
+}
+
+// CVD matrices (Brettel/Viénot LMS simulation, sRGB linear space)
+// Source: Simulation of Color Blindness (Viénot et al.)
+var CVD = {
+  protanopia: [
+    0.56667, 0.43333, 0,
+    0.55833, 0.44167, 0,
+    0,       0.24167, 0.75833
+  ],
+  deuteranopia: [
+    0.625, 0.375, 0,
+    0.7,   0.3,   0,
+    0,     0.3,   0.7
+  ],
+  tritanopia: [
+    0.95, 0.05,  0,
+    0,    0.43333, 0.56667,
+    0,    0.475,  0.525
+  ]
+};
+
+function applyMatrix(rgb, m) {
+  // rgb in 0-255, apply in linear space
+  var r = linearize(rgb[0]);
+  var g = linearize(rgb[1]);
+  var b = linearize(rgb[2]);
+  var rr = m[0]*r + m[1]*g + m[2]*b;
+  var gg = m[3]*r + m[4]*g + m[5]*b;
+  var bb = m[6]*r + m[7]*g + m[8]*b;
+  return [delinearize(rr), delinearize(gg), delinearize(bb)];
+}
+
+function simulateCVD(rgb, type) {
+  var matrix = CVD[type];
+  if (!matrix) return rgb;
+  return applyMatrix(rgb, matrix);
+}
+
+// HSL conversion for fix suggestion
+function rgbToHsl(r, g, b) {
+  r /= 255; g /= 255; b /= 255;
+  var max = Math.max(r, g, b), min = Math.min(r, g, b);
+  var h = 0, s = 0, l = (max + min) / 2;
+  if (max !== min) {
+    var d = max - min;
+    s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+    switch (max) {
+      case r: h = ((g - b) / d + (g < b ? 6 : 0)) / 6; break;
+      case g: h = ((b - r) / d + 2) / 6; break;
+      case b: h = ((r - g) / d + 4) / 6; break;
+    }
+  }
+  return [h * 360, s * 100, l * 100];
+}
+
+function hslToRgb(h, s, l) {
+  h /= 360; s /= 100; l /= 100;
+  var r, g, b;
+  if (s === 0) {
+    r = g = b = l;
+  } else {
+    var hue2rgb = function(p, q, t) {
+      if (t < 0) t += 1;
+      if (t > 1) t -= 1;
+      if (t < 1/6) return p + (q - p) * 6 * t;
+      if (t < 1/2) return q;
+      if (t < 2/3) return p + (q - p) * (2/3 - t) * 6;
+      return p;
+    };
+    var q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+    var p = 2 * l - q;
+    r = hue2rgb(p, q, h + 1/3);
+    g = hue2rgb(p, q, h);
+    b = hue2rgb(p, q, h - 1/3);
+  }
+  return [Math.round(r * 255), Math.round(g * 255), Math.round(b * 255)];
+}
+
+function findClosestPassingFg(fgRgb, bgLum, targetRatio) {
+  var hsl = rgbToHsl(fgRgb[0], fgRgb[1], fgRgb[2]);
+  var h = hsl[0], s = hsl[1], l = hsl[2];
+
+  var bestFailHex = null;
+  var bestFailRatio = 0;
+
+  for (var step = 0; step <= 100; step++) {
+    var lLight = Math.min(100, l + step);
+    var rgbLight = hslToRgb(h, s, lLight);
+    var lumLight = relativeLuminance(rgbLight);
+    var ratioLight = contrastRatio(lumLight, bgLum);
+
+    var lDark = Math.max(0, l - step);
+    var rgbDark = hslToRgb(h, s, lDark);
+    var lumDark = relativeLuminance(rgbDark);
+    var ratioDark = contrastRatio(lumDark, bgLum);
+
+    var lightPasses = ratioLight >= targetRatio;
+    var darkPasses  = ratioDark  >= targetRatio;
+
+    if (lightPasses && darkPasses) {
+      // Both pass — pick whichever has higher ratio
+      if (ratioLight >= ratioDark) {
+        return { hex: rgbToHex(rgbLight[0], rgbLight[1], rgbLight[2]), ratio: ratioLight };
+      } else {
+        return { hex: rgbToHex(rgbDark[0], rgbDark[1], rgbDark[2]), ratio: ratioDark };
+      }
+    } else if (lightPasses) {
+      return { hex: rgbToHex(rgbLight[0], rgbLight[1], rgbLight[2]), ratio: ratioLight };
+    } else if (darkPasses) {
+      return { hex: rgbToHex(rgbDark[0], rgbDark[1], rgbDark[2]), ratio: ratioDark };
+    }
+
+    // Track best effort for impossible targets
+    if (ratioLight > bestFailRatio) {
+      bestFailRatio = ratioLight;
+      bestFailHex = rgbToHex(rgbLight[0], rgbLight[1], rgbLight[2]);
+    }
+    if (ratioDark > bestFailRatio) {
+      bestFailRatio = ratioDark;
+      bestFailHex = rgbToHex(rgbDark[0], rgbDark[1], rgbDark[2]);
+    }
+  }
+
+  // Fallback: return best achievable if target is impossible
+  return { hex: bestFailHex, ratio: bestFailRatio };
+}
+
+// ── Presets ──────────────────────────────────────────────────────────────────
+
+var PRESETS = [
+  { name: 'White/Black',  fg: '#FFFFFF', bg: '#000000' },
+  { name: 'GitHub Dark',  fg: '#E6EDF3', bg: '#0D1117' },
+  { name: 'Dracula',      fg: '#F8F8F2', bg: '#282A36' },
+  { name: 'Solarized',    fg: '#657B83', bg: '#FDF6E3' },
+  { name: 'Amber TRT',    fg: '#FFB300', bg: '#1A1A1A' },
+  { name: 'WCAG Fail',    fg: '#AAAAAA', bg: '#888888' }
+];
+
+// ── State ─────────────────────────────────────────────────────────────────────
+
+var state = {
+  fg: '#FFFFFF',
+  bg: '#0A0A0A'
+};
+
+// ── DOM refs ──────────────────────────────────────────────────────────────────
+
+var fgPicker  = document.getElementById('fg-picker');
+var bgPicker  = document.getElementById('bg-picker');
+var fgHex     = document.getElementById('fg-hex');
+var bgHex     = document.getElementById('bg-hex');
+var btnSwap   = document.getElementById('btn-swap');
+var ratioDisp = document.getElementById('ratio-display');
+var badgesRow = document.getElementById('badges-row');
+var fixPanel  = document.getElementById('fix-panel');
+var fixSwatch = document.getElementById('fix-swatch');
+var fixHexEl  = document.getElementById('fix-hex');
+var fixRatio  = document.getElementById('fix-ratio');
+var previewPanel = document.getElementById('preview-panel');
+var previewNormal = document.getElementById('preview-normal');
+var previewLarge  = document.getElementById('preview-large');
+var cvdGrid   = document.getElementById('cvd-grid');
+var presetsRow = document.getElementById('presets-row');
+
+// ── Render ────────────────────────────────────────────────────────────────────
+
+function isValidHex(h) {
+  return /^#[0-9A-Fa-f]{6}$/.test(h);
+}
+
+function normalizeHex(h) {
+  h = h.trim();
+  if (!h.startsWith('#')) h = '#' + h;
+  if (h.length === 4) {
+    h = '#' + h[1]+h[1]+h[2]+h[2]+h[3]+h[3];
+  }
+  return h.toUpperCase();
+}
+
+function makeBadge(label, ratio, threshold) {
+  var pass = ratio >= threshold;
+  var el = document.createElement('span');
+  el.className = 'badge ' + (pass ? 'pass' : 'fail');
+  el.textContent = (pass ? '\u2713 ' : '\u2717 ') + label;
+  return el;
+}
+
+function update() {
+  var fgRgb = hexToRgb(state.fg);
+  var bgRgb = hexToRgb(state.bg);
+  var fgLum = relativeLuminance(fgRgb);
+  var bgLum = relativeLuminance(bgRgb);
+  var ratio = contrastRatio(fgLum, bgLum);
+
+  // Ratio display
+  ratioDisp.innerHTML = ratio.toFixed(2) + '<span class="ratio-unit">:1</span>';
+
+  // Badges
+  badgesRow.innerHTML = '';
+  badgesRow.appendChild(makeBadge('AA Normal',  ratio, 4.5));
+  badgesRow.appendChild(makeBadge('AA Large',   ratio, 3.0));
+  badgesRow.appendChild(makeBadge('AAA Normal', ratio, 7.0));
+  badgesRow.appendChild(makeBadge('AAA Large',  ratio, 4.5));
+
+  // Fix suggestion
+  if (ratio < 4.5) {
+    var fix = findClosestPassingFg(fgRgb, bgLum, 4.5);
+    if (fix.hex) {
+      fixPanel.classList.add('visible');
+      fixSwatch.style.background = fix.hex;
+      fixHexEl.textContent = fix.hex;
+      fixRatio.textContent = fix.ratio.toFixed(2) + ':1';
+    }
+  } else {
+    fixPanel.classList.remove('visible');
+  }
+
+  // Preview
+  previewPanel.style.background = state.bg;
+  previewPanel.style.color = state.fg;
+
+  // CVD simulation
+  var types = ['protanopia', 'deuteranopia', 'tritanopia'];
+  var labels = ['Protanopia', 'Deuteranopia', 'Tritanopia'];
+  var extras = ['(Red-blind)', '(Green-blind)', '(Blue-blind)'];
+  cvdGrid.innerHTML = '';
+  types.forEach(function(type, i) {
+    var simFg = simulateCVD(fgRgb, type);
+    var simBg = simulateCVD(bgRgb, type);
+    var simFgHex = rgbToHex(simFg[0], simFg[1], simFg[2]);
+    var simBgHex = rgbToHex(simBg[0], simBg[1], simBg[2]);
+    var simLumFg = relativeLuminance(simFg);
+    var simLumBg = relativeLuminance(simBg);
+    var simRatio = contrastRatio(simLumFg, simLumBg);
+
+    var card = document.createElement('div');
+    card.className = 'cvd-card';
+
+    var lbl = document.createElement('div');
+    lbl.className = 'cvd-label';
+    lbl.textContent = labels[i] + ' ' + extras[i];
+
+    var prev = document.createElement('div');
+    prev.className = 'cvd-preview';
+    prev.style.background = simBgHex;
+    prev.style.color = simFgHex;
+    prev.textContent = 'Sample Text Aa';
+
+    var rat = document.createElement('div');
+    rat.className = 'cvd-ratio';
+    rat.textContent = simRatio.toFixed(2) + ':1';
+
+    card.appendChild(lbl);
+    card.appendChild(prev);
+    card.appendChild(rat);
+    cvdGrid.appendChild(card);
+  });
+}
+
+// ── Sync helpers ──────────────────────────────────────────────────────────────
+
+function setFg(hex) {
+  state.fg = hex.toUpperCase();
+  fgPicker.value = hex;
+  fgHex.value = hex.toUpperCase();
+}
+
+function setBg(hex) {
+  state.bg = hex.toUpperCase();
+  bgPicker.value = hex;
+  bgHex.value = hex.toUpperCase();
+}
+
+// ── Events ────────────────────────────────────────────────────────────────────
+
+fgPicker.addEventListener('input', function() {
+  setFg(fgPicker.value);
+  update();
+});
+
+bgPicker.addEventListener('input', function() {
+  setBg(bgPicker.value);
+  update();
+});
+
+fgHex.addEventListener('input', function() {
+  var v = normalizeHex(fgHex.value);
+  if (isValidHex(v)) {
+    setFg(v);
+    update();
+  }
+});
+
+bgHex.addEventListener('input', function() {
+  var v = normalizeHex(bgHex.value);
+  if (isValidHex(v)) {
+    setBg(v);
+    update();
+  }
+});
+
+btnSwap.addEventListener('click', function() {
+  var tmp = state.fg;
+  setFg(state.bg);
+  setBg(tmp);
+  update();
+});
+
+// Presets
+PRESETS.forEach(function(preset) {
+  var btn = document.createElement('button');
+  btn.className = 'preset-btn';
+  btn.textContent = preset.name;
+  btn.addEventListener('click', function() {
+    setFg(preset.fg);
+    setBg(preset.bg);
+    update();
+  });
+  presetsRow.appendChild(btn);
+});
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+
+setFg(state.fg);
+setBg(state.bg);
+update();
+</script>
+</body>
+</html>
