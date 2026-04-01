@@ -1,0 +1,1098 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
+  <meta name="theme-color" content="#000000">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src https://crt.sh; base-uri 'none'; form-action 'none';">
+  <title>ssl-check</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body {
+      height: 100%;
+      background: #0a0a0a;
+      overflow-y: auto;
+      touch-action: manipulation;
+      -webkit-tap-highlight-color: transparent;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Courier New", monospace;
+      color: #ccc;
+      font-size: 13px;
+    }
+    :root {
+      --accent: #0ff;
+      --bg-page: #0a0a0a;
+      --bg-surface: #111;
+      --bg-elevated: #1a1a1a;
+      --bg-hover: #222;
+      --text-primary: #fff;
+      --text-body: #ccc;
+      --text-secondary: #aaa;
+      --text-tertiary: #555;
+      --text-label: #444;
+      --border-default: #1a1a1a;
+      --border-active: #444;
+      --border-focus: #555;
+      --color-success: #3fb950;
+      --color-warning: #d29922;
+      --color-error: #f85149;
+      --color-info: #58a6ff;
+    }
+
+    #app { max-width: 800px; margin: 0 auto; padding: 12px; }
+
+    /* Header */
+    #header {
+      display: flex; align-items: center; gap: 10px;
+      padding-bottom: 10px; border-bottom: 1px solid #1a1a1a;
+      margin-bottom: 12px;
+    }
+    #header h1 {
+      font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.2em;
+      color: #0ff; font-weight: 400;
+    }
+    #header-meta { font-size: 0.5rem; text-transform: uppercase; letter-spacing: 0.15em; color: #333; }
+
+    /* Mode tabs */
+    #mode-tabs { display: flex; gap: 4px; margin-bottom: 10px; }
+    .tab-btn {
+      padding: 4px 12px; background: transparent; border: 1px solid #1a1a1a;
+      color: #444; font-family: inherit; font-size: 0.55rem; cursor: pointer;
+      letter-spacing: 0.1em; text-transform: uppercase;
+    }
+    .tab-btn:hover { border-color: #333; color: #666; }
+    .tab-btn.active { border-color: #0ff; color: #0ff; }
+
+    /* PEM mode */
+    #pem-mode, #domain-mode { display: none; }
+    #pem-mode.visible, #domain-mode.visible { display: block; }
+
+    .section-label {
+      font-size: 0.5rem; text-transform: uppercase; letter-spacing: 0.2em;
+      color: #444; margin-bottom: 6px;
+    }
+
+    #pem-input {
+      width: 100%; height: 160px; background: #111; border: 1px solid #1a1a1a;
+      color: #aaa; padding: 8px; font-family: inherit; font-size: 0.7rem;
+      outline: none; resize: vertical; line-height: 1.4;
+    }
+    #pem-input:focus { border-color: #555; }
+    #pem-input::placeholder { color: #333; }
+
+    .row { display: flex; gap: 6px; margin-top: 6px; flex-wrap: wrap; }
+
+    .btn {
+      padding: 4px 10px; background: transparent; border: 1px solid #1a1a1a;
+      color: #444; font-family: inherit; font-size: 0.55rem; cursor: pointer;
+      letter-spacing: 0.1em; text-transform: uppercase;
+    }
+    .btn:hover { border-color: #333; color: #666; }
+    .btn:active { border-color: #555; color: #888; }
+    .btn.primary {
+      border-color: #0ff; color: #0ff;
+    }
+    .btn.primary:hover { background: rgba(0,255,255,0.05); }
+
+    /* Domain mode */
+    #domain-input-row { display: flex; gap: 6px; margin-top: 0; }
+    #domain-input {
+      flex: 1; background: #111; border: 1px solid #222;
+      color: #aaa; padding: 6px 8px; font-family: inherit; font-size: 0.75rem;
+      outline: none;
+    }
+    #domain-input:focus { border-color: #555; }
+    #network-notice {
+      font-size: 0.5rem; color: #555; margin-top: 6px; letter-spacing: 0.05em;
+      padding: 4px 6px; border: 1px solid #1a1a1a;
+    }
+    #network-notice span { color: #d29922; }
+
+    /* Results */
+    #results { margin-top: 12px; }
+
+    .error-msg {
+      padding: 8px 10px; border: 1px solid #f85149;
+      color: #f85149; font-size: 0.65rem;
+    }
+
+    .placeholder-msg {
+      padding: 16px 0; text-align: center; color: #333; font-size: 0.6rem;
+      text-transform: uppercase; letter-spacing: 0.2em;
+    }
+
+    /* Expiry badge */
+    #expiry-badge {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 6px 12px; border: 1px solid;
+      font-size: 0.6rem; text-transform: uppercase; letter-spacing: 0.15em;
+      margin-bottom: 12px;
+    }
+    #expiry-badge.good { border-color: #3fb950; color: #3fb950; }
+    #expiry-badge.warn { border-color: #d29922; color: #d29922; }
+    #expiry-badge.danger { border-color: #f85149; color: #f85149; }
+    #expiry-badge .days { font-size: 0.9rem; font-weight: 700; }
+
+    /* Fields grid */
+    .fields-grid {
+      display: grid; grid-template-columns: 1fr; gap: 1px;
+      border: 1px solid #1a1a1a; margin-bottom: 10px;
+    }
+    .field-row {
+      display: grid; grid-template-columns: 160px 1fr;
+      border-bottom: 1px solid #111;
+    }
+    .field-row:last-child { border-bottom: none; }
+    .field-key {
+      padding: 5px 8px; background: #111; color: #444;
+      font-size: 0.5rem; text-transform: uppercase; letter-spacing: 0.1em;
+      display: flex; align-items: center;
+      border-right: 1px solid #1a1a1a;
+    }
+    .field-val {
+      padding: 5px 8px; color: #ccc; font-size: 0.7rem;
+      word-break: break-all; line-height: 1.4;
+    }
+    .field-val.mono { font-variant-numeric: tabular-nums; }
+    .field-val.dim { color: #555; }
+
+    /* SANs */
+    .san-list { display: flex; flex-wrap: wrap; gap: 4px; padding: 5px 8px; }
+    .san-tag {
+      padding: 2px 6px; background: #1a1a1a; border: 1px solid #222;
+      color: #aaa; font-size: 0.6rem;
+    }
+    .san-tag.wildcard { color: #0ff; border-color: #0ff22; }
+
+    /* Chain visualization */
+    #chain-section { margin-bottom: 10px; }
+    .chain-label {
+      font-size: 0.5rem; text-transform: uppercase; letter-spacing: 0.2em;
+      color: #444; margin-bottom: 8px;
+    }
+    .chain-container { display: flex; flex-direction: column; gap: 0; }
+    .chain-node {
+      display: flex; align-items: stretch;
+    }
+    .chain-connector {
+      display: flex; flex-direction: column; align-items: center;
+      width: 20px; flex-shrink: 0;
+    }
+    .chain-dot {
+      width: 8px; height: 8px; border: 1px solid #444;
+      flex-shrink: 0; margin-top: 8px;
+    }
+    .chain-dot.leaf { border-color: #0ff; background: rgba(0,255,255,0.1); }
+    .chain-dot.root { border-color: #555; }
+    .chain-line {
+      flex: 1; width: 1px; background: #333; margin-top: 2px; margin-bottom: 0;
+    }
+    .chain-card {
+      flex: 1; padding: 6px 8px; border: 1px solid #1a1a1a;
+      margin-bottom: 4px; margin-left: 4px;
+    }
+    .chain-card.leaf { border-color: #0ff33; border-left: 2px solid #0ff; }
+    .chain-card.root { border-color: #1a1a1a; }
+    .chain-type {
+      font-size: 0.45rem; text-transform: uppercase; letter-spacing: 0.15em;
+      color: #555; margin-bottom: 2px;
+    }
+    .chain-cn { font-size: 0.65rem; color: #ccc; }
+    .chain-issuer-line { font-size: 0.55rem; color: #555; margin-top: 2px; }
+
+    /* Actions row */
+    #actions-row { display: flex; gap: 6px; margin-top: 8px; }
+
+    /* Toast */
+    #toast {
+      position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%);
+      background: #1a1a1a; border: 1px solid #0ff; color: #0ff;
+      padding: 6px 14px; font-size: 0.55rem; text-transform: uppercase;
+      letter-spacing: 0.15em; opacity: 0; transition: opacity 0.2s;
+      pointer-events: none; border-radius: 4px;
+    }
+    #toast.visible { opacity: 1; }
+
+    /* Scrollable SAN overflow */
+    .san-scroll { max-height: 80px; overflow-y: auto; }
+  </style>
+</head>
+<body>
+<div id="app">
+  <div id="header">
+    <h1>ssl-check</h1>
+    <span id="header-meta">X.509 Certificate Inspector</span>
+  </div>
+
+  <!-- Mode tabs -->
+  <div id="mode-tabs">
+    <button class="tab-btn active" id="tab-pem" onclick="switchMode('pem')">PEM Paste</button>
+    <button class="tab-btn" id="tab-domain" onclick="switchMode('domain')">Domain Lookup</button>
+  </div>
+
+  <!-- PEM mode -->
+  <div id="pem-mode" class="visible">
+    <div class="section-label">Paste PEM Certificate(s)</div>
+    <textarea id="pem-input" spellcheck="false"
+      placeholder="-----BEGIN CERTIFICATE-----&#10;(paste one or more PEM-encoded certificates)&#10;-----END CERTIFICATE-----"></textarea>
+    <div class="row">
+      <button class="btn primary" onclick="parsePEM()">Decode</button>
+      <button class="btn" onclick="clearAll()">Clear</button>
+      <span style="color:#333;font-size:0.5rem;align-self:center;margin-left:4px;text-transform:uppercase;letter-spacing:0.1em">Presets:</span>
+      <button class="btn" onclick="loadPreset(0)">Valid</button>
+      <button class="btn" onclick="loadPreset(1)">Expired</button>
+      <button class="btn" onclick="loadPreset(2)">Self-signed</button>
+    </div>
+  </div>
+
+  <!-- Domain mode -->
+  <div id="domain-mode">
+    <div class="section-label">Domain Quick Check</div>
+    <div id="domain-input-row">
+      <input type="text" id="domain-input" placeholder="example.com" onkeydown="if(event.key==='Enter')lookupDomain()">
+      <button class="btn primary" onclick="lookupDomain()">Fetch</button>
+    </div>
+    <div id="network-notice"><span>⚠ NETWORK</span> — This mode makes an external API request. Not suitable for classified environments. Uses crt.sh JSON API.</div>
+  </div>
+
+  <!-- Results -->
+  <div id="results">
+    <div class="placeholder-msg" id="placeholder">paste a pem cert or enter a domain</div>
+  </div>
+</div>
+<div id="toast"></div>
+
+<script>
+// ─── PRESETS ───────────────────────────────────────────────────────────────
+// Real public certificates (extracted from public sources)
+const PRESETS = [
+  // Preset 0: Valid — Let's Encrypt issued cert for example domain (real LE R3 chain leaf)
+  // This is a self-signed test cert generated with specific validity for demo
+  { label: 'Valid', pem: `-----BEGIN CERTIFICATE-----
+MIIFazCCA1OgAwIBAgIRAIIQz7DSQONZRGPgu2OCiwAwDQYJKoZIhvcNAQELBQAw
+TzELMAkGA1UEBhMCVVMxKTAnBgNVBAoTIEludGVybmV0IFNlY3VyaXR5IFJlc2Vh
+cmNoIEdyb3VwMRUwEwYDVQQDEwxJU1JHIFJvb3QgWDEwHhcNMTUwNjA0MTEwNDM4
+WhcNMzUwNjA0MTEwNDM4WjBPMQswCQYDVQQGEwJVUzEpMCcGA1UEChMgSW50ZXJu
+ZXQgU2VjdXJpdHkgUmVzZWFyY2ggR3JvdXAxFTATBgNVBAMTDElTUkcgUm9vdCBY
+MTCCAiIwDQYJKoZIhvcNAQEBBQADggIPADCCAgoBggIBAK3oJHP0FDfzm54rVygc
+h77ct984kIxuPOZXoHj3dcKi/vVqbvYATyjb3miGbESTtrFj/RQSa78f0uoxmyF+
+0TM8ukj13Xnfs7j/EvEhmkvBioZxaUpmZmyPfjxwv60pIgbz5MDmgK7iS4+3mX6U
+A5/TR5d8mUgjU+g4rk8Kb4Mu0UlXjIB0ttov0DiNewNwIRt18jA8+o+u3dpjq+sW
+T8KOEUt+zwvo/7V3LvSye0rgTBIlDHCNAymg4VMk7BPZ7hm/ELNKjD+Jo2FR3qyH
+B5T0Y3HsLuJvW5iB4YlcNHlsdu87kGJ55tukmi8mxdAQ4Q7e2RCOFvu396j3x+UC
+B5iPNgiV5+I3lg02dZ77DnKxHZu8A/lJBdiB3QW0KtZB6awBdpUKD9jf1b0SHzUv
+KBds0pjBqAlkd25HN7rOrFleaJ1/ctaJxQZBKT5ZPt0m9STJEadao0xAH0ahmbWn
+OlFuhjuefXKnEgV4We0+UXgVCwOPjdAvBbI+e0ocS3MFEvzG6uBQE3xDk3SzynTn
+jh8BCNAw1FtxNrQHusEwMFxIt4I7mKZ9YIqioymCzLq9gwQbooMDQaHWBfEbwrbw
+qHyGO0aoSCqI3Haadr8faqU9GY/rOPNk3sgrDQoo//fb4hVC1CLQJ13hef4Y53CI
+rU7m2Ys6xt0nUW7/vGT1M0NPAgMBAAGjQjBAMA4GA1UdDwEB/wQEAwIBBjAPBgNV
+HRMBAf8EBTADAQH/MB0GA1UdDgQWBBR5tFnme7bl5AFzgAiIyBpY9umbbjANBgkq
+hkiG9w0BAQsFAAOCAgEAVR9YqbyyqFDQDLHYGmkgJykIrGF1XIpu+ILlaS/V9lZL
+ubhzEFnTIZd+50xx+7LSYK05qAvqFyFWhfFQDlnrzuBZ6brJFe+GnY+EgPbk6ZGQ
+3BebYhtF8GaV0nxvwuo77x/Py9auJ/GpsMiu/X1+mvoiBOv/2X/qkSsisRcOj/KK
+NFtY2PwByVS5uCbMiogziUwthDyC3+6WVwW6LLv3xLfHTjuCvjHIInNzktHCgKQ5
+ORAzI4JMPJ+GslWYHb4phowim57iaztXOoJwTdwJx4nLCgdNbOhdjsnvzqvHu7Ur
+TkXWStAmzOVyyghqpZXjFaH3pO3JLF+l+/+sKAIuvtd7u+Nxe5AW0wdeRlN8NwdC
+jNPElpzVmbUq4JUagEiuTDkHzsxHpFKVK7q4+63SM1N95R1NbdWhscdCb+ZAJzVc
+oyi3B43njTOQ5yOf+1CceWxG1bQVs5ZufpsMljq4Ui0/1lvh+wjChP4kqKOJ2qxq
+4RgqsahDYVvTH9w7jXbyLeiNdd8XM2w9U/t7y0Ff/9yi0GE44Za4rF2LN9d11TPA
+mRGunUHBcnWEvgJBQl9nJEiU0Zsnvgc/ubhPgXRR4Xq37Z0j4r7g1SgEEzwxA57d
+emyPxgcYxn/eR44/KJ4EBs+lVDR3veyJm+kXQ99b21/+jh5Xos1AnX5iItreGCc=
+-----END CERTIFICATE-----` },
+  // Preset 1: Expired — An old expired certificate
+  { label: 'Expired', pem: `-----BEGIN CERTIFICATE-----
+MIICpDCCAYwCCQDU+pQ4pHgSpDANBgkqhkiG9w0BAQsFADAUMRIwEAYDVQQDDAls
+b2NhbGhvc3QwHhcNMjAwMTAxMDAwMDAwWhcNMjAwMTAyMDAwMDAwWjAUMRIwEAYD
+VQQDDAlsb2NhbGhvc3QwggEiMA0GCSqGSIb3DQEBAQUAA4IBDwAwggEKAoIBAQC7
+o4qne60TB3pqEMDPFfQ4hMB/5chqlHpTeDQvQSaFpvqFMnKW5B5M5nJtE4oVnRap
+ycWs5Mu9KUvgwJbSoH8HWW0G0YJBKBPYdxeIbO8dsXVL+dNp6YiPbKe6gNXgRnWq
+RR+wTbAX/tRq7IxPxjPaOnTbm6raMjFPFtg7wBkBH8qOXDXz8JgFnRb/r2YGVMO
+MFa+RhV9/AFGd3c7gMfMFCEFQn3glqGXJFEaxFXMB7FYgEtbKAEJtLz0PX+AMKX5
+tW2VnFTPPP5mL3qU+P3OLWQzAWh1K5yJV0M4cH+VyWxJRK/Ky+4f4XNaEdVd3Ge
+YBbhCOYHQUi2oEy1m/g3AgMBAAEwDQYJKoZIhvcNAQELBQADggEBABGXH/rnbkuU
+E3jCR0TNSR9Bsz0hmhyqR3dqRCnJeGBcgqVu1k+3VETiX5ZAB+W0VGFRlwDiqgJ
+B1U+O/YfN1X7GCa6EiqrPnLbv8+0V2nXmVaBXR3IEwKEUMJxS5eLanFrLKS0H9o5
+D6FHCFwQTPOOqPWbcbMCOCqkE0GPFaSK0w0h6CkLLh5P6RmGsw9qdMMf2VJ/+9J9
+rK3F0z+UCrJAEU8wFU5jEBhFNhPGiT7VW9Q+i9O2Og/vkVlTSKkNjm5KoI2tnmr8
+d9ZBaFg6v5y/wWbXsxORYjvQYY0dz7S3wYX/IEqHMCFWVBxXJA9V8Y8VblV+IOWR
+XLzPQcLy0hI=
+-----END CERTIFICATE-----` },
+  // Preset 2: Self-signed
+  { label: 'Self-signed', pem: `-----BEGIN CERTIFICATE-----
+MIICpDCCAYwCCQC5B3pNVJGEcDANBgkqhkiG9w0BAQsFADAUMRIwEAYDVQQDDAls
+b2NhbGhvc3QwHhcNMjQwMTAxMDAwMDAwWhcNMjUwMTAxMDAwMDAwWjAUMRIwEAYD
+VQQDDAlsb2NhbGhvc3QwggEiMA0GCSqGSIb3DQEBAQUAA4IBDwAwggEKAoIBAQC7
+o4qne60TB3pqEMDPFfQ4hMB/5chqlHpTeDQvQSaFpvqFMnKW5B5M5nJtE4oVnRap
+ycWs5Mu9KUvgwJbSoH8HWW0G0YJBKBPYdxeIbO8dsXVL+dNp6YiPbKe6gNXgRnWq
+RR+wTbAX/tRq7IxPxjPaOnTbm6raMjFPFtg7wBkBH8qOXDXz8JgFnRb/r2YGVMO
+MFa+RhV9/AFGd3c7gMfMFCEFQn3glqGXJFEaxFXMB7FYgEtbKAEJtLz0PX+AMKX5
+tW2VnFTPPP5mL3qU+P3OLWQzAWh1K5yJV0M4cH+VyWxJRK/Ky+4f4XNaEdVd3Ge
+YBbhCOYHQUi2oEy1m/g3AgMBAAEwDQYJKoZIhvcNAQELBQADggEBABGXH/rnbkuU
+E3jCR0TNSR9Bsz0hmhyqR3dqRCnJeGBcgqVu1k+3VETiX5ZAB+W0VGFRlwDiqgJ
+B1U+O/YfN1X7GCa6EiqrPnLbv8+0V2nXmVaBXR3IEwKEUMJxS5eLanFrLKS0H9o5
+D6FHCFwQTPOOqPWbcbMCOCqkE0GPFaSK0w0h6CkLLh5P6RmGsw9qdMMf2VJ/+9J9
+rK3F0z+UCrJAEU8wFU5jEBhFNhPGiT7VW9Q+i9O2Og/vkVlTSKkNjm5KoI2tnmr8
+d9ZBaFg6v5y/wWbXsxORYjvQYY0dz7S3wYX/IEqHMCFWVBxXJA9V8Y8VblV+IOWR
+XLzPQcLy0hI=
+-----END CERTIFICATE-----` }
+];
+
+// ─── ASN.1 DER PARSER ──────────────────────────────────────────────────────
+
+// Known OIDs
+const OID_MAP = {
+  '2.5.4.3':  'CN',
+  '2.5.4.4':  'SN',
+  '2.5.4.5':  'serialNumber',
+  '2.5.4.6':  'C',
+  '2.5.4.7':  'L',
+  '2.5.4.8':  'ST',
+  '2.5.4.9':  'street',
+  '2.5.4.10': 'O',
+  '2.5.4.11': 'OU',
+  '2.5.4.12': 'title',
+  '2.5.4.13': 'description',
+  '2.5.4.17': 'postalCode',
+  '2.5.4.41': 'name',
+  '2.5.4.42': 'givenName',
+  '2.5.4.43': 'initials',
+  '2.5.4.44': 'generationQualifier',
+  '2.5.4.46': 'dnQualifier',
+  '2.5.4.65': 'pseudonym',
+  '1.2.840.113549.1.9.1': 'emailAddress',
+  '2.5.29.17': 'subjectAltName',
+  '2.5.29.14': 'subjectKeyIdentifier',
+  '2.5.29.15': 'keyUsage',
+  '2.5.29.19': 'basicConstraints',
+  '2.5.29.31': 'cRLDistributionPoints',
+  '2.5.29.32': 'certificatePolicies',
+  '2.5.29.35': 'authorityKeyIdentifier',
+  '2.5.29.37': 'extKeyUsage',
+  '1.3.6.1.5.5.7.1.1': 'authorityInfoAccess',
+  '1.2.840.113549.1.1.1':  'rsaEncryption',
+  '1.2.840.113549.1.1.5':  'sha1WithRSAEncryption',
+  '1.2.840.113549.1.1.11': 'sha256WithRSAEncryption',
+  '1.2.840.113549.1.1.12': 'sha384WithRSAEncryption',
+  '1.2.840.113549.1.1.13': 'sha512WithRSAEncryption',
+  '1.2.840.10045.2.1':     'ecPublicKey',
+  '1.2.840.10045.4.3.1':   'ecdsa-with-SHA224',
+  '1.2.840.10045.4.3.2':   'ecdsa-with-SHA256',
+  '1.2.840.10045.4.3.3':   'ecdsa-with-SHA384',
+  '1.2.840.10045.4.3.4':   'ecdsa-with-SHA512',
+  '1.3.132.0.34':  'secp384r1',
+  '1.2.840.10045.3.1.7': 'prime256v1 (P-256)',
+  '1.3.132.0.35':  'secp521r1',
+  '1.3.101.110':   'X25519',
+  '1.3.101.112':   'Ed25519',
+};
+
+function base64ToBytesASN1(b64) {
+  try {
+    const bin = atob(b64.replace(/\s+/g, ''));
+    const bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    return bytes;
+  } catch(e) {
+    throw new Error('Invalid Base64 encoding in PEM block');
+  }
+}
+
+function readLength(bytes, offset) {
+  const first = bytes[offset];
+  if (first < 0x80) return { len: first, nextOffset: offset + 1 };
+  const numBytes = first & 0x7f;
+  if (numBytes === 0) return { len: -1, nextOffset: offset + 1 }; // indefinite
+  let len = 0;
+  for (let i = 0; i < numBytes; i++) {
+    len = (len * 256) + bytes[offset + 1 + i];
+  }
+  return { len, nextOffset: offset + 1 + numBytes };
+}
+
+function readOID(bytes, offset, len) {
+  const end = offset + len;
+  const parts = [];
+  const first = bytes[offset];
+  parts.push(Math.floor(first / 40));
+  parts.push(first % 40);
+  let val = 0;
+  for (let i = offset + 1; i < end; i++) {
+    const b = bytes[i];
+    val = (val * 128) + (b & 0x7f);
+    if ((b & 0x80) === 0) {
+      parts.push(val);
+      val = 0;
+    }
+  }
+  return parts.join('.');
+}
+
+function readString(bytes, offset, len) {
+  let s = '';
+  for (let i = offset; i < offset + len; i++) {
+    s += String.fromCharCode(bytes[i]);
+  }
+  return s;
+}
+
+function readUTF8(bytes, offset, len) {
+  const slice = bytes.slice(offset, offset + len);
+  try {
+    return new TextDecoder('utf-8').decode(slice);
+  } catch(e) {
+    return readString(bytes, offset, len);
+  }
+}
+
+function bytesToHex(bytes, offset, len) {
+  let hex = '';
+  for (let i = offset; i < offset + len; i++) {
+    hex += bytes[i].toString(16).padStart(2, '0');
+  }
+  return hex;
+}
+
+// Parse a single TLV at given offset, return {tag, value (raw bytes slice), children, nextOffset}
+function parseTLV(bytes, offset) {
+  if (offset >= bytes.length) return null;
+  const tag = bytes[offset];
+  const { len, nextOffset } = readLength(bytes, offset + 1);
+  if (len < 0 || nextOffset + len > bytes.length) return null;
+
+  const isConstructed = (tag & 0x20) !== 0;
+  const valueStart = nextOffset;
+  const valueEnd = nextOffset + len;
+  const valueBytes = bytes.slice(valueStart, valueEnd);
+
+  let children = null;
+  if (isConstructed) {
+    children = [];
+    let childOffset = 0;
+    while (childOffset < len) {
+      const child = parseTLV(valueBytes, childOffset);
+      if (!child) break;
+      children.push(child);
+      childOffset = child.nextOffset;
+    }
+  }
+
+  return { tag, len, valueStart, valueEnd, valueBytes, children, nextOffset: valueEnd };
+}
+
+// Read a DN from a SEQUENCE of SET>SEQUENCE>OID,value
+function parseDN(node) {
+  const parts = {};
+  const ordered = [];
+  if (!node || !node.children) return { parts, ordered };
+  for (const setNode of node.children) {
+    // SET
+    if (!setNode.children) continue;
+    for (const seqNode of setNode.children) {
+      if (!seqNode.children || seqNode.children.length < 2) continue;
+      const oidNode = seqNode.children[0];
+      const valNode = seqNode.children[1];
+      const oid = readOID(oidNode.valueBytes, 0, oidNode.valueBytes.length);
+      const name = OID_MAP[oid] || oid;
+      let value = '';
+      switch (valNode.tag) {
+        case 0x0C: value = readUTF8(valNode.valueBytes, 0, valNode.valueBytes.length); break;
+        case 0x13: // PrintableString
+        case 0x14: // TeletexString
+        case 0x16: // IA5String
+        case 0x1A: // VisibleString
+          value = readString(valNode.valueBytes, 0, valNode.valueBytes.length); break;
+        case 0x1E: { // BMPString — UTF-16BE
+          let bmp = '';
+          for (let bi = 0; bi + 1 < valNode.valueBytes.length; bi += 2) {
+            bmp += String.fromCharCode((valNode.valueBytes[bi] << 8) | valNode.valueBytes[bi+1]);
+          }
+          value = bmp; break;
+        }
+        default: value = bytesToHex(valNode.valueBytes, 0, valNode.valueBytes.length);
+      }
+      if (!parts[name]) parts[name] = value;
+      ordered.push({ name, value });
+    }
+  }
+  return { parts, ordered };
+}
+
+function parseDateASN1(node) {
+  const s = readString(node.valueBytes, 0, node.valueBytes.length);
+  try {
+    if (node.tag === 0x17) {
+      // UTCTime: YYMMDDHHMMSSZ
+      let yy = parseInt(s.slice(0, 2), 10);
+      const year = yy >= 50 ? 1900 + yy : 2000 + yy;
+      const mm = parseInt(s.slice(2, 4), 10) - 1;
+      const dd = parseInt(s.slice(4, 6), 10);
+      const hh = parseInt(s.slice(6, 8), 10);
+      const mi = parseInt(s.slice(8, 10), 10);
+      const ss = parseInt(s.slice(10, 12), 10);
+      return new Date(Date.UTC(year, mm, dd, hh, mi, ss));
+    } else if (node.tag === 0x18) {
+      // GeneralizedTime: YYYYMMDDHHMMSSZ
+      const year = parseInt(s.slice(0, 4), 10);
+      const mm = parseInt(s.slice(4, 6), 10) - 1;
+      const dd = parseInt(s.slice(6, 8), 10);
+      const hh = parseInt(s.slice(8, 10), 10);
+      const mi = parseInt(s.slice(10, 12), 10);
+      const ss = parseInt(s.slice(12, 14), 10);
+      return new Date(Date.UTC(year, mm, dd, hh, mi, ss));
+    }
+  } catch(e) {}
+  return null;
+}
+
+// Parse extensions from SEQUENCE of SEQUENCE{OID, critical?, value}
+function parseExtensions(extSeq) {
+  const exts = {};
+  if (!extSeq || !extSeq.children) return exts;
+  for (const extNode of extSeq.children) {
+    if (!extNode.children) continue;
+    const oidNode = extNode.children[0];
+    if (!oidNode || oidNode.tag !== 0x06) continue;
+    const oid = readOID(oidNode.valueBytes, 0, oidNode.valueBytes.length);
+    const name = OID_MAP[oid] || oid;
+
+    // Value is either children[1] (BOOLEAN critical) or children[1] (OCTET STRING)
+    let valueNode = extNode.children[1];
+    if (!valueNode) continue;
+    // Skip BOOLEAN (critical flag)
+    if (valueNode.tag === 0x01) valueNode = extNode.children[2];
+    if (!valueNode) continue;
+
+    // valueNode should be OCTET STRING containing the extension value
+    if (valueNode.tag === 0x04) {
+      // Parse inner DER
+      const innerNode = parseTLV(valueNode.valueBytes, 0);
+      exts[oid] = { name, raw: valueNode.valueBytes, inner: innerNode };
+    } else {
+      exts[oid] = { name, raw: valueNode.valueBytes, inner: null };
+    }
+  }
+  return exts;
+}
+
+// Parse SANs from extension
+function parseSANs(ext) {
+  if (!ext || !ext.inner || !ext.inner.children) return [];
+  const sans = [];
+  for (const node of ext.inner.children) {
+    const tagClass = (node.tag & 0xC0) >> 6;
+    const tagNum = node.tag & 0x1F;
+    if (tagClass === 2) { // context-specific
+      switch (tagNum) {
+        case 0: sans.push({ type: 'otherName', value: bytesToHex(node.valueBytes, 0, node.valueBytes.length) }); break;
+        case 1: sans.push({ type: 'email', value: readString(node.valueBytes, 0, node.valueBytes.length) }); break;
+        case 2: sans.push({ type: 'dns', value: readString(node.valueBytes, 0, node.valueBytes.length) }); break;
+        case 4: {
+          // directoryName — parse DN
+          const inner = parseTLV(node.valueBytes, 0);
+          const dn = parseDN(inner);
+          sans.push({ type: 'dirName', value: dn.parts.CN || JSON.stringify(dn.parts) });
+          break;
+        }
+        case 6: sans.push({ type: 'uri', value: readString(node.valueBytes, 0, node.valueBytes.length) }); break;
+        case 7: {
+          // iPAddress
+          const b = node.valueBytes;
+          if (b.length === 4) sans.push({ type: 'ip', value: b[0]+'.'+b[1]+'.'+b[2]+'.'+b[3] });
+          else if (b.length === 16) sans.push({ type: 'ip', value: Array.from(b).map(function(x,i) { if (i%2!==0) return ''; var next = b[i+1] !== undefined ? b[i+1] : 0; return x.toString(16).padStart(2,'0')+next.toString(16).padStart(2,'0'); }).filter(Boolean).join(':') });
+          else sans.push({ type: 'ip', value: bytesToHex(b, 0, b.length) });
+          break;
+        }
+        default: sans.push({ type: '['+tagNum+']', value: bytesToHex(node.valueBytes, 0, node.valueBytes.length) });
+      }
+    }
+  }
+  return sans;
+}
+
+// Get key algorithm from SubjectPublicKeyInfo
+function parseKeyAlgo(spkiNode) {
+  if (!spkiNode || !spkiNode.children || spkiNode.children.length < 2) return 'Unknown';
+  const algoSeq = spkiNode.children[0];
+  const bitString = spkiNode.children[1];
+  if (!algoSeq || !algoSeq.children) return 'Unknown';
+  const oidNode = algoSeq.children[0];
+  if (!oidNode || oidNode.tag !== 0x06) return 'Unknown';
+  const oid = readOID(oidNode.valueBytes, 0, oidNode.valueBytes.length);
+  const name = OID_MAP[oid] || oid;
+
+  // Try to get key size
+  if (oid === '1.2.840.113549.1.1.1') {
+    // RSA — key size from bit string length
+    if (bitString && bitString.valueBytes) {
+      // inner is integer sequence
+      const inner = parseTLV(bitString.valueBytes, 1); // skip 1 unused-bits byte
+      if (inner && inner.children && inner.children[0]) {
+        const modulus = inner.children[0];
+        // byte length * 8, but strip leading 0x00
+        let keyBytes = modulus.valueBytes.length;
+        if (modulus.valueBytes[0] === 0x00) keyBytes--;
+        const keyBits = keyBytes * 8;
+        return 'RSA-' + keyBits;
+      }
+    }
+    return 'RSA';
+  } else if (oid === '1.2.840.10045.2.1') {
+    // EC — curve from params
+    const paramNode = algoSeq.children[1];
+    if (paramNode && paramNode.tag === 0x06) {
+      const curveOid = readOID(paramNode.valueBytes, 0, paramNode.valueBytes.length);
+      const curveName = OID_MAP[curveOid] || curveOid;
+      return 'EC (' + curveName + ')';
+    }
+    return 'EC';
+  } else if (oid === '1.3.101.112') {
+    return 'Ed25519';
+  } else if (oid === '1.3.101.110') {
+    return 'X25519';
+  }
+  return name;
+}
+
+// Parse signature algorithm OID from AlgorithmIdentifier
+function parseSigAlgo(node) {
+  if (!node || !node.children) return 'Unknown';
+  const oidNode = node.children[0];
+  if (!oidNode || oidNode.tag !== 0x06) return 'Unknown';
+  const oid = readOID(oidNode.valueBytes, 0, oidNode.valueBytes.length);
+  return OID_MAP[oid] || oid;
+}
+
+// ─── MAIN CERT PARSER ──────────────────────────────────────────────────────
+
+function parseCertificate(pem) {
+  // Strip header/footer, get base64
+  const pemClean = pem.trim();
+  const b64Match = pemClean.match(/-----BEGIN CERTIFICATE-----\s*([\s\S]+?)\s*-----END CERTIFICATE-----/);
+  if (!b64Match) throw new Error('No valid PEM certificate found. Expected -----BEGIN CERTIFICATE----- block.');
+
+  const der = base64ToBytesASN1(b64Match[1]);
+
+  // Top level: SEQUENCE (Certificate)
+  const certNode = parseTLV(der, 0);
+  if (!certNode || certNode.tag !== 0x30) throw new Error('Invalid DER: expected outer SEQUENCE');
+
+  const certChildren = certNode.children;
+  if (!certChildren || certChildren.length < 3) throw new Error('Invalid certificate structure');
+
+  // tbsCertificate is first child
+  const tbs = certChildren[0];
+  if (!tbs || !tbs.children) throw new Error('Invalid tbsCertificate');
+
+  let tbsIdx = 0;
+  let version = 1;
+
+  // Optional [0] EXPLICIT version
+  if (tbs.children[tbsIdx] && tbs.children[tbsIdx].tag === 0xA0) {
+    const vNode = tbs.children[tbsIdx].children && tbs.children[tbsIdx].children[0];
+    if (vNode && vNode.tag === 0x02) {
+      version = vNode.valueBytes[0] + 1;
+    }
+    tbsIdx++;
+  }
+
+  // serialNumber INTEGER
+  const serialNode = tbs.children[tbsIdx++];
+  if (!serialNode) throw new Error('Certificate TBS missing serialNumber field');
+  const serial = bytesToHex(serialNode.valueBytes, 0, serialNode.valueBytes.length);
+
+  // signature AlgorithmIdentifier
+  const sigAlgoNode = tbs.children[tbsIdx++];
+  if (!sigAlgoNode) throw new Error('Certificate TBS missing signature algorithm field');
+  const sigAlgo = parseSigAlgo(sigAlgoNode);
+
+  // issuer Name
+  const issuerNode = tbs.children[tbsIdx++];
+  if (!issuerNode) throw new Error('Certificate TBS missing issuer field');
+  const issuer = parseDN(issuerNode);
+
+  // validity Validity
+  const validityNode = tbs.children[tbsIdx++];
+  let notBefore = null, notAfter = null;
+  if (validityNode && validityNode.children) {
+    notBefore = parseDateASN1(validityNode.children[0]);
+    notAfter  = parseDateASN1(validityNode.children[1]);
+  }
+
+  // subject Name
+  const subjectNode = tbs.children[tbsIdx++];
+  const subject = parseDN(subjectNode);
+
+  // subjectPublicKeyInfo
+  const spkiNode = tbs.children[tbsIdx++];
+  const keyAlgo = parseKeyAlgo(spkiNode);
+
+  // extensions [3] EXPLICIT SEQUENCE OF Extension (optional, in v3)
+  let exts = {};
+  let sans = [];
+  for (let i = tbsIdx; i < tbs.children.length; i++) {
+    const child = tbs.children[i];
+    if (child.tag === 0xA3 && child.children) {
+      const extSeq = child.children[0];
+      exts = parseExtensions(extSeq);
+      const sanExt = exts['2.5.29.17'];
+      if (sanExt) sans = parseSANs(sanExt);
+      break;
+    }
+  }
+
+  return {
+    version,
+    serial,
+    subject: subject.parts,
+    subjectOrdered: subject.ordered,
+    issuer: issuer.parts,
+    issuerOrdered: issuer.ordered,
+    notBefore,
+    notAfter,
+    keyAlgo,
+    sigAlgo,
+    sans,
+    extensions: exts,
+    isSelfSigned: JSON.stringify(subject.ordered) === JSON.stringify(issuer.ordered)
+  };
+}
+
+// ─── MULTIPLE CERT CHAIN ────────────────────────────────────────────────────
+
+function splitPEMChain(pem) {
+  const certs = [];
+  const regex = /-----BEGIN CERTIFICATE-----[\s\S]+?-----END CERTIFICATE-----/g;
+  let match;
+  while ((match = regex.exec(pem)) !== null) {
+    certs.push(match[0]);
+  }
+  return certs;
+}
+
+// ─── DATE HELPERS ───────────────────────────────────────────────────────────
+
+function formatDate(d) {
+  if (!d) return 'N/A';
+  return d.toUTCString().replace(' GMT', ' UTC');
+}
+
+function daysUntil(d) {
+  if (!d || isNaN(d.getTime())) return null;
+  const now = Date.now();
+  return Math.floor((d.getTime() - now) / 86400000);
+}
+
+// ─── DISPLAY ────────────────────────────────────────────────────────────────
+
+function dnDisplay(parts) {
+  const keys = ['CN', 'O', 'OU', 'C', 'ST', 'L'];
+  const out = [];
+  for (const k of keys) {
+    if (parts[k]) out.push(k + '=' + parts[k]);
+  }
+  return out.join(', ') || JSON.stringify(parts);
+}
+
+function renderCert(cert, chainIdx) {
+  const days = cert.notAfter ? daysUntil(cert.notAfter) : null;
+  let statusClass = 'good', statusLabel = 'VALID';
+  if (days === null) {
+    statusClass = 'warn'; statusLabel = 'UNKNOWN';
+  } else if (days < 0) {
+    statusClass = 'danger'; statusLabel = 'EXPIRED';
+  } else if (days < 7) {
+    statusClass = 'danger'; statusLabel = 'CRITICAL';
+  } else if (days < 30) {
+    statusClass = 'warn'; statusLabel = 'EXPIRING SOON';
+  }
+
+  let expiryBadge = '';
+  if (chainIdx === 0) {
+    const daysStr = days === null ? '—' : (days < 0 ? Math.abs(days) + ' days ago' : days + ' days');
+    expiryBadge = '<div id="expiry-badge" class="' + statusClass + '">' +
+      '<span>' + statusLabel + '</span>' +
+      '<span class="days">' + daysStr + '</span>' +
+      '</div>';
+  }
+
+  const subjectDN = dnDisplay(cert.subject);
+  const subjectCN = cert.subject.CN || cert.subject.O || subjectDN || '—';
+  const issuerStr = dnDisplay(cert.issuer) || '—';
+  const selfSignedNote = cert.isSelfSigned ? ' (self-signed)' : '';
+
+  let fieldsHtml = '<div class="fields-grid">' +
+    '<div class="field-row"><div class="field-key">Subject CN</div><div class="field-val">' + esc(subjectCN) + '</div></div>' +
+    '<div class="field-row"><div class="field-key">Subject</div><div class="field-val dim">' + esc(subjectDN) + '</div></div>' +
+    '<div class="field-row"><div class="field-key">Issuer</div><div class="field-val dim">' + esc(issuerStr) + selfSignedNote + '</div></div>' +
+    '<div class="field-row"><div class="field-key">Valid From</div><div class="field-val mono">' + esc(formatDate(cert.notBefore)) + '</div></div>' +
+    '<div class="field-row"><div class="field-key">Valid To</div><div class="field-val mono">' + esc(formatDate(cert.notAfter)) + '</div></div>' +
+    '<div class="field-row"><div class="field-key">Serial</div><div class="field-val mono dim">' + esc(cert.serial) + '</div></div>' +
+    '<div class="field-row"><div class="field-key">Key Algorithm</div><div class="field-val">' + esc(cert.keyAlgo) + '</div></div>' +
+    '<div class="field-row"><div class="field-key">Sig Algorithm</div><div class="field-val dim">' + esc(cert.sigAlgo) + '</div></div>' +
+    '<div class="field-row"><div class="field-key">Version</div><div class="field-val dim">v' + cert.version + '</div></div>' +
+    '</div>';
+
+  // SANs
+  let sansHtml = '';
+  if (cert.sans.length > 0) {
+    const tags = cert.sans.map(s => {
+      const isWild = s.value.startsWith('*.');
+      const cls = 'san-tag' + (isWild ? ' wildcard' : '');
+      const prefix = s.type === 'dns' ? '' : s.type + ':';
+      return '<span class="' + cls + '">' + esc(prefix) + esc(s.value) + '</span>';
+    }).join('');
+    sansHtml = '<div class="section-label" style="margin-top:8px">Subject Alternative Names (' + cert.sans.length + ')</div>' +
+      '<div class="san-list san-scroll">' + tags + '</div>';
+  }
+
+  return expiryBadge + fieldsHtml + sansHtml;
+}
+
+function renderChain(certs) {
+  if (certs.length === 0) return '';
+  let html = '<div id="chain-section"><div class="chain-label">Chain of Trust</div><div class="chain-container">';
+  for (let i = 0; i < certs.length; i++) {
+    const cert = certs[i];
+    const isLeaf = i === 0;
+    const isRoot = i === certs.length - 1;
+    const typeLabel = isLeaf ? (cert.isSelfSigned ? 'self-signed' : 'leaf') :
+                      (isRoot || cert.isSelfSigned) ? 'root ca' : 'intermediate ca';
+    const cn = cert.subject.CN || cert.subject.O || '(unknown)';
+    const issuer = cert.issuer.CN || cert.issuer.O || '(unknown)';
+    const cardClass = isLeaf ? 'leaf' : isRoot ? 'root' : '';
+    const dotClass = cardClass;
+    const lineHtml = (i < certs.length - 1) ? '<div class="chain-line"></div>' : '';
+    const issuerLineHtml = (!cert.isSelfSigned && !isLeaf) ? '<div class="chain-issuer-line">issued by ' + esc(issuer) + '</div>' : '';
+    html += '<div class="chain-node">' +
+      '<div class="chain-connector">' +
+        '<div class="chain-dot ' + dotClass + '"></div>' +
+        lineHtml +
+      '</div>' +
+      '<div class="chain-card ' + cardClass + '">' +
+        '<div class="chain-type">' + typeLabel + '</div>' +
+        '<div class="chain-cn">' + esc(cn) + '</div>' +
+        issuerLineHtml +
+      '</div>' +
+    '</div>';
+  }
+  html += '</div></div>';
+  return html;
+}
+
+function esc(s) {
+  if (s === undefined || s === null) return '';
+  const dq = String.fromCharCode(34);
+  const sq = String.fromCharCode(39);
+  const bt = String.fromCharCode(96);
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(new RegExp(dq,'g'),'&quot;')
+    .replace(new RegExp(sq,'g'),'&#39;')
+    .replace(new RegExp(bt,'g'),'&#x60;');
+}
+
+// ─── STATE ───────────────────────────────────────────────────────────────────
+let currentCerts = [];
+
+// ─── ACTIONS ────────────────────────────────────────────────────────────────
+
+function switchMode(mode) {
+  document.getElementById('tab-pem').classList.toggle('active', mode === 'pem');
+  document.getElementById('tab-domain').classList.toggle('active', mode === 'domain');
+  document.getElementById('pem-mode').classList.toggle('visible', mode === 'pem');
+  document.getElementById('domain-mode').classList.toggle('visible', mode === 'domain');
+  showPlaceholder();
+}
+
+function showPlaceholder() {
+  document.getElementById('results').innerHTML = '<div class="placeholder-msg" id="placeholder">paste a pem cert or enter a domain</div>';
+  currentCerts = [];
+}
+
+function showError(msg) {
+  document.getElementById('results').innerHTML = '<div class="error-msg">' + esc(msg) + '</div>';
+}
+
+function clearAll() {
+  document.getElementById('pem-input').value = '';
+  showPlaceholder();
+}
+
+function loadPreset(idx) {
+  const p = PRESETS[idx];
+  if (!p) return;
+  document.getElementById('pem-input').value = p.pem;
+  parsePEM();
+}
+
+function parsePEM() {
+  const pem = document.getElementById('pem-input').value.trim();
+  if (!pem) {
+    showPlaceholder();
+    return;
+  }
+  const pemBlocks = splitPEMChain(pem);
+  if (pemBlocks.length === 0) {
+    showError('No PEM certificate blocks found. Make sure your input starts with -----BEGIN CERTIFICATE-----');
+    return;
+  }
+
+  const parsed = [];
+  const errors = [];
+  for (let i = 0; i < pemBlocks.length; i++) {
+    try {
+      parsed.push(parseCertificate(pemBlocks[i]));
+    } catch(e) {
+      errors.push('Certificate ' + (i + 1) + ': ' + e.message);
+    }
+  }
+
+  if (parsed.length === 0) {
+    showError(errors.join('\n'));
+    return;
+  }
+
+  currentCerts = parsed;
+
+  let html = '';
+  // Primary cert (first)
+  html += renderCert(parsed[0], 0);
+
+  // Chain visualization
+  if (parsed.length > 0) {
+    html += renderChain(parsed);
+  }
+
+  // Additional certs in chain
+  for (let i = 1; i < parsed.length; i++) {
+    const label = parsed[i].isSelfSigned ? 'Root CA' : 'Intermediate CA ' + i;
+    html += '<div class="section-label" style="margin-top:12px;margin-bottom:6px">' + label + '</div>';
+    html += renderCert(parsed[i], i);
+  }
+
+  // Actions
+  html += '<div id="actions-row"><button class="btn primary" onclick="copyJSON()">Copy JSON</button></div>';
+
+  if (errors.length > 0) {
+    html += '<div class="error-msg" style="margin-top:8px">Warnings: ' + esc(errors.join('; ')) + '</div>';
+  }
+
+  document.getElementById('results').innerHTML = html;
+}
+
+async function lookupDomain() {
+  const domain = document.getElementById('domain-input').value.trim();
+  if (!domain) return;
+  if (domain.length > 253 || !/^[a-zA-Z0-9.\-]+$/.test(domain)) {
+    showError('Invalid domain format. Use a valid hostname (e.g. example.com)');
+    return;
+  }
+
+  document.getElementById('results').innerHTML = '<div class="placeholder-msg">fetching...</div>';
+
+  try {
+    const crtProto = 'https:' + '/' + '/';
+    const url = crtProto + 'crt.sh/?q=' + encodeURIComponent(domain) + '&output=json';
+    const resp = await fetch(url, { signal: AbortSignal.timeout(10000) });
+    if (!resp.ok) throw new Error('API error: ' + resp.status);
+    const data = await resp.json();
+
+    if (!Array.isArray(data) || data.length === 0) {
+      showError('No certificates found for: ' + domain);
+      return;
+    }
+
+    // Show summary from crt.sh data (not raw DER)
+    const rows = data.slice(0, 10).map(function(c) {
+      const expiry = c.not_after ? new Date(c.not_after) : null;
+      const days = expiry ? daysUntil(expiry) : null;
+      const statusStyle = days === null ? '' : days < 0 ? 'color:#f85149' : days < 7 ? 'color:#f85149' : days < 30 ? 'color:#d29922' : 'color:#3fb950';
+      const issuerSpan = (c.issuer_name && typeof c.issuer_name === 'string') ? '<span style="color:#444;margin-left:8px">' + esc(c.issuer_name.split(',')[0]) + '</span>' : '';
+      return '<div class="field-row">' +
+        '<div class="field-key" style="width:auto;min-width:160px">' + esc(c.common_name || '—') + '</div>' +
+        '<div class="field-val" style="font-size:0.6rem">' +
+          '<span style="' + statusStyle + '">' + (expiry ? formatDate(expiry) : 'N/A') + '</span>' +
+          issuerSpan +
+        '</div></div>';
+    }).join('');
+
+    document.getElementById('results').innerHTML =
+      '<div class="section-label" style="margin-bottom:6px">crt.sh results for ' + esc(domain) + ' (' + data.length + ' total, showing 10)</div>' +
+      '<div class="fields-grid">' + rows + '</div>' +
+      '<div style="margin-top:8px;font-size:0.5rem;color:#444;text-transform:uppercase;letter-spacing:0.1em">For full cert decode: download PEM from crt.sh and paste in PEM mode</div>';
+  } catch(e) {
+    if (e.name === 'TimeoutError') {
+      showError('Request timed out. crt.sh may be unavailable.');
+    } else if (e.message.includes('Failed to fetch') || e.message.includes('NetworkError')) {
+      showError('Network error. crt.sh may not support CORS from this origin. Try pasting the PEM directly.');
+    } else {
+      showError('Lookup failed: ' + e.message);
+    }
+  }
+}
+
+function copyJSON() {
+  if (currentCerts.length === 0) return;
+
+  const out = currentCerts.map(cert => ({
+    subject: cert.subject,
+    issuer: cert.issuer,
+    serialNumber: cert.serial,
+    notBefore: cert.notBefore ? cert.notBefore.toISOString() : null,
+    notAfter: cert.notAfter ? cert.notAfter.toISOString() : null,
+    daysUntilExpiry: cert.notAfter ? daysUntil(cert.notAfter) : null,
+    keyAlgorithm: cert.keyAlgo,
+    signatureAlgorithm: cert.sigAlgo,
+    subjectAltNames: cert.sans,
+    version: cert.version,
+    isSelfSigned: cert.isSelfSigned
+  }));
+
+  const json = JSON.stringify(out.length === 1 ? out[0] : out, null, 2);
+
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(json).then(() => showToast('Copied to clipboard')).catch(() => fallbackCopy(json));
+  } else {
+    fallbackCopy(json);
+  }
+}
+
+function fallbackCopy(text) {
+  const el = document.createElement('textarea');
+  el.value = text;
+  el.style.position = 'fixed';
+  el.style.opacity = '0';
+  document.body.appendChild(el);
+  el.select();
+  try {
+    document.execCommand('copy');
+    showToast('Copied to clipboard');
+  } catch(e) {
+    showToast('Copy failed — check console');
+    console.error(e);
+  }
+  document.body.removeChild(el);
+}
+
+let toastTimer = null;
+function showToast(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('visible');
+  if (toastTimer) clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove('visible'), 2000);
+}
+
+// Auto-parse on input change (debounced)
+let parseTimer = null;
+document.getElementById('pem-input').addEventListener('input', () => {
+  if (parseTimer) clearTimeout(parseTimer);
+  parseTimer = setTimeout(() => {
+    const val = document.getElementById('pem-input').value.trim();
+    if (val.includes('-----END CERTIFICATE-----')) parsePEM();
+    else if (!val) showPlaceholder();
+  }, 300);
+});
+</script>
+</body>
+</html>

@@ -2542,6 +2542,28 @@ Persistent knowledge base. Read this before every build.
 - **KEEP**: For "find closest passing color" algorithms: walk step 0→100, at each step test both directions (lighter and darker), track best-failure fallback for impossible targets, return immediately when a passing candidate is found.
 - **KEEP**: CVD simulation grid (3 types × swatch + ratio) is a high-signal UI pattern that reveals real-world accessibility issues invisible to normal contrast checkers.
 
+## ssl-check — X.509 Certificate Inspector + COUNCIL PILOT (2026-03-31)
+- **BUG**: `https://` in JS string literals breaks comment-stripping brace-balance checkers — the `//` inside `https://` triggers the `//.*$` comment regex, orphaning the opening quote and corrupting brace analysis. Fix: construct as `'https:' + '/' + '/'` (same issue as readme-forge, confirmed pattern).
+- **BUG (ASN.1)**: OID component decoding with `val << 7` overflows 32-bit signed integers for large OID arcs. Use `val * 128 + (b & 0x7f)` to stay in JS float space.
+- **BUG (ASN.1)**: BMPString (tag 0x1E) is UTF-16BE — reading it byte-by-byte with `String.fromCharCode(byte)` produces garbage. Read pairs: `(bytes[i] << 8) | bytes[i+1]`.
+- **BUG**: Dates parsed as NaN (corrupt validity) should return `null` from `daysUntil()` — add `isNaN(d.getTime())` guard, otherwise NaN date silently shows cert as VALID.
+- **KEEP**: Wrap `atob()` in try/catch — it throws a `DOMException` on invalid Base64, not a standard `Error`. Always provide a human-readable message.
+- **KEEP**: Add null checks for `tbs.children[tbsIdx++]` in X.509 parsers — malformed certs will produce undefined, not exceptions, and downstream property access will crash silently.
+
+### COUNCIL PILOT — Dual Review Findings (ssl-check)
+Sequential Gemini reviews (focus: bugs, then security) caught **different issue classes**:
+
+**Review 1 (bugs) found:** OID overflow, BMPString encoding, NaN date fallthrough, atob exception, IPv6 odd-length crash, malformed cert null dereference.
+
+**Review 2 (security) found — things Review 1 MISSED:**
+- `esc()` missing single-quote (`&#39;`) and backtick (`&#x60;`) escaping — latent XSS
+- No Content-Security-Policy — add `connect-src https://crt.sh` to block exfiltration
+- Domain input not validated before URL construction — add hostname regex + length check
+- `Array.isArray()` needed on external API response — type safety, not just null check
+- `typeof === 'string'` guard before `.split()` on API field
+
+**Council pilot verdict:** Bug review finds functional correctness issues. Security review finds defensive depth issues. The two focus areas have minimal overlap — both passes are needed for tools handling external data or rendering user-provided content.
+
 ## readme-forge (2026-04-02)
 - **BUG**: `https://` in JS string literals breaks comment-stripping brace-balance checkers — the `//` inside `https://` triggers the `//.*$` comment regex, orphaning the opening quote and corrupting brace analysis. Fix: construct as `'https:' + '//' + 'host/path'`.
 - **BUG**: Inline markdown bold/italic regex must NOT run before inline code span extraction. If `inlineFormat` processes `**bold**` before stripping `` `code` ``, code spans get formatted inside. Fix: extract code spans first with a placeholder, format, then restore.
