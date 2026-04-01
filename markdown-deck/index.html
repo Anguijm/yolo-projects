@@ -309,6 +309,7 @@ These are speaker notes. They won't appear in the presentation but are preserved
       <button class="primary" onclick="startPresent()">Present</button>
       <button onclick="openPresenterView()">Presenter</button>
       <button onclick="toggleLayoutMode()" id="btn-layout">Layout</button>
+      <button onclick="toggleTemplatePanel()">Templates</button>
       <button onclick="toggleDesignPanel()">Theme</button>
       <button onclick="exportDeck()">PPTX</button>
       <button onclick="exportPDF()">PDF</button>
@@ -328,6 +329,16 @@ These are speaker notes. They won't appear in the presentation but are preserved
   <div class="present-slide" id="present-slide"></div>
   <div class="present-counter" id="present-counter"></div>
   <div class="present-help">ESC to exit &middot; Arrow keys to navigate</div>
+</div>
+
+<div id="template-panel" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:800;overflow-y:auto;padding:2rem">
+  <div style="max-width:600px;margin:0 auto">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem">
+      <h2 style="font-size:0.8rem;color:#555;letter-spacing:0.2em;font-weight:300">TEMPLATES</h2>
+      <button onclick="toggleTemplatePanel()" style="background:none;border:1px solid #333;color:#666;padding:4px 10px;font-family:inherit;font-size:0.55rem;cursor:pointer;border-radius:3px">Close</button>
+    </div>
+    <div id="template-list"></div>
+  </div>
 </div>
 
 <div id="print-container"></div>
@@ -1739,6 +1750,70 @@ window.exportDeck = async function() {
   a.download = 'presentation.pptx';
   a.click();
   setTimeout(function() { URL.revokeObjectURL(url); }, 1000);
+};
+
+// ============ TEMPLATE LIBRARY ============
+var DECK_TEMPLATES = [
+  {
+    name: 'Pitch Deck',
+    desc: 'Startup pitch: problem, solution, market, traction, team, ask',
+    content: '<!-- bg: #0f172a, text: #e2e8f0, align: center -->\n\n# Company Name\n\n*Tagline — one sentence that explains everything*\n\n---\n\n## The Problem\n\n- Pain point 1\n- Pain point 2\n- Pain point 3\n\n> \"Quote from a frustrated customer\"\n\n---\n\n## Our Solution\n\n- Feature that solves pain 1\n- Feature that solves pain 2\n- Feature that solves pain 3\n\n--\n\n**Demo screenshot or key visual here**\n\n---\n\n## Market Opportunity\n\n- TAM: $XX billion\n- SAM: $XX billion\n- SOM: $XX million (year 1)\n\n|||\n\n### Why Now?\n\n- Market shift 1\n- Technology enabler\n- Regulatory change\n\n---\n\n## Traction\n\n| Metric | Value |\n|--------|-------|\n| Users | 10,000+ |\n| MRR | $50K |\n| Growth | 20% m/m |\n| NPS | 72 |\n\n---\n\n## Business Model\n\n- Freemium: free tier + pro at $X/mo\n- Enterprise: custom pricing\n- Revenue target: $1M ARR by Q4\n\n---\n\n## Team\n\n- **CEO** — Background, relevant experience\n- **CTO** — Background, relevant experience\n- **Head of Product** — Background, relevant experience\n\n---\n\n<!-- bg: #0f172a, text: #e2e8f0, align: center -->\n\n# The Ask\n\nRaising $X at $Y valuation\n\n*contact@company.com*'
+  },
+  {
+    name: 'Technical Review',
+    desc: 'Architecture review: system overview, components, decisions, risks',
+    content: '## System Architecture Review\n\nTeam — Date\n\n---\n\n## Overview\n\n```diagram\n[Client] --> [API Gateway]\n[API Gateway] --> [Auth Service]\n[API Gateway] --> [App Server]\n[App Server] --> [Database]\n[App Server] --> [Cache]\n```\n\n---\n\n## Key Decisions\n\n| Decision | Choice | Rationale |\n|----------|--------|-----------|\n| Database | PostgreSQL | ACID compliance, JSON support |\n| Cache | Redis | Sub-ms latency, pub/sub |\n| API | REST | Team familiarity, tooling |\n\n---\n\n## Performance\n\n- P50 latency: **45ms**\n- P99 latency: **180ms**\n- Throughput: **2,400 req/s**\n\n```python\n@cache(ttl=300)\ndef get_user(user_id):\n    return db.query(User, id=user_id)\n```\n\n---\n\n## Risks & Mitigations\n\n- **Single point of failure** — Add read replicas\n- **Cache invalidation** — Event-driven purge\n- **Auth bottleneck** — Token caching at gateway\n\n--\n\n### Action Items\n\n- [ ] Deploy read replica by Q2\n- [ ] Implement cache purge events\n- [ ] Load test at 5x current traffic\n\n---\n\n## Questions?\n\n???\nBe ready to discuss the migration timeline.\nCost estimates are in the appendix doc.'
+  },
+  {
+    name: 'Sprint Review',
+    desc: 'Sprint recap: done, demo, metrics, blockers, next sprint',
+    content: '## Sprint 24 Review\n\nTeam — Date\n\n---\n\n## What We Shipped\n\n- [x] User authentication v2\n- [x] Dashboard redesign\n- [x] API rate limiting\n- [ ] Mobile notifications (carried over)\n\n---\n\n## Demo Highlights\n\n**Auth v2**: SSO + MFA in under 3 clicks\n\n--\n\n**Dashboard**: 60% faster initial load\n\n--\n\n**Rate Limiting**: Graceful degradation, no more 500s\n\n---\n\n## Sprint Metrics\n\n| Metric | Target | Actual |\n|--------|--------|--------|\n| Velocity | 34 pts | 31 pts |\n| Bug escape rate | <5% | 3.2% |\n| Test coverage | >80% | 84% |\n\n---\n\n## Blockers\n\n- Mobile push cert expired — waiting on DevOps\n- Design review backlog — 4 PRs pending\n\n---\n\n## Next Sprint\n\n- Mobile notifications (carried)\n- Search improvements\n- Performance optimization pass\n- Tech debt: migrate auth tokens\n\n???\nMention that we need design review capacity increased.'
+  },
+  {
+    name: 'Lecture / Workshop',
+    desc: 'Educational: title, agenda, content slides with code, Q&A',
+    content: '<!-- bg: #1a1a2e, text: #e0e0e0, align: center -->\n\n# Introduction to Algorithms\n\n*Workshop — 90 minutes*\n\n---\n\n## Agenda\n\n1. What is an algorithm?\n2. Big-O notation\n3. Sorting algorithms\n4. Hands-on exercise\n5. Q&A\n\n---\n\n## What is an Algorithm?\n\n> A finite sequence of well-defined instructions for solving a problem.\n\n--\n\n### Key Properties\n\n- **Input**: Zero or more inputs\n- **Output**: At least one output\n- **Definiteness**: Each step is clear\n- **Finiteness**: Terminates in finite steps\n\n---\n\n## Big-O Notation\n\n$$O(1) < O(\\log n) < O(n) < O(n \\log n) < O(n^2)$$\n\n| Complexity | Name | Example |\n|-----------|------|---------|\n| $O(1)$ | Constant | Hash lookup |\n| $O(\\log n)$ | Logarithmic | Binary search |\n| $O(n)$ | Linear | Array scan |\n| $O(n^2)$ | Quadratic | Bubble sort |\n\n---\n\n## Sorting: Quick Sort\n\n```python\ndef quicksort(arr):\n    if len(arr) <= 1:\n        return arr\n    pivot = arr[len(arr) // 2]\n    left = [x for x in arr if x < pivot]\n    mid = [x for x in arr if x == pivot]\n    right = [x for x in arr if x > pivot]\n    return quicksort(left) + mid + quicksort(right)\n```\n\nAverage: $O(n \\log n)$ — Worst: $O(n^2)$\n\n---\n\n## Exercise\n\nImplement binary search:\n\n```python\ndef binary_search(arr, target):\n    # Your code here\n    pass\n```\n\n*15 minutes — then we review together*\n\n---\n\n<!-- bg: #1a1a2e, text: #e0e0e0, align: center -->\n\n# Questions?\n\n???\nIf asked about space complexity, cover it briefly.\nExercise solution is in the repo.'
+  },
+  {
+    name: 'Status Report',
+    desc: 'Weekly/monthly status: highlights, metrics, risks, next steps',
+    content: '## Weekly Status Report\n\nProject — Week of Date\n\n---\n\n## Highlights\n\n- Shipped feature X to production\n- Onboarded 3 new team members\n- Completed security audit — zero critical findings\n\n---\n\n## Key Metrics\n\n- **Uptime**: 99.97%\n- **Active Users**: 12,450 (+8%)\n- **Support Tickets**: 34 (down from 51)\n- **Deploy Frequency**: 4/week\n\n|||\n\n### Trend\n\n- Users: trending up\n- Tickets: trending down\n- Deploys: stable\n\n---\n\n## Risks & Issues\n\n| Risk | Impact | Mitigation | Owner |\n|------|--------|------------|-------|\n| Vendor contract expires | High | Renewal in progress | Sarah |\n| Key hire still open | Medium | 3 candidates in pipeline | Mike |\n\n---\n\n## Next Week\n\n- [ ] Launch beta of feature Y\n- [ ] Complete vendor renewal\n- [ ] Security patch deployment\n- [ ] Team retrospective Friday\n\n???\nVendor renewal might slip — flag if asked.'
+  },
+  {
+    name: 'Blank',
+    desc: 'Empty deck with just a title slide',
+    content: '# Untitled Deck\n\nYour content here\n\n---\n\n## Slide 2\n\n- Point one\n- Point two\n- Point three'
+  }
+];
+
+window.toggleTemplatePanel = function() {
+  var panel = document.getElementById('template-panel');
+  var visible = panel.style.display !== 'none';
+  panel.style.display = visible ? 'none' : 'block';
+  if (!visible) renderTemplateList();
+};
+
+function renderTemplateList() {
+  var list = document.getElementById('template-list');
+  list.innerHTML = DECK_TEMPLATES.map(function(t, i) {
+    return '<div style="background:#111;border:1px solid #1a1a1a;padding:1rem;margin-bottom:0.5rem;cursor:pointer" onclick="loadTemplate(' + i + ')">' +
+      '<div style="font-size:0.8rem;color:#fff;margin-bottom:4px">' + esc(t.name) + '</div>' +
+      '<div style="font-size:0.55rem;color:#555">' + esc(t.desc) + '</div>' +
+      '</div>';
+  }).join('');
+}
+
+window.loadTemplate = function(idx) {
+  var t = DECK_TEMPLATES[idx];
+  if (!t) return;
+  if (inputEl.value.trim() && inputEl.value.trim() !== DECK_TEMPLATES[5].content.trim()) {
+    if (!confirm('Replace current deck with "' + t.name + '" template?')) return;
+  }
+  inputEl.value = t.content;
+  parseSlides();
+  renderPreview();
+  autoSave();
+  document.getElementById('template-panel').style.display = 'none';
 };
 
 // ============ ASPECT RATIO ============

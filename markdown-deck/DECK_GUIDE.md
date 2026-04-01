@@ -506,6 +506,23 @@ Click the **Presenter** button to open a dual-window presentation setup:
 
 ---
 
+## Templates
+
+Click **Templates** to open the template library. Each template loads a complete deck with slides, formatting, and theme overrides — ready to customize.
+
+| Template | Description |
+|----------|-------------|
+| **Pitch Deck** | Startup pitch: problem, solution, market, traction, team, ask (8 slides) |
+| **Technical Review** | Architecture review: system diagram, decisions table, performance, risks (6 slides) |
+| **Sprint Review** | Sprint recap: shipped items, demo highlights, metrics, blockers, next sprint (6 slides) |
+| **Lecture / Workshop** | Educational: agenda, content with code + math, exercise, Q&A (7 slides) |
+| **Status Report** | Weekly/monthly: highlights, metrics, risks table, next steps (5 slides) |
+| **Blank** | Empty starter with title slide + one content slide |
+
+Templates showcase real Markdown Deck features: per-slide themes, progressive reveal, two-column layouts, diagrams, code blocks, math, tables, speaker notes, and positioned elements.
+
+---
+
 ## Slide Aspect Ratio
 
 Use the dropdown in the Preview toolbar to change the slide dimensions:
