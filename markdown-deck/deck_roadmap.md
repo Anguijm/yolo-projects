@@ -124,3 +124,4 @@ These are features complex enough to prototype as standalone YOLO single-session
 | 2026-04-01 | Tock | Custom aspect ratios: 16:9, 4:3, 1:1, 9:16 with PPTX dimension sync |
 | 2026-04-02 | Tick | readme-forge: README.md generator with badges and templates |
 | 2026-04-02 | Tock | Template library: 6 pre-built decks (pitch, tech review, sprint, lecture, status, blank) |
+| 2026-04-02 | Tick | ssl-check: SSL cert inspector (COUNCIL PILOT: bugs + security reviews) |
