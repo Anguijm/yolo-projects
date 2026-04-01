@@ -1,0 +1,775 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="theme-color" content="#000000">
+<title>Char Map — Unicode Inspector</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{
+  height:100%;background:#0a0a0a;color:#ccc;
+  font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Courier New",monospace;
+  overflow-y:auto;touch-action:manipulation;-webkit-tap-highlight-color:transparent;
+}
+.container{max-width:960px;margin:0 auto;padding:12px}
+header{display:flex;align-items:baseline;justify-content:space-between;padding-bottom:10px;border-bottom:1px solid #1a1a1a;margin-bottom:12px}
+.title{font-size:0.85rem;font-weight:700;color:#0ff;letter-spacing:0.2em;text-transform:uppercase}
+.subtitle{font-size:0.42rem;color:#444;letter-spacing:0.1em;text-transform:uppercase}
+/* Input */
+#text-input{
+  width:100%;font-family:inherit;font-size:0.75rem;line-height:1.6;
+  color:#aaa;background:#111;border:1px solid #222;padding:8px;
+  resize:vertical;height:80px;outline:none;display:block;margin-bottom:6px;
+}
+#text-input:focus{border-color:#333}
+/* Stats */
+#stats-row{
+  display:flex;flex-wrap:wrap;gap:6px 16px;margin-bottom:8px;
+  font-size:0.42rem;color:#555;letter-spacing:0.1em;text-transform:uppercase;
+}
+.stat{display:flex;gap:4px;align-items:baseline}
+.stat-val{color:#0ff;font-size:0.65rem}
+/* Controls */
+.ctrl-row{display:flex;flex-wrap:wrap;gap:4px;margin-bottom:10px}
+.toggle-btn{
+  background:transparent;border:1px solid #1a1a1a;color:#444;
+  font-family:inherit;font-size:0.42rem;padding:4px 10px;cursor:pointer;
+  text-transform:uppercase;letter-spacing:0.1em;
+}
+.toggle-btn.on{border-color:rgba(0,255,255,0.4);color:#0ff}
+.toggle-btn:hover{border-color:#333;color:#666}
+.action-btn{
+  background:transparent;border:1px solid #1a1a1a;color:#444;
+  font-family:inherit;font-size:0.42rem;padding:4px 10px;cursor:pointer;
+  text-transform:uppercase;letter-spacing:0.1em;margin-left:auto;
+}
+.action-btn:hover{border-color:#333;color:#666}
+.action-btn:active{border-color:#555;color:#888}
+/* Char grid */
+#char-grid{
+  display:flex;flex-wrap:wrap;gap:3px;margin-bottom:12px;
+  min-height:40px;
+}
+.char-cell{
+  width:54px;height:56px;border:1px solid #1a1a1a;background:#111;
+  cursor:pointer;display:flex;flex-direction:column;align-items:center;
+  justify-content:center;gap:2px;position:relative;user-select:none;
+  flex-shrink:0;
+}
+.char-cell:hover{border-color:#333;background:#161616}
+.char-cell.selected{border-color:#0ff;background:#0a1a1a}
+.char-display{font-size:1.2rem;line-height:1;color:#eee;min-height:1.2em;display:flex;align-items:center;justify-content:center}
+.char-code{font-size:0.36rem;color:#444;letter-spacing:0.02em;line-height:1}
+/* Cell variant colors by category */
+.cat-control .char-display{color:#f85149}
+.cat-control{background:#130a0a}
+.cat-space .char-display{color:#333}
+.cat-nonascii .char-code{color:#666}
+.cat-letter{background:#111}
+.cat-number .char-code{color:#fc0;opacity:0.7}
+/* Count badge for dedup mode */
+.char-count{
+  position:absolute;top:2px;right:3px;
+  font-size:0.3rem;color:#555;line-height:1;
+}
+/* Invisible placeholder */
+.invis-label{
+  font-size:0.32rem;color:#f85149;border:1px solid #2a1212;padding:1px 3px;
+  background:#130a0a;letter-spacing:0.02em;
+}
+/* Detail panel */
+#detail-panel{
+  border:1px solid #1a1a1a;background:#0d0d0d;padding:10px 12px;margin-bottom:10px;
+  min-height:80px;
+}
+#detail-empty{font-size:0.52rem;color:#333;padding:12px 0;text-align:center}
+#detail-content{display:none}
+.detail-top{display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap}
+.detail-char-big{
+  font-size:3rem;line-height:1;color:#fff;min-width:60px;text-align:center;
+  border:1px solid #222;padding:4px 10px;background:#111;
+}
+.detail-rows{flex:1;min-width:200px}
+.detail-row{
+  display:flex;gap:8px;align-items:baseline;padding:2px 0;
+  border-bottom:1px solid #111;
+}
+.detail-lbl{font-size:0.42rem;color:#444;letter-spacing:0.1em;text-transform:uppercase;min-width:72px;flex-shrink:0}
+.detail-val{font-size:0.65rem;color:#ccc;font-family:inherit;word-break:break-all}
+.detail-val.accent{color:#0ff}
+.detail-val.bytes{color:#fc0}
+.detail-actions{display:flex;gap:4px;flex-wrap:wrap;margin-top:8px}
+.detail-copy-btn{
+  background:transparent;border:1px solid #1a1a1a;color:#444;
+  font-family:inherit;font-size:0.4rem;padding:3px 8px;cursor:pointer;
+  text-transform:uppercase;letter-spacing:0.1em;
+}
+.detail-copy-btn:hover{border-color:#333;color:#666}
+.detail-copy-btn:active{border-color:#555;color:#888}
+/* Toast */
+#toast{
+  position:fixed;bottom:16px;left:50%;transform:translateX(-50%);
+  background:#1a1a1a;border:1px solid #333;color:#0ff;
+  font-size:0.5rem;padding:7px 14px;letter-spacing:0.1em;text-transform:uppercase;
+  opacity:0;transition:opacity 0.2s;pointer-events:none;border-radius:4px;z-index:999;
+}
+#toast.show{opacity:1}
+@media(max-width:500px){
+  .char-cell{width:46px;height:48px}
+  .char-display{font-size:1rem}
+  .action-btn{margin-left:0}
+}
+</style>
+</head>
+<body>
+<div class="container">
+  <header>
+    <div>
+      <div class="title">Char Map</div>
+      <div class="subtitle">Unicode character inspector</div>
+    </div>
+  </header>
+
+  <textarea id="text-input" spellcheck="false" autocorrect="off" autocapitalize="off"
+    placeholder="Paste or type any text to inspect its Unicode characters..."></textarea>
+
+  <div id="stats-row">
+    <div class="stat"><span id="stat-cp" class="stat-val">0</span><span>code points</span></div>
+    <div class="stat"><span id="stat-bytes" class="stat-val">0</span><span>UTF-8 bytes</span></div>
+    <div class="stat"><span id="stat-nonascii" class="stat-val">0</span><span>non-ASCII</span></div>
+    <div class="stat"><span id="stat-unique" class="stat-val">0</span><span>unique</span></div>
+  </div>
+
+  <div class="ctrl-row">
+    <button id="btn-invisible" class="toggle-btn">Show invisible</button>
+    <button id="btn-dedup" class="toggle-btn">Deduplicate</button>
+    <button id="btn-copy-escaped" class="action-btn">Copy as JS escapes</button>
+    <button id="btn-copy-b64" class="action-btn">Copy as Base64</button>
+  </div>
+
+  <div id="char-grid"></div>
+
+  <div id="detail-panel">
+    <div id="detail-empty">Click any character cell to inspect it</div>
+    <div id="detail-content">
+      <div class="detail-top">
+        <div id="detail-char-big" class="detail-char-big"></div>
+        <div class="detail-rows">
+          <div class="detail-row">
+            <span class="detail-lbl">Code Point</span>
+            <span id="dv-cp" class="detail-val accent"></span>
+          </div>
+          <div class="detail-row">
+            <span class="detail-lbl">Decimal</span>
+            <span id="dv-dec" class="detail-val"></span>
+          </div>
+          <div class="detail-row">
+            <span class="detail-lbl">Block</span>
+            <span id="dv-block" class="detail-val"></span>
+          </div>
+          <div class="detail-row">
+            <span class="detail-lbl">Category</span>
+            <span id="dv-cat" class="detail-val"></span>
+          </div>
+          <div class="detail-row">
+            <span class="detail-lbl">UTF-8</span>
+            <span id="dv-utf8" class="detail-val bytes"></span>
+          </div>
+          <div class="detail-row">
+            <span class="detail-lbl">UTF-16</span>
+            <span id="dv-utf16" class="detail-val bytes"></span>
+          </div>
+          <div class="detail-row">
+            <span class="detail-lbl">JS Escape</span>
+            <span id="dv-js" class="detail-val"></span>
+          </div>
+          <div class="detail-row">
+            <span class="detail-lbl">HTML Entity</span>
+            <span id="dv-html" class="detail-val"></span>
+          </div>
+        </div>
+      </div>
+      <div class="detail-actions">
+        <button class="detail-copy-btn" id="detail-copy-cp">Copy U+XXXX</button>
+        <button class="detail-copy-btn" id="detail-copy-js">Copy JS escape</button>
+        <button class="detail-copy-btn" id="detail-copy-char">Copy character</button>
+        <button class="detail-copy-btn" id="detail-copy-entity">Copy HTML entity</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="toast">Copied!</div>
+
+<script type="application/json" id="block-data">
+[
+  [0,"Basic Latin"],
+  [128,"Latin-1 Supplement"],
+  [256,"Latin Extended-A"],
+  [384,"Latin Extended-B"],
+  [592,"IPA Extensions"],
+  [688,"Spacing Modifier Letters"],
+  [768,"Combining Diacritical Marks"],
+  [880,"Greek and Coptic"],
+  [1024,"Cyrillic"],
+  [1280,"Cyrillic Supplement"],
+  [1328,"Armenian"],
+  [1424,"Hebrew"],
+  [1536,"Arabic"],
+  [1792,"Syriac"],
+  [1872,"Arabic Supplement"],
+  [1984,"Thaana"],
+  [2048,"Samaritan"],
+  [2112,"Mandaic"],
+  [2304,"Devanagari"],
+  [2432,"Bengali"],
+  [2560,"Gurmukhi"],
+  [2688,"Gujarati"],
+  [2816,"Oriya"],
+  [2944,"Tamil"],
+  [3072,"Telugu"],
+  [3200,"Kannada"],
+  [3328,"Malayalam"],
+  [3456,"Sinhala"],
+  [3584,"Thai"],
+  [3648,"Lao"],
+  [3712,"Tibetan"],
+  [3840,"Myanmar"],
+  [4096,"Georgian"],
+  [4256,"Hangul Jamo"],
+  [4352,"Ethiopic"],
+  [4608,"Ethiopic Supplement"],
+  [4992,"Cherokee"],
+  [5120,"Unified Canadian Aboriginal Syllabics"],
+  [5760,"Ogham"],
+  [5792,"Runic"],
+  [5888,"Tagalog"],
+  [5920,"Hanunoo"],
+  [5952,"Buhid"],
+  [5984,"Tagbanwa"],
+  [6016,"Khmer"],
+  [6144,"Mongolian"],
+  [7424,"Phonetic Extensions"],
+  [7680,"Latin Extended Additional"],
+  [7936,"Greek Extended"],
+  [8192,"General Punctuation"],
+  [8304,"Superscripts and Subscripts"],
+  [8352,"Currency Symbols"],
+  [8400,"Combining Diacritical Marks for Symbols"],
+  [8448,"Letterlike Symbols"],
+  [8528,"Number Forms"],
+  [8592,"Arrows"],
+  [8704,"Mathematical Operators"],
+  [8960,"Miscellaneous Technical"],
+  [9216,"Control Pictures"],
+  [9280,"Optical Character Recognition"],
+  [9312,"Enclosed Alphanumerics"],
+  [9472,"Box Drawing"],
+  [9600,"Block Elements"],
+  [9632,"Geometric Shapes"],
+  [9728,"Miscellaneous Symbols"],
+  [9984,"Dingbats"],
+  [10240,"Braille Patterns"],
+  [10496,"Supplemental Arrows-B"],
+  [10752,"Miscellaneous Mathematical Symbols-B"],
+  [11008,"Supplemental Mathematical Operators"],
+  [11264,"Glagolitic"],
+  [11392,"Coptic"],
+  [11520,"Georgian Supplement"],
+  [11904,"CJK Radicals Supplement"],
+  [12032,"Kangxi Radicals"],
+  [12272,"Ideographic Description Characters"],
+  [12288,"CJK Symbols and Punctuation"],
+  [12352,"Hiragana"],
+  [12448,"Katakana"],
+  [12544,"Bopomofo"],
+  [12592,"Hangul Compatibility Jamo"],
+  [12688,"Kanbun"],
+  [12704,"Bopomofo Extended"],
+  [12800,"CJK Unified Ideographs Extension A"],
+  [13312,"CJK Unified Ideographs Extension A"],
+  [19904,"Yijing Hexagram Symbols"],
+  [19968,"CJK Unified Ideographs"],
+  [40960,"Yi Syllables"],
+  [42128,"Yi Radicals"],
+  [44032,"Hangul Syllables"],
+  [55296,"High Surrogates"],
+  [56320,"Low Surrogates"],
+  [57344,"Private Use Area"],
+  [63744,"CJK Compatibility Ideographs"],
+  [64256,"Alphabetic Presentation Forms"],
+  [64336,"Arabic Presentation Forms-A"],
+  [65024,"Variation Selectors"],
+  [65040,"Vertical Forms"],
+  [65056,"Combining Half Marks"],
+  [65072,"CJK Compatibility Forms"],
+  [65104,"Small Form Variants"],
+  [65136,"Arabic Presentation Forms-B"],
+  [65280,"Halfwidth and Fullwidth Forms"],
+  [65520,"Specials"],
+  [65536,"Linear B Syllabary"],
+  [66560,"Gothic"],
+  [118784,"Musical Symbols"],
+  [119040,"Ancient Greek Musical Notation"],
+  [119552,"Byzantine Musical Symbols"],
+  [126976,"Playing Cards"],
+  [127024,"Enclosed Alphanumeric Supplement"],
+  [127232,"Enclosed Ideographic Supplement"],
+  [127488,"Miscellaneous Symbols and Pictographs"],
+  [127744,"Emoticons"],
+  [127872,"Ornamental Dingbats"],
+  [127968,"Miscellaneous Symbols and Arrows"],
+  [128000,"Transport and Map Symbols"],
+  [128256,"Alchemical Symbols"],
+  [128512,"Emoticons (Extended)"],
+  [128640,"Transport and Map Symbols (Extended)"],
+  [128768,"Flags"],
+  [129024,"Supplemental Symbols and Pictographs"],
+  [129280,"Chess Symbols"],
+  [129408,"Symbols and Pictographs Extended-A"]
+]
+</script>
+
+<script type="application/json" id="common-entities">
+{
+  "34": "&quot;",
+  "38": "&amp;",
+  "39": "&#39;",
+  "60": "&lt;",
+  "62": "&gt;",
+  "160": "&nbsp;",
+  "161": "&iexcl;",
+  "162": "&cent;",
+  "163": "&pound;",
+  "164": "&curren;",
+  "165": "&yen;",
+  "169": "&copy;",
+  "174": "&reg;",
+  "176": "&deg;",
+  "177": "&plusmn;",
+  "215": "&times;",
+  "247": "&divide;",
+  "8364": "&euro;",
+  "8482": "&trade;",
+  "8225": "&Dagger;",
+  "8224": "&dagger;",
+  "8226": "&bull;",
+  "8230": "&hellip;",
+  "8212": "&mdash;",
+  "8211": "&ndash;",
+  "8220": "&ldquo;",
+  "8221": "&rdquo;",
+  "8216": "&lsquo;",
+  "8217": "&rsquo;",
+  "8804": "&le;",
+  "8805": "&ge;",
+  "8800": "&ne;",
+  "8734": "&infin;",
+  "8592": "&larr;",
+  "8594": "&rarr;",
+  "8593": "&uarr;",
+  "8595": "&darr;"
+}
+</script>
+
+<script>
+var textInput = document.getElementById('text-input');
+var charGrid = document.getElementById('char-grid');
+var statCp = document.getElementById('stat-cp');
+var statBytes = document.getElementById('stat-bytes');
+var statNonascii = document.getElementById('stat-nonascii');
+var statUnique = document.getElementById('stat-unique');
+var btnInvisible = document.getElementById('btn-invisible');
+var btnDedup = document.getElementById('btn-dedup');
+var btnCopyEscaped = document.getElementById('btn-copy-escaped');
+var btnCopyB64 = document.getElementById('btn-copy-b64');
+var detailEmpty = document.getElementById('detail-empty');
+var detailContent = document.getElementById('detail-content');
+var detailCharBig = document.getElementById('detail-char-big');
+var dvCp = document.getElementById('dv-cp');
+var dvDec = document.getElementById('dv-dec');
+var dvBlock = document.getElementById('dv-block');
+var dvCat = document.getElementById('dv-cat');
+var dvUtf8 = document.getElementById('dv-utf8');
+var dvUtf16 = document.getElementById('dv-utf16');
+var dvJs = document.getElementById('dv-js');
+var dvHtml = document.getElementById('dv-html');
+var detailCopyCp = document.getElementById('detail-copy-cp');
+var detailCopyJs = document.getElementById('detail-copy-js');
+var detailCopyChar = document.getElementById('detail-copy-char');
+var detailCopyEntity = document.getElementById('detail-copy-entity');
+var toastEl = document.getElementById('toast');
+
+var showInvisible = false;
+var dedup = false;
+var selectedCp = -1;
+var toastTimer = null;
+var BLOCKS = [];
+var ENTITIES = {};
+
+function escHtml(s) {
+  if (s === null || s === undefined) return '';
+  return String(s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+function debounce(fn, ms) {
+  var t;
+  return function() {
+    var args = arguments;
+    clearTimeout(t);
+    t = setTimeout(function() { fn.apply(null, args); }, ms);
+  };
+}
+
+function hex(n, pad) {
+  return n.toString(16).toUpperCase().padStart(pad || 1, '0');
+}
+
+function getCodePoints(str) {
+  var cps = [];
+  for (var i = 0; i < str.length; ) {
+    var cp = str.codePointAt(i);
+    cps.push(cp);
+    i += cp > 0xFFFF ? 2 : 1;
+  }
+  return cps;
+}
+
+function toUtf8(cp) {
+  if (cp < 0x80) return [cp];
+  if (cp < 0x800) return [0xC0 | (cp >> 6), 0x80 | (cp & 0x3F)];
+  if (cp < 0x10000) return [
+    0xE0 | (cp >> 12),
+    0x80 | ((cp >> 6) & 0x3F),
+    0x80 | (cp & 0x3F)
+  ];
+  return [
+    0xF0 | (cp >> 18),
+    0x80 | ((cp >> 12) & 0x3F),
+    0x80 | ((cp >> 6) & 0x3F),
+    0x80 | (cp & 0x3F)
+  ];
+}
+
+function toUtf16(cp) {
+  if (cp < 0x10000) return [cp];
+  var c = cp - 0x10000;
+  return [0xD800 + (c >> 10), 0xDC00 + (c & 0x3FF)];
+}
+
+function toJsEscape(cp) {
+  if (cp <= 0xFFFF) {
+    return '\\u' + hex(cp, 4);
+  }
+  return '\\u{' + hex(cp) + '}';
+}
+
+function toHtmlEntity(cp) {
+  var named = ENTITIES[String(cp)];
+  if (named) return named;
+  return '&#' + cp + ';';
+}
+
+function getBlock(cp) {
+  if (!BLOCKS.length) return 'Unknown';
+  if (cp > 0x10FFFF) return 'Invalid (out of Unicode range)';
+  var lo = 0, hi = BLOCKS.length - 1;
+  while (lo <= hi) {
+    var mid = (lo + hi) >> 1;
+    if (cp < BLOCKS[mid][0]) {
+      hi = mid - 1;
+    } else if (mid + 1 < BLOCKS.length && cp >= BLOCKS[mid + 1][0]) {
+      lo = mid + 1;
+    } else {
+      return BLOCKS[mid][1];
+    }
+  }
+  return 'Unknown';
+}
+
+function getCategory(cp) {
+  if (cp >= 0xD800 && cp <= 0xDFFF) return 'Surrogate (invalid)';
+  if (cp < 0x20 || cp === 0x7F || (cp >= 0x80 && cp <= 0x9F)) return 'Control';
+  if (cp === 0x20 || cp === 0xA0) return 'Space';
+  if (cp === 0x200B || cp === 0x200C || cp === 0x200D || cp === 0xFEFF) return 'Zero-width';
+  if (cp >= 0x30 && cp <= 0x39) return 'Digit';
+  if ((cp >= 0x41 && cp <= 0x5A) || (cp >= 0x61 && cp <= 0x7A)) return 'ASCII Letter';
+  if (cp < 0x80) return 'ASCII Punctuation';
+  if (cp >= 0x1F300 && cp <= 0x1FAFF) return 'Emoji';
+  if (cp >= 0x4E00 && cp <= 0x9FFF) return 'CJK';
+  if (cp >= 0xAC00 && cp <= 0xD7AF) return 'Hangul';
+  if (cp >= 0x3040 && cp <= 0x30FF) return 'Kana';
+  if (cp >= 0x2000 && cp <= 0x2BFF) return 'Symbol / Punctuation';
+  return 'Letter / Other';
+}
+
+function cpCategory(cp) {
+  var cat = getCategory(cp);
+  if (cat === 'Control' || cat === 'Zero-width' || cat === 'Surrogate (invalid)') return 'control';
+  if (cat === 'Space') return 'space';
+  if (cat === 'Digit') return 'number';
+  if (cat !== 'ASCII Letter' && cat !== 'ASCII Punctuation' && cat !== 'Digit') return 'nonascii';
+  return 'letter';
+}
+
+function controlLabel(cp) {
+  var names = {0:'NUL',1:'SOH',2:'STX',3:'ETX',4:'EOT',5:'ENQ',6:'ACK',7:'BEL',
+    8:'BS',9:'TAB',10:'LF',11:'VT',12:'FF',13:'CR',14:'SO',15:'SI',
+    27:'ESC',28:'FS',29:'GS',30:'RS',31:'US',32:'SP',127:'DEL',
+    160:'NBSP',8203:'ZWS',8204:'ZWNJ',8205:'ZWJ',65279:'BOM'};
+  return names[cp] || ('U+' + hex(cp));
+}
+
+function totalUtf8Bytes(cps) {
+  var n = 0;
+  for (var i = 0; i < cps.length; i++) {
+    n += toUtf8(cps[i]).length;
+  }
+  return n;
+}
+
+var MAX_DISPLAY = 2000;
+
+function renderGrid(cps) {
+  if (!cps.length) {
+    charGrid.innerHTML = '';
+    return;
+  }
+  var truncated = cps.length > MAX_DISPLAY;
+  if (truncated) cps = cps.slice(0, MAX_DISPLAY);
+
+  var displayList;
+  if (dedup) {
+    var counts = Object.create(null);
+    var order = [];
+    cps.forEach(function(cp) {
+      var k = String(cp);
+      if (!counts[k]) { counts[k] = 0; order.push(cp); }
+      counts[k]++;
+    });
+    displayList = order.map(function(cp) { return {cp: cp, count: counts[String(cp)]}; });
+  } else {
+    displayList = cps.map(function(cp) { return {cp: cp, count: 1}; });
+  }
+
+  var frag = document.createDocumentFragment();
+  displayList.forEach(function(item) {
+    var cp = item.cp;
+    var div = document.createElement('div');
+    div.className = 'char-cell cat-' + cpCategory(cp);
+    div.dataset.cp = cp;
+
+    var isControl = (cp < 0x20 || cp === 0x7F || (cp >= 0x80 && cp <= 0x9F) ||
+      cp === 0x200B || cp === 0x200C || cp === 0x200D || cp === 0xFEFF);
+
+    var charSpan = document.createElement('span');
+    charSpan.className = 'char-display';
+    if (isControl && !showInvisible) {
+      var lbl = document.createElement('span');
+      lbl.className = 'invis-label';
+      lbl.textContent = controlLabel(cp);
+      charSpan.appendChild(lbl);
+    } else if (cp === 0x20) {
+      if (showInvisible) {
+        var sp = document.createElement('span');
+        sp.className = 'invis-label';
+        sp.textContent = 'SP';
+        charSpan.appendChild(sp);
+      } else {
+        charSpan.textContent = String.fromCodePoint(cp);
+      }
+    } else {
+      charSpan.textContent = String.fromCodePoint(cp);
+    }
+    div.appendChild(charSpan);
+
+    var codeSpan = document.createElement('span');
+    codeSpan.className = 'char-code';
+    codeSpan.textContent = 'U+' + hex(cp, 4);
+    div.appendChild(codeSpan);
+
+    if (item.count > 1) {
+      var badge = document.createElement('span');
+      badge.className = 'char-count';
+      badge.textContent = 'x' + item.count;
+      div.appendChild(badge);
+    }
+
+    if (cp === selectedCp) div.classList.add('selected');
+
+    div.addEventListener('click', function() {
+      selectChar(parseInt(this.dataset.cp, 10));
+    });
+
+    frag.appendChild(div);
+  });
+
+  charGrid.innerHTML = '';
+  charGrid.appendChild(frag);
+  if (truncated) {
+    var notice = document.createElement('div');
+    notice.style.cssText = 'width:100%;font-size:0.42rem;color:#555;padding:4px 0;letter-spacing:0.1em;text-transform:uppercase;';
+    notice.textContent = 'Showing first ' + MAX_DISPLAY + ' code points. Stats cover full text.';
+    charGrid.appendChild(notice);
+  }
+}
+
+function selectChar(cp) {
+  selectedCp = cp;
+  document.querySelectorAll('.char-cell').forEach(function(el) {
+    el.classList.toggle('selected', parseInt(el.dataset.cp, 10) === cp);
+  });
+
+  detailEmpty.style.display = 'none';
+  detailContent.style.display = '';
+
+  var cpStr = String.fromCodePoint(cp);
+  detailCharBig.textContent = cpStr;
+  dvCp.textContent = 'U+' + hex(cp, 4) + '  (0x' + hex(cp) + ')';
+  dvDec.textContent = String(cp);
+  dvBlock.textContent = getBlock(cp);
+  dvCat.textContent = getCategory(cp);
+
+  var utf8bytes = toUtf8(cp);
+  dvUtf8.textContent = utf8bytes.map(function(b) { return hex(b, 2); }).join(' ') +
+    '  (' + utf8bytes.length + ' byte' + (utf8bytes.length !== 1 ? 's' : '') + ')';
+
+  var utf16units = toUtf16(cp);
+  dvUtf16.textContent = utf16units.map(function(u) { return hex(u, 4); }).join(' ') +
+    '  (' + (utf16units.length > 1 ? 'surrogate pair' : '1 unit') + ')';
+
+  dvJs.textContent = toJsEscape(cp);
+  dvHtml.textContent = toHtmlEntity(cp);
+}
+
+function updateStats(cps) {
+  statCp.textContent = String(cps.length);
+  statBytes.textContent = String(totalUtf8Bytes(cps));
+  var nonAscii = cps.filter(function(cp) { return cp >= 0x80; }).length;
+  statNonascii.textContent = String(nonAscii);
+  var unique = Object.create(null);
+  cps.forEach(function(cp) { unique[String(cp)] = 1; });
+  statUnique.textContent = String(Object.keys(unique).length);
+}
+
+function update() {
+  var cps = getCodePoints(textInput.value);
+  updateStats(cps);
+  renderGrid(cps);
+}
+
+function showToast(msg) {
+  toastEl.textContent = msg;
+  toastEl.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(function() { toastEl.classList.remove('show'); }, 2000);
+}
+
+function copyText(text) {
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).then(function() {
+      showToast('Copied!');
+    }).catch(function() { fallbackCopy(text); });
+  } else {
+    fallbackCopy(text);
+  }
+}
+
+function fallbackCopy(text) {
+  var ta = document.createElement('textarea');
+  ta.value = text;
+  ta.style.position = 'fixed';
+  ta.style.top = '-9999px';
+  ta.style.left = '-9999px';
+  document.body.appendChild(ta);
+  ta.select();
+  try {
+    var ok = document.execCommand('copy');
+    if (ok) { showToast('Copied!'); } else { showToast('Copy failed'); }
+  } catch(e) { showToast('Copy failed'); }
+  document.body.removeChild(ta);
+}
+
+function copyAsEscapes(str) {
+  var cps = getCodePoints(str);
+  var result = cps.map(function(cp) { return toJsEscape(cp); }).join('');
+  copyText(result);
+}
+
+function copyAsBase64(str) {
+  try {
+    var bytes = new TextEncoder().encode(str);
+    var chars = Array.from(bytes, function(b) { return String.fromCharCode(b); });
+    var b64 = btoa(chars.join(''));
+    copyText(b64);
+  } catch(e) {
+    showToast('Error encoding');
+  }
+}
+
+(function() {
+  try {
+    BLOCKS = JSON.parse(document.getElementById('block-data').textContent);
+  } catch(e) { BLOCKS = []; }
+  try {
+    ENTITIES = JSON.parse(document.getElementById('common-entities').textContent);
+  } catch(e) { ENTITIES = {}; }
+
+  var defaultText = 'The quick brown fox jumps over the lazy dog.\n' +
+    'Caf\u00e9, na\u00efve, r\u00e9sum\u00e9 \u2014 accented Latin\n' +
+    '\u03a9 \u03c0 \u221a \u2211 \u221e \u2260 \u2264 \u2265 \u2190 \u2192 \u2191 \u2193 \u2014 symbols\n' +
+    '\u4f60\u597d \u3053\u3093\u306b\u3061\u306f \uc548\ub155\ud558\uc138\uc694 \u2014 CJK scripts\n' +
+    '\ud83c\udf89 \ud83d\ude80 \ud83d\udc4b \ud83c\udf0d \u2764\ufe0f \u2014 emoji';
+
+  textInput.value = defaultText;
+
+  textInput.addEventListener('input', debounce(update, 80));
+
+  btnInvisible.addEventListener('click', function() {
+    showInvisible = !showInvisible;
+    btnInvisible.classList.toggle('on', showInvisible);
+    update();
+  });
+
+  btnDedup.addEventListener('click', function() {
+    dedup = !dedup;
+    btnDedup.classList.toggle('on', dedup);
+    update();
+  });
+
+  btnCopyEscaped.addEventListener('click', function() {
+    copyAsEscapes(textInput.value);
+  });
+
+  btnCopyB64.addEventListener('click', function() {
+    copyAsBase64(textInput.value);
+  });
+
+  detailCopyCp.addEventListener('click', function() {
+    if (selectedCp >= 0) copyText('U+' + hex(selectedCp, 4));
+  });
+
+  detailCopyJs.addEventListener('click', function() {
+    if (selectedCp >= 0) copyText(toJsEscape(selectedCp));
+  });
+
+  detailCopyChar.addEventListener('click', function() {
+    if (selectedCp >= 0) copyText(String.fromCodePoint(selectedCp));
+  });
+
+  detailCopyEntity.addEventListener('click', function() {
+    if (selectedCp >= 0) copyText(toHtmlEntity(selectedCp));
+  });
+
+  update();
+}());
+</script>
+</body>
+</html>
