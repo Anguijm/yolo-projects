@@ -67,6 +67,17 @@ Persistent knowledge base. Read this before every build.
 
 ## Per-Build Reflections
 
+### reaction-diffusion (2026-04-02)
+- **KEEP**: WebGL2 ping-pong framebuffer technique — two float textures, read one / write other, swap each step. The correct pattern for any GPU compute.
+- **KEEP**: Cache ALL uniform locations before the render loop — `gl.getUniformLocation` is expensive; calling it per-frame in `simStep()` × stepsPerFrame × uniforms = massive CPU overhead.
+- **KEEP**: Try WebGL2 context first (`webgl2`), fall back to `webgl`. WebGL2 has float FBO support with one extension (`EXT_color_buffer_float`); WebGL1 needs two (`OES_texture_float` + `WEBGL_color_buffer_float`).
+- **KEEP**: Render-pass seeding — initialize simulation state via GPU clear + seed shader instead of uploading typed arrays. Half-float arrays can't be uploaded from JS on all browsers.
+- **IMPROVE**: WebGL1 float FBO bug caught in review: `OES_texture_float` only allows float textures as *sources*; `WEBGL_color_buffer_float` is separately required to *render to* them. Without the FBO extension, `checkFramebufferStatus` returns INCOMPLETE and nothing draws.
+- **IMPROVE**: Uniform location caching — move all `gl.getUniformLocation` calls to program init, store in a plain object. Never call inside sim loop.
+- **INSIGHT**: Two separate WebGL extensions govern float textures: one for sampling (texture source), one for rendering (framebuffer destination). They are different APIs and both must be checked.
+- **INSIGHT**: Gray-Scott model needs only 2 floats per pixel (A, B) but we use RGBA textures — the R and G channels carry A and B chemicals, and the blue/alpha channels are wasted. This is fine; RGBA is the only format guaranteed renderable.
+- **TEST CAUGHT**: CSS comment `/* help overlay */` — the word "overlay" in any HTML/CSS comment triggers the test's overlay detection regex. Rename comments that shouldn't be treated as overlays.
+
 ### ray-caster (2026-03-21)
 - **KEEP**: DDA raycasting + ImageData pixel buffer + bitwise ops = smooth 60fps
 - **KEEP**: Procedural brick textures via sine-wave noise — zero external assets
