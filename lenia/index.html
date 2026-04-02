@@ -1,0 +1,918 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="theme-color" content="#000000">
+<title>LENIA — Continuous Life</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body {
+  width: 100%; height: 100%;
+  background: #0a0a0a;
+  overflow: hidden;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Courier New', monospace;
+  color: #ccc;
+}
+#canvas {
+  position: absolute;
+  top: 0; left: 0;
+  width: 100%; height: 100%;
+  cursor: crosshair;
+}
+#title {
+  position: absolute;
+  top: 12px; left: 14px;
+  pointer-events: none;
+  user-select: none;
+}
+#title h1 {
+  font-size: 0.8rem;
+  color: #0ff;
+  letter-spacing: 0.35em;
+  text-transform: uppercase;
+  font-weight: 400;
+}
+#title p {
+  font-size: 0.5rem;
+  color: #444;
+  letter-spacing: 0.25em;
+  text-transform: uppercase;
+  margin-top: 2px;
+}
+#ctrl {
+  position: absolute;
+  top: 0; right: 0;
+  width: 188px;
+  background: rgba(10,10,10,0.92);
+  border-left: 1px solid #1a1a1a;
+  padding: 8px 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  overflow-y: auto;
+  max-height: 100vh;
+}
+.sec {
+  font-size: 0.48rem;
+  color: #444;
+  text-transform: uppercase;
+  letter-spacing: 0.22em;
+  margin-top: 5px;
+  border-top: 1px solid #1a1a1a;
+  padding-top: 5px;
+}
+.sec:first-child { margin-top: 0; border-top: none; padding-top: 0; }
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 3px; }
+.btn {
+  padding: 6px 4px;
+  background: transparent;
+  border: 1px solid #1a1a1a;
+  color: #555;
+  font-family: inherit;
+  font-size: 0.55rem;
+  cursor: pointer;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  text-align: center;
+  user-select: none;
+}
+.btn:hover { border-color: #2a2a2a; color: #777; }
+.btn:active { border-color: #555; color: #aaa; }
+.btn.on { border-color: #0ff; color: #0ff; }
+.param {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.param-hdr {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+}
+.param-name {
+  font-size: 0.5rem;
+  color: #555;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+.param-val {
+  font-size: 0.52rem;
+  color: #666;
+  font-variant-numeric: tabular-nums;
+}
+input[type="range"] {
+  width: 100%;
+  height: 12px;
+  accent-color: #555;
+  cursor: pointer;
+  margin: 0;
+}
+.cm-row { display: grid; grid-template-columns: 1fr 1fr; gap: 3px; }
+.cm-swatch {
+  height: 20px;
+  border: 1px solid #1a1a1a;
+  cursor: pointer;
+}
+.cm-swatch:hover { border-color: #333; }
+.cm-swatch.on { border-color: #0ff; }
+.info {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.5rem;
+  color: #444;
+  margin-top: 2px;
+}
+#ui-hint {
+  position: absolute;
+  bottom: 10px;
+  left: 12px;
+  font-size: 0.42rem;
+  color: #2a2a2a;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  pointer-events: none;
+  user-select: none;
+  display: none;
+}
+#err-panel {
+  position: fixed;
+  inset: 0;
+  background: #0a0a0a;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 12px;
+  color: #f85149;
+  font-size: 0.75rem;
+  text-align: center;
+  padding: 20px;
+  z-index: 100;
+}
+#err-panel p { color: #555; font-size: 0.6rem; max-width: 320px; }
+@media (max-width: 480px) {
+  #ctrl { width: 150px; }
+}
+</style>
+</head>
+
+<!-- Vertex shader: shared by all programs -->
+<script type="x-shader/x-vertex" id="vert-src">
+#version 300 es
+in vec2 a_pos;
+out vec2 v_uv;
+void main() {
+  v_uv = a_pos * 0.5 + 0.5;
+  gl_Position = vec4(a_pos, 0.0, 1.0);
+}
+</script>
+
+<!-- Step shader: one Lenia iteration -->
+<script type="x-shader/x-fragment" id="step-src">
+#version 300 es
+precision highp float;
+uniform sampler2D u_state;
+uniform float u_R;
+uniform float u_dt;
+uniform float u_mu_g;
+uniform float u_sigma_g;
+uniform float u_mu_k;
+uniform float u_sigma_k;
+uniform float u_knorm;
+uniform vec2 u_res;
+in vec2 v_uv;
+out vec4 fragColor;
+#define MAX_R 16
+float growth(float z) {
+  float d = (z - u_mu_g) / u_sigma_g;
+  return 2.0 * exp(-4.5 * d * d) - 1.0;
+}
+float kern(float r) {
+  if (r > u_R) return 0.0;
+  float nr = r / u_R;
+  float d = (nr - u_mu_k) / u_sigma_k;
+  return exp(-4.5 * d * d);
+}
+void main() {
+  vec2 px = 1.0 / u_res;
+  float A = texture(u_state, v_uv).r;
+  float Z = 0.0;
+  for (int dy = -MAX_R; dy <= MAX_R; dy++) {
+    for (int dx = -MAX_R; dx <= MAX_R; dx++) {
+      float r = length(vec2(float(dx), float(dy)));
+      float k = kern(r);
+      if (k > 1e-4) {
+        vec2 suv = v_uv + vec2(float(dx), float(dy)) * px;
+        Z += k * texture(u_state, suv).r;
+      }
+    }
+  }
+  Z /= u_knorm;
+  float newA = clamp(A + u_dt * growth(Z), 0.0, 1.0);
+  fragColor = vec4(newA, 0.0, 0.0, 1.0);
+}
+</script>
+
+<!-- Display shader: colormap render -->
+<script type="x-shader/x-fragment" id="display-src">
+#version 300 es
+precision highp float;
+uniform sampler2D u_state;
+uniform int u_cm;
+in vec2 v_uv;
+out vec4 fragColor;
+vec3 cmCyan(float t) {
+  if (t < 0.002) return vec3(0.0);
+  vec3 a = vec3(0.0, 0.04, 0.07);
+  vec3 b = vec3(0.0, 0.55, 0.75);
+  vec3 c = vec3(0.85, 1.0, 1.0);
+  return t < 0.4 ? mix(a, b, t / 0.4) : mix(b, c, (t - 0.4) / 0.6);
+}
+vec3 cmPlasma(float t) {
+  if (t < 0.002) return vec3(0.0);
+  vec3 a = vec3(0.05, 0.0, 0.18);
+  vec3 b = vec3(0.8, 0.1, 0.6);
+  vec3 c = vec3(1.0, 0.9, 0.15);
+  return t < 0.5 ? mix(a, b, t * 2.0) : mix(b, c, (t - 0.5) * 2.0);
+}
+vec3 cmGreen(float t) {
+  if (t < 0.002) return vec3(0.0);
+  vec3 a = vec3(0.0, 0.1, 0.02);
+  vec3 b = vec3(0.08, 0.75, 0.22);
+  vec3 c = vec3(0.85, 1.0, 0.4);
+  return t < 0.5 ? mix(a, b, t * 2.0) : mix(b, c, (t - 0.5) * 2.0);
+}
+vec3 cmFire(float t) {
+  if (t < 0.002) return vec3(0.0);
+  vec3 a = vec3(0.1, 0.0, 0.0);
+  vec3 b = vec3(0.9, 0.15, 0.0);
+  vec3 c = vec3(1.0, 0.95, 0.3);
+  return t < 0.5 ? mix(a, b, t * 2.0) : mix(b, c, (t - 0.5) * 2.0);
+}
+void main() {
+  float A = texture(u_state, v_uv).r;
+  vec3 col;
+  if (u_cm == 0) col = cmCyan(A);
+  else if (u_cm == 1) col = cmPlasma(A);
+  else if (u_cm == 2) col = cmGreen(A);
+  else col = cmFire(A);
+  fragColor = vec4(col, 1.0);
+}
+</script>
+
+<!-- Paint shader: brush at UV position -->
+<script type="x-shader/x-fragment" id="paint-src">
+#version 300 es
+precision highp float;
+uniform sampler2D u_state;
+uniform vec2 u_uv;
+uniform float u_radius;
+uniform float u_val;
+in vec2 v_uv;
+out vec4 fragColor;
+void main() {
+  float A = texture(u_state, v_uv).r;
+  float d = distance(v_uv, u_uv);
+  float brush = 1.0 - smoothstep(u_radius * 0.5, u_radius, d);
+  float newA = clamp(mix(A, u_val, brush * 0.85), 0.0, 1.0);
+  fragColor = vec4(newA, 0.0, 0.0, 1.0);
+}
+</script>
+
+<body>
+<canvas id="canvas"></canvas>
+
+<div id="title">
+  <h1>LENIA</h1>
+  <p>continuous life</p>
+</div>
+
+<div id="ctrl">
+  <div class="sec">Species</div>
+  <div class="grid2">
+    <button class="btn on" id="p-orbium" onclick="setPreset('orbium')" title="Orbium: the canonical Lenia glider — moves through the field">Orbium</button>
+    <button class="btn" id="p-hydroge" onclick="setPreset('hydroge')" title="Hydrogeminium: compact creature with tight kernel">Hydro</button>
+    <button class="btn" id="p-geminium" onclick="setPreset('geminium')" title="Geminium: fast dynamics, clusters">Geminium</button>
+    <button class="btn" id="p-scutium" onclick="setPreset('scutium')" title="Scutium: narrow growth band, sharp forms">Scutium</button>
+    <button class="btn" id="p-soup" onclick="setPreset('soup')" title="Random soup: fill field with noise and watch creatures emerge">Soup</button>
+    <button class="btn" id="p-clear" onclick="setPreset('clear')" title="Clear: empty field — draw your own patterns">Clear</button>
+  </div>
+
+  <div class="sec">Simulation</div>
+  <div class="param">
+    <div class="param-hdr">
+      <span class="param-name">Speed</span>
+      <span class="param-val" id="speed-val">1</span>
+    </div>
+    <input type="range" id="speed-slider" min="1" max="16" value="1" step="1">
+  </div>
+  <div class="param">
+    <div class="param-hdr">
+      <span class="param-name">dt</span>
+      <span class="param-val" id="dt-val">0.100</span>
+    </div>
+    <input type="range" id="dt-slider" min="0.01" max="0.50" value="0.10" step="0.005">
+  </div>
+
+  <div class="sec">Growth</div>
+  <div class="param">
+    <div class="param-hdr">
+      <span class="param-name">mu</span>
+      <span class="param-val" id="mug-val">0.150</span>
+    </div>
+    <input type="range" id="mug-slider" min="0.01" max="0.50" value="0.15" step="0.001">
+  </div>
+  <div class="param">
+    <div class="param-hdr">
+      <span class="param-name">sigma</span>
+      <span class="param-val" id="sig-val">0.015</span>
+    </div>
+    <input type="range" id="sig-slider" min="0.001" max="0.10" value="0.015" step="0.001">
+  </div>
+
+  <div class="sec">Kernel</div>
+  <div class="param">
+    <div class="param-hdr">
+      <span class="param-name">mu</span>
+      <span class="param-val" id="muk-val">0.50</span>
+    </div>
+    <input type="range" id="muk-slider" min="0.10" max="0.90" value="0.50" step="0.01">
+  </div>
+  <div class="param">
+    <div class="param-hdr">
+      <span class="param-name">sigma</span>
+      <span class="param-val" id="sigk-val">0.150</span>
+    </div>
+    <input type="range" id="sigk-slider" min="0.01" max="0.30" value="0.15" step="0.005">
+  </div>
+  <div class="param">
+    <div class="param-hdr">
+      <span class="param-name">radius R</span>
+      <span class="param-val" id="R-val">13</span>
+    </div>
+    <input type="range" id="R-slider" min="3" max="16" value="13" step="1">
+  </div>
+
+  <div class="sec">Colormap</div>
+  <div class="cm-row">
+    <canvas class="cm-swatch on" id="cm-0" width="64" height="18" onclick="setCM(0)"></canvas>
+    <canvas class="cm-swatch" id="cm-1" width="64" height="18" onclick="setCM(1)"></canvas>
+    <canvas class="cm-swatch" id="cm-2" width="64" height="18" onclick="setCM(2)"></canvas>
+    <canvas class="cm-swatch" id="cm-3" width="64" height="18" onclick="setCM(3)"></canvas>
+  </div>
+
+  <div class="sec">Tools</div>
+  <div class="grid2">
+    <button class="btn" id="paint-btn" onclick="togglePaint()" title="Paint activation (P)">Paint</button>
+    <button class="btn" id="erase-btn" onclick="toggleErase()" title="Erase activation (E)">Erase</button>
+    <button class="btn" onclick="doReset()" title="Reset to initial state (R)">Reset</button>
+    <button class="btn" id="pause-btn" onclick="togglePause()" title="Pause/resume simulation (Space)">Pause</button>
+    <button class="btn" onclick="savePNG()" title="Save screenshot as PNG">Save PNG</button>
+    <button class="btn" id="hide-btn" onclick="toggleUI()" title="Hide controls for fullscreen view (H)">Hide UI</button>
+  </div>
+
+  <div class="info">
+    <span id="fps-display">-- fps</span>
+    <span id="gen-display">gen 0</span>
+  </div>
+  <div class="info" style="color:#333;font-size:0.42rem;margin-top:1px;">
+    <span>Space: pause</span><span>H: hide ui</span>
+  </div>
+</div>
+
+<div id="ui-hint">H — show controls</div>
+
+<div id="err-panel">
+  <span>WebGL2 Required</span>
+  <p>This simulation needs WebGL2 with float buffers. Use Chrome 80+, Firefox 75+, or Safari 15+.</p>
+</div>
+</body>
+
+<script type="text/javascript">
+/* ===== STATE ===== */
+var GL, CANVAS;
+var PROG_STEP, PROG_DISPLAY, PROG_PAINT, QUAD_BUF;
+var TEX = [null, null], FBO = [null, null];
+var W = 256, H = 256;
+var CURR = 0;
+var PAUSED = false;
+var PAINTING = false, ERASING = false;
+var PTR_DOWN = false;
+var PAINT_UV = {x: 0.5, y: 0.5};
+var COLORMAP = 0;
+var SPF = 1; /* steps per frame */
+var GEN = 0;
+var FPS_COUNT = 0, FPS_TS = 0, FPS_VAL = 0;
+var CUR_PRESET = 'orbium';
+var UI_HIDDEN = false;
+var BLANK_BUF = null; /* pre-allocated blank state */
+/* cached uniform locations */
+var UL = {};
+
+var PARAMS = {R:13, dt:0.1, mu_g:0.15, sigma_g:0.015, mu_k:0.5, sigma_k:0.15, knorm:1.0};
+
+var PRESETS = {
+  orbium:   {R:13, dt:0.1,  mu_g:0.15,  sigma_g:0.015, mu_k:0.5, sigma_k:0.15,  init:'patch'},
+  hydroge:  {R:5,  dt:0.1,  mu_g:0.26,  sigma_g:0.036, mu_k:0.5, sigma_k:0.15,  init:'patch'},
+  geminium: {R:10, dt:0.2,  mu_g:0.26,  sigma_g:0.036, mu_k:0.5, sigma_k:0.15,  init:'patch'},
+  scutium:  {R:13, dt:0.1,  mu_g:0.18,  sigma_g:0.025, mu_k:0.5, sigma_k:0.12,  init:'patch'},
+  soup:     {R:13, dt:0.1,  mu_g:0.15,  sigma_g:0.015, mu_k:0.5, sigma_k:0.15,  init:'soup'},
+  clear:    {R:13, dt:0.1,  mu_g:0.15,  sigma_g:0.015, mu_k:0.5, sigma_k:0.15,  init:'empty'}
+};
+
+/* ===== SHADER UTILS ===== */
+function compileShader(type, src) {
+  var sh = GL.createShader(type);
+  GL.shaderSource(sh, src);
+  GL.compileShader(sh);
+  if (!GL.getShaderParameter(sh, GL.COMPILE_STATUS)) {
+    var log = GL.getShaderInfoLog(sh);
+    GL.deleteShader(sh);
+    throw new Error('Shader compile: ' + log);
+  }
+  return sh;
+}
+
+function makeProgram(vSrc, fSrc) {
+  var v = compileShader(GL.VERTEX_SHADER, vSrc);
+  var f = compileShader(GL.FRAGMENT_SHADER, fSrc);
+  var p = GL.createProgram();
+  GL.attachShader(p, v);
+  GL.attachShader(p, f);
+  GL.bindAttribLocation(p, 0, 'a_pos');
+  GL.linkProgram(p);
+  if (!GL.getProgramParameter(p, GL.LINK_STATUS)) {
+    throw new Error('Link: ' + GL.getProgramInfoLog(p));
+  }
+  GL.deleteShader(v);
+  GL.deleteShader(f);
+  return p;
+}
+
+/* ===== TEXTURES + FBOs ===== */
+function createTex() {
+  var tex = GL.createTexture();
+  GL.bindTexture(GL.TEXTURE_2D, tex);
+  GL.texImage2D(GL.TEXTURE_2D, 0, GL.RGBA32F, W, H, 0, GL.RGBA, GL.FLOAT, null);
+  GL.texParameteri(GL.TEXTURE_2D, GL.TEXTURE_MIN_FILTER, GL.LINEAR);
+  GL.texParameteri(GL.TEXTURE_2D, GL.TEXTURE_MAG_FILTER, GL.LINEAR);
+  GL.texParameteri(GL.TEXTURE_2D, GL.TEXTURE_WRAP_S, GL.REPEAT);
+  GL.texParameteri(GL.TEXTURE_2D, GL.TEXTURE_WRAP_T, GL.REPEAT);
+  GL.bindTexture(GL.TEXTURE_2D, null);
+  return tex;
+}
+
+function createFBO(tex) {
+  var fbo = GL.createFramebuffer();
+  GL.bindFramebuffer(GL.FRAMEBUFFER, fbo);
+  GL.framebufferTexture2D(GL.FRAMEBUFFER, GL.COLOR_ATTACHMENT0, GL.TEXTURE_2D, tex, 0);
+  var st = GL.checkFramebufferStatus(GL.FRAMEBUFFER);
+  GL.bindFramebuffer(GL.FRAMEBUFFER, null);
+  if (st !== GL.FRAMEBUFFER_COMPLETE) {
+    throw new Error('FBO incomplete: ' + st);
+  }
+  return fbo;
+}
+
+/* ===== KERNEL NORMALIZATION ===== */
+function computeKnorm(R, mu_k, sigma_k) {
+  var sum = 0, iR = Math.ceil(R);
+  for (var dy = -iR; dy <= iR; dy++) {
+    for (var dx = -iR; dx <= iR; dx++) {
+      var r = Math.sqrt(dx*dx + dy*dy);
+      if (r <= R) {
+        var nr = r / R;
+        var d = (nr - mu_k) / sigma_k;
+        var k = Math.exp(-4.5 * d * d);
+        if (k > 1e-4) sum += k;
+      }
+    }
+  }
+  return sum > 0 ? sum : 1.0;
+}
+
+/* ===== INITIAL STATE DATA ===== */
+function makeStateData(type) {
+  var data = new Float32Array(W * H * 4);
+  if (type === 'empty') {
+    /* all zeros */
+  } else if (type === 'soup') {
+    for (var i = 0; i < W * H; i++) {
+      data[i*4] = Math.random() < 0.5 ? Math.random() : 0.0;
+      data[i*4+3] = 1.0;
+    }
+  } else {
+    /* patch: random square in center */
+    var ps = 80;
+    var x0 = Math.floor((W - ps) * 0.5);
+    var y0 = Math.floor((H - ps) * 0.5);
+    for (var py = y0; py < y0 + ps; py++) {
+      for (var px = x0; px < x0 + ps; px++) {
+        var idx = (py * W + px) * 4;
+        data[idx] = Math.random() < 0.5 ? Math.random() : 0.0;
+        data[idx+3] = 1.0;
+      }
+    }
+  }
+  return data;
+}
+
+function uploadState(data) {
+  GL.bindTexture(GL.TEXTURE_2D, TEX[CURR]);
+  GL.texSubImage2D(GL.TEXTURE_2D, 0, 0, 0, W, H, GL.RGBA, GL.FLOAT, data);
+  /* clear the backup texture using pre-allocated blank buffer */
+  BLANK_BUF.fill(0);
+  GL.bindTexture(GL.TEXTURE_2D, TEX[1 - CURR]);
+  GL.texSubImage2D(GL.TEXTURE_2D, 0, 0, 0, W, H, GL.RGBA, GL.FLOAT, BLANK_BUF);
+  GL.bindTexture(GL.TEXTURE_2D, null);
+}
+
+/* ===== DRAW QUAD HELPER ===== */
+function drawQuad() {
+  GL.bindBuffer(GL.ARRAY_BUFFER, QUAD_BUF);
+  GL.enableVertexAttribArray(0);
+  GL.vertexAttribPointer(0, 2, GL.FLOAT, false, 0, 0);
+  GL.drawArrays(GL.TRIANGLE_STRIP, 0, 4);
+}
+
+function setTex0(tex) {
+  GL.activeTexture(GL.TEXTURE0);
+  GL.bindTexture(GL.TEXTURE_2D, tex);
+}
+
+/* ===== CACHE UNIFORM LOCATIONS ===== */
+function cacheUniforms() {
+  UL.step = {
+    state:   GL.getUniformLocation(PROG_STEP, 'u_state'),
+    R:       GL.getUniformLocation(PROG_STEP, 'u_R'),
+    dt:      GL.getUniformLocation(PROG_STEP, 'u_dt'),
+    mu_g:    GL.getUniformLocation(PROG_STEP, 'u_mu_g'),
+    sigma_g: GL.getUniformLocation(PROG_STEP, 'u_sigma_g'),
+    mu_k:    GL.getUniformLocation(PROG_STEP, 'u_mu_k'),
+    sigma_k: GL.getUniformLocation(PROG_STEP, 'u_sigma_k'),
+    knorm:   GL.getUniformLocation(PROG_STEP, 'u_knorm'),
+    res:     GL.getUniformLocation(PROG_STEP, 'u_res')
+  };
+  UL.display = {
+    state: GL.getUniformLocation(PROG_DISPLAY, 'u_state'),
+    cm:    GL.getUniformLocation(PROG_DISPLAY, 'u_cm')
+  };
+  UL.paint = {
+    state:  GL.getUniformLocation(PROG_PAINT, 'u_state'),
+    uv:     GL.getUniformLocation(PROG_PAINT, 'u_uv'),
+    radius: GL.getUniformLocation(PROG_PAINT, 'u_radius'),
+    val:    GL.getUniformLocation(PROG_PAINT, 'u_val')
+  };
+}
+
+/* ===== SIMULATION STEP ===== */
+function simStep() {
+  GL.bindFramebuffer(GL.FRAMEBUFFER, FBO[1 - CURR]);
+  GL.viewport(0, 0, W, H);
+  GL.useProgram(PROG_STEP);
+  setTex0(TEX[CURR]);
+  GL.uniform1i(UL.step.state, 0);
+  GL.uniform1f(UL.step.R, PARAMS.R);
+  GL.uniform1f(UL.step.dt, PARAMS.dt);
+  GL.uniform1f(UL.step.mu_g, PARAMS.mu_g);
+  GL.uniform1f(UL.step.sigma_g, PARAMS.sigma_g);
+  GL.uniform1f(UL.step.mu_k, PARAMS.mu_k);
+  GL.uniform1f(UL.step.sigma_k, PARAMS.sigma_k);
+  GL.uniform1f(UL.step.knorm, PARAMS.knorm);
+  GL.uniform2f(UL.step.res, W, H);
+  drawQuad();
+  GL.bindFramebuffer(GL.FRAMEBUFFER, null);
+  CURR ^= 1;
+  GEN++;
+}
+
+/* ===== PAINT STEP ===== */
+function paintStep(ux, uy, val) {
+  GL.bindFramebuffer(GL.FRAMEBUFFER, FBO[1 - CURR]);
+  GL.viewport(0, 0, W, H);
+  GL.useProgram(PROG_PAINT);
+  setTex0(TEX[CURR]);
+  GL.uniform1i(UL.paint.state, 0);
+  GL.uniform2f(UL.paint.uv, ux, uy);
+  GL.uniform1f(UL.paint.radius, 0.042);
+  GL.uniform1f(UL.paint.val, val);
+  drawQuad();
+  GL.bindFramebuffer(GL.FRAMEBUFFER, null);
+  CURR ^= 1;
+}
+
+/* ===== DISPLAY ===== */
+function doDisplay() {
+  GL.bindFramebuffer(GL.FRAMEBUFFER, null);
+  GL.viewport(0, 0, CANVAS.width, CANVAS.height);
+  GL.useProgram(PROG_DISPLAY);
+  setTex0(TEX[CURR]);
+  GL.uniform1i(UL.display.state, 0);
+  GL.uniform1i(UL.display.cm, COLORMAP);
+  drawQuad();
+}
+
+/* ===== RAF LOOP ===== */
+function loop(ts) {
+  requestAnimationFrame(loop);
+  /* FPS */
+  FPS_COUNT++;
+  if (ts - FPS_TS >= 1000) {
+    FPS_VAL = Math.round(FPS_COUNT * 1000 / (ts - FPS_TS));
+    FPS_COUNT = 0;
+    FPS_TS = ts;
+    document.getElementById('fps-display').textContent = FPS_VAL + ' fps';
+    document.getElementById('gen-display').textContent = 'gen ' + GEN;
+  }
+  /* paint */
+  if (PTR_DOWN && (PAINTING || ERASING)) {
+    paintStep(PAINT_UV.x, PAINT_UV.y, ERASING ? 0.0 : 1.0);
+  }
+  /* simulate */
+  if (!PAUSED) {
+    for (var s = 0; s < SPF; s++) simStep();
+  }
+  /* render */
+  doDisplay();
+}
+
+/* ===== UV FROM EVENT ===== */
+function getUV(e) {
+  var rect = CANVAS.getBoundingClientRect();
+  return {
+    x: Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width)),
+    y: Math.max(0, Math.min(1, 1.0 - (e.clientY - rect.top) / rect.height))
+  };
+}
+
+/* ===== PRESET HANDLER ===== */
+function setPreset(name) {
+  var p = PRESETS[name];
+  if (!p) return;
+  CUR_PRESET = name;
+  PARAMS.R = p.R;
+  PARAMS.dt = p.dt;
+  PARAMS.mu_g = p.mu_g;
+  PARAMS.sigma_g = p.sigma_g;
+  PARAMS.mu_k = p.mu_k;
+  PARAMS.sigma_k = p.sigma_k;
+  PARAMS.knorm = computeKnorm(p.R, p.mu_k, p.sigma_k);
+  /* sync sliders */
+  function sv(id, val, dp) {
+    var el = document.getElementById(id);
+    if (el) el.value = val;
+  }
+  function sd(id, val, dp) {
+    var el = document.getElementById(id);
+    if (el) el.textContent = typeof dp === 'number' ? val.toFixed(dp) : String(val);
+  }
+  sv('R-slider', p.R); sd('R-val', p.R, 0);
+  sv('dt-slider', p.dt); sd('dt-val', p.dt, 3);
+  sv('mug-slider', p.mu_g); sd('mug-val', p.mu_g, 3);
+  sv('sig-slider', p.sigma_g); sd('sig-val', p.sigma_g, 3);
+  sv('muk-slider', p.mu_k); sd('muk-val', p.mu_k, 2);
+  sv('sigk-slider', p.sigma_k); sd('sigk-val', p.sigma_k, 3);
+  GEN = 0;
+  uploadState(makeStateData(p.init));
+  /* highlight active preset button */
+  var names = ['orbium','hydroge','geminium','scutium','soup','clear'];
+  for (var i = 0; i < names.length; i++) {
+    var btn = document.getElementById('p-' + names[i]);
+    if (btn) btn.className = 'btn' + (names[i] === name ? ' on' : '');
+  }
+}
+
+function setParam(key, val) {
+  PARAMS[key] = val;
+  if (key === 'R' || key === 'mu_k' || key === 'sigma_k') {
+    PARAMS.knorm = computeKnorm(PARAMS.R, PARAMS.mu_k, PARAMS.sigma_k);
+  }
+}
+
+/* ===== COLORMAP SWATCHES ===== */
+function cmSample(cm, t) {
+  var a, b, c, u;
+  if (t < 0.002) return [0, 0, 0];
+  if (cm === 0) {
+    a = [0, 10, 18]; b = [0, 140, 191]; c = [217, 255, 255];
+    if (t < 0.4) { u = t / 0.4; }
+    else { a = b; b = c; u = (t - 0.4) / 0.6; }
+  } else if (cm === 1) {
+    a = [13, 0, 46]; b = [204, 26, 153]; c = [255, 230, 38];
+    u = t < 0.5 ? t * 2.0 : (a = b, b = c, (t - 0.5) * 2.0);
+  } else if (cm === 2) {
+    a = [0, 26, 5]; b = [20, 191, 56]; c = [217, 255, 102];
+    u = t < 0.5 ? t * 2.0 : (a = b, b = c, (t - 0.5) * 2.0);
+  } else {
+    a = [26, 0, 0]; b = [230, 38, 0]; c = [255, 242, 77];
+    u = t < 0.5 ? t * 2.0 : (a = b, b = c, (t - 0.5) * 2.0);
+  }
+  return [
+    Math.round(a[0] + (b[0]-a[0]) * u),
+    Math.round(a[1] + (b[1]-a[1]) * u),
+    Math.round(a[2] + (b[2]-a[2]) * u)
+  ];
+}
+
+function drawSwatches() {
+  for (var ci = 0; ci < 4; ci++) {
+    var cnv = document.getElementById('cm-' + ci);
+    if (!cnv) continue;
+    var ctx = cnv.getContext('2d');
+    var id = ctx.createImageData(64, 18);
+    for (var px = 0; px < 64; px++) {
+      var rgb = cmSample(ci, px / 63.0);
+      for (var py = 0; py < 18; py++) {
+        var ii = (py * 64 + px) * 4;
+        id.data[ii] = rgb[0];
+        id.data[ii+1] = rgb[1];
+        id.data[ii+2] = rgb[2];
+        id.data[ii+3] = 255;
+      }
+    }
+    ctx.putImageData(id, 0, 0);
+  }
+}
+
+/* ===== UI ACTIONS ===== */
+function setCM(n) {
+  COLORMAP = n;
+  for (var i = 0; i < 4; i++) {
+    var el = document.getElementById('cm-' + i);
+    if (el) el.className = 'cm-swatch' + (i === n ? ' on' : '');
+  }
+}
+
+function togglePaint() {
+  PAINTING = !PAINTING;
+  if (PAINTING) ERASING = false;
+  document.getElementById('paint-btn').className = 'btn' + (PAINTING ? ' on' : '');
+  document.getElementById('erase-btn').className = 'btn';
+  CANVAS.style.cursor = PAINTING ? 'cell' : 'crosshair';
+}
+
+function toggleErase() {
+  ERASING = !ERASING;
+  if (ERASING) PAINTING = false;
+  document.getElementById('erase-btn').className = 'btn' + (ERASING ? ' on' : '');
+  document.getElementById('paint-btn').className = 'btn';
+  CANVAS.style.cursor = ERASING ? 'cell' : 'crosshair';
+}
+
+function togglePause() {
+  PAUSED = !PAUSED;
+  document.getElementById('pause-btn').className = 'btn' + (PAUSED ? ' on' : '');
+  document.getElementById('pause-btn').textContent = PAUSED ? 'Resume' : 'Pause';
+}
+
+function doReset() {
+  GEN = 0;
+  var p = PRESETS[CUR_PRESET];
+  uploadState(makeStateData(p ? p.init : 'patch'));
+}
+
+function savePNG() {
+  doDisplay();
+  var link = document.createElement('a');
+  link.download = 'lenia.png';
+  link.href = CANVAS.toDataURL('image/png');
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+}
+
+function toggleUI() {
+  UI_HIDDEN = !UI_HIDDEN;
+  var ctrl = document.getElementById('ctrl');
+  var hint = document.getElementById('ui-hint');
+  var ttl  = document.getElementById('title');
+  if (ctrl) ctrl.style.display = UI_HIDDEN ? 'none' : '';
+  if (ttl)  ttl.style.display  = UI_HIDDEN ? 'none' : '';
+  if (hint) hint.style.display = UI_HIDDEN ? 'block' : 'none';
+}
+
+/* ===== SLIDER BINDING ===== */
+function bindSlider(id, valId, key, dp) {
+  var sl = document.getElementById(id);
+  var vd = document.getElementById(valId);
+  if (!sl || !vd) return;
+  sl.addEventListener('input', function() {
+    var v = parseFloat(sl.value);
+    vd.textContent = v.toFixed(dp);
+    setParam(key, v);
+  });
+}
+
+/* ===== INIT ===== */
+function init() {
+  CANVAS = document.getElementById('canvas');
+  CANVAS.width = window.innerWidth;
+  CANVAS.height = window.innerHeight;
+
+  var gl = CANVAS.getContext('webgl2', {preserveDrawingBuffer: true});
+  if (!gl) {
+    document.getElementById('err-panel').style.display = 'flex';
+    return;
+  }
+  GL = gl;
+
+  if (!gl.getExtension('EXT_color_buffer_float')) {
+    document.getElementById('err-panel').style.display = 'flex';
+    return;
+  }
+  gl.getExtension('OES_texture_float_linear');
+
+  try {
+    var vSrc = document.getElementById('vert-src').textContent;
+    PROG_STEP    = makeProgram(vSrc, document.getElementById('step-src').textContent);
+    PROG_DISPLAY = makeProgram(vSrc, document.getElementById('display-src').textContent);
+    PROG_PAINT   = makeProgram(vSrc, document.getElementById('paint-src').textContent);
+  } catch (err) {
+    document.getElementById('err-panel').querySelector('p').textContent = err.message;
+    document.getElementById('err-panel').style.display = 'flex';
+    return;
+  }
+
+  /* Fullscreen quad */
+  var verts = new Float32Array([-1,-1, 1,-1, -1,1, 1,1]);
+  QUAD_BUF = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, QUAD_BUF);
+  gl.bufferData(gl.ARRAY_BUFFER, verts, gl.STATIC_DRAW);
+  gl.bindBuffer(gl.ARRAY_BUFFER, null);
+
+  TEX[0] = createTex();
+  TEX[1] = createTex();
+  FBO[0] = createFBO(TEX[0]);
+  FBO[1] = createFBO(TEX[1]);
+
+  /* pre-allocate blank state buffer */
+  BLANK_BUF = new Float32Array(W * H * 4);
+
+  /* cache uniform locations */
+  cacheUniforms();
+
+  /* Slider bindings */
+  bindSlider('R-slider',    'R-val',    'R',       0);
+  bindSlider('dt-slider',   'dt-val',   'dt',      3);
+  bindSlider('mug-slider',  'mug-val',  'mu_g',    3);
+  bindSlider('sig-slider',  'sig-val',  'sigma_g', 3);
+  bindSlider('muk-slider',  'muk-val',  'mu_k',    2);
+  bindSlider('sigk-slider', 'sigk-val', 'sigma_k', 3);
+
+  var spSlider = document.getElementById('speed-slider');
+  var spVal    = document.getElementById('speed-val');
+  if (spSlider && spVal) {
+    spSlider.addEventListener('input', function() {
+      SPF = parseInt(spSlider.value);
+      spVal.textContent = SPF;
+    });
+  }
+
+  /* Canvas pointer events */
+  CANVAS.addEventListener('pointerdown', function(e) {
+    e.preventDefault();
+    CANVAS.setPointerCapture(e.pointerId);
+    PTR_DOWN = true;
+    PAINT_UV = getUV(e);
+  });
+  CANVAS.addEventListener('pointermove', function(e) {
+    if (PTR_DOWN) {
+      e.preventDefault();
+      PAINT_UV = getUV(e);
+    }
+  });
+  CANVAS.addEventListener('pointerup', function() { PTR_DOWN = false; });
+  CANVAS.addEventListener('pointercancel', function() { PTR_DOWN = false; });
+
+  window.addEventListener('resize', function() {
+    CANVAS.width = window.innerWidth;
+    CANVAS.height = window.innerHeight;
+  });
+
+  /* Keyboard shortcuts */
+  window.addEventListener('keydown', function(e) {
+    if (e.key === ' ') { e.preventDefault(); togglePause(); }
+    if (e.key === 'p' || e.key === 'P') togglePaint();
+    if (e.key === 'e' || e.key === 'E') toggleErase();
+    if (e.key === 'r' || e.key === 'R') doReset();
+    if (e.key === 'h' || e.key === 'H') toggleUI();
+    if (e.key === 's' || e.key === 'S') savePNG();
+  });
+
+  drawSwatches();
+  setPreset('orbium');
+  document.getElementById('err-panel').style.display = 'none';
+  FPS_TS = performance.now();
+  requestAnimationFrame(loop);
+}
+</script>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() { init(); });
+</script>
+</html>

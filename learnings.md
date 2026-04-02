@@ -2746,3 +2746,24 @@ Sequential Gemini reviews (focus: bugs, then security) caught **different issue 
 - **INSIGHT**: Cellular automata chain reactions (fire ignites oil → oil creates more fire → fire hits water → steam) emerge from simple per-cell rules with no global coordination. Each material only checks its immediate neighbors. This is the correct architecture for powder games.
 - **INSIGHT**: For upward-moving particles in a bottom-to-top scan: MUST mark the destination cell after `moveTo()`. For downward-moving particles, marking the destination is harmless but not required for correctness (it's already been processed).
 - **TEST CAUGHT**: All bugs found during self-audit (council review). Key catches: DIRS8 allocated inside hot function, canvas CSS sizing gap, oil near-black invisibility.
+
+### lenia — WebGL2 Continuous Life Simulation (2026-04-02)
+- **KEEP**: WebGL2 ping-pong FBO pattern: two RGBA32F textures + two framebuffers; step shader reads TEX[CURR], writes to FBO[1-CURR], then CURR ^= 1. Zero CPU↔GPU data transfer per step.
+- **KEEP**: Kernel convolution in fragment shader: `#define MAX_R 16` constant loop bound, compute `kern(r)` analytically per iteration, guard with `if (k > 1e-4)` to skip near-zero contributions. All loop branches are uniform (same for all fragments = no GPU divergence).
+- **KEEP**: Cache ALL `getUniformLocation()` calls at init time into a `UL` object. Never call `getUniformLocation` inside the render loop — it's a GPU state query that stalls the pipeline.
+- **KEEP**: `getContext('webgl2', {preserveDrawingBuffer: true})` is required for `canvas.toDataURL()` to work. Without it, WebGL auto-clears between frames and the PNG is blank.
+- **KEEP**: Always call `gl.getExtension('OES_texture_float_linear')` when using RGBA32F textures with LINEAR filtering. Without it, float texture filtering silently falls back to nearest or undefined behavior on some GPUs.
+- **KEEP**: Pre-allocate the blank Float32Array for texture clearing at init: `BLANK_BUF = new Float32Array(W * H * 4)`. Call `BLANK_BUF.fill(0)` before reuse. Never allocate new arrays in hot paths (reset, preset switch).
+- **KEEP**: `canvas.setPointerCapture(e.pointerId)` in pointerdown ensures pointermove/pointerup keep firing even when dragging outside canvas bounds. Essential for brush tools.
+- **KEEP**: Hide-UI toggle (H key / button) is the highest-impact shareability feature for visual simulations. Hides `#ctrl` and `#title`, shows a minimal "H — show controls" hint. Screenshots/recordings look professional without the UI intruding.
+- **KEEP**: Add `title` attributes to ALL preset buttons — free discoverability for non-expert users. For a Lenia simulation, species names like "Orbium" are opaque without tooltips.
+- **KEEP**: Save PNG button via `canvas.toDataURL()` + anchor click pattern. Requires `preserveDrawingBuffer: true` on context creation (see above).
+- **BUG (council)**: `getUniformLocation` called every frame in simStep/paintStep/doDisplay — causes GPU pipeline stalls. Fix: cache all locations at init in a `UL` object.
+- **BUG (council)**: Missing `OES_texture_float_linear` extension — float texture LINEAR filtering undefined without it. Always request this extension when creating float textures.
+- **BUG (council)**: Dead code `e.changedTouches` branch in pointer event handler — Pointer Events never have `changedTouches`. Remove and use `e.clientX`/`e.clientY` directly.
+- **BUG (council)**: `uploadState` allocated new `Float32Array(W*H*4)` on every preset load. Pre-allocate once at init.
+- **INSIGHT**: Lenia physics — the kernel ring shape (`mu_k`, `sigma_k`) determines what the creature "senses" about its neighborhood. The growth function (`mu_g`, `sigma_g`) is a narrow Gaussian bell: if the convolution sum Z falls in a specific range, the cell grows; otherwise it decays. The beauty is that tiny changes to these 4 parameters produce completely different life forms.
+- **INSIGHT**: WebGL2 `RGBA32F` internal format requires both `EXT_color_buffer_float` (to render to float FBO) AND `OES_texture_float_linear` (to sample with LINEAR filter). The first is checked; the second is often forgotten. Both must be requested.
+- **INSIGHT**: For any GPU simulation that needs PNG export, set `preserveDrawingBuffer: true` at context creation — not after. This is immutable once the context exists.
+- **INSIGHT**: Council review angle "USER GUIDE" (score 3/10) caught zero onboarding — species names, parameter names, and canvas interaction were all undiscoverable to non-experts. Adding `title` attributes, a keyboard legend, and a welcome tooltip costs <50 lines and transforms the experience.
+- **TEST CAUGHT**: All bugs found by council review, none by static tests. Static tests (syntax, ID consistency, brace balance) catch structural issues; council reviews catch semantic/UX issues. Both are necessary.
