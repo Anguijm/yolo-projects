@@ -166,33 +166,29 @@ function trackOpen(project) {
 
 // ---- Category assignment ----
 const CATEGORIES = {
-  'Simulations & Games': {
-    icon: '\uD83C\uDFAE',
-    match: ['ray-caster','gravity-sim','circuit-sim','mandelbrot-explorer','sound-synth','music-viz','synth-defense','weather-terrarium']
-  },
   'Dev Tools': {
     icon: '\uD83D\uDEE0\uFE0F',
-    match: ['git-xray','regex-playground','json-explorer','diff-painter','api-mocker','cron-decoder']
+    match: ['api-bench','commit-log','cron-calc','dep-graph','diff-painter','dns-lookup','env-vault','git-resolve','git-time-machine','http-playground','http-status','json-explorer','jwt-decode','log-lens','regex-playground','schema-viz','ssl-check','syntax-glow','token-count','memory-xray','char-map','flow-ascii']
   },
-  'Creative & Art': {
+  'Creative Tools': {
     icon: '\uD83C\uDFA8',
-    match: ['pixel-paint','whiteboard','color-lab','markdown-deck','markov-composer']
+    match: ['beat-haus','color-a11y','color-forge','dither-forge','harmonic-forge','markdown-deck','note-lab','palette-pull','shader-forge','snap-mock','sonic-sight','sprite-forge','type-forge']
   },
   'Productivity': {
     icon: '\u2705',
-    match: ['kanban-board','pomodoro-flow','habit-grid','countdown-wall','bookmark-dash']
+    match: ['bookmark-dash','flash-cards','habit-grid','interval-timer','kanban-board','naval-scribe','one-line','pomodoro-flow','readme-forge','secure-note']
   },
-  'System & Monitoring': {
-    icon: '\uD83D\uDCBB',
-    match: ['proc-map','system-dash','wifi-time-machine','file-treemap','speedtype']
+  'Games': {
+    icon: '\uD83C\uDFAE',
+    match: ['asteroids-evolved','chess-clock','dungeon-descent','minesweeper-evolved','neon-tetra','picross','pulse-dungeon','regex-quest','rhythm-type','solitaire','sudoku','synth-defense']
   },
-  'Utilities': {
+  'Generators & Utilities': {
     icon: '\uD83E\uDDF0',
-    match: ['qr-forge','unit-convert','emoji-search','math-plot']
+    match: ['bezier-forge','csv-cinema','dice-oracle','drag-layout','entropy-forge','math-plot','morse-pulse','prose-xray','qr-forge','sound-meter']
   },
-  'Education & AI': {
+  'Education': {
     icon: '\uD83E\uDDE0',
-    match: ['regex-quest','neural-playground']
+    match: ['automata-lab','circuit-sim','graph-forge','neural-playground','breath-pacer']
   }
 };
 
@@ -472,8 +468,8 @@ def get_refined_projects():
 def update():
     log = json.loads(LOG_FILE.read_text()) if LOG_FILE.exists() else []
     refined = get_refined_projects()
-    # Filter out culled (failed) projects entirely
-    survivors = [e for e in log if e.get('status') != 'failed']
+    # Filter out culled projects entirely
+    survivors = [e for e in log if e.get('status') not in ('failed', 'culled')]
     for entry in survivors:
         entry['refined'] = entry['project'] in refined
     html = TEMPLATE.replace('__LOG_DATA__', json.dumps(survivors))
