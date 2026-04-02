@@ -10,946 +10,515 @@
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; }
 html, body {
-  width: 100%; height: 100%;
+  height: 100%;
   background: #0a0a0a;
   overflow: hidden;
-  touch-action: none;
+  touch-action: manipulation;
   -webkit-tap-highlight-color: transparent;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-}
-:root {
-  --accent: #0ff;
-  --bg-surface: #111;
-  --bg-elevated: #1a1a1a;
-  --text-primary: #fff;
-  --text-body: #ccc;
-  --text-secondary: #aaa;
-  --text-label: #444;
-  --border-default: #1a1a1a;
-  --border-active: #444;
-}
-#canvas-container {
-  position: fixed;
-  inset: 0;
-}
-#gl-canvas {
-  display: block;
-  width: 100%;
-  height: 100%;
-  cursor: crosshair;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Courier New", monospace;
+  color: #ccc;
   user-select: none;
+  -webkit-user-select: none;
 }
-
-/* --- UI PANEL --- */
-#ui {
-  position: fixed;
-  top: 12px;
-  right: 12px;
-  width: 200px;
+.app {
+  display: flex;
+  height: 100%;
+  align-items: stretch;
+}
+.canvas-wrap {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  background: #000;
+}
+#canvas {
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+  cursor: crosshair;
+  touch-action: none;
+}
+#sidebar {
+  width: 178px;
+  background: #0a0a0a;
+  border-left: 1px solid #1a1a1a;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 8px;
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  z-index: 10;
+  gap: 8px;
+  flex-shrink: 0;
 }
-.panel {
-  background: rgba(10,10,10,0.9);
-  border: 1px solid #1a1a1a;
-  padding: 8px;
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-}
-.panel-title {
-  font-size: 0.45rem;
-  letter-spacing: 0.25em;
+.section-label {
+  font-size: 0.44rem;
+  color: #444;
+  letter-spacing: 0.2em;
   text-transform: uppercase;
-  color: var(--text-label);
-  margin-bottom: 6px;
+  padding-bottom: 3px;
+  border-bottom: 1px solid #1a1a1a;
+  margin-bottom: 2px;
 }
-.preset-grid {
+.btn-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 3px;
 }
 .btn {
-  padding: 4px 6px;
+  padding: 5px 4px;
   background: transparent;
-  border: 1px solid var(--border-default);
-  color: var(--text-label);
+  border: 1px solid #1a1a1a;
+  color: #444;
   font-family: inherit;
   font-size: 0.5rem;
   cursor: pointer;
   letter-spacing: 0.08em;
   text-transform: uppercase;
   text-align: center;
-  transition: border-color 0.1s, color 0.1s;
 }
 .btn:active { border-color: #555; color: #888; }
-.btn.active { border-color: var(--accent); color: var(--accent); }
-
-.ctrl-row {
+.btn.active { border-color: #0ff; color: #0ff; }
+.control-row {
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  margin-bottom: 4px;
+  gap: 3px;
 }
 .ctrl-label {
+  font-size: 0.44rem;
+  color: #444;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
   display: flex;
   justify-content: space-between;
-  font-size: 0.45rem;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: var(--text-label);
+  align-items: center;
 }
-.ctrl-label span { color: var(--text-secondary); font-variant-numeric: tabular-nums; }
+.ctrl-label span { color: #666; font-variant-numeric: tabular-nums; }
 input[type="range"] {
   width: 100%;
   height: 3px;
   accent-color: #555;
   cursor: pointer;
 }
-.palette-grid {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 3px;
-}
-.swatch {
-  height: 18px;
-  cursor: pointer;
-  border: 1px solid transparent;
-  transition: border-color 0.1s;
-}
-.swatch.active { border-color: #fff; }
-
-.action-row {
+.btn-row {
   display: flex;
+  flex-wrap: wrap;
   gap: 3px;
 }
-.action-row .btn { flex: 1; }
-
-/* info + FPS */
-#info {
-  position: fixed;
-  bottom: 12px;
-  left: 12px;
+.action-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 3px;
+}
+.fps-line {
   font-size: 0.4rem;
-  letter-spacing: 0.15em;
-  text-transform: uppercase;
-  color: var(--text-label);
-  z-index: 10;
-  pointer-events: none;
-  line-height: 1.6;
+  color: #2a2a2a;
+  letter-spacing: 0.1em;
+  text-align: right;
+  margin-top: auto;
+  padding-top: 4px;
 }
-
-/* help popup */
-#help-btn {
-  position: fixed;
-  bottom: 12px;
-  right: 12px;
-  z-index: 20;
+@media (max-width: 520px) {
+  .app { flex-direction: column; }
+  #sidebar {
+    width: 100%;
+    height: 188px;
+    min-height: 188px;
+    flex-shrink: 0;
+    border-left: none;
+    border-top: 1px solid #1a1a1a;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    overflow-y: hidden;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 6px 8px;
+  }
+  .sidebar-section { flex-shrink: 0; }
+  .btn-grid { grid-template-columns: repeat(4, auto); }
+  .action-row { grid-template-columns: repeat(4, auto); }
+  .fps-line { display: none; }
 }
-#help-panel {
-  position: fixed;
-  bottom: 42px;
-  right: 12px;
-  width: 200px;
-  background: rgba(10,10,10,0.95);
-  border: 1px solid #222;
-  padding: 10px;
-  font-size: 0.45rem;
-  color: var(--text-secondary);
-  line-height: 1.9;
-  z-index: 20;
-  display: none;
-}
-#help-panel.visible { display: block; }
-#help-panel kbd {
-  background: #1a1a1a;
-  border: 1px solid #333;
-  padding: 1px 4px;
-  font-family: inherit;
-  font-size: 0.4rem;
-}
-
-/* no-webgl message */
-#no-webgl {
-  display: none;
-  position: fixed;
-  inset: 0;
-  place-items: center;
-  background: #0a0a0a;
-  color: var(--text-secondary);
-  font-size: 0.75rem;
-  text-align: center;
-  padding: 24px;
-}
-#no-webgl.visible { display: grid; }
 </style>
 </head>
 <body>
-
-<div id="canvas-container">
-  <canvas id="gl-canvas"></canvas>
-</div>
-
-<div id="no-webgl" class="no-webgl">
-  <div>
-    <div style="font-size:0.55rem;letter-spacing:.2em;text-transform:uppercase;color:#555;margin-bottom:8px">Error</div>
-    WebGL not available in this browser.<br>Try Chrome or Firefox.
+<div class="app">
+  <div class="canvas-wrap" id="canvasWrap">
+    <canvas id="canvas"></canvas>
+  </div>
+  <div id="sidebar">
+    <div class="sidebar-section">
+      <div class="section-label">Preset</div>
+      <div class="btn-grid" id="presetBtns"></div>
+    </div>
+    <div class="sidebar-section control-row">
+      <label class="ctrl-label">F <span id="fVal">0.0545</span></label>
+      <input type="range" id="fSlider" min="0.010" max="0.100" step="0.0001" value="0.0545">
+    </div>
+    <div class="sidebar-section control-row">
+      <label class="ctrl-label">K <span id="kVal">0.0620</span></label>
+      <input type="range" id="kSlider" min="0.040" max="0.080" step="0.0001" value="0.0620">
+    </div>
+    <div class="sidebar-section control-row">
+      <label class="ctrl-label">Speed <span id="speedVal">2</span></label>
+      <input type="range" id="speedSlider" min="1" max="8" step="1" value="2">
+    </div>
+    <div class="sidebar-section">
+      <div class="section-label">Color</div>
+      <div class="btn-row" id="colorBtns"></div>
+    </div>
+    <div class="sidebar-section">
+      <div class="section-label">Brush</div>
+      <div class="btn-row" id="brushBtns"></div>
+    </div>
+    <div class="sidebar-section action-row">
+      <button class="btn" id="resetBtn">Reset</button>
+      <button class="btn" id="seedBtn">Seed</button>
+      <button class="btn" id="pauseBtn">Pause</button>
+      <button class="btn" id="saveBtn">Save</button>
+    </div>
+    <div class="fps-line" id="fpsDisplay">-- fps</div>
   </div>
 </div>
-
-<div id="ui">
-  <div class="panel">
-    <div class="panel-title">Reaction Diffusion</div>
-    <div class="panel-title" style="color:#555;margin-top:-4px">Gray-Scott Model</div>
-    <div class="preset-grid" id="preset-grid"></div>
-  </div>
-
-  <div class="panel">
-    <div class="panel-title">Parameters</div>
-    <div class="ctrl-row">
-      <div class="ctrl-label">Feed Rate <span id="lbl-f">0.055</span></div>
-      <input type="range" id="sl-f" min="0.010" max="0.100" step="0.001" value="0.055">
-    </div>
-    <div class="ctrl-row">
-      <div class="ctrl-label">Kill Rate <span id="lbl-k">0.062</span></div>
-      <input type="range" id="sl-k" min="0.040" max="0.075" step="0.001" value="0.062">
-    </div>
-    <div class="ctrl-row">
-      <div class="ctrl-label">Brush Size <span id="lbl-b">12</span></div>
-      <input type="range" id="sl-brush" min="4" max="40" step="1" value="12">
-    </div>
-    <div class="ctrl-row">
-      <div class="ctrl-label">Speed <span id="lbl-spd">8</span></div>
-      <input type="range" id="sl-spd" min="1" max="20" step="1" value="8">
-    </div>
-  </div>
-
-  <div class="panel">
-    <div class="panel-title">Color</div>
-    <div class="palette-grid" id="palette-grid"></div>
-  </div>
-
-  <div class="panel">
-    <div class="action-row">
-      <button class="btn" id="btn-pause">Pause</button>
-      <button class="btn" id="btn-reset">Reset</button>
-      <button class="btn" id="btn-shot">Save</button>
-    </div>
-  </div>
-</div>
-
-<div id="info">
-  <div id="fps-display">-- fps</div>
-  <div id="gen-display">gen 0</div>
-  <div style="margin-top:4px">draw to paint</div>
-</div>
-
-<button class="btn" id="help-btn">?</button>
-<div id="help-panel">
-  <b style="color:#fff;letter-spacing:.1em">CONTROLS</b><br><br>
-  <kbd>drag</kbd> Paint chemical B<br>
-  <kbd>Space</kbd> Pause / Resume<br>
-  <kbd>R</kbd> Reset simulation<br>
-  <kbd>S</kbd> Save screenshot<br>
-  <kbd>1–8</kbd> Switch preset<br>
-  <kbd>+/-</kbd> Brush size<br>
-  <kbd>[ ]</kbd> Speed down/up<br><br>
-  <b style="color:#fff">HOW IT WORKS</b><br><br>
-  Two virtual chemicals (A, B) react and diffuse. Their balance creates organic-looking patterns — coral, worms, spots, mazes — depending on the feed and kill rates.
-</div>
-
-<script>/* stub */</script>
-<script type="text/javascript">
-(function() {
+<script>
+(function () {
 'use strict';
 
-// ── PRESETS ──────────────────────────────────────────────────────────────────
+var G = 200;
+var Da = 1.0;
+var Db = 0.5;
+var F = 0.0545;
+var K = 0.062;
+var stepsPerFrame = 2;
+var colorMode = 0;
+var brushSize = 8;
+var paused = false;
+var painting = false;
+var paintX = 0;
+var paintY = 0;
+var activeBrushIdx = 2;
+var lastFpsTime = -1;
+var frameCount = 0;
+
+var bufA = new Float32Array(G * G);
+var bufB = new Float32Array(G * G);
+var nxtA = new Float32Array(G * G);
+var nxtB = new Float32Array(G * G);
+var imgData = null;
+var buf32 = null;
+
+var canvas = document.getElementById('canvas');
+var ctx = canvas.getContext('2d');
+canvas.width = G;
+canvas.height = G;
+
 var PRESETS = [
-  { name: 'Coral',    f: 0.0545, k: 0.062  },
-  { name: 'Mitosis',  f: 0.028,  k: 0.062  },
-  { name: 'Maze',     f: 0.029,  k: 0.057  },
-  { name: 'Worms',    f: 0.078,  k: 0.061  },
-  { name: 'Spots',    f: 0.025,  k: 0.060  },
-  { name: 'Solitons', f: 0.030,  k: 0.062  },
-  { name: 'Bacteria', f: 0.035,  k: 0.065  },
-  { name: 'Waves',    f: 0.014,  k: 0.054  }
+  { name: 'CORAL',   f: 0.0545, k: 0.062 },
+  { name: 'MITOSIS', f: 0.028,  k: 0.062 },
+  { name: 'MAZE',    f: 0.029,  k: 0.057 },
+  { name: 'ZEBRA',   f: 0.022,  k: 0.059 },
+  { name: 'RIPPLE',  f: 0.014,  k: 0.054 },
+  { name: 'WORM',    f: 0.078,  k: 0.061 },
+  { name: 'SPOTS',   f: 0.035,  k: 0.065 },
+  { name: 'PULSE',   f: 0.025,  k: 0.060 }
 ];
 
-// ── PALETTES ─────────────────────────────────────────────────────────────────
-// Each palette: [colorA_hex, colorB_hex] — background vs foreground of B chemical
-var PALETTES = [
-  { name: 'Cyan',    a: '#001820', b: '#00ffcc' },
-  { name: 'Magenta', a: '#150010', b: '#ff00cc' },
-  { name: 'Gold',    a: '#100800', b: '#ffcc00' },
-  { name: 'Red',     a: '#180000', b: '#ff2244' },
-  { name: 'Ice',     a: '#001025', b: '#88ccff' },
-  { name: 'Lime',    a: '#001008', b: '#44ff88' },
-  { name: 'White',   a: '#0a0a0a', b: '#eeeeee' },
-  { name: 'Plasma',  a: '#100018', b: '#cc44ff' }
-];
+var COLOR_NAMES = ['MONO', 'THERMAL', 'ACID', 'OCEAN'];
+var BRUSH_NAMES = ['XS', 'S', 'M', 'L'];
+var BRUSH_RADII = [2, 4, 8, 14];
 
-// ── STATE ─────────────────────────────────────────────────────────────────────
-var state = {
-  f: 0.0545, k: 0.062,
-  brushRadius: 12,
-  stepsPerFrame: 8,
-  paused: false,
-  activePreset: 0,
-  activePalette: 0,
-  generation: 0,
-  painting: false,
-  mouseX: 0, mouseY: 0,
-  width: 0, height: 0
-};
-
-// ── DOM ───────────────────────────────────────────────────────────────────────
-var canvas = document.getElementById('gl-canvas');
-var fpsDisplay = document.getElementById('fps-display');
-var genDisplay = document.getElementById('gen-display');
-var btnPause = document.getElementById('btn-pause');
-var btnReset = document.getElementById('btn-reset');
-var btnShot  = document.getElementById('btn-shot');
-var helpBtn  = document.getElementById('help-btn');
-var helpPanel = document.getElementById('help-panel');
-var noWebgl  = document.getElementById('no-webgl');
-var slF      = document.getElementById('sl-f');
-var slK      = document.getElementById('sl-k');
-var slBrush  = document.getElementById('sl-brush');
-var slSpd    = document.getElementById('sl-spd');
-var lblF     = document.getElementById('lbl-f');
-var lblK     = document.getElementById('lbl-k');
-var lblB     = document.getElementById('lbl-b');
-var lblSpd   = document.getElementById('lbl-spd');
-
-// ── WEBGL SETUP ───────────────────────────────────────────────────────────────
-// Try WebGL2 first (has float FBO support with one extension)
-var gl = canvas.getContext('webgl2', { preserveDrawingBuffer: true });
-var isWebGL2 = !!gl;
-if (!gl) {
-  gl = canvas.getContext('webgl', { preserveDrawingBuffer: true });
-}
-if (!gl) {
-  noWebgl.classList.add('visible');
-  return;
-}
-
-// Determine float texture + renderable type
-var texType;
-var internalFormat; // WebGL2 needs sized internal format for float textures
-var canRenderFloat = false;
-
-if (isWebGL2) {
-  // WebGL2: float FBOs need EXT_color_buffer_float
-  var cbf = gl.getExtension('EXT_color_buffer_float');
-  if (cbf) {
-    texType = gl.FLOAT;
-    internalFormat = gl.RGBA32F;
-    canRenderFloat = true;
-  } else {
-    // Fall back to half float (RGBA16F), needs EXT_color_buffer_float too in WebGL2
-    texType = gl.HALF_FLOAT;
-    internalFormat = gl.RGBA16F;
-    canRenderFloat = true; // RGBA16F is always renderable in WebGL2
+function init() {
+  var i, dx, dy, idx;
+  for (i = 0; i < G * G; i++) {
+    bufA[i] = 1.0; bufB[i] = 0.0;
+    nxtA[i] = 0.0; nxtB[i] = 0.0;
   }
-} else {
-  // WebGL1: need OES_texture_float + WEBGL_color_buffer_float
-  var floatExt = gl.getExtension('OES_texture_float');
-  var floatFboExt = floatExt ? gl.getExtension('WEBGL_color_buffer_float') : null;
-  if (floatExt && floatFboExt) {
-    texType = gl.FLOAT;
-    internalFormat = gl.RGBA;
-    canRenderFloat = true;
-  } else {
-    // Try half float
-    var halfFloatExt = gl.getExtension('OES_texture_half_float');
-    var halfFboExt = halfFloatExt ? gl.getExtension('EXT_color_buffer_half_float') : null;
-    if (halfFloatExt && halfFboExt) {
-      texType = halfFloatExt.HALF_FLOAT_OES;
-      internalFormat = gl.RGBA;
-      canRenderFloat = true;
+  var cx = G >> 1;
+  var cy = G >> 1;
+  for (dy = -6; dy <= 6; dy++) {
+    for (dx = -6; dx <= 6; dx++) {
+      if (dx * dx + dy * dy <= 36) {
+        idx = (cy + dy) * G + (cx + dx);
+        bufB[idx] = 1.0;
+        bufA[idx] = 0.0;
+      }
+    }
+  }
+  imgData = ctx.createImageData(G, G);
+  buf32 = new Uint32Array(imgData.data.buffer);
+}
+
+function addSeed() {
+  var s, cx, cy, r, dx, dy, idx;
+  for (s = 0; s < 10; s++) {
+    cx = Math.floor(Math.random() * (G - 24) + 12);
+    cy = Math.floor(Math.random() * (G - 24) + 12);
+    r = 4;
+    for (dy = -r; dy <= r; dy++) {
+      for (dx = -r; dx <= r; dx++) {
+        if (dx * dx + dy * dy <= r * r) {
+          idx = (cy + dy) * G + (cx + dx);
+          bufB[idx] = 1.0;
+          bufA[idx] = 0.0;
+        }
+      }
     }
   }
 }
 
-if (!canRenderFloat) {
-  noWebgl.classList.add('visible');
-  return;
-}
-
-// Linear filtering needs extra extension for float textures on WebGL1
-var linearInterp = gl.NEAREST;
-if (isWebGL2) {
-  linearInterp = gl.LINEAR; // always available in WebGL2
-} else {
-  var floatLinearExt = gl.getExtension('OES_texture_float_linear') ||
-                       gl.getExtension('OES_texture_half_float_linear');
-  if (floatLinearExt) linearInterp = gl.LINEAR;
-}
-
-// ── SHADER SOURCE ─────────────────────────────────────────────────────────────
-var QUAD_VERT = [
-  'attribute vec2 a_pos;',
-  'varying vec2 v_uv;',
-  'void main() {',
-  '  v_uv = a_pos * 0.5 + 0.5;',
-  '  gl_Position = vec4(a_pos, 0.0, 1.0);',
-  '}'
-].join('\n');
-
-// Gray-Scott reaction-diffusion step
-var SIM_FRAG = [
-  'precision highp float;',
-  'uniform sampler2D u_state;',
-  'uniform vec2 u_res;',
-  'uniform float u_f;',
-  'uniform float u_k;',
-  'uniform float u_Da;',
-  'uniform float u_Db;',
-  'uniform vec4 u_brush;', // xy=center, z=radius, w=active(1/0)
-  'varying vec2 v_uv;',
-  '',
-  'vec4 sample(vec2 offset) {',
-  '  return texture2D(u_state, v_uv + offset / u_res);',
-  '}',
-  '',
-  'void main() {',
-  // Laplacian using 5-point stencil (cross + center weight)
-  '  vec4 center = sample(vec2(0.0, 0.0));',
-  '  vec4 up     = sample(vec2(0.0, 1.0));',
-  '  vec4 down   = sample(vec2(0.0,-1.0));',
-  '  vec4 left   = sample(vec2(-1.0, 0.0));',
-  '  vec4 right  = sample(vec2( 1.0, 0.0));',
-  '  vec2 lap = (up.xy + down.xy + left.xy + right.xy) - 4.0 * center.xy;',
-  '',
-  '  float A = center.x;',
-  '  float B = center.y;',
-  '  float AB2 = A * B * B;',
-  '',
-  '  float newA = A + (u_Da * lap.x - AB2 + u_f * (1.0 - A));',
-  '  float newB = B + (u_Db * lap.y + AB2 - (u_f + u_k) * B);',
-  '',
-  // Brush injection — paint B chemical
-  '  if (u_brush.w > 0.5) {',
-  '    vec2 px = v_uv * u_res;',
-  '    float d = distance(px, u_brush.xy);',
-  '    if (d < u_brush.z) {',
-  '      float influence = 1.0 - smoothstep(0.0, u_brush.z, d);',
-  '      newB = mix(newB, 0.9, influence * 0.5);',
-  '      newA = mix(newA, 0.2, influence * 0.3);',
-  '    }',
-  '  }',
-  '',
-  '  gl_FragColor = vec4(clamp(newA, 0.0, 1.0), clamp(newB, 0.0, 1.0), 0.0, 1.0);',
-  '}'
-].join('\n');
-
-// Display: colorize the B channel
-var DISPLAY_FRAG = [
-  'precision highp float;',
-  'uniform sampler2D u_state;',
-  'uniform vec3 u_colorA;',
-  'uniform vec3 u_colorB;',
-  'varying vec2 v_uv;',
-  'void main() {',
-  '  float b = texture2D(u_state, v_uv).y;',
-  '  b = clamp(b, 0.0, 1.0);',
-  // Smooth curve for nicer contrast
-  '  float t = smoothstep(0.2, 0.8, b);',
-  '  vec3 color = mix(u_colorA, u_colorB, t);',
-  '  gl_FragColor = vec4(color, 1.0);',
-  '}'
-].join('\n');
-
-// Brush paint without simulation step — for seeding
-var SEED_FRAG = [
-  'precision highp float;',
-  'uniform sampler2D u_state;',
-  'uniform vec2 u_res;',
-  'uniform vec4 u_brush;', // xy, radius, active
-  'varying vec2 v_uv;',
-  'void main() {',
-  '  vec4 c = texture2D(u_state, v_uv);',
-  '  float A = c.x; float B = c.y;',
-  '  if (u_brush.w > 0.5) {',
-  '    vec2 px = v_uv * u_res;',
-  '    float d = distance(px, u_brush.xy);',
-  '    if (d < u_brush.z) {',
-  '      float inf = 1.0 - smoothstep(0.0, u_brush.z, d);',
-  '      B = mix(B, 1.0, inf * 0.8);',
-  '      A = mix(A, 0.0, inf * 0.5);',
-  '    }',
-  '  }',
-  '  gl_FragColor = vec4(A, B, 0.0, 1.0);',
-  '}'
-].join('\n');
-
-// ── SHADER UTILS ──────────────────────────────────────────────────────────────
-function compileShader(type, src) {
-  var sh = gl.createShader(type);
-  gl.shaderSource(sh, src);
-  gl.compileShader(sh);
-  if (!gl.getShaderParameter(sh, gl.COMPILE_STATUS)) {
-    console.error('Shader error:', gl.getShaderInfoLog(sh));
-    return null;
-  }
-  return sh;
-}
-
-function buildProgram(vertSrc, fragSrc) {
-  var vert = compileShader(gl.VERTEX_SHADER, vertSrc);
-  var frag = compileShader(gl.FRAGMENT_SHADER, fragSrc);
-  var prog = gl.createProgram();
-  gl.attachShader(prog, vert);
-  gl.attachShader(prog, frag);
-  gl.linkProgram(prog);
-  if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) {
-    console.error('Program link error:', gl.getProgramInfoLog(prog));
-    return null;
-  }
-  return prog;
-}
-
-var simProg     = buildProgram(QUAD_VERT, SIM_FRAG);
-var displayProg = buildProgram(QUAD_VERT, DISPLAY_FRAG);
-var seedProg    = buildProgram(QUAD_VERT, SEED_FRAG);
-
-// ── CACHED UNIFORM LOCATIONS (never call getUniformLocation in hot path) ──────
-var uSim = {
-  res:   gl.getUniformLocation(simProg, 'u_res'),
-  f:     gl.getUniformLocation(simProg, 'u_f'),
-  k:     gl.getUniformLocation(simProg, 'u_k'),
-  Da:    gl.getUniformLocation(simProg, 'u_Da'),
-  Db:    gl.getUniformLocation(simProg, 'u_Db'),
-  brush: gl.getUniformLocation(simProg, 'u_brush'),
-  state: gl.getUniformLocation(simProg, 'u_state')
-};
-var uDisplay = {
-  state:  gl.getUniformLocation(displayProg, 'u_state'),
-  colorA: gl.getUniformLocation(displayProg, 'u_colorA'),
-  colorB: gl.getUniformLocation(displayProg, 'u_colorB')
-};
-var uSeed = {
-  state: gl.getUniformLocation(seedProg, 'u_state'),
-  res:   gl.getUniformLocation(seedProg, 'u_res'),
-  brush: gl.getUniformLocation(seedProg, 'u_brush')
-};
-
-// Full-screen quad
-var quadBuf = gl.createBuffer();
-gl.bindBuffer(gl.ARRAY_BUFFER, quadBuf);
-gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1, 1,-1, -1,1, 1,1]), gl.STATIC_DRAW);
-
-function bindQuad(prog) {
-  var loc = gl.getAttribLocation(prog, 'a_pos');
-  gl.bindBuffer(gl.ARRAY_BUFFER, quadBuf);
-  gl.enableVertexAttribArray(loc);
-  gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
-}
-
-// ── TEXTURES & FRAMEBUFFERS ───────────────────────────────────────────────────
-var texA, texB, fbA, fbB;
-
-function createTexture(w, h, data) {
-  var tex = gl.createTexture();
-  gl.bindTexture(gl.TEXTURE_2D, tex);
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, linearInterp);
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, linearInterp);
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT);
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.REPEAT);
-  // internalFormat must be sized (RGBA32F/RGBA16F) on WebGL2 for float textures
-  gl.texImage2D(gl.TEXTURE_2D, 0, internalFormat, w, h, 0, gl.RGBA, texType, data || null);
-  return tex;
-}
-
-function createFB(tex) {
-  var fb = gl.createFramebuffer();
-  gl.bindFramebuffer(gl.FRAMEBUFFER, fb);
-  gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, tex, 0);
-  // Verify framebuffer completeness — critical for float render targets
-  var status = gl.checkFramebufferStatus(gl.FRAMEBUFFER);
-  if (status !== gl.FRAMEBUFFER_COMPLETE) {
-    console.error('Framebuffer incomplete:', status);
-  }
-  gl.bindFramebuffer(gl.FRAMEBUFFER, null);
-  return fb;
-}
-
-function initTextures() {
-  var w = state.width, h = state.height;
-  // Initialize: A=1 everywhere, B=0 — always use render-pass seeding for safety
-  // (half float textures can't be uploaded from JS on all browsers)
-  if (texA) { gl.deleteTexture(texA); gl.deleteFramebuffer(fbA); }
-  if (texB) { gl.deleteTexture(texB); gl.deleteFramebuffer(fbB); }
-
-  texA = createTexture(w, h, null);
-  texB = createTexture(w, h, null);
-  fbA  = createFB(texA);
-  fbB  = createFB(texB);
-
-  seedInitialState();
-  state.generation = 0;
-}
-
-// Seed via render for half float path (or when no typed data)
-function seedInitialState() {
-  // We'll use the sim shader to write A=1, B=noise
-  // Actually: just write A=1, B=0 via clear then run the seed shader
-  gl.bindFramebuffer(gl.FRAMEBUFFER, fbA);
-  gl.viewport(0, 0, state.width, state.height);
-  gl.clearColor(1.0, 0.0, 0.0, 1.0);
-  gl.clear(gl.COLOR_BUFFER_BIT);
-  gl.bindFramebuffer(gl.FRAMEBUFFER, null);
-
-  gl.bindFramebuffer(gl.FRAMEBUFFER, fbB);
-  gl.clearColor(1.0, 0.0, 0.0, 1.0);
-  gl.clear(gl.COLOR_BUFFER_BIT);
-  gl.bindFramebuffer(gl.FRAMEBUFFER, null);
-
-  // Seed random spots using seed shader
-  var numSeeds = Math.floor(state.width * state.height / 800);
-  for (var s = 0; s < numSeeds; s++) {
-    var sx = Math.random() * state.width;
-    var sy = Math.random() * state.height;
-    paintBrush(sx, sy, 3);
-  }
-}
-
-// ── SIMULATION STEP ───────────────────────────────────────────────────────────
-function simStep() {
-  var w = state.width, h = state.height;
-  gl.useProgram(simProg);
-  bindQuad(simProg);
-
-  gl.uniform2f(uSim.res, w, h);
-  gl.uniform1f(uSim.f, state.f);
-  gl.uniform1f(uSim.k, state.k);
-  gl.uniform1f(uSim.Da, 1.0);
-  gl.uniform1f(uSim.Db, 0.5);
-  gl.uniform1i(uSim.state, 0);
-
-  var bx = state.mouseX, by = state.mouseY;
-
-  for (var step = 0; step < state.stepsPerFrame; step++) {
-    // Apply brush only on step 0
-    if (step === 0 && state.painting) {
-      gl.uniform4f(uSim.brush, bx, h - by, state.brushRadius, 1.0);
-    } else {
-      gl.uniform4f(uSim.brush, bx, h - by, state.brushRadius, 0.0);
+function paintAt(gx, gy) {
+  var r = brushSize;
+  var r2 = r * r;
+  var dx, dy, px, py, idx;
+  for (dy = -r; dy <= r; dy++) {
+    for (dx = -r; dx <= r; dx++) {
+      if (dx * dx + dy * dy > r2) { continue; }
+      px = gx + dx;
+      py = gy + dy;
+      if (px < 0 || px >= G || py < 0 || py >= G) { continue; }
+      idx = py * G + px;
+      bufB[idx] = 1.0;
+      bufA[idx] = 0.0;
     }
-
-    gl.viewport(0, 0, w, h);
-    gl.bindFramebuffer(gl.FRAMEBUFFER, fbB);
-
-    gl.activeTexture(gl.TEXTURE0);
-    gl.bindTexture(gl.TEXTURE_2D, texA);
-
-    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
-    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
-
-    // Swap buffers
-    var tmp = texA; texA = texB; texB = tmp;
-    var tmpFb = fbA; fbA = fbB; fbB = tmpFb;
   }
-
-  state.generation += state.stepsPerFrame;
 }
 
-// Paint brush via seed shader (for interactive painting)
-function paintBrush(x, y, radius) {
-  if (!seedProg) return;
-  var w = state.width, h = state.height;
-  var r = radius || state.brushRadius;
+function step() {
+  var a, b, abb, lapA, lapB, tmp;
+  var x, y, xn, xp, yn, yp;
+  var rowY, rowYn, rowYp, i, swp;
+  for (y = 0; y < G; y++) {
+    yn = (y - 1 + G) % G;
+    yp = (y + 1) % G;
+    rowY  = y  * G;
+    rowYn = yn * G;
+    rowYp = yp * G;
+    for (x = 0; x < G; x++) {
+      xn = (x - 1 + G) % G;
+      xp = (x + 1) % G;
+      i = rowY + x;
 
-  gl.useProgram(seedProg);
-  bindQuad(seedProg);
+      lapA = 0.05 * bufA[rowYn + xn] + 0.20 * bufA[rowYn + x] + 0.05 * bufA[rowYn + xp]
+           + 0.20 * bufA[rowY  + xn] - 1.00 * bufA[i]         + 0.20 * bufA[rowY  + xp]
+           + 0.05 * bufA[rowYp + xn] + 0.20 * bufA[rowYp + x] + 0.05 * bufA[rowYp + xp];
 
-  gl.viewport(0, 0, w, h);
-  gl.bindFramebuffer(gl.FRAMEBUFFER, fbB);
+      lapB = 0.05 * bufB[rowYn + xn] + 0.20 * bufB[rowYn + x] + 0.05 * bufB[rowYn + xp]
+           + 0.20 * bufB[rowY  + xn] - 1.00 * bufB[i]         + 0.20 * bufB[rowY  + xp]
+           + 0.05 * bufB[rowYp + xn] + 0.20 * bufB[rowYp + x] + 0.05 * bufB[rowYp + xp];
 
-  gl.activeTexture(gl.TEXTURE0);
-  gl.bindTexture(gl.TEXTURE_2D, texA);
-  gl.uniform1i(uSeed.state, 0);
-  gl.uniform2f(uSeed.res, w, h);
-  gl.uniform4f(uSeed.brush, x, h - y, r, 1.0);
+      a = bufA[i];
+      b = bufB[i];
+      abb = a * b * b;
 
-  gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
-  gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+      tmp = a + Da * lapA - abb + F * (1.0 - a);
+      nxtA[i] = tmp < 0 ? 0 : (tmp > 1 ? 1 : tmp);
 
-  var tmp = texA; texA = texB; texB = tmp;
-  var tmpFb = fbA; fbA = fbB; fbB = tmpFb;
+      tmp = b + Db * lapB + abb - (F + K) * b;
+      nxtB[i] = tmp < 0 ? 0 : (tmp > 1 ? 1 : tmp);
+    }
+  }
+  swp = bufA; bufA = nxtA; nxtA = swp;
+  swp = bufB; bufB = nxtB; nxtB = swp;
 }
-
-// ── DISPLAY ───────────────────────────────────────────────────────────────────
-function hexToRgb(hex) {
-  var r = parseInt(hex.slice(1, 3), 16) / 255;
-  var g = parseInt(hex.slice(3, 5), 16) / 255;
-  var b = parseInt(hex.slice(5, 7), 16) / 255;
-  return [r, g, b];
-}
-
-var currentPaletteA = hexToRgb(PALETTES[0].a);
-var currentPaletteB = hexToRgb(PALETTES[0].b);
 
 function render() {
-  gl.useProgram(displayProg);
-  bindQuad(displayProg);
-  gl.viewport(0, 0, canvas.width, canvas.height);
-  gl.bindFramebuffer(gl.FRAMEBUFFER, null);
-
-  gl.activeTexture(gl.TEXTURE0);
-  gl.bindTexture(gl.TEXTURE_2D, texA);
-  gl.uniform1i(uDisplay.state, 0);
-  gl.uniform3fv(uDisplay.colorA, currentPaletteA);
-  gl.uniform3fv(uDisplay.colorB, currentPaletteB);
-  gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+  /* Use Uint32Array view for single 32-bit write per pixel (little-endian: 0xAABBGGRR) */
+  var i, b, sv, r, g, bl;
+  for (i = 0; i < G * G; i++) {
+    b = bufB[i];
+    if (colorMode === 0) {
+      sv = (b * 255) | 0;
+      buf32[i] = 0xFF000000 | (sv << 16) | (sv << 8) | sv;
+    } else if (colorMode === 1) {
+      if (b < 0.25) {
+        sv = b * 4;
+        r = (sv * 64) | 0; g = 0; bl = (128 + sv * 127) | 0;
+      } else if (b < 0.5) {
+        sv = (b - 0.25) * 4;
+        r = (64 + sv * 191) | 0; g = 0; bl = (255 * (1 - sv)) | 0;
+      } else if (b < 0.75) {
+        sv = (b - 0.5) * 4;
+        r = 255; g = (sv * 200) | 0; bl = 0;
+      } else {
+        sv = (b - 0.75) * 4;
+        r = 255; g = (200 + sv * 55) | 0; bl = (sv * 255) | 0;
+      }
+      buf32[i] = 0xFF000000 | (bl << 16) | (g << 8) | r;
+    } else if (colorMode === 2) {
+      if (b < 0.33) {
+        sv = b / 0.33;
+        r = (sv * 128) | 0; g = 0; bl = (sv * 180) | 0;
+      } else if (b < 0.66) {
+        sv = (b - 0.33) / 0.33;
+        r = (128 * (1 - sv)) | 0; g = (sv * 220) | 0; bl = (180 * (1 - sv)) | 0;
+      } else {
+        sv = (b - 0.66) / 0.34;
+        r = (sv * 255) | 0; g = (220 + sv * 35) | 0; bl = (sv * 100) | 0;
+      }
+      buf32[i] = 0xFF000000 | (bl << 16) | (g << 8) | r;
+    } else {
+      if (b < 0.5) {
+        sv = b * 2;
+        r = 0; g = (sv * 180) | 0; bl = (80 + sv * 175) | 0;
+      } else {
+        sv = (b - 0.5) * 2;
+        r = (sv * 255) | 0; g = (180 + sv * 75) | 0; bl = 255;
+      }
+      buf32[i] = 0xFF000000 | (bl << 16) | (g << 8) | r;
+    }
+  }
+  ctx.putImageData(imgData, 0, 0);
 }
 
-// ── RESIZE ────────────────────────────────────────────────────────────────────
-function resize() {
-  var dpr = window.devicePixelRatio || 1;
-  var w = Math.floor(canvas.clientWidth  * dpr);
-  var h = Math.floor(canvas.clientHeight * dpr);
-  // Simulation runs at reduced resolution for performance
-  var simScale = 0.5;
-  var sw = Math.floor(w * simScale);
-  var sh = Math.floor(h * simScale);
-
-  canvas.width  = w;
-  canvas.height = h;
-  state.width  = sw;
-  state.height = sh;
-
-  initTextures();
-}
-
-window.addEventListener('resize', function() {
-  clearTimeout(resize._t);
-  resize._t = setTimeout(resize, 200);
-});
-
-// ── ANIMATION LOOP ────────────────────────────────────────────────────────────
-var lastTime = 0;
-var frameCount = 0;
-var fpsTimer = 0;
-
-function loop(now) {
-  requestAnimationFrame(loop);
-
-  var dt = now - lastTime;
-  lastTime = now;
-
-  // FPS counter
-  fpsTimer += dt;
-  frameCount++;
-  if (fpsTimer >= 1000) {
-    fpsDisplay.textContent = frameCount + ' fps';
-    frameCount = 0;
-    fpsTimer -= 1000;
+function loop(ts) {
+  if (lastFpsTime < 0) { lastFpsTime = ts; }
+  /* Always handle paint + render so drawing works while paused */
+  if (!paused) {
+    var s;
+    for (s = 0; s < stepsPerFrame; s++) { step(); }
   }
-
-  if (!state.paused) {
-    simStep();
-    genDisplay.textContent = 'gen ' + state.generation;
-  }
-
+  if (painting) { paintAt(paintX, paintY); }
   render();
+  frameCount++;
+  if (ts - lastFpsTime >= 1000) {
+    var fps = Math.round(frameCount * 1000 / (ts - lastFpsTime));
+    document.getElementById('fpsDisplay').textContent = fps + ' fps';
+    frameCount = 0;
+    lastFpsTime = ts;
+  }
+  requestAnimationFrame(loop);
 }
 
-// ── INPUT HANDLING ────────────────────────────────────────────────────────────
-function getSimCoords(e) {
+function canvasToGrid(e) {
   var rect = canvas.getBoundingClientRect();
-  var scaleX = state.width  / rect.width;
-  var scaleY = state.height / rect.height;
-  var cx = e.clientX !== undefined ? e.clientX : e.touches[0].clientX;
-  var cy = e.clientY !== undefined ? e.clientY : e.touches[0].clientY;
   return {
-    x: (cx - rect.left) * scaleX,
-    y: (cy - rect.top)  * scaleY
+    x: Math.floor((e.clientX - rect.left) / rect.width * G),
+    y: Math.floor((e.clientY - rect.top) / rect.height * G)
   };
 }
 
-canvas.addEventListener('pointerdown', function(e) {
+canvas.addEventListener('pointerdown', function (e) {
   e.preventDefault();
+  painting = true;
   canvas.setPointerCapture(e.pointerId);
-  var c = getSimCoords(e);
-  state.mouseX = c.x;
-  state.mouseY = c.y;
-  state.painting = true;
-  // Immediate seed for feel
-  paintBrush(c.x, c.y);
+  var c = canvasToGrid(e);
+  paintX = c.x; paintY = c.y;
+  paintAt(c.x, c.y);
 });
-
-canvas.addEventListener('pointermove', function(e) {
-  if (!state.painting) return;
+canvas.addEventListener('pointermove', function (e) {
+  if (!painting) { return; }
   e.preventDefault();
-  var c = getSimCoords(e);
-  state.mouseX = c.x;
-  state.mouseY = c.y;
-  paintBrush(c.x, c.y);
+  var c = canvasToGrid(e);
+  paintX = c.x; paintY = c.y;
 });
+canvas.addEventListener('pointerup', function () { painting = false; });
+canvas.addEventListener('pointercancel', function () { painting = false; });
 
-canvas.addEventListener('pointerup',     function(e) { state.painting = false; });
-canvas.addEventListener('pointerleave',  function(e) { state.painting = false; });
-canvas.addEventListener('pointercancel', function(e) { state.painting = false; });
-
-// ── KEYBOARD ──────────────────────────────────────────────────────────────────
-document.addEventListener('keydown', function(e) {
-  if (e.target.tagName === 'INPUT') return;
-  switch (e.key) {
-    case ' ':
-      e.preventDefault();
-      togglePause();
-      break;
-    case 'r': case 'R':
-      resetSim();
-      break;
-    case 's': case 'S':
-      screenshot();
-      break;
-    case '+': case '=':
-      state.brushRadius = Math.min(40, state.brushRadius + 2);
-      slBrush.value = state.brushRadius;
-      lblB.textContent = state.brushRadius;
-      break;
-    case '-':
-      state.brushRadius = Math.max(4, state.brushRadius - 2);
-      slBrush.value = state.brushRadius;
-      lblB.textContent = state.brushRadius;
-      break;
-    case '[':
-      state.stepsPerFrame = Math.max(1, state.stepsPerFrame - 1);
-      slSpd.value = state.stepsPerFrame;
-      lblSpd.textContent = state.stepsPerFrame;
-      break;
-    case ']':
-      state.stepsPerFrame = Math.min(20, state.stepsPerFrame + 1);
-      slSpd.value = state.stepsPerFrame;
-      lblSpd.textContent = state.stepsPerFrame;
-      break;
-    default:
-      var n = parseInt(e.key);
-      if (n >= 1 && n <= 8) {
-        applyPreset(n - 1);
-      }
-      break;
-  }
-});
-
-// ── CONTROLS ──────────────────────────────────────────────────────────────────
-function togglePause() {
-  state.paused = !state.paused;
-  btnPause.textContent = state.paused ? 'Play' : 'Pause';
-  btnPause.classList.toggle('active', state.paused);
+function sizeCanvas() {
+  var wrap = document.getElementById('canvasWrap');
+  var w = wrap.clientWidth;
+  var h = wrap.clientHeight;
+  var sz = Math.min(w, h) - 8;
+  if (sz < 80) { sz = 80; }
+  canvas.style.width = sz + 'px';
+  canvas.style.height = sz + 'px';
 }
+window.addEventListener('resize', sizeCanvas);
 
-function resetSim() {
-  state.generation = 0;
-  initTextures();
-}
-
-function screenshot() {
-  // Need to render first to ensure canvas is up to date
-  render();
-  var link = document.createElement('a');
-  link.download = 'reaction-diffusion.png';
-  link.href = canvas.toDataURL('image/png');
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-}
-
-function applyPreset(idx) {
-  state.activePreset = idx;
-  var p = PRESETS[idx];
-  state.f = p.f;
-  state.k = p.k;
-  slF.value = p.f;
-  slK.value = p.k;
-  lblF.textContent = p.f.toFixed(3);
-  lblK.textContent = p.k.toFixed(3);
-
-  // Highlight active preset button
-  var btns = document.querySelectorAll('#preset-grid .btn');
-  for (var i = 0; i < btns.length; i++) {
-    btns[i].classList.toggle('active', i === idx);
-  }
-
-  // Reset so new parameters take effect from clean state
-  resetSim();
-}
-
-function applyPalette(idx) {
-  state.activePalette = idx;
-  currentPaletteA = hexToRgb(PALETTES[idx].a);
-  currentPaletteB = hexToRgb(PALETTES[idx].b);
-
-  var swatches = document.querySelectorAll('#palette-grid .swatch');
-  for (var i = 0; i < swatches.length; i++) {
-    swatches[i].classList.toggle('active', i === idx);
-  }
-}
-
-// ── BUILD UI ──────────────────────────────────────────────────────────────────
-(function buildUI() {
-  // Preset buttons
-  var presetGrid = document.getElementById('preset-grid');
-  PRESETS.forEach(function(p, i) {
-    var btn = document.createElement('button');
-    btn.className = 'btn' + (i === 0 ? ' active' : '');
-    btn.textContent = p.name;
-    btn.addEventListener('click', function() { applyPreset(i); });
-    presetGrid.appendChild(btn);
+var pbDiv = document.getElementById('presetBtns');
+PRESETS.forEach(function (pr, i) {
+  var btn = document.createElement('button');
+  btn.className = 'btn' + (i === 0 ? ' active' : '');
+  btn.textContent = pr.name;
+  btn.addEventListener('click', function () {
+    F = pr.f;
+    K = pr.k;
+    document.getElementById('fSlider').value = String(pr.f);
+    document.getElementById('kSlider').value = String(pr.k);
+    document.getElementById('fVal').textContent = pr.f.toFixed(4);
+    document.getElementById('kVal').textContent = pr.k.toFixed(4);
+    pbDiv.querySelectorAll('.btn').forEach(function (b2, j) {
+      b2.classList.toggle('active', j === i);
+    });
+    /* Apply params only — click Reset for a fresh start */
   });
+  pbDiv.appendChild(btn);
+});
 
-  // Palette swatches
-  var paletteGrid = document.getElementById('palette-grid');
-  PALETTES.forEach(function(pal, i) {
-    var sw = document.createElement('div');
-    sw.className = 'swatch' + (i === 0 ? ' active' : '');
-    sw.title = pal.name;
-    sw.style.background = 'linear-gradient(135deg, ' + pal.a + ' 50%, ' + pal.b + ' 50%)';
-    sw.addEventListener('click', function() { applyPalette(i); });
-    paletteGrid.appendChild(sw);
+var cbDiv = document.getElementById('colorBtns');
+COLOR_NAMES.forEach(function (name, i) {
+  var btn = document.createElement('button');
+  btn.className = 'btn' + (i === 0 ? ' active' : '');
+  btn.textContent = name;
+  btn.addEventListener('click', function () {
+    colorMode = i;
+    cbDiv.querySelectorAll('.btn').forEach(function (b2, j) {
+      b2.classList.toggle('active', j === i);
+    });
   });
-})();
-
-// Slider listeners
-slF.addEventListener('input', function() {
-  state.f = parseFloat(slF.value);
-  lblF.textContent = state.f.toFixed(3);
-});
-slK.addEventListener('input', function() {
-  state.k = parseFloat(slK.value);
-  lblK.textContent = state.k.toFixed(3);
-});
-slBrush.addEventListener('input', function() {
-  state.brushRadius = parseInt(slBrush.value);
-  lblB.textContent = state.brushRadius;
-});
-slSpd.addEventListener('input', function() {
-  state.stepsPerFrame = parseInt(slSpd.value);
-  lblSpd.textContent = state.stepsPerFrame;
+  cbDiv.appendChild(btn);
 });
 
-btnPause.addEventListener('click', togglePause);
-btnReset.addEventListener('click', resetSim);
-btnShot.addEventListener('click', screenshot);
-
-helpBtn.addEventListener('click', function() {
-  helpPanel.classList.toggle('visible');
+var bbDiv = document.getElementById('brushBtns');
+BRUSH_NAMES.forEach(function (name, i) {
+  var btn = document.createElement('button');
+  btn.className = 'btn' + (i === activeBrushIdx ? ' active' : '');
+  btn.textContent = name;
+  btn.addEventListener('click', function () {
+    brushSize = BRUSH_RADII[i];
+    activeBrushIdx = i;
+    bbDiv.querySelectorAll('.btn').forEach(function (b2, j) {
+      b2.classList.toggle('active', j === i);
+    });
+  });
+  bbDiv.appendChild(btn);
 });
-document.addEventListener('click', function(e) {
-  if (!helpPanel.contains(e.target) && e.target !== helpBtn) {
-    helpPanel.classList.remove('visible');
-  }
+
+document.getElementById('fSlider').addEventListener('input', function () {
+  var v = parseFloat(this.value);
+  if (!isNaN(v) && v >= 0.0 && v <= 0.2) { F = v; }
+  document.getElementById('fVal').textContent = F.toFixed(4);
+});
+document.getElementById('kSlider').addEventListener('input', function () {
+  var v = parseFloat(this.value);
+  if (!isNaN(v) && v >= 0.0 && v <= 0.2) { K = v; }
+  document.getElementById('kVal').textContent = K.toFixed(4);
+});
+document.getElementById('speedSlider').addEventListener('input', function () {
+  stepsPerFrame = parseInt(this.value, 10);
+  document.getElementById('speedVal').textContent = String(stepsPerFrame);
 });
 
-// ── INIT ──────────────────────────────────────────────────────────────────────
-resize();
+document.getElementById('resetBtn').addEventListener('click', function () { init(); });
+document.getElementById('seedBtn').addEventListener('click', function () { addSeed(); });
+document.getElementById('pauseBtn').addEventListener('click', function () {
+  paused = !paused;
+  this.textContent = paused ? 'Play' : 'Pause';
+  this.classList.toggle('active', paused);
+});
+document.getElementById('saveBtn').addEventListener('click', function () {
+  var off = document.createElement('canvas');
+  off.width = G * 3;
+  off.height = G * 3;
+  var octx = off.getContext('2d');
+  octx.imageSmoothingEnabled = false;
+  octx.drawImage(canvas, 0, 0, G * 3, G * 3);
+  var a = document.createElement('a');
+  a.download = 'reaction-diffusion.png';
+  a.href = off.toDataURL('image/png');
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+});
+
+/* Initialize — brushSize derived from BRUSH_RADII after array is defined */
+brushSize = BRUSH_RADII[activeBrushIdx];
+init();
+sizeCanvas();
 requestAnimationFrame(loop);
 
-})();
+}());
 </script>
 </body>
 </html>

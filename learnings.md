@@ -2690,3 +2690,20 @@ Sequential Gemini reviews (focus: bugs, then security) caught **different issue 
 - **TEST CAUGHT (via Gemini audit)**: Global escape threshold (500) too large for Aizawa (extent=2) — diverged particles would persist for hundreds of frames.
 - **TEST CAUGHT (via Gemini audit)**: iOS audio: `resume()` not awaited — oscillators started before context running = permanent silence on iOS.
 - **TEST CAUGHT (via Gemini audit)**: Oscillators never stopped — silently consuming CPU after "SOUND: OFF" because only masterGain was muted, not the oscillators.
+
+### reaction-diffusion (2026-04-02)
+- **KEEP**: `Uint32Array` view over `ImageData.data.buffer` — single 32-bit write per pixel (little-endian: `0xFF000000 | (B << 16) | (G << 8) | R`) instead of 4 separate Uint8ClampedArray writes. Halves render loop memory ops.
+- **KEEP**: Float32Array double-buffer swap — `swp = bufA; bufA = nxtA; nxtA = swp` — zero allocation in hot path. This is the correct pattern for any simulation with a "write-next, swap" loop.
+- **KEEP**: Pre-compute row offsets (`rowY = y*G`, `rowYn = yn*G`, `rowYp = yp*G`) outside the inner x-loop — eliminates 2 multiplications per cell per step. Small but multiplies out.
+- **KEEP**: Toroidal boundary via `(y-1+G)%G` and `(y+1)%G` outside inner loop — correct and cache-friendly.
+- **KEEP**: Gray-Scott 3×3 kernel (corners=0.05, edges=0.20, center=−1.00) sums to zero — this is the correct discrete Laplacian.
+- **KEEP**: `init()` clears both `bufA/bufB` AND `nxtA/nxtB` — prevents stale data contaminating first step after reset.
+- **IMPROVE (Gemini B1)**: FPS counter incremented unconditionally — it counted rAF callbacks not rendered frames. Fixed: move `frameCount++` outside the `if (!paused)` guard so it counts actual renders (including while paused, which now also renders due to UX-1 fix).
+- **IMPROVE (Gemini B2)**: 120-step synchronous warmup blocks main thread — removed entirely. Users see the seed develop in real-time which is more interesting anyway. If warmup is needed, spread across rAF frames with a `warmupRemaining` counter.
+- **IMPROVE (Gemini UX-1)**: Painting while paused was silently ignored. Fix: always call `paintAt()` and `render()` unconditionally; only call `step()` when `!paused`. This is the correct separation: simulation vs display.
+- **IMPROVE (Gemini UX-2)**: Preset buttons called `init()` destroying user-painted state. Fix: preset buttons only update F/K params; Reset button is the explicit reset action. Users can apply new parameters to existing patterns.
+- **IMPROVE (Gemini SEC-2)**: Firefox anchor `.click()` on unattached anchor unreliable. Fix: `document.body.appendChild(a); a.click(); document.body.removeChild(a)`.
+- **INSIGHT**: For any reaction-diffusion or simulation that has a "pause" concept: render ALWAYS runs; the simulation step is the only paused thing. Otherwise users can't interact with or inspect the paused state.
+- **INSIGHT**: When building pixel-manipulation tools, always use a `Uint32Array` view for rendering. `new Uint32Array(imgData.data.buffer)` gives you a 1-write-per-pixel path. On little-endian (all modern hardware): `0xAABBGGRR` format — `0xFF000000 | (B << 16) | (G << 8) | R`.
+- **INSIGHT**: Preset systems should separate "apply parameters" from "reset state". Presets change the rules; Reset changes the initial conditions. Conflating them destroys user work.
+- **TEST CAUGHT**: All bugs caught by Gemini audit, none by static tests. The static tests (syntax, ID consistency, brace balance) don't catch runtime logic errors like the FPS counter or painting-while-paused. Behavioral tests would catch these — consider adding a "smoke test" checklist item for pause/resume interaction.
