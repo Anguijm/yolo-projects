@@ -2622,3 +2622,19 @@ Sequential Gemini reviews (focus: bugs, then security) caught **different issue 
 - **KEEP**: Dual-ring circle of fifths (outer = major, inner = relative minor) on a single canvas is compact and shows both key relationships at once.
 - **KEEP**: `getDiatonicChords()` uses modular interval arithmetic: `(intervals[(i+2)%len] - intervals[i] + 12) % 12` gives correct semitone count for 3rd/5th even when wrapping around the octave. Works for all 7-note modes (Major, Minor, all church modes).
 - **INSIGHT**: Web Audio's `exponentialRampToValueAtTime` is strict: both current gain AND target must be > 0. Any note-release path that runs before the attack completes will encounter a 0-or-near-0 gain. Always clamp. Consider using `linearRampToValueAtTime` for the release if the transition period is short (<50ms).
+
+### chladni-sim (2026-04-02)
+- **KEEP**: Gradient flow `-Z * ∇Z` toward nodal lines — particles pushed to Z=0 via `-grad(Z²/2)` = analytically elegant, produces authentic Chladni patterns
+- **KEEP**: Float32Array SoA (px/py/vx/vy) + pre-allocated density map + pre-allocated ImageData + pre-allocated OffscreenCanvas — zero per-frame GC in hot path
+- **KEEP**: `data.fill(0)` to zero ImageData before writing — native call, much faster than per-pixel zeroing loop in JS
+- **KEEP**: `densityMap.fill(0)` + write sparse particles — only iterate non-zero pixels for speed
+- **KEEP**: `Math.cos(m*π*nx) * Math.cos(n*π*ny)` for free-plate mode shapes — accurate physics, beautiful patterns at small integer m,n
+- **KEEP**: MIX parameter blends in rotated mode shape (n,m) — creates star/cross hybrids from pure modes
+- **KEEP**: Debounced resize (150ms) with full re-init of both particles AND render buffers
+- **IMPROVE (self-audit)**: `new OffscreenCanvas()` + `new Float32Array()` + `createImageData()` initially allocated each frame — critical GC issue. Fixed by pre-allocating at resize and reusing
+- **IMPROVE (self-audit)**: Dead variable `invPwScale = invPw * pw` (evaluates to 1.0, never used) — removed
+- **IMPROVE (self-audit)**: Canvas font using CSS rem unit (`'0.5rem monospace'`) — canvas ctx.font doesn't inherit CSS vars, must use pixel values (`'9px monospace'`)
+- **INSIGHT**: Any per-frame rendering that uses intermediate buffers (Float32Array density map, ImageData, OffscreenCanvas) MUST pre-allocate them once at init/resize. Creating them inside the render function = GC stutter every frame. This is now a permanent checklist item.
+- **INSIGHT**: `TypedArray.fill(0)` is a native SIMD operation — use it to zero large buffers instead of JS loops. Especially important for ImageData (4× size of logical grid).
+- **INSIGHT**: Physics "gradient descent toward zero" is a universal particle-settling technique. If you have a scalar field `Z(x,y)` and want particles to settle on its zero-contour, apply force `-Z * ∇Z`. This is clean, analytic, and works for any field including mode shapes, distance fields, and potential wells.
+- **TEST CAUGHT**: All bugs found by self-audit. Key pattern: immediately audit any variable declared but unused — dead variables are often a sign of a missing integration or redundant code.

@@ -1,0 +1,491 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="theme-color" content="#000000">
+<title>Chladni Sim</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body {
+  height: 100%;
+  background: #0a0a0a;
+  overflow: hidden;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Courier New", monospace;
+  color: #ccc;
+  user-select: none;
+}
+:root { --accent: #0ff; }
+
+#app {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  max-width: 600px;
+  margin: 0 auto;
+}
+
+#header {
+  padding: 8px 12px 4px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid #1a1a1a;
+  flex-shrink: 0;
+}
+#header h1 {
+  font-size: 0.65rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: #444;
+}
+#header .subtitle {
+  font-size: 0.45rem;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: #333;
+}
+
+#canvas-wrap {
+  flex: 1;
+  position: relative;
+  overflow: hidden;
+}
+#canvas {
+  position: absolute;
+  top: 0; left: 0;
+  /* CSS size is set by JS */
+}
+
+#controls {
+  padding: 8px 12px;
+  border-top: 1px solid #1a1a1a;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.ctrl-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.ctrl-label {
+  font-size: 0.45rem;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: #444;
+  min-width: 32px;
+}
+.ctrl-val {
+  font-size: 0.55rem;
+  color: var(--accent);
+  min-width: 22px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+input[type="range"] {
+  flex: 1;
+  height: 3px;
+  accent-color: #555;
+  cursor: pointer;
+}
+
+.presets {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+.btn {
+  padding: 4px 8px;
+  background: transparent;
+  border: 1px solid #1a1a1a;
+  color: #444;
+  font-family: inherit;
+  font-size: 0.5rem;
+  cursor: pointer;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.btn:active { border-color: #555; color: #888; }
+.btn.active { border-color: var(--accent); color: var(--accent); }
+
+.mode-display {
+  font-size: 0.55rem;
+  color: #555;
+  letter-spacing: 0.1em;
+}
+.mode-display span { color: var(--accent); }
+
+#reset-btn {
+  padding: 4px 10px;
+  background: transparent;
+  border: 1px solid #222;
+  color: #555;
+  font-family: inherit;
+  font-size: 0.5rem;
+  cursor: pointer;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+#reset-btn:active { border-color: #555; color: #888; }
+
+#info-bar {
+  font-size: 0.4rem;
+  color: #333;
+  letter-spacing: 0.1em;
+  text-align: center;
+  padding-bottom: 2px;
+}
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="header">
+    <h1>CHLADNI SIM</h1>
+    <span class="subtitle">RESONANCE PATTERNS</span>
+  </div>
+
+  <div id="canvas-wrap">
+    <canvas id="canvas"></canvas>
+  </div>
+
+  <div id="controls">
+    <div class="ctrl-row">
+      <span class="ctrl-label">M</span>
+      <input type="range" id="sl-m" min="1" max="7" step="1" value="2">
+      <span class="ctrl-val" id="v-m">2</span>
+      <span style="width:12px"></span>
+      <span class="ctrl-label">N</span>
+      <input type="range" id="sl-n" min="1" max="7" step="1" value="3">
+      <span class="ctrl-val" id="v-n">3</span>
+      <span class="mode-display" style="margin-left:6px">(<span id="mode-txt">2,3</span>)</span>
+    </div>
+
+    <div class="ctrl-row">
+      <span class="ctrl-label">MIX</span>
+      <input type="range" id="sl-mix" min="0" max="100" step="1" value="0">
+      <span class="ctrl-val" id="v-mix">0%</span>
+    </div>
+
+    <div class="ctrl-row">
+      <span class="ctrl-label">NOISE</span>
+      <input type="range" id="sl-noise" min="0" max="100" step="1" value="40">
+      <span class="ctrl-val" id="v-noise">40%</span>
+      <span style="flex:1"></span>
+      <button id="reset-btn">RESET</button>
+    </div>
+
+    <div class="ctrl-row presets">
+      <button class="btn" data-m="1" data-n="2">1,2</button>
+      <button class="btn active" data-m="2" data-n="3">2,3</button>
+      <button class="btn" data-m="3" data-n="4">3,4</button>
+      <button class="btn" data-m="2" data-n="5">2,5</button>
+      <button class="btn" data-m="3" data-n="5">3,5</button>
+      <button class="btn" data-m="4" data-n="5">4,5</button>
+      <button class="btn" data-m="1" data-n="4">1,4</button>
+      <button class="btn" data-m="5" data-n="6">5,6</button>
+    </div>
+    <div id="info-bar">TAP CANVAS TO SHAKE &bull; SAND SETTLES ON NODAL LINES</div>
+  </div>
+</div>
+
+<script>
+(function() {
+  'use strict';
+
+  var canvas = document.getElementById('canvas');
+  var ctx = canvas.getContext('2d');
+  var wrap = canvas.parentElement;
+
+  // Simulation params
+  var N_PARTICLES = 2500;
+  var DAMPING = 0.88;
+  var FORCE_SCALE = 0.018;
+  var NOISE_BASE = 0.04;
+
+  // Canvas logical (CSS) and physical (buffer) dimensions
+  var cssW, cssH;     // CSS layout pixels
+  var bufW, bufH;     // canvas buffer pixels (accounts for DPR)
+  var dpr;            // devicePixelRatio
+
+  // Particle storage: Float32Array SoA (particles in CSS pixel coords)
+  var px, py, vx, vy;
+
+  // Mode params
+  var modeM = 2, modeN = 3;
+  var mixFactor = 0.0;
+  var noiseFactor = 0.4;
+
+  // Pre-allocated render buffers (filled on first resize, reused every frame)
+  var densityMap = null;   // Float32Array
+  var imgData = null;      // ImageData
+  var offscr = null;       // OffscreenCanvas
+  var offCtx = null;       // OffscreenCanvas 2D context
+  var dmW = 0, dmH = 0;   // density map dimensions
+
+  // --- Geometry helpers ---
+  function plateSize() { return Math.min(cssW, cssH) * 0.88; }
+  function plateX()    { return (cssW - plateSize()) * 0.5; }
+  function plateY()    { return (cssH - plateSize()) * 0.5; }
+
+  // --- Particle init ---
+  function initParticles() {
+    px = new Float32Array(N_PARTICLES);
+    py = new Float32Array(N_PARTICLES);
+    vx = new Float32Array(N_PARTICLES);
+    vy = new Float32Array(N_PARTICLES);
+    var ps = plateSize(), ox = plateX(), oy = plateY();
+    for (var i = 0; i < N_PARTICLES; i++) {
+      px[i] = ox + Math.random() * ps;
+      py[i] = oy + Math.random() * ps;
+      vx[i] = 0;
+      vy[i] = 0;
+    }
+  }
+
+  function shakeParticles(strength) {
+    for (var i = 0; i < N_PARTICLES; i++) {
+      vx[i] += (Math.random() - 0.5) * strength;
+      vy[i] += (Math.random() - 0.5) * strength;
+    }
+  }
+
+  // --- Mode field (displacement at normalized position nx,ny in [0,1]) ---
+  // Symmetric superposition of two orthogonal cosine mode shapes.
+  // cos(m*pi*x) * cos(n*pi*y): free-plate standing wave with m half-waves on x, n on y.
+  function modeZ(nx, ny) {
+    var z1 = Math.cos(modeM * Math.PI * nx) * Math.cos(modeN * Math.PI * ny);
+    var z2 = Math.cos(modeN * Math.PI * nx) * Math.cos(modeM * Math.PI * ny);
+    return z1 + mixFactor * z2;
+  }
+
+  // Gradient of Z with respect to (nx, ny) — analytic, no finite differences
+  function modeGrad(nx, ny) {
+    var piM = modeM * Math.PI;
+    var piN = modeN * Math.PI;
+    var gx = -piM * Math.sin(piM * nx) * Math.cos(piN * ny)
+             - mixFactor * piN * Math.sin(piN * nx) * Math.cos(piM * ny);
+    var gy = -piN * Math.cos(piM * nx) * Math.sin(piN * ny)
+             - mixFactor * piM * Math.cos(piN * nx) * Math.sin(piM * ny);
+    return { gx: gx, gy: gy };
+  }
+
+  // --- Physics update ---
+  function update() {
+    var ps = plateSize(), ox = plateX(), oy = plateY();
+    var invPs = 1.0 / ps;
+    var noise = noiseFactor * NOISE_BASE;
+
+    for (var i = 0; i < N_PARTICLES; i++) {
+      // Normalize position to [0,1] within the plate
+      var nx = (px[i] - ox) * invPs;
+      var ny = (py[i] - oy) * invPs;
+
+      // Clamp to plate bounds for field evaluation
+      var cnx = Math.max(0, Math.min(1, nx));
+      var cny = Math.max(0, Math.min(1, ny));
+
+      var z = modeZ(cnx, cny);
+      var grad = modeGrad(cnx, cny);
+
+      // Force: -Z * grad(Z) pushes particles toward Z=0 (nodal lines)
+      // Gradient is in normalized space; scale by 1/ps to convert to pixel space
+      var ax = -z * grad.gx * invPs * FORCE_SCALE;
+      var ay = -z * grad.gy * invPs * FORCE_SCALE;
+
+      vx[i] = vx[i] * DAMPING + ax + (Math.random() - 0.5) * noise;
+      vy[i] = vy[i] * DAMPING + ay + (Math.random() - 0.5) * noise;
+
+      px[i] += vx[i];
+      py[i] += vy[i];
+
+      // Reflect particles off plate boundaries
+      if (px[i] < ox)       { px[i] = ox;      vx[i] =  Math.abs(vx[i]) * 0.3; }
+      if (px[i] > ox + ps)  { px[i] = ox + ps; vx[i] = -Math.abs(vx[i]) * 0.3; }
+      if (py[i] < oy)       { py[i] = oy;      vy[i] =  Math.abs(vy[i]) * 0.3; }
+      if (py[i] > oy + ps)  { py[i] = oy + ps; vy[i] = -Math.abs(vy[i]) * 0.3; }
+    }
+  }
+
+  // --- Rendering via density map for glow effect ---
+  function draw() {
+    // Clear at physical resolution
+    ctx.clearRect(0, 0, bufW, bufH);
+    ctx.fillStyle = '#0a0a0a';
+    ctx.fillRect(0, 0, bufW, bufH);
+
+    var ps = plateSize(), ox = plateX(), oy = plateY();
+
+    // Subtle plate boundary (scale coords to buffer)
+    ctx.save();
+    ctx.scale(dpr, dpr);
+    ctx.strokeStyle = '#181818';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(ox, oy, ps, ps);
+
+    // Mode label
+    ctx.fillStyle = '#252525';
+    ctx.font = '9px ui-monospace, monospace';
+    ctx.fillText('MODE (' + modeM + ',' + modeN + ')', ox + 5, oy + 15);
+    ctx.restore();
+
+    // --- Density map (pre-allocated, reused each frame) ---
+    // Zero out with fill — faster than allocating a new array
+    densityMap.fill(0);
+
+    for (var i = 0; i < N_PARTICLES; i++) {
+      var ix = (px[i] + 0.5) | 0;
+      var iy = (py[i] + 0.5) | 0;
+      if (ix >= 0 && ix < dmW && iy >= 0 && iy < dmH) {
+        densityMap[iy * dmW + ix] += 1.0;
+        // Soft blur: spread to 4-neighbors
+        if (ix > 0)      densityMap[iy * dmW + (ix - 1)] += 0.4;
+        if (ix < dmW-1)  densityMap[iy * dmW + (ix + 1)] += 0.4;
+        if (iy > 0)      densityMap[(iy - 1) * dmW + ix] += 0.4;
+        if (iy < dmH-1)  densityMap[(iy + 1) * dmW + ix] += 0.4;
+      }
+    }
+
+    // Write density into pre-allocated ImageData buffer
+    var data = imgData.data;
+    // Zero entire buffer with native fill — faster than per-pixel assignment for sparse maps
+    data.fill(0);
+    var len = densityMap.length;
+    for (var j = 0; j < len; j++) {
+      var d = densityMap[j];
+      if (d > 0) {
+        var v = Math.min(255, (d * 80) | 0);
+        var idx = j * 4;
+        data[idx]   = v;
+        data[idx+1] = Math.min(255, v + (d > 1.5 ? 18 : 0));   // G: cyan tint at high density
+        data[idx+2] = Math.min(255, v + (d > 1.5 ? 28 : 0));   // B
+        data[idx+3] = 255;
+      }
+    }
+
+    // Blit pre-allocated offscreen canvas to main buffer, scaled to physical resolution
+    offCtx.putImageData(imgData, 0, 0);
+    ctx.drawImage(offscr, 0, 0, bufW, bufH);
+  }
+
+  // --- Resize ---
+  function resize() {
+    cssW = wrap.clientWidth;
+    cssH = wrap.clientHeight;
+    dpr = Math.max(1, window.devicePixelRatio || 1);
+    bufW = Math.round(cssW * dpr);
+    bufH = Math.round(cssH * dpr);
+    canvas.width  = bufW;
+    canvas.height = bufH;
+    canvas.style.width  = cssW + 'px';
+    canvas.style.height = cssH + 'px';
+    // Re-allocate render buffers to match new dimensions
+    dmW = cssW;
+    dmH = cssH;
+    densityMap = new Float32Array(dmW * dmH);
+    imgData    = ctx.createImageData(dmW, dmH);
+    offscr     = new OffscreenCanvas(dmW, dmH);
+    offCtx     = offscr.getContext('2d');
+  }
+
+  // --- Mode setters ---
+  function clearActivePresets() {
+    document.querySelectorAll('.btn[data-m]').forEach(function(b) {
+      b.classList.remove('active');
+    });
+  }
+
+  function applyMode(m, n, fromPreset) {
+    modeM = m;
+    modeN = n;
+    document.getElementById('sl-m').value = m;
+    document.getElementById('sl-n').value = n;
+    document.getElementById('v-m').textContent = m;
+    document.getElementById('v-n').textContent = n;
+    document.getElementById('mode-txt').textContent = m + ',' + n;
+    shakeParticles(2.5);
+    if (!fromPreset) clearActivePresets();
+  }
+
+  // --- Event listeners ---
+  document.getElementById('sl-m').addEventListener('input', function() {
+    var v = parseInt(this.value);
+    if (!isNaN(v) && v >= 1) applyMode(v, modeN, false);
+  });
+  document.getElementById('sl-n').addEventListener('input', function() {
+    var v = parseInt(this.value);
+    if (!isNaN(v) && v >= 1) applyMode(modeM, v, false);
+  });
+  document.getElementById('sl-mix').addEventListener('input', function() {
+    var v = parseInt(this.value);
+    if (!isNaN(v)) {
+      mixFactor = v / 100;
+      document.getElementById('v-mix').textContent = v + '%';
+      shakeParticles(1.0);
+    }
+  });
+  document.getElementById('sl-noise').addEventListener('input', function() {
+    var v = parseInt(this.value);
+    if (!isNaN(v)) {
+      noiseFactor = v / 100;
+      document.getElementById('v-noise').textContent = v + '%';
+    }
+  });
+  document.getElementById('reset-btn').addEventListener('click', function() {
+    initParticles();
+    shakeParticles(3.0);
+  });
+
+  // Preset buttons
+  document.querySelectorAll('.btn[data-m]').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      var m = parseInt(btn.dataset.m);
+      var n = parseInt(btn.dataset.n);
+      clearActivePresets();
+      btn.classList.add('active');
+      applyMode(m, n, true);
+    });
+  });
+
+  // Tap canvas to shake particles
+  canvas.addEventListener('pointerdown', function(e) {
+    e.preventDefault();
+    shakeParticles(4.5);
+  });
+
+  // Resize handler
+  var resizeTimer = null;
+  window.addEventListener('resize', function() {
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(function() {
+      resize();
+      initParticles();
+      shakeParticles(2.0);
+    }, 150);
+  });
+
+  // --- Main loop ---
+  var rafId = null;
+  function loop() {
+    update();
+    draw();
+    rafId = requestAnimationFrame(loop);
+  }
+
+  // --- Bootstrap ---
+  resize();
+  initParticles();
+  applyMode(2, 3, true);
+  shakeParticles(3.0);
+  loop();
+
+})();
+</script>
+</body>
+</html>
