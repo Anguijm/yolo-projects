@@ -75,6 +75,11 @@ Markdown Deck is a graduated YOLO project operating under Flagship rules: multi-
 - [ ] Import from .pptx (parse OOXML back to markdown) — rejected (violates zero-dep)
 - [x] Image references in PPTX export (relationship infrastructure)
 
+## Proposed Features (Pending Approval)
+
+- [ ] Standalone HTML export — Export the deck as a self-contained .html file with all slides rendered, embedded nav/keyboard shortcuts, and speaker notes toggle; shareable without the authoring tool, hostable on GitHub Pages, zero-dep
+- [ ] Laser pointer & annotation mode — During fullscreen presentation: `L` key for glowing laser pointer (cursor-following dot), `S` for spotlight (radial dimmer around cursor), `A` for freehand canvas annotation layer that clears on slide advance; canvas overlay, zero-dep, works with touch
+
 ## YOLO Feeder Projects
 
 These are features complex enough to prototype as standalone YOLO single-session builds before integrating into Markdown Deck:
@@ -129,3 +134,4 @@ These are features complex enough to prototype as standalone YOLO single-session
 | 2026-04-02 | Tick | shader-forge (#168): live GLSL editor + naval-scribe (#169): naval correspondence .docx |
 | 2026-04-02 | Tock | 6-bug fix: PPTX dims scoping, content auto-fit, Save reliability, Layout UX, bold regex, theme docs |
 | 2026-04-02 | Tock | Slide transitions: fade/slide/zoom for presentation mode, direction-aware, localStorage persistence |
+| 2026-04-02 | Tock | Brainstormed 2 features (pending approval): Standalone HTML export, Laser pointer & annotation mode |
