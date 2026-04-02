@@ -77,6 +77,8 @@ Markdown Deck is a graduated YOLO project operating under Flagship rules: multi-
 
 ## Proposed Features (Pending Approval)
 
+- [ ] Clipboard image paste — Ctrl+V in the editor with an image on clipboard converts it to a base64 data URL and inserts `![pasted](data:image/png;base64,...)` at the cursor position. Zero-dep, pure Web Clipboard API. Huge QoL for adding screenshots to decks without leaving the editor.
+- [ ] Per-slide talk time budget — Input field in presenter view for total talk duration (e.g. "20 min"). Displays per-slide allocated time (total ÷ slide count) alongside actual elapsed time for the current slide, with amber/red warning when over budget. Essential for timed conference talks.
 
 ## Parking Lot
 
@@ -142,3 +144,4 @@ These are features complex enough to prototype as standalone YOLO single-session
 | 2026-04-02 | Tock | 6-bug fix: PPTX dims scoping, content auto-fit, Save reliability, Layout UX, bold regex, theme docs |
 | 2026-04-02 | Tock | Slide transitions: fade/slide/zoom for presentation mode, direction-aware, localStorage persistence |
 | 2026-04-02 | Tock | Brainstormed 2 features (pending approval): Standalone HTML export, Laser pointer & annotation mode |
+| 2026-04-02 | Tock | Brainstormed 2 features (pending approval): Clipboard image paste, Per-slide talk time budget |
