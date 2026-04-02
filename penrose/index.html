@@ -1,0 +1,591 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="theme-color" content="#000000">
+<title>Penrose</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body {
+  height: 100%;
+  background: #0a0a0a;
+  overflow: hidden;
+  touch-action: none;
+  -webkit-tap-highlight-color: transparent;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Courier New", monospace;
+}
+#cv {
+  position: fixed;
+  top: 0; left: 0;
+  width: 100%; height: 100%;
+  cursor: grab;
+}
+#cv.dragging { cursor: grabbing; }
+#hud {
+  position: fixed;
+  bottom: 0; left: 0; right: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 12px;
+  background: linear-gradient(transparent, rgba(0,0,0,0.85));
+  pointer-events: none;
+}
+#hud > * { pointer-events: all; }
+#gen-display {
+  font-size: 0.55rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: #555;
+  flex: 1;
+  user-select: none;
+}
+#tri-count {
+  font-size: 0.45rem;
+  letter-spacing: 0.1em;
+  color: #333;
+  margin-left: 4px;
+  user-select: none;
+}
+.btn {
+  padding: 5px 10px;
+  background: transparent;
+  border: 1px solid #1a1a1a;
+  color: #444;
+  font-family: inherit;
+  font-size: 0.55rem;
+  cursor: pointer;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  min-height: 36px;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+.btn:active { border-color: #555; color: #888; }
+.btn.active { border-color: #0ff; color: #0ff; }
+.btn:disabled { opacity: 0.3; cursor: default; }
+#title {
+  position: fixed;
+  top: 12px;
+  left: 12px;
+  font-size: 0.55rem;
+  letter-spacing: 0.25em;
+  text-transform: uppercase;
+  color: #333;
+  user-select: none;
+  pointer-events: none;
+}
+#hint {
+  position: fixed;
+  top: 12px;
+  right: 12px;
+  font-size: 0.45rem;
+  letter-spacing: 0.1em;
+  color: #222;
+  text-align: right;
+  line-height: 1.6;
+  user-select: none;
+  pointer-events: none;
+}
+</style>
+</head>
+<body>
+<canvas id="cv"></canvas>
+<div id="title">PENROSE</div>
+<div id="hint">SCROLL / PINCH — ZOOM<br>DRAG — PAN<br>DBL-TAP — INFLATE</div>
+<div id="hud">
+  <span id="gen-display">GEN 0</span>
+  <span id="tri-count">10 TILES</span>
+  <button class="btn" id="btn-deflate" title="Undo one subdivision level">DEFLATE</button>
+  <button class="btn" id="btn-inflate" title="Subdivide tiles into smaller tiles (or double-tap canvas)">INFLATE</button>
+  <button class="btn" id="btn-color" title="Cycle through 4 color modes: dual / radial / phase / void">COLOR: DUAL</button>
+  <button class="btn" id="btn-save" title="Save tiling as PNG image">SAVE</button>
+  <button class="btn" id="btn-reset" title="Reset to initial pattern">RESET</button>
+</div>
+<script>
+(function() {
+'use strict';
+
+var PHI = (1 + Math.sqrt(5)) / 2;
+var TWO_PI = Math.PI * 2;
+var MAX_GEN = 8;
+
+/* ---- State ---- */
+var tris = [];
+var gen = 0;
+var history = []; /* stack of {tris, gen} */
+var colorMode = 0; /* 0=dual, 1=radial, 2=phase, 3=void */
+var COLOR_LABELS = ['DUAL', 'RADIAL', 'PHASE', 'VOID'];
+
+/* ---- Canvas & viewport ---- */
+var canvas = document.getElementById('cv');
+var ctx = canvas.getContext('2d');
+var W = 0, H = 0, DPR = 1;
+
+/* pan/zoom in world space */
+/* screen_x = panX + worldX * zoom */
+var panX = 0, panY = 0, zoom = 1;
+
+/* ---- Init ---- */
+function makeSun() {
+  var result = [];
+  for (var i = 0; i < 10; i++) {
+    var a0 = (i * TWO_PI) / 10;
+    var a1 = ((i + 1) * TWO_PI) / 10;
+    var B = {x: Math.cos(a0), y: Math.sin(a0)};
+    var C = {x: Math.cos(a1), y: Math.sin(a1)};
+    var A = {x: 0, y: 0};
+    /* alternate chirality for mirrored halves */
+    if (i % 2 === 0) {
+      result.push({type: 0, A: A, B: B, C: C});
+    } else {
+      result.push({type: 0, A: A, B: C, C: B});
+    }
+  }
+  return result;
+}
+
+function init() {
+  tris = makeSun();
+  gen = 0;
+  history = [];
+  /* auto-inflate to gen 5 */
+  for (var n = 0; n < 5; n++) {
+    tris = inflate(tris);
+    gen++;
+  }
+  /* center and scale */
+  resetView();
+  updateHUD();
+  render();
+}
+
+function resetView() {
+  var minSide = Math.min(W, H);
+  /* At gen 0, the sun fits in radius 1; after inflation,
+     visual extent stays ~1 since world doesn't change, just
+     more subdivisions inside. Start zoomed to see the whole tiling. */
+  zoom = minSide * 0.42;
+  panX = W / 2;
+  panY = H / 2;
+}
+
+/* ---- Subdivision ---- */
+/* Rules (P3 Robinson triangles):
+   type 0 = acute  (36° apex at first vertex A)  →  1 acute + 1 obtuse
+   type 1 = obtuse (108° apex at first vertex A) →  1 acute + 2 obtuse
+   Algorithm from Rees / standard Penrose literature.
+*/
+function inflate(triangles) {
+  var result = [];
+  var inv = 1 / PHI;
+  for (var i = 0; i < triangles.length; i++) {
+    var t = triangles[i];
+    var Ax = t.A.x, Ay = t.A.y;
+    var Bx = t.B.x, By = t.B.y;
+    var Cx = t.C.x, Cy = t.C.y;
+    if (t.type === 0) {
+      /* acute: A=apex(36°), B,C=base
+         P = A + (B-A)/phi  [on leg AB] */
+      var Px = Ax + (Bx - Ax) * inv;
+      var Py = Ay + (By - Ay) * inv;
+      var P = {x: Px, y: Py};
+      var Aobj = t.A, Bobj = t.B, Cobj = t.C;
+      result.push({type: 0, A: Cobj, B: P,    C: Bobj}); /* acute  */
+      result.push({type: 1, A: P,    B: Cobj,  C: Aobj}); /* obtuse */
+    } else {
+      /* obtuse: A=apex(108°), B,C=base
+         Q = B + (A-B)/phi  [on leg BA]
+         R = C + (A-C)/phi  [on leg CA] */
+      var Qx = Bx + (Ax - Bx) * inv;
+      var Qy = By + (Ay - By) * inv;
+      var Rx = Cx + (Ax - Cx) * inv;
+      var Ry = Cy + (Ay - Cy) * inv;
+      var Q = {x: Qx, y: Qy};
+      var R = {x: Rx, y: Ry};
+      var Aobj2 = t.A, Bobj2 = t.B, Cobj2 = t.C;
+      result.push({type: 1, A: R,     B: Bobj2, C: Aobj2}); /* obtuse */
+      result.push({type: 1, A: Q,     B: R,     C: Bobj2}); /* obtuse */
+      result.push({type: 0, A: R,     B: Q,     C: Cobj2}); /* acute  */
+    }
+  }
+  return result;
+}
+
+/* ---- Render ---- */
+function worldToScreen(p) {
+  return {x: panX + p.x * zoom, y: panY + p.y * zoom};
+}
+
+/* fast version returning x,y directly */
+function wx(px) { return panX + px * zoom; }
+function wy(py) { return panY + py * zoom; }
+
+var FILL_A_DUAL = 'rgba(0,230,255,0.09)';   /* acute fill: dim cyan */
+var FILL_B_DUAL = 'rgba(255,140,0,0.07)';   /* obtuse fill: dim amber */
+var STROKE_A    = 'rgba(0,200,220,0.35)';   /* acute edge */
+var STROKE_B    = 'rgba(80,60,20,0.5)';     /* obtuse edge */
+var STROKE_VOID = '#1a1a1a';
+
+function centroid(t) {
+  return {
+    x: (t.A.x + t.B.x + t.C.x) / 3,
+    y: (t.A.y + t.B.y + t.C.y) / 3
+  };
+}
+
+function render() {
+  ctx.clearRect(0, 0, W * DPR, H * DPR);
+  ctx.save();
+  ctx.scale(DPR, DPR);
+
+  var strokeW = Math.max(0.3, 0.8 / zoom * 40);
+  /* cap stroke width at a reasonable size */
+  if (strokeW > 1.2) strokeW = 1.2;
+  ctx.lineWidth = strokeW;
+  ctx.lineJoin = 'round';
+
+  var mode = colorMode;
+
+  if (mode === 0) {
+    /* DUAL: batch acute, then obtuse */
+    /* Acute fills */
+    ctx.fillStyle = FILL_A_DUAL;
+    ctx.beginPath();
+    for (var i = 0; i < tris.length; i++) {
+      if (tris[i].type !== 0) continue;
+      var t = tris[i];
+      ctx.moveTo(wx(t.A.x), wy(t.A.y));
+      ctx.lineTo(wx(t.B.x), wy(t.B.y));
+      ctx.lineTo(wx(t.C.x), wy(t.C.y));
+      ctx.closePath();
+    }
+    ctx.fill();
+    /* Obtuse fills */
+    ctx.fillStyle = FILL_B_DUAL;
+    ctx.beginPath();
+    for (var i = 0; i < tris.length; i++) {
+      if (tris[i].type !== 1) continue;
+      var t = tris[i];
+      ctx.moveTo(wx(t.A.x), wy(t.A.y));
+      ctx.lineTo(wx(t.B.x), wy(t.B.y));
+      ctx.lineTo(wx(t.C.x), wy(t.C.y));
+      ctx.closePath();
+    }
+    ctx.fill();
+    /* Edges — slightly visible against near-black fills */
+    ctx.strokeStyle = 'rgba(0,200,200,0.18)';
+    ctx.beginPath();
+    for (var i = 0; i < tris.length; i++) {
+      var t = tris[i];
+      ctx.moveTo(wx(t.A.x), wy(t.A.y));
+      ctx.lineTo(wx(t.B.x), wy(t.B.y));
+      ctx.lineTo(wx(t.C.x), wy(t.C.y));
+      ctx.closePath();
+    }
+    ctx.stroke();
+  } else if (mode === 1) {
+    /* RADIAL: fill based on distance from center */
+    for (var i = 0; i < tris.length; i++) {
+      var t = tris[i];
+      var cx2 = (t.A.x + t.B.x + t.C.x) / 3;
+      var cy2 = (t.A.y + t.B.y + t.C.y) / 3;
+      var r = Math.sqrt(cx2 * cx2 + cy2 * cy2);
+      /* map r to 0..1 range, cycling */
+      var maxR = 1.2;
+      var v = (r % maxR) / maxR;
+      /* dark cyan → bright cyan → dim */
+      var bright = Math.floor(v * 200 + 30);
+      var alpha = 0.12 + v * 0.18;
+      ctx.fillStyle = 'rgba(0,' + bright + ',' + (bright + 55) + ',' + alpha + ')';
+      ctx.beginPath();
+      ctx.moveTo(wx(t.A.x), wy(t.A.y));
+      ctx.lineTo(wx(t.B.x), wy(t.B.y));
+      ctx.lineTo(wx(t.C.x), wy(t.C.y));
+      ctx.closePath();
+      ctx.fill();
+    }
+    ctx.strokeStyle = '#181818';
+    ctx.beginPath();
+    for (var i = 0; i < tris.length; i++) {
+      var t = tris[i];
+      ctx.moveTo(wx(t.A.x), wy(t.A.y));
+      ctx.lineTo(wx(t.B.x), wy(t.B.y));
+      ctx.lineTo(wx(t.C.x), wy(t.C.y));
+      ctx.closePath();
+    }
+    ctx.stroke();
+  } else if (mode === 2) {
+    /* PHASE: color by angle around center (5-fold bands) */
+    for (var i = 0; i < tris.length; i++) {
+      var t = tris[i];
+      var cx2 = (t.A.x + t.B.x + t.C.x) / 3;
+      var cy2 = (t.A.y + t.B.y + t.C.y) / 3;
+      var angle = Math.atan2(cy2, cx2);
+      /* normalize to 0..1 with 5-fold symmetry */
+      var v = ((angle / TWO_PI) * 5 % 1 + 1) % 1;
+      /* map to hue in dim palette: greens, teals, blues */
+      var hue = Math.floor(v * 60 + 160); /* 160-220 deg = cyan-blue range */
+      var alpha = t.type === 0 ? 0.15 : 0.1;
+      ctx.fillStyle = 'hsla(' + hue + ',60%,35%,' + alpha + ')';
+      ctx.beginPath();
+      ctx.moveTo(wx(t.A.x), wy(t.A.y));
+      ctx.lineTo(wx(t.B.x), wy(t.B.y));
+      ctx.lineTo(wx(t.C.x), wy(t.C.y));
+      ctx.closePath();
+      ctx.fill();
+    }
+    ctx.strokeStyle = '#222';
+    ctx.beginPath();
+    for (var i = 0; i < tris.length; i++) {
+      var t = tris[i];
+      ctx.moveTo(wx(t.A.x), wy(t.A.y));
+      ctx.lineTo(wx(t.B.x), wy(t.B.y));
+      ctx.lineTo(wx(t.C.x), wy(t.C.y));
+      ctx.closePath();
+    }
+    ctx.stroke();
+  } else {
+    /* VOID: outline only */
+    ctx.strokeStyle = '#2a2a2a';
+    ctx.beginPath();
+    for (var i = 0; i < tris.length; i++) {
+      var t = tris[i];
+      ctx.moveTo(wx(t.A.x), wy(t.A.y));
+      ctx.lineTo(wx(t.B.x), wy(t.B.y));
+      ctx.lineTo(wx(t.C.x), wy(t.C.y));
+      ctx.closePath();
+    }
+    ctx.stroke();
+    /* subtle fill: acute tiles get a faint cyan wash */
+    ctx.fillStyle = 'rgba(0,255,255,0.04)';
+    ctx.beginPath();
+    for (var i = 0; i < tris.length; i++) {
+      var t = tris[i];
+      if (t.type === 0) {
+        ctx.moveTo(wx(t.A.x), wy(t.A.y));
+        ctx.lineTo(wx(t.B.x), wy(t.B.y));
+        ctx.lineTo(wx(t.C.x), wy(t.C.y));
+        ctx.closePath();
+      }
+    }
+    ctx.fill();
+  }
+
+  ctx.restore();
+}
+
+/* ---- HUD ---- */
+function updateHUD() {
+  document.getElementById('gen-display').textContent = 'GEN ' + gen;
+  document.getElementById('tri-count').textContent = tris.length + ' TILES';
+  document.getElementById('btn-deflate').disabled = (history.length === 0);
+  document.getElementById('btn-inflate').disabled = (gen >= MAX_GEN);
+}
+
+/* ---- Controls ---- */
+document.getElementById('btn-inflate').addEventListener('pointerdown', function(e) {
+  e.preventDefault();
+  doInflate();
+});
+
+document.getElementById('btn-deflate').addEventListener('pointerdown', function(e) {
+  e.preventDefault();
+  doDeflate();
+});
+
+document.getElementById('btn-color').addEventListener('pointerdown', function(e) {
+  e.preventDefault();
+  colorMode = (colorMode + 1) % 4;
+  document.getElementById('btn-color').textContent = 'COLOR: ' + COLOR_LABELS[colorMode];
+  render();
+});
+
+document.getElementById('btn-reset').addEventListener('pointerdown', function(e) {
+  e.preventDefault();
+  init();
+});
+
+document.getElementById('btn-save').addEventListener('pointerdown', function(e) {
+  e.preventDefault();
+  render();
+  canvas.toBlob(function(blob) {
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url;
+    a.download = 'penrose-gen' + gen + '.png';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(function() { URL.revokeObjectURL(url); }, 5000);
+  });
+});
+
+function doInflate() {
+  if (gen >= MAX_GEN) return;
+  history.push({tris: tris, gen: gen});
+  tris = inflate(tris);
+  gen++;
+  updateHUD();
+  render();
+}
+
+function doDeflate() {
+  if (history.length === 0) return;
+  var prev = history.pop();
+  tris = prev.tris;
+  gen = prev.gen;
+  updateHUD();
+  render();
+}
+
+/* ---- Pan/zoom ---- */
+var pointers = {}; /* id → {x, y} */
+var isDrag = false;
+var lastSingle = null;
+var pinchDist0 = 0, zoom0 = 0, pinchMidX = 0, pinchMidY = 0;
+var pan0X = 0, pan0Y = 0;
+
+function getPinchDist() {
+  var ids = Object.keys(pointers);
+  if (ids.length < 2) return 0;
+  var p1 = pointers[ids[0]];
+  var p2 = pointers[ids[1]];
+  var dx = p2.x - p1.x, dy = p2.y - p1.y;
+  return Math.sqrt(dx * dx + dy * dy);
+}
+
+function getPinchMid() {
+  var ids = Object.keys(pointers);
+  var p1 = pointers[ids[0]];
+  var p2 = pointers[ids[1]];
+  return {x: (p1.x + p2.x) / 2, y: (p1.y + p2.y) / 2};
+}
+
+canvas.addEventListener('pointerdown', function(e) {
+  if (e.target !== canvas) return;
+  canvas.setPointerCapture(e.pointerId);
+  pointers[e.pointerId] = {x: e.clientX, y: e.clientY};
+  var count = Object.keys(pointers).length;
+  if (count === 1) {
+    isDrag = true;
+    lastSingle = {x: e.clientX, y: e.clientY};
+    canvas.classList.add('dragging');
+  } else if (count === 2) {
+    pinchDist0 = getPinchDist();
+    zoom0 = zoom;
+    var mid = getPinchMid();
+    pinchMidX = mid.x;
+    pinchMidY = mid.y;
+    pan0X = panX;
+    pan0Y = panY;
+  }
+  e.preventDefault();
+}, {passive: false});
+
+canvas.addEventListener('pointermove', function(e) {
+  if (!pointers[e.pointerId]) return;
+  pointers[e.pointerId] = {x: e.clientX, y: e.clientY};
+  var count = Object.keys(pointers).length;
+  if (count === 1 && isDrag) {
+    var dx = e.clientX - lastSingle.x;
+    var dy = e.clientY - lastSingle.y;
+    panX += dx;
+    panY += dy;
+    lastSingle = {x: e.clientX, y: e.clientY};
+    render();
+  } else if (count === 2) {
+    var dist = getPinchDist();
+    if (pinchDist0 > 0) {
+      var ratio = dist / pinchDist0;
+      var newZoom = zoom0 * ratio;
+      if (newZoom < 20) newZoom = 20;
+      if (newZoom > 50000) newZoom = 50000;
+      /* zoom around pinch midpoint */
+      var mid = getPinchMid();
+      /* world point under mid: same as before */
+      /* old: mid = panX + worldX * zoom0, so worldX = (mid - panX) / zoom0 */
+      /* new: mid = newPanX + worldX * newZoom */
+      /* newPanX = mid - worldX * newZoom = mid - (mid - panX)/zoom0 * newZoom */
+      /* zoom around the initial pinch midpoint, tracking finger movement for pan */
+      var mid = getPinchMid();
+      var worldX = (pinchMidX - pan0X) / zoom0;
+      var worldY = (pinchMidY - pan0Y) / zoom0;
+      panX = mid.x - worldX * newZoom;
+      panY = mid.y - worldY * newZoom;
+      zoom = newZoom;
+      render();
+    }
+  }
+  e.preventDefault();
+}, {passive: false});
+
+function endPointer(e) {
+  delete pointers[e.pointerId];
+  var count = Object.keys(pointers).length;
+  if (count === 0) {
+    isDrag = false;
+    canvas.classList.remove('dragging');
+  } else if (count === 1) {
+    /* reset single-pointer anchor */
+    var ids = Object.keys(pointers);
+    lastSingle = {x: pointers[ids[0]].x, y: pointers[ids[0]].y};
+  }
+}
+
+canvas.addEventListener('pointerup', function(e) { endPointer(e); e.preventDefault(); }, {passive: false});
+canvas.addEventListener('pointercancel', function(e) { endPointer(e); e.preventDefault(); }, {passive: false});
+
+/* Mouse wheel zoom */
+canvas.addEventListener('wheel', function(e) {
+  e.preventDefault();
+  var factor = e.deltaY < 0 ? 1.12 : (1 / 1.12);
+  var newZoom = zoom * factor;
+  if (newZoom < 20) newZoom = 20;
+  if (newZoom > 50000) newZoom = 50000;
+  var worldX = (e.clientX - panX) / zoom;
+  var worldY = (e.clientY - panY) / zoom;
+  panX = e.clientX - worldX * newZoom;
+  panY = e.clientY - worldY * newZoom;
+  zoom = newZoom;
+  render();
+}, {passive: false});
+
+/* Double-tap inflate */
+var lastTap = 0;
+canvas.addEventListener('pointerup', function(e) {
+  var now = Date.now();
+  if (now - lastTap < 300) {
+    doInflate();
+  }
+  lastTap = now;
+});
+
+/* ---- Resize ---- */
+function resize() {
+  DPR = window.devicePixelRatio || 1;
+  W = window.innerWidth;
+  H = window.innerHeight;
+  canvas.width = W * DPR;
+  canvas.height = H * DPR;
+  canvas.style.width = W + 'px';
+  canvas.style.height = H + 'px';
+}
+
+window.addEventListener('resize', function() {
+  resize();
+  resetView();
+  render();
+});
+
+/* ---- Start ---- */
+resize();
+init();
+
+})();
+</script>
+</body>
+</html>
