@@ -1,0 +1,732 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
+  <meta name="theme-color" content="#000000">
+  <title>Epicycles — Fourier Drawing Machine</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body {
+      height: 100%;
+      background: #0a0a0a;
+      overflow: hidden;
+      touch-action: manipulation;
+      -webkit-tap-highlight-color: transparent;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Courier New", monospace;
+      color: #aaa;
+    }
+    #app {
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+    }
+    #header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 6px 12px;
+      border-bottom: 1px solid #1a1a1a;
+      flex-shrink: 0;
+    }
+    #title {
+      font-size: 0.6rem;
+      letter-spacing: 0.3em;
+      text-transform: uppercase;
+      color: #444;
+    }
+    #status {
+      font-size: 0.5rem;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: #333;
+      margin-left: auto;
+    }
+    #main {
+      display: flex;
+      flex: 1;
+      overflow: hidden;
+    }
+    #canvas-wrap {
+      flex: 1;
+      position: relative;
+      overflow: hidden;
+    }
+    canvas {
+      position: absolute;
+      top: 0; left: 0;
+      width: 100%;
+      height: 100%;
+      cursor: crosshair;
+      user-select: none;
+      display: block;
+    }
+    #draw-hint {
+      position: absolute;
+      bottom: 16px;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: 0.42rem;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: #2a2a2a;
+      pointer-events: none;
+      white-space: nowrap;
+    }
+    #controls {
+      width: 160px;
+      border-left: 1px solid #1a1a1a;
+      padding: 8px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      overflow-y: auto;
+      flex-shrink: 0;
+    }
+    .section-label {
+      font-size: 0.42rem;
+      letter-spacing: 0.22em;
+      text-transform: uppercase;
+      color: #2e2e2e;
+      padding-bottom: 4px;
+      border-bottom: 1px solid #1a1a1a;
+    }
+    .btn {
+      padding: 5px 8px;
+      background: transparent;
+      border: 1px solid #1a1a1a;
+      color: #444;
+      font-family: inherit;
+      font-size: 0.5rem;
+      cursor: pointer;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      text-align: center;
+      width: 100%;
+    }
+    .btn:active { border-color: #555; color: #888; }
+    .btn.active { border-color: #0ff; color: #0ff; }
+    .slider-row {
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+    }
+    .slider-label {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.42rem;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: #333;
+    }
+    .slider-val { color: #555; }
+    input[type="range"] {
+      width: 100%;
+      height: 3px;
+      accent-color: #0ff;
+      cursor: pointer;
+    }
+    .preset-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 4px;
+    }
+    .preset-grid .btn { padding: 5px 4px; font-size: 0.45rem; }
+
+    @media (max-width: 600px) {
+      #main { flex-direction: column; }
+      #controls {
+        width: 100%;
+        border-left: none;
+        border-top: 1px solid #1a1a1a;
+        flex-direction: row;
+        flex-wrap: wrap;
+        gap: 6px;
+        max-height: 160px;
+        overflow-y: auto;
+        padding: 6px 8px;
+      }
+      .controls-section { min-width: 110px; }
+      #controls > .section-label { width: 100%; }
+    }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <div id="header">
+      <span id="title">Epicycles</span>
+      <span id="status">Draw a shape to begin</span>
+    </div>
+    <div id="main">
+      <div id="canvas-wrap">
+        <canvas id="c"></canvas>
+        <div id="draw-hint">Draw any closed shape · or pick a preset →</div>
+      </div>
+      <div id="controls">
+        <div class="section-label">Mode</div>
+        <button class="btn active" id="btn-draw">Draw</button>
+        <button class="btn" id="btn-animate">Animate</button>
+        <button class="btn" id="btn-clear">Clear</button>
+
+        <div class="section-label">Display</div>
+        <button class="btn active" id="btn-circles">Circles On</button>
+        <button class="btn active" id="btn-trace">Trace On</button>
+        <button class="btn active" id="btn-ghost">Ghost On</button>
+
+        <div class="slider-row">
+          <div class="slider-label"><span>Speed</span><span class="slider-val" id="speed-val">1.0x</span></div>
+          <input type="range" id="speed" min="0.1" max="5" step="0.1" value="1">
+        </div>
+        <div class="slider-row">
+          <div class="slider-label"><span>Epicycles</span><span class="slider-val" id="epi-val">All</span></div>
+          <input type="range" id="epi-pct" min="1" max="100" step="1" value="100">
+        </div>
+
+        <div class="section-label">Presets</div>
+        <div class="preset-grid">
+          <button class="btn" data-preset="circle">Circle</button>
+          <button class="btn" data-preset="star">Star</button>
+          <button class="btn" data-preset="heart">Heart</button>
+          <button class="btn" data-preset="figure8">Fig-8</button>
+          <button class="btn" data-preset="square">Square</button>
+          <button class="btn" data-preset="trefoil">Trefoil</button>
+          <button class="btn" data-preset="lissajous">Lissa</button>
+          <button class="btn" data-preset="spiral">Spiral</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+  (function () {
+    'use strict';
+
+    // ─── Canvas ─────────────────────────────────────────────────────
+    var canvas = document.getElementById('c');
+    var ctx = canvas.getContext('2d');
+    var W = 0, H = 0, DPR = window.devicePixelRatio || 1;
+
+    function resize() {
+      var wrap = document.getElementById('canvas-wrap');
+      var r = wrap.getBoundingClientRect();
+      W = r.width;
+      H = r.height;
+      canvas.width = Math.round(W * DPR);
+      canvas.height = Math.round(H * DPR);
+      ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+      redraw();
+    }
+
+    var rTimer = 0;
+    window.addEventListener('resize', function () {
+      clearTimeout(rTimer);
+      rTimer = setTimeout(resize, 150);
+    });
+
+    // ─── State ──────────────────────────────────────────────────────
+    var S = {
+      mode: 'draw',        // 'draw' | 'animate'
+      rawPts: [],          // absolute screen coords while drawing
+      isDrawing: false,
+      fourier: [],         // DFT coefficients sorted by amplitude
+      normPts: [],         // normalised ghost path (centred at origin)
+      trace: [],           // accumulated tip positions (centred at origin)
+      time: 0,             // 0..1
+      raf: null,
+      lastTs: null,
+      showCircles: true,
+      showTrace: true,
+      showGhost: true,
+      speed: 1.0,          // cycles per second
+      epiPct: 100,         // % of epicycles to show (1–100)
+    };
+
+    // ─── DFT ────────────────────────────────────────────────────────
+    // Discrete Fourier Transform on complex points (x=real, y=imag)
+    function dft(pts) {
+      var N = pts.length;
+      var out = new Array(N);
+      var TWO_PI_N = 2 * Math.PI / N;
+      for (var k = 0; k < N; k++) {
+        var re = 0, im = 0;
+        for (var n = 0; n < N; n++) {
+          var angle = TWO_PI_N * k * n;
+          var cos = Math.cos(angle);
+          var sin = Math.sin(angle);
+          re += pts[n].x * cos + pts[n].y * sin;
+          im += -pts[n].x * sin + pts[n].y * cos;
+        }
+        re /= N;
+        im /= N;
+        var amp = Math.sqrt(re * re + im * im);
+        var phase = Math.atan2(im, re);
+        out[k] = { freq: k, re: re, im: im, amp: amp, phase: phase };
+      }
+      out.sort(function (a, b) { return b.amp - a.amp; });
+      return out;
+    }
+
+    // ─── Path helpers ────────────────────────────────────────────────
+    // Resample a path to exactly N evenly-spaced points by arc-length
+    function resample(pts, N) {
+      if (pts.length < 2) return pts.slice();
+      var lens = [0];
+      for (var i = 1; i < pts.length; i++) {
+        var dx = pts[i].x - pts[i - 1].x;
+        var dy = pts[i].y - pts[i - 1].y;
+        lens.push(lens[i - 1] + Math.sqrt(dx * dx + dy * dy));
+      }
+      var total = lens[lens.length - 1];
+      var out = [];
+      var j = 0;
+      for (var k = 0; k < N; k++) {
+        var target = (k / N) * total;
+        while (j < lens.length - 2 && lens[j + 1] < target) j++;
+        var span = lens[j + 1] - lens[j];
+        var t = span < 1e-9 ? 0 : (target - lens[j]) / span;
+        out.push({
+          x: pts[j].x + t * (pts[j + 1].x - pts[j].x),
+          y: pts[j].y + t * (pts[j + 1].y - pts[j].y)
+        });
+      }
+      return out;
+    }
+
+    // Normalise points to be centred at origin, scaled to fit canvas
+    function normalise(pts) {
+      if (!pts.length) return [];
+      var minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+      for (var i = 0; i < pts.length; i++) {
+        if (pts[i].x < minX) minX = pts[i].x;
+        if (pts[i].x > maxX) maxX = pts[i].x;
+        if (pts[i].y < minY) minY = pts[i].y;
+        if (pts[i].y > maxY) maxY = pts[i].y;
+      }
+      var cx = (minX + maxX) / 2;
+      var cy = (minY + maxY) / 2;
+      var range = Math.max(maxX - minX, maxY - minY, 1);
+      var scale = Math.min(W, H) * 0.38 / (range / 2);
+      return pts.map(function (p) {
+        return { x: (p.x - cx) * scale, y: (p.y - cy) * scale };
+      });
+    }
+
+    // ─── Epicycle chain ─────────────────────────────────────────────
+    function getN() {
+      return Math.max(1, Math.round(S.fourier.length * S.epiPct / 100));
+    }
+
+    // Returns array of positions [{x,y}] for the chain tip at each step
+    function chain(t) {
+      var n = getN();
+      var x = 0, y = 0;
+      var TWO_PI = 2 * Math.PI;
+      var positions = [{ x: 0, y: 0 }];
+      for (var i = 0; i < n && i < S.fourier.length; i++) {
+        var f = S.fourier[i];
+        var angle = f.freq * TWO_PI * t + f.phase;
+        x += f.amp * Math.cos(angle);
+        y += f.amp * Math.sin(angle);
+        positions.push({ x: x, y: y });
+      }
+      return positions;
+    }
+
+    // ─── Render ──────────────────────────────────────────────────────
+    function redraw() {
+      if (S.mode === 'draw') renderDraw();
+      else renderAnimate();
+    }
+
+    function renderDraw() {
+      ctx.clearRect(0, 0, W, H);
+      if (S.rawPts.length < 2) return;
+      ctx.save();
+      ctx.strokeStyle = '#0ff';
+      ctx.lineWidth = 1.5;
+      ctx.lineJoin = 'round';
+      ctx.lineCap = 'round';
+      ctx.shadowColor = '#0ff';
+      ctx.shadowBlur = 6;
+      ctx.beginPath();
+      ctx.moveTo(S.rawPts[0].x, S.rawPts[0].y);
+      for (var i = 1; i < S.rawPts.length; i++) {
+        ctx.lineTo(S.rawPts[i].x, S.rawPts[i].y);
+      }
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    // positions cached per frame to avoid double chain() call
+    var cachedPositions = null;
+
+    function renderAnimate() {
+      ctx.clearRect(0, 0, W, H);
+      if (!S.fourier.length) return;
+
+      var positions = cachedPositions || chain(S.time);
+
+      ctx.save();
+      ctx.translate(W / 2, H / 2);
+
+      // Ghost: original normalised path
+      if (S.showGhost && S.normPts.length > 1) {
+        ctx.strokeStyle = 'rgba(0,255,255,0.07)';
+        ctx.lineWidth = 1;
+        ctx.shadowBlur = 0;
+        ctx.beginPath();
+        ctx.moveTo(S.normPts[0].x, S.normPts[0].y);
+        for (var i = 1; i < S.normPts.length; i++) {
+          ctx.lineTo(S.normPts[i].x, S.normPts[i].y);
+        }
+        ctx.closePath();
+        ctx.stroke();
+      }
+
+      // Trace
+      if (S.showTrace && S.trace.length > 1) {
+        ctx.strokeStyle = 'rgba(0,255,255,0.85)';
+        ctx.lineWidth = 1.5;
+        ctx.lineJoin = 'round';
+        ctx.lineCap = 'round';
+        ctx.shadowColor = '#0ff';
+        ctx.shadowBlur = 10;
+        ctx.beginPath();
+        ctx.moveTo(S.trace[0].x, S.trace[0].y);
+        for (var j = 1; j < S.trace.length; j++) {
+          ctx.lineTo(S.trace[j].x, S.trace[j].y);
+        }
+        ctx.stroke();
+        ctx.shadowBlur = 0;
+      }
+
+      // Epicycle circles + arms
+      if (S.showCircles) {
+        for (var k = 0; k < positions.length - 1; k++) {
+          var from = positions[k];
+          var to = positions[k + 1];
+          var amp = S.fourier[k] ? S.fourier[k].amp : 0;
+          if (amp < 0.5) continue;
+
+          var alpha = Math.min(0.18, amp / 80);
+          ctx.strokeStyle = 'rgba(255,255,255,' + alpha + ')';
+          ctx.lineWidth = 0.5;
+          ctx.shadowBlur = 0;
+          ctx.beginPath();
+          ctx.arc(from.x, from.y, amp, 0, 2 * Math.PI);
+          ctx.stroke();
+
+          ctx.strokeStyle = 'rgba(255,255,255,0.12)';
+          ctx.lineWidth = 0.8;
+          ctx.beginPath();
+          ctx.moveTo(from.x, from.y);
+          ctx.lineTo(to.x, to.y);
+          ctx.stroke();
+        }
+      }
+
+      // Tip dot
+      var tip = positions[positions.length - 1];
+      ctx.fillStyle = '#0ff';
+      ctx.shadowColor = '#0ff';
+      ctx.shadowBlur = 14;
+      ctx.beginPath();
+      ctx.arc(tip.x, tip.y, 2.5, 0, 2 * Math.PI);
+      ctx.fill();
+      ctx.shadowBlur = 0;
+
+      ctx.restore();
+    }
+
+    // ─── Animation loop ──────────────────────────────────────────────
+    function tick(ts) {
+      if (S.lastTs === null) S.lastTs = ts;
+      var dt = Math.min((ts - S.lastTs) / 1000, 0.05);
+      S.lastTs = ts;
+
+      S.time += dt * S.speed;
+
+      // Compute chain once per frame — shared with renderAnimate
+      cachedPositions = chain(S.time);
+      var tip = cachedPositions[cachedPositions.length - 1];
+      S.trace.push({ x: tip.x, y: tip.y });
+
+      // After one full revolution, restart trace
+      if (S.time >= 1) {
+        S.time -= 1;
+        S.trace = [{ x: tip.x, y: tip.y }];
+      }
+
+      renderAnimate();
+      cachedPositions = null;
+      S.raf = requestAnimationFrame(tick);
+    }
+
+    function stopAnim() {
+      if (S.raf) { cancelAnimationFrame(S.raf); S.raf = null; }
+      S.lastTs = null;
+    }
+
+    function startAnim() {
+      if (S.rawPts.length < 4) {
+        setStatus('Draw a shape first');
+        return;
+      }
+      stopAnim();
+
+      // Build normalised + resampled path from rawPts
+      var norm = normalise(S.rawPts);
+      // Close the path for DFT
+      var closed = norm.concat([norm[0]]);
+      var N_SAMPLES = 128;
+      var resampled = resample(closed, N_SAMPLES);
+
+      S.normPts = norm;
+      S.trace = [];
+      S.time = 0;
+
+      setStatus('Computing…');
+      // Defer DFT to avoid blocking paint
+      setTimeout(function () {
+        S.fourier = dft(resampled);
+        var n = S.fourier.length;
+        setStatus(n + ' epicycles · speed ' + S.speed.toFixed(1) + 'x');
+        S.raf = requestAnimationFrame(tick);
+      }, 16);
+    }
+
+    // ─── Presets ─────────────────────────────────────────────────────
+    // All presets return centred points (not screen coords)
+    var PRESETS = {
+      circle: function () {
+        var pts = [];
+        for (var i = 0; i < 200; i++) {
+          var a = (2 * Math.PI * i) / 200;
+          pts.push({ x: 150 * Math.cos(a), y: 150 * Math.sin(a) });
+        }
+        return pts;
+      },
+      star: function () {
+        // 5-pointed star: 10 vertices alternating outer/inner, straight-line edges
+        var pts = [];
+        var nTips = 5;
+        var outerR = 175, innerR = 72;
+        var vertices = [];
+        for (var i = 0; i < nTips * 2; i++) {
+          var a = (Math.PI * i / nTips) - Math.PI / 2;
+          var r = (i % 2 === 0) ? outerR : innerR;
+          vertices.push({ x: r * Math.cos(a), y: r * Math.sin(a) });
+        }
+        // Interpolate 20 points per side for smooth DFT
+        var PER_SIDE = 20;
+        for (var s = 0; s < vertices.length; s++) {
+          var from = vertices[s], to = vertices[(s + 1) % vertices.length];
+          for (var j = 0; j < PER_SIDE; j++) {
+            var t = j / PER_SIDE;
+            pts.push({ x: from.x + t * (to.x - from.x), y: from.y + t * (to.y - from.y) });
+          }
+        }
+        return pts;
+      },
+      heart: function () {
+        var pts = [];
+        for (var i = 0; i < 200; i++) {
+          var t = (2 * Math.PI * i) / 200;
+          var x = 16 * Math.pow(Math.sin(t), 3);
+          var y = -(13 * Math.cos(t) - 5 * Math.cos(2 * t) - 2 * Math.cos(3 * t) - Math.cos(4 * t));
+          pts.push({ x: x * 11, y: y * 11 });
+        }
+        return pts;
+      },
+      figure8: function () {
+        var pts = [];
+        for (var i = 0; i < 200; i++) {
+          var t = (2 * Math.PI * i) / 200;
+          pts.push({ x: 160 * Math.sin(t), y: 80 * Math.sin(2 * t) });
+        }
+        return pts;
+      },
+      square: function () {
+        var pts = [];
+        var corners = [[-140, -140], [140, -140], [140, 140], [-140, 140]];
+        var perSide = 40;
+        for (var s = 0; s < 4; s++) {
+          var a = corners[s], b = corners[(s + 1) % 4];
+          for (var j = 0; j < perSide; j++) {
+            var t = j / perSide;
+            pts.push({ x: a[0] + t * (b[0] - a[0]), y: a[1] + t * (b[1] - a[1]) });
+          }
+        }
+        return pts;
+      },
+      trefoil: function () {
+        var pts = [];
+        for (var i = 0; i < 200; i++) {
+          var t = (2 * Math.PI * i) / 200;
+          var r = 160 * (1 + 0.5 * Math.cos(3 * t));
+          pts.push({ x: r * Math.cos(t), y: r * Math.sin(t) });
+        }
+        return pts;
+      },
+      lissajous: function () {
+        var pts = [];
+        for (var i = 0; i < 200; i++) {
+          var t = (2 * Math.PI * i) / 200;
+          pts.push({ x: 150 * Math.sin(3 * t + Math.PI / 4), y: 150 * Math.sin(2 * t) });
+        }
+        return pts;
+      },
+      spiral: function () {
+        var pts = [];
+        var turns = 4;
+        // Spiral then back (closed path needed)
+        var half = 100;
+        for (var i = 0; i < half; i++) {
+          var t = (2 * Math.PI * turns * i) / half;
+          var r = 10 + 160 * i / half;
+          pts.push({ x: r * Math.cos(t), y: r * Math.sin(t) });
+        }
+        // Return path (reverse spiral)
+        for (var i = half - 1; i >= 0; i--) {
+          var t = (2 * Math.PI * turns * i) / half + Math.PI / 8;
+          var r = 10 + 160 * i / half;
+          pts.push({ x: r * Math.cos(t), y: r * Math.sin(t) });
+        }
+        return pts;
+      }
+    };
+
+    function loadPreset(name) {
+      if (!PRESETS[name]) return;
+      stopAnim();
+      var centred = PRESETS[name]();
+      // Convert centred coords to screen coords for rawPts
+      S.rawPts = centred.map(function (p) { return { x: p.x + W / 2, y: p.y + H / 2 }; });
+      setMode('animate');
+    }
+
+    // ─── Mode switching ──────────────────────────────────────────────
+    function setMode(m) {
+      stopAnim();
+      S.mode = m;
+      document.getElementById('btn-draw').classList.toggle('active', m === 'draw');
+      document.getElementById('btn-animate').classList.toggle('active', m === 'animate');
+      document.getElementById('draw-hint').style.display = (m === 'draw') ? 'block' : 'none';
+
+      if (m === 'draw') {
+        S.fourier = [];
+        S.trace = [];
+        renderDraw();
+        setStatus('Draw mode · draw then tap Animate');
+      } else {
+        startAnim();
+      }
+    }
+
+    function setStatus(msg) {
+      document.getElementById('status').textContent = msg;
+    }
+
+    // ─── Pointer drawing ─────────────────────────────────────────────
+    canvas.addEventListener('pointerdown', function (e) {
+      if (S.mode !== 'draw') return;
+      e.preventDefault();
+      canvas.setPointerCapture(e.pointerId);
+      S.isDrawing = true;
+      S.rawPts = [];
+      S.rawPts.push(canvasPos(e));
+      ctx.clearRect(0, 0, W, H);
+      setStatus('Drawing…');
+    });
+
+    canvas.addEventListener('pointermove', function (e) {
+      if (S.mode !== 'draw' || !S.isDrawing) return;
+      e.preventDefault();
+      var pos = canvasPos(e);
+      var last = S.rawPts[S.rawPts.length - 1];
+      var dx = pos.x - last.x, dy = pos.y - last.y;
+      if (dx * dx + dy * dy < 16) return; // skip if < 4px
+      S.rawPts.push(pos);
+      renderDraw();
+    });
+
+    canvas.addEventListener('pointerup', function (e) {
+      if (S.mode !== 'draw' || !S.isDrawing) return;
+      S.isDrawing = false;
+      if (S.rawPts.length > 8) {
+        setStatus('Shape recorded · tap Animate →');
+      } else {
+        setStatus('Draw more — keep the pointer down');
+      }
+    });
+
+    canvas.addEventListener('pointercancel', function () {
+      S.isDrawing = false;
+    });
+
+    function canvasPos(e) {
+      var r = canvas.getBoundingClientRect();
+      return { x: e.clientX - r.left, y: e.clientY - r.top };
+    }
+
+    // ─── Control bindings ────────────────────────────────────────────
+    document.getElementById('btn-draw').addEventListener('click', function () { setMode('draw'); });
+    document.getElementById('btn-animate').addEventListener('click', function () { setMode('animate'); });
+    document.getElementById('btn-clear').addEventListener('click', function () {
+      stopAnim();
+      S.rawPts = [];
+      S.fourier = [];
+      S.trace = [];
+      S.normPts = [];
+      S.mode = 'draw';
+      document.getElementById('btn-draw').classList.add('active');
+      document.getElementById('btn-animate').classList.remove('active');
+      document.getElementById('draw-hint').style.display = 'block';
+      ctx.clearRect(0, 0, W, H);
+      setStatus('Cleared · draw a new shape');
+    });
+
+    document.getElementById('btn-circles').addEventListener('click', function () {
+      S.showCircles = !S.showCircles;
+      this.textContent = S.showCircles ? 'Circles On' : 'Circles Off';
+      this.classList.toggle('active', S.showCircles);
+    });
+    document.getElementById('btn-trace').addEventListener('click', function () {
+      S.showTrace = !S.showTrace;
+      this.textContent = S.showTrace ? 'Trace On' : 'Trace Off';
+      this.classList.toggle('active', S.showTrace);
+    });
+    document.getElementById('btn-ghost').addEventListener('click', function () {
+      S.showGhost = !S.showGhost;
+      this.textContent = S.showGhost ? 'Ghost On' : 'Ghost Off';
+      this.classList.toggle('active', S.showGhost);
+    });
+
+    document.getElementById('speed').addEventListener('input', function () {
+      S.speed = parseFloat(this.value);
+      document.getElementById('speed-val').textContent = S.speed.toFixed(1) + 'x';
+      if (S.mode === 'animate') setStatus(S.fourier.length + ' epicycles · speed ' + S.speed.toFixed(1) + 'x');
+    });
+
+    document.getElementById('epi-pct').addEventListener('input', function () {
+      S.epiPct = parseInt(this.value, 10);
+      document.getElementById('epi-val').textContent = S.epiPct === 100 ? 'All' : S.epiPct + '%';
+      if (S.mode === 'animate') {
+        S.trace = [];
+        S.time = 0;
+      }
+    });
+
+    document.querySelectorAll('[data-preset]').forEach(function (btn) {
+      btn.addEventListener('click', function () { loadPreset(this.dataset.preset); });
+    });
+
+    // ─── Init ────────────────────────────────────────────────────────
+    resize();
+    setStatus('Draw any shape · or pick a preset →');
+  })();
+  </script>
+</body>
+</html>

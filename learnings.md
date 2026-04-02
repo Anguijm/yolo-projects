@@ -2638,3 +2638,13 @@ Sequential Gemini reviews (focus: bugs, then security) caught **different issue 
 - **INSIGHT**: `TypedArray.fill(0)` is a native SIMD operation — use it to zero large buffers instead of JS loops. Especially important for ImageData (4× size of logical grid).
 - **INSIGHT**: Physics "gradient descent toward zero" is a universal particle-settling technique. If you have a scalar field `Z(x,y)` and want particles to settle on its zero-contour, apply force `-Z * ∇Z`. This is clean, analytic, and works for any field including mode shapes, distance fields, and potential wells.
 - **TEST CAUGHT**: All bugs found by self-audit. Key pattern: immediately audit any variable declared but unused — dead variables are often a sign of a missing integration or redundant code.
+
+### epicycles — Fourier Drawing Machine (2026-04-02)
+- **KEEP**: DFT sign convention — treating (x,y) as complex z=x+iy: `re = x*cosθ + y*sinθ`, `im = -x*sinθ + y*cosθ`. This is correct for 2D path reconstruction.
+- **KEEP**: Arc-length resampling before DFT — interpolate along cumulative arc-length so DFT gets evenly-spaced samples, not bunched-up strokes.
+- **KEEP**: `setPointerCapture(e.pointerId)` in `pointerdown` for drawing surfaces — ensures `pointermove`/`pointerup` keep firing even if pointer leaves canvas mid-stroke.
+- **KEEP**: Cache `chain()` per frame with a module-level `cachedPositions` variable — compute once in `tick()`, pass implicitly to `renderAnimate()`, clear after render. Avoids redundant O(N) trig per frame.
+- **BUG (self-audit)**: `if (S.rawPts.length < 4 && S.mode !== 'animate')` — `setMode()` sets `S.mode = 'animate'` BEFORE calling `startAnim()`, so the guard `S.mode !== 'animate'` is always false and the early-return never fires. Fixed by removing the mode condition.
+- **BUG (self-audit)**: Star preset defined as arc-samples at alternating radii — produced a round blob, not a star. Fixed by defining 10 explicit vertices (5 outer + 5 inner, 36° apart) then linear interpolation between them.
+- **INSIGHT**: After calling `setMode(m)`, `S.mode === m` is already true when any sub-function runs — never use the old mode as a conditional inside those calls.
+- **INSIGHT**: For Fourier epicycles, sort DFT bins by amplitude descending — large-amplitude terms define the gross shape, small terms add fine detail. Truncating at 50% still looks recognizable.
