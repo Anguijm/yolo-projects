@@ -6,20 +6,24 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
 <meta name="theme-color" content="#000000">
-<title>Haiku</title>
+<title>haiku-gen</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 html,body{height:100%;overflow:hidden;font-family:ui-serif,Georgia,Cambria,'Times New Roman',Times,serif;transition:background 1.2s,color 1.2s}
-body{display:flex;flex-direction:column;align-items:center;justify-content:center;background:#0a0a0f;color:#c8c0b0;-webkit-tap-highlight-color:transparent}
+body{display:flex;flex-direction:column;align-items:center;justify-content:center;background:#0a0a0f;color:#c8c0b0;-webkit-tap-highlight-color:transparent;touch-action:manipulation}
 
-#poem{text-align:center;padding:20px;max-width:400px;transition:opacity 0.5s;cursor:pointer}
+#poem{text-align:center;padding:20px;max-width:480px;transition:opacity 0.5s;cursor:pointer}
 #poem.fade{opacity:0}
-.line{font-size:1.3rem;line-height:2;font-weight:300;letter-spacing:0.03em}
-#season-label{font-size:0.3rem;letter-spacing:0.25em;text-transform:uppercase;opacity:0.3;margin-top:20px}
+.line{font-size:1.3rem;line-height:2.2;font-weight:300;letter-spacing:0.04em}
+#season-label{font-size:0.3rem;letter-spacing:0.25em;text-transform:uppercase;opacity:0.3;margin-top:16px}
+#theme-label{font-size:0.28rem;letter-spacing:0.15em;opacity:0.25;margin-top:4px}
 
-#controls{position:fixed;bottom:20px;display:flex;gap:8px;z-index:5}
-.btn{padding:6px 16px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);color:rgba(255,255,255,0.3);font-size:0.38rem;cursor:pointer;border-radius:6px;font-family:inherit;transition:all 0.15s}
+#controls{position:fixed;bottom:20px;display:flex;gap:8px;align-items:center;z-index:5}
+.btn{padding:6px 16px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);color:rgba(255,255,255,0.3);font-size:0.4rem;cursor:pointer;border-radius:6px;font-family:inherit;transition:all 0.15s;text-transform:uppercase;letter-spacing:0.08em}
 .btn:active{color:rgba(255,255,255,0.6)}
+#theme-input{padding:5px 10px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);color:rgba(255,255,255,0.5);font-size:0.4rem;border-radius:6px;font-family:ui-monospace,monospace;width:100px;outline:none;text-align:center}
+#theme-input:focus{border-color:rgba(255,255,255,0.2);color:rgba(255,255,255,0.7)}
+#theme-input::placeholder{color:rgba(255,255,255,0.15)}
 #hint{position:fixed;bottom:56px;font-size:0.28rem;color:rgba(255,255,255,0.1);letter-spacing:0.1em}
 #saved-count{position:fixed;top:12px;right:12px;font-size:0.3rem;color:rgba(255,255,255,0.15);font-family:system-ui,sans-serif}
 </style>
@@ -31,8 +35,11 @@ body{display:flex;flex-direction:column;align-items:center;justify-content:cente
   <div class="line" id="l3"></div>
 </div>
 <div id="season-label"></div>
+<div id="theme-label"></div>
 <span id="hint">tap anywhere or press space</span>
 <div id="controls">
+  <input type="text" id="theme-input" placeholder="theme..." maxlength="20" spellcheck="false">
+  <button class="btn" id="btn-gen">New</button>
   <button class="btn" id="btn-copy">Copy</button>
   <button class="btn" id="btn-save">Save</button>
 </div>
@@ -42,40 +49,86 @@ body{display:flex;flex-direction:column;align-items:center;justify-content:cente
 (function(){
 'use strict';
 
-// ---- Word banks: organized by part-of-speech and syllable count ----
 var WORDS={
   adj:{
-    1:['bare','bright','calm','cold','dark','deep','dry','faint','fresh','gold','green','grey','hushed','lone','lost','mild','old','pale','red','sharp','slow','soft','still','sweet','thin','warm','wet','wild'],
-    2:['ancient','broken','crimson','distant','drowsy','empty','endless','fallen','fleeting','floating','frozen','gentle','golden','hollow','iron','jagged','molten','orange','patient','quiet','sacred','shallow','silent','silver','slender','sudden','tender','twilight','vacant','velvet','woven'],
-    3:['beautiful','delicate','forgotten','motionless','luminous','resonant','shadowy','shimmering','solitary','wandering','whispering']
+    1:['bare','black','blank','bleak','blind','blue','bold','brave','bright','broad','brown','calm','clean','clear','close','cold','cool','dark','dead','dear','deep','dim','dry','dull','fair','faint','false','far','fast','fine','firm','flat','free','fresh','full','glad','gold','good','grand','grave','great','green','grey','half','hard','harsh','high','hot','keen','kind','last','late','lean','light','lone','long','lost','loud','low','mad','mean','meek','mild','moist','mute','near','new','numb','odd','old','pale','plain','poor','proud','pure','quick','raw','red','rich','ripe','rough','round','rude','safe','sharp','short','sick','slow','small','smooth','soft','sore','stark','steep','stiff','still','strange','strong','sure','sweet','tall','tame','thick','thin','tight','tired','true','vain','vast','warm','weak','wet','white','whole','wide','wild','wise','worn','young'],
+    2:['absent','aching','agile','aimless','ancient','ashen','bitter','bleary','blinding','brazen','brittle','broken','bruised','burning','careless','certain','chilling','clouded','coastal','common','crimson','crooked','cruel','crystal','cursed','dampened','dappled','daring','deathless','distant','dreaming','drowsy','earthen','eastern','eerie','elbow','empty','endless','errant','faceless','faithful','fearful','feral','fertile','fiery','fleeting','floating','foreign','fragile','frozen','furtive','gentle','ghostly','giddy','gilded','glacial','gleaming','glinting','gloomy','glowing','golden','graceful','granite','grassy','grieving','guarded','guilty','hallowed','hardened','hazy','hidden','hollow','hopeful','humble','hungry','iron','ivory','jagged','joyful','kindred','languid','lasting','lavish','lazy','leaden','leafy','lilting','liquid','little','livid','lonely','loving','lunar','lustrous','mellow','mighty','misty','molten','mossy','mourning','muddy','murky','nameless','narrow','nimble','noble','obscure','open','orange','outer','painted','patient','peaceful','phantom','placid','pointed','polished','precious','primal','pristine','pungent','purple','quiet','radiant','ragged','restless','rolling','rooted','rotting','royal','rugged','rustic','sacred','sallow','salty','scarlet','scattered','secret','serene','shallow','shifting','shining','silent','silken','silver','simple','single','slender','smiling','smoking','soaking','solemn','somber','splendid','spotted','stagnant','steady','steaming','stinging','stolen','stony','stormy','sturdy','subtle','sullen','sunken','surplus','swaying','tender','thorny','tidal','timid','tranquil','trembling','turbid','twilight','twisted','unborn','urban','urgent','vacant','velvet','vivid','wailing','waning','wanton','waxing','weary','western','wicked','willing','winding','wintry','withered','woeful','wooden','woven','yearning'],
+    3:['abandoned','beautiful','benevolent','billowing','cavernous','circular','compassionate','crystalline','delicate','desolate','diaphanous','ebullient','echoing','effulgent','elaborate','elegant','eloquent','embattled','emerald','ephemeral','ethereal','exquisite','feathery','forgotten','fugitive','glimmering','gossamer','hovering','impatient','imperfect','iridescent','labyrinthine','languorous','luminous','melodious','mercurial','miniature','miraculous','motionless','obsidian','opulent','permanent','perpetual','petrified','plummeting','porcelain','powdery','radiant','receding','reluctant','resonant','rustling','sapphire','shadowy','shimmering','silhouetted','singular','slithering','smoldering','solitary','spiraling','staggering','suspended','symmetrical','tenacious','translucent','tremulous','turbulent','unbidden','unbroken','undying','unfailing','unfolding','vanishing','venomous','wandering','whispering','withering','wondering']
   },
   noun:{
-    1:['ash','bark','bell','bloom','branch','brook','cloud','crane','creek','crow','dawn','dew','dream','dusk','dust','earth','field','flame','frog','frost','gate','grass','grove','haze','heat','hill','ice','lake','leaf','light','marsh','mist','moon','moss','moth','night','oak','path','peak','pine','pool','rain','reed','ridge','rock','root','rose','seed','shade','shore','sky','smoke','snow','spring','star','stone','stream','sun','thorn','tide','tree','vale','vine','wave','well','wind','wing','wood','wren'],
-    2:['amber','bamboo','blossom','candle','canyon','cedar','cherry','cobweb','cricket','crystal','cypress','feather','firefly','flower','footprint','garden','harbor','harvest','heron','hillside','honey','iris','lantern','lily','meadow','mountain','ocean','pebble','plover','rabbit','ripple','river','robin','shadow','shimmer','silence','sparrow','spider','starlight','summer','sunlight','temple','thistle','thunder','village','water','willow','winter'],
-    3:['butterfly','chrysalis','cicada','dragonfly','evergreen','firefly','galaxy','horizon','lavender','memory','mosquito','nightingale','porcupine','sakura','silhouette','solitude','waterfall','wilderness']
+    1:['air','ant','arch','ash','axe','bark','bay','beam','bear','bed','bee','bell','bench','bird','blade','blaze','bliss','blood','bloom','bluff','boat','bone','book','bow','braid','branch','bread','breath','breeze','brick','bridge','brook','brush','bud','burn','cage','cairn','cape','cart','cave','chain','chalk','chance','chant','charm','chest','child','chill','chord','church','cliff','cloak','clock','cloud','coal','coast','cone','cord','core','court','crack','crane','creek','crest','cross','crow','crown','cry','cup','curve','dale','dance','dawn','debt','deer','den','depth','dew','dirt','dock','dome','door','dove','draft','drain','dream','drum','dune','dust','dusk','dwarf','dye','ear','earth','east','edge','egg','elm','eye','face','faith','farm','fault','feast','fence','fern','field','fig','fin','fire','fish','flag','flame','flaw','flint','flock','flood','floor','flow','flute','foam','fog','fold','foot','ford','forge','fork','fort','fox','frame','frost','fruit','fur','gain','gale','gap','gate','gaze','gear','ghost','gift','glade','glass','gleam','glen','glint','globe','gloom','glow','goat','gorge','grace','grain','grape','grasp','grass','grave','grief','grill','grin','grip','ground','grove','growth','guard','gulf','gust','hail','hall','hand','hare','harp','haste','hawk','haze','heart','heat','hedge','height','herb','herd','hill','hive','hole','home','hood','hook','hope','horn','horse','host','house','hue','hull','hush','hymn','ice','ink','isle','jade','jar','jay','judge','kelp','key','kite','knack','kneel','knife','knot','lace','lake','lamp','lance','lane','lark','latch','lawn','lead','leaf','ledge','lie','light','lime','link','lip','lodge','loft','loom','loop','lore','loss','love','luck','lung','lynx','mace','map','march','mark','marsh','mask','mast','mate','maze','mead','mill','mind','mine','mint','mist','moat','mole','mood','moon','moor','moss','moth','mount','mouse','mouth','mud','muse','myth','nail','name','nest','net','night','nook','noon','north','nose','note','nun','oak','oar','oath','oil','orb','ore','owl','pace','page','pail','pain','paint','palm','park','pass','paste','patch','path','paw','peak','pearl','pen','perch','pier','pike','pine','pit','place','plain','plank','plough','plum','plume','pod','point','pond','pool','porch','port','post','pot','pouch','press','pride','priest','prize','proof','psalm','pulse','quail','quartz','quest','quill','race','raft','rage','rail','rain','range','ray','reed','reef','reign','rest','ridge','rift','rim','ring','rise','road','robe','rock','rod','role','roof','room','root','rope','rose','round','route','ruin','rule','rush','sage','sail','salt','sand','sap','scale','scar','scent','school','scout','screen','sea','seal','search','seat','seed','shade','shaft','shame','shape','share','sheep','shelf','shell','shield','shift','ship','shirt','shock','shoe','shoot','shore','shout','shrine','shrub','sign','silk','sin','site','skull','sky','slate','sleep','sleet','slope','sloth','slug','smile','smith','smoke','snail','snake','snow','soil','sole','song','soul','south','spark','spear','speech','spell','spice','spike','spine','spite','spoke','spoon','sport','spray','spring','spur','square','squall','squint','staff','stage','stain','stair','stake','stalk','stamp','star','state','stave','steam','steel','stem','step','stick','stitch','stock','stone','stool','store','stork','storm','stove','strain','strand','straw','stream','street','stress','stride','strike','string','stripe','stroke','stud','stump','style','suit','sum','sun','surge','swamp','swan','swarm','sweat','sweep','swerve','sword','tale','task','tear','tease','thaw','thorn','thought','thread','threat','throat','throne','tide','tile','tip','toll','tomb','tone','tongue','tool','torch','tower','town','trace','track','trade','trail','trap','tray','trench','tribe','trill','troop','trout','truce','trunk','trust','truth','tube','tune','twist','vale','vane','vault','veil','vein','verse','vest','view','vine','voice','void','vow','wade','wage','wake','wall','wand','ward','warmth','waste','watch','wave','wax','wealth','web','wedge','weed','well','west','whale','wheat','wheel','whim','whirl','width','wife','will','wind','wine','wing','wish','wisp','witch','wolf','wood','wool','word','work','world','worm','worth','wound','wraith','wren','wrist','yard','yew','yield','youth','zeal','zone'],
+    2:['absence','amber','anchor','anvil','apple','armor','arrow','autumn','bamboo','banner','barrel','basin','beacon','blanket','blizzard','blossom','bonfire','boulder','bramble','buckle','burden','cabin','cactus','candle','canyon','canvas','captain','cargo','carpet','castle','cavern','cedar','cellar','center','chapel','cherry','cinder','circuit','citrus','cobweb','comfort','compass','copper','coral','corner','cottage','council','cradle','cricket','crocus','crystal','current','curtain','cypress','dagger','darkness','debris','desert','diamond','distance','donkey','doorstep','droplet','eagle','earthquake','ember','entrance','falcon','feather','ferry','finger','firefly','flower','footprint','forest','fortress','fountain','freedom','furnace','garden','garment','glacier','harbor','harvest','heather','heron','hillside','hollow','honey','horizon','hunter','husband','incense','insect','instinct','island','ivory','jasmine','journey','jungle','kindling','lantern','laughter','leather','legend','lesson','letter','lily','linen','lizard','lotus','lumber','maple','marble','market','meadow','menace','midnight','mirror','moment','monkey','morning','mortar','mother','mountain','music','mushroom','mystery','nectar','needle','neighbor','nucleus','number','ocean','olive','omen','orbit','order','osprey','otter','outcry','outline','oyster','paddle','palace','panther','parcel','pattern','pebble','penny','pepper','phantom','phoenix','pillar','plover','plunder','poison','poppy','portrait','promise','pumpkin','puzzle','python','quiver','rabbit','rainfall','rainbow','raven','reason','ribbon','riddle','ripple','river','robin','rubble','runway','saffron','salmon','sapphire','scaffold','scarecrow','sculpture','season','serpent','shadow','shelter','shimmer','shingle','signal','silence','socket','soldier','sorrow','sparrow','spider','spindle','spirit','splinter','squirrel','stallion','starlight','statue','stranger','structure','stubble','substance','summer','summit','sunlight','sunrise','sunset','surface','swallow','symbol','temple','tender','thistle','thicket','thunder','tiger','timber','token','torrent','tower','treasure','tremble','trespass','tribute','trumpet','turmoil','turtle','twilight','vapor','vessel','village','vintage','violet','vision','vulture','water','whisker','whisper','willow','window','winter','wisdom','witness','wonder','worship','zenith'],
+    3:['alchemy','ancestor','antelope','atmosphere','awakening','beginning','betrayal','boundaries','buffalo','butterfly','calendar','canopy','carnival','cathedral','cemetery','character','chronicle','chrysalis','cicada','cinnamon','collection','commander','companion','contentment','corridor','covenant','crocodile','curvature','daffodil','deception','destiny','dilemma','dragonfly','dynasty','element','elixir','emerald','emperor','energy','escapade','eternity','evergreen','family','fantasy','galaxy','grasshopper','guardian','hemisphere','heritage','hummingbird','idea','illusion','imagery','incident','innocence','interior','labyrinth','latitude','lavender','library','lioness','lullaby','mandolin','mariner','melody','memory','messenger','mineral','ministry','miracle','monastery','mosquito','nightingale','oblivion','obstacle','opening','orchestra','paradise','passenger','pelican','peninsula','peppermint','photograph','pioneer','poetry','porcupine','predator','prophecy','pyramid','remedy','replica','reverie','rosemary','sakura','samurai','sandalwood','sentinel','silhouette','skeleton','solitude','spectacle','stratosphere','summoning','tapestry','territory','tomorrow','traveler','triangle','umbrella','universe','vagabond','vicinity','wanderer','waterfall','wilderness']
   },
   verb:{
-    1:['bends','blooms','burns','calls','climbs','clings','creeps','drifts','drips','falls','fades','flies','floats','flows','glows','grows','hangs','hides','holds','leaps','lies','melts','moves','parts','rests','rings','rocks','rolls','shines','sings','sits','sleeps','slips','soars','speaks','stays','stirs','stops','sways','turns','waits','wakes','walks','weeps'],
-    2:['awakens','echoes','embraces','fading','flickers','gathers','lingers','murmurs','quivers','reaches','ripples','scatters','settles','shivers','shimmers','sleeping','trembles','unfolds','vanishes','whispers','withers','wanders']
+    1:['arcs','basks','bathes','beams','beats','bends','binds','bleeds','blends','blows','blurs','boils','breaks','breathes','brews','broods','builds','burns','bursts','calls','carves','casts','catches','chants','chills','chimes','clasps','climbs','clings','coils','cools','counts','cracks','crawls','creaks','creeps','crests','curls','curves','darts','dawns','dives','drags','drains','drapes','draws','dreams','drifts','drinks','drips','drives','drops','drowns','drums','dries','dulls','dwells','eats','ends','fades','falls','faults','fears','feeds','feels','fights','fills','finds','flares','flees','flings','flips','floats','floods','flows','folds','fools','forges','forms','frays','frees','frosts','gathers','gazes','gleams','glides','glints','glows','gnaws','goes','grasps','grinds','grips','groans','grows','guards','guides','halts','hangs','harps','haunts','heals','hears','heats','heaves','hides','hits','holds','hopes','howls','hums','hunts','hurls','hushed','keeps','kneels','knits','knows','laps','leads','leaks','leans','leaps','learns','leaves','lends','lifts','lights','limps','lives','looms','loops','lurks','makes','marks','melts','mends','moans','molds','moves','names','needs','nests','nods','notes','paces','packs','pales','pants','parts','paints','peels','peers','picks','plays','pleads','plows','plucks','plunges','pours','prays','preens','presses','prowls','pulls','pushes','quakes','rains','reads','reaps','rends','rests','rides','rings','rips','rises','roams','rocks','rolls','roots','rots','rows','rules','runs','rusts','sails','salts','scans','scares','scores','scrapes','screams','seals','seeks','seeps','shakes','shapes','sheds','shelters','shifts','shines','shivers','shouts','shows','shrinks','shuts','sighs','sinks','sits','skims','slays','sleeps','slides','slips','soaks','soars','speaks','spends','spills','spins','splits','spreads','springs','sprouts','stains','stalks','stands','stares','starts','steams','steels','steps','stirs','stops','strains','strikes','strokes','sways','sweats','sweeps','swells','swims','swings','takes','talks','tears','tells','tends','thaws','thinks','throbs','throws','tides','ties','tilts','tolls','tows','trails','traps','treads','trims','trusts','tucks','tugs','turns','twists','veils','wades','waits','wakes','walks','warms','warns','warps','washes','wastes','watches','waves','wears','weaves','weeps','wets','whirls','winds','wings','winks','wipes','wraps','writes','yearns','yields'],
+    2:['abandons','absorbs','advances','anchors','answers','arises','arrives','ascends','awakens','batters','beckons','becomes','believes','bellows','billows','blossoms','borders','bounces','bridges','broadens','captures','carries','changes','charges','circles','cleanses','collapses','collects','comforts','crosses','crumbles','darkens','dazzles','deepens','departs','descends','devours','dissolves','echoes','embraces','emerges','endures','enters','erases','escapes','explores','faces','falters','festers','flashes','flickers','follows','fractures','gathers','governs','hardens','hastens','haunted','hovers','hungers','ignites','invades','kindles','labors','languid','lightens','lingers','listens','loosens','masters','measures','murmurs','narrows','nurtures','offers','opens','outgrows','parches','passes','pauses','perches','persists','pierces','polishes','ponders','possesses','profits','prospers','pulses','quenches','quivers','reaches','reasons','recedes','releases','relies','remains','renames','returns','reveals','revolves','ripples','scatters','settles','shivers','shimmers','shoulders','shudders','silences','slithers','slumbers','smolders','softens','splashes','startles','stumbles','submits','suffers','sunder','surrenders','survives','swallows','sweetens','tarnished','teaches','thunders','topples','totters','tramples','trembles','tumbles','unfolds','vanishes','ventures','wakens','wanders','watches','welcomes','whispers','widens','withers','worships']
   },
   prep:{
-    1:['through','past','near','on','in','by','with'],
-    2:['across','against','along','among','beneath','beside','between','beyond','into','over','under']
+    1:['at','by','from','in','near','of','on','past','through','to','with'],
+    2:['above','across','against','along','among','around','before','behind','below','beneath','beside','between','beyond','despite','during','inside','into','outside','over','toward','under','upon','within','without']
   },
   det:{
-    1:['the','a','each','no','one','this'],
+    1:['a','each','his','her','its','my','no','one','our','some','that','the','this','your']
   }
 };
 
-// ---- Seasons with themes ----
+/* Theme word associations — map common themes to related words */
+var THEME_MAP={
+  'love':['heart','warmth','embrace','tender','gentle','sweet','dear','kind','loving','beloved','rose','flame','pulse','devotion','longing','passion'],
+  'death':['grave','ghost','bone','skull','ash','shadow','silence','cold','pale','void','tomb','wraith','mourning','grief','eternal','dust'],
+  'war':['sword','shield','blade','fire','blood','steel','iron','forge','battle','march','wound','armor','brave','fallen','storm','strike'],
+  'peace':['calm','still','quiet','gentle','soft','rest','breath','ease','grace','serene','tranquil','harmony','meadow','silence','dawn'],
+  'ocean':['wave','tide','salt','shore','reef','coral','shell','pearl','foam','depth','current','whale','sail','anchor','harbor','drift'],
+  'mountain':['peak','ridge','cliff','stone','summit','granite','eagle','snow','ice','height','steep','vast','climb','trail','cedar','pine'],
+  'rain':['drop','cloud','storm','puddle','mist','grey','thunder','drip','pour','splash','umbrella','creek','flood','damp','fresh','wash'],
+  'night':['moon','star','dark','shadow','owl','dream','sleep','silence','glow','midnight','dusk','velvet','lantern','phantom','hushed'],
+  'fire':['flame','ember','ash','spark','blaze','smoke','heat','burn','glow','forge','torch','crimson','molten','kindle','furnace'],
+  'forest':['tree','oak','pine','fern','moss','leaf','branch','root','grove','shade','bark','mushroom','deer','fox','trail','canopy'],
+  'time':['clock','hour','dawn','dusk','moment','season','age','ancient','memory','change','turning','fading','passing','eternal','cycle'],
+  'home':['door','roof','hearth','warmth','light','window','garden','shelter','comfort','kitchen','family','room','welcome','walls','rest'],
+  'music':['song','chord','drum','flute','harp','bell','chant','hymn','rhythm','melody','tune','note','silence','voice','echo'],
+  'winter':['snow','ice','frost','cold','bare','frozen','pale','crystal','silver','silence','starlight','hollow','sleeping','blizzard','chill'],
+  'spring':['bloom','blossom','cherry','rain','dew','frog','iris','meadow','robin','seed','creek','green','fresh','gentle','awakens'],
+  'summer':['sun','heat','firefly','cricket','honey','golden','warm','bright','cicada','thunder','sunlight','shimmer','harvest','ripe'],
+  'autumn':['leaf','frost','crimson','fallen','wind','harvest','amber','red','orange','twilight','shadow','fading','withers','maple','cider'],
+  'sea':['wave','tide','salt','shore','shell','foam','depth','current','whale','sail','anchor','harbor','drift','coral','pearl'],
+  'sky':['cloud','star','sun','moon','blue','wind','hawk','eagle','light','vast','dawn','dusk','horizon','storm','flight'],
+  'river':['water','current','bank','flow','bridge','stone','fish','reed','bend','drift','ripple','ford','stream','willow','deep'],
+  'dream':['sleep','night','moon','shadow','vision','phantom','floating','soft','silence','memory','whisper','mist','wonder','illusion'],
+  'garden':['bloom','rose','vine','soil','seed','petal','fence','bee','butterfly','growth','fragrant','green','harvest','thorn','lily'],
+  'city':['street','tower','bridge','wall','crowd','light','stone','smoke','gate','market','bell','clock','dome','iron','steel'],
+  'wind':['breeze','gust','storm','air','drift','sway','leaf','dust','chill','whisper','howl','sail','flag','kite','swirl'],
+  'bird':['wing','nest','song','feather','flight','crow','wren','robin','sparrow','hawk','eagle','crane','dove','lark','heron'],
+  'moon':['night','silver','glow','tide','shadow','pale','crescent','full','wane','wax','lunar','eclipse','dark','still','light'],
+  'sun':['light','warm','gold','dawn','ray','bright','fire','blaze','heat','rise','noon','summer','shadow','burn','glow'],
+  'cat':['paw','whisker','fur','purr','soft','sleep','shadow','night','silent','grace','leap','hunt','eye','tail','velvet'],
+  'dog':['bark','paw','fur','loyal','warm','fetch','trail','run','nose','friend','guard','home','wag','bone','trust'],
+  'child':['small','laugh','play','wonder','bright','young','dream','hand','grow','learn','joy','pure','wild','free','trust'],
+  'storm':['thunder','lightning','wind','rain','cloud','dark','wild','surge','howl','crash','fury','power','flood','wave','rage'],
+  'snow':['white','cold','frost','ice','crystal','pale','silence','drift','flake','blanket','winter','bare','frozen','soft','melt'],
+  'flower':['bloom','petal','stem','rose','lily','iris','garden','scent','color','spring','bee','nectar','bud','wilt','beauty'],
+  'stone':['rock','granite','cliff','weight','cold','ancient','moss','hard','still','carved','grey','mountain','pebble','smooth','worn'],
+  'tree':['root','branch','leaf','bark','oak','pine','shade','ring','tall','ancient','forest','canopy','green','trunk','seed'],
+  'water':['flow','stream','river','rain','drop','clear','deep','pool','wave','current','ripple','splash','pour','drink','fresh'],
+  'light':['glow','beam','ray','sun','star','bright','dawn','flame','shine','gold','warm','flash','spark','lamp','candle'],
+  'dark':['shadow','night','void','black','deep','hidden','blind','cave','silent','cold','moon','mystery','fear','abyss','gloom'],
+  'silence':['still','quiet','calm','hush','peace','empty','void','rest','mute','soft','breath','snow','night','space','alone'],
+  'hope':['light','dawn','seed','spring','rise','dream','star','warm','grow','faith','bright','door','path','new','trust'],
+  'fear':['dark','shadow','cold','trembling','night','hollow','sharp','deep','hide','flight','storm','unknown','wild','edge','chill'],
+  'joy':['light','warm','laugh','dance','bright','song','play','free','bloom','golden','sweet','pure','spark','rise','child'],
+  'sorrow':['tear','grey','cold','rain','shadow','weight','loss','empty','pale','silence','mourn','deep','ache','dark','drift'],
+  'anger':['fire','storm','red','burn','sharp','strike','thunder','blood','wild','rage','heat','crack','fierce','blaze','fury'],
+  'zen':['stone','water','still','breath','calm','empty','moon','bamboo','silence','path','bell','temple','lotus','peace','flow']
+};
+
 var SEASONS=[
-  {name:'Spring',bg:'#0a0f0a',text:'#a0c0a0',words:['blossom','cherry','bloom','rain','dew','frog','iris','meadow','robin','seed','creek','green','fresh','gentle','awakens']},
-  {name:'Summer',bg:'#0f0a05',text:'#c0b090',words:['sun','heat','firefly','cricket','honey','golden','warm','bright','cicada','thunder','sunlight','molten','shimmer']},
-  {name:'Autumn',bg:'#0f0808',text:'#c0a080',words:['leaf','frost','crimson','fallen','wind','harvest','amber','red','orange','twilight','shadow','fading','withers']},
-  {name:'Winter',bg:'#080a0f',text:'#90a0c0',words:['snow','ice','cold','silence','bare','frozen','pale','still','crystal','starlight','hollow','silver','sleeping']}
+  {name:'Spring',bg:'#0a0f0a',text:'#a0c0a0',words:THEME_MAP['spring']},
+  {name:'Summer',bg:'#0f0a05',text:'#c0b090',words:THEME_MAP['summer']},
+  {name:'Autumn',bg:'#0f0808',text:'#c0a080',words:THEME_MAP['autumn']},
+  {name:'Winter',bg:'#080a0f',text:'#90a0c0',words:THEME_MAP['winter']}
 ];
 
-// ---- Templates: arrays of [pos, syllables] tuples that sum to target ----
 var TEMPLATES_5=[
   [['adj',2],['noun',3]],
   [['adj',1],['noun',2],['verb',2]],
@@ -84,7 +137,9 @@ var TEMPLATES_5=[
   [['adj',2],['noun',1],['verb',2]],
   [['det',1],['adj',2],['noun',2]],
   [['noun',1],['prep',1],['det',1],['noun',2]],
-  [['adj',3],['noun',2]]
+  [['adj',3],['noun',2]],
+  [['det',1],['noun',1],['verb',1],['adj',2]],
+  [['verb',2],['det',1],['noun',2]]
 ];
 
 var TEMPLATES_7=[
@@ -95,16 +150,35 @@ var TEMPLATES_7=[
   [['prep',2],['det',1],['adj',2],['noun',2]],
   [['det',1],['noun',3],['verb',1],['adj',2]],
   [['adj',1],['noun',2],['verb',2],['adj',2]],
-  [['noun',2],['prep',1],['det',1],['adj',1],['noun',2]]
+  [['noun',2],['prep',1],['det',1],['adj',1],['noun',2]],
+  [['det',1],['adj',1],['noun',1],['verb',2],['adj',2]],
+  [['verb',2],['prep',2],['det',1],['noun',2]]
 ];
 
-// ---- Generation ----
 function pick(arr){return arr[Math.floor(Math.random()*arr.length)]}
 
-function generateLine(templates,seasonWords){
+function getThemeWords(theme){
+  if(!theme)return null;
+  var t=theme.toLowerCase().trim();
+  if(THEME_MAP[t])return THEME_MAP[t];
+  /* fuzzy: check if theme word exists anywhere in word banks */
+  var related=[];
+  for(var pos in WORDS){
+    for(var syl in WORDS[pos]){
+      for(var i=0;i<WORDS[pos][syl].length;i++){
+        if(WORDS[pos][syl][i].indexOf(t)>=0||t.indexOf(WORDS[pos][syl][i])>=0){
+          related.push(WORDS[pos][syl][i]);
+        }
+      }
+    }
+  }
+  return related.length>0?related:null;
+}
+
+function generateLine(templates,biasWords){
   var words=[];
   var attempts=0;
-  while(attempts<20){
+  while(attempts<30){
     var tmpl=pick(templates);
     words=[];
     var valid=true;
@@ -113,14 +187,13 @@ function generateLine(templates,seasonWords){
       var bank=WORDS[pos];
       if(!bank||!bank[syl]||bank[syl].length===0){valid=false;break}
       var w=pick(bank[syl]);
-      // Slight bias toward seasonal words
-      if(seasonWords&&Math.random()<0.3){
-        var seasonal=bank[syl].filter(function(word){return seasonWords.indexOf(word)>=0});
-        if(seasonal.length>0)w=pick(seasonal);
+      if(biasWords&&Math.random()<0.35){
+        var matches=bank[syl].filter(function(word){return biasWords.indexOf(word)>=0});
+        if(matches.length>0)w=pick(matches);
       }
       words.push(w);
     }
-    if(valid&&new Set(words).size===words.length)break; // no duplicate words
+    if(valid&&new Set(words).size===words.length)break;
     attempts++;
   }
   var line=words.join(' ');
@@ -128,9 +201,22 @@ function generateLine(templates,seasonWords){
 }
 
 var fadeTimeout=null;
+var themeInput=document.getElementById('theme-input');
 
 function generate(){
   var season=pick(SEASONS);
+  var userTheme=themeInput.value.trim();
+  var biasWords=season.words;
+
+  if(userTheme){
+    var themeWords=getThemeWords(userTheme);
+    if(themeWords){
+      biasWords=themeWords;
+    }
+    document.getElementById('theme-label').textContent=userTheme;
+  } else {
+    document.getElementById('theme-label').textContent='';
+  }
 
   document.body.style.background=season.bg;
   document.body.style.color=season.text;
@@ -141,14 +227,14 @@ function generate(){
 
   if(fadeTimeout)clearTimeout(fadeTimeout);
   fadeTimeout=setTimeout(function(){
-    document.getElementById('l1').textContent=generateLine(TEMPLATES_5,season.words);
-    document.getElementById('l2').textContent=generateLine(TEMPLATES_7,season.words);
-    document.getElementById('l3').textContent=generateLine(TEMPLATES_5,season.words);
+    document.getElementById('l1').textContent=generateLine(TEMPLATES_5,biasWords);
+    document.getElementById('l2').textContent=generateLine(TEMPLATES_7,biasWords);
+    document.getElementById('l3').textContent=generateLine(TEMPLATES_5,biasWords);
     poem.classList.remove('fade');
   },500);
 }
 
-// ---- Saved poems ----
+/* Saved poems */
 var saved=[];
 function loadSaved(){
   try{saved=JSON.parse(localStorage.getItem('haiku_saved'))||[]}catch(e){saved=[]}
@@ -157,7 +243,7 @@ function loadSaved(){
 function saveCurrent(){
   var text=document.getElementById('l1').textContent+'\n'+document.getElementById('l2').textContent+'\n'+document.getElementById('l3').textContent;
   if(!text.trim())return;
-  if(saved.indexOf(text)>=0)return; // no duplicates
+  if(saved.indexOf(text)>=0)return;
   saved.push(text);
   try{localStorage.setItem('haiku_saved',JSON.stringify(saved))}catch(e){}
   updateSavedCount();
@@ -166,8 +252,8 @@ function updateSavedCount(){
   document.getElementById('saved-count').textContent=saved.length>0?saved.length+' saved':'';
 }
 
-// ---- Controls ----
-document.getElementById('poem').addEventListener('click',function(e){
+/* Controls */
+document.getElementById('poem').addEventListener('click',function(){
   generate();
   document.getElementById('hint').style.opacity='0';
 });
@@ -177,14 +263,28 @@ document.addEventListener('keydown',function(e){
   if(e.key===' '){e.preventDefault();generate();document.getElementById('hint').style.opacity='0'}
 });
 
+document.getElementById('btn-gen').addEventListener('click',function(e){
+  e.stopPropagation();
+  generate();
+  document.getElementById('hint').style.opacity='0';
+});
+
 document.getElementById('btn-copy').addEventListener('click',function(e){
   e.stopPropagation();
   var text=document.getElementById('l1').textContent+'\n'+document.getElementById('l2').textContent+'\n'+document.getElementById('l3').textContent;
-  if(navigator.clipboard&&navigator.clipboard.writeText){
+  if(navigator.clipboard&&window.isSecureContext){
     var self=this;
     navigator.clipboard.writeText(text).then(function(){
       self.textContent='Copied!';setTimeout(function(){self.textContent='Copy'},1200);
-    }).catch(function(){});
+    });
+  } else {
+    var tmp=document.createElement('textarea');
+    tmp.value=text;tmp.style.position='fixed';tmp.style.opacity='0';
+    document.body.appendChild(tmp);tmp.select();
+    try{document.execCommand('copy')}catch(ex){}
+    document.body.removeChild(tmp);
+    this.textContent='Copied!';var self=this;
+    setTimeout(function(){self.textContent='Copy'},1200);
   }
 });
 
@@ -196,7 +296,11 @@ document.getElementById('btn-save').addEventListener('click',function(e){
   setTimeout(function(){self.textContent='Save'},1200);
 });
 
-// ---- Init ----
+themeInput.addEventListener('keydown',function(e){
+  if(e.key==='Enter'){e.preventDefault();generate()}
+});
+
+/* Init */
 loadSaved();
 generate();
 })();
