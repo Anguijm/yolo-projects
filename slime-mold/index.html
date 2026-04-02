@@ -1,0 +1,530 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
+  <meta name="theme-color" content="#000000">
+  <title>Slime Mold</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body {
+      width: 100%; height: 100%;
+      background: #000;
+      overflow: hidden;
+      touch-action: none;
+      -webkit-tap-highlight-color: transparent;
+      user-select: none;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Courier New", monospace;
+    }
+    #canvas {
+      position: fixed; top: 0; left: 0;
+      width: 100%; height: 100%;
+      image-rendering: auto;
+    }
+
+    #hud {
+      position: fixed; top: 8px; right: 10px;
+      font-size: 0.48rem; letter-spacing: 0.15em; text-transform: uppercase;
+      color: #2a2a2a; text-align: right; pointer-events: none; line-height: 1.9;
+    }
+    #colormap-label { color: #0ff; letter-spacing: 0.2em; }
+
+    #controls {
+      position: fixed; bottom: 0; left: 0; right: 0;
+      padding: 6px 8px 12px;
+      display: flex; flex-wrap: wrap; gap: 4px; align-items: center;
+      background: linear-gradient(transparent, rgba(0,0,0,0.9) 55%);
+    }
+    .btn {
+      padding: 5px 10px;
+      background: transparent;
+      border: 1px solid #1a1a1a;
+      color: #444;
+      font-family: inherit;
+      font-size: 0.48rem;
+      cursor: pointer;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      touch-action: manipulation;
+    }
+    .btn:active { border-color: #555; color: #888; }
+    .btn.active { border-color: #0ff; color: #0ff; }
+    .sep {
+      width: 1px; height: 16px;
+      background: #1a1a1a; align-self: center;
+    }
+
+    #intro {
+      position: fixed; inset: 0;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      background: rgba(0,0,0,0.9);
+      z-index: 20; cursor: pointer;
+    }
+    #intro h1 {
+      font-size: clamp(1.4rem, 6vw, 2.8rem);
+      font-weight: 200; letter-spacing: 0.5em;
+      color: #fff; text-transform: uppercase;
+    }
+    #intro .sci {
+      margin-top: 8px; font-size: 0.5rem;
+      letter-spacing: 0.2em; color: #555; text-transform: uppercase;
+      font-style: italic;
+    }
+    #intro .desc {
+      margin-top: 14px; font-size: 0.5rem;
+      letter-spacing: 0.15em; color: #444; text-transform: uppercase;
+      text-align: center; max-width: 340px; line-height: 2;
+    }
+    #intro .sub {
+      margin-top: 10px; font-size: 0.42rem;
+      letter-spacing: 0.15em; color: #252525; text-transform: uppercase;
+      text-align: center; max-width: 320px; line-height: 2;
+    }
+    #intro .cta {
+      margin-top: 28px; font-size: 0.45rem;
+      letter-spacing: 0.35em; color: #0ff; text-transform: uppercase;
+      animation: blink 1.5s step-end infinite;
+    }
+    @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.15} }
+
+    #paint-hint {
+      position: fixed; top: 8px; left: 10px;
+      font-size: 0.44rem; letter-spacing: 0.12em; text-transform: uppercase;
+      color: #333; pointer-events: none;
+      transition: color 0.3s;
+    }
+    #paint-hint.active { color: #0ff; }
+  </style>
+</head>
+<body>
+
+<canvas id="canvas"></canvas>
+
+<div id="intro">
+  <h1>Slime Mold</h1>
+  <p class="sci">Physarum polycephalum</p>
+  <p class="desc">
+    30,000 agents sense chemical trails<br>
+    and navigate toward the strongest signal.<br>
+    Complex networks emerge from simple rules.
+  </p>
+  <p class="sub">
+    hold canvas to paint food &middot; presets below<br>
+    keys: R reset &middot; S scatter &middot; C colormap &middot; P paint
+  </p>
+  <p class="cta">tap to begin</p>
+</div>
+
+<div id="paint-hint" class="active">PAINT ON</div>
+
+<div id="hud">
+  <div id="colormap-label">SLIME</div>
+  <div id="fps-display">&mdash; fps</div>
+  <div id="agent-count">30000 agents</div>
+</div>
+
+<div id="controls">
+  <button class="btn" id="btn-bloom">BLOOM</button>
+  <button class="btn" id="btn-scatter">SCATTER</button>
+  <button class="btn" id="btn-ring">RING</button>
+  <button class="btn" id="btn-clear">CLEAR</button>
+  <div class="sep"></div>
+  <button class="btn cm-btn active" data-cm="slime">SLIME</button>
+  <button class="btn cm-btn" data-cm="cyan">CYAN</button>
+  <button class="btn cm-btn" data-cm="fire">FIRE</button>
+  <button class="btn cm-btn" data-cm="mono">MONO</button>
+  <div class="sep"></div>
+  <button class="btn active" id="btn-paint">PAINT ON</button>
+  <button class="btn" id="btn-save">SAVE</button>
+</div>
+
+<script>
+(function () {
+  /* ===== SIMULATION RESOLUTION ===== */
+  /* Fixed internal grid; canvas CSS stretches it to fill the window */
+  var SIM_W = 800;
+  var SIM_H = 500;
+
+  /* ===== CONFIG ===== */
+  var AGENTS = 30000;
+  var SENSOR_ANGLE = 0.523599;   /* PI/6 radians = 30 degrees */
+  var SENSOR_DIST = 9;
+  var ROTATION = 0.523599;       /* PI/6 radians = 30 degrees turn */
+  var SPEED = 1.3;
+  var DEPOSIT = 5;
+  var DECAY = 0.96;
+
+  /* ===== BUFFERS ===== */
+  var agentX = new Float32Array(AGENTS);
+  var agentY = new Float32Array(AGENTS);
+  var agentA = new Float32Array(AGENTS);  /* heading angle */
+  var trail  = new Float32Array(SIM_W * SIM_H);
+  var trail2 = new Float32Array(SIM_W * SIM_H);
+
+  var canvas = document.getElementById('canvas');
+  var ctx = canvas.getContext('2d');
+  canvas.width = SIM_W;
+  canvas.height = SIM_H;
+
+  var imgData = ctx.createImageData(SIM_W, SIM_H);
+  var pixels = new Uint32Array(imgData.data.buffer);
+
+  /* ===== STATE ===== */
+  var introVisible = true;
+  var painting = true;   /* paint mode ON by default */
+  var paintActive = false;
+  var paintX = 0;
+  var paintY = 0;
+  var lastTs = 0;
+  var fpsAccum = 0;
+  var fpsFrames = 0;
+  var currentCM = 'slime';
+
+  var fpsEl = document.getElementById('fps-display');
+  var cmLabel = document.getElementById('colormap-label');
+  var paintHint = document.getElementById('paint-hint');
+
+  /* ===== COLORMAP LUT ===== */
+  var colorLUT = new Uint32Array(256);
+
+  function lerp(a, b, t) { return a + (b - a) * t; }
+
+  function buildLUT(name) {
+    for (var v = 0; v < 256; v++) {
+      var t = v / 255;
+      var r, g, b;
+      if (name === 'slime') {
+        /* black -> dark green -> lime -> white */
+        if (t < 0.35) {
+          r = 0; g = Math.round(lerp(0, 120, t / 0.35)); b = 0;
+        } else if (t < 0.7) {
+          var s = (t - 0.35) / 0.35;
+          r = Math.round(lerp(0, 180, s)); g = Math.round(lerp(120, 255, s)); b = 0;
+        } else {
+          var s2 = (t - 0.7) / 0.3;
+          r = Math.round(lerp(180, 255, s2)); g = 255; b = Math.round(lerp(0, 230, s2));
+        }
+      } else if (name === 'cyan') {
+        /* black -> deep teal -> cyan -> white */
+        if (t < 0.4) {
+          var s3 = t / 0.4;
+          r = 0; g = Math.round(lerp(0, 140, s3)); b = Math.round(lerp(0, 180, s3));
+        } else if (t < 0.75) {
+          var s4 = (t - 0.4) / 0.35;
+          r = Math.round(lerp(0, 80, s4)); g = Math.round(lerp(140, 255, s4)); b = Math.round(lerp(180, 255, s4));
+        } else {
+          var s5 = (t - 0.75) / 0.25;
+          r = Math.round(lerp(80, 255, s5)); g = 255; b = 255;
+        }
+      } else if (name === 'fire') {
+        /* black -> red -> orange -> yellow -> white */
+        if (t < 0.25) {
+          r = Math.round(lerp(0, 200, t / 0.25)); g = 0; b = 0;
+        } else if (t < 0.55) {
+          var s6 = (t - 0.25) / 0.3;
+          r = 255; g = Math.round(lerp(0, 160, s6)); b = 0;
+        } else if (t < 0.8) {
+          var s7 = (t - 0.55) / 0.25;
+          r = 255; g = Math.round(lerp(160, 255, s7)); b = Math.round(lerp(0, 80, s7));
+        } else {
+          var s8 = (t - 0.8) / 0.2;
+          r = 255; g = 255; b = Math.round(lerp(80, 255, s8));
+        }
+      } else {
+        /* mono: black -> white */
+        r = v; g = v; b = v;
+      }
+      r = Math.max(0, Math.min(255, r));
+      g = Math.max(0, Math.min(255, g));
+      b = Math.max(0, Math.min(255, b));
+      colorLUT[v] = ((255 << 24) | (b << 16) | (g << 8) | r) >>> 0;
+    }
+  }
+
+  /* ===== AGENT INIT ===== */
+  function initBloom() {
+    /* Agents in a filled disk at center, pointing outward */
+    var cx = SIM_W / 2;
+    var cy = SIM_H / 2;
+    var maxR = Math.min(SIM_W, SIM_H) * 0.22;
+    for (var i = 0; i < AGENTS; i++) {
+      var angle = Math.random() * Math.PI * 2;
+      var r = Math.sqrt(Math.random()) * maxR;
+      agentX[i] = cx + Math.cos(angle) * r;
+      agentY[i] = cy + Math.sin(angle) * r;
+      agentA[i] = angle;  /* face outward */
+    }
+    clearTrail();
+  }
+
+  function initScatter() {
+    /* Agents uniformly distributed, random heading */
+    var margin = 10;
+    for (var i = 0; i < AGENTS; i++) {
+      agentX[i] = margin + Math.random() * (SIM_W - 2 * margin);
+      agentY[i] = margin + Math.random() * (SIM_H - 2 * margin);
+      agentA[i] = Math.random() * Math.PI * 2;
+    }
+    clearTrail();
+  }
+
+  function initRing() {
+    /* Agents on a ring, pointing inward */
+    var cx = SIM_W / 2;
+    var cy = SIM_H / 2;
+    var r = Math.min(SIM_W, SIM_H) * 0.38;
+    for (var i = 0; i < AGENTS; i++) {
+      var angle = Math.random() * Math.PI * 2;
+      agentX[i] = cx + Math.cos(angle) * r;
+      agentY[i] = cy + Math.sin(angle) * r;
+      agentA[i] = angle + Math.PI;  /* face inward */
+    }
+    clearTrail();
+  }
+
+  function clearTrail() {
+    trail.fill(0);
+    trail2.fill(0);
+  }
+
+  /* ===== SENSING ===== */
+  function sampleAt(x, y) {
+    var ix = x | 0;
+    var iy = y | 0;
+    if (ix < 0 || ix >= SIM_W || iy < 0 || iy >= SIM_H) return 0;
+    return trail[iy * SIM_W + ix];
+  }
+
+  /* ===== PHYSICS STEP ===== */
+  function updateAgents() {
+    var sa = SENSOR_ANGLE;
+    var sd = SENSOR_DIST;
+    var rot = ROTATION;
+    var spd = SPEED;
+    var dep = DEPOSIT;
+    var w = SIM_W;
+    var h = SIM_H;
+
+    for (var i = 0; i < AGENTS; i++) {
+      var x = agentX[i];
+      var y = agentY[i];
+      var a = agentA[i];
+
+      var ca = Math.cos(a);
+      var sa_ = Math.sin(a);
+      var cl = Math.cos(a - sa);
+      var sl = Math.sin(a - sa);
+      var cr = Math.cos(a + sa);
+      var sr = Math.sin(a + sa);
+
+      var fc = sampleAt(x + ca * sd, y + sa_ * sd);
+      var fl = sampleAt(x + cl * sd, y + sl * sd);
+      var fr = sampleAt(x + cr * sd, y + sr * sd);
+
+      if (fc >= fl && fc >= fr) {
+        /* continue forward */
+      } else if (fl > fr) {
+        a -= rot;
+      } else if (fr > fl) {
+        a += rot;
+      } else {
+        a += (Math.random() < 0.5) ? rot : -rot;
+      }
+
+      var nx = x + Math.cos(a) * spd;
+      var ny = y + Math.sin(a) * spd;
+
+      /* wrap edges */
+      if (nx < 0) nx += w; else if (nx >= w) nx -= w;
+      if (ny < 0) ny += h; else if (ny >= h) ny -= h;
+
+      agentX[i] = nx;
+      agentY[i] = ny;
+      agentA[i] = a;
+
+      /* deposit trail */
+      var di = (ny | 0) * w + (nx | 0);
+      var cur = trail[di] + dep;
+      trail[di] = cur > 255 ? 255 : cur;
+    }
+
+    /* food painting */
+    if (paintActive) {
+      var px2 = (paintX / window.innerWidth) * w;
+      var py2 = (paintY / window.innerHeight) * h;
+      var pr = 20;
+      var x0 = Math.max(0, (px2 - pr) | 0);
+      var x1 = Math.min(w - 1, (px2 + pr) | 0);
+      var y0 = Math.max(0, (py2 - pr) | 0);
+      var y1 = Math.min(h - 1, (py2 + pr) | 0);
+      for (var ty = y0; ty <= y1; ty++) {
+        for (var tx = x0; tx <= x1; tx++) {
+          var ddx = tx - px2;
+          var ddy = ty - py2;
+          if (ddx * ddx + ddy * ddy <= pr * pr) {
+            var ti = ty * w + tx;
+            var v = trail[ti] + 12;
+            trail[ti] = v > 255 ? 255 : v;
+          }
+        }
+      }
+    }
+  }
+
+  function diffuseAndDecay() {
+    var w = SIM_W;
+    var h = SIM_H;
+    var dec = DECAY;
+    var inv9 = 1 / 9;
+
+    for (var y = 1; y < h - 1; y++) {
+      var row = y * w;
+      var rowU = row - w;
+      var rowD = row + w;
+      for (var x = 1; x < w - 1; x++) {
+        var avg = (
+          trail[rowU + x - 1] + trail[rowU + x] + trail[rowU + x + 1] +
+          trail[row  + x - 1] + trail[row  + x] + trail[row  + x + 1] +
+          trail[rowD + x - 1] + trail[rowD + x] + trail[rowD + x + 1]
+        ) * inv9;
+        trail2[row + x] = avg * dec;
+      }
+    }
+    /* swap buffers */
+    var tmp = trail;
+    trail = trail2;
+    trail2 = tmp;
+  }
+
+  /* ===== RENDER ===== */
+  function render() {
+    var total = SIM_W * SIM_H;
+    for (var i = 0; i < total; i++) {
+      var v = trail[i];
+      pixels[i] = colorLUT[v > 255 ? 255 : (v | 0)];
+    }
+    ctx.putImageData(imgData, 0, 0);
+  }
+
+  /* ===== LOOP ===== */
+  function loop(ts) {
+    requestAnimationFrame(loop);
+    if (!lastTs) { lastTs = ts; return; }
+    var dt = Math.min((ts - lastTs) / 1000, 0.05);
+    lastTs = ts;
+
+    fpsAccum += 1 / dt;
+    fpsFrames++;
+    if (fpsFrames >= 30) {
+      fpsEl.textContent = Math.round(fpsAccum / fpsFrames) + ' fps';
+      fpsAccum = 0;
+      fpsFrames = 0;
+    }
+
+    if (!introVisible) {
+      updateAgents();
+      diffuseAndDecay();
+    }
+    render();
+  }
+
+  /* ===== COLORMAP SWITCH ===== */
+  function setColormap(name) {
+    currentCM = name;
+    buildLUT(name);
+    cmLabel.textContent = name.toUpperCase();
+    document.querySelectorAll('.cm-btn').forEach(function (btn) {
+      btn.classList.toggle('active', btn.dataset.cm === name);
+    });
+  }
+
+  /* ===== PAINT MODE ===== */
+  function setPaintMode(on) {
+    painting = on;
+    if (!on) paintActive = false;
+    var btn = document.getElementById('btn-paint');
+    btn.classList.toggle('active', on);
+    btn.textContent = on ? 'PAINT ON' : 'PAINT OFF';
+    paintHint.textContent = on ? 'PAINT ON' : 'PAINT OFF';
+    paintHint.classList.toggle('active', on);
+  }
+
+  /* ===== EVENTS ===== */
+  document.getElementById('intro').addEventListener('pointerdown', function () {
+    introVisible = false;
+    document.getElementById('intro').style.display = 'none';
+  });
+
+  document.getElementById('btn-bloom').addEventListener('pointerdown', function () {
+    initBloom();
+  });
+  document.getElementById('btn-scatter').addEventListener('pointerdown', function () {
+    initScatter();
+  });
+  document.getElementById('btn-ring').addEventListener('pointerdown', function () {
+    initRing();
+  });
+  document.getElementById('btn-clear').addEventListener('pointerdown', function () {
+    clearTrail();
+    initScatter();
+  });
+
+  document.querySelectorAll('.cm-btn').forEach(function (btn) {
+    btn.addEventListener('pointerdown', function () {
+      setColormap(btn.dataset.cm);
+    });
+  });
+
+  document.getElementById('btn-paint').addEventListener('pointerdown', function () {
+    setPaintMode(!painting);
+  });
+
+  document.getElementById('btn-save').addEventListener('pointerdown', function () {
+    canvas.toBlob(function (blob) {
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement('a');
+      a.href = url;
+      a.download = 'slime-mold.png';
+      a.click();
+      setTimeout(function () { URL.revokeObjectURL(url); }, 5000);
+    });
+  });
+
+  canvas.addEventListener('pointerdown', function (e) {
+    if (introVisible || !painting) return;
+    paintActive = true;
+    paintX = e.clientX;
+    paintY = e.clientY;
+  });
+  canvas.addEventListener('pointermove', function (e) {
+    if (paintActive) { paintX = e.clientX; paintY = e.clientY; }
+  });
+  canvas.addEventListener('pointerup', function () { paintActive = false; });
+  canvas.addEventListener('pointercancel', function () { paintActive = false; });
+
+  document.addEventListener('keydown', function (e) {
+    if (introVisible) return;
+    var k = e.key;
+    if (k === 'r' || k === 'R') initBloom();
+    else if (k === 's' || k === 'S') initScatter();
+    else if (k === 'p' || k === 'P') { e.preventDefault(); setPaintMode(!painting); }
+    else if (k === 'c' || k === 'C') {
+      var maps = ['slime', 'cyan', 'fire', 'mono'];
+      var idx = (maps.indexOf(currentCM) + 1) % maps.length;
+      setColormap(maps[idx]);
+    } else if (k === '1') initBloom();
+    else if (k === '2') initScatter();
+    else if (k === '3') initRing();
+  });
+
+  /* ===== INIT ===== */
+  buildLUT('slime');
+  initBloom();
+  requestAnimationFrame(loop);
+
+})();
+</script>
+</body>
+</html>

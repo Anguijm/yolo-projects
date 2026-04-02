@@ -67,6 +67,19 @@ Persistent knowledge base. Read this before every build.
 
 ## Per-Build Reflections
 
+### slime-mold (2026-04-02)
+- **KEEP**: Double-buffer Float32Array diffusion (read trail → write trail2 → swap references) — eliminates read-after-write artifacts. Swap JS references, not data: `let tmp = trail; trail = trail2; trail2 = tmp`.
+- **KEEP**: Uint32 view over ImageData.data + colormap LUT = fastest pixel rendering path. Pre-compute 256-entry `Uint32Array` LUT at init, then `pixels[i] = colorLUT[v | 0]` per frame — no fillStyle or arc calls.
+- **KEEP**: 3×3 box filter diffusion: `(9 neighbors sum) * (1/9) * DECAY` per cell. Separates nicely into precomputed `inv9 = 1/9`. One tight nested loop, no function call overhead.
+- **KEEP**: Physarum sensor model: 3 probes at (heading-30°, heading, heading+30°) × SENSOR_DIST ahead. Turn toward max. If fc >= fl && fc >= fr: continue straight; else if fl > fr: turn left; else if fr > fl: turn right; else: random.
+- **KEEP**: Fixed internal simulation resolution (800×500) scaled up via CSS `width:100%; height:100%` with `image-rendering: auto` — looks smooth via bilinear interpolation, runs fast everywhere regardless of screen size.
+- **KEEP**: `toBlob + URL.createObjectURL + setTimeout revokeObjectURL(5000)` for PNG export — zero extra memory cost vs toDataURL.
+- **IMPROVE**: `paintActive` must be gated by the `painting` toggle — if you set `paintActive = true` unconditionally in pointerdown, the ON/OFF button becomes purely cosmetic. Always check `if (!painting) return` before setting `paintActive`.
+- **IMPROVE**: Initialize interactive toggles to their intended default state (`painting = true`), and reflect that in the button's initial class/label. Mismatched defaults (code `false`, UI shows "OFF" but intro says "hold to paint") confuse users.
+- **INSIGHT**: Agent-based simulations with trail following create fundamentally different visuals from force-based particle systems (particle-life). The distinction: particle-life particles have no memory/direction; Physarum agents have heading + sense → fundamentally different emergence (networks vs clusters).
+- **INSIGHT**: For simulations producing beautiful static frames, a PNG export button is high-value for shareability. `canvas.toBlob()` is the correct API — not `toDataURL`. Add it to any canvas-based art project.
+- **TEST CAUGHT**: `painting = false` by default + `paintActive` set unconditionally = paint mode toggle is broken. Only caught during council review.
+
 ### marble-run (2026-04-02)
 - **KEEP**: Circle-vs-line-segment collision via closest-point-on-segment + outward normal reflection — the general formula handles any ramp angle. Compute normal as (marble_pos - closest_point) / distance.
 - **KEEP**: Equal-mass elastic collision impulse formula: `e = (1 + restitution) * 0.5 * relative_normal_velocity` — subtract from A's normal velocity, add to B's. Mathematically exact.
