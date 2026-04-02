@@ -1,0 +1,740 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="theme-color" content="#000000">
+<title>chmod-calc</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body {
+  height: 100%;
+  background: #0a0a0a;
+  color: #ccc;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Courier New", monospace;
+  overflow-y: auto;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.container {
+  max-width: 480px;
+  margin: 0 auto;
+  padding: 12px;
+}
+
+.title {
+  font-size: 0.6rem;
+  text-transform: uppercase;
+  letter-spacing: 0.25em;
+  color: #444;
+  margin-bottom: 16px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.title span { color: #0ff; }
+
+/* Octal + symbolic output row */
+.code-row {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 8px;
+  align-items: stretch;
+}
+.code-field {
+  flex: 1;
+  border: 1px solid #1a1a1a;
+  background: #111;
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.code-label {
+  font-size: 0.45rem;
+  text-transform: uppercase;
+  letter-spacing: 0.2em;
+  color: #444;
+}
+.code-value-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+#octal-input {
+  background: transparent;
+  border: none;
+  color: #0ff;
+  font-family: inherit;
+  font-size: clamp(1rem, 5vw, 1.4rem);
+  font-weight: 200;
+  letter-spacing: 0.15em;
+  outline: none;
+  width: 100%;
+  font-variant-numeric: tabular-nums;
+}
+#octal-input::selection { background: #0ff3; }
+
+#symbolic-display {
+  color: #aaa;
+  font-size: clamp(0.85rem, 4vw, 1.15rem);
+  font-weight: 200;
+  letter-spacing: 0.1em;
+  cursor: default;
+  user-select: all;
+}
+.sym-r { color: #3fb950; }
+.sym-w { color: #d29922; }
+.sym-x { color: #58a6ff; }
+.sym-s { color: #f85149; }
+.sym-t { color: #f0f; }
+.sym-dash { color: #333; }
+
+.copy-btn {
+  padding: 3px 7px;
+  background: transparent;
+  border: 1px solid #1a1a1a;
+  color: #444;
+  font-family: inherit;
+  font-size: 0.45rem;
+  cursor: pointer;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  flex-shrink: 0;
+  transition: color 0.1s, border-color 0.1s;
+}
+.copy-btn:active, .copy-btn.copied {
+  border-color: #0ff;
+  color: #0ff;
+}
+
+/* Permission grid */
+.perm-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 1px;
+  background: #1a1a1a;
+  border: 1px solid #1a1a1a;
+  margin-bottom: 8px;
+}
+.perm-col {
+  background: #0a0a0a;
+  padding: 6px 8px;
+}
+.col-header {
+  font-size: 0.45rem;
+  text-transform: uppercase;
+  letter-spacing: 0.2em;
+  color: #444;
+  margin-bottom: 8px;
+  text-align: center;
+}
+.perm-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 0;
+  cursor: pointer;
+  min-height: 28px;
+}
+.perm-row:active { opacity: 0.7; }
+
+.cb-box {
+  width: 14px;
+  height: 14px;
+  border: 1px solid #333;
+  background: #111;
+  flex-shrink: 0;
+  position: relative;
+  pointer-events: none;
+}
+.cb-box.checked {
+  border-color: #555;
+  background: #1a1a1a;
+}
+.cb-box.checked::after {
+  content: '';
+  position: absolute;
+  inset: 3px;
+  background: #aaa;
+}
+
+.perm-bit-label {
+  font-size: 0.5rem;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: #555;
+  pointer-events: none;
+}
+.perm-row.active .perm-bit-label { color: #aaa; }
+.perm-row.active-r .perm-bit-label { color: #3fb950; }
+.perm-row.active-w .perm-bit-label { color: #d29922; }
+.perm-row.active-x .perm-bit-label { color: #58a6ff; }
+
+/* Special bits */
+.special-row {
+  display: flex;
+  gap: 1px;
+  background: #1a1a1a;
+  border: 1px solid #1a1a1a;
+  margin-bottom: 8px;
+}
+.special-cell {
+  flex: 1;
+  background: #0a0a0a;
+  padding: 6px 8px;
+  cursor: pointer;
+  min-height: 36px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.special-cell:active { opacity: 0.7; }
+.special-label {
+  font-size: 0.45rem;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: #555;
+  pointer-events: none;
+}
+.special-cell.active .special-label { color: #f85149; }
+.special-cell.active-t .special-label { color: #f0f; }
+
+/* Description */
+.description {
+  border: 1px solid #1a1a1a;
+  background: #111;
+  padding: 8px 10px;
+  margin-bottom: 8px;
+  min-height: 52px;
+}
+.desc-title {
+  font-size: 0.4rem;
+  text-transform: uppercase;
+  letter-spacing: 0.2em;
+  color: #333;
+  margin-bottom: 6px;
+}
+#description {
+  font-size: 0.6rem;
+  color: #666;
+  line-height: 1.6;
+}
+
+/* chmod command preview */
+.cmd-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: #111;
+  border: 1px solid #1a1a1a;
+  padding: 6px 10px;
+  margin-bottom: 8px;
+  font-size: 0.7rem;
+}
+.cmd-kw { color: #58a6ff; }
+#cmd-octal { color: #0ff; }
+.cmd-file { color: #444; }
+
+/* Numeric breakdown */
+.breakdown {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1px;
+  background: #1a1a1a;
+  border: 1px solid #1a1a1a;
+  margin-bottom: 8px;
+}
+.breakdown-cell {
+  background: #0a0a0a;
+  padding: 6px 8px;
+  text-align: center;
+}
+.breakdown-cell .b-digit {
+  font-size: clamp(1rem, 4vw, 1.3rem);
+  color: #555;
+  font-variant-numeric: tabular-nums;
+  font-weight: 200;
+}
+.breakdown-cell .b-digit.active { color: #0ff; }
+.breakdown-cell .b-label {
+  font-size: 0.4rem;
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
+  color: #333;
+  margin-top: 2px;
+}
+
+/* Presets */
+.presets-label {
+  font-size: 0.4rem;
+  text-transform: uppercase;
+  letter-spacing: 0.2em;
+  color: #333;
+  margin-bottom: 5px;
+}
+.presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-bottom: 16px;
+}
+.preset-btn {
+  padding: 4px 8px;
+  background: transparent;
+  border: 1px solid #1a1a1a;
+  color: #444;
+  font-family: inherit;
+  font-size: 0.5rem;
+  cursor: pointer;
+  letter-spacing: 0.05em;
+  text-transform: none;
+  transition: color 0.1s, border-color 0.1s;
+}
+.preset-btn:active { border-color: #555; color: #888; }
+.preset-btn .preset-name { color: #333; margin-left: 4px; font-size: 0.4rem; }
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="title">chmod<span>calc</span> &mdash; unix permission calculator</div>
+
+  <!-- Octal + Symbolic outputs -->
+  <div class="code-row">
+    <div class="code-field">
+      <div class="code-label">Octal</div>
+      <div class="code-value-row">
+        <input id="octal-input" type="text" maxlength="5" spellcheck="false" autocomplete="off" value="644">
+        <button class="copy-btn" id="copy-octal" onclick="copyOctal()">copy</button>
+      </div>
+    </div>
+    <div class="code-field">
+      <div class="code-label">Symbolic</div>
+      <div class="code-value-row">
+        <div id="symbolic-display">rw-r--r--</div>
+        <button class="copy-btn" id="copy-sym" onclick="copySymbolic()">copy</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- chmod command preview -->
+  <div class="cmd-row">
+    <span class="cmd-kw">chmod</span> <span id="cmd-octal">644</span> <span class="cmd-file">&lt;filename&gt;</span>
+    <button class="copy-btn" id="copy-cmd" onclick="copyCmd()" style="margin-left:auto">copy</button>
+  </div>
+
+  <!-- Numeric breakdown row -->
+  <div class="breakdown">
+    <div class="breakdown-cell">
+      <div class="b-digit" id="bd-special">0</div>
+      <div class="b-label">Special</div>
+    </div>
+    <div class="breakdown-cell">
+      <div class="b-digit" id="bd-user">6</div>
+      <div class="b-label">Owner</div>
+    </div>
+    <div class="breakdown-cell">
+      <div class="b-digit" id="bd-group">4</div>
+      <div class="b-label">Group</div>
+    </div>
+    <div class="breakdown-cell">
+      <div class="b-digit" id="bd-other">4</div>
+      <div class="b-label">Others</div>
+    </div>
+  </div>
+
+  <!-- Permission checkboxes -->
+  <div class="perm-grid">
+    <div class="perm-col">
+      <div class="col-header">Owner</div>
+      <div class="perm-row" id="row-ur" onclick="toggleBit('ur')">
+        <div class="cb-box" id="cb-ur"></div>
+        <div class="perm-bit-label">Read</div>
+      </div>
+      <div class="perm-row" id="row-uw" onclick="toggleBit('uw')">
+        <div class="cb-box" id="cb-uw"></div>
+        <div class="perm-bit-label">Write</div>
+      </div>
+      <div class="perm-row" id="row-ux" onclick="toggleBit('ux')">
+        <div class="cb-box" id="cb-ux"></div>
+        <div class="perm-bit-label">Execute</div>
+      </div>
+    </div>
+    <div class="perm-col">
+      <div class="col-header">Group</div>
+      <div class="perm-row" id="row-gr" onclick="toggleBit('gr')">
+        <div class="cb-box" id="cb-gr"></div>
+        <div class="perm-bit-label">Read</div>
+      </div>
+      <div class="perm-row" id="row-gw" onclick="toggleBit('gw')">
+        <div class="cb-box" id="cb-gw"></div>
+        <div class="perm-bit-label">Write</div>
+      </div>
+      <div class="perm-row" id="row-gx" onclick="toggleBit('gx')">
+        <div class="cb-box" id="cb-gx"></div>
+        <div class="perm-bit-label">Execute</div>
+      </div>
+    </div>
+    <div class="perm-col">
+      <div class="col-header">Others</div>
+      <div class="perm-row" id="row-or" onclick="toggleBit('or')">
+        <div class="cb-box" id="cb-or"></div>
+        <div class="perm-bit-label">Read</div>
+      </div>
+      <div class="perm-row" id="row-ow" onclick="toggleBit('ow')">
+        <div class="cb-box" id="cb-ow"></div>
+        <div class="perm-bit-label">Write</div>
+      </div>
+      <div class="perm-row" id="row-ox" onclick="toggleBit('ox')">
+        <div class="cb-box" id="cb-ox"></div>
+        <div class="perm-bit-label">Execute</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Special bits -->
+  <div class="special-row">
+    <div class="special-cell" id="sc-setuid" onclick="toggleSpecial('setuid')">
+      <div class="cb-box" id="cb-su"></div>
+      <div class="special-label">Setuid (4000)</div>
+    </div>
+    <div class="special-cell" id="sc-setgid" onclick="toggleSpecial('setgid')">
+      <div class="cb-box" id="cb-sg"></div>
+      <div class="special-label">Setgid (2000)</div>
+    </div>
+    <div class="special-cell" id="sc-sticky" onclick="toggleSpecial('sticky')">
+      <div class="cb-box" id="cb-st"></div>
+      <div class="special-label">Sticky (1000)</div>
+    </div>
+  </div>
+
+  <!-- Description -->
+  <div class="description">
+    <div class="desc-title">What this means</div>
+    <div id="description">Owner can read and write. Group can read. Others can read.</div>
+  </div>
+
+  <!-- Presets -->
+  <div class="presets-label">Common presets</div>
+  <div class="presets">
+    <button class="preset-btn" onclick="applyPreset(644)">644<span class="preset-name">rw-r--r--</span></button>
+    <button class="preset-btn" onclick="applyPreset(755)">755<span class="preset-name">rwxr-xr-x</span></button>
+    <button class="preset-btn" onclick="applyPreset(700)">700<span class="preset-name">rwx------</span></button>
+    <button class="preset-btn" onclick="applyPreset(600)">600<span class="preset-name">rw-------</span></button>
+    <button class="preset-btn" onclick="applyPreset(750)">750<span class="preset-name">rwxr-x---</span></button>
+    <button class="preset-btn" onclick="applyPreset(640)">640<span class="preset-name">rw-r-----</span></button>
+    <button class="preset-btn" onclick="applyPreset(777)">777<span class="preset-name">rwxrwxrwx</span></button>
+    <button class="preset-btn" onclick="applyPreset(666)">666<span class="preset-name">rw-rw-rw-</span></button>
+    <button class="preset-btn" onclick="applyPreset(444)">444<span class="preset-name">r--r--r--</span></button>
+    <button class="preset-btn" onclick="applyPreset(400)">400<span class="preset-name">r--------</span></button>
+    <button class="preset-btn" onclick="applyPreset(4755)">4755<span class="preset-name">setuid+755</span></button>
+    <button class="preset-btn" onclick="applyPreset(1755)">1755<span class="preset-name">sticky+755</span></button>
+  </div>
+</div>
+
+<script>
+(function() {
+  /* State: 9 permission bits + 3 special bits */
+  var state = {
+    su: false, sg: false, st: false,   /* setuid, setgid, sticky */
+    ur: false, uw: false, ux: false,   /* user/owner */
+    gr: false, gw: false, gx: false,   /* group */
+    or_: false, ow: false, ox: false   /* other (or_ to avoid reserved word) */
+  };
+
+  /* ------ Conversion helpers ------ */
+
+  function stateToOctalNum() {
+    var special = (state.su ? 4 : 0) + (state.sg ? 2 : 0) + (state.st ? 1 : 0);
+    var user    = (state.ur ? 4 : 0) + (state.uw ? 2 : 0) + (state.ux ? 1 : 0);
+    var group   = (state.gr ? 4 : 0) + (state.gw ? 2 : 0) + (state.gx ? 1 : 0);
+    var other   = (state.or_ ? 4 : 0) + (state.ow ? 2 : 0) + (state.ox ? 1 : 0);
+    return special * 1000 + user * 100 + group * 10 + other;
+  }
+
+  function stateToOctalStr() {
+    var n = stateToOctalNum();
+    if (n >= 1000) return String(n);
+    var user  = (state.ur ? 4 : 0) + (state.uw ? 2 : 0) + (state.ux ? 1 : 0);
+    var group = (state.gr ? 4 : 0) + (state.gw ? 2 : 0) + (state.gx ? 1 : 0);
+    var other = (state.or_ ? 4 : 0) + (state.ow ? 2 : 0) + (state.ox ? 1 : 0);
+    return '' + user + group + other;
+  }
+
+  function octalStrToState(str) {
+    str = str.trim();
+    if (!/^[0-7]{3,5}$/.test(str)) return false;
+    var digits = str.length === 3 ? ('0' + str) : (str.length === 4 ? str : null);
+    if (!digits) return false;
+    var sd = parseInt(digits[0], 10);
+    var ud = parseInt(digits[1], 10);
+    var gd = parseInt(digits[2], 10);
+    var od = parseInt(digits[3], 10);
+    state.su  = !!(sd & 4);
+    state.sg  = !!(sd & 2);
+    state.st  = !!(sd & 1);
+    state.ur  = !!(ud & 4);
+    state.uw  = !!(ud & 2);
+    state.ux  = !!(ud & 1);
+    state.gr  = !!(gd & 4);
+    state.gw  = !!(gd & 2);
+    state.gx  = !!(gd & 1);
+    state.or_ = !!(od & 4);
+    state.ow  = !!(od & 2);
+    state.ox  = !!(od & 1);
+    return true;
+  }
+
+  function stateToSymbolic() {
+    /* Execute char for owner: s if ux+su, S if !ux+su, x if ux, - otherwise */
+    var uxChar = state.ux ? (state.su ? 's' : 'x') : (state.su ? 'S' : '-');
+    var gxChar = state.gx ? (state.sg ? 's' : 'x') : (state.sg ? 'S' : '-');
+    var oxChar = state.ox ? (state.st ? 't' : 'x') : (state.st ? 'T' : '-');
+    return (
+      (state.ur ? 'r' : '-') +
+      (state.uw ? 'w' : '-') +
+      uxChar +
+      (state.gr ? 'r' : '-') +
+      (state.gw ? 'w' : '-') +
+      gxChar +
+      (state.or_ ? 'r' : '-') +
+      (state.ow ? 'w' : '-') +
+      oxChar
+    );
+  }
+
+  function renderSymbolicHTML(sym) {
+    /* Color each character */
+    var result = '';
+    for (var i = 0; i < sym.length; i++) {
+      var ch = sym[i];
+      var cls = 'sym-dash';
+      if (ch === 'r') cls = 'sym-r';
+      else if (ch === 'w') cls = 'sym-w';
+      else if (ch === 'x') cls = 'sym-x';
+      else if (ch === 's' || ch === 'S') cls = 'sym-s';
+      else if (ch === 't' || ch === 'T') cls = 'sym-t';
+      result += '<span class="' + cls + '">' + ch + '</span>';
+    }
+    return result;
+  }
+
+  function buildDescription() {
+    var parts = [];
+    var ownerBits = [];
+    if (state.ur) ownerBits.push('read');
+    if (state.uw) ownerBits.push('write');
+    if (state.ux) ownerBits.push('execute');
+
+    var groupBits = [];
+    if (state.gr) groupBits.push('read');
+    if (state.gw) groupBits.push('write');
+    if (state.gx) groupBits.push('execute');
+
+    var otherBits = [];
+    if (state.or_) otherBits.push('read');
+    if (state.ow) otherBits.push('write');
+    if (state.ox) otherBits.push('execute');
+
+    function joinBits(bits) {
+      if (bits.length === 0) return 'no permissions';
+      if (bits.length === 1) return bits[0];
+      return bits.slice(0, -1).join(', ') + ' and ' + bits[bits.length - 1];
+    }
+
+    parts.push('Owner can ' + joinBits(ownerBits) + '.');
+    parts.push('Group can ' + joinBits(groupBits) + '.');
+    parts.push('Others can ' + joinBits(otherBits) + '.');
+
+    var special = [];
+    if (state.su) special.push('Setuid: runs as owner\u2019s UID on exec.');
+    if (state.sg) special.push('Setgid: runs as group\u2019s GID on exec (or inherits dir group).');
+    if (state.st) special.push('Sticky: only owner can delete entries (common on /tmp).');
+    if (special.length > 0) parts.push(special.join(' '));
+
+    return parts.join(' ');
+  }
+
+  /* ------ UI update ------ */
+
+  function updateUI() {
+    /* Octal input */
+    var inp = document.getElementById('octal-input');
+    if (document.activeElement !== inp) {
+      inp.value = stateToOctalStr();
+    }
+
+    /* Symbolic */
+    var sym = stateToSymbolic();
+    document.getElementById('symbolic-display').innerHTML = renderSymbolicHTML(sym);
+
+    /* Numeric breakdown */
+    var special = (state.su ? 4 : 0) + (state.sg ? 2 : 0) + (state.st ? 1 : 0);
+    var user    = (state.ur ? 4 : 0) + (state.uw ? 2 : 0) + (state.ux ? 1 : 0);
+    var group   = (state.gr ? 4 : 0) + (state.gw ? 2 : 0) + (state.gx ? 1 : 0);
+    var other   = (state.or_ ? 4 : 0) + (state.ow ? 2 : 0) + (state.ox ? 1 : 0);
+
+    var bds = document.getElementById('bd-special');
+    var bdu = document.getElementById('bd-user');
+    var bdg = document.getElementById('bd-group');
+    var bdo = document.getElementById('bd-other');
+
+    bds.textContent = special;
+    bdu.textContent = user;
+    bdg.textContent = group;
+    bdo.textContent = other;
+    bds.className = 'b-digit' + (special > 0 ? ' active' : '');
+    bdu.className = 'b-digit' + (user > 0 ? ' active' : '');
+    bdg.className = 'b-digit' + (group > 0 ? ' active' : '');
+    bdo.className = 'b-digit' + (other > 0 ? ' active' : '');
+
+    /* Checkboxes */
+    var bits = {
+      ur: state.ur, uw: state.uw, ux: state.ux,
+      gr: state.gr, gw: state.gw, gx: state.gx,
+      or: state.or_, ow: state.ow, ox: state.ox
+    };
+    var colorMap = { r: 'active-r', w: 'active-w', x: 'active-x' };
+
+    var keys = ['ur', 'uw', 'ux', 'gr', 'gw', 'gx', 'or', 'ow', 'ox'];
+    keys.forEach(function(k) {
+      var val = bits[k];
+      var bitType = k[1]; /* r, w, or x */
+      var cbId = k === 'or' ? 'cb-or' : 'cb-' + k;
+      var rowId = k === 'or' ? 'row-or' : 'row-' + k;
+      var cb = document.getElementById(cbId);
+      var row = document.getElementById(rowId);
+      if (cb) cb.className = 'cb-box' + (val ? ' checked' : '');
+      if (row) row.className = 'perm-row' + (val ? ' ' + colorMap[bitType] : '');
+    });
+
+    /* Special bit cells */
+    var scSetuid = document.getElementById('sc-setuid');
+    var scSetgid = document.getElementById('sc-setgid');
+    var scSticky = document.getElementById('sc-sticky');
+    var cbSu = document.getElementById('cb-su');
+    var cbSg = document.getElementById('cb-sg');
+    var cbSt = document.getElementById('cb-st');
+
+    scSetuid.className = 'special-cell' + (state.su ? ' active' : '');
+    scSetgid.className = 'special-cell' + (state.sg ? ' active' : '');
+    scSticky.className = 'special-cell' + (state.st ? ' active-t' : '');
+    cbSu.className = 'cb-box' + (state.su ? ' checked' : '');
+    cbSg.className = 'cb-box' + (state.sg ? ' checked' : '');
+    cbSt.className = 'cb-box' + (state.st ? ' checked' : '');
+
+    /* chmod command */
+    document.getElementById('cmd-octal').textContent = stateToOctalStr();
+
+    /* Description */
+    document.getElementById('description').textContent = buildDescription();
+  }
+
+  /* ------ Event handlers ------ */
+
+  window.toggleBit = function(bit) {
+    var map = { ur: 'ur', uw: 'uw', ux: 'ux', gr: 'gr', gw: 'gw', gx: 'gx', or: 'or_', ow: 'ow', ox: 'ox' };
+    var key = map[bit];
+    if (key) state[key] = !state[key];
+    updateUI();
+  };
+
+  window.toggleSpecial = function(which) {
+    if (which === 'setuid') state.su = !state.su;
+    else if (which === 'setgid') state.sg = !state.sg;
+    else if (which === 'sticky') state.st = !state.st;
+    updateUI();
+  };
+
+  window.applyPreset = function(n) {
+    var s = String(n);
+    /* Pad to 4 digits if needed */
+    if (s.length === 3) s = '0' + s;
+    octalStrToState(s);
+    updateUI();
+    /* Sync the input value explicitly since it may have focus */
+    document.getElementById('octal-input').value = stateToOctalStr();
+  };
+
+  /* Octal input: sync on input event */
+  document.getElementById('octal-input').addEventListener('input', function() {
+    var val = this.value.trim();
+    if (/^[0-7]{3,4}$/.test(val)) {
+      if (octalStrToState(val)) {
+        updateUI();
+      }
+    }
+  });
+
+  document.getElementById('octal-input').addEventListener('blur', function() {
+    /* On blur, normalize display */
+    var val = this.value.trim();
+    if (!/^[0-7]{3,4}$/.test(val)) {
+      /* Invalid input — revert to current state */
+      this.value = stateToOctalStr();
+    } else {
+      this.value = stateToOctalStr();
+    }
+  });
+
+  /* Copy helpers */
+  function flashBtn(id) {
+    var btn = document.getElementById(id);
+    btn.classList.add('copied');
+    btn.textContent = 'done';
+    setTimeout(function() {
+      btn.classList.remove('copied');
+      btn.textContent = 'copy';
+    }, 1200);
+  }
+
+  window.copyOctal = function() {
+    var val = stateToOctalStr();
+    navigator.clipboard.writeText(val).then(function() { flashBtn('copy-octal'); }).catch(function() {
+      /* Fallback */
+      var ta = document.createElement('textarea');
+      ta.value = val;
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      document.body.removeChild(ta);
+      flashBtn('copy-octal');
+    });
+  };
+
+  window.copyCmd = function() {
+    var val = 'chmod ' + stateToOctalStr() + ' <filename>';
+    navigator.clipboard.writeText(val).then(function() { flashBtn('copy-cmd'); }).catch(function() {
+      var ta = document.createElement('textarea');
+      ta.value = val;
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      document.body.removeChild(ta);
+      flashBtn('copy-cmd');
+    });
+  };
+
+  window.copySymbolic = function() {
+    var val = stateToSymbolic();
+    navigator.clipboard.writeText(val).then(function() { flashBtn('copy-sym'); }).catch(function() {
+      var ta = document.createElement('textarea');
+      ta.value = val;
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      document.body.removeChild(ta);
+      flashBtn('copy-sym');
+    });
+  };
+
+  /* Init with 644 */
+  applyPreset(644);
+
+})();
+</script>
+</body>
+</html>
