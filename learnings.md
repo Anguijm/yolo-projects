@@ -67,6 +67,20 @@ Persistent knowledge base. Read this before every build.
 
 ## Per-Build Reflections
 
+### fluid-sim (2026-04-02)
+- **KEEP**: Stable Fluids (Stam 1999) 8-shader GPU pipeline — splat → advect → curl → vorticity → divergence → pressure (Jacobi×20) → gradient-subtract → render. Ping-pong FBOs for all double-buffered passes.
+- **KEEP**: `preserveDrawingBuffer: true` is REQUIRED for `canvas.toBlob()` / `canvas.toDataURL()` on WebGL contexts. Without it, the draw buffer may be cleared before the async callback fires.
+- **KEEP**: Cache ALL uniform locations before the render loop into plain JS objects — `gl.getUniformLocation` is expensive; cache at program init time, never call inside per-frame functions.
+- **KEEP**: Aspect-ratio correction in advect shader: `scaledVel = vel * vec2(1.0, aspect)` where aspect = canvas.width/canvas.height. Without this, vortices are elliptical on widescreen canvases.
+- **KEEP**: Vorticity confinement (curl → normalize gradient → apply force) prevents numerical diffusion from dampening swirls. Formula: `N = normalize(grad|curl|)`, `force = dt * curlStrength * curl * vec2(N.x, -N.y)`.
+- **KEEP**: Reactive color mode (velocity direction → hue via atan2, dye → luminance) is the killer visual. Makes swirls naturally colorful without any artist input.
+- **KEEP**: HDR dye storage (values 0-10+) with tone-mapped render shaders — inject at 10×, fade via dissipation, clamp/map in render pass. Gives natural falloff from bright to dim without banding.
+- **IMPROVE**: Dead shader variables (e.g. `float speed = length(vel)` unused in output) are wasteful — strip during council review. GLSL compilers may optimize them out but it's confusing.
+- **INSIGHT**: WebGL fluid simulations have two separate resolution concerns: SIM_RES (physics accuracy) and DYE_RES (visual quality). Using a lower sim resolution (128) with higher dye resolution (256) gives good visual quality at lower compute cost.
+- **INSIGHT**: For WebGL2 ping-pong simulations, use `R16F`/`RG16F` for single/two-channel data (pressure, velocity) and `RGBA16F` for dye — these are the guaranteed-renderable formats via `EXT_color_buffer_float`.
+- **TEST CAUGHT (council review)**: `preserveDrawingBuffer: false` + `canvas.toBlob()` = blank PNG download. Manual review caught this before shipping.
+- **TEST CAUGHT (council review)**: Dead `float speed = length(vel)` in reactive shader — never read, wastes GPU cycles.
+
 ### slime-mold (2026-04-02)
 - **KEEP**: Double-buffer Float32Array diffusion (read trail → write trail2 → swap references) — eliminates read-after-write artifacts. Swap JS references, not data: `let tmp = trail; trail = trail2; trail2 = tmp`.
 - **KEEP**: Uint32 view over ImageData.data + colormap LUT = fastest pixel rendering path. Pre-compute 256-entry `Uint32Array` LUT at init, then `pixels[i] = colorLUT[v | 0]` per frame — no fillStyle or arc calls.
