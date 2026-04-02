@@ -281,6 +281,10 @@
   let lastFpsTime = 0;
   let speedMult = 1.0; // slider at 8 → 8/8 = 1.0
   let hintHidden = false;
+  let resizeTimer = null;
+
+  // Cache DOM refs (avoid getElementById in hot path)
+  const elFps  = document.getElementById('fps-display');
 
   /* ---- Audio ---- */
   let audioEnabled = false;
@@ -359,7 +363,7 @@
       fps = Math.round(frameCount * 1000 / (ts - lastFpsTime));
       frameCount = 0;
       lastFpsTime = ts;
-      document.getElementById('fps-display').textContent = fps + ' FPS';
+      elFps.textContent = fps + ' FPS';
     }
 
     // Fade hint after 5s
@@ -368,9 +372,9 @@
       hintHidden = true;
     }
 
-    // Auto-rotate
+    // Auto-rotate (wrap to prevent float precision loss over long sessions)
     if (autoRot && !isDragging) {
-      rotY += 0.004;
+      rotY = (rotY + 0.004) % (Math.PI * 2);
     }
 
     // Integrate all particles
@@ -423,8 +427,8 @@
     ctx.globalCompositeOperation = 'source-over';
   }
 
-  /* ---- Resize (with DPR for sharp retina rendering) ---- */
-  function resize() {
+  /* ---- Resize (DPR-aware, debounced to prevent black flash) ---- */
+  function applyResize() {
     W = window.innerWidth;
     H = window.innerHeight;
     const DPR = window.devicePixelRatio || 1;
@@ -436,6 +440,13 @@
     ctx.fillStyle = '#000';
     ctx.fillRect(0, 0, W, H);
   }
+
+  function resize() {
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(applyResize, 100);
+  }
+
+  function resizeImmediate() { applyResize(); } // used at init only
 
   /* ---- Switch Attractor ---- */
   function switchAttractor(key) {
@@ -603,6 +614,11 @@
         audioCtx = new (window.AudioContext || window.webkitAudioContext)();
       } catch(err) {
         console.warn('AudioContext not available:', err);
+        // Reset state so UI reflects actual audio status
+        audioEnabled = false;
+        document.getElementById('audioBtn').textContent = 'SOUND: OFF';
+        document.getElementById('audioBtn').style.color = '';
+        document.getElementById('audioBtn').style.borderColor = '';
         return;
       }
     }
@@ -637,14 +653,12 @@
   }
 
   /* ---- Boot ---- */
-  resize();
-  window.addEventListener('resize', () => {
-    resize();
-  });
+  resizeImmediate(); // synchronous on first load
+  window.addEventListener('resize', resize); // debounced on subsequent resizes
 
   initParticles('lorenz');
   lastFpsTime = performance.now();
-  loop(performance.now());
+  requestAnimationFrame(loop); // start inside rAF for proper vsync alignment
   </script>
 </body>
 </html>
