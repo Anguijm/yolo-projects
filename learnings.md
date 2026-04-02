@@ -67,6 +67,20 @@ Persistent knowledge base. Read this before every build.
 
 ## Per-Build Reflections
 
+### orbital-slingshot (2026-04-02)
+- **KEEP**: Velocity Verlet integration (`x += v*dt + 0.5*a*dt²; a2 = accel(x_new); v += 0.5*(a+a2)*dt`) is more accurate than Euler for orbital mechanics — energy is better conserved through slingshot turns.
+- **KEEP**: Trajectory preview (run physics forward N steps and draw dotted line) transforms a physics simulation into a puzzle game — player sees consequences before committing.
+- **KEEP**: Softened gravity denominator `r² + ε` (ε=180) prevents singularities when probe passes very close to planet. Slight inaccuracy is irrelevant for gameplay.
+- **KEEP**: Planet RGB components stored as separate `r, g, b` fields (not hex strings) — enables arithmetic for atmosphere gradients (`rgba(r*0.4, g*0.4, b*0.4)`) without parsing.
+- **KEEP**: `touch-action: none` on the canvas element specifically (not just body) — prevents browser pan/zoom from interfering with drag-aim interaction.
+- **KEEP**: Shot count in success message (`TARGET REACHED — 1 SHOT`) adds a scoring dimension without a separate score system.
+- **KEEP**: Atmospheric glow radial gradient (planet edge → transparent over 3.2× radius) creates readable planetary scale cues and looks beautiful.
+- **KEEP**: Ringed planet for mass ≥ 3.5 (ellipse via ctx.scale(1, 0.28)) is a cheap visual indicator of massive gravitational bodies — form matches function.
+- **IMPROVE**: `animTs` was declared and set but never read — always audit for dead variables before shipping. Dead vars add confusion and slightly inflate file size.
+- **INSIGHT**: For physics puzzle games, the preview trajectory IS the game mechanic. The physics engine doesn't need to be real-time — it just needs to show the player what will happen. This lets physics be arbitrarily complex as long as it's fast enough to preview in ~480 steps.
+- **INSIGHT**: `G × mass ≈ 1,000,000+` is needed for visually dramatic slingshot deflections in a ~800px logical coordinate space with speeds of 200-400 px/s. Under-tuning G makes gravity imperceptible.
+- **INSIGHT**: iOS safe-area for bottom controls: `bottom: max(8px, env(safe-area-inset-bottom, 8px))` handles both notched iPhones and regular devices cleanly.
+
 ### fluid-sim (2026-04-02)
 - **KEEP**: Stable Fluids (Stam 1999) 8-shader GPU pipeline — splat → advect → curl → vorticity → divergence → pressure (Jacobi×20) → gradient-subtract → render. Ping-pong FBOs for all double-buffered passes.
 - **KEEP**: `preserveDrawingBuffer: true` is REQUIRED for `canvas.toBlob()` / `canvas.toDataURL()` on WebGL contexts. Without it, the draw buffer may be cleared before the async callback fires.
