@@ -1,0 +1,987 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="theme-color" content="#000000">
+<title>naval-scribe</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body {
+  height: 100%; background: #0a0a0a; color: #ccc;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Courier New", monospace;
+  overflow: hidden; touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+:root {
+  --bg-page: #0a0a0a;
+  --bg-surface: #111;
+  --bg-elevated: #1a1a1a;
+  --border-default: #1a1a1a;
+  --border-visible: #222;
+  --border-active: #444;
+  --text-primary: #fff;
+  --text-body: #ccc;
+  --text-secondary: #aaa;
+  --text-tertiary: #555;
+  --text-label: #444;
+  --accent: #0ff;
+  --color-success: #3fb950;
+}
+#app {
+  display: grid;
+  grid-template-columns: 420px 1fr;
+  grid-template-rows: 32px 1fr;
+  height: 100vh; width: 100vw;
+}
+@media (max-width: 768px) {
+  #app {
+    grid-template-columns: 1fr;
+    grid-template-rows: 32px 1fr 1fr;
+  }
+}
+#top-bar {
+  grid-column: 1 / -1;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0 12px; height: 32px;
+  background: var(--bg-surface); border-bottom: 1px solid var(--border-default);
+}
+#top-bar .title {
+  font-size: 0.55rem; text-transform: uppercase; letter-spacing: 0.2em;
+  color: var(--text-label);
+}
+#top-bar .title span { color: var(--accent); }
+.top-controls { display: flex; gap: 8px; align-items: center; }
+#type-select {
+  background: var(--bg-surface); border: 1px solid var(--border-default);
+  color: var(--text-secondary); font-family: inherit; font-size: 0.55rem;
+  padding: 2px 6px; cursor: pointer; outline: none;
+}
+.btn {
+  padding: 3px 10px; background: transparent; border: 1px solid var(--border-default);
+  color: var(--text-label); font-family: inherit; font-size: 0.5rem;
+  cursor: pointer; letter-spacing: 0.1em; text-transform: uppercase;
+}
+.btn:active { border-color: var(--accent); color: var(--accent); }
+.btn-primary { border-color: var(--accent); color: var(--accent); }
+
+/* Form panel */
+#form-panel {
+  overflow-y: auto; padding: 10px;
+  background: var(--bg-surface); border-right: 1px solid var(--border-default);
+}
+.field { margin-bottom: 8px; }
+.field-label {
+  font-size: 0.45rem; text-transform: uppercase; letter-spacing: 0.15em;
+  color: var(--text-label); margin-bottom: 3px;
+}
+.field input, .field textarea, .field select {
+  width: 100%; background: var(--bg-elevated); border: 1px solid var(--border-default);
+  color: var(--text-body); font-family: inherit; font-size: 0.7rem;
+  padding: 5px 7px; outline: none;
+}
+.field input:focus, .field textarea:focus { border-color: var(--border-active); }
+.field textarea { resize: vertical; min-height: 60px; }
+.field-hint {
+  font-size: 0.4rem; color: var(--text-tertiary); margin-top: 2px;
+}
+.multi-field { display: flex; gap: 4px; margin-bottom: 4px; }
+.multi-field input { flex: 1; }
+.add-btn {
+  padding: 2px 8px; background: transparent; border: 1px solid var(--border-default);
+  color: var(--text-tertiary); font-family: inherit; font-size: 0.5rem;
+  cursor: pointer;
+}
+.add-btn:hover { color: var(--text-secondary); border-color: var(--border-active); }
+.sig-row { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.section-header {
+  font-size: 0.45rem; text-transform: uppercase; letter-spacing: 0.2em;
+  color: var(--text-tertiary); margin: 12px 0 6px; padding-bottom: 3px;
+  border-bottom: 1px solid var(--border-default);
+}
+
+/* Preview panel */
+#preview-panel {
+  overflow-y: auto; padding: 20px; background: #1a1a1a;
+}
+#preview-page {
+  background: #fff; color: #000; padding: 96px 96px 96px 96px;
+  font-family: 'Times New Roman', Times, serif; font-size: 12pt;
+  line-height: 1.15; min-height: 11in; max-width: 8.5in;
+  margin: 0 auto; box-shadow: 0 2px 20px rgba(0,0,0,0.5);
+}
+#preview-page .hdr-line { margin-bottom: 0; }
+#preview-page .hdr-label { display: inline-block; width: 60px; font-weight: normal; }
+#preview-page .hdr-gap { height: 24px; }
+#preview-page .body-para { margin-bottom: 24px; text-indent: 0; }
+#preview-page .sig-block { margin-top: 72px; text-align: center; text-transform: uppercase; }
+#preview-page .sig-name { font-weight: normal; }
+#preview-page .copy-to { margin-top: 48px; }
+#preview-page .subj-line { text-transform: uppercase; }
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="top-bar">
+    <div class="title"><span>&#9632;</span> naval-scribe</div>
+    <div class="top-controls">
+      <select id="type-select">
+        <option value="letter">standard naval letter</option>
+        <option value="memo">memorandum</option>
+        <option value="endorsement">endorsement</option>
+        <option value="business">business letter</option>
+        <option value="pointpaper">point paper</option>
+        <option value="actionmemo">action memo</option>
+      </select>
+      <button class="btn btn-primary" id="download-btn">download .docx</button>
+    </div>
+  </div>
+  <div id="form-panel">
+    <div class="field" data-types="letter,memo,endorsement,business">
+      <div class="field-label">SSIC</div>
+      <input type="text" id="f-ssic" placeholder="e.g. 5216">
+    </div>
+    <div class="field" data-types="letter,memo,endorsement,business,pointpaper,actionmemo">
+      <div class="field-label">Date</div>
+      <input type="text" id="f-date" placeholder="DD Mon YYYY">
+    </div>
+    <div class="field" data-types="endorsement">
+      <div class="field-label">Endorsement Number</div>
+      <input type="text" id="f-endorse-num" placeholder="FIRST (or SECOND, THIRD...)">
+    </div>
+    <div class="field" data-types="letter,memo,endorsement,business">
+      <div class="field-label">From</div>
+      <input type="text" id="f-from" placeholder="Commanding Officer, USS EXAMPLE (DDG 00)">
+    </div>
+    <div class="field" data-types="letter,memo,endorsement,business">
+      <div class="field-label">To</div>
+      <input type="text" id="f-to" placeholder="Commander, Naval Surface Force, U.S. Pacific Fleet">
+    </div>
+    <div class="field" data-types="letter,memo,endorsement">
+      <div class="field-label">Via</div>
+      <div id="via-list"></div>
+      <button class="add-btn" id="add-via">+ add via</button>
+      <div class="field-hint">Chain of command routing</div>
+    </div>
+    <div class="field" data-types="letter,memo,endorsement,business,pointpaper,actionmemo">
+      <div class="field-label">Subject</div>
+      <input type="text" id="f-subj" placeholder="Subject line (auto-uppercased)">
+    </div>
+    <div class="field" data-types="letter,endorsement">
+      <div class="field-label">References</div>
+      <div id="ref-list"></div>
+      <button class="add-btn" id="add-ref">+ add ref</button>
+      <div class="field-hint">Lettered (a), (b), (c)...</div>
+    </div>
+    <div class="field" data-types="letter,endorsement">
+      <div class="field-label">Enclosures</div>
+      <div id="encl-list"></div>
+      <button class="add-btn" id="add-encl">+ add encl</button>
+      <div class="field-hint">Numbered (1), (2), (3)...</div>
+    </div>
+    <div class="field" data-types="actionmemo">
+      <div class="field-label">BLUF (Bottom Line Up Front)</div>
+      <textarea id="f-bluf" rows="3" placeholder="Navy position or recommendation in 1-2 sentences"></textarea>
+    </div>
+    <div class="field" data-types="actionmemo">
+      <div class="field-label">Recommendation</div>
+      <textarea id="f-recommendation" rows="3" placeholder="Specific recommended action"></textarea>
+    </div>
+    <div class="section-header">Body</div>
+    <div class="field" data-types="letter,memo,endorsement,business">
+      <textarea id="f-body" rows="12" placeholder="Type or paste correspondence body text here.&#10;&#10;Use blank lines between paragraphs.&#10;Indent with spaces or tabs for sub-paragraphs.&#10;Numbering (1. a. (1) (a)) is auto-applied."></textarea>
+    </div>
+    <div class="field" data-types="pointpaper">
+      <textarea id="f-body-bullets" rows="12" placeholder="One bullet point per line.&#10;&#10;Each line becomes a bullet.&#10;Keep each bullet under 5 lines.&#10;Point papers should fit on one page."></textarea>
+    </div>
+    <div class="field" data-types="actionmemo">
+      <textarea id="f-body-action" rows="12" placeholder="Action items and supporting information.&#10;&#10;First bullet is the direction statement.&#10;Keep each bullet under 5 lines.&#10;Label supporting docs as TAB A, TAB B, etc."></textarea>
+    </div>
+    <div class="section-header" data-types="letter,memo,endorsement,business,actionmemo">Signature Block</div>
+    <div class="sig-row" data-types="letter,memo,endorsement,business,actionmemo">
+      <div class="field">
+        <div class="field-label">Name</div>
+        <input type="text" id="f-sig-name" placeholder="J. A. SMITH">
+      </div>
+      <div class="field">
+        <div class="field-label">Rank/Rate</div>
+        <input type="text" id="f-sig-rank" placeholder="Captain, U.S. Navy">
+      </div>
+    </div>
+    <div class="field" data-types="letter,memo,endorsement,business,actionmemo">
+      <div class="field-label">Title (optional)</div>
+      <input type="text" id="f-sig-title" placeholder="Commanding Officer">
+    </div>
+    <div class="field" data-types="letter,memo,endorsement,business">
+      <div class="field-label">Copy To</div>
+      <textarea id="f-copyto" rows="3" placeholder="One recipient per line"></textarea>
+    </div>
+  </div>
+  <div id="preview-panel">
+    <div id="preview-page"></div>
+  </div>
+</div>
+<script>
+(function() {
+  'use strict';
+
+  /* ── DOM refs ── */
+  var typeSelect = document.getElementById('type-select');
+  var downloadBtn = document.getElementById('download-btn');
+  var previewPage = document.getElementById('preview-page');
+  var formPanel = document.getElementById('form-panel');
+
+  var F = {
+    ssic: document.getElementById('f-ssic'),
+    date: document.getElementById('f-date'),
+    endorseNum: document.getElementById('f-endorse-num'),
+    from: document.getElementById('f-from'),
+    to: document.getElementById('f-to'),
+    subj: document.getElementById('f-subj'),
+    body: document.getElementById('f-body'),
+    bodyBullets: document.getElementById('f-body-bullets'),
+    bodyAction: document.getElementById('f-body-action'),
+    bluf: document.getElementById('f-bluf'),
+    recommendation: document.getElementById('f-recommendation'),
+    sigName: document.getElementById('f-sig-name'),
+    sigRank: document.getElementById('f-sig-rank'),
+    sigTitle: document.getElementById('f-sig-title'),
+    copyTo: document.getElementById('f-copyto')
+  };
+
+  /* ── Field visibility by type ── */
+  function updateFieldVisibility() {
+    var type = typeSelect.value;
+    var fields = formPanel.querySelectorAll('[data-types]');
+    for (var i = 0; i < fields.length; i++) {
+      var types = fields[i].getAttribute('data-types').split(',');
+      fields[i].style.display = types.indexOf(type) >= 0 ? '' : 'none';
+    }
+  }
+  typeSelect.addEventListener('change', function() {
+    updateFieldVisibility();
+    updatePreview();
+  });
+
+  /* ── Date default ── */
+  var MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  function todayNaval() {
+    var d = new Date();
+    var day = d.getDate();
+    return day + ' ' + MONTHS[d.getMonth()] + ' ' + d.getFullYear();
+  }
+  F.date.value = todayNaval();
+
+  /* ── Multi-field helpers ── */
+  function makeMultiField(containerId, btnId, prefix) {
+    var container = document.getElementById(containerId);
+    var btn = document.getElementById(btnId);
+    var items = [];
+
+    function addItem(val) {
+      var idx = items.length;
+      var row = document.createElement('div');
+      row.className = 'multi-field';
+      var input = document.createElement('input');
+      input.type = 'text';
+      input.value = val || '';
+      input.addEventListener('input', updatePreview);
+      var rm = document.createElement('button');
+      rm.className = 'add-btn';
+      rm.textContent = 'x';
+      rm.addEventListener('click', function() {
+        container.removeChild(row);
+        items.splice(items.indexOf(input), 1);
+        updatePreview();
+      });
+      row.appendChild(input);
+      row.appendChild(rm);
+      container.appendChild(row);
+      items.push(input);
+      input.focus();
+      updatePreview();
+    }
+
+    btn.addEventListener('click', function() { addItem(''); });
+
+    return {
+      getValues: function() {
+        return items.filter(function(i) { return i.value.trim(); }).map(function(i) { return i.value.trim(); });
+      },
+      addItem: addItem
+    };
+  }
+
+  var viaFields = makeMultiField('via-list', 'add-via', 'via');
+  var refFields = makeMultiField('ref-list', 'add-ref', 'ref');
+  var enclFields = makeMultiField('encl-list', 'add-encl', 'encl');
+
+  /* ── Paragraph numbering ── */
+  function toAlpha(n) {
+    var s = '';
+    while (n > 0) { n--; s = String.fromCharCode(97 + (n % 26)) + s; n = Math.floor(n / 26); }
+    return s;
+  }
+  var LEVEL_FORMATS = [
+    function(n) { return n + '.'; },
+    function(n) { return toAlpha(n) + '.'; },
+    function(n) { return '(' + n + ')'; },
+    function(n) { return '(' + toAlpha(n) + ')'; }
+  ];
+
+  function parseBodyParagraphs(text) {
+    if (!text.trim()) return [];
+    var lines = text.split('\n');
+    var paragraphs = [];
+    var current = '';
+    var currentIndent = 0;
+
+    for (var i = 0; i < lines.length; i++) {
+      var line = lines[i];
+      if (line.trim() === '') {
+        if (current.trim()) {
+          paragraphs.push({ text: current.trim(), indent: currentIndent });
+          current = '';
+        }
+        continue;
+      }
+      var spaces = line.match(/^(\s*)/)[1].length;
+      var level = Math.min(Math.floor(spaces / 4), 3);
+      if (!current) {
+        currentIndent = level;
+        current = line.trim();
+      } else {
+        current += ' ' + line.trim();
+      }
+    }
+    if (current.trim()) {
+      paragraphs.push({ text: current.trim(), indent: currentIndent });
+    }
+
+    /* apply numbering */
+    var counters = [0, 0, 0, 0];
+    for (var j = 0; j < paragraphs.length; j++) {
+      var p = paragraphs[j];
+      var lvl = p.indent;
+      counters[lvl]++;
+      /* reset deeper counters */
+      for (var k = lvl + 1; k < 4; k++) counters[k] = 0;
+      p.number = LEVEL_FORMATS[lvl](counters[lvl]);
+      p.level = lvl;
+    }
+
+    return paragraphs;
+  }
+
+  /* ── Get form data ── */
+  function getData() {
+    var type = typeSelect.value;
+    var bodyText = type === 'pointpaper' ? F.bodyBullets.value :
+                   type === 'actionmemo' ? F.bodyAction.value : F.body.value;
+    return {
+      type: type,
+      ssic: F.ssic.value.trim(),
+      date: F.date.value.trim(),
+      endorseNum: F.endorseNum.value.trim().toUpperCase() || 'FIRST',
+      from: F.from.value.trim(),
+      to: F.to.value.trim(),
+      via: viaFields.getValues(),
+      subj: F.subj.value.trim().toUpperCase(),
+      refs: refFields.getValues(),
+      encls: enclFields.getValues(),
+      body: (type === 'pointpaper' || type === 'actionmemo') ? [] : parseBodyParagraphs(bodyText),
+      bullets: (type === 'pointpaper' || type === 'actionmemo') ?
+        bodyText.split('\n').filter(function(l) { return l.trim(); }).map(function(l) { return l.trim(); }) : [],
+      bluf: F.bluf.value.trim(),
+      recommendation: F.recommendation.value.trim(),
+      sigName: F.sigName.value.trim(),
+      sigRank: F.sigRank.value.trim(),
+      sigTitle: F.sigTitle.value.trim(),
+      copyTo: F.copyTo.value.trim().split('\n').filter(function(l) { return l.trim(); })
+    };
+  }
+
+  /* ── Escape HTML ── */
+  function esc(s) { return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+
+  /* ── Preview renderer ── */
+  function renderStandardHeader(d, html) {
+    if (d.ssic) html += '<div style="text-align:right;margin-bottom:0">' + esc(d.ssic) + '</div>';
+    if (d.date) html += '<div style="text-align:right;margin-bottom:24px">' + esc(d.date) + '</div>';
+    return html;
+  }
+
+  function renderFromTo(d, html) {
+    if (d.from) html += '<div class="hdr-line"><span class="hdr-label">From:</span> ' + esc(d.from) + '</div>';
+    if (d.to) html += '<div class="hdr-line"><span class="hdr-label">To:</span> ' + esc(d.to) + '</div>';
+    return html;
+  }
+
+  function renderVia(d, html) {
+    if (d.via.length) {
+      for (var v = 0; v < d.via.length; v++) {
+        var viaLabel = v === 0 ? 'Via:' : '';
+        html += '<div class="hdr-line"><span class="hdr-label">' + viaLabel + '</span> (' + (v + 1) + ') ' + esc(d.via[v]) + '</div>';
+      }
+    }
+    return html;
+  }
+
+  function renderSubj(d, html) {
+    html += '<div class="hdr-gap"></div>';
+    if (d.subj) html += '<div class="hdr-line subj-line"><span class="hdr-label">Subj:</span> ' + esc(d.subj) + '</div>';
+    html += '<div class="hdr-gap"></div>';
+    return html;
+  }
+
+  function renderRefEncl(d, html) {
+    var ALPHA = 'abcdefghijklmnopqrstuvwxyz';
+    if (d.refs.length) {
+      for (var r = 0; r < d.refs.length; r++) {
+        var refLabel = r === 0 ? 'Ref:' : '';
+        html += '<div class="hdr-line"><span class="hdr-label">' + refLabel + '</span> (' + ALPHA[r % 26] + ') ' + esc(d.refs[r]) + '</div>';
+      }
+      html += '<div class="hdr-gap"></div>';
+    }
+    if (d.encls.length) {
+      for (var e = 0; e < d.encls.length; e++) {
+        var enclLabel = e === 0 ? 'Encl:' : '';
+        html += '<div class="hdr-line"><span class="hdr-label">' + enclLabel + '</span> (' + (e + 1) + ') ' + esc(d.encls[e]) + '</div>';
+      }
+      html += '<div class="hdr-gap"></div>';
+    }
+    return html;
+  }
+
+  function renderBody(d, html) {
+    var INDENT_PX = [0, 36, 72, 108];
+    for (var b = 0; b < d.body.length; b++) {
+      var para = d.body[b];
+      html += '<div class="body-para" style="padding-left:' + INDENT_PX[para.level] + 'px">';
+      html += '<span style="display:inline-block;min-width:' + (para.level > 1 ? '36px' : '24px') + '">' + esc(para.number) + '</span> ';
+      html += esc(para.text) + '</div>';
+    }
+    return html;
+  }
+
+  function renderBullets(d, html) {
+    for (var i = 0; i < d.bullets.length; i++) {
+      html += '<div class="body-para" style="padding-left:24px;text-indent:-12px">';
+      html += '&bull; ' + esc(d.bullets[i]) + '</div>';
+    }
+    return html;
+  }
+
+  function renderSig(d, html) {
+    if (d.sigName || d.sigRank) {
+      html += '<div class="sig-block">';
+      html += '<div class="sig-name">' + esc(d.sigName) + '</div>';
+      if (d.sigRank) html += '<div>' + esc(d.sigRank) + '</div>';
+      if (d.sigTitle) html += '<div>' + esc(d.sigTitle) + '</div>';
+      html += '</div>';
+    }
+    return html;
+  }
+
+  function renderCopyTo(d, html) {
+    if (d.copyTo.length) {
+      html += '<div class="copy-to">';
+      for (var c = 0; c < d.copyTo.length; c++) {
+        var ctLabel = c === 0 ? 'Copy to:' : '';
+        html += '<div><span class="hdr-label" style="width:70px">' + ctLabel + '</span> ' + esc(d.copyTo[c]) + '</div>';
+      }
+      html += '</div>';
+    }
+    return html;
+  }
+
+  function renderPreview() {
+    var d = getData();
+    var html = '';
+
+    switch (d.type) {
+      case 'letter':
+        html = renderStandardHeader(d, html);
+        html = renderFromTo(d, html);
+        html = renderVia(d, html);
+        html = renderSubj(d, html);
+        html = renderRefEncl(d, html);
+        html = renderBody(d, html);
+        html = renderSig(d, html);
+        html = renderCopyTo(d, html);
+        break;
+
+      case 'memo':
+        html = renderStandardHeader(d, html);
+        html += '<div style="text-align:center;margin-bottom:24px;font-weight:bold;">MEMORANDUM</div>';
+        html = renderFromTo(d, html);
+        html = renderVia(d, html);
+        html = renderSubj(d, html);
+        html = renderBody(d, html);
+        html = renderSig(d, html);
+        html = renderCopyTo(d, html);
+        break;
+
+      case 'endorsement':
+        html = renderStandardHeader(d, html);
+        html += '<div style="text-align:center;margin-bottom:24px;font-weight:bold;">' + esc(d.endorseNum) + ' ENDORSEMENT</div>';
+        html = renderFromTo(d, html);
+        html = renderVia(d, html);
+        html = renderSubj(d, html);
+        html = renderRefEncl(d, html);
+        html = renderBody(d, html);
+        html = renderSig(d, html);
+        html = renderCopyTo(d, html);
+        break;
+
+      case 'business':
+        if (d.date) html += '<div style="margin-bottom:24px">' + esc(d.date) + '</div>';
+        if (d.from) html += '<div style="margin-bottom:24px">' + esc(d.from) + '</div>';
+        if (d.to) html += '<div style="margin-bottom:24px">' + esc(d.to) + '</div>';
+        if (d.subj) html += '<div style="margin-bottom:24px"><strong>Subject: </strong>' + esc(d.subj) + '</div>';
+        html = renderBody(d, html);
+        html = renderSig(d, html);
+        break;
+
+      case 'pointpaper':
+        if (d.date) html += '<div style="text-align:right;margin-bottom:12px">' + esc(d.date) + '</div>';
+        if (d.subj) html += '<div style="text-align:center;font-weight:bold;margin-bottom:24px;text-transform:uppercase;">POINT PAPER<br>' + esc(d.subj) + '</div>';
+        html = renderBullets(d, html);
+        break;
+
+      case 'actionmemo':
+        html = renderStandardHeader(d, html);
+        html += '<div style="text-align:center;margin-bottom:24px;font-weight:bold;">ACTION MEMO</div>';
+        html = renderFromTo(d, html);
+        html = renderSubj(d, html);
+        if (d.bluf) {
+          html += '<div class="body-para"><strong>BLUF:  </strong>' + esc(d.bluf) + '</div>';
+        }
+        html = renderBullets(d, html);
+        if (d.recommendation) {
+          html += '<div class="body-para" style="margin-top:12px"><strong>RECOMMENDATION:  </strong>' + esc(d.recommendation) + '</div>';
+        }
+        html = renderSig(d, html);
+        break;
+    }
+
+    previewPage.innerHTML = html;
+  }
+
+  /* localStorage auto-save */
+  var SAVE_KEY = 'naval-scribe-form';
+  function autoSave() {
+    try {
+      var state = {
+        ssic: F.ssic.value, date: F.date.value, from: F.from.value,
+        to: F.to.value, subj: F.subj.value, body: F.body.value,
+        sigName: F.sigName.value, sigRank: F.sigRank.value,
+        sigTitle: F.sigTitle.value, copyTo: F.copyTo.value,
+        type: typeSelect.value
+      };
+      localStorage.setItem(SAVE_KEY, JSON.stringify(state));
+    } catch(e) {}
+  }
+  function loadSaved() {
+    try {
+      var s = localStorage.getItem(SAVE_KEY);
+      if (!s) return false;
+      var state = JSON.parse(s);
+      if (state.ssic) F.ssic.value = state.ssic;
+      if (state.date) F.date.value = state.date;
+      if (state.from) F.from.value = state.from;
+      if (state.to) F.to.value = state.to;
+      if (state.subj) F.subj.value = state.subj;
+      if (state.body) F.body.value = state.body;
+      if (state.sigName) F.sigName.value = state.sigName;
+      if (state.sigRank) F.sigRank.value = state.sigRank;
+      if (state.sigTitle) F.sigTitle.value = state.sigTitle;
+      if (state.copyTo) F.copyTo.value = state.copyTo;
+      if (state.type) typeSelect.value = state.type;
+      return true;
+    } catch(e) { return false; }
+  }
+
+  function updatePreview() { renderPreview(); autoSave(); }
+
+  /* ── Attach listeners ── */
+  var inputs = formPanel.querySelectorAll('input, textarea, select');
+  for (var i = 0; i < inputs.length; i++) {
+    inputs[i].addEventListener('input', updatePreview);
+  }
+  typeSelect.addEventListener('change', updatePreview);
+
+  /* ── DOCX generation ── */
+
+  /* Minimal ZIP builder (STORE method, no compression) */
+  function createZip(files) {
+    var localHeaders = [];
+    var centralHeaders = [];
+    var offset = 0;
+
+    for (var i = 0; i < files.length; i++) {
+      var file = files[i];
+      var nameBytes = strToBytes(file.name);
+      var dataBytes = file.data instanceof Uint8Array ? file.data : strToBytes(file.data);
+      var crc = crc32(dataBytes);
+      /* valid MS-DOS date: Jan 1, 2020 = ((2020-1980)<<9)|(1<<5)|1 = 0x5021 */
+      var dosDate = 0x5021;
+      var dosTime = 0x0000;
+
+      /* Local file header */
+      var local = new Uint8Array(30 + nameBytes.length + dataBytes.length);
+      var lv = new DataView(local.buffer);
+      lv.setUint32(0, 0x04034b50, true);
+      lv.setUint16(4, 20, true);
+      lv.setUint16(6, 0x0800, true);
+      lv.setUint16(8, 0, true);
+      lv.setUint16(10, dosTime, true);
+      lv.setUint16(12, dosDate, true);
+      lv.setUint32(14, crc, true);
+      lv.setUint32(18, dataBytes.length, true);
+      lv.setUint32(22, dataBytes.length, true);
+      lv.setUint16(26, nameBytes.length, true);
+      local.set(nameBytes, 30);
+      local.set(dataBytes, 30 + nameBytes.length);
+      localHeaders.push(local);
+
+      /* Central directory header */
+      var central = new Uint8Array(46 + nameBytes.length);
+      var cv = new DataView(central.buffer);
+      cv.setUint32(0, 0x02014b50, true);
+      cv.setUint16(4, 20, true);
+      cv.setUint16(6, 20, true);
+      cv.setUint16(8, 0x0800, true);
+      cv.setUint16(10, 0, true);
+      cv.setUint16(12, dosTime, true);
+      cv.setUint16(14, dosDate, true);
+      cv.setUint32(16, crc, true);
+      cv.setUint32(20, dataBytes.length, true);
+      cv.setUint32(24, dataBytes.length, true);
+      cv.setUint16(28, nameBytes.length, true);
+      cv.setUint32(42, offset, true);
+      central.set(nameBytes, 46);
+      centralHeaders.push(central);
+
+      offset += local.length;
+    }
+
+    var centralSize = 0;
+    for (var j = 0; j < centralHeaders.length; j++) centralSize += centralHeaders[j].length;
+
+    /* End of central directory */
+    var end = new Uint8Array(22);
+    var ev = new DataView(end.buffer);
+    ev.setUint32(0, 0x06054b50, true);
+    ev.setUint16(8, files.length, true);
+    ev.setUint16(10, files.length, true);
+    ev.setUint32(12, centralSize, true);
+    ev.setUint32(16, offset, true);
+
+    var totalSize = offset + centralSize + 22;
+    var result = new Uint8Array(totalSize);
+    var pos = 0;
+    for (var k = 0; k < localHeaders.length; k++) {
+      result.set(localHeaders[k], pos);
+      pos += localHeaders[k].length;
+    }
+    for (var m = 0; m < centralHeaders.length; m++) {
+      result.set(centralHeaders[m], pos);
+      pos += centralHeaders[m].length;
+    }
+    result.set(end, pos);
+    return result;
+  }
+
+  function strToBytes(str) {
+    var encoder = new TextEncoder();
+    return encoder.encode(str);
+  }
+
+  /* CRC32 */
+  var CRC_TABLE = null;
+  function makeCrcTable() {
+    CRC_TABLE = new Uint32Array(256);
+    for (var n = 0; n < 256; n++) {
+      var c = n;
+      for (var k = 0; k < 8; k++) {
+        c = (c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1);
+      }
+      CRC_TABLE[n] = c;
+    }
+  }
+  function crc32(bytes) {
+    if (!CRC_TABLE) makeCrcTable();
+    var crc = 0xFFFFFFFF;
+    for (var i = 0; i < bytes.length; i++) {
+      crc = CRC_TABLE[(crc ^ bytes[i]) & 0xFF] ^ (crc >>> 8);
+    }
+    return (crc ^ 0xFFFFFFFF) >>> 0;
+  }
+
+  /* OOXML constants */
+  var TWIPS_PER_INCH = 1440;
+  var HALF_POINTS_12 = 24;
+  var OOXML_NS = 'xmlns:w="http:/' + '/schemas.openxmlformats.org/wordprocessingml/2006/main"';
+  var REL_NS = 'xmlns:r="http:/' + '/schemas.openxmlformats.org/officeDocument/2006/relationships"';
+
+  function escXml(s) {
+    return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+
+  function makeParagraph(text, opts) {
+    opts = opts || {};
+    var pPr = '<w:pPr>';
+    if (opts.align === 'center') pPr += '<w:jc w:val="center"/>';
+    if (opts.align === 'right') pPr += '<w:jc w:val="right"/>';
+    if (opts.spaceBefore) pPr += '<w:spacing w:before="' + opts.spaceBefore + '"/>';
+    if (opts.spaceAfter) pPr += '<w:spacing w:after="' + opts.spaceAfter + '"/>';
+    if (opts.indent) pPr += '<w:ind w:left="' + opts.indent + '"/>';
+    if (opts.bold) pPr += '<w:rPr><w:b/></w:rPr>';
+    pPr += '</w:pPr>';
+
+    var rPr = '<w:rPr>';
+    if (opts.bold) rPr += '<w:b/>';
+    if (opts.caps) rPr += '<w:caps/>';
+    rPr += '</w:rPr>';
+
+    var runs = '';
+    if (typeof text === 'string') {
+      runs = '<w:r>' + rPr + '<w:t xml:space="preserve">' + escXml(text) + '</w:t></w:r>';
+    } else if (Array.isArray(text)) {
+      for (var i = 0; i < text.length; i++) {
+        var t = text[i];
+        var tRpr = '<w:rPr>';
+        if (t.bold) tRpr += '<w:b/>';
+        if (t.caps) tRpr += '<w:caps/>';
+        tRpr += '</w:rPr>';
+        runs += '<w:r>' + tRpr + '<w:t xml:space="preserve">' + escXml(t.text) + '</w:t></w:r>';
+      }
+    }
+
+    return '<w:p>' + pPr + runs + '</w:p>';
+  }
+
+  function emptyParagraph(count) {
+    var s = '';
+    for (var i = 0; i < (count || 1); i++) s += '<w:p><w:pPr/></w:p>';
+    return s;
+  }
+
+  function generateDocx() {
+    var d = getData();
+    var ALPHA = 'abcdefghijklmnopqrstuvwxyz';
+
+    /* DOCX builder helpers */
+    function dSsicDate(body) {
+      if (d.ssic) body += makeParagraph(d.ssic, { align: 'right' });
+      if (d.date) body += makeParagraph(d.date, { align: 'right', spaceAfter: '240' });
+      return body;
+    }
+    function dFromTo(body) {
+      if (d.from) body += makeParagraph([{ text: 'From:  ' }, { text: d.from }]);
+      if (d.to) body += makeParagraph([{ text: 'To:    ' }, { text: d.to }]);
+      return body;
+    }
+    function dVia(body) {
+      for (var v = 0; v < d.via.length; v++) {
+        var vL = v === 0 ? 'Via:   ' : '       ';
+        body += makeParagraph([{ text: vL }, { text: '(' + (v + 1) + ') ' + d.via[v] }]);
+      }
+      return body;
+    }
+    function dSubj(body) {
+      body += emptyParagraph();
+      if (d.subj) body += makeParagraph([{ text: 'Subj:  ' }, { text: d.subj, caps: true }]);
+      body += emptyParagraph();
+      return body;
+    }
+    function dRefEncl(body) {
+      if (d.refs.length) {
+        for (var r = 0; r < d.refs.length; r++) {
+          var rL = r === 0 ? 'Ref:   ' : '       ';
+          body += makeParagraph([{ text: rL }, { text: '(' + ALPHA[r % 26] + ') ' + d.refs[r] }]);
+        }
+        body += emptyParagraph();
+      }
+      if (d.encls.length) {
+        for (var e = 0; e < d.encls.length; e++) {
+          var eL = e === 0 ? 'Encl:  ' : '       ';
+          body += makeParagraph([{ text: eL }, { text: '(' + (e + 1) + ') ' + d.encls[e] }]);
+        }
+        body += emptyParagraph();
+      }
+      return body;
+    }
+    function dBodyParas(body) {
+      var INDENT_TWIPS = [0, 540, 1080, 1620];
+      for (var b = 0; b < d.body.length; b++) {
+        var para = d.body[b];
+        body += makeParagraph(para.number + '  ' + para.text, { indent: INDENT_TWIPS[para.level], spaceAfter: '240' });
+      }
+      return body;
+    }
+    function dBullets(body) {
+      for (var i = 0; i < d.bullets.length; i++) {
+        body += makeParagraph('\u2022  ' + d.bullets[i], { indent: 360, spaceAfter: '240' });
+      }
+      return body;
+    }
+    function dSig(body) {
+      body += emptyParagraph(4);
+      if (d.sigName) body += makeParagraph(d.sigName, { align: 'center' });
+      if (d.sigRank) body += makeParagraph(d.sigRank, { align: 'center' });
+      if (d.sigTitle) body += makeParagraph(d.sigTitle, { align: 'center' });
+      return body;
+    }
+    function dCopyTo(body) {
+      if (d.copyTo.length) {
+        body += emptyParagraph(2);
+        for (var c = 0; c < d.copyTo.length; c++) {
+          var cL = c === 0 ? 'Copy to:  ' : '          ';
+          body += makeParagraph(cL + d.copyTo[c]);
+        }
+      }
+      return body;
+    }
+
+    /* Build document.xml body based on type */
+    var body = '';
+
+    switch (d.type) {
+      case 'letter':
+        body = dSsicDate(body);
+        body = dFromTo(body);
+        body = dVia(body);
+        body = dSubj(body);
+        body = dRefEncl(body);
+        body = dBodyParas(body);
+        body = dSig(body);
+        body = dCopyTo(body);
+        break;
+
+      case 'memo':
+        body = dSsicDate(body);
+        body += makeParagraph('MEMORANDUM', { align: 'center', bold: true, spaceAfter: '240' });
+        body = dFromTo(body);
+        body = dVia(body);
+        body = dSubj(body);
+        body = dBodyParas(body);
+        body = dSig(body);
+        body = dCopyTo(body);
+        break;
+
+      case 'endorsement':
+        body = dSsicDate(body);
+        body += makeParagraph(d.endorseNum + ' ENDORSEMENT', { align: 'center', bold: true, spaceAfter: '240' });
+        body = dFromTo(body);
+        body = dVia(body);
+        body = dSubj(body);
+        body = dRefEncl(body);
+        body = dBodyParas(body);
+        body = dSig(body);
+        body = dCopyTo(body);
+        break;
+
+      case 'business':
+        if (d.date) body += makeParagraph(d.date, { spaceAfter: '240' });
+        if (d.from) body += makeParagraph(d.from, { spaceAfter: '240' });
+        if (d.to) body += makeParagraph(d.to, { spaceAfter: '240' });
+        if (d.subj) body += makeParagraph([{ text: 'Subject: ', bold: true }, { text: d.subj }], { spaceAfter: '240' });
+        body = dBodyParas(body);
+        body = dSig(body);
+        break;
+
+      case 'pointpaper':
+        if (d.date) body += makeParagraph(d.date, { align: 'right' });
+        if (d.subj) body += makeParagraph('POINT PAPER', { align: 'center', bold: true });
+        if (d.subj) body += makeParagraph(d.subj, { align: 'center', bold: true, spaceAfter: '240' });
+        body = dBullets(body);
+        break;
+
+      case 'actionmemo':
+        body = dSsicDate(body);
+        body += makeParagraph('ACTION MEMO', { align: 'center', bold: true, spaceAfter: '240' });
+        body = dFromTo(body);
+        body = dSubj(body);
+        if (d.bluf) body += makeParagraph([{ text: 'BLUF:  ', bold: true }, { text: d.bluf }], { spaceAfter: '240' });
+        body = dBullets(body);
+        if (d.recommendation) body += makeParagraph([{ text: 'RECOMMENDATION:  ', bold: true }, { text: d.recommendation }], { spaceAfter: '240' });
+        body = dSig(body);
+        break;
+    }
+
+    /* Assemble document.xml */
+    var docXml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+      '<w:document ' + OOXML_NS + ' ' + REL_NS + '>' +
+      '<w:body>' + body +
+      '<w:sectPr>' +
+      '<w:pgSz w:w="12240" w:h="15840"/>' +
+      '<w:pgMar w:top="' + TWIPS_PER_INCH + '" w:right="' + TWIPS_PER_INCH + '" w:bottom="' + TWIPS_PER_INCH + '" w:left="' + TWIPS_PER_INCH + '" w:header="720" w:footer="720" w:gutter="0"/>' +
+      '</w:sectPr>' +
+      '</w:body></w:document>';
+
+    /* styles.xml — set default font */
+    var stylesXml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+      '<w:styles ' + OOXML_NS + '>' +
+      '<w:docDefaults><w:rPrDefault><w:rPr>' +
+      '<w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman" w:cs="Times New Roman"/>' +
+      '<w:sz w:val="' + HALF_POINTS_12 + '"/><w:szCs w:val="' + HALF_POINTS_12 + '"/>' +
+      '</w:rPr></w:rPrDefault></w:docDefaults>' +
+      '</w:styles>';
+
+    /* [Content_Types].xml */
+    var contentTypes = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+      '<Types xmlns="http:/' + '/schemas.openxmlformats.org/package/2006/content-types">' +
+      '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>' +
+      '<Default Extension="xml" ContentType="application/xml"/>' +
+      '<Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>' +
+      '<Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/>' +
+      '</Types>';
+
+    /* _rels/.rels */
+    var rootRels = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+      '<Relationships xmlns="http:/' + '/schemas.openxmlformats.org/package/2006/relationships">' +
+      '<Relationship Id="rId1" Type="http:/' + '/schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>' +
+      '</Relationships>';
+
+    /* word/_rels/document.xml.rels */
+    var wordRels = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+      '<Relationships xmlns="http:/' + '/schemas.openxmlformats.org/package/2006/relationships">' +
+      '<Relationship Id="rId1" Type="http:/' + '/schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>' +
+      '</Relationships>';
+
+    /* Build ZIP */
+    var zipBytes = createZip([
+      { name: '[Content_Types].xml', data: contentTypes },
+      { name: '_rels/.rels', data: rootRels },
+      { name: 'word/document.xml', data: docXml },
+      { name: 'word/_rels/document.xml.rels', data: wordRels },
+      { name: 'word/styles.xml', data: stylesXml }
+    ]);
+
+    /* Download */
+    var blob = new Blob([zipBytes], { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url;
+    a.download = 'naval_correspondence.docx';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(function() { URL.revokeObjectURL(url); }, 1000);
+  }
+
+  downloadBtn.addEventListener('click', generateDocx);
+
+  /* ── Init ── */
+  loadSaved();
+  updateFieldVisibility();
+  renderPreview();
+
+})();
+</script>
+</body>
+</html>
