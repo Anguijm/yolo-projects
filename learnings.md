@@ -2639,6 +2639,27 @@ Sequential Gemini reviews (focus: bugs, then security) caught **different issue 
 - **INSIGHT**: Physics "gradient descent toward zero" is a universal particle-settling technique. If you have a scalar field `Z(x,y)` and want particles to settle on its zero-contour, apply force `-Z * ∇Z`. This is clean, analytic, and works for any field including mode shapes, distance fields, and potential wells.
 - **TEST CAUGHT**: All bugs found by self-audit. Key pattern: immediately audit any variable declared but unused — dead variables are often a sign of a missing integration or redundant code.
 
+### shader-forge (2026-04-02)
+- **KEEP**: WebGL shader editor — textarea+pre overlay for zero-dep code editing works well. Pre-compile regexes at init, not in hot paths.
+- **KEEP**: Council review (6 angles: bugs, security, UI, guide, usefulness, cool) surfaces blind spots that single-angle Gemini review misses. Guide review (4/10) caught missing onboarding that would have shipped.
+- **KEEP**: Welcome preset with commented uniforms is the cheapest way to make a tool self-documenting. Should be default for all interactive projects.
+- **KEEP**: FPS counter + localStorage auto-save are low-effort, high-value additions for any interactive project.
+- **IMPROVE**: GLSL presets with `//` comments break test brace checker — always use `/* */` block comments in JS string literals containing code.
+- **IMPROVE**: Run council reviews BEFORE simplify, not after — avoids two rounds of edits.
+- **TEST CAUGHT**: Brace balance test caught `//` inside JS strings eating the line — known issue, fixed by switching to block comments.
+- **INSIGHT**: Fragment shaders must `gl.deleteShader(frag)` after linking — otherwise GPU memory leaks on every recompile.
+- **INSIGHT**: `getBoundingClientRect()` in pointermove handlers forces layout query every mouse move. Cache rect, invalidate on resize.
+
+### naval-scribe (2026-04-02)
+- **KEEP**: Hand-rolled ZIP + OOXML generates valid .docx entirely in browser. STORE method (no DEFLATE) is sufficient — Word opens it fine.
+- **KEEP**: CRC32 lookup table + DataView for binary manipulation is clean pattern for file format generation.
+- **KEEP**: Form fields with data-types conditional visibility scales cleanly across 6 correspondence types.
+- **IMPROVE**: `http://` in JS string literals breaks test brace checker — same `//` issue. Split with string concatenation: `'http:/' + '/...'`.
+- **TEST CAUGHT**: Brace balance caught http:// URLs in OOXML namespace strings. Known pattern now.
+- **INSIGHT**: ZIP files need valid MS-DOS dates (not 0x0000) or Word rejects them as corrupt. Use 0x5021 (Jan 1, 2020) as safe minimum.
+- **INSIGHT**: ZIP UTF-8 flag (bit 11, 0x0800) must be set in general purpose flags for modern compatibility.
+- **INSIGHT**: Naval paragraph numbering wraps at 26 via `getAlpha()` — handles aa, ab, ac... for deeply nested lists.
+
 ### epicycles — Fourier Drawing Machine (2026-04-02)
 - **KEEP**: DFT sign convention — treating (x,y) as complex z=x+iy: `re = x*cosθ + y*sinθ`, `im = -x*sinθ + y*cosθ`. This is correct for 2D path reconstruction.
 - **KEEP**: Arc-length resampling before DFT — interpolate along cumulative arc-length so DFT gets evenly-spaced samples, not bunched-up strokes.
