@@ -1,0 +1,940 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="theme-color" content="#000000">
+<title>L-System Garden</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body {
+  height: 100%;
+  background: #0a0a0a;
+  overflow: hidden;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Courier New", monospace;
+  color: #ccc;
+  user-select: none;
+}
+
+/* Layout */
+#app {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+#header {
+  flex-shrink: 0;
+  padding: 8px 12px 0;
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+#header h1 {
+  font-size: 0.7rem;
+  font-weight: 400;
+  letter-spacing: 0.25em;
+  text-transform: uppercase;
+  color: #444;
+}
+#seq-info {
+  font-size: 0.45rem;
+  color: #333;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+/* Presets strip */
+#presets {
+  flex-shrink: 0;
+  padding: 6px 12px;
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+.preset-btn {
+  padding: 4px 8px;
+  background: transparent;
+  border: 1px solid #1a1a1a;
+  color: #444;
+  font-family: inherit;
+  font-size: 0.5rem;
+  cursor: pointer;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  min-height: 28px;
+}
+.preset-btn:active { border-color: #555; color: #888; }
+.preset-btn.active { border-color: #0ff; color: #0ff; }
+
+/* Canvas area */
+#canvas-wrap {
+  flex: 1;
+  position: relative;
+  overflow: hidden;
+}
+#canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+#grow-overlay {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 0.45rem;
+  color: #555;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  pointer-events: none;
+}
+
+/* Controls panel */
+#controls {
+  flex-shrink: 0;
+  padding: 6px 12px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  border-top: 1px solid #111;
+}
+
+/* Rules section */
+#rules-section {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+#rules-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.ctrl-label {
+  font-size: 0.45rem;
+  color: #444;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+}
+#rule-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.rule-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.rule-var {
+  width: 22px;
+  background: #111;
+  border: 1px solid #1a1a1a;
+  color: #0ff;
+  font-family: inherit;
+  font-size: 0.6rem;
+  padding: 3px 4px;
+  text-align: center;
+  text-transform: uppercase;
+  outline: none;
+  min-height: 26px;
+}
+.rule-arrow {
+  color: #333;
+  font-size: 0.5rem;
+}
+.rule-prod {
+  flex: 1;
+  background: #111;
+  border: 1px solid #1a1a1a;
+  color: #aaa;
+  font-family: inherit;
+  font-size: 0.6rem;
+  padding: 3px 6px;
+  outline: none;
+  min-height: 26px;
+}
+.rule-var:focus, .rule-prod:focus { border-color: #555; }
+.rule-del {
+  padding: 2px 6px;
+  background: transparent;
+  border: 1px solid #1a1a1a;
+  color: #333;
+  font-family: inherit;
+  font-size: 0.5rem;
+  cursor: pointer;
+  min-height: 26px;
+}
+.rule-del:active { border-color: #f85149; color: #f85149; }
+
+/* Axiom row */
+.ctrl-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+#axiom-in {
+  width: 80px;
+  background: #111;
+  border: 1px solid #1a1a1a;
+  color: #aaa;
+  font-family: inherit;
+  font-size: 0.6rem;
+  padding: 3px 6px;
+  outline: none;
+  text-transform: uppercase;
+  min-height: 26px;
+}
+#axiom-in:focus { border-color: #555; }
+
+/* Sliders row */
+.slider-group {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 2px;
+  background: #1a1a1a;
+  outline: none;
+  cursor: pointer;
+  accent-color: #0ff;
+}
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 10px;
+  height: 10px;
+  background: #555;
+  cursor: pointer;
+}
+.sl-val {
+  font-size: 0.45rem;
+  color: #555;
+  min-width: 22px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Color mode select */
+#color-sel {
+  background: #111;
+  border: 1px solid #1a1a1a;
+  color: #aaa;
+  font-family: inherit;
+  font-size: 0.5rem;
+  padding: 3px 6px;
+  outline: none;
+  cursor: pointer;
+  min-height: 26px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+#color-sel:focus { border-color: #555; }
+
+/* Action buttons */
+#actions {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+.btn {
+  padding: 4px 10px;
+  background: transparent;
+  border: 1px solid #1a1a1a;
+  color: #444;
+  font-family: inherit;
+  font-size: 0.55rem;
+  cursor: pointer;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  min-height: 28px;
+}
+.btn:active { border-color: #555; color: #888; }
+#grow-btn {
+  border-color: #0ff;
+  color: #0ff;
+}
+#grow-btn:active { background: #0ff1; }
+
+#add-rule {
+  border-color: #333;
+  color: #555;
+}
+
+/* Angle input */
+#angle-in {
+  width: 46px;
+  background: #111;
+  border: 1px solid #1a1a1a;
+  color: #aaa;
+  font-family: inherit;
+  font-size: 0.6rem;
+  padding: 3px 6px;
+  outline: none;
+  text-align: center;
+  min-height: 26px;
+}
+#angle-in:focus { border-color: #555; }
+
+/* Responsive: two-column layout for wider screens */
+@media (min-width: 640px) {
+  #app {
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+  #header { width: 100%; flex-shrink: 0; }
+  #presets { width: 100%; flex-shrink: 0; }
+  #canvas-wrap {
+    flex: 1;
+    min-width: 0;
+  }
+  #controls {
+    width: 260px;
+    flex-shrink: 0;
+    overflow-y: auto;
+    border-top: none;
+    border-left: 1px solid #111;
+    padding: 10px 12px;
+  }
+}
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="header">
+    <h1>L-System Garden</h1>
+    <span id="seq-info">—</span>
+  </div>
+
+  <div id="presets">
+    <button class="preset-btn active" data-preset="dragon" title="Dragon Curve — space-filling fractal">DRAGON</button>
+    <button class="preset-btn" data-preset="plant" title="Fractal Plant — branching L-system">PLANT</button>
+    <button class="preset-btn" data-preset="koch" title="Koch Snowflake — 60° fractal curve">KOCH</button>
+    <button class="preset-btn" data-preset="hilbert" title="Hilbert Curve — space-filling path">HILBERT</button>
+    <button class="preset-btn" data-preset="sierpinski" title="Sierpinski Triangle — recursive triangle fractal">SIERPINSKI</button>
+    <button class="preset-btn" data-preset="tree" title="Binary Tree — recursive branching tree">TREE</button>
+  </div>
+
+  <div id="canvas-wrap">
+    <canvas id="canvas"></canvas>
+    <div id="grow-overlay">GROWING…</div>
+  </div>
+
+  <div id="controls">
+    <!-- Axiom -->
+    <div class="ctrl-row">
+      <span class="ctrl-label">AXIOM</span>
+      <input type="text" id="axiom-in" value="FX" maxlength="20" spellcheck="false" autocomplete="off">
+    </div>
+
+    <!-- Rules -->
+    <div id="rules-section">
+      <div id="rules-header">
+        <span class="ctrl-label">RULES</span>
+        <button class="btn" id="add-rule" title="Add a production rule">+ RULE</button>
+      </div>
+      <div id="rule-list"></div>
+    </div>
+
+    <!-- Angle + Iterations -->
+    <div class="ctrl-row">
+      <span class="ctrl-label">ANGLE</span>
+      <input type="number" id="angle-in" value="90" min="1" max="180" title="Turn angle in degrees">
+      <span class="ctrl-label" style="margin-left:8px;">°</span>
+    </div>
+
+    <div class="ctrl-row">
+      <span class="ctrl-label">ITER</span>
+      <div class="slider-group">
+        <input type="range" id="iter-sl" min="1" max="12" value="10" style="width:80px;" title="Number of expansion iterations">
+        <span class="sl-val" id="iter-val">10</span>
+      </div>
+      <span class="ctrl-label" style="margin-left:8px;">STEP</span>
+      <div class="slider-group">
+        <input type="range" id="step-sl" min="1" max="24" value="6" style="width:60px;" title="Drawing step length in pixels">
+        <span class="sl-val" id="step-val">6</span>
+      </div>
+    </div>
+
+    <!-- Color -->
+    <div class="ctrl-row">
+      <span class="ctrl-label">COLOR</span>
+      <select id="color-sel" title="Color mode for the drawing">
+        <option value="mono">MONO</option>
+        <option value="spectrum" selected>SPECTRUM</option>
+        <option value="depth">DEPTH</option>
+        <option value="age">AGE</option>
+      </select>
+    </div>
+
+    <!-- Syntax legend -->
+    <div id="legend">
+      <span class="ctrl-label" style="color:#333;">F/G=draw · +/-=turn · [ ]=branch · X/Y/A/B=variable</span>
+    </div>
+
+    <!-- Actions -->
+    <div id="actions">
+      <button class="btn" id="grow-btn" title="Re-grow the L-system">GROW</button>
+      <button class="btn" id="export-btn" title="Save as PNG">EXPORT</button>
+      <button class="btn" id="share-btn" title="Copy shareable URL to clipboard">SHARE</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function() {
+  /* ===== PRESETS ===== */
+  var PRESETS = {
+    dragon: {
+      name: 'dragon',
+      axiom: 'FX',
+      rules: { X: 'X+YF+', Y: '-FX-Y' },
+      angle: 90,
+      iter: 12,
+      step: 5,
+      startAngle: 0,
+      colorMode: 'spectrum'
+    },
+    plant: {
+      name: 'plant',
+      axiom: 'X',
+      rules: { X: 'F+[[X]-X]-F[-FX]+X', F: 'FF' },
+      angle: 25,
+      iter: 6,
+      step: 6,
+      startAngle: -90,
+      colorMode: 'depth'
+    },
+    koch: {
+      name: 'koch',
+      axiom: 'F--F--F',
+      rules: { F: 'F+F--F+F' },
+      angle: 60,
+      iter: 4,
+      step: 5,
+      startAngle: 0,
+      colorMode: 'spectrum'
+    },
+    hilbert: {
+      name: 'hilbert',
+      axiom: 'A',
+      rules: { A: '+BF-AFA-FB+', B: '-AF+BFB+FA-' },
+      angle: 90,
+      iter: 7,
+      step: 6,
+      startAngle: 0,
+      colorMode: 'age'
+    },
+    sierpinski: {
+      name: 'sierpinski',
+      axiom: 'F-G-G',
+      rules: { F: 'F-G+F+G-F', G: 'GG' },
+      angle: 120,
+      iter: 7,
+      step: 5,
+      startAngle: 0,
+      colorMode: 'spectrum'
+    },
+    tree: {
+      name: 'tree',
+      axiom: 'X',
+      rules: { X: 'F[+X]F[-X]+X', F: 'FF' },
+      angle: 20,
+      iter: 7,
+      step: 6,
+      startAngle: -90,
+      colorMode: 'depth'
+    }
+  };
+
+  /* ===== STATE ===== */
+  var currentPreset = 'dragon';
+  var animRAF = null;
+  var totalDrawOps = 0;
+  var expandedSeq = '';
+
+  /* ===== DOM REFS ===== */
+  var canvas = document.getElementById('canvas');
+  var ctx = canvas.getContext('2d');
+  var axiomIn = document.getElementById('axiom-in');
+  var ruleList = document.getElementById('rule-list');
+  var angleIn = document.getElementById('angle-in');
+  var iterSl = document.getElementById('iter-sl');
+  var iterVal = document.getElementById('iter-val');
+  var stepSl = document.getElementById('step-sl');
+  var stepVal = document.getElementById('step-val');
+  var colorSel = document.getElementById('color-sel');
+  var growBtn = document.getElementById('grow-btn');
+  var exportBtn = document.getElementById('export-btn');
+  var shareBtn = document.getElementById('share-btn');
+  var seqInfo = document.getElementById('seq-info');
+  var growOverlay = document.getElementById('grow-overlay');
+
+  /* ===== RESIZE ===== */
+  function resizeCanvas() {
+    var wrap = document.getElementById('canvas-wrap');
+    var w = wrap.clientWidth;
+    var h = wrap.clientHeight;
+    canvas.width = w;
+    canvas.height = h;
+    canvas.style.width = w + 'px';
+    canvas.style.height = h + 'px';
+  }
+
+  /* ===== L-SYSTEM EXPANSION ===== */
+  function expand(axiom, rules, n) {
+    var seq = axiom.toUpperCase();
+    for (var i = 0; i < n; i++) {
+      var next = '';
+      for (var j = 0; j < seq.length; j++) {
+        var c = seq[j];
+        next += rules[c] !== undefined ? rules[c] : c;
+      }
+      seq = next;
+      /* Safety: cap sequence to prevent OOM */
+      if (seq.length > 2000000) break;
+    }
+    return seq;
+  }
+
+  /* ===== BOUNDS COMPUTATION ===== */
+  function computeBounds(seq, angleDeg, step, startAngle) {
+    var rad = angleDeg * Math.PI / 180;
+    var a = startAngle * Math.PI / 180;
+    var x = 0, y = 0;
+    var minX = 0, minY = 0, maxX = 0, maxY = 0;
+    var stack = [];
+    for (var i = 0; i < seq.length; i++) {
+      var c = seq[i];
+      if (c === 'F' || c === 'G') {
+        x += Math.cos(a) * step;
+        y += Math.sin(a) * step;
+        if (x < minX) minX = x;
+        if (x > maxX) maxX = x;
+        if (y < minY) minY = y;
+        if (y > maxY) maxY = y;
+      } else if (c === '+') {
+        a += rad;
+      } else if (c === '-') {
+        a -= rad;
+      } else if (c === '[') {
+        stack.push({ x: x, y: y, a: a });
+      } else if (c === ']') {
+        if (stack.length > 0) {
+          var s = stack.pop();
+          x = s.x; y = s.y; a = s.a;
+        }
+      }
+    }
+    return { minX: minX, minY: minY, maxX: maxX, maxY: maxY };
+  }
+
+  /* ===== COUNT DRAW OPS ===== */
+  function countDrawOps(seq) {
+    var n = 0;
+    for (var i = 0; i < seq.length; i++) {
+      var c = seq[i];
+      if (c === 'F' || c === 'G') n++;
+    }
+    return n;
+  }
+
+  /* ===== HSL TO HEX HELPER ===== */
+  function hsl(h, s, l) {
+    return 'hsl(' + h + ',' + s + '%,' + l + '%)';
+  }
+
+  /* ===== DRAW SEQUENCE (up to drawOpsLimit draw ops) ===== */
+  function drawSequence(seq, angleDeg, step, ox, oy, startAngle, colorMode, drawOpsLimit) {
+    var rad = angleDeg * Math.PI / 180;
+    var a = startAngle * Math.PI / 180;
+    var x = ox, y = oy;
+    var stack = [];
+    var depthStack = [];
+    var depth = 0;
+    var drawCount = 0;
+    var totalOps = totalDrawOps || 1;
+
+    ctx.lineWidth = 1;
+
+    for (var i = 0; i < seq.length; i++) {
+      var c = seq[i];
+      if (c === 'F' || c === 'G') {
+        if (drawCount >= drawOpsLimit) break;
+        var nx = x + Math.cos(a) * step;
+        var ny = y + Math.sin(a) * step;
+
+        /* Determine color */
+        var col;
+        var t = drawOpsLimit > 1 ? drawCount / totalOps : 0;
+        if (colorMode === 'mono') {
+          col = '#0ff';
+        } else if (colorMode === 'spectrum') {
+          col = hsl(Math.floor(t * 300), 90, 60);
+        } else if (colorMode === 'depth') {
+          var dh = (depth * 37) % 360;
+          col = hsl(dh, 80, Math.min(80, 55 + depth * 3));
+        } else { /* age */
+          var brightness = 20 + Math.floor(t * 65);
+          col = 'hsl(180,70%,' + brightness + '%)';
+        }
+
+        ctx.beginPath();
+        ctx.strokeStyle = col;
+        ctx.moveTo(x, y);
+        ctx.lineTo(nx, ny);
+        ctx.stroke();
+
+        x = nx;
+        y = ny;
+        drawCount++;
+      } else if (c === '+') {
+        a += rad;
+      } else if (c === '-') {
+        a -= rad;
+      } else if (c === '[') {
+        stack.push({ x: x, y: y, a: a });
+        depthStack.push(depth);
+        depth++;
+      } else if (c === ']') {
+        if (stack.length > 0) {
+          var sv = stack.pop();
+          x = sv.x; y = sv.y; a = sv.a;
+        }
+        if (depthStack.length > 0) {
+          depth = depthStack.pop();
+        }
+      }
+      /* Non-drawing chars (X, Y, A, B...) advance angle or are ignored */
+    }
+  }
+
+  /* ===== GET CURRENT CONFIG FROM UI ===== */
+  function getConfig() {
+    var rules = {};
+    var rows = ruleList.querySelectorAll('.rule-row');
+    for (var i = 0; i < rows.length; i++) {
+      var varInput = rows[i].querySelector('.rule-var');
+      var prodInput = rows[i].querySelector('.rule-prod');
+      var v = varInput.value.trim().toUpperCase();
+      var p = prodInput.value.trim().toUpperCase();
+      if (v.length === 1 && p.length > 0) {
+        rules[v] = p;
+      }
+    }
+    return {
+      axiom: axiomIn.value.trim().toUpperCase() || 'F',
+      rules: rules,
+      angle: parseFloat(angleIn.value) || 90,
+      iter: parseInt(iterSl.value, 10),
+      step: parseInt(stepSl.value, 10),
+      startAngle: PRESETS[currentPreset] ? PRESETS[currentPreset].startAngle : 0,
+      colorMode: colorSel.value
+    };
+  }
+
+  /* ===== FULL RENDER ===== */
+  function fullRender(cfg) {
+    resizeCanvas();
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    var seq = expand(cfg.axiom, cfg.rules, cfg.iter);
+    expandedSeq = seq;
+    totalDrawOps = countDrawOps(seq);
+
+    var lenStr = seq.length >= 1000000 ? Math.floor(seq.length / 1000000) + 'M' :
+                 seq.length >= 1000 ? Math.floor(seq.length / 1000) + 'K' :
+                 seq.length + '';
+    seqInfo.textContent = lenStr + ' chars · ' + totalDrawOps + ' strokes';
+
+    if (totalDrawOps === 0) return;
+
+    /* Compute bounds and center */
+    var bounds = computeBounds(seq, cfg.angle, cfg.step, cfg.startAngle);
+    var pw = bounds.maxX - bounds.minX;
+    var ph = bounds.maxY - bounds.minY;
+    var cx = canvas.width / 2;
+    var cy = canvas.height / 2;
+    var ox = cx - pw / 2 - bounds.minX;
+    var oy = cy - ph / 2 - bounds.minY;
+
+    return { seq: seq, cfg: cfg, ox: ox, oy: oy };
+  }
+
+  /* ===== ANIMATED GROW ===== */
+  function startGrow() {
+    if (animRAF) cancelAnimationFrame(animRAF);
+    growOverlay.style.display = 'block';
+
+    var cfg = getConfig();
+    var rd = fullRender(cfg);
+    if (!rd) {
+      growOverlay.style.display = 'none';
+      return;
+    }
+
+    var startTime = null;
+    var growDuration = Math.min(1200, Math.max(300, totalDrawOps * 0.5));
+
+    function frame(ts) {
+      if (!startTime) startTime = ts;
+      var elapsed = ts - startTime;
+      var frac = Math.min(1, elapsed / growDuration);
+      /* Ease out */
+      var easedFrac = 1 - Math.pow(1 - frac, 3);
+
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      var limit = Math.max(1, Math.floor(easedFrac * totalDrawOps));
+      drawSequence(rd.seq, rd.cfg.angle, rd.cfg.step, rd.ox, rd.oy,
+        rd.cfg.startAngle, rd.cfg.colorMode, limit);
+
+      if (frac < 1) {
+        animRAF = requestAnimationFrame(frame);
+      } else {
+        growOverlay.style.display = 'none';
+        animRAF = null;
+      }
+    }
+
+    animRAF = requestAnimationFrame(frame);
+  }
+
+  /* ===== STATIC RENDER (no animation) ===== */
+  function staticRender() {
+    if (animRAF) { cancelAnimationFrame(animRAF); animRAF = null; }
+    var cfg = getConfig();
+    var rd = fullRender(cfg);
+    if (!rd) return;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    drawSequence(rd.seq, rd.cfg.angle, rd.cfg.step, rd.ox, rd.oy,
+      rd.cfg.startAngle, rd.cfg.colorMode, totalDrawOps);
+    growOverlay.style.display = 'none';
+  }
+
+  /* ===== DEBOUNCED REDRAW ===== */
+  var debounceTimer = null;
+  function scheduleRedraw() {
+    clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(function() { staticRender(); }, 250);
+  }
+
+  /* ===== RULE EDITOR ===== */
+  function addRuleRow(varChar, production) {
+    var row = document.createElement('div');
+    row.className = 'rule-row';
+
+    var varIn = document.createElement('input');
+    varIn.type = 'text';
+    varIn.className = 'rule-var';
+    varIn.value = varChar || '';
+    varIn.maxLength = 1;
+    varIn.title = 'Rule variable (single letter)';
+    varIn.spellcheck = false;
+    varIn.autocomplete = 'off';
+
+    var arrow = document.createElement('span');
+    arrow.className = 'rule-arrow';
+    arrow.textContent = '→';
+
+    var prodIn = document.createElement('input');
+    prodIn.type = 'text';
+    prodIn.className = 'rule-prod';
+    prodIn.value = production || '';
+    prodIn.title = 'Production string (F=forward, +=right, -=left, [=push, ]=pop)';
+    prodIn.spellcheck = false;
+    prodIn.autocomplete = 'off';
+
+    var delBtn = document.createElement('button');
+    delBtn.className = 'rule-del';
+    delBtn.textContent = '×';
+    delBtn.title = 'Delete this rule';
+    delBtn.addEventListener('pointerdown', function(e) {
+      e.preventDefault();
+      ruleList.removeChild(row);
+      scheduleRedraw();
+    });
+
+    varIn.addEventListener('input', function() { scheduleRedraw(); });
+    prodIn.addEventListener('input', function() { scheduleRedraw(); });
+
+    row.appendChild(varIn);
+    row.appendChild(arrow);
+    row.appendChild(prodIn);
+    row.appendChild(delBtn);
+    ruleList.appendChild(row);
+  }
+
+  function clearRules() {
+    while (ruleList.firstChild) ruleList.removeChild(ruleList.firstChild);
+  }
+
+  /* ===== LOAD PRESET ===== */
+  function loadPreset(name) {
+    var p = PRESETS[name];
+    if (!p) return;
+    currentPreset = name;
+
+    /* Update preset buttons */
+    document.querySelectorAll('.preset-btn').forEach(function(btn) {
+      btn.classList.toggle('active', btn.dataset.preset === name);
+    });
+
+    axiomIn.value = p.axiom;
+    angleIn.value = p.angle;
+    iterSl.value = p.iter;
+    iterVal.textContent = p.iter;
+    stepSl.value = p.step;
+    stepVal.textContent = p.step;
+    colorSel.value = p.colorMode;
+
+    clearRules();
+    Object.keys(p.rules).forEach(function(k) {
+      addRuleRow(k, p.rules[k]);
+    });
+
+    startGrow();
+  }
+
+  /* ===== EVENT WIRING ===== */
+  document.querySelectorAll('.preset-btn').forEach(function(btn) {
+    btn.addEventListener('pointerdown', function(e) {
+      e.preventDefault();
+      loadPreset(btn.dataset.preset);
+    });
+  });
+
+  document.getElementById('add-rule').addEventListener('pointerdown', function(e) {
+    e.preventDefault();
+    addRuleRow('', '');
+  });
+
+  growBtn.addEventListener('pointerdown', function(e) {
+    e.preventDefault();
+    startGrow();
+  });
+
+  exportBtn.addEventListener('pointerdown', function(e) {
+    e.preventDefault();
+    /* Render crisp before export */
+    staticRender();
+    canvas.toBlob(function(blob) {
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement('a');
+      a.href = url;
+      a.download = 'l-system-' + (currentPreset || 'garden') + '.png';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(function() { URL.revokeObjectURL(url); }, 5000);
+    });
+  });
+
+  axiomIn.addEventListener('input', function() { scheduleRedraw(); });
+  angleIn.addEventListener('input', function() { scheduleRedraw(); });
+  colorSel.addEventListener('change', function() { scheduleRedraw(); });
+
+  iterSl.addEventListener('input', function() {
+    iterVal.textContent = this.value;
+    scheduleRedraw();
+  });
+  stepSl.addEventListener('input', function() {
+    stepVal.textContent = this.value;
+    scheduleRedraw();
+  });
+
+  window.addEventListener('resize', function() {
+    staticRender();
+  });
+
+  /* ===== SHARE (URL HASH ENCODING) ===== */
+  function encodeState() {
+    var cfg = getConfig();
+    var data = {
+      a: cfg.axiom,
+      r: cfg.rules,
+      g: cfg.angle,
+      i: cfg.iter,
+      s: cfg.step,
+      c: cfg.colorMode,
+      sa: cfg.startAngle
+    };
+    return btoa(unescape(encodeURIComponent(JSON.stringify(data))));
+  }
+
+  function decodeState(hash) {
+    try {
+      var data = JSON.parse(decodeURIComponent(escape(atob(hash))));
+      return data;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  function loadFromHash() {
+    var hash = window.location.hash.slice(1);
+    if (!hash) return false;
+    var data = decodeState(hash);
+    if (!data) return false;
+    /* Deselect all presets */
+    document.querySelectorAll('.preset-btn').forEach(function(btn) {
+      btn.classList.remove('active');
+    });
+    currentPreset = '';
+    axiomIn.value = data.a || 'F';
+    angleIn.value = data.g || 90;
+    iterSl.value = data.i || 5;
+    iterVal.textContent = iterSl.value;
+    stepSl.value = data.s || 6;
+    stepVal.textContent = stepSl.value;
+    colorSel.value = data.c || 'spectrum';
+    clearRules();
+    if (data.r && typeof data.r === 'object') {
+      Object.keys(data.r).forEach(function(k) {
+        addRuleRow(k, data.r[k]);
+      });
+    }
+    /* Store startAngle from hash or use 0 */
+    PRESETS['_custom'] = { startAngle: data.sa || 0 };
+    currentPreset = '_custom';
+    startGrow();
+    return true;
+  }
+
+  shareBtn.addEventListener('pointerdown', function(e) {
+    e.preventDefault();
+    var hash = encodeState();
+    var url = window.location.href.split('#')[0] + '#' + hash;
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(url).then(function() {
+        shareBtn.textContent = 'COPIED!';
+        setTimeout(function() { shareBtn.textContent = 'SHARE'; }, 2000);
+      }).catch(function() {
+        window.location.hash = hash;
+        shareBtn.textContent = 'URL SET';
+        setTimeout(function() { shareBtn.textContent = 'SHARE'; }, 2000);
+      });
+    } else {
+      window.location.hash = hash;
+      shareBtn.textContent = 'URL SET';
+      setTimeout(function() { shareBtn.textContent = 'SHARE'; }, 2000);
+    }
+  });
+
+  /* ===== INIT ===== */
+  resizeCanvas();
+  if (!loadFromHash()) {
+    loadPreset('dragon');
+  }
+
+})();
+</script>
+</body>
+</html>

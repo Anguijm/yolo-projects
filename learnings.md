@@ -2843,3 +2843,17 @@ Sequential Gemini reviews (focus: bugs, then security) caught **different issue 
 - **INSIGHT**: Symmetry order 6 is the default magic number for DLA — it produces the most recognizable snowflake crystals that users immediately recognize and share. 4× makes crosses, 8× makes spiky stars. Always default to the most recognizable/beautiful option.
 - **INSIGHT**: `title` attributes on buttons and sliders (especially controls with abstract units like "STICKY" or "WALKERS") are essential for a first-timer. Add them universally — they cost nothing and teach the interface.
 - **TEST CAUGHT**: All bugs found by self-audit (council review). Static tests catch structural issues; behavioral bugs require careful manual audit.
+
+### l-system-garden (2026-04-02)
+- **KEEP**: Animated grow via `drawSequence(seq, ..., drawOpsLimit)` where `drawOpsLimit` = `floor(easedFrac * totalDrawOps)` — renders a prefix of the draw operations each frame. Reveals structure beautifully (see roots before branches). Ease-out cubic makes it feel organic.
+- **KEEP**: `computeBounds()` dry-run before drawing — simulate full turtle path to get minX/minY/maxX/maxY, then compute offset to center in canvas. Essential for any centered rendering of L-systems that grow in unknown directions.
+- **KEEP**: URL hash + `btoa(JSON.stringify(config))` pattern for shareable state — zero backend, instant permalink for any tool with a serializable config. Fallback: if clipboard denied, set `window.location.hash` directly.
+- **KEEP**: Syntax legend inline with the rule editor — `F/G=draw · +/-=turn · [ ]=branch · X/Y/A/B=variable`. Costs one `<span>` and transforms a cryptic interface into a self-teaching one. Never ship a grammar-based tool without this.
+- **KEEP**: 2M char safety cap on L-system expansion (`if (seq.length > 2000000) break`) — prevents OOM and UI freeze at high iterations. The cap is silent (no warning) — consider showing a truncation notice.
+- **IMPROVE**: Depth color mode: `55 + depth*2` unclamped → near-white at depth>15. Always clamp: `Math.min(80, 55 + depth*3)`. Any brightness/lightness formula that grows with a counter needs an explicit cap.
+- **IMPROVE**: Sequence length display: raw counts like "65536 chars" are ugly. Always abbreviate: `>= 1M → "1M"`, `>= 1K → "65K"`. Use integer division.
+- **DISCARD**: `animProgress` and `isGrowing` module-level state vars — when all animation state lives inside a closure (the `frame()` function captures its own `startTime`), outer vars become dead code. Don't hoist what the closure already owns.
+- **INSIGHT**: For turtle-graphics L-systems, the startAngle is a key aesthetic parameter: Dragon Curve looks best at 0°, plants look best at -90° (growing upward). Build it into the preset definition, not just the visual.
+- **INSIGHT**: Depth-based coloring requires careful tuning. Dragon Curve has no `[` brackets → depth stays 0 → single color, which looks flat. Document this in tooltips or auto-switch to spectrum mode when depth=0 throughout.
+- **INSIGHT**: `btoa(unescape(encodeURIComponent(json)))` is the correct cross-browser pattern for base64-encoding Unicode JSON. The inverse is `JSON.parse(decodeURIComponent(escape(atob(hash))))`. This handles any Unicode chars in production rules.
+- **TEST CAUGHT**: Dead variable `animProgress` caught by self-audit. Depth overflow and seqInfo format bug caught by UI review. No bugs caught by automated tests (all were logic/UX issues).
