@@ -1,0 +1,850 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="theme-color" content="#000000">
+<title>Powder World</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body {
+  width: 100%; height: 100%;
+  background: #0a0a0a;
+  overflow: hidden;
+  touch-action: none;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+
+#canvas {
+  display: block;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+  cursor: crosshair;
+}
+
+#toolbar {
+  position: fixed;
+  bottom: 0; left: 0; right: 0;
+  height: 56px;
+  background: #080808;
+  border-top: 1px solid #1a1a1a;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  padding: 0 6px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+#toolbar::-webkit-scrollbar { display: none; }
+
+.mat-btn {
+  flex-shrink: 0;
+  min-width: 40px;
+  height: 38px;
+  padding: 0 6px;
+  background: transparent;
+  border: 1px solid #1a1a1a;
+  color: #444;
+  font-family: inherit;
+  font-size: 0.45rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+}
+.mat-btn .dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.mat-btn.active {
+  border-color: #555;
+  color: #aaa;
+}
+.mat-btn:active { border-color: #444; color: #888; }
+
+.ctrl-btn {
+  flex-shrink: 0;
+  height: 38px;
+  padding: 0 10px;
+  background: transparent;
+  border: 1px solid #1a1a1a;
+  color: #333;
+  font-family: inherit;
+  font-size: 0.45rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+.ctrl-btn:active { border-color: #444; color: #666; }
+
+.sep { width: 1px; height: 26px; background: #1a1a1a; flex-shrink: 0; margin: 0 2px; }
+
+#hud {
+  position: fixed;
+  top: 8px; right: 8px;
+  font-size: 0.42rem;
+  letter-spacing: 0.15em;
+  color: #2a2a2a;
+  text-transform: uppercase;
+  pointer-events: none;
+}
+
+#hint {
+  position: fixed;
+  top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 0.55rem;
+  color: #383838;
+  letter-spacing: 0.25em;
+  text-transform: uppercase;
+  pointer-events: none;
+  transition: opacity 1.2s;
+  text-align: center;
+  line-height: 1.8;
+}
+</style>
+</head>
+<body>
+<canvas id="canvas"></canvas>
+<div id="toolbar">
+  <div id="mat-buttons"></div>
+  <div class="sep"></div>
+  <button id="brush-btn" class="ctrl-btn">SIZE 3</button>
+  <button id="clear-btn" class="ctrl-btn">CLEAR</button>
+  <button id="pause-btn" class="ctrl-btn">PAUSE</button>
+  <button id="save-btn" class="ctrl-btn">SAVE</button>
+</div>
+<div id="hud"><span id="fps-display">--</span> FPS</div>
+<div id="hint">DRAW TO PAINT<br>1-9 SELECT &middot; C CLEAR &middot; SPACE PAUSE</div>
+
+<script>
+(function() {
+  'use strict';
+
+  /* ────────────────────────────────
+     MATERIAL CONSTANTS
+  ──────────────────────────────── */
+  var M_EMPTY = 0;
+  var M_SAND   = 1;
+  var M_WATER  = 2;
+  var M_FIRE   = 3;
+  var M_WOOD   = 4;
+  var M_OIL    = 5;
+  var M_STONE  = 6;
+  var M_SMOKE  = 7;
+  var M_ACID   = 8;
+  var M_ICE    = 9;
+  var M_STEAM  = 10;
+  var M_PLANT  = 11;
+
+  var TOOLBAR_H = 56;
+
+  /* Paintable material list (id, display name, dot RGB) */
+  var MATS = [
+    { id: M_SAND,  name: 'SAND',   rgb: [200, 165, 90]  },
+    { id: M_WATER, name: 'WATER',  rgb: [30, 110, 220]  },
+    { id: M_FIRE,  name: 'FIRE',   rgb: [255, 80, 0]    },
+    { id: M_WOOD,  name: 'WOOD',   rgb: [90, 58, 26]    },
+    { id: M_OIL,   name: 'OIL',    rgb: [55, 40, 18]    },
+    { id: M_STONE, name: 'STONE',  rgb: [102, 102, 102] },
+    { id: M_ACID,  name: 'ACID',   rgb: [0, 220, 60]    },
+    { id: M_ICE,   name: 'ICE',    rgb: [160, 200, 255] },
+    { id: M_PLANT, name: 'PLANT',  rgb: [26, 140, 34]   },
+    { id: M_EMPTY, name: 'ERASE',  rgb: [30, 30, 30]    }
+  ];
+
+  var BRUSH_SIZES = [1, 2, 3, 5, 8];
+
+  /* ────────────────────────────────
+     STATE
+  ──────────────────────────────── */
+  var GW = 0, GH = 0;
+  var grid;    /* Uint8Array — material per cell */
+  var meta;    /* Uint8Array — life/variation per cell */
+  var updated; /* Uint8Array — updated-this-frame flag */
+
+  var canvas    = document.getElementById('canvas');
+  var ctx       = canvas.getContext('2d');
+  var imgData, pixels; /* ImageData + Uint32Array view */
+  var SCALE     = 4;
+
+  var painting        = false;
+  var activePointerId = -1;
+  var curMat          = M_SAND;
+  var brushIdx        = 2;
+  var brushSize       = BRUSH_SIZES[brushIdx];
+  var paused          = false;
+  var tick            = 0;
+
+  var frameCount = 0;
+  var fpsTimer   = 0;
+  var lastTs     = 0;
+
+  var fpsDisplay = document.getElementById('fps-display');
+  var brushBtn   = document.getElementById('brush-btn');
+  var hintEl     = document.getElementById('hint');
+  var hintGone   = false;
+
+  /* ────────────────────────────────
+     GRID HELPERS
+  ──────────────────────────────── */
+  function idx(x, y)      { return y * GW + x; }
+  function inB(x, y)      { return x >= 0 && x < GW && y >= 0 && y < GH; }
+  function getM(x, y)     { return inB(x, y) ? grid[idx(x, y)] : M_STONE; }
+  function setM(x, y, m)  {
+    if (!inB(x, y)) return;
+    var i = idx(x, y);
+    grid[i] = m;
+    meta[i] = newMeta(m);
+  }
+  function mark(x, y)     { if (inB(x, y)) updated[idx(x, y)] = 1; }
+  function isEmpty(x, y)  { return inB(x, y) && grid[idx(x, y)] === M_EMPTY; }
+  function isLiquid(m)    { return m === M_WATER || m === M_OIL || m === M_ACID; }
+
+  function swap(x1, y1, x2, y2) {
+    var i1 = idx(x1, y1), i2 = idx(x2, y2);
+    var gt = grid[i1]; grid[i1] = grid[i2]; grid[i2] = gt;
+    var mt = meta[i1]; meta[i1] = meta[i2]; meta[i2] = mt;
+  }
+
+  function moveTo(x, y, tx, ty) {
+    swap(x, y, tx, ty);
+    mark(tx, ty);
+    mark(x, y);
+  }
+
+  function newMeta(m) {
+    var r = Math.random();
+    if (m === M_FIRE)  return 50 + (r * 55 | 0);   /* 50–104 life */
+    if (m === M_SMOKE) return 25 + (r * 40 | 0);   /* 25–64 life  */
+    if (m === M_STEAM) return 35 + (r * 45 | 0);   /* 35–79 life  */
+    return (r * 255 | 0);                           /* 0–254 variation */
+  }
+
+  /* ────────────────────────────────
+     PIXEL COLOR
+  ──────────────────────────────── */
+  function color(m, v) {
+    var r, g, b, n, t;
+    switch (m) {
+      case M_EMPTY: return 0xFF0A0A0A;
+      case M_SAND: {
+        n = (v & 31) - 15;
+        r = clamp(200 + n, 0, 255);
+        g = clamp(165 + n, 0, 255);
+        b = clamp(90  + (n >> 1), 0, 255);
+        return pack(r, g, b);
+      }
+      case M_WATER: {
+        n = (v & 31) - 15;
+        r = clamp(20  + n,       0, 255);
+        g = clamp(100 + n,       0, 255);
+        b = clamp(215 + (n>>1),  0, 255);
+        return pack(r, g, b);
+      }
+      case M_FIRE: {
+        /* hot = yellow/orange, cooling = red; v is life 0..104 */
+        t = v > 80 ? 1 : (v / 80);
+        r = 255;
+        g = clamp((t * 180 | 0) + ((Math.random() * 40) | 0), 0, 255);
+        b = (t * 25) | 0;
+        return pack(r, g, b);
+      }
+      case M_WOOD: {
+        n = (v & 15) - 7;
+        r = clamp(90 + n * 2, 0, 255);
+        g = clamp(58 + n,     0, 255);
+        b = clamp(26 + n,     0, 255);
+        return pack(r, g, b);
+      }
+      case M_OIL: {
+        n = (v & 15) - 7;
+        r = clamp(50 + n, 0, 255);
+        g = clamp(35 + n, 0, 255);
+        b = clamp(15 + n, 0, 255);
+        return pack(r, g, b);
+      }
+      case M_STONE: {
+        var c = 75 + (v & 55);
+        return pack(c, c, c);
+      }
+      case M_SMOKE: {
+        /* fade as life decreases: v 0..64 → brightness 10..45 */
+        var br = 10 + ((v >> 1) & 31);
+        return pack(br, br, br);
+      }
+      case M_ACID: {
+        n = (v & 31) - 15;
+        r = 0;
+        g = clamp(210 + n, 0, 255);
+        b = clamp(50  + (n >> 1), 0, 255);
+        return pack(r, g, b);
+      }
+      case M_ICE: {
+        n = (v & 15) - 7;
+        r = clamp(170 + n * 2, 0, 255);
+        g = clamp(210 + n,     0, 255);
+        b = 255;
+        return pack(r, g, b);
+      }
+      case M_STEAM: {
+        var sc = 105 + ((v >> 2) & 31);
+        return pack(sc, sc + 10, sc + 15);
+      }
+      case M_PLANT: {
+        n = (v & 31) - 15;
+        r = clamp(10  + (n >> 1), 0, 255);
+        g = clamp(130 + n * 2,   0, 255);
+        b = clamp(30  + n,       0, 255);
+        return pack(r, g, b);
+      }
+      default: return 0xFF0A0A0A;
+    }
+  }
+
+  function clamp(v, lo, hi) { return v < lo ? lo : v > hi ? hi : v; }
+  /* little-endian RGBA packed as Uint32: 0xAA_BB_GG_RR */
+  function pack(r, g, b) { return 0xFF000000 | (b << 16) | (g << 8) | r; }
+
+  /* ────────────────────────────────
+     SIMULATION
+  ──────────────────────────────── */
+  var DIRS4 = [[-1,0],[1,0],[0,-1],[0,1]];
+  var DIRS8 = [[-1,0],[1,0],[0,-1],[0,1],[1,1],[-1,1],[1,-1],[-1,-1]];
+
+  function simAll() {
+    updated.fill(0);
+    tick++;
+    var ltr = (tick & 1) === 0;
+    var x, i;
+    for (var y = GH - 1; y >= 0; y--) {
+      if (ltr) {
+        for (x = 0; x < GW; x++) simCell(x, y, ltr);
+      } else {
+        for (x = GW - 1; x >= 0; x--) simCell(x, y, ltr);
+      }
+    }
+  }
+
+  function simCell(x, y, ltr) {
+    var i = idx(x, y);
+    if (updated[i]) return;
+    var m = grid[i];
+    if (m === M_EMPTY || m === M_STONE) return;
+    switch (m) {
+      case M_SAND:  simSand(x, y, ltr, i); break;
+      case M_WATER: simWater(x, y, ltr, i); break;
+      case M_FIRE:  simFire(x, y, i); break;
+      case M_SMOKE: simSmoke(x, y, i); break;
+      case M_OIL:   simOil(x, y, ltr, i); break;
+      case M_ACID:  simAcid(x, y, ltr, i); break;
+      case M_ICE:   simIce(x, y, i); break;
+      case M_STEAM: simSteam(x, y, i); break;
+      case M_PLANT: simPlant(x, y, i); break;
+    }
+  }
+
+  /* SAND: falls down, slides diagonally, sinks through liquids */
+  function simSand(x, y, ltr, i) {
+    if (y >= GH - 1) { mark(x, y); return; }
+    var below = getM(x, y + 1);
+    if (below === M_EMPTY || isLiquid(below)) {
+      moveTo(x, y, x, y + 1); return;
+    }
+    var dl = ltr ? -1 : 1, dr = -dl;
+    var bl = inB(x + dl, y + 1) ? getM(x + dl, y + 1) : M_STONE;
+    var br = inB(x + dr, y + 1) ? getM(x + dr, y + 1) : M_STONE;
+    var clL = bl === M_EMPTY || isLiquid(bl);
+    var clR = br === M_EMPTY || isLiquid(br);
+    if (clL && clR) {
+      moveTo(x, y, x + (Math.random() < 0.5 ? dl : dr), y + 1);
+    } else if (clL) {
+      moveTo(x, y, x + dl, y + 1);
+    } else if (clR) {
+      moveTo(x, y, x + dr, y + 1);
+    } else {
+      mark(x, y);
+    }
+  }
+
+  /* WATER: falls, spreads sideways, turns to steam near fire */
+  function simWater(x, y, ltr, i) {
+    var j, nx, ny, nm;
+    if (y < GH - 1) {
+      if (getM(x, y + 1) === M_EMPTY) { moveTo(x, y, x, y + 1); return; }
+      var dl = ltr ? -1 : 1, dr = -dl;
+      if (inB(x + dl, y + 1) && getM(x + dl, y + 1) === M_EMPTY) {
+        moveTo(x, y, x + dl, y + 1); return;
+      }
+      if (inB(x + dr, y + 1) && getM(x + dr, y + 1) === M_EMPTY) {
+        moveTo(x, y, x + dr, y + 1); return;
+      }
+    }
+    var d = ltr ? 1 : -1;
+    if (Math.random() < 0.75) {
+      if (isEmpty(x + d, y))  { moveTo(x, y, x + d,  y); return; }
+      if (isEmpty(x - d, y))  { moveTo(x, y, x - d,  y); return; }
+    }
+    /* turn to steam near fire */
+    for (j = 0; j < 4; j++) {
+      nx = x + DIRS4[j][0]; ny = y + DIRS4[j][1];
+      if (inB(nx, ny) && getM(nx, ny) === M_FIRE && Math.random() < 0.12) {
+        grid[i] = M_STEAM; meta[i] = newMeta(M_STEAM); mark(x, y);
+        var fi = idx(nx, ny);
+        grid[fi] = M_SMOKE; meta[fi] = newMeta(M_SMOKE); mark(nx, ny);
+        return;
+      }
+    }
+    mark(x, y);
+  }
+
+  /* FIRE: burns out to smoke, ignites neighbours, extinguished by water/ice */
+  function simFire(x, y, i) {
+    if (meta[i] === 0) { grid[i] = M_EMPTY; mark(x, y); return; }
+    meta[i]--;
+    if (meta[i] === 0) {
+      grid[i] = Math.random() < 0.65 ? M_SMOKE : M_EMPTY;
+      meta[i] = (grid[i] === M_SMOKE) ? newMeta(M_SMOKE) : 0;
+      mark(x, y); return;
+    }
+    var j, nx, ny, nm, ni, prob;
+    for (j = 0; j < 4; j++) {
+      nx = x + DIRS4[j][0]; ny = y + DIRS4[j][1];
+      if (!inB(nx, ny)) continue;
+      nm = getM(nx, ny);
+      prob = 0;
+      if (nm === M_WOOD)  prob = 0.004;
+      if (nm === M_OIL)   prob = 0.025;
+      if (nm === M_PLANT) prob = 0.008;
+      if (prob > 0 && Math.random() < prob) {
+        ni = idx(nx, ny);
+        grid[ni] = M_FIRE; meta[ni] = newMeta(M_FIRE); mark(nx, ny);
+      }
+      if ((nm === M_WATER || nm === M_ICE) && Math.random() < 0.04) {
+        grid[i] = M_STEAM; meta[i] = newMeta(M_STEAM); mark(x, y); return;
+      }
+    }
+    mark(x, y);
+  }
+
+  /* SMOKE: rises and drifts, slowly dies */
+  function simSmoke(x, y, i) {
+    if (meta[i] === 0 || Math.random() < 0.004) {
+      grid[i] = M_EMPTY; meta[i] = 0; mark(x, y); return;
+    }
+    meta[i]--;
+    if (meta[i] === 0) { grid[i] = M_EMPTY; mark(x, y); return; }
+    if (y > 0) {
+      if (getM(x, y - 1) === M_EMPTY) { moveTo(x, y, x, y - 1); return; }
+      var d2 = Math.random() < 0.5 ? -1 : 1;
+      if (inB(x + d2, y - 1) && getM(x + d2, y - 1) === M_EMPTY) {
+        moveTo(x, y, x + d2, y - 1); return;
+      }
+      if (inB(x - d2, y - 1) && getM(x - d2, y - 1) === M_EMPTY) {
+        moveTo(x, y, x - d2, y - 1); return;
+      }
+    }
+    if (Math.random() < 0.08) {
+      var sd = Math.random() < 0.5 ? -1 : 1;
+      if (isEmpty(x + sd, y)) { moveTo(x, y, x + sd, y); return; }
+    }
+    mark(x, y);
+  }
+
+  /* OIL: like water, floats on water, burns easily */
+  function simOil(x, y, ltr, i) {
+    if (y < GH - 1) {
+      var below2 = getM(x, y + 1);
+      if (below2 === M_EMPTY) { moveTo(x, y, x, y + 1); return; }
+      /* oil floats above water */
+      if (below2 === M_WATER) {
+        swap(x, y, x, y + 1);
+        mark(x, y + 1); mark(x, y); return;
+      }
+      var dl2 = ltr ? -1 : 1, dr2 = -dl2;
+      if (inB(x + dl2, y + 1) && getM(x + dl2, y + 1) === M_EMPTY) {
+        moveTo(x, y, x + dl2, y + 1); return;
+      }
+      if (inB(x + dr2, y + 1) && getM(x + dr2, y + 1) === M_EMPTY) {
+        moveTo(x, y, x + dr2, y + 1); return;
+      }
+    }
+    var do2 = ltr ? 1 : -1;
+    if (Math.random() < 0.7) {
+      if (isEmpty(x + do2, y)) { moveTo(x, y, x + do2, y); return; }
+      if (isEmpty(x - do2, y)) { moveTo(x, y, x - do2, y); return; }
+    }
+    mark(x, y);
+  }
+
+  /* ACID: flows like water, dissolves non-stone/non-acid neighbours */
+  function simAcid(x, y, ltr, i) {
+    var j2, nx2, ny2, nm2;
+    if (y < GH - 1) {
+      var bA = getM(x, y + 1);
+      if (bA === M_EMPTY || bA === M_WATER) { moveTo(x, y, x, y + 1); return; }
+      var da = ltr ? -1 : 1, dra = -da;
+      if (inB(x + da, y + 1) && getM(x + da, y + 1) === M_EMPTY) {
+        moveTo(x, y, x + da, y + 1); return;
+      }
+      if (inB(x + dra, y + 1) && getM(x + dra, y + 1) === M_EMPTY) {
+        moveTo(x, y, x + dra, y + 1); return;
+      }
+    }
+    var dsp = ltr ? 1 : -1;
+    if (Math.random() < 0.5) {
+      if (isEmpty(x + dsp, y)) { moveTo(x, y, x + dsp, y); return; }
+      if (isEmpty(x - dsp, y)) { moveTo(x, y, x - dsp, y); return; }
+    }
+    for (j2 = 0; j2 < 4; j2++) {
+      nx2 = x + DIRS4[j2][0]; ny2 = y + DIRS4[j2][1];
+      if (!inB(nx2, ny2)) continue;
+      nm2 = getM(nx2, ny2);
+      if (nm2 !== M_EMPTY && nm2 !== M_ACID && nm2 !== M_STONE && Math.random() < 0.07) {
+        var ni2 = idx(nx2, ny2);
+        grid[ni2] = M_EMPTY; meta[ni2] = 0; mark(nx2, ny2);
+        if (Math.random() < 0.3) { grid[i] = M_EMPTY; meta[i] = 0; mark(x, y); return; }
+      }
+    }
+    mark(x, y);
+  }
+
+  /* ICE: melts near fire, slowly freezes adjacent water */
+  function simIce(x, y, i) {
+    var j3, nx3, ny3, nm3, ni3;
+    for (j3 = 0; j3 < 4; j3++) {
+      nx3 = x + DIRS4[j3][0]; ny3 = y + DIRS4[j3][1];
+      if (!inB(nx3, ny3)) continue;
+      nm3 = getM(nx3, ny3);
+      if (nm3 === M_FIRE && Math.random() < 0.015) {
+        grid[i] = M_WATER; meta[i] = newMeta(M_WATER); mark(x, y); return;
+      }
+      if (nm3 === M_WATER && Math.random() < 0.001) {
+        ni3 = idx(nx3, ny3);
+        grid[ni3] = M_ICE; meta[ni3] = newMeta(M_ICE); mark(nx3, ny3);
+      }
+    }
+    mark(x, y);
+  }
+
+  /* STEAM: rises fast, condenses to water or evaporates */
+  function simSteam(x, y, i) {
+    if (meta[i] === 0 || Math.random() < 0.008) {
+      grid[i] = Math.random() < 0.45 ? M_WATER : M_EMPTY;
+      meta[i] = (grid[i] === M_WATER) ? newMeta(M_WATER) : 0;
+      mark(x, y); return;
+    }
+    meta[i]--;
+    if (meta[i] === 0) {
+      grid[i] = Math.random() < 0.45 ? M_WATER : M_EMPTY;
+      meta[i] = (grid[i] === M_WATER) ? newMeta(M_WATER) : 0;
+      mark(x, y); return;
+    }
+    if (y > 0) {
+      if (getM(x, y - 1) === M_EMPTY) { moveTo(x, y, x, y - 1); return; }
+      var ds = Math.random() < 0.5 ? -1 : 1;
+      if (inB(x + ds, y - 1) && getM(x + ds, y - 1) === M_EMPTY) {
+        moveTo(x, y, x + ds, y - 1); return;
+      }
+      if (inB(x - ds, y - 1) && getM(x - ds, y - 1) === M_EMPTY) {
+        moveTo(x, y, x - ds, y - 1); return;
+      }
+    }
+    if (Math.random() < 0.2) {
+      var sp = Math.random() < 0.5 ? -1 : 1;
+      if (isEmpty(x + sp, y)) { moveTo(x, y, x + sp, y); return; }
+    }
+    mark(x, y);
+  }
+
+  /* PLANT: spreads slowly to adjacent sand; needs water nearby to spread to air */
+  function simPlant(x, y, i) {
+    if (Math.random() > 0.0025) { return; }
+    var j4, nx4, ny4, nm4, ni4;
+    for (j4 = 0; j4 < 8; j4++) {
+      nx4 = x + DIRS8[j4][0]; ny4 = y + DIRS8[j4][1];
+      if (!inB(nx4, ny4)) continue;
+      nm4 = getM(nx4, ny4);
+      if (nm4 === M_SAND) {
+        ni4 = idx(nx4, ny4);
+        grid[ni4] = M_PLANT; meta[ni4] = newMeta(M_PLANT); mark(nx4, ny4); return;
+      }
+    }
+  }
+
+  /* ────────────────────────────────
+     RENDER
+  ──────────────────────────────── */
+  function render() {
+    var n = GW * GH;
+    for (var i = 0; i < n; i++) {
+      pixels[i] = color(grid[i], meta[i]);
+    }
+    ctx.putImageData(imgData, 0, 0);
+  }
+
+  /* ────────────────────────────────
+     INTERACTION
+  ──────────────────────────────── */
+  function toGrid(cx, cy) {
+    return { x: (cx / SCALE) | 0, y: (cy / SCALE) | 0 };
+  }
+
+  function paint(gx, gy) {
+    if (!hintGone) {
+      hintGone = true;
+      hintEl.style.opacity = '0';
+    }
+    var r = brushSize;
+    for (var dy = -r; dy <= r; dy++) {
+      for (var dx = -r; dx <= r; dx++) {
+        if (dx * dx + dy * dy > r * r) continue;
+        var px = gx + dx, py = gy + dy;
+        if (!inB(px, py)) continue;
+        if (curMat === M_EMPTY || Math.random() < 0.85) {
+          setM(px, py, curMat);
+        }
+      }
+    }
+  }
+
+  function getGP(e) {
+    var rect = canvas.getBoundingClientRect();
+    return toGrid(e.clientX - rect.left, e.clientY - rect.top);
+  }
+
+  canvas.addEventListener('pointerdown', function(e) {
+    if (e.button > 0) return;
+    painting = true;
+    activePointerId = e.pointerId;
+    canvas.setPointerCapture(e.pointerId);
+    var p = getGP(e);
+    paint(p.x, p.y);
+    e.preventDefault();
+  });
+
+  canvas.addEventListener('pointermove', function(e) {
+    if (!painting || e.pointerId !== activePointerId) return;
+    var p = getGP(e);
+    paint(p.x, p.y);
+    e.preventDefault();
+  });
+
+  canvas.addEventListener('pointerup', function(e) {
+    if (e.pointerId === activePointerId) { painting = false; activePointerId = -1; }
+  });
+
+  canvas.addEventListener('pointercancel', function() {
+    painting = false; activePointerId = -1;
+  });
+
+  /* ────────────────────────────────
+     TOOLBAR
+  ──────────────────────────────── */
+  var matBtns = {};
+  var matContainer = document.getElementById('mat-buttons');
+  matContainer.style.cssText = 'display:flex;gap:3px;align-items:center;';
+
+  MATS.forEach(function(mat) {
+    var btn = document.createElement('button');
+    btn.className = 'mat-btn';
+    btn.id = 'mat-' + mat.name.toLowerCase();
+    var dot = document.createElement('div');
+    dot.className = 'dot';
+    dot.style.background = 'rgb(' + mat.rgb[0] + ',' + mat.rgb[1] + ',' + mat.rgb[2] + ')';
+    var lbl = document.createElement('span');
+    lbl.textContent = mat.name;
+    btn.appendChild(dot);
+    btn.appendChild(lbl);
+    btn.addEventListener('pointerdown', function(ev) {
+      selMat(mat.id);
+      ev.stopPropagation();
+    });
+    matContainer.appendChild(btn);
+    matBtns[mat.id] = btn;
+  });
+
+  function selMat(id) {
+    curMat = id;
+    Object.keys(matBtns).forEach(function(k) {
+      matBtns[k].classList.toggle('active', parseInt(k) === id);
+    });
+  }
+  selMat(M_SAND);
+
+  brushBtn.addEventListener('pointerdown', function(e) {
+    brushIdx = (brushIdx + 1) % BRUSH_SIZES.length;
+    brushSize = BRUSH_SIZES[brushIdx];
+    this.textContent = 'SIZE ' + brushSize;
+    e.stopPropagation();
+  });
+
+  document.getElementById('clear-btn').addEventListener('pointerdown', function(e) {
+    grid.fill(0); meta.fill(0);
+    e.stopPropagation();
+  });
+
+  document.getElementById('pause-btn').addEventListener('pointerdown', function(e) {
+    paused = !paused;
+    this.textContent = paused ? 'RESUME' : 'PAUSE';
+    e.stopPropagation();
+  });
+
+  document.getElementById('save-btn').addEventListener('pointerdown', function(e) {
+    canvas.toBlob(function(blob) {
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement('a');
+      a.href = url;
+      a.download = 'powder-world.png';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(function() { URL.revokeObjectURL(url); }, 5000);
+    });
+    e.stopPropagation();
+  });
+
+  document.addEventListener('keydown', function(e) {
+    var MAP = {
+      '1': M_SAND, '2': M_WATER, '3': M_FIRE, '4': M_WOOD,
+      '5': M_OIL,  '6': M_STONE, '7': M_ACID, '8': M_ICE, '9': M_PLANT, '0': M_EMPTY
+    };
+    if (MAP[e.key] !== undefined) selMat(MAP[e.key]);
+    if (e.key === 'c' || e.key === 'C') { grid.fill(0); meta.fill(0); }
+    if (e.key === ' ') {
+      e.preventDefault();
+      paused = !paused;
+      document.getElementById('pause-btn').textContent = paused ? 'RESUME' : 'PAUSE';
+    }
+    if (e.key === '+' || e.key === '=') {
+      brushIdx = Math.min(brushIdx + 1, BRUSH_SIZES.length - 1);
+      brushSize = BRUSH_SIZES[brushIdx];
+      brushBtn.textContent = 'SIZE ' + brushSize;
+    }
+    if (e.key === '-') {
+      brushIdx = Math.max(0, brushIdx - 1);
+      brushSize = BRUSH_SIZES[brushIdx];
+      brushBtn.textContent = 'SIZE ' + brushSize;
+    }
+  });
+
+  /* ────────────────────────────────
+     INIT / RESIZE
+  ──────────────────────────────── */
+  function allocate() {
+    grid    = new Uint8Array(GW * GH);
+    meta    = new Uint8Array(GW * GH);
+    updated = new Uint8Array(GW * GH);
+    imgData = ctx.createImageData(GW, GH);
+    pixels  = new Uint32Array(imgData.data.buffer);
+  }
+
+  function demo() {
+    var cx = GW >> 1, cy = GH >> 1;
+    var xi, yi;
+
+    /* sand pile in center */
+    for (yi = cy - 12; yi < cy + 10; yi++) {
+      for (xi = cx - 18; xi < cx + 18; xi++) {
+        if (Math.random() < 0.65) setM(xi, yi, M_SAND);
+      }
+    }
+
+    /* water pool left side */
+    for (yi = cy + 8; yi < GH - 1; yi++) {
+      for (xi = 2; xi < cx - 22; xi++) {
+        if (Math.random() < 0.82) setM(xi, yi, M_WATER);
+      }
+    }
+
+    /* wood column */
+    var wx = cx + 30;
+    for (yi = cy - 10; yi < cy + 8; yi++) {
+      setM(wx,     yi, M_WOOD);
+      setM(wx + 1, yi, M_WOOD);
+    }
+    /* fire at base */
+    setM(wx,     cy + 9, M_FIRE);
+    setM(wx + 1, cy + 9, M_FIRE);
+
+    /* ice wall right */
+    for (yi = cy - 6; yi < cy + 10; yi++) {
+      for (xi = GW - 16; xi < GW - 8; xi++) {
+        setM(xi, yi, M_ICE);
+      }
+    }
+
+    /* oil pool above center */
+    for (yi = cy - 18; yi < cy - 12; yi++) {
+      for (xi = cx - 10; xi < cx + 10; xi++) {
+        if (Math.random() < 0.55) setM(xi, yi, M_OIL);
+      }
+    }
+
+    /* stone floor segments */
+    for (xi = cx - 40; xi < cx - 20; xi++) setM(xi, GH - 2, M_STONE);
+    for (xi = cx + 20; xi < cx + 45; xi++) setM(xi, GH - 2, M_STONE);
+  }
+
+  function resize() {
+    var aw = window.innerWidth;
+    var ah = window.innerHeight - TOOLBAR_H;
+    /* SCALE: target ~4px per cell; min 2 */
+    SCALE = Math.max(2, Math.floor(Math.min(aw / 80, ah / 60)));
+    GW = Math.floor(aw / SCALE);
+    GH = Math.floor(ah / SCALE);
+    canvas.width  = GW;
+    canvas.height = GH;
+    /* Stretch CSS to fill exact available area; pixelated rendering hides seam */
+    canvas.style.width  = aw + 'px';
+    canvas.style.height = ah + 'px';
+    allocate();
+    demo();
+  }
+
+  var resizeTimer;
+  window.addEventListener('resize', function() {
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(resize, 150);
+  });
+
+  /* ────────────────────────────────
+     MAIN LOOP
+  ──────────────────────────────── */
+  function loop(ts) {
+    requestAnimationFrame(loop);
+    var dt = ts - lastTs;
+    lastTs = ts;
+
+    frameCount++;
+    fpsTimer += dt;
+    if (fpsTimer >= 1000) {
+      fpsDisplay.textContent = frameCount;
+      frameCount = 0;
+      fpsTimer -= 1000;
+    }
+
+    if (!paused) simAll();
+    render();
+  }
+
+  /* ────────────────────────────────
+     BOOT
+  ──────────────────────────────── */
+  resize();
+  requestAnimationFrame(loop);
+
+})();
+</script>
+</body>
+</html>
