@@ -1,0 +1,704 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="theme-color" content="#000000">
+<title>wave-tank</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body {
+  width: 100%; height: 100%;
+  background: #0a0a0a;
+  overflow: hidden;
+  touch-action: none;
+  -webkit-tap-highlight-color: transparent;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Courier New", monospace;
+  color: #ccc;
+  user-select: none;
+}
+#wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  height: 100%;
+}
+#canvas-wrap {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+}
+#canvas {
+  display: block;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+  cursor: crosshair;
+}
+#ctrl {
+  width: 100%;
+  max-width: 600px;
+  padding: 6px 10px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  border-top: 1px solid #1a1a1a;
+  flex-shrink: 0;
+}
+.row {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex-wrap: wrap;
+}
+.lbl {
+  font-size: 0.55rem;
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
+  color: #555;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.btn {
+  padding: 6px 10px;
+  background: transparent;
+  border: 1px solid #222;
+  color: #666;
+  font-family: inherit;
+  font-size: 0.55rem;
+  cursor: pointer;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  touch-action: manipulation;
+  min-height: 36px;
+  min-width: 44px;
+}
+.btn:active { border-color: #666; color: #aaa; }
+.btn.active  { border-color: #0ff; color: #0ff; }
+.btn.sel     { border-color: #555; color: #999; }
+#fps { font-size: 0.5rem; color: #444; margin-left: auto; letter-spacing: 0.1em; }
+#info { font-size: 0.5rem; color: #555; letter-spacing: 0.08em; }
+#freq-val { font-size: 0.5rem; color: #666; white-space: nowrap; }
+input[type="range"] {
+  height: 3px;
+  accent-color: #555;
+  flex: 1;
+  max-width: 100px;
+  min-width: 60px;
+}
+</style>
+</head>
+<body>
+<div id="wrap">
+  <div id="canvas-wrap">
+    <canvas id="canvas"></canvas>
+  </div>
+  <div id="ctrl">
+    <div class="row">
+      <span class="lbl">PRESET</span>
+      <button class="btn" id="btn-point">POINT</button>
+      <button class="btn" id="btn-two">TWO SRC</button>
+      <button class="btn active" id="btn-slit">DBL SLIT</button>
+      <button class="btn" id="btn-grating">GRATING</button>
+      <button class="btn" id="btn-clear">CLEAR</button>
+      <button class="btn" id="btn-pause">&#9646;&#9646; PAUSE</button>
+      <button class="btn" id="btn-save">SAVE PNG</button>
+      <span id="fps">-- FPS</span>
+    </div>
+    <div class="row">
+      <span class="lbl">DRAW</span>
+      <button class="btn sel" id="btn-mode-src">SOURCE</button>
+      <button class="btn" id="btn-mode-wall">WALL</button>
+      <button class="btn" id="btn-mode-erase">ERASE</button>
+      <span class="lbl" style="margin-left:6px">FREQ</span>
+      <input type="range" id="freq-slider" min="5" max="40" value="15">
+      <span id="freq-val">&lambda;30</span>
+      <span class="lbl" style="margin-left:4px">VIEW</span>
+      <button class="btn sel" id="btn-view-wave">WAVE</button>
+      <button class="btn" id="btn-view-intensity">INTENSITY</button>
+    </div>
+    <div class="row">
+      <span id="info">DBL SLIT &mdash; two-gap diffraction. INTENSITY mode reveals the fringe pattern.</span>
+    </div>
+  </div>
+</div>
+<script>
+(function () {
+  /* =====================================================================
+     wave-tank — 2D wave equation (FTCS finite-difference scheme)
+     Stable Fluids analog for waves: ∂²Z/∂t² = c²∇²Z
+     Features: sponge boundary, barriers, multi-source, intensity mode
+     ===================================================================== */
+
+  var N = 250;         /* grid resolution */
+  var NN = N * N;
+  var r = 0.45;        /* c*dt/dx, must be < 1/sqrt(2) ≈ 0.707 for stability */
+  var r2 = r * r;
+  var SPONGE_W = 28;   /* absorbing boundary width */
+  var STEPS_PER_FRAME = 4;
+  var BASE_FREQ = 0.015; /* cycles/step, λ = r/freq = 0.45/0.015 = 30 cells */
+  var freqMult = 1.0;
+  var stepCount = 0;
+
+  /* Simulation buffers — triple-buffer wave equation */
+  var prev = new Float32Array(NN);
+  var curr = new Float32Array(NN);
+  var next = new Float32Array(NN);
+
+  /* Barrier map: 1 = wall, 0 = open water */
+  var barrier = new Uint8Array(NN);
+
+  /* Pre-computed sponge damping (1.0 = interior, 0.0 = edge) */
+  var sponge = new Float32Array(NN);
+
+  /* Intensity: exponential moving average of Z² */
+  var intensity = new Float32Array(NN);
+  var EMA_ALPHA = 0.04; /* smoothing: ~25-step half-life */
+
+  /* Pause flag */
+  var paused = false;
+
+  /* Sources list */
+  var sources = [];
+
+  /* View and draw modes */
+  var viewMode = 'wave';       /* 'wave' | 'intensity' */
+  var drawMode = 'source';     /* 'source' | 'wall' | 'erase' */
+
+  /* DOM elements */
+  var canvas = document.getElementById('canvas');
+  var ctx = canvas.getContext('2d');
+  var fpsEl  = document.getElementById('fps');
+  var infoEl = document.getElementById('info');
+  var freqValEl = document.getElementById('freq-val');
+
+  /* Pixel buffer */
+  var imgData, pixels;
+
+  /* ---------------------------------------------------------------
+     Init
+  --------------------------------------------------------------- */
+  function initBuffers() {
+    imgData = ctx.createImageData(N, N);
+    pixels = new Uint32Array(imgData.data.buffer);
+  }
+
+  function initSponge() {
+    for (var j = 0; j < N; j++) {
+      for (var i = 0; i < N; i++) {
+        var dx = Math.min(i, N - 1 - i);
+        var dy = Math.min(j, N - 1 - j);
+        var d = Math.min(dx, dy);
+        if (d < SPONGE_W) {
+          var t = d / SPONGE_W;
+          /* cosine-squared taper: smooth from 0→1 */
+          var cos = Math.cos((1.0 - t) * Math.PI * 0.5);
+          sponge[j * N + i] = cos * cos;
+        } else {
+          sponge[j * N + i] = 1.0;
+        }
+      }
+    }
+  }
+
+  function clearWave() {
+    prev.fill(0);
+    curr.fill(0);
+    next.fill(0);
+    intensity.fill(0);
+    stepCount = 0;
+  }
+
+  function clearAll() {
+    clearWave();
+    barrier.fill(0);
+    sources = [];
+    updateInfo();
+  }
+
+  /* ---------------------------------------------------------------
+     Presets
+  --------------------------------------------------------------- */
+  function addSource(x, y, amp) {
+    /* Remove existing source at same cell */
+    for (var k = sources.length - 1; k >= 0; k--) {
+      if (sources[k].x === x && sources[k].y === y) {
+        sources.splice(k, 1);
+        updateInfo();
+        return;
+      }
+    }
+    if (sources.length >= 6) sources.shift(); /* max 6 sources */
+    sources.push({ x: x, y: y, amp: amp || 1.0 });
+    updateInfo();
+  }
+
+  var presetInfoText = {
+    'btn-point':   'POINT \u2014 single source, circular wavefronts radiate outward',
+    'btn-two':     'TWO SRC \u2014 two coherent sources create a standing interference pattern',
+    'btn-slit':    'DBL SLIT \u2014 two-gap diffraction. Switch to INTENSITY to see fringe bands',
+    'btn-grating': 'GRATING \u2014 5-slit diffraction grating, sharper & more peaks in INTENSITY mode'
+  };
+
+  function presetPoint() {
+    clearAll();
+    addSource(N / 2 | 0, N / 2 | 0, 1.0);
+    updateActivePreset('btn-point');
+    infoEl.textContent = presetInfoText['btn-point'];
+  }
+
+  function presetTwo() {
+    clearAll();
+    addSource((N / 2 - 45) | 0, N / 2 | 0, 1.0);
+    addSource((N / 2 + 45) | 0, N / 2 | 0, 1.0);
+    updateActivePreset('btn-two');
+    infoEl.textContent = presetInfoText['btn-two'];
+  }
+
+  function presetDoubleSlit() {
+    clearAll();
+    var by = (N * 0.55) | 0;
+    var cx = N / 2 | 0;
+    var sep = 56;     /* slit center-to-center distance in cells */
+    var hw  = 5;      /* slit half-width in cells → slit width = 2*hw = 10 cells */
+
+    /* Draw horizontal barrier across full row */
+    for (var i = 0; i < N; i++) {
+      barrier[by * N + i] = 1;
+    }
+    /* Cut two slits (each exactly 2*hw cells wide) */
+    var s1c = (cx - sep / 2) | 0;
+    var s2c = (cx + sep / 2) | 0;
+    for (var di = -hw; di < hw; di++) {
+      if (s1c + di >= 0 && s1c + di < N) barrier[by * N + s1c + di] = 0;
+      if (s2c + di >= 0 && s2c + di < N) barrier[by * N + s2c + di] = 0;
+    }
+
+    /* Source above barrier */
+    addSource(cx, (N * 0.25) | 0, 1.0);
+    updateActivePreset('btn-slit');
+    infoEl.textContent = presetInfoText['btn-slit'];
+  }
+
+  function presetGrating() {
+    clearAll();
+    var by = (N * 0.50) | 0;
+    var cx = N / 2 | 0;
+    var slitCount = 5;
+    var spacing = 38; /* cells between slit centers */
+    var hw = 4;       /* slit half-width → slit width = 2*hw = 8 cells */
+
+    /* Full barrier row */
+    for (var i = 0; i < N; i++) {
+      barrier[by * N + i] = 1;
+    }
+    /* Cut slits evenly centered (each exactly 2*hw cells wide) */
+    var startX = cx - Math.floor((slitCount - 1) * spacing / 2);
+    for (var s = 0; s < slitCount; s++) {
+      var sc = startX + s * spacing;
+      for (var di = -hw; di < hw; di++) {
+        if (sc + di >= 0 && sc + di < N) barrier[by * N + sc + di] = 0;
+      }
+    }
+
+    /* Source above barrier, centered */
+    addSource(cx, (N * 0.22) | 0, 1.0);
+    updateActivePreset('btn-grating');
+    infoEl.textContent = presetInfoText['btn-grating'];
+  }
+
+  function updateActivePreset(id) {
+    ['btn-point','btn-two','btn-slit','btn-grating'].forEach(function (bid) {
+      document.getElementById(bid).classList.toggle('active', bid === id);
+    });
+  }
+
+  /* ---------------------------------------------------------------
+     Simulation step (FTCS scheme)
+  --------------------------------------------------------------- */
+  function simStep() {
+    var freq = BASE_FREQ * freqMult;
+    var omega = 2.0 * Math.PI * freq;
+
+    for (var j = 1; j < N - 1; j++) {
+      var jN = j * N;
+      var jNp = jN + N;
+      var jNm = jN - N;
+      for (var i = 1; i < N - 1; i++) {
+        var idx = jN + i;
+        if (barrier[idx]) {
+          next[idx] = 0.0;
+          continue;
+        }
+        var lap = curr[jNm + i] + curr[jNp + i] + curr[idx - 1] + curr[idx + 1] - 4.0 * curr[idx];
+        next[idx] = (2.0 * curr[idx] - prev[idx] + r2 * lap) * sponge[idx];
+      }
+    }
+
+    /* Apply sources (hard oscillating boundaries) */
+    for (var k = 0; k < sources.length; k++) {
+      var src = sources[k];
+      var sidx = src.y * N + src.x;
+      var val  = src.amp * Math.sin(omega * stepCount);
+      var pval = src.amp * Math.sin(omega * (stepCount - 1));
+      next[sidx]  = val;
+      curr[sidx]  = pval;
+      prev[sidx]  = src.amp * Math.sin(omega * (stepCount - 2));
+    }
+
+    /* Swap triple buffers via closure mutation */
+    var tmp = prev;
+    prev = curr;
+    curr = next;
+    next = tmp;
+
+    stepCount++;
+
+    /* Exponential moving average of Z² for intensity mode */
+    var oneMinusAlpha = 1.0 - EMA_ALPHA;
+    for (var idx2 = 0; idx2 < NN; idx2++) {
+      var z = curr[idx2];
+      intensity[idx2] = oneMinusAlpha * intensity[idx2] + EMA_ALPHA * z * z;
+    }
+  }
+
+  /* ---------------------------------------------------------------
+     Rendering
+  --------------------------------------------------------------- */
+  function rgba(r_val, g_val, b_val) {
+    return (255 * 16777216) + (b_val * 65536) + (g_val * 256) + r_val;
+  }
+
+  var WAVE_SCALE = 8.0;  /* amplitude → color scale */
+
+  function render() {
+    /* Amber wall color: R=180 G=120 B=30 */
+    var WALL_COLOR = rgba(180, 120, 30);
+    var p, v, t, vv;
+    if (viewMode === 'wave') {
+      for (var j = 0; j < N; j++) {
+        var jN = j * N;
+        for (var i = 0; i < N; i++) {
+          var idx = jN + i;
+          if (barrier[idx]) {
+            pixels[idx] = WALL_COLOR;
+            continue;
+          }
+          v = curr[idx] * WAVE_SCALE;
+          if (v > 1.0) v = 1.0;
+          if (v < -1.0) v = -1.0;
+          if (v >= 0.0) {
+            /* Peaks: cyan glow */
+            var bright = v * v;
+            pixels[idx] = rgba(0, (bright * 255) | 0, (bright * 255) | 0);
+          } else {
+            /* Troughs: magenta glow */
+            var dark = v * v;
+            pixels[idx] = rgba((dark * 255) | 0, 0, (dark * 200) | 0);
+          }
+        }
+      }
+    } else {
+      /* Intensity mode: show time-averaged |Z|² */
+      var maxI = 0.0;
+      for (var idx4 = 0; idx4 < NN; idx4++) {
+        if (intensity[idx4] > maxI) maxI = intensity[idx4];
+      }
+      if (maxI < 1e-8) maxI = 1e-8;
+      var invMax = 1.0 / maxI;
+      for (var j2 = 0; j2 < N; j2++) {
+        var jN2 = j2 * N;
+        for (var i2 = 0; i2 < N; i2++) {
+          var idx5 = jN2 + i2;
+          if (barrier[idx5]) {
+            pixels[idx5] = WALL_COLOR;
+            continue;
+          }
+          t = intensity[idx5] * invMax;
+          /* Plasma-style: 0=black, 0.5=cyan, 1.0=white */
+          if (t < 0.5) {
+            var t2 = t * 2.0;
+            pixels[idx5] = rgba(0, (t2 * 200) | 0, (t2 * 255) | 0);
+          } else {
+            var t3 = (t - 0.5) * 2.0;
+            pixels[idx5] = rgba((t3 * 255) | 0, (200 + t3 * 55) | 0, 255);
+          }
+        }
+      }
+    }
+
+    /* Draw source markers: bright yellow cross with amber halo */
+    var freq0 = BASE_FREQ * freqMult;
+    var omega0 = 2.0 * Math.PI * freq0;
+    var pulse = 0.5 + 0.5 * Math.sin(omega0 * stepCount);
+    var haloR = (80 + pulse * 80) | 0;
+    var haloG = (60 + pulse * 60) | 0;
+    for (var ks = 0; ks < sources.length; ks++) {
+      var sx = sources[ks].x;
+      var sy = sources[ks].y;
+      /* 5-cell cross */
+      var crossPts = [[0,0],[1,0],[-1,0],[2,0],[-2,0],[0,1],[0,-1],[0,2],[0,-2]];
+      for (var cp = 0; cp < crossPts.length; cp++) {
+        var px2 = sx + crossPts[cp][0], py2 = sy + crossPts[cp][1];
+        if (px2 >= 0 && px2 < N && py2 >= 0 && py2 < N) {
+          pixels[py2 * N + px2] = rgba(255, 255, 0);
+        }
+      }
+      /* 1-cell amber halo ring at radius 3 */
+      for (var dj2 = -3; dj2 <= 3; dj2++) {
+        for (var di2 = -3; di2 <= 3; di2++) {
+          if (Math.abs(dj2) !== 3 && Math.abs(di2) !== 3) continue;
+          var px3 = sx + di2, py3 = sy + dj2;
+          if (px3 >= 0 && px3 < N && py3 >= 0 && py3 < N) {
+            pixels[py3 * N + px3] = rgba(haloR, haloG, 0);
+          }
+        }
+      }
+    }
+
+    ctx.putImageData(imgData, 0, 0);
+  }
+
+  /* ---------------------------------------------------------------
+     Canvas resize
+  --------------------------------------------------------------- */
+  var rectCache = null;
+
+  function resize() {
+    var ctrlH = document.getElementById('ctrl').offsetHeight;
+    var avail = Math.min(window.innerWidth, window.innerHeight - ctrlH);
+    canvas.style.width  = avail + 'px';
+    canvas.style.height = avail + 'px';
+    rectCache = null;
+  }
+
+  window.addEventListener('resize', resize);
+
+  /* ---------------------------------------------------------------
+     Input handling
+  --------------------------------------------------------------- */
+  function getGridPos(clientX, clientY) {
+    if (!rectCache) rectCache = canvas.getBoundingClientRect();
+    var rx = (clientX - rectCache.left) / rectCache.width;
+    var ry = (clientY - rectCache.top)  / rectCache.height;
+    var gi = Math.max(1, Math.min(N - 2, (rx * N) | 0));
+    var gj = Math.max(1, Math.min(N - 2, (ry * N) | 0));
+    return [gi, gj];
+  }
+
+  var pointerDown = false;
+  var lastGridPos = null;
+  var activePointerId = -1;
+
+  function handlePointerDown(e) {
+    e.preventDefault();
+    canvas.setPointerCapture(e.pointerId);
+    activePointerId = e.pointerId;
+    pointerDown = true;
+    rectCache = null;
+    var gp = getGridPos(e.clientX, e.clientY);
+
+    if (drawMode === 'source') {
+      addSource(gp[0], gp[1], 1.0);
+    } else if (drawMode === 'wall') {
+      paintBarrier(gp[0], gp[1], 1);
+    } else {
+      paintBarrier(gp[0], gp[1], 0);
+    }
+    lastGridPos = gp;
+  }
+
+  function handlePointerMove(e) {
+    if (!pointerDown || e.pointerId !== activePointerId) return;
+    var gp = getGridPos(e.clientX, e.clientY);
+    if (drawMode === 'wall') {
+      /* Interpolate line to avoid gaps */
+      if (lastGridPos) {
+        interpolateLine(lastGridPos[0], lastGridPos[1], gp[0], gp[1], 1);
+      } else {
+        paintBarrier(gp[0], gp[1], 1);
+      }
+    } else if (drawMode === 'erase') {
+      if (lastGridPos) {
+        interpolateLine(lastGridPos[0], lastGridPos[1], gp[0], gp[1], 0);
+      } else {
+        paintBarrier(gp[0], gp[1], 0);
+      }
+    }
+    lastGridPos = gp;
+  }
+
+  function handlePointerUp(e) {
+    if (e.pointerId !== activePointerId) return;
+    pointerDown = false;
+    lastGridPos = null;
+    activePointerId = -1;
+  }
+
+  function paintBarrier(cx, cy, val) {
+    var bw = 2; /* brush width in cells */
+    for (var dj = -bw; dj <= bw; dj++) {
+      for (var di = -bw; di <= bw; di++) {
+        var gx = cx + di, gy = cy + dj;
+        if (gx >= 1 && gx < N - 1 && gy >= 1 && gy < N - 1) {
+          var idx = gy * N + gx;
+          barrier[idx] = val;
+          if (val === 0) {
+            /* Clear wave at erased cells */
+            prev[idx] = 0; curr[idx] = 0; next[idx] = 0;
+          }
+        }
+      }
+    }
+  }
+
+  function interpolateLine(x0, y0, x1, y1, val) {
+    /* Bresenham line for continuous wall drawing */
+    var dx = Math.abs(x1 - x0);
+    var dy = Math.abs(y1 - y0);
+    var sx = x0 < x1 ? 1 : -1;
+    var sy = y0 < y1 ? 1 : -1;
+    var err = dx - dy;
+    while (true) {
+      paintBarrier(x0, y0, val);
+      if (x0 === x1 && y0 === y1) break;
+      var e2 = 2 * err;
+      if (e2 > -dy) { err -= dy; x0 += sx; }
+      if (e2 < dx)  { err += dx; y0 += sy; }
+    }
+  }
+
+  canvas.addEventListener('pointerdown', handlePointerDown);
+  canvas.addEventListener('pointermove', handlePointerMove);
+  canvas.addEventListener('pointerup',   handlePointerUp);
+  canvas.addEventListener('pointercancel', handlePointerUp);
+
+  /* ---------------------------------------------------------------
+     Control wiring
+  --------------------------------------------------------------- */
+  function setMode(mode) {
+    drawMode = mode;
+    ['btn-mode-src','btn-mode-wall','btn-mode-erase'].forEach(function (id) {
+      document.getElementById(id).classList.remove('sel');
+    });
+    var ids = { source: 'btn-mode-src', wall: 'btn-mode-wall', erase: 'btn-mode-erase' };
+    if (ids[mode]) document.getElementById(ids[mode]).classList.add('sel');
+    updateInfo();
+  }
+
+  function setView(mode) {
+    viewMode = mode;
+    document.getElementById('btn-view-wave').classList.toggle('sel', mode === 'wave');
+    document.getElementById('btn-view-intensity').classList.toggle('sel', mode === 'intensity');
+    if (mode === 'intensity') {
+      /* Reset EMA for clean measurement */
+      intensity.fill(0);
+      infoEl.textContent = 'INTENSITY \u2014 time-averaged energy. Bright bands = constructive interference.';
+    } else {
+      infoEl.textContent = 'WAVE \u2014 live oscillation: cyan = peak, magenta = trough.';
+    }
+  }
+
+  function updateInfo() {
+    var modeLabels = {
+      source: 'TAP to add/remove source \u2014 tap existing source to remove',
+      wall:   'DRAG to draw barrier walls',
+      erase:  'DRAG to erase barrier walls'
+    };
+    infoEl.textContent = modeLabels[drawMode] || '';
+  }
+
+  document.getElementById('btn-point').addEventListener('pointerdown',   function (e) { e.stopPropagation(); presetPoint(); });
+  document.getElementById('btn-two').addEventListener('pointerdown',     function (e) { e.stopPropagation(); presetTwo(); });
+  document.getElementById('btn-slit').addEventListener('pointerdown',    function (e) { e.stopPropagation(); presetDoubleSlit(); });
+  document.getElementById('btn-grating').addEventListener('pointerdown', function (e) { e.stopPropagation(); presetGrating(); });
+  document.getElementById('btn-clear').addEventListener('pointerdown',   function (e) {
+    e.stopPropagation();
+    clearAll();
+    updateActivePreset('');
+    infoEl.textContent = 'Cleared. Draw walls or place sources.';
+  });
+  document.getElementById('btn-mode-src').addEventListener('pointerdown',   function (e) { e.stopPropagation(); setMode('source'); });
+  document.getElementById('btn-mode-wall').addEventListener('pointerdown',  function (e) { e.stopPropagation(); setMode('wall'); });
+  document.getElementById('btn-mode-erase').addEventListener('pointerdown', function (e) { e.stopPropagation(); setMode('erase'); });
+  document.getElementById('btn-view-wave').addEventListener('pointerdown',      function (e) { e.stopPropagation(); setView('wave'); });
+  document.getElementById('btn-view-intensity').addEventListener('pointerdown', function (e) { e.stopPropagation(); setView('intensity'); });
+
+  var pauseBtn = document.getElementById('btn-pause');
+  pauseBtn.addEventListener('pointerdown', function (e) {
+    e.stopPropagation();
+    paused = !paused;
+    pauseBtn.textContent = paused ? '\u25ba PLAY' : '\u258c\u258c PAUSE';
+    pauseBtn.classList.toggle('active', paused);
+  });
+
+  document.getElementById('btn-save').addEventListener('pointerdown', function (e) {
+    e.stopPropagation();
+    /* Render current frame to a temp canvas for download */
+    var a = document.createElement('a');
+    a.download = 'wave-tank.png';
+    a.href = canvas.toDataURL('image/png');
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  });
+
+  function updateFreqDisplay() {
+    var lambda = Math.round(r / (BASE_FREQ * freqMult));
+    freqValEl.textContent = '\u03bb' + lambda;
+  }
+
+  var freqSlider = document.getElementById('freq-slider');
+  freqSlider.addEventListener('input', function () {
+    freqMult = parseInt(this.value, 10) / 15.0; /* 15 = default (value=15 → mult=1.0) */
+    updateFreqDisplay();
+    clearWave(); /* reset wave when freq changes */
+  });
+
+  /* ---------------------------------------------------------------
+     Main loop
+  --------------------------------------------------------------- */
+  var fpsLast = performance.now();
+  var fpsFrames = 0;
+
+  function loop() {
+    requestAnimationFrame(loop);
+
+    if (!paused) {
+      for (var s = 0; s < STEPS_PER_FRAME; s++) {
+        simStep();
+      }
+    }
+
+    render();
+
+    fpsFrames++;
+    var now = performance.now();
+    if (now - fpsLast >= 1000) {
+      fpsEl.textContent = fpsFrames + ' FPS';
+      fpsFrames = 0;
+      fpsLast = now;
+    }
+  }
+
+  /* ---------------------------------------------------------------
+     Boot
+  --------------------------------------------------------------- */
+  canvas.width  = N;
+  canvas.height = N;
+  initBuffers();
+  initSponge();
+  resize();
+  updateFreqDisplay();
+  presetDoubleSlit(); /* start with the most impressive preset */
+  loop();
+
+}());
+</script>
+</body>
+</html>

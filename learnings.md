@@ -2767,3 +2767,18 @@ Sequential Gemini reviews (focus: bugs, then security) caught **different issue 
 - **INSIGHT**: For any GPU simulation that needs PNG export, set `preserveDrawingBuffer: true` at context creation — not after. This is immutable once the context exists.
 - **INSIGHT**: Council review angle "USER GUIDE" (score 3/10) caught zero onboarding — species names, parameter names, and canvas interaction were all undiscoverable to non-experts. Adding `title` attributes, a keyboard legend, and a welcome tooltip costs <50 lines and transforms the experience.
 - **TEST CAUGHT**: All bugs found by council review, none by static tests. Static tests (syntax, ID consistency, brace balance) catch structural issues; council reviews catch semantic/UX issues. Both are necessary.
+
+### wave-tank — 2D Wave Equation Simulator (2026-04-02)
+- **KEEP**: FTCS triple-buffer closure mutation pattern — `var tmp = prev; prev = curr; curr = next; next = tmp` inside IIFE-scoped function reassigns module-level vars correctly. Clean, zero-allocation per step.
+- **KEEP**: Cosine-squared sponge boundary taper — `factor = cos²((1-d/W)*π/2)` gives smooth 0→1 absorption with no reflections at boundary interface.
+- **KEEP**: Exponential moving average (EMA) for intensity: `intensity[i] = (1-α)*intensity[i] + α*z²`. Cleaner than windowed sum: no reset needed, no div-by-zero, no half-window lag. α=0.04 gives ~25-step half-life.
+- **KEEP**: Amber wall color `rgba(180, 120, 30)` — strongly visible against near-black wave background. Dark grey (60,60,60) is nearly invisible. Barrier color must be warm/bright.
+- **KEEP**: Per-preset info text — each preset sets `infoEl.textContent` with the physics explanation. Low effort, high educational value.
+- **BUG (council)**: Windowed intensity was broken — divide-by-count without zeroing produced inconsistent units on the next window. Fix: replace with EMA (no counter, no reset needed).
+- **BUG (council)**: Slit off-by-one — `for di = -(sw/2 | 0); di <= (sw/2 | 0)` opens sw+1 cells. Fix: use half-width variable `hw` and loop `di = -hw; di < hw` for exactly 2*hw cells.
+- **IMPROVE (council UI)**: Button min-height 26px is half the touch target minimum. Always use min-height: 36px+ for interactive controls. 44px is Apple HIG minimum.
+- **IMPROVE (council GUIDE)**: Physics jargon presets ("DBL SLIT", "GRATING") need explanation. Add info text per preset explaining what the phenomenon is and what view to use.
+- **IMPROVE (council USEFULNESS)**: Pause + PNG export are minimum viable features for any educational physics sim. Users need to freeze the sim to study a pattern and share what they see.
+- **INSIGHT**: For physics sims, INTENSITY mode (time-averaged |Z|²) is the "payoff" view — it reveals the static fringe pattern that matches textbook diagrams. The live wave view is eye candy; intensity is where the physics becomes legible. Make intensity mode prominent, not buried.
+- **INSIGHT**: EMA α choice: for a wave at frequency f (cycles/step) with STEPS_PER_FRAME steps/rAF, the EMA period = 1/α steps. For fringes to stabilize visually, need EMA period >> 1/f (wave period). With f=0.015 (T=67 steps) and α=0.04 (EMA period ~25 steps), the fringe pattern converges about 3× faster than the wave period. This feels responsive while still averaging.
+- **TEST CAUGHT**: All bugs found by council review. Static tests catch structural issues; council reviews catch physics logic and UX issues.
