@@ -427,7 +427,8 @@
   var rootNote  = 0;
   var scaleName = 'Major';
   var audioCtx  = null;
-  var activeNotes  = {};   /* midi → { gain, oscs } */
+  var activeNotes      = {};   /* midi → { gain, oscs } */
+  var activeChordTimers = [];  /* pending chord preview timers — cleared on updateChords */
   var keyElements  = {};   /* midi → DOM element */
   var pressedKeys  = {};   /* keyboard key → bool */
   var sustainOn    = false;
@@ -631,8 +632,17 @@
   /* ── Circle of Fifths ── */
   function drawCOF() {
     var canvas = document.getElementById('cof-canvas');
-    var ctx    = canvas.getContext('2d');
-    var W = canvas.width, H = canvas.height;
+    /* HiDPI-aware rendering: scale canvas buffer by devicePixelRatio */
+    var dpr  = window.devicePixelRatio || 1;
+    var cssW = canvas.clientWidth  || 228;
+    var cssH = canvas.clientHeight || 228;
+    if (canvas.width !== Math.round(cssW * dpr) || canvas.height !== Math.round(cssH * dpr)) {
+      canvas.width  = Math.round(cssW * dpr);
+      canvas.height = Math.round(cssH * dpr);
+    }
+    var ctx = canvas.getContext('2d');
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    var W = cssW, H = cssH;
     var cx = W / 2, cy = H / 2;
     var R  = W / 2 - 4;
 
@@ -769,6 +779,11 @@
   }
 
   function updateChords() {
+    /* Cancel any pending chord-preview timers from the previous layout to
+       prevent orphan timeouts calling _stopNote on notes from the new context */
+    activeChordTimers.forEach(clearTimeout);
+    activeChordTimers = [];
+
     var grid = document.getElementById('chord-grid');
     grid.innerHTML = '';
 
@@ -802,22 +817,28 @@
         var chordTimer = null;
         card.addEventListener('pointerdown', function () {
           initAudio();
-          /* Play root in octave 3, then chord tones */
-          var rootMidi = 48 + ch.rootPc;
+          var rootMidi  = 48 + ch.rootPc;
           var thirdMidi = rootMidi + ch.thirdSemi;
           var fifthMidi = rootMidi + ch.fifthSemi;
           playNote(rootMidi);
           playNote(thirdMidi);
           playNote(fifthMidi);
           card.classList.add('sounding');
-          if (chordTimer) clearTimeout(chordTimer);
+          /* Cancel previous timer for this card (rapid re-click) */
+          if (chordTimer) {
+            clearTimeout(chordTimer);
+            var idx = activeChordTimers.indexOf(chordTimer);
+            if (idx >= 0) activeChordTimers.splice(idx, 1);
+          }
           chordTimer = setTimeout(function () {
-            _stopNote(rootMidi);
-            _stopNote(thirdMidi);
-            _stopNote(fifthMidi);
+            /* Use releaseNote (not _stopNote) so sustain pedal is respected */
+            releaseNote(rootMidi);
+            releaseNote(thirdMidi);
+            releaseNote(fifthMidi);
             card.classList.remove('sounding');
             chordTimer = null;
           }, 1400);
+          activeChordTimers.push(chordTimer);
         });
       })(chord);
 
