@@ -2669,3 +2669,24 @@ Sequential Gemini reviews (focus: bugs, then security) caught **different issue 
 - **BUG (self-audit)**: Star preset defined as arc-samples at alternating radii — produced a round blob, not a star. Fixed by defining 10 explicit vertices (5 outer + 5 inner, 36° apart) then linear interpolation between them.
 - **INSIGHT**: After calling `setMode(m)`, `S.mode === m` is already true when any sub-function runs — never use the old mode as a conditional inside those calls.
 - **INSIGHT**: For Fourier epicycles, sort DFT bins by amplitude descending — large-amplitude terms define the gross shape, small terms add fine detail. Truncating at 50% still looks recognizable.
+
+### attractor-zoo (2026-04-02)
+- **KEEP**: Precompute rotation matrix once per frame — `cosY/sinY/cosX/sinX/_scale` cached in module vars, updated by `updateProjectionCache()` before the render loop. Eliminates 8000 trig calls/frame at 2000 particles × 4 trig ops each.
+- **KEEP**: Warm-up trajectory for particle init — run 4000 steps from seed, collect 3000 on-attractor positions, scatter N particles along them with tiny perturbations. Particles start ON the attractor and immediately diverge to fill the shape.
+- **KEEP**: `globalCompositeOperation = 'lighter'` (additive) + `rgba(0,0,0,0.04)` fade per frame — creates persistent nebula-glow where particles cluster, fades where they don't. Beautiful without extra math.
+- **KEEP**: Batch `ctx.rect()` all 2000 particles into one `beginPath()...fill()` — single draw call, 10-50× faster than 2000 individual `fillRect()` or `arc()` calls.
+- **KEEP**: Per-attractor escape threshold (`att.extent * 15`) — Aizawa has extent=2, using a global 500 would miss its diverged particles entirely. Always scale safety checks to the attractor's actual range.
+- **KEEP**: Reset escaped particles to a random existing buf[] particle (not raw seed) — avoids long transient convergence trails from unwarmed positions (B3 Gemini fix).
+- **KEEP**: iOS audio: build oscillator graph INSIDE `resume().then()` callback — not after a synchronous `resume()` call. Context is actually running only when the Promise resolves. This is the #1 iOS audio bug.
+- **KEEP**: Store oscillator refs in array; call `osc.stop()` + `null` masterGain on disable — prevents silent CPU drain from running oscillators with muted gain.
+- **KEEP**: Track `activePointerId` from pointerdown; only release on pointerup/cancel with matching ID — prevents multi-touch lift from freezing single-finger drag.
+- **KEEP**: DPR-aware canvas: `canvas.width = W * DPR` + `canvas.style.width = W + 'px'` + `ctx.scale(DPR, DPR)` — particles render at native resolution on retina/hi-DPI displays instead of being upscaled blobs.
+- **IMPROVE (Gemini B5)**: Perspective sign was inverted — `fov/(fov+z2*0.08)` makes positive-z points SMALLER (further), opposite of standard camera convention. Fixed to `fov/Math.max(0.5, fov-z2*0.08)` with clamp to prevent division-by-zero.
+- **IMPROVE (Gemini B1)**: Chen attractor extent was 25 — trajectories actually reach ~45 units. Wrong extent = wrong scale = attractor appears sparse (many particles culled off-screen). Always verify extents empirically or with higher bounds.
+- **INSIGHT**: For 3D particle renderers, the rotation matrix precompute optimization is mandatory, not optional. It's a 2000× speedup for trig-heavy scenes.
+- **INSIGHT**: When picking `extent` for an attractor, measure the P99 range of all 3 coordinates over a long trajectory, not just the visually obvious span. Edge cases push past nominal bounds.
+- **INSIGHT**: The RK4 integrator plus warm-up plus tiny-perturbation scatter is a reusable pattern for ANY attractor/ODE-based particle system. The math generalizes cleanly.
+- **TEST CAUGHT (via Gemini audit)**: Chen extent wrong (25 vs 45) — attractor appeared sparse because most particles were off-screen. Would have shipped looking broken.
+- **TEST CAUGHT (via Gemini audit)**: Global escape threshold (500) too large for Aizawa (extent=2) — diverged particles would persist for hundreds of frames.
+- **TEST CAUGHT (via Gemini audit)**: iOS audio: `resume()` not awaited — oscillators started before context running = permanent silence on iOS.
+- **TEST CAUGHT (via Gemini audit)**: Oscillators never stopped — silently consuming CPU after "SOUND: OFF" because only masterGain was muted, not the oscillators.

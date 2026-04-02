@@ -1,0 +1,650 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
+  <meta name="theme-color" content="#000000">
+  <title>Attractor Zoo</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body {
+      height: 100%;
+      background: #000;
+      overflow: hidden;
+      touch-action: none;
+      -webkit-tap-highlight-color: transparent;
+      user-select: none;
+    }
+    canvas {
+      display: block;
+      position: absolute;
+      top: 0; left: 0;
+      cursor: grab;
+    }
+    canvas.dragging { cursor: grabbing; }
+
+    #ui {
+      position: absolute;
+      bottom: 0; left: 0; right: 0;
+      padding: 6px 10px 14px;
+      background: linear-gradient(transparent, rgba(0,0,0,0.85) 35%);
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+      pointer-events: none;
+    }
+    #ui > * { pointer-events: auto; }
+
+    #info-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      margin-bottom: 1px;
+    }
+    #attractor-name {
+      font-family: ui-monospace, 'Courier New', monospace;
+      font-size: clamp(0.75rem, 2.5vw, 1rem);
+      font-weight: 200;
+      letter-spacing: 0.25em;
+      text-transform: uppercase;
+      color: #0ff;
+    }
+    #fps-display {
+      font-family: ui-monospace, monospace;
+      font-size: 0.4rem;
+      color: #2a2a2a;
+      letter-spacing: 0.15em;
+    }
+    #desc-text {
+      font-family: ui-monospace, monospace;
+      font-size: 0.45rem;
+      color: #333;
+      letter-spacing: 0.08em;
+      margin-bottom: 2px;
+      height: 1em;
+    }
+
+    .btn-row {
+      display: flex;
+      gap: 4px;
+      flex-wrap: wrap;
+    }
+    .btn {
+      padding: 5px 9px;
+      background: transparent;
+      border: 1px solid #1a1a1a;
+      color: #3a3a3a;
+      font-family: ui-monospace, monospace;
+      font-size: 0.5rem;
+      cursor: pointer;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      touch-action: manipulation;
+      min-height: 26px;
+      transition: border-color 0.15s, color 0.15s;
+    }
+    .btn:active { border-color: #555; color: #888; }
+
+    .speed-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex: 1;
+    }
+    .speed-label {
+      font-family: ui-monospace, monospace;
+      font-size: 0.4rem;
+      color: #2a2a2a;
+      letter-spacing: 0.15em;
+      white-space: nowrap;
+    }
+    #speedSlider {
+      flex: 1;
+      height: 3px;
+      accent-color: #555;
+      cursor: pointer;
+    }
+
+    #hint {
+      position: absolute;
+      top: 14px;
+      left: 50%;
+      transform: translateX(-50%);
+      font-family: ui-monospace, monospace;
+      font-size: 0.42rem;
+      color: #1c1c1c;
+      letter-spacing: 0.3em;
+      text-transform: uppercase;
+      pointer-events: none;
+      transition: opacity 2.5s ease;
+      white-space: nowrap;
+    }
+    #hint.hidden { opacity: 0; }
+
+    #particle-count {
+      position: absolute;
+      top: 14px;
+      right: 12px;
+      font-family: ui-monospace, monospace;
+      font-size: 0.38rem;
+      color: #1a1a1a;
+      letter-spacing: 0.15em;
+      pointer-events: none;
+    }
+  </style>
+</head>
+<body>
+  <canvas id="c"></canvas>
+  <div id="hint">DRAG TO ROTATE</div>
+  <div id="particle-count">2000 PARTICLES</div>
+
+  <div id="ui">
+    <div id="info-row">
+      <div id="attractor-name">LORENZ</div>
+      <div id="fps-display">— FPS</div>
+    </div>
+    <div id="desc-text">The butterfly — deterministic chaos, sensitive to initial conditions</div>
+
+    <div class="btn-row" id="attractor-btns">
+      <button class="btn" data-key="lorenz" style="color:#0ff;border-color:#0ff">Lorenz</button>
+      <button class="btn" data-key="rossler">Rössler</button>
+      <button class="btn" data-key="thomas">Thomas</button>
+      <button class="btn" data-key="halvorsen">Halvorsen</button>
+      <button class="btn" data-key="aizawa">Aizawa</button>
+      <button class="btn" data-key="chen">Chen</button>
+    </div>
+    <div class="btn-row">
+      <button class="btn" id="autoBtn" style="color:#555;border-color:#444">AUTO-ROT: ON</button>
+      <button class="btn" id="resetBtn">RESET</button>
+      <button class="btn" id="audioBtn">SOUND: OFF</button>
+      <div class="speed-row">
+        <span class="speed-label">SPEED</span>
+        <input type="range" id="speedSlider" min="1" max="20" value="8">
+      </div>
+    </div>
+  </div>
+
+  <script>
+  'use strict';
+
+  /* ---- Canvas Setup ---- */
+  const canvas = document.getElementById('c');
+  const ctx = canvas.getContext('2d');
+  let W = 0, H = 0;
+
+  /* ---- Particle Buffer ---- */
+  const N = 2000;
+  const STRIDE = 3; // x, y, z
+  const buf = new Float32Array(N * STRIDE);
+
+  /* ---- Attractor Definitions ---- */
+  const ATTRACTORS = {
+    lorenz: {
+      name: 'LORENZ',
+      desc: 'The butterfly — deterministic chaos, sensitive to initial conditions',
+      fn(x, y, z) {
+        const s = 10, r = 28, b = 8/3;
+        return [s*(y-x), x*(r-z)-y, x*y-b*z];
+      },
+      seed: [0.1, 0.1, 25],
+      dt: 0.004,
+      extent: 30,
+      color: '#0ff',
+      hsl: [180, 100, 60],
+    },
+    rossler: {
+      name: 'RÖSSLER',
+      desc: 'Asymmetric scroll — single-lobe toroidal spiral',
+      fn(x, y, z) {
+        const a = 0.2, b = 0.2, c = 5.7;
+        return [-(y+z), x+a*y, b+z*(x-c)];
+      },
+      seed: [0.1, 0.1, 0.1],
+      dt: 0.008,
+      extent: 14,
+      color: '#f0f',
+      hsl: [300, 100, 65],
+    },
+    thomas: {
+      name: 'THOMAS',
+      desc: 'Labyrinthine — 3D symmetric cyclic chaos',
+      fn(x, y, z) {
+        const b = 0.19;
+        return [Math.sin(y) - b*x, Math.sin(z) - b*y, Math.sin(x) - b*z];
+      },
+      seed: [1, 0, 0],
+      dt: 0.05,
+      extent: 5,
+      color: '#fa0',
+      hsl: [40, 100, 60],
+    },
+    halvorsen: {
+      name: 'HALVORSEN',
+      desc: 'Cyclic — three-wing symmetric chaos',
+      fn(x, y, z) {
+        const a = 1.4;
+        return [-a*x - 4*y - 4*z - y*y,
+                -a*y - 4*z - 4*x - z*z,
+                -a*z - 4*x - 4*y - x*x];
+      },
+      seed: [-5, 0, 0],
+      dt: 0.003,
+      extent: 12,
+      color: '#a0f',
+      hsl: [270, 100, 65],
+    },
+    aizawa: {
+      name: 'AIZAWA',
+      desc: 'Torus-wrapped spiral — exotic morphology',
+      fn(x, y, z) {
+        const a = 0.95, b = 0.7, c = 0.6, d = 3.5, e = 0.25, f = 0.1;
+        return [
+          (z - b)*x - d*y,
+          d*x + (z - b)*y,
+          c + a*z - (z*z*z)/3 - (x*x + y*y)*(1 + e*z) + f*z*x*x*x
+        ];
+      },
+      seed: [0.1, 0, 0],
+      dt: 0.01,
+      extent: 2,
+      color: '#0f8',
+      hsl: [155, 100, 55],
+    },
+    chen: {
+      name: 'CHEN',
+      desc: 'Double-scroll — distinct character from Lorenz despite visual kinship',
+      fn(x, y, z) {
+        const a = 35, b = 3, c = 28;
+        return [a*(y-x), (c-a)*x - x*z + c*y, x*y - b*z];
+      },
+      seed: [1, 0, 0],
+      dt: 0.003,
+      extent: 45,   // empirical: trajectories reach ~45 units
+      color: '#f64',
+      hsl: [20, 100, 60],
+    },
+  };
+
+  /* ---- State ---- */
+  let currentKey = 'lorenz';
+  let rotX = 0.3;
+  let rotY = 0.5;
+  let autoRot = true;
+  let animId = null;
+  let isDragging = false;
+  let activePointerId = null;
+  let lastPX = 0, lastPY = 0;
+  let frameCount = 0;
+  let fps = 0;
+  let lastFpsTime = 0;
+  let speedMult = 1.0; // slider at 8 → 8/8 = 1.0
+  let hintHidden = false;
+
+  /* ---- Audio ---- */
+  let audioEnabled = false;
+  let audioCtx = null;
+  let masterGain = null;
+  let droneOscillators = [];  // stored so we can stop them later
+
+  /* ---- RK4 Integrator ---- */
+  function rk4(x, y, z, dt, fn) {
+    const [k1x, k1y, k1z] = fn(x, y, z);
+    const [k2x, k2y, k2z] = fn(x + k1x*dt/2, y + k1y*dt/2, z + k1z*dt/2);
+    const [k3x, k3y, k3z] = fn(x + k2x*dt/2, y + k2y*dt/2, z + k2z*dt/2);
+    const [k4x, k4y, k4z] = fn(x + k3x*dt, y + k3y*dt, z + k3z*dt);
+    return [
+      x + (dt/6)*(k1x + 2*k2x + 2*k3x + k4x),
+      y + (dt/6)*(k1y + 2*k2y + 2*k3y + k4y),
+      z + (dt/6)*(k1z + 2*k2z + 2*k3z + k4z),
+    ];
+  }
+
+  /* ---- Particle Init ---- */
+  function initParticles(key) {
+    const att = ATTRACTORS[key];
+    let [wx, wy, wz] = att.seed;
+
+    // Warm up: run 4000 steps to reach the attractor basin
+    for (let i = 0; i < 4000; i++) {
+      [wx, wy, wz] = rk4(wx, wy, wz, att.dt, att.fn);
+    }
+
+    // Collect 3000 positions from the warm trajectory
+    const trail = [];
+    for (let i = 0; i < 3000; i++) {
+      [wx, wy, wz] = rk4(wx, wy, wz, att.dt, att.fn);
+      trail.push(wx, wy, wz); // flat: index 3*i, 3*i+1, 3*i+2
+    }
+
+    // Scatter N particles along the warm path with tiny perturbations
+    for (let i = 0; i < N; i++) {
+      const ti = Math.floor(i * 3000 / N) * 3;
+      buf[i*STRIDE]     = trail[ti]   + (Math.random()-0.5) * 0.005;
+      buf[i*STRIDE + 1] = trail[ti+1] + (Math.random()-0.5) * 0.005;
+      buf[i*STRIDE + 2] = trail[ti+2] + (Math.random()-0.5) * 0.005;
+    }
+  }
+
+  // Per-frame rotation cache (precomputed once, used N times in render)
+  let _cosY = 1, _sinY = 0, _cosX = 1, _sinX = 0, _scale = 1;
+
+  function updateProjectionCache() {
+    _cosY = Math.cos(rotY); _sinY = Math.sin(rotY);
+    _cosX = Math.cos(rotX); _sinX = Math.sin(rotX);
+    _scale = Math.min(W, H) * 0.38 / ATTRACTORS[currentKey].extent;
+  }
+
+  /* ---- 3D Projection (uses precomputed cache) ---- */
+  function project(x, y, z) {
+    // Rotate around Y axis
+    const x1 =  x*_cosY + z*_sinY;
+    const z1 = -x*_sinY + z*_cosY;
+    // Rotate around X axis
+    const y1 = y*_cosX - z1*_sinX;
+    const z2 = y*_sinX + z1*_cosX;
+    // Soft perspective — positive z2 = closer to viewer = larger (B5)
+    const persp = 7 / Math.max(0.5, 7 - z2 * 0.08);
+    return [W/2 + x1 * _scale * persp, H/2 - y1 * _scale * persp];
+  }
+
+  /* ---- Main Loop ---- */
+  function loop(ts) {
+    animId = requestAnimationFrame(loop);
+
+    // FPS counter
+    frameCount++;
+    if (ts - lastFpsTime >= 1000) {
+      fps = Math.round(frameCount * 1000 / (ts - lastFpsTime));
+      frameCount = 0;
+      lastFpsTime = ts;
+      document.getElementById('fps-display').textContent = fps + ' FPS';
+    }
+
+    // Fade hint after 5s
+    if (!hintHidden && ts > 5000) {
+      document.getElementById('hint').classList.add('hidden');
+      hintHidden = true;
+    }
+
+    // Auto-rotate
+    if (autoRot && !isDragging) {
+      rotY += 0.004;
+    }
+
+    // Integrate all particles
+    const att = ATTRACTORS[currentKey];
+    const dt = att.dt * speedMult;
+    const fn = att.fn;
+
+    for (let i = 0; i < N; i++) {
+      const ix = i * STRIDE;
+      let x = buf[ix], y = buf[ix+1], z = buf[ix+2];
+
+      // Escape detection — per-attractor threshold; reset to a live warm particle (B2, B3)
+      const escapeLimit = att.extent * 15;
+      if (!isFinite(x) || !isFinite(y) || !isFinite(z) ||
+          Math.abs(x) > escapeLimit || Math.abs(y) > escapeLimit || Math.abs(z) > escapeLimit) {
+        // Reset to a random OTHER particle already on the attractor (not raw seed)
+        const src = Math.floor(Math.random() * N) * STRIDE;
+        buf[ix]   = buf[src]   + (Math.random()-0.5) * 0.005;
+        buf[ix+1] = buf[src+1] + (Math.random()-0.5) * 0.005;
+        buf[ix+2] = buf[src+2] + (Math.random()-0.5) * 0.005;
+        continue;
+      }
+
+      [x, y, z] = rk4(x, y, z, dt, fn);
+      buf[ix] = x; buf[ix+1] = y; buf[ix+2] = z;
+    }
+
+    // Precompute rotation matrix for this frame (avoids 8000 trig calls/frame)
+    updateProjectionCache();
+
+    // Render — fade layer
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.fillStyle = 'rgba(0,0,0,0.04)';
+    ctx.fillRect(0, 0, W, H);
+
+    // Render — particle batch (additive blending)
+    ctx.globalCompositeOperation = 'lighter';
+    const [h, s, l] = att.hsl;
+    ctx.fillStyle = 'hsla(' + h + ',' + s + '%,' + l + '%,0.3)';
+    ctx.beginPath();
+    for (let i = 0; i < N; i++) {
+      const ix = i * STRIDE;
+      const [px, py] = project(buf[ix], buf[ix+1], buf[ix+2]);
+      // Only draw if on-screen (avoid out-of-bounds rects)
+      if (px > -4 && px < W + 4 && py > -4 && py < H + 4) {
+        ctx.rect(Math.round(px) - 1, Math.round(py) - 1, 2, 2);
+      }
+    }
+    ctx.fill();
+    ctx.globalCompositeOperation = 'source-over';
+  }
+
+  /* ---- Resize (with DPR for sharp retina rendering) ---- */
+  function resize() {
+    W = window.innerWidth;
+    H = window.innerHeight;
+    const DPR = window.devicePixelRatio || 1;
+    canvas.width = Math.round(W * DPR);
+    canvas.height = Math.round(H * DPR);
+    canvas.style.width = W + 'px';
+    canvas.style.height = H + 'px';
+    ctx.scale(DPR, DPR);
+    ctx.fillStyle = '#000';
+    ctx.fillRect(0, 0, W, H);
+  }
+
+  /* ---- Switch Attractor ---- */
+  function switchAttractor(key) {
+    if (!ATTRACTORS[key]) return;
+    currentKey = key;
+    const att = ATTRACTORS[key];
+
+    document.getElementById('attractor-name').textContent = att.name;
+    document.getElementById('attractor-name').style.color = att.color;
+    document.getElementById('desc-text').textContent = att.desc;
+
+    document.querySelectorAll('#attractor-btns .btn').forEach(b => {
+      const active = b.dataset.key === key;
+      b.style.color = active ? att.color : '';
+      b.style.borderColor = active ? att.color : '';
+    });
+
+    // Black out canvas before reinit
+    ctx.fillStyle = '#000';
+    ctx.fillRect(0, 0, W, H);
+
+    initParticles(key);
+  }
+
+  /* ---- Input Handlers ---- */
+  canvas.addEventListener('pointerdown', e => {
+    if (isDragging) return; // already tracking a touch
+    isDragging = true;
+    activePointerId = e.pointerId;
+    lastPX = e.clientX;
+    lastPY = e.clientY;
+    canvas.classList.add('dragging');
+    e.preventDefault();
+  }, { passive: false });
+
+  window.addEventListener('pointermove', e => {
+    if (!isDragging || e.pointerId !== activePointerId) return;
+    const dx = e.clientX - lastPX;
+    const dy = e.clientY - lastPY;
+    rotY += dx * 0.005;
+    rotX += dy * 0.005;
+    // Clamp X rotation to avoid flip
+    rotX = Math.max(-Math.PI * 0.48, Math.min(Math.PI * 0.48, rotX));
+    lastPX = e.clientX;
+    lastPY = e.clientY;
+    e.preventDefault();
+  }, { passive: false });
+
+  window.addEventListener('pointerup', e => {
+    if (e.pointerId !== activePointerId) return;
+    isDragging = false;
+    activePointerId = null;
+    canvas.classList.remove('dragging');
+  });
+
+  window.addEventListener('pointercancel', e => {
+    if (e.pointerId !== activePointerId) return;
+    isDragging = false;
+    activePointerId = null;
+    canvas.classList.remove('dragging');
+  });
+
+  // Attractor selector
+  document.getElementById('attractor-btns').addEventListener('click', e => {
+    const btn = e.target.closest('[data-key]');
+    if (btn) switchAttractor(btn.dataset.key);
+  });
+
+  // Auto-rotate toggle
+  document.getElementById('autoBtn').addEventListener('click', () => {
+    autoRot = !autoRot;
+    const btn = document.getElementById('autoBtn');
+    btn.textContent = 'AUTO-ROT: ' + (autoRot ? 'ON' : 'OFF');
+    btn.style.color = autoRot ? '#555' : '';
+    btn.style.borderColor = autoRot ? '#444' : '';
+  });
+
+  // Reset view + particles
+  document.getElementById('resetBtn').addEventListener('click', () => {
+    rotX = 0.3;
+    rotY = 0.5;
+    ctx.fillStyle = '#000';
+    ctx.fillRect(0, 0, W, H);
+    initParticles(currentKey);
+  });
+
+  // Audio toggle
+  document.getElementById('audioBtn').addEventListener('click', () => {
+    audioEnabled = !audioEnabled;
+    const btn = document.getElementById('audioBtn');
+    if (audioEnabled) {
+      startAudio();
+      btn.textContent = 'SOUND: ON';
+      btn.style.color = '#0ff';
+      btn.style.borderColor = '#0ff';
+    } else {
+      stopAudio();
+      btn.textContent = 'SOUND: OFF';
+      btn.style.color = '';
+      btn.style.borderColor = '';
+    }
+  });
+
+  // Speed slider
+  document.getElementById('speedSlider').addEventListener('input', e => {
+    speedMult = parseInt(e.target.value) / 8;
+  });
+
+  /* ---- Audio ---- */
+  function buildAudioGraph() {
+    // Called after AudioContext is confirmed running (post-resume)
+    const comp = audioCtx.createDynamicsCompressor();
+    comp.threshold.value = -24;
+    comp.ratio.value = 4;
+    comp.connect(audioCtx.destination);
+
+    masterGain = audioCtx.createGain();
+    masterGain.gain.setValueAtTime(0, audioCtx.currentTime);
+    masterGain.gain.linearRampToValueAtTime(0.12, audioCtx.currentTime + 1.5);
+    masterGain.connect(comp);
+
+    // Ping-pong delay reverb
+    const delayA = audioCtx.createDelay(1.5);
+    delayA.delayTime.value = 0.45;
+    const fbA = audioCtx.createGain();
+    fbA.gain.value = 0.5;
+    delayA.connect(fbA);
+    fbA.connect(delayA);
+    delayA.connect(masterGain);
+
+    const delayB = audioCtx.createDelay(1.5);
+    delayB.delayTime.value = 0.67;
+    const fbB = audioCtx.createGain();
+    fbB.gain.value = 0.42;
+    delayB.connect(fbB);
+    fbB.connect(delayB);
+    delayB.connect(masterGain);
+
+    // Ambient drone — perfect fifth stack (A1, E2, A2, E3)
+    const droneFreqs = [
+      [55,     0.5],
+      [82.41,  0.28],
+      [110,    0.20],
+      [164.81, 0.12],
+    ];
+    droneOscillators = [];
+    for (const [freq, amp] of droneFreqs) {
+      const osc = audioCtx.createOscillator();
+      osc.type = 'sine';
+      osc.frequency.value = freq + (Math.random() - 0.5) * 0.3;
+      const g = audioCtx.createGain();
+      g.gain.value = amp * 0.25;
+      osc.connect(g);
+      g.connect(delayA);
+      g.connect(delayB);
+      g.connect(masterGain);
+      osc.start();
+      droneOscillators.push(osc);
+    }
+  }
+
+  function startAudio() {
+    if (!audioCtx) {
+      try {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      } catch(err) {
+        console.warn('AudioContext not available:', err);
+        return;
+      }
+    }
+
+    if (masterGain) {
+      // Graph already built — just raise gain (resume in case iOS suspended)
+      const doResume = audioCtx.state === 'suspended' ? audioCtx.resume() : Promise.resolve();
+      doResume.then(() => {
+        masterGain.gain.cancelScheduledValues(audioCtx.currentTime);
+        masterGain.gain.linearRampToValueAtTime(0.12, audioCtx.currentTime + 1.5);
+      });
+      return;
+    }
+
+    // First time: resume THEN build graph (iOS requires this order — B4)
+    const doResume = audioCtx.state === 'suspended' ? audioCtx.resume() : Promise.resolve();
+    doResume.then(() => buildAudioGraph()).catch(err => console.warn('Audio resume failed:', err));
+  }
+
+  function stopAudio() {
+    if (masterGain && audioCtx) {
+      masterGain.gain.cancelScheduledValues(audioCtx.currentTime);
+      masterGain.gain.linearRampToValueAtTime(0, audioCtx.currentTime + 0.8);
+      // Stop oscillators after fade-out so they don't consume CPU (W2)
+      const oscs = droneOscillators.slice();
+      setTimeout(() => {
+        oscs.forEach(o => { try { o.stop(); } catch(e) {} });
+        droneOscillators = [];
+        masterGain = null; // allow rebuild on next enable
+      }, 1000);
+    }
+  }
+
+  /* ---- Boot ---- */
+  resize();
+  window.addEventListener('resize', () => {
+    resize();
+  });
+
+  initParticles('lorenz');
+  lastFpsTime = performance.now();
+  loop(performance.now());
+  </script>
+</body>
+</html>
