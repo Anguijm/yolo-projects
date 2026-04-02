@@ -2581,3 +2581,21 @@ Sequential Gemini reviews (focus: bugs, then security) caught **different issue 
 - **KEEP**: `cps.length > MAX_DISPLAY ? cps.slice(0, MAX_DISPLAY) : cps` pattern with a visible truncation notice prevents O(n) DOM creation hanging the browser tab on large pastes.
 - **KEEP**: `String.fromCodePoint(cp)` + loop `i += cp > 0xFFFF ? 2 : 1` correctly iterates a JS string by Unicode code points, handling surrogate pairs. Never iterate JS strings by index alone when supplementary characters are possible.
 - **INSIGHT**: Unicode encoding math is simple to inline: `toUtf8(cp)` is 4 branches on cp ranges, `toUtf16(cp)` is surrogate formula `c = cp - 0x10000; [0xD800 + (c >> 10), 0xDC00 + (c & 0x3FF)]`. No library needed.
+
+### shader-forge (2026-04-02) — FIRST WEBGL PROJECT
+- **KEEP**: WebGL fragment shader playground pattern: fullscreen quad (TRIANGLE_STRIP, 4 verts) + preamble with `u_time/u_resolution/u_mouse` + user-editable FRAG source = complete shader IDE in one file
+- **KEEP**: `preserveDrawingBuffer: true` on WebGL context creation = screenshot works correctly (prevents auto-clear between frames)
+- **KEEP**: Delete old program with `gl.deleteProgram(program)` before assigning new one — essential for no WebGL memory leak on recompile
+- **KEEP**: Adjust GLSL error line numbers by subtracting preamble line count (`PREAMBLE.split('\n').length - 1`) — users see their own line 1, not combined-source line 5
+- **KEEP**: `devicePixelRatio` multiplied into canvas buffer size — crisp rendering on Retina; CSS size unchanged so mouse normalisation stays correct
+- **KEEP**: Debounced compile (1200ms) on keydown/paste + instant on Ctrl+Enter = responsive without thrashing GPU on every keystroke
+- **KEEP**: 8 presets covering different GLSL technique classes: iteration (fractals), procedural (FBM), spatial hashing (Voronoi), raymarching, parametric (plasma), domain warping — shows full range of what's possible
+- **TEST CAUGHT (via Gemini audit)**: Reset while paused produced negative `u_time` — `startTime` was moved but `pausedAt` still held the old timestamp. `(pausedAt - startTime)` went negative. Fix: also set `pausedAt = performance.now()` when paused on reset.
+- **TEST CAUGHT (via Gemini audit)**: Load preset while paused → same negative `u_time` bug. Same fix in `loadPreset`.
+- **TEST CAUGHT (via Gemini audit)**: No `touchstart` handler — `u_mouse` stuck at `(0, 0)` until first drag gesture on mobile. Any shader using `u_mouse` appeared broken on touch devices.
+- **TEST CAUGHT (via Gemini audit)**: `devicePixelRatio` ignored → half-resolution rendering on HiDPI screens (blurry shaders on any modern MacBook/phone). Canvas buffer must be `clientWidth * dpr`.
+- **TEST CAUGHT (via Gemini audit)**: Screenshot anchor not DOM-attached — Firefox requires `document.body.appendChild(a)` before `.click()`, then `removeChild(a)`. Detached anchor `.click()` works in Chrome but silently fails in Firefox.
+- **TEST CAUGHT (via Gemini audit)**: Tab key exited `keydown` handler before `scheduleCompile()` — tab-indent didn't trigger auto-compile.
+- **INSIGHT**: When any time reference variable (`startTime`, `pausedAt`, `endTime`) is reset, ALL paired time variables must be updated in the same branch. Partial resets create invalid relative timestamps. Check every branch: reset on click, reset on preset load, reset on mode change.
+- **INSIGHT**: WebGL canvas buffer size ≠ CSS size. Buffer = `clientWidth * devicePixelRatio` (actual pixels). CSS stays `clientWidth` (layout). Fragment shader coords (gl_FragCoord) use buffer size. Mouse coords must use CSS size. These two coordinate spaces are separate.
+- **INSIGHT**: Download links created via `URL.createObjectURL` must be appended to the DOM before `.click()` and removed after, for cross-browser compatibility. Chrome forgives the missing append; Firefox does not.
