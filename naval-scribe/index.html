@@ -134,6 +134,7 @@ html, body {
         <option value="business">business letter</option>
         <option value="pointpaper">point paper</option>
         <option value="actionmemo">action memo</option>
+        <option value="moa">memorandum of agreement</option>
       </select>
       <button class="btn btn-primary" id="download-btn">download .docx</button>
     </div>
@@ -181,6 +182,20 @@ html, body {
       <button class="add-btn" id="add-encl">+ add encl</button>
       <div class="field-hint">Numbered (1), (2), (3)...</div>
     </div>
+    <div class="field" data-types="moa">
+      <div class="field-label">Parties to Agreement</div>
+      <div id="party-list"></div>
+      <button class="add-btn" id="add-party">+ add party</button>
+      <div class="field-hint">Each party gets a signature block</div>
+    </div>
+    <div class="field" data-types="moa">
+      <div class="field-label">Effective Date</div>
+      <input type="text" id="f-effective-date" placeholder="DD Mon YYYY (or 'upon signature')">
+    </div>
+    <div class="field" data-types="moa">
+      <div class="field-label">Duration / Expiration</div>
+      <input type="text" id="f-duration" placeholder="e.g. 5 years from effective date">
+    </div>
     <div class="field" data-types="actionmemo">
       <div class="field-label">BLUF (Bottom Line Up Front)</div>
       <textarea id="f-bluf" rows="3" placeholder="Navy position or recommendation in 1-2 sentences"></textarea>
@@ -199,7 +214,10 @@ html, body {
     <div class="field" data-types="actionmemo">
       <textarea id="f-body-action" rows="12" placeholder="Action items and supporting information.&#10;&#10;First bullet is the direction statement.&#10;Keep each bullet under 5 lines.&#10;Label supporting docs as TAB A, TAB B, etc."></textarea>
     </div>
-    <div class="section-header" data-types="letter,memo,endorsement,business,actionmemo">Signature Block</div>
+    <div class="field" data-types="moa">
+      <textarea id="f-body-moa" rows="12" placeholder="Agreement terms and articles.&#10;&#10;Use blank lines between articles.&#10;Indent for sub-articles.&#10;Numbering (1. a. (1) (a)) auto-applied."></textarea>
+    </div>
+    <div class="section-header" data-types="letter,memo,endorsement,business,actionmemo,moa">Signature Block</div>
     <div class="sig-row" data-types="letter,memo,endorsement,business,actionmemo">
       <div class="field">
         <div class="field-label">Name</div>
@@ -243,6 +261,9 @@ html, body {
     body: document.getElementById('f-body'),
     bodyBullets: document.getElementById('f-body-bullets'),
     bodyAction: document.getElementById('f-body-action'),
+    bodyMoa: document.getElementById('f-body-moa'),
+    effectiveDate: document.getElementById('f-effective-date'),
+    duration: document.getElementById('f-duration'),
     bluf: document.getElementById('f-bluf'),
     recommendation: document.getElementById('f-recommendation'),
     sigName: document.getElementById('f-sig-name'),
@@ -318,6 +339,53 @@ html, body {
   var refFields = makeMultiField('ref-list', 'add-ref', 'ref');
   var enclFields = makeMultiField('encl-list', 'add-encl', 'encl');
 
+  /* Party multi-field for MOA (each party = name, rank, title, org) */
+  var partyContainer = document.getElementById('party-list');
+  var addPartyBtn = document.getElementById('add-party');
+  var partyItems = [];
+
+  function addParty() {
+    var idx = partyItems.length;
+    var row = document.createElement('div');
+    row.style.cssText = 'margin-bottom:8px;padding:6px;border:1px solid #1a1a1a;';
+    row.innerHTML =
+      '<div style="display:flex;justify-content:space-between;margin-bottom:4px"><span style="font-size:0.4rem;color:#555;text-transform:uppercase;letter-spacing:0.1em">Party ' + (idx + 1) + '</span><button class="add-btn" style="font-size:0.4rem">x</button></div>' +
+      '<input type="text" placeholder="Organization" style="width:100%;margin-bottom:3px;background:#1a1a1a;border:1px solid #222;color:#ccc;font-family:inherit;font-size:0.65rem;padding:4px 6px;outline:none">' +
+      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:3px">' +
+      '<input type="text" placeholder="Name" style="background:#1a1a1a;border:1px solid #222;color:#ccc;font-family:inherit;font-size:0.65rem;padding:4px 6px;outline:none">' +
+      '<input type="text" placeholder="Rank" style="background:#1a1a1a;border:1px solid #222;color:#ccc;font-family:inherit;font-size:0.65rem;padding:4px 6px;outline:none">' +
+      '</div>' +
+      '<input type="text" placeholder="Title" style="width:100%;margin-top:3px;background:#1a1a1a;border:1px solid #222;color:#ccc;font-family:inherit;font-size:0.65rem;padding:4px 6px;outline:none">';
+
+    var inputs = row.querySelectorAll('input');
+    for (var i = 0; i < inputs.length; i++) inputs[i].addEventListener('input', updatePreview);
+
+    row.querySelector('button').addEventListener('click', function() {
+      partyContainer.removeChild(row);
+      partyItems.splice(partyItems.indexOf(row), 1);
+      updatePreview();
+    });
+
+    partyContainer.appendChild(row);
+    partyItems.push(row);
+    inputs[0].focus();
+    updatePreview();
+  }
+
+  function getParties() {
+    return partyItems.map(function(row) {
+      var inputs = row.querySelectorAll('input');
+      return {
+        org: inputs[0].value.trim(),
+        name: inputs[1].value.trim(),
+        rank: inputs[2].value.trim(),
+        title: inputs[3].value.trim()
+      };
+    }).filter(function(p) { return p.org || p.name; });
+  }
+
+  addPartyBtn.addEventListener('click', addParty);
+
   /* ── Paragraph numbering ── */
   function toAlpha(n) {
     var s = '';
@@ -379,7 +447,8 @@ html, body {
   function getData() {
     var type = typeSelect.value;
     var bodyText = type === 'pointpaper' ? F.bodyBullets.value :
-                   type === 'actionmemo' ? F.bodyAction.value : F.body.value;
+                   type === 'actionmemo' ? F.bodyAction.value :
+                   type === 'moa' ? F.bodyMoa.value : F.body.value;
     return {
       type: type,
       ssic: F.ssic.value.trim(),
@@ -396,6 +465,9 @@ html, body {
         bodyText.split('\n').filter(function(l) { return l.trim(); }).map(function(l) { return l.trim(); }) : [],
       bluf: F.bluf.value.trim(),
       recommendation: F.recommendation.value.trim(),
+      parties: getParties(),
+      effectiveDate: F.effectiveDate.value.trim(),
+      duration: F.duration.value.trim(),
       sigName: F.sigName.value.trim(),
       sigRank: F.sigRank.value.trim(),
       sigTitle: F.sigTitle.value.trim(),
@@ -564,6 +636,41 @@ html, body {
           html += '<div class="body-para" style="margin-top:12px"><strong>RECOMMENDATION:  </strong>' + esc(d.recommendation) + '</div>';
         }
         html = renderSig(d, html);
+        break;
+
+      case 'moa':
+        if (d.date) html += '<div style="text-align:right;margin-bottom:24px">' + esc(d.date) + '</div>';
+        html += '<div style="text-align:center;font-weight:bold;margin-bottom:12px">MEMORANDUM OF AGREEMENT</div>';
+        html += '<div style="text-align:center;margin-bottom:24px;font-size:0.9em">';
+        html += 'BETWEEN<br>';
+        for (var pi = 0; pi < d.parties.length; pi++) {
+          if (pi > 0) html += (pi === d.parties.length - 1 ? 'AND<br>' : '');
+          html += '<strong>' + esc(d.parties[pi].org || d.parties[pi].name) + '</strong><br>';
+        }
+        html += '</div>';
+        if (d.subj) html += '<div class="hdr-line subj-line" style="text-align:center;margin-bottom:24px"><strong>Subject: </strong>' + esc(d.subj) + '</div>';
+        if (d.effectiveDate || d.duration) {
+          html += '<div class="body-para">';
+          if (d.effectiveDate) html += '<strong>Effective Date:</strong> ' + esc(d.effectiveDate) + '<br>';
+          if (d.duration) html += '<strong>Duration:</strong> ' + esc(d.duration);
+          html += '</div>';
+        }
+        html = renderBody(d, html);
+        /* Multiple signature blocks */
+        if (d.parties.length > 0) {
+          html += '<div style="margin-top:72px">';
+          for (var si = 0; si < d.parties.length; si++) {
+            var p = d.parties[si];
+            html += '<div style="text-align:center;margin-bottom:48px">';
+            html += '<div style="margin-bottom:36px;border-bottom:1px solid #000;width:250px;margin-left:auto;margin-right:auto"></div>';
+            if (p.name) html += '<div>' + esc(p.name) + '</div>';
+            if (p.rank) html += '<div>' + esc(p.rank) + '</div>';
+            if (p.title) html += '<div>' + esc(p.title) + '</div>';
+            if (p.org) html += '<div>' + esc(p.org) + '</div>';
+            html += '</div>';
+          }
+          html += '</div>';
+        }
         break;
     }
 
@@ -910,6 +1017,36 @@ html, body {
         body = dBullets(body);
         if (d.recommendation) body += makeParagraph([{ text: 'RECOMMENDATION:  ', bold: true }, { text: d.recommendation }], { spaceAfter: '240' });
         body = dSig(body);
+        break;
+
+      case 'moa':
+        if (d.date) body += makeParagraph(d.date, { align: 'right', spaceAfter: '240' });
+        body += makeParagraph('MEMORANDUM OF AGREEMENT', { align: 'center', bold: true, spaceAfter: '120' });
+        /* parties header */
+        var partiesText = 'BETWEEN';
+        body += makeParagraph(partiesText, { align: 'center', spaceAfter: '60' });
+        for (var pi = 0; pi < d.parties.length; pi++) {
+          body += makeParagraph(d.parties[pi].org || d.parties[pi].name, { align: 'center', bold: true, spaceAfter: '60' });
+          if (pi < d.parties.length - 1) {
+            body += makeParagraph(pi === d.parties.length - 2 ? 'AND' : '', { align: 'center', spaceAfter: '60' });
+          }
+        }
+        body += emptyParagraph();
+        if (d.subj) body += makeParagraph([{ text: 'Subject:  ', bold: true }, { text: d.subj }], { align: 'center', spaceAfter: '240' });
+        if (d.effectiveDate) body += makeParagraph([{ text: 'Effective Date:  ', bold: true }, { text: d.effectiveDate }], { spaceAfter: '120' });
+        if (d.duration) body += makeParagraph([{ text: 'Duration:  ', bold: true }, { text: d.duration }], { spaceAfter: '240' });
+        body = dBodyParas(body);
+        /* multiple signature blocks */
+        body += emptyParagraph(3);
+        for (var si = 0; si < d.parties.length; si++) {
+          var party = d.parties[si];
+          body += emptyParagraph(2);
+          body += makeParagraph('_______________________________', { align: 'center' });
+          if (party.name) body += makeParagraph(party.name, { align: 'center' });
+          if (party.rank) body += makeParagraph(party.rank, { align: 'center' });
+          if (party.title) body += makeParagraph(party.title, { align: 'center' });
+          if (party.org) body += makeParagraph(party.org, { align: 'center' });
+        }
         break;
     }
 
