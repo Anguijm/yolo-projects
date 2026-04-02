@@ -77,8 +77,15 @@ Markdown Deck is a graduated YOLO project operating under Flagship rules: multi-
 
 ## Proposed Features (Pending Approval)
 
-- [ ] Standalone HTML export — Export the deck as a self-contained .html file with all slides rendered, embedded nav/keyboard shortcuts, and speaker notes toggle; shareable without the authoring tool, hostable on GitHub Pages, zero-dep
-- [ ] Laser pointer & annotation mode — During fullscreen presentation: `L` key for glowing laser pointer (cursor-following dot), `S` for spotlight (radial dimmer around cursor), `A` for freehand canvas annotation layer that clears on slide advance; canvas overlay, zero-dep, works with touch
+
+## Parking Lot
+
+- Standalone HTML export — self-contained .html with embedded slides, nav, speaker notes toggle
+- Laser pointer & annotation mode — L for laser, S for spotlight, A for freehand annotation during present
+- Slide transitions (fade, slide-left, zoom) — deprioritized
+- Markdown editor improvements: line numbers, tab indentation — deprioritized
+- Animation within slides — deprioritized
+- Collaborative editing (WebRTC or shared localStorage)
 
 ## YOLO Feeder Projects
 
