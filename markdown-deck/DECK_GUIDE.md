@@ -478,6 +478,24 @@ Override the global theme on any individual slide using HTML comment directives 
 
 ---
 
+## Slide Transitions
+
+Use the **transition selector** (dropdown next to the Present button) to pick an animation when advancing slides in fullscreen presentation mode:
+
+| Option | Effect |
+|--------|--------|
+| **No FX** | Instant cut (default) |
+| **Fade** | Opacity dissolve (0.25 s) |
+| **Slide** | New slide sweeps in from right (or left when going back) |
+| **Zoom** | Slide scales up from 88 % with a spring curve |
+
+- Selection is saved to localStorage and restored on reload
+- Transitions only fire in fullscreen presentation mode, not in the editor preview
+- Fragment reveals (`--`) within a slide do not trigger a slide transition
+- Presenter view does not apply transitions (it renders its own windows independently)
+
+---
+
 ## Presenter View
 
 Click the **Presenter** button to open a dual-window presentation setup:

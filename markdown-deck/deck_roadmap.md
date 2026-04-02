@@ -66,7 +66,7 @@ Markdown Deck is a graduated YOLO project operating under Flagship rules: multi-
 
 ### P1 — Presentation Features (lowest priority per user)
 - [x] Presenter view (current slide + next slide + speaker notes + timer)
-- [ ] Slide transitions (fade, slide-left, zoom) — deprioritized
+- [x] Slide transitions (fade, slide-left, zoom) — fade/slide/zoom with direction-aware animation, localStorage persistence
 - [ ] Markdown editor improvements: line numbers, tab indentation — deprioritized
 - [ ] Animation within slides — deprioritized
 
@@ -128,3 +128,4 @@ These are features complex enough to prototype as standalone YOLO single-session
 | 2026-04-02 | Tock | Preview/present parity: both use 960px virtual slide + scale-to-fit, identical fonts |
 | 2026-04-02 | Tick | shader-forge (#168): live GLSL editor + naval-scribe (#169): naval correspondence .docx |
 | 2026-04-02 | Tock | 6-bug fix: PPTX dims scoping, content auto-fit, Save reliability, Layout UX, bold regex, theme docs |
+| 2026-04-02 | Tock | Slide transitions: fade/slide/zoom for presentation mode, direction-aware, localStorage persistence |

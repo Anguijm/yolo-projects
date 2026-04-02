@@ -43,7 +43,7 @@ textarea:focus { outline: none; }
 .columns { display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; align-items: start; flex: 1; }
 .columns .col { min-width: 0; }
 /* Presentation mode */
-.present-mode { display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: #0a0a0a; z-index: 1000; }
+.present-mode { display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: #0a0a0a; z-index: 1000; overflow: hidden; }
 .present-mode.active { display: flex; align-items: center; justify-content: center; }
 .present-slide { width: 960px; height: 540px; padding: 3rem 4rem; display: flex; flex-direction: column; justify-content: center; position: relative; transform-origin: center center; overflow: hidden; }
 .present-slide.has-positioned { justify-content: flex-start; }
@@ -309,6 +309,12 @@ These are speaker notes. They won't appear in the presentation but are preserved
       <button onclick="prevSlide()">Prev</button>
       <button onclick="nextSlide()">Next</button>
       <button class="primary" onclick="startPresent()">Present</button>
+      <select id="transition-select" onchange="setTransition(this.value)" title="Slide transition" style="background:#1a1a1a;border:1px solid #333;color:#888;padding:2px 4px;font-family:inherit;font-size:0.6rem;border-radius:3px;cursor:pointer">
+        <option value="none">No FX</option>
+        <option value="fade">Fade</option>
+        <option value="slide">Slide</option>
+        <option value="zoom">Zoom</option>
+      </select>
       <button onclick="openPresenterView()">Presenter</button>
       <button onclick="toggleLayoutMode()" id="btn-layout">Layout</button>
       <button onclick="toggleTemplatePanel()">Templates</button>
@@ -411,6 +417,9 @@ const slideCountEl = document.getElementById('slide-count');
 let slides = [];
 let currentSlide = 0;
 let presenting = false;
+var _presentScale = 1;
+var _currentTransition = 'none';
+var _transitionTimer = null;
 
 // ============ SYNTAX HIGHLIGHTER (extracted from syntax-glow) ============
 var SG_GRAMMARS = {
@@ -1007,24 +1016,107 @@ function renderPreview() {
   }).join('');
 }
 
-function renderPresent() {
+function applyPresentOverrides(ovStyle) {
+  /* Apply per-slide overrides preserving the scale transform */
+  presentSlideEl.style.background = '';
+  presentSlideEl.style.color = '';
+  presentSlideEl.style.fontFamily = '';
+  presentSlideEl.style.textAlign = '';
+  presentSlideEl.style.padding = '';
+  presentSlideEl.style.fontSize = '';
+  if (!ovStyle) return;
+  var pairs = ovStyle.split(';');
+  for (var i = 0; i < pairs.length; i++) {
+    var pair = pairs[i].trim();
+    if (!pair) continue;
+    var ci = pair.indexOf(':');
+    if (ci < 1) continue;
+    var prop = pair.substring(0, ci).trim();
+    var val = pair.substring(ci + 1).trim();
+    if (prop === 'background') presentSlideEl.style.background = val;
+    else if (prop === 'color') presentSlideEl.style.color = val;
+    else if (prop === 'font-family') presentSlideEl.style.fontFamily = val;
+    else if (prop === 'text-align') presentSlideEl.style.textAlign = val;
+    else if (prop === 'padding') presentSlideEl.style.padding = val;
+    else if (prop === 'font-size') presentSlideEl.style.fontSize = val;
+  }
+}
+
+function _applyPresentContent() {
   if (slides.length === 0) return;
   presentSlideEl.innerHTML = '<div class="slide-inner">' + md(slides[currentSlide]) + '</div>';
   var ovStyleP = overridesToStyle(window._currentSlideOverrides || {});
-  presentSlideEl.style.cssText = ovStyleP;
+  applyPresentOverrides(ovStyleP);
+  presentSlideEl.style.transform = 'scale(' + _presentScale + ')';
   if (presentSlideEl.querySelector('.pos-flag')) {
     presentSlideEl.classList.add('has-positioned');
   } else {
     presentSlideEl.classList.remove('has-positioned');
   }
-  document.getElementById('present-counter').textContent = `${currentSlide + 1} / ${slides.length}`;
+  document.getElementById('present-counter').textContent = (currentSlide + 1) + ' / ' + slides.length;
+}
+
+function renderPresent(direction) {
+  if (slides.length === 0) return;
+  direction = direction || 'next';
+  if (_transitionTimer) { clearTimeout(_transitionTimer); _transitionTimer = null; }
+  if (!presenting || _currentTransition === 'none') {
+    presentSlideEl.style.transition = '';
+    presentSlideEl.style.opacity = '1';
+    _applyPresentContent();
+    return;
+  }
+  var S = _presentScale;
+  var el = presentSlideEl;
+  if (_currentTransition === 'fade') {
+    el.style.transition = 'none';
+    el.style.opacity = '0';
+    _applyPresentContent();
+    el.style.opacity = '0';
+    requestAnimationFrame(function() {
+      requestAnimationFrame(function() {
+        el.style.transition = 'opacity 0.25s ease';
+        el.style.opacity = '1';
+        _transitionTimer = setTimeout(function() { el.style.transition = ''; _transitionTimer = null; }, 300);
+      });
+    });
+  } else if (_currentTransition === 'slide') {
+    var startX = (direction === 'prev') ? '-110%' : '110%';
+    _applyPresentContent();
+    el.style.transition = 'none';
+    el.style.transform = 'scale(' + S + ') translateX(' + startX + ')';
+    requestAnimationFrame(function() {
+      requestAnimationFrame(function() {
+        el.style.transition = 'transform 0.35s cubic-bezier(0.25,0.46,0.45,0.94)';
+        el.style.transform = 'scale(' + S + ') translateX(0%)';
+        _transitionTimer = setTimeout(function() {
+          el.style.transition = '';
+          el.style.transform = 'scale(' + S + ')';
+          _transitionTimer = null;
+        }, 400);
+      });
+    });
+  } else if (_currentTransition === 'zoom') {
+    _applyPresentContent();
+    el.style.opacity = '0';
+    el.style.transform = 'scale(' + (S * 0.88) + ')';
+    requestAnimationFrame(function() {
+      requestAnimationFrame(function() {
+        el.style.transition = 'transform 0.3s cubic-bezier(0.175,0.885,0.32,1.275), opacity 0.25s ease';
+        el.style.opacity = '1';
+        el.style.transform = 'scale(' + S + ')';
+        _transitionTimer = setTimeout(function() { el.style.transition = ''; _transitionTimer = null; }, 400);
+      });
+    });
+  }
 }
 
 window.goSlide = function(i) {
+  var dir = (i > currentSlide) ? 'next' : 'prev';
   currentSlide = i;
   currentFragment = 0;
   renderPreview();
-  if (presenting) renderPresent();
+  if (presenting) renderPresent(dir);
 };
 
 var currentFragment = 0; // 0 = all fragments hidden, N = fragments 1..N visible
@@ -1060,7 +1152,7 @@ window.nextSlide = function() {
     currentSlide++;
     currentFragment = 0;
     renderPreview();
-    if (presenting) renderPresent();
+    if (presenting) renderPresent('next');
   }
 };
 
@@ -1078,7 +1170,7 @@ window.prevSlide = function() {
     currentSlide--;
     currentFragment = 0;
     renderPreview();
-    if (presenting) renderPresent();
+    if (presenting) renderPresent('prev');
     // Show all fragments of the previous slide
     var prevFrags = getFragmentCount(getActiveContainer());
     currentFragment = prevFrags;
@@ -1091,7 +1183,7 @@ window.startPresent = function() {
   presenting = true;
   presentEl.classList.add('active');
   scalePresentSlide();
-  renderPresent();
+  renderPresent('next');
   document.body.requestFullscreen?.();
 };
 
@@ -1106,13 +1198,17 @@ function scalePresentSlide() {
   presentSlideEl.style.height = sh + 'px';
   var vw = window.innerWidth;
   var vh = window.innerHeight;
-  var scale = Math.min(vw / sw, vh / sh) * 0.92; // 92% to leave slight margin
+  var scale = Math.min(vw / sw, vh / sh) * 0.92;
+  _presentScale = scale;
   presentSlideEl.style.transform = 'scale(' + scale + ')';
 }
 
 function stopPresent() {
   presenting = false;
   presentEl.classList.remove('active');
+  if (_transitionTimer) { clearTimeout(_transitionTimer); _transitionTimer = null; }
+  presentSlideEl.style.transition = '';
+  presentSlideEl.style.opacity = '1';
   if (document.fullscreenElement) document.exitFullscreen?.();
 }
 
@@ -1899,6 +1995,22 @@ try {
   if (savedRatio && RATIO_DIMS[savedRatio]) {
     currentRatio = savedRatio;
     document.getElementById('ratio-select').value = savedRatio;
+  }
+} catch(e) {}
+
+// ============ SLIDE TRANSITIONS ============
+window.setTransition = function(type) {
+  _currentTransition = type;
+  try { localStorage.setItem('mdeck_transition', type); } catch(e) {}
+};
+
+// Restore saved transition
+try {
+  var savedTransition = localStorage.getItem('mdeck_transition');
+  var validTransitions = { none: 1, fade: 1, slide: 1, zoom: 1 };
+  if (savedTransition && validTransitions[savedTransition]) {
+    _currentTransition = savedTransition;
+    document.getElementById('transition-select').value = savedTransition;
   }
 } catch(e) {}
 
