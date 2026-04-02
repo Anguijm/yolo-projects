@@ -1,0 +1,946 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <title>Note Lab — Music Theory Explorer</title>
+  <style>
+    :root {
+      --bg-page: #0a0a0a;
+      --bg-surface: #111;
+      --bg-elevated: #1a1a1a;
+      --bg-hover: #222;
+      --text-primary: #fff;
+      --text-body: #ccc;
+      --text-secondary: #aaa;
+      --text-tertiary: #555;
+      --text-label: #444;
+      --border-default: #1a1a1a;
+      --border-active: #444;
+      --color-success: #3fb950;
+      --color-warning: #d29922;
+      --color-error: #f85149;
+      --color-info: #58a6ff;
+      --accent: #0ff;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: var(--bg-page);
+      color: var(--text-body);
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    header {
+      padding: 10px 16px;
+      border-bottom: 1px solid var(--border-default);
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-shrink: 0;
+    }
+
+    .logo {
+      font-size: 0.85rem;
+      font-weight: 700;
+      letter-spacing: 0.15em;
+      color: var(--accent);
+      text-transform: uppercase;
+    }
+
+    .tagline {
+      font-size: 0.55rem;
+      color: var(--text-tertiary);
+      letter-spacing: 0.08em;
+    }
+
+    #controls {
+      padding: 10px 16px;
+      border-bottom: 1px solid var(--border-default);
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      align-items: flex-start;
+      flex-shrink: 0;
+    }
+
+    .ctrl-group {
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+    }
+
+    .ctrl-label {
+      font-size: 0.42rem;
+      color: var(--text-label);
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+    }
+
+    .btn-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 3px;
+    }
+
+    .btn {
+      padding: 3px 8px;
+      font-family: inherit;
+      font-size: 0.58rem;
+      letter-spacing: 0.05em;
+      background: transparent;
+      color: var(--text-tertiary);
+      border: 1px solid var(--border-default);
+      cursor: pointer;
+      transition: border-color 0.1s, color 0.1s, background 0.1s;
+      line-height: 1.6;
+      user-select: none;
+    }
+
+    .btn:hover {
+      border-color: var(--border-active);
+      color: var(--text-body);
+    }
+
+    .btn.active {
+      border-color: var(--accent);
+      color: var(--accent);
+      background: rgba(0, 255, 255, 0.05);
+    }
+
+    #piano-wrap {
+      padding: 18px 16px 12px;
+      overflow-x: auto;
+      border-bottom: 1px solid var(--border-default);
+      flex-shrink: 0;
+    }
+
+    #piano {
+      position: relative;
+      height: 148px;
+    }
+
+    /* White piano keys */
+    .wkey {
+      position: absolute;
+      bottom: 0;
+      width: 36px;
+      height: 148px;
+      background: #e2e2e2;
+      border: 1px solid #999;
+      border-top: 2px solid #ccc;
+      cursor: pointer;
+      border-radius: 0 0 4px 4px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: space-between;
+      padding: 6px 0 5px 0;
+      transition: background 0.05s;
+      user-select: none;
+      touch-action: none;
+    }
+
+    .wkey:hover { background: #d8d8d8; }
+    .wkey.pressed { background: #bbb !important; }
+
+    .wkey.scale-note {
+      background: #a8f0f0;
+      border-color: #5cc;
+    }
+
+    .wkey.root-note {
+      background: var(--accent);
+      border-color: #0cc;
+    }
+
+    /* Black piano keys */
+    .bkey {
+      position: absolute;
+      top: 0;
+      width: 22px;
+      height: 90px;
+      background: #181818;
+      border: 1px solid #000;
+      border-top: 2px solid #2a2a2a;
+      cursor: pointer;
+      z-index: 2;
+      border-radius: 0 0 4px 4px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-end;
+      padding-bottom: 4px;
+      transition: background 0.05s;
+      user-select: none;
+      touch-action: none;
+    }
+
+    .bkey:hover { background: #2a2a2a; }
+    .bkey.pressed { background: #3a3a3a !important; }
+
+    .bkey.scale-note {
+      background: #004f4f;
+      border-color: #006868;
+    }
+
+    .bkey.root-note {
+      background: #008080;
+      border-color: #00aaaa;
+    }
+
+    .key-degree {
+      font-size: 0.38rem;
+      font-weight: 700;
+      pointer-events: none;
+      line-height: 1;
+    }
+
+    .wkey .key-degree { color: transparent; }
+    .wkey.scale-note .key-degree { color: #006060; }
+    .wkey.root-note .key-degree { color: #003030; }
+
+    .bkey .key-degree { color: transparent; }
+    .bkey.scale-note .key-degree { color: var(--accent); }
+    .bkey.root-note .key-degree { color: #ccffff; }
+
+    .key-name {
+      font-size: 0.38rem;
+      pointer-events: none;
+      line-height: 1;
+    }
+
+    .wkey .key-name { color: #888; }
+    .wkey.scale-note .key-name { color: #4a9090; }
+    .wkey.root-note .key-name { color: #003333; }
+
+    #info-bar {
+      padding: 7px 16px;
+      border-bottom: 1px solid var(--border-default);
+      display: flex;
+      flex-wrap: wrap;
+      gap: 20px;
+      font-size: 0.5rem;
+      flex-shrink: 0;
+    }
+
+    .info-item { display: flex; gap: 6px; align-items: center; }
+    .info-key { color: var(--text-label); text-transform: uppercase; letter-spacing: 0.1em; }
+    .info-val { color: var(--text-secondary); }
+    #scale-label { color: var(--accent); font-weight: 700; }
+
+    #bottom-section {
+      display: flex;
+      flex: 1;
+      min-height: 0;
+      flex-wrap: wrap;
+    }
+
+    #circle-section {
+      padding: 14px 16px;
+      border-right: 1px solid var(--border-default);
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      flex-shrink: 0;
+    }
+
+    .section-title {
+      font-size: 0.42rem;
+      color: var(--text-label);
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+    }
+
+    #cof-canvas { display: block; }
+
+    #chords-section {
+      padding: 14px 16px;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      min-width: 0;
+    }
+
+    #chord-grid {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+
+    .chord-card {
+      padding: 8px 12px;
+      background: var(--bg-surface);
+      border: 1px solid var(--border-default);
+      cursor: pointer;
+      transition: border-color 0.1s, background 0.1s;
+      min-width: 72px;
+      user-select: none;
+    }
+
+    .chord-card:hover { border-color: var(--border-active); }
+
+    .chord-card.sounding {
+      border-color: var(--accent);
+      background: rgba(0, 255, 255, 0.06);
+    }
+
+    .chord-deg {
+      font-size: 0.5rem;
+      color: var(--text-tertiary);
+      margin-bottom: 2px;
+    }
+
+    .chord-name {
+      font-size: 0.95rem;
+      color: var(--text-primary);
+      font-weight: 700;
+      line-height: 1.1;
+    }
+
+    .chord-qual {
+      font-size: 0.42rem;
+      color: var(--text-secondary);
+      margin-top: 2px;
+    }
+
+    .no-chords {
+      font-size: 0.55rem;
+      color: var(--text-tertiary);
+      font-style: italic;
+      padding: 4px 0;
+    }
+
+    #kbd-hint {
+      padding: 7px 16px;
+      border-top: 1px solid var(--border-default);
+      font-size: 0.42rem;
+      color: var(--text-label);
+      letter-spacing: 0.04em;
+      flex-shrink: 0;
+    }
+
+    #kbd-hint span { color: var(--text-tertiary); }
+  </style>
+</head>
+<body>
+
+<header>
+  <span class="logo">Note Lab</span>
+  <span class="tagline">Music Theory Explorer</span>
+</header>
+
+<div id="controls">
+  <div class="ctrl-group">
+    <div class="ctrl-label">Root Note</div>
+    <div id="root-btns" class="btn-row"></div>
+  </div>
+  <div class="ctrl-group">
+    <div class="ctrl-label">Scale</div>
+    <div id="scale-btns" class="btn-row"></div>
+  </div>
+</div>
+
+<div id="piano-wrap">
+  <div id="piano"></div>
+</div>
+
+<div id="info-bar">
+  <div class="info-item">
+    <span class="info-key">Scale</span>
+    <span class="info-val" id="scale-label">C Major</span>
+  </div>
+  <div class="info-item">
+    <span class="info-key">Notes</span>
+    <span class="info-val" id="notes-label">C D E F G A B</span>
+  </div>
+  <div class="info-item">
+    <span class="info-key">Pattern</span>
+    <span class="info-val" id="pattern-label">W W H W W W H</span>
+  </div>
+</div>
+
+<div id="bottom-section">
+  <div id="circle-section">
+    <div class="section-title">Circle of Fifths</div>
+    <canvas id="cof-canvas" width="228" height="228"></canvas>
+  </div>
+  <div id="chords-section">
+    <div class="section-title">Diatonic Chords — click to preview</div>
+    <div id="chord-grid"></div>
+  </div>
+</div>
+
+<div id="kbd-hint">
+  KEYBOARD &nbsp;
+  <span>A S D F G H J K</span> = white keys (C4–C5) &nbsp;&nbsp;
+  <span>W E T Y U</span> = black keys (C#4–A#4) &nbsp;&nbsp;
+  SPACE = sustain hold
+</div>
+
+<script type="text/javascript">
+(function () {
+  /* ── Note / scale data ── */
+  var NOTE_NAMES = ['C', 'C\u266f', 'D', 'D\u266f', 'E', 'F', 'F\u266f', 'G', 'G\u266f', 'A', 'A\u266f', 'B'];
+  var WHITE_PCS  = [0, 2, 4, 5, 7, 9, 11];
+
+  var SCALES = {
+    'Major':         [0, 2, 4, 5, 7, 9, 11],
+    'Minor':         [0, 2, 3, 5, 7, 8, 10],
+    'Harm. Minor':   [0, 2, 3, 5, 7, 8, 11],
+    'Dorian':        [0, 2, 3, 5, 7, 9, 10],
+    'Phrygian':      [0, 1, 3, 5, 7, 8, 10],
+    'Lydian':        [0, 2, 4, 6, 7, 9, 11],
+    'Mixolydian':    [0, 2, 4, 5, 7, 9, 10],
+    'Pent. Maj':     [0, 2, 4, 7, 9],
+    'Pent. Min':     [0, 3, 5, 7, 10],
+    'Blues':         [0, 3, 5, 6, 7, 10]
+  };
+
+  var ROMAN = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X'];
+
+  /* Circle of fifths — pitch classes in order of fifths */
+  var COF_PCS    = [0, 7, 2, 9, 4, 11, 6, 1, 8, 3, 10, 5];
+  var COF_LABELS = ['C', 'G', 'D', 'A', 'E', 'B', 'F\u266f', 'D\u266d', 'A\u266d', 'E\u266d', 'B\u266d', 'F'];
+
+  /* Piano range: C3 (48) – B5 (83), 3 octaves */
+  var FIRST_MIDI = 48;
+  var LAST_MIDI  = 83;
+  var KEY_W = 36;   /* white key width px */
+  var KEY_H = 148;  /* white key height px */
+  var BK_W  = 22;   /* black key width px */
+  var BK_H  = 90;   /* black key height px */
+
+  /* QWERTY map: key → midi (C4=60 octave) */
+  var KEY_MAP = {
+    'a': 60, 'w': 61, 's': 62, 'e': 63, 'd': 64, 'f': 65,
+    't': 66, 'g': 67, 'y': 68, 'h': 69, 'u': 70, 'j': 71, 'k': 72
+  };
+
+  /* ── State ── */
+  var rootNote  = 0;
+  var scaleName = 'Major';
+  var audioCtx  = null;
+  var activeNotes  = {};   /* midi → { gain, oscs } */
+  var keyElements  = {};   /* midi → DOM element */
+  var pressedKeys  = {};   /* keyboard key → bool */
+  var sustainOn    = false;
+  var sustainHeld  = {};   /* midi → true (held by sustain while sounding) */
+
+  /* ── Audio ── */
+  function initAudio() {
+    if (audioCtx) {
+      /* iOS / Chrome: context can be suspended after creation or on tab switch */
+      if (audioCtx.state === 'suspended') audioCtx.resume();
+      return;
+    }
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    /* Resume immediately — required for iOS Safari which starts suspended */
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+  }
+
+  function noteFreq(midi) {
+    return 440 * Math.pow(2, (midi - 69) / 12);
+  }
+
+  function playNote(midi) {
+    initAudio();
+    if (activeNotes[midi]) return;
+    var freq = noteFreq(midi);
+    var now  = audioCtx.currentTime;
+
+    /* Master gain with ADSR */
+    var gain = audioCtx.createGain();
+    gain.gain.setValueAtTime(0, now);
+    gain.gain.linearRampToValueAtTime(0.28, now + 0.008);
+    gain.gain.exponentialRampToValueAtTime(0.12, now + 0.12);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 5);
+    gain.connect(audioCtx.destination);
+
+    /* Layered oscillators for piano-like timbre */
+    var partials = [[1, 1.0, 'triangle'], [2, 0.35, 'triangle'], [3, 0.15, 'sine'], [4, 0.07, 'sine']];
+    var oscs = [];
+    for (var p = 0; p < partials.length; p++) {
+      var partial = partials[p];
+      var osc = audioCtx.createOscillator();
+      osc.type = partial[2];
+      osc.frequency.value = freq * partial[0];
+      var og = audioCtx.createGain();
+      og.gain.value = partial[1] * 0.3;
+      osc.connect(og);
+      og.connect(gain);
+      osc.start(now);
+      osc.stop(now + 5);
+      oscs.push(osc);
+    }
+
+    activeNotes[midi] = { gain: gain, oscs: oscs };
+    var el = keyElements[midi];
+    if (el) el.classList.add('pressed');
+  }
+
+  function releaseNote(midi) {
+    if (sustainOn) { sustainHeld[midi] = true; return; }
+    _stopNote(midi);
+  }
+
+  function _stopNote(midi) {
+    var note = activeNotes[midi];
+    if (!note) return;
+    var now = audioCtx.currentTime;
+    note.gain.gain.cancelScheduledValues(now);
+    /* exponentialRampToValueAtTime requires a positive start value.
+       If released during the 8ms attack the gain may be 0, which
+       would throw a DOMException.  Clamp to a safe minimum. */
+    var currentVal = note.gain.gain.value;
+    if (currentVal < 0.0001) currentVal = 0.0001;
+    note.gain.gain.setValueAtTime(currentVal, now);
+    note.gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.18);
+    delete activeNotes[midi];
+    delete sustainHeld[midi];
+    var el = keyElements[midi];
+    if (el) el.classList.remove('pressed');
+  }
+
+  function pedalOff() {
+    sustainOn = false;
+    var held = Object.keys(sustainHeld);
+    for (var i = 0; i < held.length; i++) {
+      _stopNote(Number(held[i]));
+    }
+  }
+
+  /* ── Scale helpers ── */
+  function getScaleNotes() {
+    var intervals = SCALES[scaleName] || SCALES['Major'];
+    var notes = [];
+    for (var i = 0; i < intervals.length; i++) {
+      notes.push((rootNote + intervals[i]) % 12);
+    }
+    return notes;
+  }
+
+  function getDegree(pc) {
+    var intervals = SCALES[scaleName] || [];
+    var semi = (pc - rootNote + 12) % 12;
+    for (var i = 0; i < intervals.length; i++) {
+      if (intervals[i] === semi) return i + 1;
+    }
+    return 0;
+  }
+
+  /* ── Piano ── */
+  function buildPiano() {
+    var container = document.getElementById('piano');
+    container.innerHTML = '';
+    keyElements = {};
+
+    var scaleNotes = getScaleNotes();
+    var whiteIdx = 0;
+
+    for (var midi = FIRST_MIDI; midi <= LAST_MIDI; midi++) {
+      (function (m, wi) {
+        var pc     = m % 12;
+        var isW    = WHITE_PCS.indexOf(pc) >= 0;
+        var isRoot = pc === rootNote;
+        var isSc   = !isRoot && scaleNotes.indexOf(pc) >= 0;
+        var deg    = getDegree(pc);
+
+        var el = document.createElement('div');
+        el.className = isW ? 'wkey' : 'bkey';
+        if (isRoot) el.classList.add('root-note');
+        else if (isSc) el.classList.add('scale-note');
+
+        if (isW) {
+          el.style.left = (wi * KEY_W) + 'px';
+        } else {
+          /* Black key: center between preceding and following white keys */
+          el.style.left = ((wi - 1) * KEY_W + KEY_W - Math.floor(BK_W / 2)) + 'px';
+        }
+
+        /* Scale degree badge */
+        var degSpan = document.createElement('span');
+        degSpan.className = 'key-degree';
+        degSpan.textContent = (isRoot || isSc) && deg > 0 ? String(deg) : '';
+
+        /* Note name label (only on C notes for white keys) */
+        var nameSpan = document.createElement('span');
+        nameSpan.className = 'key-name';
+        if (isW && pc === 0) {
+          nameSpan.textContent = NOTE_NAMES[0] + String(Math.floor(m / 12) - 1);
+        }
+
+        if (isW) {
+          el.appendChild(degSpan);
+          el.appendChild(nameSpan);
+        } else {
+          el.appendChild(degSpan);
+        }
+
+        /* Pointer events.
+           setPointerCapture ensures pointerup fires on this element even
+           if the finger moves off it (prevents premature note release on
+           touch-drag.  pointercancel handles interrupted gestures). */
+        el.addEventListener('pointerdown', function (e) {
+          e.preventDefault();
+          el.setPointerCapture(e.pointerId);
+          playNote(m);
+        });
+        el.addEventListener('pointerup',     function () { releaseNote(m); });
+        el.addEventListener('pointercancel', function () { releaseNote(m); });
+
+        container.appendChild(el);
+        keyElements[m] = el;
+      })(midi, whiteIdx);
+
+      /* Advance white key counter AFTER processing this key */
+      if (WHITE_PCS.indexOf(midi % 12) >= 0) whiteIdx++;
+    }
+
+    /* Set container width */
+    container.style.width = (whiteIdx * KEY_W) + 'px';
+  }
+
+  function updateHighlights() {
+    var scaleNotes = getScaleNotes();
+    for (var midi = FIRST_MIDI; midi <= LAST_MIDI; midi++) {
+      var el = keyElements[midi];
+      if (!el) continue;
+      var pc     = midi % 12;
+      var isRoot = pc === rootNote;
+      var isSc   = !isRoot && scaleNotes.indexOf(pc) >= 0;
+      var deg    = getDegree(pc);
+
+      el.classList.remove('root-note', 'scale-note');
+      if (isRoot) el.classList.add('root-note');
+      else if (isSc) el.classList.add('scale-note');
+
+      var degSpan = el.querySelector('.key-degree');
+      if (degSpan) {
+        degSpan.textContent = (isRoot || isSc) && deg > 0 ? String(deg) : '';
+      }
+    }
+  }
+
+  /* ── Circle of Fifths ── */
+  function drawCOF() {
+    var canvas = document.getElementById('cof-canvas');
+    var ctx    = canvas.getContext('2d');
+    var W = canvas.width, H = canvas.height;
+    var cx = W / 2, cy = H / 2;
+    var R  = W / 2 - 4;
+
+    ctx.clearRect(0, 0, W, H);
+
+    var scaleNotes = getScaleNotes();
+
+    /* Draw outer background ring */
+    ctx.beginPath();
+    ctx.arc(cx, cy, R, 0, Math.PI * 2);
+    ctx.fillStyle = '#0d0d0d';
+    ctx.fill();
+
+    /* Draw 12 segments */
+    for (var i = 0; i < 12; i++) {
+      var pc    = COF_PCS[i];
+      var angle = (i * 30 - 90) * Math.PI / 180;
+      var sa    = angle - (15 * Math.PI / 180);
+      var ea    = angle + (15 * Math.PI / 180);
+
+      ctx.beginPath();
+      ctx.moveTo(cx, cy);
+      ctx.arc(cx, cy, R * 0.89, sa, ea);
+      ctx.closePath();
+
+      var isRoot = pc === rootNote;
+      var inScale = scaleNotes.indexOf(pc) >= 0;
+      if (isRoot) {
+        ctx.fillStyle = '#00cccc';
+      } else if (inScale) {
+        ctx.fillStyle = '#003c3c';
+      } else {
+        ctx.fillStyle = '#161616';
+      }
+      ctx.fill();
+      ctx.strokeStyle = '#0a0a0a';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+
+      /* Label */
+      var lx = cx + R * 0.71 * Math.cos(angle);
+      var ly = cy + R * 0.71 * Math.sin(angle);
+      ctx.fillStyle = isRoot ? '#000' : (inScale ? '#0ff' : '#555');
+      ctx.font = 'bold 10px monospace';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(COF_LABELS[i], lx, ly);
+    }
+
+    /* Minor-key inner ring */
+    var minorLabels = ['Am', 'Em', 'Bm', 'F\u266fm', 'C\u266fm', 'G\u266fm', 'D\u266fm', 'B\u266dm', 'Fm', 'Cm', 'Gm', 'Dm'];
+    /* Minor root is 9 semitones up from major (= relative minor) */
+    var minorPCs = COF_PCS.map(function (pc) { return (pc + 9) % 12; });
+    for (var j = 0; j < 12; j++) {
+      var mpc    = minorPCs[j];
+      var jangle = (j * 30 - 90) * Math.PI / 180;
+      var jsa    = jangle - (15 * Math.PI / 180);
+      var jea    = jangle + (15 * Math.PI / 180);
+
+      ctx.beginPath();
+      ctx.moveTo(cx, cy);
+      ctx.arc(cx, cy, R * 0.56, jsa, jea);
+      ctx.closePath();
+
+      var mInScale = scaleNotes.indexOf(mpc) >= 0;
+      ctx.fillStyle = mInScale ? '#002828' : '#111';
+      ctx.fill();
+      ctx.strokeStyle = '#0a0a0a';
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+
+      var mlx = cx + R * 0.44 * Math.cos(jangle);
+      var mly = cy + R * 0.44 * Math.sin(jangle);
+      ctx.fillStyle = mInScale ? '#088' : '#333';
+      ctx.font = '8px monospace';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(minorLabels[j], mlx, mly);
+    }
+
+    /* Center hub */
+    ctx.beginPath();
+    ctx.arc(cx, cy, R * 0.24, 0, Math.PI * 2);
+    ctx.fillStyle = '#111';
+    ctx.fill();
+    ctx.strokeStyle = '#1a1a1a';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+
+    ctx.fillStyle = '#0ff';
+    ctx.font = 'bold 14px monospace';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(NOTE_NAMES[rootNote], cx, cy - 7);
+    ctx.fillStyle = '#555';
+    ctx.font = '7px monospace';
+    ctx.fillText(scaleName, cx, cy + 7);
+  }
+
+  /* ── Diatonic chord cards ── */
+  function getDiatonicChords() {
+    var intervals = SCALES[scaleName];
+    if (!intervals || intervals.length < 7) return null;
+
+    var chords = [];
+    var len = intervals.length;
+
+    for (var i = 0; i < len; i++) {
+      var chordRootPc = (rootNote + intervals[i]) % 12;
+
+      var thirdIdx  = (i + 2) % len;
+      var fifthIdx  = (i + 4) % len;
+      var thirdSemi = intervals[thirdIdx] - intervals[i];
+      if (thirdSemi <= 0) thirdSemi += 12;
+      var fifthSemi = intervals[fifthIdx] - intervals[i];
+      if (fifthSemi <= 0) fifthSemi += 12;
+
+      var quality;
+      if (thirdSemi === 4 && fifthSemi === 7) quality = 'major';
+      else if (thirdSemi === 3 && fifthSemi === 7) quality = 'minor';
+      else if (thirdSemi === 3 && fifthSemi === 6) quality = 'dim';
+      else if (thirdSemi === 4 && fifthSemi === 8) quality = 'aug';
+      else quality = 'sus4';
+
+      chords.push({
+        rootPc: chordRootPc,
+        quality: quality,
+        degree: i,
+        thirdSemi: thirdSemi,
+        fifthSemi: fifthSemi
+      });
+    }
+    return chords;
+  }
+
+  function updateChords() {
+    var grid = document.getElementById('chord-grid');
+    grid.innerHTML = '';
+
+    var chords = getDiatonicChords();
+    if (!chords) {
+      var msg = document.createElement('div');
+      msg.className = 'no-chords';
+      msg.textContent = 'Diatonic chords require a 7-note scale — try Major, Minor, or any mode.';
+      grid.appendChild(msg);
+      return;
+    }
+
+    chords.forEach(function (chord) {
+      var card = document.createElement('div');
+      card.className = 'chord-card';
+
+      var roman = chord.degree < ROMAN.length ? ROMAN[chord.degree] : String(chord.degree + 1);
+      var degLabel;
+      if (chord.quality === 'minor') degLabel = roman.toLowerCase();
+      else if (chord.quality === 'dim') degLabel = roman.toLowerCase() + '\u00b0';
+      else if (chord.quality === 'aug') degLabel = roman + '+';
+      else degLabel = roman;
+
+      card.innerHTML =
+        '<div class="chord-deg">' + degLabel + '</div>' +
+        '<div class="chord-name">' + NOTE_NAMES[chord.rootPc] + '</div>' +
+        '<div class="chord-qual">' + chord.quality + '</div>';
+
+      /* Click to preview chord */
+      (function (ch) {
+        var chordTimer = null;
+        card.addEventListener('pointerdown', function () {
+          initAudio();
+          /* Play root in octave 3, then chord tones */
+          var rootMidi = 48 + ch.rootPc;
+          var thirdMidi = rootMidi + ch.thirdSemi;
+          var fifthMidi = rootMidi + ch.fifthSemi;
+          playNote(rootMidi);
+          playNote(thirdMidi);
+          playNote(fifthMidi);
+          card.classList.add('sounding');
+          if (chordTimer) clearTimeout(chordTimer);
+          chordTimer = setTimeout(function () {
+            _stopNote(rootMidi);
+            _stopNote(thirdMidi);
+            _stopNote(fifthMidi);
+            card.classList.remove('sounding');
+            chordTimer = null;
+          }, 1400);
+        });
+      })(chord);
+
+      grid.appendChild(card);
+    });
+  }
+
+  /* ── Info bar ── */
+  function updateInfoBar() {
+    var intervals = SCALES[scaleName] || [];
+    var scaleNotes = getScaleNotes();
+
+    var noteStr = scaleNotes.map(function (n) { return NOTE_NAMES[n]; }).join('\u2009');
+
+    var pattern = [];
+    for (var i = 0; i < intervals.length; i++) {
+      var next = i < intervals.length - 1 ? intervals[i + 1] : intervals[0] + 12;
+      var diff = next - intervals[i];
+      if (diff === 1) pattern.push('H');
+      else if (diff === 2) pattern.push('W');
+      else if (diff === 3) pattern.push('m3');
+      else pattern.push(String(diff));
+    }
+
+    document.getElementById('scale-label').textContent  = NOTE_NAMES[rootNote] + ' ' + scaleName;
+    document.getElementById('notes-label').textContent  = noteStr;
+    document.getElementById('pattern-label').textContent = pattern.join(' ');
+  }
+
+  /* ── Controls ── */
+  function buildControls() {
+    /* Root note buttons */
+    var rootBtns = document.getElementById('root-btns');
+    NOTE_NAMES.forEach(function (name, i) {
+      var btn = document.createElement('button');
+      btn.className = 'btn' + (i === rootNote ? ' active' : '');
+      btn.textContent = name;
+      btn.addEventListener('click', function () {
+        rootNote = i;
+        rootBtns.querySelectorAll('.btn').forEach(function (b) { b.classList.remove('active'); });
+        btn.classList.add('active');
+        update();
+      });
+      rootBtns.appendChild(btn);
+    });
+
+    /* Scale buttons */
+    var scaleBtns = document.getElementById('scale-btns');
+    var scaleKeys = Object.keys(SCALES);
+    scaleKeys.forEach(function (name) {
+      var btn = document.createElement('button');
+      btn.className = 'btn' + (name === scaleName ? ' active' : '');
+      btn.textContent = name;
+      btn.addEventListener('click', function () {
+        scaleName = name;
+        scaleBtns.querySelectorAll('.btn').forEach(function (b) { b.classList.remove('active'); });
+        btn.classList.add('active');
+        update();
+      });
+      scaleBtns.appendChild(btn);
+    });
+  }
+
+  /* ── Main update ── */
+  function update() {
+    updateHighlights();
+    drawCOF();
+    updateChords();
+    updateInfoBar();
+  }
+
+  /* ── Keyboard handling ── */
+  function setupKeyboard() {
+    document.addEventListener('keydown', function (e) {
+      if (e.repeat) return;
+      if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA')) return;
+
+      if (e.key === ' ') {
+        e.preventDefault();
+        sustainOn = true;
+        return;
+      }
+
+      /* Normalise to lowercase so Shift+A doesn't re-trigger while A is held */
+      var k = e.key.toLowerCase();
+      var midi = KEY_MAP[k];
+      if (midi !== undefined && !pressedKeys[k]) {
+        pressedKeys[k] = true;
+        playNote(midi);
+      }
+    });
+
+    document.addEventListener('keyup', function (e) {
+      if (e.key === ' ') {
+        pedalOff();
+        return;
+      }
+      var k = e.key.toLowerCase();
+      var midi = KEY_MAP[k];
+      if (midi !== undefined) {
+        pressedKeys[k] = false;
+        releaseNote(midi);
+      }
+    });
+  }
+
+  /* ── Init ── */
+  function init() {
+    buildControls();
+    buildPiano();
+    drawCOF();
+    updateChords();
+    updateInfoBar();
+    setupKeyboard();
+  }
+
+  window.noteLabInit = init;
+})();
+</script>
+
+<script>
+document.addEventListener('DOMContentLoaded', function () { window.noteLabInit(); });
+</script>
+
+</body>
+</html>
