@@ -1,0 +1,895 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
+  <meta name="theme-color" content="#000000">
+  <title>Epicycle — Fourier Drawing</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body {
+      height: 100%;
+      background: #0a0a0a;
+      overflow: hidden;
+      touch-action: manipulation;
+      -webkit-tap-highlight-color: transparent;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Courier New", monospace;
+      user-select: none;
+    }
+
+    #canvas {
+      display: block;
+      position: absolute;
+      top: 0; left: 0;
+      touch-action: none;
+      cursor: crosshair;
+    }
+
+    /* ── Toolbar ───────────────────────────────────────────────── */
+    #toolbar {
+      position: absolute;
+      bottom: 0; left: 0; right: 0;
+      background: #0a0a0a;
+      border-top: 1px solid #1a1a1a;
+      padding: 6px 10px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex-wrap: wrap;
+      z-index: 10;
+    }
+
+    #status {
+      font-size: 0.5rem;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: #333;
+      min-width: 52px;
+    }
+    #status.drawing { color: #555; }
+    #status.playing  { color: #0ff; }
+
+    .btn {
+      padding: 0 10px;
+      height: 32px;
+      background: transparent;
+      border: 1px solid #1a1a1a;
+      color: #444;
+      font-family: inherit;
+      font-size: 0.5rem;
+      cursor: pointer;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      white-space: nowrap;
+    }
+    .btn:active { border-color: #555; color: #888; }
+    .btn.lit    { border-color: #0ff; color: #0ff; }
+    .btn.dim    { border-color: #1a1a1a; color: #2a2a2a; cursor: default; }
+
+    .sep { width: 1px; height: 20px; background: #1a1a1a; flex-shrink: 0; }
+
+    .ctrl {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+    .ctrl-label {
+      font-size: 0.4rem;
+      color: #2a2a2a;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      white-space: nowrap;
+    }
+    .ctrl-val {
+      font-size: 0.4rem;
+      color: #444;
+      min-width: 26px;
+      text-align: right;
+      font-variant-numeric: tabular-nums;
+    }
+    input[type="range"] {
+      -webkit-appearance: none;
+      appearance: none;
+      height: 2px;
+      width: 56px;
+      background: #222;
+      outline: none;
+      cursor: pointer;
+      accent-color: #555;
+    }
+    input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 10px; height: 10px;
+      border-radius: 50%;
+      background: #555;
+      cursor: pointer;
+    }
+
+    /* ── Preset buttons row ───────────────────────────────────── */
+    #presets {
+      display: flex;
+      gap: 4px;
+      align-items: center;
+    }
+    .preset-btn {
+      padding: 0 8px;
+      height: 28px;
+      background: transparent;
+      border: 1px solid #1a1a1a;
+      color: #333;
+      font-family: inherit;
+      font-size: 0.42rem;
+      cursor: pointer;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+    .preset-btn:active { border-color: #444; color: #666; }
+
+    /* ── Canvas hints ─────────────────────────────────────────── */
+    #drawing-hint {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      font-size: 0.5rem;
+      color: #2e2e2e;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      pointer-events: none;
+      text-align: center;
+      line-height: 2.2;
+    }
+    #computing {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      font-size: 0.5rem;
+      color: #0ff;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      display: none;
+      pointer-events: none;
+    }
+
+    /* ── Overlay ──────────────────────────────────────────────── */
+    #overlay {
+      position: absolute;
+      inset: 0;
+      background: #0a0a0a;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      z-index: 20;
+      gap: 18px;
+    }
+    #overlay h1 {
+      font-size: clamp(1.4rem, 7vw, 2.2rem);
+      color: #fff;
+      font-weight: 200;
+      letter-spacing: 0.35em;
+      text-transform: uppercase;
+    }
+    #overlay .tagline {
+      font-size: 0.52rem;
+      color: #444;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      text-align: center;
+      line-height: 2;
+      max-width: 280px;
+    }
+    #overlay .keys {
+      font-size: 0.42rem;
+      color: #2a2a2a;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      text-align: center;
+      line-height: 2.2;
+    }
+    #start-btn {
+      padding: 0 24px;
+      height: 44px;
+      background: transparent;
+      border: 1px solid #0ff;
+      color: #0ff;
+      font-family: inherit;
+      font-size: 0.55rem;
+      cursor: pointer;
+      letter-spacing: 0.22em;
+      text-transform: uppercase;
+    }
+    #start-btn:active { background: rgba(0,255,255,0.06); }
+
+    /* ── Cycle counter ────────────────────────────────────────── */
+    #cycle-ctr {
+      position: absolute;
+      top: 10px;
+      right: 12px;
+      font-size: 0.4rem;
+      color: #222;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      pointer-events: none;
+    }
+
+    /* ── Toast ────────────────────────────────────────────────── */
+    #toast {
+      position: absolute;
+      top: 10px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: #1a1a1a;
+      border: 1px solid #2a2a2a;
+      color: #888;
+      font-size: 0.45rem;
+      padding: 4px 14px;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      opacity: 0;
+      transition: opacity 0.25s;
+      pointer-events: none;
+      white-space: nowrap;
+      border-radius: 4px;
+      z-index: 30;
+    }
+    #toast.show { opacity: 1; }
+
+    /* ── Quality badge ────────────────────────────────────────── */
+    #quality-badge {
+      position: absolute;
+      top: 10px;
+      left: 12px;
+      font-size: 0.38rem;
+      color: #0ff;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.4s;
+    }
+    #quality-badge.show { opacity: 1; }
+  </style>
+</head>
+<body>
+
+<canvas id="canvas"></canvas>
+<div id="drawing-hint">draw anything<br>then press analyze</div>
+<div id="computing">computing dft&#8230;</div>
+<div id="cycle-ctr"></div>
+<div id="toast"></div>
+<div id="quality-badge"></div>
+
+<div id="toolbar">
+  <span id="status">idle</span>
+  <div class="sep"></div>
+  <button class="btn" id="draw-btn" title="D">Draw</button>
+  <button class="btn dim" id="analyze-btn" title="A">Analyze</button>
+  <button class="btn dim" id="clear-btn" title="C">Clear</button>
+  <div class="sep"></div>
+
+  <div class="ctrl">
+    <span class="ctrl-label">Circles</span>
+    <input type="range" id="circles-range" min="1" max="200" value="40" title="More circles = more accurate reconstruction">
+    <span class="ctrl-val" id="circles-val">40</span>
+  </div>
+
+  <div class="ctrl">
+    <span class="ctrl-label">Speed</span>
+    <input type="range" id="speed-range" min="1" max="10" value="3">
+    <span class="ctrl-val" id="speed-val">3</span>
+  </div>
+
+  <div class="sep"></div>
+  <div id="presets">
+    <span class="ctrl-label">Preset:</span>
+    <button class="preset-btn" data-preset="heart">Heart</button>
+    <button class="preset-btn" data-preset="star">Star</button>
+    <button class="preset-btn" data-preset="infinity">&#8734;</button>
+    <button class="preset-btn" data-preset="rose">Rose</button>
+    <button class="preset-btn" data-preset="fish">Fish</button>
+  </div>
+  <div class="sep"></div>
+  <button class="btn dim" id="export-btn" title="Save PNG">Save PNG</button>
+</div>
+
+<div id="overlay">
+  <h1>Epicycle</h1>
+  <p class="tagline">Fourier analysis made visible<br>draw anything &mdash; rotating circles redraw it</p>
+  <button id="start-btn">Start Drawing</button>
+  <p class="keys">
+    D — draw &nbsp;|&nbsp; A — analyze &nbsp;|&nbsp; C — clear<br>
+    Space — pause &nbsp;|&nbsp; +/&minus; — circles
+  </p>
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  /* ── CONFIG ──────────────────────────────────────────────────────────── */
+  var MAX_SAMPLES = 512;
+  var MIN_MOVE_SQ = 9; /* min px² between recorded points */
+
+  /* ── STATE ───────────────────────────────────────────────────────────── */
+  var state = 'idle';       /* idle | drawing | computing | playing | paused */
+  var drawPoints  = [];     /* raw {x,y} from pointer */
+  var dftCoeffs   = [];     /* [{freq,amplitude,phase}] sorted by amplitude */
+  var tracePoints = [];     /* tip positions of the current playback cycle */
+  var centroidX   = 0;
+  var centroidY   = 0;
+  var playT       = 0;      /* continuous time [0, N) */
+  var cycleCount  = 0;
+  var numCircles  = 40;
+  var speedMult   = 3;
+  var rafId       = null;
+  var lastTime    = 0;
+  var isDown      = false;
+
+  /* ── DOM ─────────────────────────────────────────────────────────────── */
+  var canvas       = document.getElementById('canvas');
+  var ctx          = canvas.getContext('2d');
+  var overlay      = document.getElementById('overlay');
+  var statusEl     = document.getElementById('status');
+  var drawBtn      = document.getElementById('draw-btn');
+  var analyzeBtn   = document.getElementById('analyze-btn');
+  var clearBtn     = document.getElementById('clear-btn');
+  var circlesRange = document.getElementById('circles-range');
+  var circlesVal   = document.getElementById('circles-val');
+  var speedRange   = document.getElementById('speed-range');
+  var speedVal     = document.getElementById('speed-val');
+  var drawHint      = document.getElementById('drawing-hint');
+  var computingEl   = document.getElementById('computing');
+  var cycleCtr      = document.getElementById('cycle-ctr');
+  var toastEl       = document.getElementById('toast');
+  var toolbarEl     = document.getElementById('toolbar');
+  var qualityBadge  = document.getElementById('quality-badge');
+  var exportBtn     = document.getElementById('export-btn');
+
+  /* ── CANVAS SIZE ─────────────────────────────────────────────────────── */
+  var W = 0, H = 0, DPR = 1, TOOLBAR_H = 52;
+
+  function resize() {
+    DPR      = window.devicePixelRatio || 1;
+    TOOLBAR_H = toolbarEl.getBoundingClientRect().height || 52;
+    W = window.innerWidth;
+    H = window.innerHeight - TOOLBAR_H;
+
+    canvas.width  = W * DPR;
+    canvas.height = H * DPR;
+    canvas.style.width  = W + 'px';
+    canvas.style.height = H + 'px';
+    ctx.scale(DPR, DPR);
+
+    if (state === 'drawing')        renderDrawing();
+    else if (state === 'playing' || state === 'paused') renderPlayback(playT);
+    else                            clearBg();
+  }
+
+  function clearBg() {
+    ctx.fillStyle = '#0a0a0a';
+    ctx.fillRect(0, 0, W, H);
+  }
+
+  /* ── TOAST ───────────────────────────────────────────────────────────── */
+  var toastTimer = null;
+  function toast(msg) {
+    toastEl.textContent = msg;
+    toastEl.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () { toastEl.classList.remove('show'); }, 2000);
+  }
+
+  /* ── DFT ─────────────────────────────────────────────────────────────── */
+  /* Complex DFT: treat each point as z_n = x_n + i*y_n.
+     X_k = (1/N) * sum_n z_n * e^{-2*pi*i*k*n/N}
+     amplitude_k = |X_k|,  phase_k = arg(X_k)
+     Reconstruction at time t: sum_k amplitude_k * e^{i*(2pi*k*t/N + phase_k)} */
+  function computeDFT(pts) {
+    var N  = pts.length;
+    var cx = 0, cy = 0;
+    for (var j = 0; j < N; j++) { cx += pts[j].x; cy += pts[j].y; }
+    centroidX = cx / N;
+    centroidY = cy / N;
+
+    var result = [];
+    var TWO_PI_OVER_N = 2 * Math.PI / N;
+
+    for (var k = 0; k < N; k++) {
+      var re = 0, im = 0;
+      for (var n = 0; n < N; n++) {
+        var px    = pts[n].x - centroidX;
+        var py    = pts[n].y - centroidY;
+        var angle = TWO_PI_OVER_N * k * n;
+        var cosA  = Math.cos(angle);
+        var sinA  = Math.sin(angle);
+        re += px * cosA + py * sinA;
+        im += py * cosA - px * sinA;
+      }
+      re /= N;
+      im /= N;
+      var amp   = Math.sqrt(re * re + im * im);
+      var phase = Math.atan2(im, re);
+      result.push({ freq: k, amplitude: amp, phase: phase });
+    }
+
+    result.sort(function (a, b) { return b.amplitude - a.amplitude; });
+    return result;
+  }
+
+  function downsample(pts, n) {
+    if (pts.length <= n) return pts.slice();
+    var out  = [];
+    var step = (pts.length - 1) / (n - 1);
+    for (var i = 0; i < n; i++) {
+      out.push(pts[Math.round(i * step)]);
+    }
+    return out;
+  }
+
+  /* ── EPICYCLE POSITIONS ──────────────────────────────────────────────── */
+  function getPositions(t) {
+    var N     = dftCoeffs.length;
+    var count = Math.min(numCircles, N);
+    var TWO_PI_OVER_N = 2 * Math.PI / N;
+
+    var x = centroidX;
+    var y = centroidY;
+    var pos = [{ x: x, y: y }];
+
+    for (var i = 0; i < count; i++) {
+      var c     = dftCoeffs[i];
+      var angle = TWO_PI_OVER_N * c.freq * t + c.phase;
+      x += c.amplitude * Math.cos(angle);
+      y += c.amplitude * Math.sin(angle);
+      pos.push({ x: x, y: y });
+    }
+    return pos;
+  }
+
+  /* ── RENDER ──────────────────────────────────────────────────────────── */
+  function renderDrawing() {
+    clearBg();
+    if (drawPoints.length < 2) return;
+    ctx.strokeStyle = '#0ff';
+    ctx.lineWidth   = 1.5;
+    ctx.lineCap     = 'round';
+    ctx.lineJoin    = 'round';
+    ctx.beginPath();
+    ctx.moveTo(drawPoints[0].x, drawPoints[0].y);
+    for (var i = 1; i < drawPoints.length; i++) {
+      ctx.lineTo(drawPoints[i].x, drawPoints[i].y);
+    }
+    ctx.stroke();
+  }
+
+  function updateQualityBadge() {
+    if (!dftCoeffs.length) { qualityBadge.classList.remove('show'); return; }
+    var pct = Math.round((Math.min(numCircles, dftCoeffs.length) / dftCoeffs.length) * 100);
+    if (pct >= 100) {
+      qualityBadge.textContent = 'exact reconstruction';
+    } else {
+      qualityBadge.textContent = pct + '% of signal';
+    }
+    qualityBadge.classList.add('show');
+  }
+
+  function renderPlayback(t) {
+    clearBg();
+
+    var pos = getPositions(t);
+
+    /* Ghost original drawing */
+    if (drawPoints.length > 1) {
+      ctx.save();
+      ctx.globalAlpha = 0.07;
+      ctx.strokeStyle = '#fff';
+      ctx.lineWidth   = 1;
+      ctx.beginPath();
+      ctx.moveTo(drawPoints[0].x, drawPoints[0].y);
+      for (var gi = 1; gi < drawPoints.length; gi++) {
+        ctx.lineTo(drawPoints[gi].x, drawPoints[gi].y);
+      }
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    /* Epicycle circles and arms */
+    var total = pos.length - 1;
+    for (var i = 0; i < total; i++) {
+      var from   = pos[i];
+      var to     = pos[i + 1];
+      var dx     = to.x - from.x;
+      var dy     = to.y - from.y;
+      var radius = Math.sqrt(dx * dx + dy * dy);
+      var frac   = 1 - i / total; /* 1 = biggest, 0 = smallest */
+
+      /* Circle ring */
+      ctx.save();
+      ctx.globalAlpha = Math.max(0.03, frac * 0.12);
+      ctx.strokeStyle = '#fff';
+      ctx.lineWidth   = 0.5;
+      ctx.beginPath();
+      ctx.arc(from.x, from.y, radius, 0, 2 * Math.PI);
+      ctx.stroke();
+      ctx.restore();
+
+      /* Arm */
+      ctx.save();
+      ctx.globalAlpha = Math.max(0.06, frac * 0.35);
+      ctx.strokeStyle = '#fff';
+      ctx.lineWidth   = 0.5;
+      ctx.beginPath();
+      ctx.moveTo(from.x, from.y);
+      ctx.lineTo(to.x, to.y);
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    /* Trace path */
+    if (tracePoints.length > 1) {
+      ctx.save();
+      ctx.strokeStyle = '#0ff';
+      ctx.lineWidth   = 1.5;
+      ctx.lineCap     = 'round';
+      ctx.lineJoin    = 'round';
+      ctx.shadowColor = '#0ff';
+      ctx.shadowBlur  = 5;
+      ctx.beginPath();
+      ctx.moveTo(tracePoints[0].x, tracePoints[0].y);
+      for (var ti = 1; ti < tracePoints.length; ti++) {
+        ctx.lineTo(tracePoints[ti].x, tracePoints[ti].y);
+      }
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    /* Tip dot */
+    if (pos.length > 1) {
+      var tip = pos[pos.length - 1];
+      ctx.save();
+      ctx.fillStyle  = '#0ff';
+      ctx.shadowColor = '#0ff';
+      ctx.shadowBlur  = 10;
+      ctx.beginPath();
+      ctx.arc(tip.x, tip.y, 2.5, 0, 2 * Math.PI);
+      ctx.fill();
+      ctx.restore();
+    }
+  }
+
+  /* ── ANIMATION LOOP ──────────────────────────────────────────────────── */
+  function animate(now) {
+    rafId = requestAnimationFrame(animate);
+    if (state !== 'playing') return;
+
+    var N = dftCoeffs.length;
+    if (N === 0) return;
+
+    var dt = Math.min((now - lastTime) / 1000, 0.05);
+    lastTime = now;
+
+    /* Advance time: speedMult=3 → 75 steps/s */
+    var stepsPerSec = 25 * speedMult;
+    playT += dt * stepsPerSec;
+
+    /* Wrap at one full cycle */
+    if (playT >= N) {
+      playT -= N;
+      tracePoints = [];
+      cycleCount++;
+      cycleCtr.textContent = 'cycle ' + cycleCount;
+    }
+
+    /* Record tip */
+    var positions = getPositions(playT);
+    var tip = positions[positions.length - 1];
+    tracePoints.push({ x: tip.x, y: tip.y });
+
+    renderPlayback(playT);
+  }
+
+  /* ── STATE MACHINE ───────────────────────────────────────────────────── */
+  function setStatus(label, cls) {
+    statusEl.textContent = label;
+    statusEl.className   = cls || '';
+  }
+
+  function startDraw() {
+    stopAnim();
+    drawPoints  = [];
+    tracePoints = [];
+    dftCoeffs   = [];
+    state       = 'drawing';
+    cycleCount  = 0;
+    cycleCtr.textContent = '';
+    clearBg();
+    drawHint.style.display     = 'block';
+    computingEl.style.display  = 'none';
+
+    drawBtn.classList.add('lit');
+    analyzeBtn.classList.remove('lit');
+    analyzeBtn.classList.add('dim');
+    clearBtn.classList.add('dim');
+    clearBtn.classList.remove('lit');
+    canvas.style.cursor = 'crosshair';
+    setStatus('drawing', 'drawing');
+  }
+
+  function analyze() {
+    if (state === 'computing') return;
+    if (drawPoints.length < 4) { toast('draw something first'); return; }
+
+    stopAnim();
+    state = 'computing';
+    computingEl.style.display = 'block';
+    drawHint.style.display    = 'none';
+    setStatus('computing', '');
+
+    /* Defer so the DOM updates before heavy computation */
+    setTimeout(function () {
+      var sampled = downsample(drawPoints, MAX_SAMPLES);
+      dftCoeffs   = computeDFT(sampled);
+
+      var maxC = Math.min(dftCoeffs.length, 500);
+      circlesRange.max = maxC;
+      if (numCircles > maxC) {
+        numCircles = Math.min(40, maxC);
+        circlesRange.value    = numCircles;
+        circlesVal.textContent = numCircles;
+      }
+
+      tracePoints = [];
+      playT       = 0;
+      cycleCount  = 0;
+      cycleCtr.textContent = '';
+      lastTime    = performance.now();
+
+      computingEl.style.display = 'none';
+      state = 'playing';
+
+      drawBtn.classList.remove('lit');
+      analyzeBtn.classList.add('lit');
+      analyzeBtn.classList.remove('dim');
+      clearBtn.classList.remove('dim');
+      clearBtn.classList.add('lit');
+      exportBtn.classList.remove('dim');
+      canvas.style.cursor = 'default';
+      setStatus('playing', 'playing');
+      updateQualityBadge();
+
+      rafId = requestAnimationFrame(animate);
+    }, 30);
+  }
+
+  function clear() {
+    stopAnim();
+    qualityBadge.classList.remove('show');
+    startDraw();
+    toast('canvas cleared');
+  }
+
+  function exportPNG() {
+    if (state !== 'playing' && state !== 'paused') { toast('nothing to export yet'); return; }
+    /* Render a clean frame first */
+    renderPlayback(playT);
+    canvas.toBlob(function (blob) {
+      var url = URL.createObjectURL(blob);
+      var a   = document.createElement('a');
+      a.href     = url;
+      a.download = 'epicycle.png';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(function () { URL.revokeObjectURL(url); }, 5000);
+      toast('saved epicycle.png');
+    });
+  }
+
+  function togglePause() {
+    if (state === 'playing') {
+      state = 'paused';
+      stopAnim(); /* cancel rAF while paused — no point spinning */
+      setStatus('paused', '');
+      toast('paused — space to resume');
+    } else if (state === 'paused') {
+      state    = 'playing';
+      lastTime = performance.now();
+      setStatus('playing', 'playing');
+      rafId = requestAnimationFrame(animate);
+    }
+  }
+
+  function stopAnim() {
+    if (rafId) { cancelAnimationFrame(rafId); rafId = null; }
+  }
+
+  /* ── PRESET PATHS ────────────────────────────────────────────────────── */
+  var PRESETS = {
+    heart: function () {
+      var N = 300;
+      var pts = [];
+      for (var i = 0; i < N; i++) {
+        var t = (2 * Math.PI * i) / N;
+        /* Classic heart parametric (canvas y-axis flipped) */
+        var px = 16 * Math.pow(Math.sin(t), 3);
+        var py = -(13 * Math.cos(t) - 5 * Math.cos(2 * t) - 2 * Math.cos(3 * t) - Math.cos(4 * t));
+        pts.push({ x: px, y: py });
+      }
+      return pts;
+    },
+    star: function () {
+      var N = 250;
+      var pts = [];
+      for (var i = 0; i < N; i++) {
+        var t   = (2 * Math.PI * i) / N;
+        /* 5-pointed star via superimposed harmonics */
+        var r   = 1 + 0.5 * Math.cos(5 * t);
+        pts.push({ x: r * Math.cos(t), y: r * Math.sin(t) });
+      }
+      return pts;
+    },
+    infinity: function () {
+      var N = 300;
+      var pts = [];
+      for (var i = 0; i < N; i++) {
+        var t  = (2 * Math.PI * i) / N;
+        /* Lemniscate of Bernoulli */
+        var d  = 1 + Math.sin(t) * Math.sin(t);
+        var px = Math.cos(t) / d;
+        var py = Math.sin(t) * Math.cos(t) / d;
+        pts.push({ x: px, y: py });
+      }
+      return pts;
+    },
+    rose: function () {
+      var N = 300;
+      var pts = [];
+      for (var i = 0; i < N; i++) {
+        var t  = (2 * Math.PI * i) / N;
+        /* 5-petal rhodonea */
+        var r  = Math.cos(5 * t);
+        pts.push({ x: r * Math.cos(t), y: r * Math.sin(t) });
+      }
+      return pts;
+    },
+    fish: function () {
+      var N = 300;
+      var pts = [];
+      for (var i = 0; i < N; i++) {
+        var t  = (2 * Math.PI * i) / N;
+        /* Tschirnhausen cubic (fish-like curve) */
+        var px = 1 - 3 * Math.sin(t) * Math.sin(t);
+        var py = Math.cos(t) * (1 - 3 * Math.sin(t) * Math.sin(t));
+        pts.push({ x: px, y: py });
+      }
+      return pts;
+    }
+  };
+
+  function loadPreset(name) {
+    var gen   = PRESETS[name];
+    if (!gen) return;
+    var raw   = gen();
+
+    /* Scale to fit ~60% of canvas */
+    var maxR = 0;
+    for (var i = 0; i < raw.length; i++) {
+      var r = Math.sqrt(raw[i].x * raw[i].x + raw[i].y * raw[i].y);
+      if (r > maxR) maxR = r;
+    }
+    var scale = (Math.min(W, H) * 0.42) / (maxR || 1);
+    var cx    = W / 2;
+    var cy    = H / 2;
+
+    drawPoints = raw.map(function (p) {
+      return { x: cx + p.x * scale, y: cy + p.y * scale };
+    });
+
+    /* Run the same analysis pipeline */
+    analyze();
+  }
+
+  /* ── POINTER EVENTS ──────────────────────────────────────────────────── */
+  canvas.addEventListener('pointerdown', function (e) {
+    if (state !== 'drawing') return;
+    isDown = true;
+    canvas.setPointerCapture(e.pointerId);
+    var rect = canvas.getBoundingClientRect();
+    drawPoints = [{ x: e.clientX - rect.left, y: e.clientY - rect.top }];
+    drawHint.style.display = 'none';
+    renderDrawing();
+  });
+
+  canvas.addEventListener('pointermove', function (e) {
+    if (!isDown || state !== 'drawing') return;
+    var rect = canvas.getBoundingClientRect();
+    var pt   = { x: e.clientX - rect.left, y: e.clientY - rect.top };
+    var last = drawPoints[drawPoints.length - 1];
+    var dx   = pt.x - last.x;
+    var dy   = pt.y - last.y;
+    if (dx * dx + dy * dy >= MIN_MOVE_SQ) {
+      drawPoints.push(pt);
+      renderDrawing();
+    }
+  });
+
+  canvas.addEventListener('pointerup',     function () { isDown = false; });
+  canvas.addEventListener('pointercancel', function () { isDown = false; });
+
+  /* ── CONTROLS ────────────────────────────────────────────────────────── */
+  document.getElementById('start-btn').addEventListener('pointerdown', function () {
+    overlay.style.display = 'none';
+    startDraw();
+  });
+
+  drawBtn.addEventListener('pointerdown',    startDraw);
+  analyzeBtn.addEventListener('pointerdown', analyze);
+  clearBtn.addEventListener('pointerdown',   clear);
+  exportBtn.addEventListener('pointerdown',  exportPNG);
+
+  circlesRange.addEventListener('input', function () {
+    numCircles             = parseInt(circlesRange.value, 10);
+    circlesVal.textContent = numCircles;
+    if (state === 'playing' || state === 'paused') {
+      tracePoints = [];
+      playT       = 0;
+      cycleCount  = 0;
+      cycleCtr.textContent = '';
+      updateQualityBadge();
+    }
+  });
+
+  speedRange.addEventListener('input', function () {
+    speedMult             = parseInt(speedRange.value, 10);
+    speedVal.textContent  = speedMult;
+  });
+
+  document.querySelectorAll('.preset-btn').forEach(function (btn) {
+    btn.addEventListener('pointerdown', function () {
+      loadPreset(btn.getAttribute('data-preset'));
+    });
+  });
+
+  /* ── KEYBOARD ────────────────────────────────────────────────────────── */
+  document.addEventListener('keydown', function (e) {
+    if (e.target.tagName === 'INPUT') return;
+    switch (e.key) {
+      case 'd': case 'D': startDraw();    break;
+      case 'a': case 'A': analyze();      break;
+      case 'c': case 'C': clear();        break;
+      case ' ':
+        e.preventDefault();
+        if (state === 'playing' || state === 'paused') togglePause();
+        break;
+      case '+': case '=':
+        numCircles = Math.min(parseInt(circlesRange.max, 10), numCircles + 5);
+        circlesRange.value     = numCircles;
+        circlesVal.textContent = numCircles;
+        if (state === 'playing' || state === 'paused') { tracePoints = []; playT = 0; updateQualityBadge(); }
+        break;
+      case '-': case '_':
+        numCircles = Math.max(1, numCircles - 5);
+        circlesRange.value     = numCircles;
+        circlesVal.textContent = numCircles;
+        if (state === 'playing' || state === 'paused') { tracePoints = []; playT = 0; updateQualityBadge(); }
+        break;
+    }
+  });
+
+  /* ── RESIZE ──────────────────────────────────────────────────────────── */
+  window.addEventListener('resize', function () {
+    resize();
+    if (state === 'playing' || state === 'paused') { tracePoints = []; playT = 0; }
+  });
+
+  /* ── INIT ────────────────────────────────────────────────────────────── */
+  resize();
+
+})();
+</script>
+</body>
+</html>
