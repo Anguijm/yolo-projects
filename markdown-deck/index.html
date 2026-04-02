@@ -22,6 +22,7 @@ textarea:focus { outline: none; }
 .slide-container { flex: 1; display: flex; align-items: center; justify-content: center; padding: 0.5rem; overflow: hidden; position: relative; }
 /* Preview slide: render at presentation-size fonts, then scale to fit container */
 .slide { width: 960px; height: 540px; background: #0a0a0a; border-radius: 6px; border: 1px solid #222; padding: 3rem 4rem; display: flex; flex-direction: column; justify-content: center; overflow: hidden; position: relative; transform-origin: center center; }
+.slide-inner { max-height: 100%; transform-origin: top left; }
 .slide.has-positioned { justify-content: flex-start; }
 .pos-block { position: absolute; box-sizing: border-box; }
 /* Use presentation-scale fonts so preview matches presentation exactly */
@@ -350,6 +351,7 @@ These are speaker notes. They won't appear in the presentation but are preserved
     <button onclick="applyDesign()">Apply</button>
     <button onclick="toggleDesignPanel()">Close</button>
   </div>
+  <div style="padding:0.3rem 0.75rem;border-bottom:1px solid #1a1a1a;font-size:0.45rem;color:#666;line-height:1.4">Theme applies to <strong style="color:#aaa">all slides</strong> globally. To override a single slide, add <code style="color:#58a6ff">&lt;!-- bg: #color, text: #color --&gt;</code> in that slide's markdown.</div>
   <div style="padding:0.4rem 0.75rem;border-bottom:1px solid #1a1a1a;display:flex;gap:4px;flex-wrap:wrap">
     <button class="preset-theme" onclick="loadTheme('default')" style="background:#1a1a1a;border:1px solid #333;color:#888;padding:2px 8px;font-size:0.6rem;cursor:pointer;border-radius:3px;font-family:inherit">Dark</button>
     <button class="preset-theme" onclick="loadTheme('midnight')" style="background:#1a1a1a;border:1px solid #333;color:#888;padding:2px 8px;font-size:0.6rem;cursor:pointer;border-radius:3px;font-family:inherit">Midnight</button>
@@ -771,8 +773,8 @@ function md(text) {
 
   // 6. Inline formatting
   html = html
-    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-    .replace(/\*(.+?)\*/g, '<em>$1</em>')
+    .replace(/\*\*([\s\S]+?)\*\*/g, '<strong>$1</strong>')
+    .replace(/\*([^\s*][\s\S]*?[^\s*]|[^\s*])\*/g, '<em>$1</em>')
     .replace(/~~(.+?)~~/g, '<del>$1</del>')
     .replace(/==(.+?)==/g, '<mark>$1</mark>')
     .replace(/\^(.+?)\^/g, '<sup>$1</sup>')
@@ -958,12 +960,30 @@ function scalePreviewSlide() {
   slide.style.transform = 'scale(' + scale + ')';
 }
 
+// Auto-shrink content that overflows the slide
+function autoFitContent(slideEl) {
+  var inner = slideEl.querySelector('.slide-inner');
+  if (!inner) return;
+  inner.style.transform = '';
+  var slideH = slideEl.clientHeight;
+  var pad = parseFloat(getComputedStyle(slideEl).paddingTop) + parseFloat(getComputedStyle(slideEl).paddingBottom);
+  var available = slideH - pad;
+  var contentH = inner.scrollHeight;
+  if (contentH > available && available > 0) {
+    var scale = available / contentH;
+    scale = Math.max(scale, 0.5); // don't shrink below 50%
+    inner.style.transform = 'scale(' + scale + ')';
+    inner.style.transformOrigin = 'top left';
+    inner.style.width = (100 / scale) + '%';
+  }
+}
+
 function renderPreview() {
   if (slides.length === 0) {
     previewEl.innerHTML = '<p style="color:#555">Type markdown and separate slides with ---</p>';
     return;
   }
-  previewEl.innerHTML = md(slides[currentSlide]);
+  previewEl.innerHTML = '<div class="slide-inner">' + md(slides[currentSlide]) + '</div>';
   // Apply per-slide theme overrides
   var slideEl = previewEl.closest('.slide') || previewEl;
   var ovStyle = overridesToStyle(window._currentSlideOverrides || {});
@@ -974,8 +994,11 @@ function renderPreview() {
   } else {
     slideEl.classList.remove('has-positioned');
   }
-  // Scale slide to fit container
-  requestAnimationFrame(scalePreviewSlide);
+  // Scale slide to fit container, then auto-fit content
+  requestAnimationFrame(function() {
+    scalePreviewSlide();
+    autoFitContent(previewEl);
+  });
 
   // Thumbnails (draggable for reordering)
   thumbsEl.innerHTML = slides.map((s, i) => {
@@ -986,7 +1009,7 @@ function renderPreview() {
 
 function renderPresent() {
   if (slides.length === 0) return;
-  presentSlideEl.innerHTML = md(slides[currentSlide]);
+  presentSlideEl.innerHTML = '<div class="slide-inner">' + md(slides[currentSlide]) + '</div>';
   var ovStyleP = overridesToStyle(window._currentSlideOverrides || {});
   presentSlideEl.style.cssText = ovStyleP;
   if (presentSlideEl.querySelector('.pos-flag')) {
@@ -1628,6 +1651,7 @@ function svgToPng(svgString, width, height) {
 
 window.exportDeck = async function() {
   if (slides.length === 0) return;
+  try {
 
   // Expand slides with fragments (--) into duplicate slides for PPTX
   var expandedSlides = [];
@@ -1651,6 +1675,7 @@ window.exportDeck = async function() {
   }
 
   var totalSlides = expandedSlides.length;
+  var dims = RATIO_DIMS[currentRatio] || RATIO_DIMS['16/9'];
   var files = [];
   var NS = 'http://schemas.openxmlformats.org/';
   var NSDR = NS + 'drawingml/2006/main';
@@ -1762,8 +1787,11 @@ window.exportDeck = async function() {
   var a = document.createElement('a');
   a.href = url;
   a.download = 'presentation.pptx';
+  document.body.appendChild(a);
   a.click();
+  document.body.removeChild(a);
   setTimeout(function() { URL.revokeObjectURL(url); }, 1000);
+  } catch(err) { console.error('PPTX export failed:', err); alert('PPTX export failed: ' + err.message); }
 };
 
 // ============ TEMPLATE LIBRARY ============
@@ -1919,6 +1947,9 @@ function renderLayoutOverlay() {
     html += esc(preview);
     html += '<div class="layout-handle se" data-idx="' + i + '"></div>';
     html += '</div>';
+  }
+  if (layoutBlocks.length === 0) {
+    html += '<div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);text-align:center;color:#58a6ff;font-size:0.7rem;pointer-events:none;opacity:0.8">LAYOUT MODE<br><span style="font-size:0.5rem;color:#888">Click + Block to add positioned elements</span></div>';
   }
   html += '<button class="layout-add" onclick="addLayoutBlock()">+ Block</button>';
   overlay.innerHTML = html;
@@ -2267,24 +2298,15 @@ document.addEventListener('keydown', function(e) {
 window.saveDeck = function() {
   var content = inputEl.value;
   autoSave(); // Also persist to localStorage
-  // Try modern File System Access API first
-  if (window.showSaveFilePicker) {
-    window.showSaveFilePicker({
-      suggestedName: 'presentation.md',
-      types: [{ description: 'Markdown', accept: { 'text/markdown': ['.md'] } }]
-    }).then(function(handle) {
-      return handle.createWritable().then(function(w) {
-        return w.write(content).then(function() { return w.close(); });
-      });
-    }).catch(function() {}); // User cancelled
-  } else {
-    // Fallback: Blob download
-    var blob = new Blob([content], { type: 'text/markdown' });
-    var url = URL.createObjectURL(blob);
-    var a = document.createElement('a');
-    a.href = url; a.download = 'presentation.md'; a.click();
-    setTimeout(function() { URL.revokeObjectURL(url); }, 1000);
-  }
+  // Always use blob download (reliable across all browsers)
+  var blob = new Blob([content], { type: 'text/markdown' });
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement('a');
+  a.href = url; a.download = 'presentation.md';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(function() { URL.revokeObjectURL(url); }, 1000);
 };
 
 // Open .md file

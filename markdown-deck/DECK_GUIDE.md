@@ -665,6 +665,13 @@ This gives you a visual alternative to typing `[@ x:... y:... w:...]` by hand. T
 
 The Theme panel accepts a structured token document that controls all visual styling. Write tokens as `key: value` pairs under markdown headings.
 
+**Important: Global vs Per-Slide Styling**
+
+- **Theme panel** = applies to **ALL slides** globally. Change `background: #0a0a0a` in the theme and every slide gets that background.
+- **Per-slide overrides** = apply to **ONE slide** only. Add `<!-- bg: #1a2b3c, text: #ffffff -->` at the top of a slide's markdown to override the theme for that slide.
+- Per-slide overrides take priority over the global theme.
+- If a slide looks different from the theme, check if it has a `<!-- -->` override comment.
+
 ### Full Token Reference
 
 ```

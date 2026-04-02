@@ -126,3 +126,5 @@ These are features complex enough to prototype as standalone YOLO single-session
 | 2026-04-02 | Tock | Template library: 6 pre-built decks (pitch, tech review, sprint, lecture, status, blank) |
 | 2026-04-02 | Tick | ssl-check: SSL cert inspector (COUNCIL PILOT: bugs + security reviews) |
 | 2026-04-02 | Tock | Preview/present parity: both use 960px virtual slide + scale-to-fit, identical fonts |
+| 2026-04-02 | Tick | shader-forge (#168): live GLSL editor + naval-scribe (#169): naval correspondence .docx |
+| 2026-04-02 | Tock | 6-bug fix: PPTX dims scoping, content auto-fit, Save reliability, Layout UX, bold regex, theme docs |
