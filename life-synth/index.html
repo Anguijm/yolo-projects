@@ -1,0 +1,664 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="theme-color" content="#000000">
+<title>LIFE-SYNTH</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body {
+  height: 100%;
+  background: #0a0a0a;
+  overflow: hidden;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Courier New", monospace;
+  color: #aaa;
+  user-select: none;
+}
+
+#app {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  padding: 8px;
+  gap: 5px;
+}
+
+/* HEADER */
+#header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-shrink: 0;
+}
+#title {
+  font-size: 0.65rem;
+  letter-spacing: 0.25em;
+  text-transform: uppercase;
+  color: #0ff;
+}
+#gen-display {
+  font-size: 0.5rem;
+  letter-spacing: 0.15em;
+  color: #444;
+}
+
+/* CANVAS AREA */
+#grid-area {
+  flex: 1;
+  min-height: 0;
+  position: relative;
+  display: flex;
+}
+#cv {
+  display: block;
+  flex: 1;
+  cursor: crosshair;
+  image-rendering: pixelated;
+}
+
+/* TRANSPORT ROW */
+#transport {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+  align-items: center;
+}
+
+.btn {
+  padding: 5px 10px;
+  background: transparent;
+  border: 1px solid #1a1a1a;
+  color: #444;
+  font-family: inherit;
+  font-size: 0.55rem;
+  cursor: pointer;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  min-height: 36px;
+  flex-shrink: 0;
+}
+.btn:active { border-color: #555; color: #888; }
+.btn.active { border-color: #0ff; color: #0ff; }
+
+#bpm-wrap {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex: 1;
+  min-width: 0;
+}
+#bpm-label { font-size: 0.45rem; letter-spacing: 0.15em; color: #444; text-transform: uppercase; flex-shrink: 0; }
+#bpm { flex: 1; height: 3px; accent-color: #0ff; cursor: pointer; min-width: 0; }
+#bpm-val { font-size: 0.5rem; color: #555; min-width: 28px; text-align: right; }
+
+/* CONTROLS ROW */
+#controls {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+  align-items: center;
+}
+
+.sel {
+  background: transparent;
+  border: 1px solid #1a1a1a;
+  color: #555;
+  font-family: inherit;
+  font-size: 0.5rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 4px 6px;
+  cursor: pointer;
+  outline: none;
+  min-height: 36px;
+}
+.sel option { background: #111; color: #aaa; }
+.sel:focus { border-color: #444; color: #aaa; }
+
+/* PRESET ROW */
+#presets {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+}
+#presets .btn { flex: 1; font-size: 0.5rem; padding: 4px 6px; min-height: 30px; }
+
+/* HINT LINE */
+#hint {
+  font-size: 0.4rem;
+  color: #333;
+  letter-spacing: 0.1em;
+  text-align: center;
+  flex-shrink: 0;
+  text-transform: uppercase;
+}
+</style>
+</head>
+<body>
+<div id="app">
+
+  <div id="header">
+    <span id="title">LIFE-SYNTH</span>
+    <span id="gen-display">GEN <span id="gen-val">0</span></span>
+  </div>
+
+  <div id="grid-area">
+    <canvas id="cv"></canvas>
+  </div>
+
+  <div id="transport">
+    <button class="btn active" id="play-btn" title="Play / pause the scan (SPACE)">PAUSE</button>
+    <button class="btn" id="evolve-btn" title="Evolve CA one generation per sweep (E)">EVOL</button>
+    <div id="bpm-wrap">
+      <span id="bpm-label">BPM</span>
+      <input type="range" id="bpm" min="40" max="240" value="120" step="1">
+      <span id="bpm-val">120</span>
+    </div>
+  </div>
+
+  <div id="controls">
+    <select class="sel" id="scale-sel" title="Scale / pitch set">
+      <option value="pentatonic">PENTA</option>
+      <option value="major">MAJOR</option>
+      <option value="minor">MINOR</option>
+      <option value="blues">BLUES</option>
+      <option value="chromatic">CHROM</option>
+    </select>
+    <select class="sel" id="wave-sel" title="Oscillator waveform">
+      <option value="sine">SINE</option>
+      <option value="triangle">TRI</option>
+      <option value="square">SQR</option>
+      <option value="sawtooth">SAW</option>
+    </select>
+    <select class="sel" id="rule-sel" title="Cellular automaton rule">
+      <option value="life">LIFE</option>
+      <option value="highlife">HILIF</option>
+      <option value="seeds">SEEDS</option>
+      <option value="maze">MAZE</option>
+    </select>
+    <button class="btn" id="clear-btn" title="Clear all cells (C)">CLR</button>
+    <button class="btn" id="random-btn" title="Random fill 28% (R)">RND</button>
+  </div>
+
+  <div id="presets">
+    <button class="btn" id="p-glider" title="Glider — travels and creates moving melody">GLIDER</button>
+    <button class="btn" id="p-pulsar" title="Pulsar — period-3 oscillator, steady rhythm">PULSAR</button>
+    <button class="btn" id="p-acorn"  title="Acorn — chaotic long-lived growth">ACORN</button>
+    <button class="btn" id="p-rpen"   title="R-pentomino — explosive chaotic growth">R-PEN</button>
+  </div>
+
+  <div id="hint">DRAW CELLS ON GRID &middot; SPACE=PLAY &middot; E=EVOL &middot; R=RANDOM &middot; C=CLEAR</div>
+
+</div>
+
+<script>
+(function() {
+'use strict';
+
+/* ── Constants ── */
+var COLS = 32;
+var ROWS = 16;
+
+/* Scales: MIDI note numbers, row 0 = bottom = LOWEST pitch */
+var SCALE_MIDI = {
+  pentatonic: [48,50,52,55,57, 60,62,64,67,69, 72,74,76,79,81, 84],
+  major:      [48,50,52,53,55, 57,59,60,62,64, 65,67,69,71,72, 74],
+  minor:      [48,50,51,53,55, 56,58,60,62,63, 65,67,68,70,72, 74],
+  blues:      [48,51,53,54,55, 58,60,63,65,66, 67,70,72,75,77, 78],
+  chromatic:  [48,49,50,51,52, 53,54,55,56,57, 58,59,60,61,62, 63]
+};
+
+/* ── CA Rules ── */
+var RULES = {
+  life:     function(alive, n) { return alive ? (n === 2 || n === 3) : (n === 3); },
+  highlife: function(alive, n) { return alive ? (n === 2 || n === 3) : (n === 3 || n === 6); },
+  seeds:    function(alive, n) { return alive ? false : (n === 2); },
+  maze:     function(alive, n) { return alive ? (n >= 1 && n <= 5) : (n === 3); }
+};
+
+/* ── State ── */
+var grid     = new Uint8Array(COLS * ROWS);
+var nextGrid = new Uint8Array(COLS * ROWS);
+
+/* flashFrames[i] = frames remaining for cell i to flash */
+var flashFrames = new Uint8Array(COLS * ROWS);
+
+var S = {
+  playing:  true,
+  evolving: false,
+  playCol:  0,
+  gen:      0,
+  bpm:      120,
+  scale:    'pentatonic',
+  wave:     'sine',
+  rule:     'life'
+};
+
+/* ── Audio ── */
+var actx       = null;
+var masterGain = null;
+var compressor = null;
+
+function ensureAudio() {
+  if (actx) return;
+  actx = new (window.AudioContext || window.webkitAudioContext)();
+  compressor = actx.createDynamicsCompressor();
+  compressor.threshold.value = -18;
+  compressor.knee.value = 6;
+  compressor.ratio.value = 4;
+  compressor.attack.value = 0.003;
+  compressor.release.value = 0.25;
+  masterGain = actx.createGain();
+  masterGain.gain.value = 0.7;
+  compressor.connect(masterGain);
+  masterGain.connect(actx.destination);
+}
+
+function resumeAudio() {
+  if (actx && actx.state === 'suspended') {
+    actx.resume();
+  }
+}
+
+function midiToFreq(midi) {
+  return 440 * Math.pow(2, (midi - 69) / 12);
+}
+
+function playNote(freq, startTime, duration, rowFrac) {
+  /* rowFrac = 0 (bottom/low) to 1 (top/high)
+     Higher rows get slightly lower volume for natural instrument tapering */
+  if (!actx) return;
+  var osc = actx.createOscillator();
+  var env = actx.createGain();
+  osc.type = S.wave;
+  osc.frequency.value = freq;
+  osc.connect(env);
+  env.connect(compressor);
+
+  /* Per-note peak: low notes at 0.14, high notes at 0.08 */
+  var peakVol = 0.14 - rowFrac * 0.06;
+  var attack  = 0.006;
+  var release = Math.min(duration * 0.45, 0.10);
+
+  env.gain.setValueAtTime(0, startTime);
+  env.gain.linearRampToValueAtTime(peakVol, startTime + attack);
+  env.gain.setValueAtTime(peakVol, startTime + duration - release);
+  env.gain.linearRampToValueAtTime(0, startTime + duration);
+
+  osc.start(startTime);
+  osc.stop(startTime + duration + 0.01);
+}
+
+/* ── Grid helpers ── */
+function idx(col, row) { return col * ROWS + row; }
+
+function cellAt(col, row) {
+  if (col < 0 || col >= COLS || row < 0 || row >= ROWS) return 0;
+  return grid[idx(col, row)];
+}
+
+function setCell(col, row, val) {
+  if (col < 0 || col >= COLS || row < 0 || row >= ROWS) return;
+  grid[idx(col, row)] = val ? 1 : 0;
+}
+
+function clearGrid() {
+  grid.fill(0);
+  flashFrames.fill(0);
+  S.gen = 0;
+  document.getElementById('gen-val').textContent = '0';
+}
+
+function randomFill() {
+  for (var i = 0; i < COLS * ROWS; i++) {
+    grid[i] = (Math.random() < 0.28) ? 1 : 0;
+  }
+  flashFrames.fill(0);
+  S.gen = 0;
+  document.getElementById('gen-val').textContent = '0';
+}
+
+function evolve() {
+  var rule = RULES[S.rule];
+  for (var col = 0; col < COLS; col++) {
+    for (var row = 0; row < ROWS; row++) {
+      var alive = grid[idx(col, row)];
+      var n = 0;
+      for (var dc = -1; dc <= 1; dc++) {
+        for (var dr = -1; dr <= 1; dr++) {
+          if (dc === 0 && dr === 0) continue;
+          var nc = (col + dc + COLS) % COLS;
+          var nr = (row + dr + ROWS) % ROWS;
+          n += grid[idx(nc, nr)];
+        }
+      }
+      nextGrid[idx(col, row)] = rule(alive, n) ? 1 : 0;
+    }
+  }
+  /* Swap buffers */
+  var tmp = grid;
+  grid = nextGrid;
+  nextGrid = tmp;
+  S.gen++;
+  document.getElementById('gen-val').textContent = String(S.gen);
+}
+
+/* ── Presets ── */
+function loadPreset(name) {
+  clearGrid();
+  var cx = (COLS / 2) | 0;
+  var cy = (ROWS / 2) | 0;
+
+  if (name === 'glider') {
+    var cells = [[1,0],[2,1],[0,2],[1,2],[2,2]];
+    cells.forEach(function(c) { setCell(c[0], c[1], 1); });
+  } else if (name === 'pulsar') {
+    /* Pulsar (period-3) — 13×13, centred */
+    var pulsar = [
+      [2,0],[3,0],[4,0],[8,0],[9,0],[10,0],
+      [0,2],[5,2],[7,2],[12,2],
+      [0,3],[5,3],[7,3],[12,3],
+      [0,4],[5,4],[7,4],[12,4],
+      [2,5],[3,5],[4,5],[8,5],[9,5],[10,5],
+      [2,7],[3,7],[4,7],[8,7],[9,7],[10,7],
+      [0,8],[5,8],[7,8],[12,8],
+      [0,9],[5,9],[7,9],[12,9],
+      [0,10],[5,10],[7,10],[12,10],
+      [2,12],[3,12],[4,12],[8,12],[9,12],[10,12]
+    ];
+    var ox = cx - 6, oy = cy - 6;
+    pulsar.forEach(function(c) { setCell(ox + c[0], oy + c[1], 1); });
+  } else if (name === 'acorn') {
+    var acorn = [[1,0],[3,1],[0,2],[1,2],[4,2],[5,2],[6,2]];
+    var ox2 = cx - 3, oy2 = cy - 1;
+    acorn.forEach(function(c) { setCell(ox2 + c[0], oy2 + c[1], 1); });
+  } else if (name === 'rpen') {
+    var rpen = [[1,0],[2,0],[0,1],[1,1],[1,2]];
+    rpen.forEach(function(c) { setCell(cx - 1 + c[0], cy - 1 + c[1], 1); });
+  }
+}
+
+/* ── Rendering ── */
+var canvas = document.getElementById('cv');
+var ctx = canvas.getContext('2d');
+var CW = 1, CH = 1;
+var offX = 0, offY = 0;
+var DPR = Math.min(window.devicePixelRatio || 1, 2);
+
+function resize() {
+  var wrap = document.getElementById('grid-area');
+  var W = wrap.clientWidth;
+  var H = wrap.clientHeight;
+  canvas.width  = W * DPR;
+  canvas.height = H * DPR;
+  canvas.style.width  = W + 'px';
+  canvas.style.height = H + 'px';
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  CW = Math.floor(W / COLS);
+  CH = Math.floor(H / ROWS);
+}
+
+function render() {
+  var W = canvas.width / DPR;
+  var H = canvas.height / DPR;
+  offX = Math.floor((W - CW * COLS) / 2);
+  offY = Math.floor((H - CH * ROWS) / 2);
+
+  ctx.fillStyle = '#0a0a0a';
+  ctx.fillRect(0, 0, W, H);
+
+  /* Grid lines */
+  ctx.strokeStyle = '#111';
+  ctx.lineWidth = 0.5;
+  for (var c = 0; c <= COLS; c++) {
+    ctx.beginPath();
+    ctx.moveTo(offX + c * CW, offY);
+    ctx.lineTo(offX + c * CW, offY + CH * ROWS);
+    ctx.stroke();
+  }
+  for (var r = 0; r <= ROWS; r++) {
+    ctx.beginPath();
+    ctx.moveTo(offX, offY + r * CH);
+    ctx.lineTo(offX + CW * COLS, offY + r * CH);
+    ctx.stroke();
+  }
+
+  /* Cells */
+  for (var col = 0; col < COLS; col++) {
+    for (var row = 0; row < ROWS; row++) {
+      var i = idx(col, row);
+      var alive = grid[i];
+      var flash = flashFrames[i];
+
+      if (alive || flash > 0) {
+        var x = offX + col * CW + 1;
+        var y = offY + row * CH + 1;
+        var w = CW - 2;
+        var h = CH - 2;
+
+        if (flash > 0) {
+          /* Bright flash: white → cyan over 10 frames */
+          var t = flash / 10;
+          var rr = Math.round(255 * t);
+          ctx.fillStyle = 'rgb(' + rr + ',255,255)';
+        } else {
+          ctx.fillStyle = 'rgba(0,255,255,0.5)';
+        }
+        ctx.fillRect(x, y, w, h);
+      }
+    }
+  }
+
+  /* Scanline glow */
+  if (S.playing) {
+    var slx = offX + S.playCol * CW;
+    var grad = ctx.createLinearGradient(slx - CW, 0, slx + CW * 2, 0);
+    grad.addColorStop(0,    'rgba(0,255,255,0.0)');
+    grad.addColorStop(0.35, 'rgba(0,255,255,0.12)');
+    grad.addColorStop(0.5,  'rgba(0,255,255,0.22)');
+    grad.addColorStop(0.65, 'rgba(0,255,255,0.12)');
+    grad.addColorStop(1,    'rgba(0,255,255,0.0)');
+    ctx.fillStyle = grad;
+    ctx.fillRect(slx - CW, offY, CW * 3, CH * ROWS);
+
+    ctx.strokeStyle = 'rgba(0,255,255,0.65)';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(slx, offY);
+    ctx.lineTo(slx, offY + CH * ROWS);
+    ctx.stroke();
+  }
+
+  /* Decay flash AFTER rendering so we use this frame's values, decrement for next */
+  for (var fi = 0; fi < flashFrames.length; fi++) {
+    if (flashFrames[fi] > 0) flashFrames[fi]--;
+  }
+}
+
+/* ── Tick scheduler ── */
+var lastTick = 0;
+var colsSinceEvolve = 0;
+
+function getColDurMs() {
+  /* One column = one 16th note at BPM */
+  return 15000 / S.bpm;
+}
+
+function tick(now) {
+  if (!lastTick) lastTick = now;
+  var durMs = getColDurMs();
+
+  if (now - lastTick >= durMs) {
+    lastTick += durMs;
+    /* Prevent spiral if tab was backgrounded */
+    if (now - lastTick > durMs * 4) lastTick = now;
+
+    if (S.playing) {
+      ensureAudio();
+      resumeAudio();
+      var curTime = actx ? actx.currentTime : 0;
+      var noteDur = Math.max(0.04, (durMs / 1000) * 0.72);
+      var midiArr = SCALE_MIDI[S.scale];
+
+      /* Count alive cells in this column first (for potential polyphony scaling) */
+      for (var row = 0; row < ROWS; row++) {
+        var i = idx(S.playCol, row);
+        if (grid[i]) {
+          /* row 0 = bottom = low freq; row ROWS-1 = top = high freq */
+          var rowFrac = row / (ROWS - 1);
+          var freq = midiToFreq(midiArr[row]);
+          playNote(freq, curTime + 0.005, noteDur, rowFrac);
+          /* Set flash: 10 frames */
+          flashFrames[i] = 10;
+        }
+      }
+
+      S.playCol = (S.playCol + 1) % COLS;
+      colsSinceEvolve++;
+
+      if (S.evolving && colsSinceEvolve >= COLS) {
+        evolve();
+        colsSinceEvolve = 0;
+      }
+    }
+  }
+
+  render();
+  requestAnimationFrame(tick);
+}
+
+/* ── Pointer drawing ── */
+var drawing    = false;
+var drawValue  = 1;
+var lastCell   = -1;
+
+function pointerToCell(e) {
+  var rect = canvas.getBoundingClientRect();
+  var x = e.clientX - rect.left;
+  var y = e.clientY - rect.top;
+  var col = Math.floor((x - offX) / CW);
+  var row = Math.floor((y - offY) / CH);
+  if (col < 0 || col >= COLS || row < 0 || row >= ROWS) return -1;
+  return idx(col, row);
+}
+
+canvas.addEventListener('pointerdown', function(e) {
+  e.preventDefault();
+  canvas.setPointerCapture(e.pointerId);
+  ensureAudio();
+  resumeAudio();
+  var i = pointerToCell(e);
+  if (i < 0) return;
+  drawing   = true;
+  drawValue = grid[i] ? 0 : 1;
+  grid[i]   = drawValue;
+  lastCell  = i;
+});
+
+canvas.addEventListener('pointermove', function(e) {
+  if (!drawing) return;
+  e.preventDefault();
+  var i = pointerToCell(e);
+  if (i < 0 || i === lastCell) return;
+  grid[i]  = drawValue;
+  lastCell = i;
+});
+
+canvas.addEventListener('pointerup',     function() { drawing = false; lastCell = -1; });
+canvas.addEventListener('pointercancel', function() { drawing = false; lastCell = -1; });
+
+/* ── Controls ── */
+var playBtn = document.getElementById('play-btn');
+playBtn.addEventListener('pointerdown', function(e) {
+  e.preventDefault();
+  ensureAudio();
+  resumeAudio();
+  S.playing = !S.playing;
+  if (S.playing) {
+    this.textContent = 'PAUSE';
+    this.classList.add('active');
+  } else {
+    this.textContent = 'PLAY';
+    this.classList.remove('active'); /* FIX: was classList.add */
+  }
+});
+
+var evolveBtn = document.getElementById('evolve-btn');
+evolveBtn.addEventListener('pointerdown', function(e) {
+  e.preventDefault();
+  S.evolving = !S.evolving;
+  this.classList.toggle('active', S.evolving);
+  colsSinceEvolve = 0;
+});
+
+var bpmSlider = document.getElementById('bpm');
+var bpmValEl  = document.getElementById('bpm-val');
+bpmSlider.addEventListener('input', function() {
+  S.bpm = parseInt(this.value, 10);
+  bpmValEl.textContent = String(S.bpm);
+  lastTick = 0;
+});
+
+document.getElementById('scale-sel').addEventListener('change', function() {
+  S.scale = this.value;
+});
+document.getElementById('wave-sel').addEventListener('change', function() {
+  S.wave = this.value;
+});
+document.getElementById('rule-sel').addEventListener('change', function() {
+  S.rule = this.value;
+});
+
+document.getElementById('clear-btn').addEventListener('pointerdown', function(e) {
+  e.preventDefault();
+  clearGrid();
+});
+document.getElementById('random-btn').addEventListener('pointerdown', function(e) {
+  e.preventDefault();
+  randomFill();
+});
+
+['glider','pulsar','acorn','rpen'].forEach(function(name) {
+  var el = document.getElementById('p-' + name);
+  if (el) {
+    el.addEventListener('pointerdown', function(e) {
+      e.preventDefault();
+      loadPreset(name);
+    });
+  }
+});
+
+/* ── Keyboard ── */
+document.addEventListener('keydown', function(e) {
+  if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
+  if (e.key === ' ') {
+    e.preventDefault();
+    playBtn.dispatchEvent(Object.assign(new Event('pointerdown'), { preventDefault: function() {} }));
+  } else if (e.key === 'e' || e.key === 'E') {
+    evolveBtn.dispatchEvent(Object.assign(new Event('pointerdown'), { preventDefault: function() {} }));
+  } else if (e.key === 'c' || e.key === 'C') {
+    clearGrid();
+  } else if (e.key === 'r' || e.key === 'R') {
+    randomFill();
+  }
+});
+
+/* ── Init ── */
+window.addEventListener('resize', function() {
+  resize();
+  lastTick = 0;
+});
+
+resize();
+loadPreset('glider');
+requestAnimationFrame(tick);
+
+})();
+</script>
+</body>
+</html>

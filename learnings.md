@@ -2871,3 +2871,15 @@ Sequential Gemini reviews (focus: bugs, then security) caught **different issue 
 - **INSIGHT**: Depth-based coloring requires careful tuning. Dragon Curve has no `[` brackets → depth stays 0 → single color, which looks flat. Document this in tooltips or auto-switch to spectrum mode when depth=0 throughout.
 - **INSIGHT**: `btoa(unescape(encodeURIComponent(json)))` is the correct cross-browser pattern for base64-encoding Unicode JSON. The inverse is `JSON.parse(decodeURIComponent(escape(atob(hash))))`. This handles any Unicode chars in production rules.
 - **TEST CAUGHT**: Dead variable `animProgress` caught by self-audit. Depth overflow and seqInfo format bug caught by UI review. No bugs caught by automated tests (all were logic/UX issues).
+
+### life-synth (2026-04-02)
+- **KEEP**: Conway's Game of Life + step sequencer = genuinely novel combo. CA scanline (column-per-16th-note) makes emergent musical patterns from simple rules. The concept generalizes: any 2D CA on a time-axis grid produces generative sequences.
+- **KEEP**: `flashFrames[i]--` AFTER rendering (not during) — compute all cell visuals using current flashFrames, then decrement in a separate pass. Prevents render order from affecting flash duration.
+- **KEEP**: `DynamicsCompressorNode` on the audio path — prevents hard clipping when many notes fire simultaneously. Set threshold=-18dB, ratio=4:1, fast attack. Essential for any multi-voice synthesizer.
+- **KEEP**: Per-note gain taper by octave: `peakVol = 0.14 - rowFrac * 0.06` — higher rows get slightly lower gain. Mirrors natural instrument physics (higher harmonics need less gain). Makes chords sound balanced without post-processing.
+- **KEEP**: `colsSinceEvolve` counter — evolve exactly once per full 32-step sweep, not once per rAF. Clean modular arithmetic.
+- **BUG (self-audit)**: `classList.add('active')` in BOTH branches of play toggle — on pause, should be `classList.remove('active')`. Always verify that toggle logic applies the OPPOSITE class operation in each branch.
+- **BUG (self-audit)**: Per-note `peakVol = 0.6` causes severe clipping: 16 notes × 0.6 × 0.55 masterGain = 5.28. Fix: set per-note peak to 0.14 + add DynamicsCompressor. Rule: per-note gain × max simultaneous notes × masterGain must stay below 1.0.
+- **INSIGHT**: For any sequencer, "evolve CA per sweep" is the right granularity — one musical phrase, then one generation step. Per-column evolution is too fast (music never stabilizes); per-user-press is too manual.
+- **INSIGHT**: Keyboard shortcut guard: check `e.target.tagName !== 'INPUT' && !== 'SELECT'` before handling hotkeys — otherwise spacebar in a text field triggers the synth.
+- **TEST CAUGHT**: Both bugs (classList, clipping) found by self-audit (council review). Static tests don't catch UI state bugs or audio math errors.
