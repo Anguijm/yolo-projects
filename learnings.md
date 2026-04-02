@@ -67,6 +67,16 @@ Persistent knowledge base. Read this before every build.
 
 ## Per-Build Reflections
 
+### chmod-calc (2026-04-02)
+- **KEEP**: Single source-of-truth `state` object (one JS object with boolean fields) + one `updateUI()` function that reads it and writes all DOM — eliminates sync bugs between representations. Never update DOM from multiple code paths.
+- **KEEP**: `or_` (trailing underscore) to avoid JS reserved word collision when a state key clashes with a keyword (`or` is not reserved in JS but `or_` disambiguates intent and prevents surprises in strict mode or linters).
+- **KEEP**: `innerHTML` for the colored symbolic display is safe when the source is fully computed from internal boolean state, never from user input. The key check: does any user input flow into the HTML string? No → safe.
+- **KEEP**: Treating octal digits as a decimal "display number" (e.g., `special*1000 + user*100 + group*10 + other`) works cleanly when each digit is independently 0-7 — no base conversion needed, just string concatenation.
+- **IMPROVE**: Never set CSS classes in the initial HTML that match a non-default JS state. The `active-t` class on `#sc-sticky` in HTML caused a visual flash before JS ran. Fix: always start HTML in the "off" state and let `init()` apply correct classes.
+- **INSIGHT**: For utility tools, the "copy command" row (`chmod 644 <filename>`) is the single highest-value feature — it's the reason people open the tool. Add it prominently. Don't bury the actual output.
+- **INSIGHT**: Colored syntax in a monospace display (r=green, w=amber, x=blue) gives each character semantic weight — users immediately know what to look for. Same pattern works for any tokenized string output.
+- **INSIGHT**: "Would someone bookmark this and use it weekly?" test: chmod calculator passes because every sysadmin/backend dev hits it multiple times a week, existing web tools are often slow/ad-laden, and offline access has real value.
+
 ### orbital-slingshot (2026-04-02)
 - **KEEP**: Velocity Verlet integration (`x += v*dt + 0.5*a*dt²; a2 = accel(x_new); v += 0.5*(a+a2)*dt`) is more accurate than Euler for orbital mechanics — energy is better conserved through slingshot turns.
 - **KEEP**: Trajectory preview (run physics forward N steps and draw dotted line) transforms a physics simulation into a puzzle game — player sees consequences before committing.
