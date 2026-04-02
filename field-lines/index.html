@@ -1,0 +1,859 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="theme-color" content="#000000">
+<title>FIELD LINES</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body {
+  height: 100%;
+  background: #0a0a0a;
+  overflow: hidden;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Courier New", monospace;
+  user-select: none;
+}
+:root {
+  --accent: #0ff;
+  --bg-page: #0a0a0a;
+  --bg-surface: #111;
+  --bg-hover: #222;
+  --text-primary: #fff;
+  --text-body: #ccc;
+  --text-secondary: #aaa;
+  --text-tertiary: #555;
+  --text-label: #444;
+  --border-default: #1a1a1a;
+  --border-active: #444;
+}
+#canvas {
+  display: block;
+  cursor: crosshair;
+}
+#ui {
+  position: fixed;
+  bottom: 0; left: 0; right: 0;
+  background: rgba(10,10,10,0.95);
+  border-top: 1px solid #1a1a1a;
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  z-index: 10;
+}
+.row {
+  display: flex;
+  gap: 5px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.label {
+  font-size: 0.42rem;
+  color: var(--text-label);
+  text-transform: uppercase;
+  letter-spacing: 0.2em;
+  white-space: nowrap;
+  min-width: 36px;
+}
+.btn {
+  padding: 5px 9px;
+  background: transparent;
+  border: 1px solid #1a1a1a;
+  color: #444;
+  font-family: inherit;
+  font-size: 0.55rem;
+  cursor: pointer;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  min-height: 36px;
+  transition: border-color 0.1s, color 0.1s;
+}
+.btn:active { border-color: #555; color: #888; }
+.btn.active { border-color: var(--accent); color: var(--accent); }
+.btn.danger { border-color: #f85149; color: #f85149; }
+.btn.north { border-color: #e04; color: #e04; }
+.btn.south { border-color: #04e; color: #04e; }
+.btn.wire-btn { border-color: #fa0; color: #fa0; }
+#strength-row {
+  display: none;
+}
+#strength-row.visible {
+  display: flex;
+}
+input[type="range"] {
+  height: 3px;
+  accent-color: var(--accent);
+  flex: 1;
+  min-width: 60px;
+  cursor: pointer;
+}
+#sel-label {
+  font-size: 0.45rem;
+  color: var(--text-tertiary);
+  letter-spacing: 0.1em;
+}
+#info {
+  position: fixed;
+  top: 10px; left: 50%;
+  transform: translateX(-50%);
+  font-size: 0.45rem;
+  color: var(--text-label);
+  text-transform: uppercase;
+  letter-spacing: 0.2em;
+  pointer-events: none;
+  z-index: 20;
+  text-align: center;
+  white-space: nowrap;
+}
+#title {
+  position: fixed;
+  top: 10px; left: 12px;
+  font-size: 0.6rem;
+  font-weight: 900;
+  color: var(--accent);
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  pointer-events: none;
+  z-index: 20;
+}
+#hint {
+  position: fixed;
+  top: 10px; right: 12px;
+  font-size: 0.4rem;
+  color: var(--text-label);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  pointer-events: none;
+  z-index: 20;
+  text-align: right;
+  line-height: 1.8;
+}
+</style>
+</head>
+<body>
+<div id="title">FIELD LINES</div>
+<div id="hint">TAP CANVAS → ADD SELECTED TYPE<br>DRAG SOURCES TO MOVE</div>
+<canvas id="canvas"></canvas>
+
+<div id="ui">
+  <div class="row">
+    <span class="label">ADD</span>
+    <button class="btn north active" id="btn-north">N POLE</button>
+    <button class="btn south" id="btn-south">S POLE</button>
+    <button class="btn wire-btn" id="btn-wire">WIRE +</button>
+    <button class="btn" id="btn-wire-neg">WIRE −</button>
+    <button class="btn" id="btn-clear">CLEAR</button>
+  </div>
+  <div class="row">
+    <span class="label">VIEW</span>
+    <button class="btn active" id="btn-mode-lines">FIELD LINES</button>
+    <button class="btn" id="btn-mode-filings">IRON FILINGS</button>
+    <button class="btn" id="btn-density">FLUX DENSITY</button>
+    <button class="btn" id="btn-particles">PARTICLES: OFF</button>
+  </div>
+  <div class="row">
+    <span class="label">PRE</span>
+    <button class="btn" id="preset-dipole">DIPOLE</button>
+    <button class="btn" id="preset-quad">QUADRUPOLE</button>
+    <button class="btn" id="preset-wires">2 WIRES</button>
+    <button class="btn" id="preset-coil">SOLENOID</button>
+  </div>
+  <div class="row" id="strength-row">
+    <span class="label" id="sel-label">SEL</span>
+    <input type="range" id="strength-slider" min="1" max="10" step="0.5" value="5">
+    <button class="btn danger" id="btn-delete">DEL</button>
+  </div>
+</div>
+
+<script>
+(function() {
+  /* ── canvas setup ── */
+  const canvas = document.getElementById('canvas');
+  const ctx = canvas.getContext('2d');
+  let W, H, UI_H;
+
+  function resize() {
+    const uiEl = document.getElementById('ui');
+    UI_H = uiEl.offsetHeight;
+    W = window.innerWidth;
+    H = window.innerHeight - UI_H;
+    const DPR = window.devicePixelRatio || 1;
+    canvas.width = W * DPR;
+    canvas.height = H * DPR;
+    canvas.style.width = W + 'px';
+    canvas.style.height = H + 'px';
+    ctx.scale(DPR, DPR);
+    dirty = true;
+  }
+
+  /* ── state ── */
+  var sources = [];
+  var nextId = 1;
+  var selected = null;
+  var dragging = null;
+  var dragOffset = { x: 0, y: 0 };
+  var mode = 'lines'; /* lines | filings | density */
+  var showParticles = false;
+  var addType = 'north'; /* north | south | wire+ | wire- */
+  var dirty = true;
+  var particles = [];
+  var cachedLines = null;
+  var cachedFilings = null;
+  var densityImg = null;
+  var lastRaf = null;
+
+  /* ── physics ── */
+  /* Returns {bx, by} at point (px, py) — superposition of all sources */
+  function fieldAt(px, py) {
+    var bx = 0, by = 0;
+    for (var i = 0; i < sources.length; i++) {
+      var s = sources[i];
+      var dx = px - s.x;
+      var dy = py - s.y;
+      var r2 = dx * dx + dy * dy;
+      if (r2 < 1) continue;
+      var r = Math.sqrt(r2);
+      var r3 = r2 * r;
+      var str = s.strength;
+      if (s.type === 'north') {
+        /* monopole + outward */
+        bx += str * dx / r3;
+        by += str * dy / r3;
+      } else if (s.type === 'south') {
+        /* monopole - inward */
+        bx -= str * dx / r3;
+        by -= str * dy / r3;
+      } else if (s.type === 'wire+') {
+        /* Wire current out of screen: B = (μ₀I/2πr) * tangent CCW */
+        /* tangent = (-dy/r, dx/r) */
+        var mag = str / r2;
+        bx += mag * (-dy);
+        by += mag * dx;
+      } else {
+        /* wire- : current into screen, B CW */
+        var mag2 = str / r2;
+        bx += mag2 * dy;
+        by += mag2 * (-dx);
+      }
+    }
+    return { bx: bx, by: by };
+  }
+
+  /* RK4 streamline step */
+  function rk4Step(px, py, stepSize) {
+    var f1 = fieldAt(px, py);
+    var m1 = Math.sqrt(f1.bx * f1.bx + f1.by * f1.by);
+    if (m1 < 1e-10) return null;
+    var ux1 = f1.bx / m1, uy1 = f1.by / m1;
+
+    var px2 = px + 0.5 * stepSize * ux1;
+    var py2 = py + 0.5 * stepSize * uy1;
+    var f2 = fieldAt(px2, py2);
+    var m2 = Math.sqrt(f2.bx * f2.bx + f2.by * f2.by);
+    if (m2 < 1e-10) return null;
+    var ux2 = f2.bx / m2, uy2 = f2.by / m2;
+
+    var px3 = px + 0.5 * stepSize * ux2;
+    var py3 = py + 0.5 * stepSize * uy2;
+    var f3 = fieldAt(px3, py3);
+    var m3 = Math.sqrt(f3.bx * f3.bx + f3.by * f3.by);
+    if (m3 < 1e-10) return null;
+    var ux3 = f3.bx / m3, uy3 = f3.by / m3;
+
+    var px4 = px + stepSize * ux3;
+    var py4 = py + stepSize * uy3;
+    var f4 = fieldAt(px4, py4);
+    var m4 = Math.sqrt(f4.bx * f4.bx + f4.by * f4.by);
+    if (m4 < 1e-10) return null;
+    var ux4 = f4.bx / m4, uy4 = f4.by / m4;
+
+    return {
+      nx: px + stepSize * (ux1 + 2 * ux2 + 2 * ux3 + ux4) / 6,
+      ny: py + stepSize * (uy1 + 2 * uy2 + 2 * uy3 + uy4) / 6
+    };
+  }
+
+  function traceStreamline(x0, y0, forward) {
+    var pts = [{ x: x0, y: y0 }];
+    var x = x0, y = y0;
+    var step = forward ? 4 : -4;
+    var maxSteps = 400;
+    for (var i = 0; i < maxSteps; i++) {
+      /* stop if out of canvas */
+      if (x < -20 || x > W + 20 || y < -20 || y > H + 20) break;
+      var res = rk4Step(x, y, step);
+      if (!res) break;
+      /* stop if looped back to start */
+      var dx = res.nx - x0, dy2 = res.ny - y0;
+      if (i > 20 && dx * dx + dy2 * dy2 < 16) { pts.push({ x: res.nx, y: res.ny }); break; }
+      /* stop if too close to a source (avoid spiral singularity) */
+      var nearSource = false;
+      for (var j = 0; j < sources.length; j++) {
+        var dsx = res.nx - sources[j].x, dsy = res.ny - sources[j].y;
+        if (dsx * dsx + dsy * dsy < 64) { nearSource = true; break; }
+      }
+      pts.push({ x: res.nx, y: res.ny });
+      if (nearSource) break;
+      x = res.nx; y = res.ny;
+    }
+    return pts;
+  }
+
+  /* Compute seed points around each source and trace field lines */
+  function computeFieldLines() {
+    var allLines = [];
+    for (var i = 0; i < sources.length; i++) {
+      var s = sources[i];
+      /* only north and south poles emit/absorb field lines */
+      /* wires: use 12 seeds in a small ring */
+      var radius = 16;
+      var count = (s.type === 'north' || s.type === 'south') ? 16 : 12;
+      var forward = (s.type !== 'south');
+      for (var k = 0; k < count; k++) {
+        var angle = (k / count) * Math.PI * 2;
+        var sx = s.x + radius * Math.cos(angle);
+        var sy = s.y + radius * Math.sin(angle);
+        var line = traceStreamline(sx, sy, forward);
+        if (line.length > 2) allLines.push(line);
+      }
+    }
+    return allLines;
+  }
+
+  /* Compute iron filings */
+  function computeIronFilings() {
+    var spacing = 20;
+    var cols = Math.floor(W / spacing);
+    var rows = Math.floor(H / spacing);
+    var filings = [];
+    for (var row = 0; row <= rows; row++) {
+      for (var col = 0; col <= cols; col++) {
+        var px = col * spacing + spacing * 0.5;
+        var py = row * spacing + spacing * 0.5;
+        var f = fieldAt(px, py);
+        var mag = Math.sqrt(f.bx * f.bx + f.by * f.by);
+        if (mag < 1e-10) continue;
+        var angle = Math.atan2(f.by, f.bx);
+        var brightness = Math.min(1, mag * 0.15);
+        filings.push({ x: px, y: py, angle: angle, mag: brightness });
+      }
+    }
+    return filings;
+  }
+
+  /* Compute flux density as gradient image */
+  function computeDensityMap() {
+    var scale = 4;
+    var cw = Math.floor(W / scale);
+    var ch = Math.floor(H / scale);
+    var imgData = ctx.createImageData(cw * scale, ch * scale);
+    var buf = new Uint32Array(imgData.data.buffer);
+    for (var row = 0; row < ch; row++) {
+      for (var col = 0; col < cw; col++) {
+        var px = (col + 0.5) * scale;
+        var py = (row + 0.5) * scale;
+        var f = fieldAt(px, py);
+        var mag = Math.sqrt(f.bx * f.bx + f.by * f.by);
+        var t = Math.min(1, mag * 0.06);
+        /* spectral: black → deep blue → cyan → white at high intensity */
+        var r, g, b;
+        if (t < 0.33) {
+          var u = t / 0.33;
+          r = 0; g = Math.round(u * 80) | 0; b = Math.round(u * 255) | 0;
+        } else if (t < 0.66) {
+          var u2 = (t - 0.33) / 0.33;
+          r = 0; g = Math.round(80 + u2 * 175) | 0; b = 255;
+        } else {
+          var u3 = (t - 0.66) / 0.34;
+          r = Math.round(u3 * 255) | 0; g = 255; b = 255;
+        }
+        var a = 255;
+        var color = (a << 24) | (b << 16) | (g << 8) | r;
+        /* fill scale×scale block */
+        for (var dy = 0; dy < scale; dy++) {
+          for (var dx2 = 0; dx2 < scale; dx2++) {
+            buf[(row * scale + dy) * cw * scale + col * scale + dx2] = color;
+          }
+        }
+      }
+    }
+    return imgData;
+  }
+
+  /* ── particles ── */
+  function spawnParticles() {
+    particles = [];
+    var count = 40;
+    for (var i = 0; i < count; i++) {
+      particles.push({
+        x: Math.random() * W,
+        y: Math.random() * H,
+        age: Math.random() * 120,
+        maxAge: 80 + Math.random() * 80,
+        trail: []
+      });
+    }
+  }
+
+  function updateParticles(dt) {
+    for (var i = 0; i < particles.length; i++) {
+      var p = particles[i];
+      p.age += dt * 60;
+      if (p.age >= p.maxAge) {
+        /* respawn at random position */
+        p.x = Math.random() * W;
+        p.y = Math.random() * H;
+        p.age = 0;
+        p.trail = [];
+      }
+      var f = fieldAt(p.x, p.y);
+      var mag = Math.sqrt(f.bx * f.bx + f.by * f.by);
+      if (mag > 1e-6) {
+        var speed = 2;
+        p.trail.push({ x: p.x, y: p.y });
+        if (p.trail.length > 20) p.trail.shift();
+        p.x += (f.bx / mag) * speed;
+        p.y += (f.by / mag) * speed;
+        /* wrap at borders */
+        if (p.x < 0) p.x = W;
+        if (p.x > W) p.x = 0;
+        if (p.y < 0) p.y = H;
+        if (p.y > H) p.y = 0;
+      }
+    }
+  }
+
+  /* ── drawing ── */
+  function drawArrowHead(ctx2, pts) {
+    /* draw small arrowhead in middle of the line */
+    if (pts.length < 4) return;
+    var mi = Math.floor(pts.length / 2);
+    var p1 = pts[mi - 1];
+    var p2 = pts[mi];
+    var dx = p2.x - p1.x;
+    var dy = p2.y - p1.y;
+    var len = Math.sqrt(dx * dx + dy * dy);
+    if (len < 0.01) return;
+    var ux = dx / len, uy = dy / len;
+    var nx = -uy, ny = ux;
+    var ax = p2.x - ux * 5;
+    var ay = p2.y - uy * 5;
+    ctx2.beginPath();
+    ctx2.moveTo(p2.x, p2.y);
+    ctx2.lineTo(ax + nx * 3, ay + ny * 3);
+    ctx2.lineTo(ax - nx * 3, ay - ny * 3);
+    ctx2.closePath();
+    ctx2.fill();
+  }
+
+  function drawSource(s, isSelected) {
+    var x = s.x, y = s.y;
+    var r = 14;
+
+    /* glow */
+    var colors = {
+      'north': { fill: '#e04', glow: 'rgba(255,0,60,0.3)', label: 'N' },
+      'south': { fill: '#04e', glow: 'rgba(0,60,255,0.3)', label: 'S' },
+      'wire+': { fill: '#fa0', glow: 'rgba(255,160,0,0.3)', label: '⊙' },
+      'wire-': { fill: '#888', glow: 'rgba(120,120,120,0.3)', label: '⊗' }
+    };
+    var c = colors[s.type] || colors['north'];
+
+    if (isSelected) {
+      ctx.beginPath();
+      ctx.arc(x, y, r + 8, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(0,255,255,0.12)';
+      ctx.fill();
+    }
+
+    ctx.beginPath();
+    ctx.arc(x, y, r + 4, 0, Math.PI * 2);
+    ctx.fillStyle = c.glow;
+    ctx.fill();
+
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.fillStyle = c.fill;
+    ctx.fill();
+
+    ctx.font = 'bold 11px ui-monospace, monospace';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = '#fff';
+    ctx.fillText(c.label, x, y);
+
+    /* strength rings */
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.strokeStyle = isSelected ? 'rgba(0,255,255,0.6)' : 'rgba(255,255,255,0.15)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+  }
+
+  function render(ts) {
+    lastRaf = requestAnimationFrame(render);
+
+    var dt = 1 / 60;
+
+    if (showParticles) updateParticles(dt);
+
+    if (!dirty && !showParticles) return;
+
+    /* clear */
+    ctx.fillStyle = '#0a0a0a';
+    ctx.fillRect(0, 0, W, H);
+
+    if (sources.length === 0) {
+      ctx.font = '0.6rem ui-monospace, monospace';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillStyle = '#222';
+      ctx.fillText('TAP CANVAS TO PLACE A SOURCE', W / 2, H / 2);
+      dirty = false;
+      return;
+    }
+
+    if (mode === 'density') {
+      if (dirty) densityImg = computeDensityMap();
+      if (densityImg) ctx.putImageData(densityImg, 0, 0);
+
+    } else if (mode === 'filings') {
+      if (dirty) cachedFilings = computeIronFilings();
+      if (cachedFilings) {
+        ctx.strokeStyle = '#0ff';
+        ctx.lineWidth = 1;
+        for (var i = 0; i < cachedFilings.length; i++) {
+          var f = cachedFilings[i];
+          var alpha = 0.15 + f.mag * 0.7;
+          ctx.globalAlpha = alpha;
+          var len = 7;
+          var cos = Math.cos(f.angle), sin = Math.sin(f.angle);
+          ctx.beginPath();
+          ctx.moveTo(f.x - cos * len, f.y - sin * len);
+          ctx.lineTo(f.x + cos * len, f.y + sin * len);
+          ctx.stroke();
+        }
+        ctx.globalAlpha = 1;
+      }
+
+    } else {
+      /* field lines mode */
+      if (dirty) cachedLines = computeFieldLines();
+      if (cachedLines) {
+        ctx.strokeStyle = 'rgba(0,255,255,0.45)';
+        ctx.fillStyle = 'rgba(0,255,255,0.6)';
+        ctx.lineWidth = 1;
+        for (var li = 0; li < cachedLines.length; li++) {
+          var pts = cachedLines[li];
+          if (pts.length < 2) continue;
+          ctx.beginPath();
+          ctx.moveTo(pts[0].x, pts[0].y);
+          for (var pi = 1; pi < pts.length; pi++) {
+            ctx.lineTo(pts[pi].x, pts[pi].y);
+          }
+          ctx.stroke();
+          drawArrowHead(ctx, pts);
+        }
+      }
+    }
+
+    /* particles */
+    if (showParticles) {
+      for (var ki = 0; ki < particles.length; ki++) {
+        var par = particles[ki];
+        var alpha2 = 1 - par.age / par.maxAge;
+        if (par.trail.length > 1) {
+          ctx.beginPath();
+          ctx.moveTo(par.trail[0].x, par.trail[0].y);
+          for (var ti = 1; ti < par.trail.length; ti++) {
+            ctx.lineTo(par.trail[ti].x, par.trail[ti].y);
+          }
+          ctx.strokeStyle = 'rgba(255,255,0,' + (alpha2 * 0.6) + ')';
+          ctx.lineWidth = 1.5;
+          ctx.stroke();
+        }
+        /* dot */
+        ctx.beginPath();
+        ctx.arc(par.x, par.y, 2.5, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(255,255,255,' + alpha2 + ')';
+        ctx.fill();
+      }
+    }
+
+    /* sources */
+    for (var si = 0; si < sources.length; si++) {
+      drawSource(sources[si], sources[si].id === selected);
+    }
+
+    dirty = false;
+  }
+
+  /* ── interaction ── */
+  function hitTest(cx, cy) {
+    var r = 18;
+    for (var i = sources.length - 1; i >= 0; i--) {
+      var s = sources[i];
+      var dx = cx - s.x, dy = cy - s.y;
+      if (dx * dx + dy * dy < r * r) return s.id;
+    }
+    return null;
+  }
+
+  function addSource(type, cx, cy) {
+    sources.push({ id: nextId++, x: cx, y: cy, type: type, strength: 5 });
+    dirty = true;
+    cachedLines = null;
+    cachedFilings = null;
+    densityImg = null;
+    if (showParticles) spawnParticles();
+  }
+
+  function selectSource(id) {
+    selected = id;
+    var row = document.getElementById('strength-row');
+    if (id !== null) {
+      row.classList.add('visible');
+      var s = sources.find(function(s2) { return s2.id === id; });
+      if (s) {
+        document.getElementById('strength-slider').value = s.strength;
+        var labels = { north: 'N POLE', south: 'S POLE', 'wire+': 'WIRE +', 'wire-': 'WIRE −' };
+        document.getElementById('sel-label').textContent = labels[s.type] || 'SEL';
+      }
+    } else {
+      row.classList.remove('visible');
+    }
+  }
+
+  function deleteSelected() {
+    if (selected === null) return;
+    sources = sources.filter(function(s) { return s.id !== selected; });
+    selected = null;
+    selectSource(null);
+    dirty = true;
+    cachedLines = null;
+    cachedFilings = null;
+    densityImg = null;
+    if (showParticles) spawnParticles();
+  }
+
+  /* pointer events */
+  var activePointerId = null;
+  var pointerDownTime = 0;
+  var pointerDownPos = { x: 0, y: 0 };
+  var didDrag = false;
+
+  canvas.addEventListener('pointerdown', function(e) {
+    e.preventDefault();
+    if (activePointerId !== null) return;
+    activePointerId = e.pointerId;
+    canvas.setPointerCapture(e.pointerId);
+
+    var rect = canvas.getBoundingClientRect();
+    var cx = e.clientX - rect.left;
+    var cy = e.clientY - rect.top;
+    pointerDownPos = { x: cx, y: cy };
+    pointerDownTime = Date.now();
+    didDrag = false;
+
+    var hit = hitTest(cx, cy);
+    if (hit !== null) {
+      dragging = hit;
+      selectSource(hit);
+      var s = sources.find(function(s2) { return s2.id === hit; });
+      if (s) { dragOffset.x = s.x - cx; dragOffset.y = s.y - cy; }
+    } else {
+      selectSource(null);
+      dragging = null;
+    }
+  });
+
+  canvas.addEventListener('pointermove', function(e) {
+    if (e.pointerId !== activePointerId) return;
+    e.preventDefault();
+    var rect = canvas.getBoundingClientRect();
+    var cx = e.clientX - rect.left;
+    var cy = e.clientY - rect.top;
+
+    var dx = cx - pointerDownPos.x, dy = cy - pointerDownPos.y;
+    if (dx * dx + dy * dy > 16) didDrag = true;
+
+    if (dragging !== null) {
+      var s = sources.find(function(s2) { return s2.id === dragging; });
+      if (s) {
+        s.x = cx + dragOffset.x;
+        s.y = cy + dragOffset.y;
+        dirty = true;
+        cachedLines = null;
+        cachedFilings = null;
+        densityImg = null;
+      }
+    }
+  });
+
+  canvas.addEventListener('pointerup', function(e) {
+    if (e.pointerId !== activePointerId) return;
+    e.preventDefault();
+    activePointerId = null;
+
+    var rect = canvas.getBoundingClientRect();
+    var cx = e.clientX - rect.left;
+    var cy = e.clientY - rect.top;
+
+    /* tap to add */
+    if (!didDrag && dragging === null) {
+      var elapsed = Date.now() - pointerDownTime;
+      if (elapsed < 400) {
+        addSource(addType, cx, cy);
+      }
+    }
+    dragging = null;
+  });
+
+  canvas.addEventListener('pointercancel', function(e) {
+    if (e.pointerId !== activePointerId) return;
+    activePointerId = null;
+    dragging = null;
+  });
+
+  /* ── controls ── */
+  var addBtns = {
+    'btn-north': 'north',
+    'btn-south': 'south',
+    'btn-wire': 'wire+',
+    'btn-wire-neg': 'wire-'
+  };
+
+  Object.keys(addBtns).forEach(function(id) {
+    document.getElementById(id).addEventListener('pointerdown', function(e) {
+      e.stopPropagation();
+      addType = addBtns[id];
+      Object.keys(addBtns).forEach(function(bid) {
+        document.getElementById(bid).classList.remove('active');
+      });
+      this.classList.add('active');
+    });
+  });
+
+  document.getElementById('btn-clear').addEventListener('pointerdown', function(e) {
+    e.stopPropagation();
+    sources = [];
+    selected = null;
+    particles = [];
+    selectSource(null);
+    dirty = true;
+    cachedLines = null;
+    cachedFilings = null;
+    densityImg = null;
+  });
+
+  var modeBtns = ['btn-mode-lines', 'btn-mode-filings', 'btn-density'];
+  var modeMap = { 'btn-mode-lines': 'lines', 'btn-mode-filings': 'filings', 'btn-density': 'density' };
+
+  modeBtns.forEach(function(id) {
+    document.getElementById(id).addEventListener('pointerdown', function(e) {
+      e.stopPropagation();
+      mode = modeMap[id];
+      modeBtns.forEach(function(bid) {
+        document.getElementById(bid).classList.remove('active');
+      });
+      this.classList.add('active');
+      dirty = true;
+    });
+  });
+
+  document.getElementById('btn-particles').addEventListener('pointerdown', function(e) {
+    e.stopPropagation();
+    showParticles = !showParticles;
+    this.textContent = 'PARTICLES: ' + (showParticles ? 'ON' : 'OFF');
+    this.classList.toggle('active', showParticles);
+    if (showParticles) spawnParticles();
+    else particles = [];
+  });
+
+  document.getElementById('strength-slider').addEventListener('input', function() {
+    if (selected === null) return;
+    var s = sources.find(function(s2) { return s2.id === selected; });
+    if (s) {
+      s.strength = parseFloat(this.value);
+      dirty = true;
+      cachedLines = null;
+      cachedFilings = null;
+      densityImg = null;
+    }
+  });
+
+  document.getElementById('btn-delete').addEventListener('pointerdown', function(e) {
+    e.stopPropagation();
+    deleteSelected();
+  });
+
+  /* ── presets ── */
+  function loadPreset(name) {
+    sources = [];
+    nextId = 1;
+    selected = null;
+    selectSource(null);
+    dirty = true;
+    cachedLines = null;
+    cachedFilings = null;
+    densityImg = null;
+    var cx = W / 2, cy = H / 2;
+    var gap = Math.min(W, H) * 0.2;
+    if (name === 'dipole') {
+      addSource('north', cx - gap, cy);
+      addSource('south', cx + gap, cy);
+    } else if (name === 'quad') {
+      addSource('north', cx - gap, cy - gap * 0.7);
+      addSource('south', cx + gap, cy - gap * 0.7);
+      addSource('south', cx - gap, cy + gap * 0.7);
+      addSource('north', cx + gap, cy + gap * 0.7);
+    } else if (name === 'wires') {
+      addSource('wire+', cx - gap, cy);
+      addSource('wire-', cx + gap, cy);
+    } else if (name === 'coil') {
+      /* solenoid approximation: row of alternating wires */
+      var n = 5;
+      var spacing2 = gap * 0.5;
+      for (var wi = 0; wi < n; wi++) {
+        var wx = cx + (wi - (n - 1) / 2) * spacing2;
+        addSource('wire+', wx, cy - gap * 0.6);
+        addSource('wire-', wx, cy + gap * 0.6);
+      }
+    }
+    if (showParticles) spawnParticles();
+  }
+
+  ['dipole', 'quad', 'wires', 'coil'].forEach(function(name) {
+    document.getElementById('preset-' + name).addEventListener('pointerdown', function(e) {
+      e.stopPropagation();
+      loadPreset(name);
+    });
+  });
+
+  /* ── init ── */
+  function init() {
+    resize();
+    loadPreset('dipole');
+    render(0);
+  }
+
+  window.addEventListener('resize', function() {
+    resize();
+    dirty = true;
+    cachedLines = null;
+    cachedFilings = null;
+    densityImg = null;
+    if (showParticles) spawnParticles();
+  });
+
+  init();
+})();
+</script>
+</body>
+</html>
