@@ -1,0 +1,731 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="theme-color" content="#000000">
+<title>Marble Run</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body {
+  height: 100%;
+  background: #0a0a0a;
+  overflow: hidden;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Courier New", monospace;
+  user-select: none;
+}
+
+#canvas {
+  display: block;
+  cursor: crosshair;
+  touch-action: none;
+}
+
+#ui {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  pointer-events: none;
+}
+
+#toolbar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  background: rgba(10,10,10,0.92);
+  border-bottom: 1px solid #1a1a1a;
+  pointer-events: all;
+  flex-wrap: wrap;
+}
+
+.btn {
+  padding: 4px 10px;
+  background: transparent;
+  border: 1px solid #1a1a1a;
+  color: #444;
+  font-family: inherit;
+  font-size: 0.55rem;
+  cursor: pointer;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.btn:active { border-color: #555; color: #888; }
+.btn.active { border-color: #0ff; color: #0ff; }
+.btn.danger { border-color: #f85149; color: #f85149; }
+.btn.spawn { background: #0ff; color: #000; border-color: #0ff; font-weight: bold; }
+.btn.spawn:active { background: #0cc; }
+
+.sep { width: 1px; height: 16px; background: #1a1a1a; flex-shrink: 0; }
+
+.ctrl-group {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.lbl {
+  font-size: 0.45rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #333;
+  white-space: nowrap;
+}
+
+.val {
+  font-size: 0.45rem;
+  color: #555;
+  min-width: 24px;
+  text-align: right;
+}
+
+input[type="range"] {
+  height: 3px;
+  accent-color: #555;
+  width: 60px;
+  cursor: pointer;
+}
+
+#status {
+  position: fixed;
+  bottom: 8px;
+  left: 8px;
+  font-size: 0.45rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #333;
+  pointer-events: none;
+}
+
+#marble-count {
+  position: fixed;
+  bottom: 8px;
+  right: 8px;
+  font-size: 0.6rem;
+  letter-spacing: 0.05em;
+  color: #444;
+  pointer-events: none;
+}
+
+#hint {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  text-align: center;
+  pointer-events: none;
+  opacity: 1;
+  transition: opacity 1s;
+}
+#hint.hidden { opacity: 0; }
+#hint-title {
+  font-size: 1.8rem;
+  color: #0ff;
+  font-weight: 200;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+}
+#hint-sub {
+  font-size: 0.55rem;
+  color: #444;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  margin-top: 8px;
+  line-height: 1.8;
+}
+</style>
+</head>
+<body>
+<canvas id="canvas"></canvas>
+
+<div id="ui">
+  <div id="toolbar">
+    <button class="btn active" id="btn-draw" title="Draw ramps (D)">Draw</button>
+    <button class="btn" id="btn-erase" title="Erase ramps (E)">Erase</button>
+    <button class="btn" id="btn-bumper" title="Place bumpers (B)">Bumper</button>
+    <button class="btn spawn" id="btn-spawn" title="Spawn marble (Space)">&#x25BC; Drop</button>
+    <div class="sep"></div>
+    <div class="ctrl-group">
+      <span class="lbl">Gravity</span>
+      <input type="range" id="sl-gravity" min="100" max="2000" value="600" step="50">
+      <span class="val" id="val-gravity">600</span>
+    </div>
+    <div class="ctrl-group">
+      <span class="lbl">Bounce</span>
+      <input type="range" id="sl-bounce" min="0" max="95" value="55" step="5">
+      <span class="val" id="val-bounce">0.55</span>
+    </div>
+    <div class="ctrl-group">
+      <span class="lbl">Size</span>
+      <input type="range" id="sl-size" min="4" max="20" value="10" step="1">
+      <span class="val" id="val-size">10</span>
+    </div>
+    <div class="sep"></div>
+    <button class="btn" id="btn-clear-m" title="Clear marbles only">Clear Marbles</button>
+    <button class="btn danger" id="btn-clear" title="Clear everything (C)">Clear All</button>
+    <div class="sep"></div>
+    <button class="btn" id="btn-p1" title="Preset 1">Zigzag</button>
+    <button class="btn" id="btn-p2" title="Preset 2">Funnel</button>
+    <button class="btn" id="btn-p3" title="Preset 3">Pinball</button>
+    <button class="btn" id="btn-p4" title="Preset 4">Chaos</button>
+  </div>
+</div>
+
+<div id="hint">
+  <div id="hint-title">Marble Run</div>
+  <div id="hint-sub">
+    Draw ramps with your mouse · Drop marbles with Space or ▼ Drop<br>
+    D=draw · E=erase · B=bumper · C=clear · Load a preset to start
+  </div>
+</div>
+
+<div id="status">Draw mode</div>
+<div id="marble-count"></div>
+
+<script>
+(function() {
+  'use strict';
+
+  // ─── Config ───────────────────────────────────────────────────────────────
+  const CFG = {
+    FRICTION: 0.988,
+    WALL_THICK: 3,
+    BUMPER_RADIUS: 18,
+    BUMPER_RESTITUTION: 1.05,
+    MAX_MARBLES: 80,
+    SUBSTEPS: 3,
+    TRAIL_LEN: 28,
+  };
+
+  // ─── State ────────────────────────────────────────────────────────────────
+  let W, H, dpr, TOOLBAR_H = 44;
+  let mode = 'draw'; // draw | erase | bumper
+  let gravity = 600;
+  let bounce = 0.55;
+  let marbleSize = 10;
+  let drawing = false;
+  let drawStart = null;
+  let mouseX = 0, mouseY = 0;
+  let hintVisible = true;
+  let animId = null;
+  let lastTime = 0;
+
+  const walls = [];   // { x1,y1,x2,y2 }
+  const bumpers = []; // { x,y,r }
+  const marbles = []; // { x,y,vx,vy,r,hue,trail[] }
+
+  // ─── Canvas setup ─────────────────────────────────────────────────────────
+  const canvas = document.getElementById('canvas');
+  const ctx = canvas.getContext('2d');
+
+  function resize() {
+    dpr = window.devicePixelRatio || 1;
+    W = window.innerWidth;
+    H = window.innerHeight;
+    TOOLBAR_H = document.getElementById('toolbar').getBoundingClientRect().height || 44;
+    canvas.width = W * dpr;
+    canvas.height = H * dpr;
+    canvas.style.width = W + 'px';
+    canvas.style.height = H + 'px';
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+
+  window.addEventListener('resize', resize);
+  resize();
+
+  // ─── UI ───────────────────────────────────────────────────────────────────
+  const statusEl = document.getElementById('status');
+  const countEl  = document.getElementById('marble-count');
+  const hintEl   = document.getElementById('hint');
+
+  function setMode(m) {
+    mode = m;
+    document.getElementById('btn-draw').classList.toggle('active', m === 'draw');
+    document.getElementById('btn-erase').classList.toggle('active', m === 'erase');
+    document.getElementById('btn-bumper').classList.toggle('active', m === 'bumper');
+    const labels = { draw: 'Draw mode', erase: 'Erase mode', bumper: 'Bumper mode' };
+    statusEl.textContent = labels[m];
+    canvas.style.cursor = m === 'erase' ? 'not-allowed' : 'crosshair';
+  }
+
+  document.getElementById('btn-draw').addEventListener('click', () => setMode('draw'));
+  document.getElementById('btn-erase').addEventListener('click', () => setMode('erase'));
+  document.getElementById('btn-bumper').addEventListener('click', () => setMode('bumper'));
+
+  document.getElementById('btn-spawn').addEventListener('pointerdown', e => {
+    e.preventDefault();
+    spawnMarble(W / 2 + (Math.random() - 0.5) * 80, TOOLBAR_H + 20);
+  });
+
+  document.getElementById('btn-clear-m').addEventListener('click', () => {
+    marbles.length = 0;
+  });
+
+  document.getElementById('btn-clear').addEventListener('click', clearAll);
+
+  // Sliders
+  document.getElementById('sl-gravity').addEventListener('input', function() {
+    gravity = +this.value;
+    document.getElementById('val-gravity').textContent = gravity;
+  });
+  document.getElementById('sl-bounce').addEventListener('input', function() {
+    bounce = this.value / 100;
+    document.getElementById('val-bounce').textContent = bounce.toFixed(2);
+  });
+  document.getElementById('sl-size').addEventListener('input', function() {
+    marbleSize = +this.value;
+    document.getElementById('val-size').textContent = marbleSize;
+  });
+
+  // Presets
+  document.getElementById('btn-p1').addEventListener('click', () => loadPreset('zigzag'));
+  document.getElementById('btn-p2').addEventListener('click', () => loadPreset('funnel'));
+  document.getElementById('btn-p3').addEventListener('click', () => loadPreset('pinball'));
+  document.getElementById('btn-p4').addEventListener('click', () => loadPreset('chaos'));
+
+  // ─── Keyboard ─────────────────────────────────────────────────────────────
+  window.addEventListener('keydown', e => {
+    if (e.target.tagName === 'INPUT') return;
+    switch(e.key.toLowerCase()) {
+      case 'd': setMode('draw'); break;
+      case 'e': setMode('erase'); break;
+      case 'b': setMode('bumper'); break;
+      case 'c': clearAll(); break;
+      case ' ':
+        e.preventDefault();
+        spawnMarble(mouseX + (Math.random() - 0.5) * 40, TOOLBAR_H + 20);
+        break;
+    }
+  });
+
+  // ─── Pointer events ───────────────────────────────────────────────────────
+  function getPos(e) {
+    const r = canvas.getBoundingClientRect();
+    const src = e.touches ? e.touches[0] : e;
+    return { x: src.clientX - r.left, y: src.clientY - r.top };
+  }
+
+  canvas.addEventListener('pointerdown', e => {
+    e.preventDefault();
+    canvas.setPointerCapture(e.pointerId);
+    const p = getPos(e);
+    mouseX = p.x; mouseY = p.y;
+    hideHint();
+
+    if (mode === 'bumper') {
+      bumpers.push({ x: p.x, y: p.y, r: CFG.BUMPER_RADIUS });
+      return;
+    }
+    if (mode === 'erase') {
+      eraseAt(p.x, p.y);
+      drawing = true;
+      drawStart = p;
+      return;
+    }
+    // draw
+    drawing = true;
+    drawStart = p;
+  });
+
+  canvas.addEventListener('pointermove', e => {
+    const p = getPos(e);
+    mouseX = p.x; mouseY = p.y;
+    if (!drawing) return;
+    if (mode === 'erase') {
+      eraseAt(p.x, p.y);
+    }
+    // draw preview happens in render loop
+  });
+
+  canvas.addEventListener('pointerup', e => {
+    if (!drawing) return;
+    const p = getPos(e);
+    if (mode === 'draw' && drawStart) {
+      const dx = p.x - drawStart.x, dy = p.y - drawStart.y;
+      if (dx * dx + dy * dy > 25) { // min 5px length
+        walls.push({ x1: drawStart.x, y1: drawStart.y, x2: p.x, y2: p.y });
+      }
+    }
+    drawing = false;
+    drawStart = null;
+  });
+
+  canvas.addEventListener('pointercancel', () => {
+    drawing = false;
+    drawStart = null;
+  });
+
+  // ─── Helpers ──────────────────────────────────────────────────────────────
+  function hideHint() {
+    if (!hintVisible) return;
+    hintEl.classList.add('hidden');
+    hintVisible = false;
+  }
+
+  function clearAll() {
+    walls.length = 0;
+    bumpers.length = 0;
+    marbles.length = 0;
+  }
+
+  function eraseAt(x, y) {
+    const R = 20;
+    // remove walls near point
+    for (let i = walls.length - 1; i >= 0; i--) {
+      if (distPointToSeg(x, y, walls[i]) < R) {
+        walls.splice(i, 1);
+      }
+    }
+    // remove bumpers near point
+    for (let i = bumpers.length - 1; i >= 0; i--) {
+      const b = bumpers[i];
+      const dx = b.x - x, dy = b.y - y;
+      if (Math.sqrt(dx*dx + dy*dy) < b.r + R) {
+        bumpers.splice(i, 1);
+      }
+    }
+  }
+
+  function spawnMarble(x, y) {
+    if (marbles.length >= CFG.MAX_MARBLES) marbles.shift();
+    const hue = Math.floor(Math.random() * 360);
+    marbles.push({
+      x, y,
+      vx: (Math.random() - 0.5) * 60,
+      vy: 0,
+      r: marbleSize,
+      hue,
+      trail: []
+    });
+    hideHint();
+  }
+
+  // ─── Math / Physics ───────────────────────────────────────────────────────
+
+  // Closest point on segment (x1,y1)-(x2,y2) to point (px,py)
+  function closestPointOnSeg(px, py, wall) {
+    const { x1, y1, x2, y2 } = wall;
+    const dx = x2 - x1, dy = y2 - y1;
+    const lenSq = dx * dx + dy * dy;
+    if (lenSq < 0.0001) return { x: x1, y: y1, t: 0 };
+    let t = ((px - x1) * dx + (py - y1) * dy) / lenSq;
+    t = Math.max(0, Math.min(1, t));
+    return { x: x1 + t * dx, y: y1 + t * dy, t };
+  }
+
+  function distPointToSeg(px, py, wall) {
+    const cp = closestPointOnSeg(px, py, wall);
+    const dx = px - cp.x, dy = py - cp.y;
+    return Math.sqrt(dx * dx + dy * dy);
+  }
+
+  function resolveWall(m, wall) {
+    const cp = closestPointOnSeg(m.x, m.y, wall);
+    const dx = m.x - cp.x, dy = m.y - cp.y;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    if (dist < m.r + CFG.WALL_THICK / 2 && dist > 0.001) {
+      const nx = dx / dist, ny = dy / dist;
+      // Separate
+      const overlap = m.r + CFG.WALL_THICK / 2 - dist;
+      m.x += nx * overlap;
+      m.y += ny * overlap;
+      // Reflect velocity
+      const dot = m.vx * nx + m.vy * ny;
+      if (dot < 0) { // only if moving toward wall
+        m.vx -= (1 + bounce) * dot * nx;
+        m.vy -= (1 + bounce) * dot * ny;
+      }
+      return true;
+    }
+    return false;
+  }
+
+  function resolveBumper(m, b) {
+    const dx = m.x - b.x, dy = m.y - b.y;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    const minDist = m.r + b.r;
+    if (dist < minDist && dist > 0.001) {
+      const nx = dx / dist, ny = dy / dist;
+      // Separate
+      m.x = b.x + nx * minDist;
+      m.y = b.y + ny * minDist;
+      // Bounce off bumper
+      const dot = m.vx * nx + m.vy * ny;
+      if (dot < 0) {
+        m.vx -= (1 + CFG.BUMPER_RESTITUTION) * dot * nx;
+        m.vy -= (1 + CFG.BUMPER_RESTITUTION) * dot * ny;
+      }
+      return true;
+    }
+    return false;
+  }
+
+  function resolveMarbleMarble(a, b) {
+    const dx = b.x - a.x, dy = b.y - a.y;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    const minDist = a.r + b.r;
+    if (dist < minDist && dist > 0.001) {
+      const nx = dx / dist, ny = dy / dist;
+      // Separate equally
+      const half = (minDist - dist) * 0.5;
+      a.x -= nx * half; a.y -= ny * half;
+      b.x += nx * half; b.y += ny * half;
+      // Exchange velocity components along normal (elastic)
+      const p = (a.vx - b.vx) * nx + (a.vy - b.vy) * ny;
+      if (p > 0) {
+        const e = (1 + bounce) * 0.5 * p;
+        a.vx -= e * nx; a.vy -= e * ny;
+        b.vx += e * nx; b.vy += e * ny;
+      }
+    }
+  }
+
+  function updatePhysics(dt) {
+    const subDt = dt / CFG.SUBSTEPS;
+    for (let step = 0; step < CFG.SUBSTEPS; step++) {
+      // Update marbles
+      for (let i = 0; i < marbles.length; i++) {
+        const m = marbles[i];
+        // Gravity
+        m.vy += gravity * subDt;
+        // Friction (air) — frame-rate-independent via subDt
+        const frictionFactor = Math.pow(CFG.FRICTION, subDt * 60);
+        m.vx *= frictionFactor;
+        m.vy *= frictionFactor;
+        // Move
+        m.x += m.vx * subDt;
+        m.y += m.vy * subDt;
+        // Wall boundaries
+        if (m.x < m.r) { m.x = m.r; m.vx = Math.abs(m.vx) * bounce; }
+        if (m.x > W - m.r) { m.x = W - m.r; m.vx = -Math.abs(m.vx) * bounce; }
+        // Floor
+        if (m.y > H - m.r) {
+          m.y = H - m.r;
+          m.vy = -Math.abs(m.vy) * bounce;
+          m.vx *= 0.82;
+        }
+        // Ramp collisions
+        for (let j = 0; j < walls.length; j++) {
+          resolveWall(m, walls[j]);
+        }
+        // Bumper collisions
+        for (let j = 0; j < bumpers.length; j++) {
+          resolveBumper(m, bumpers[j]);
+        }
+      }
+      // Marble-marble collisions
+      for (let i = 0; i < marbles.length; i++) {
+        for (let j = i + 1; j < marbles.length; j++) {
+          resolveMarbleMarble(marbles[i], marbles[j]);
+        }
+      }
+    }
+
+    // Update trails
+    for (let i = 0; i < marbles.length; i++) {
+      const m = marbles[i];
+      m.trail.push({ x: m.x, y: m.y });
+      if (m.trail.length > CFG.TRAIL_LEN) m.trail.shift();
+    }
+
+    // Remove marbles that fell way off screen
+    for (let i = marbles.length - 1; i >= 0; i--) {
+      if (marbles[i].y > H + 200) marbles.splice(i, 1);
+    }
+  }
+
+  // ─── Rendering ────────────────────────────────────────────────────────────
+
+  function render() {
+    ctx.clearRect(0, 0, W, H);
+
+    // Draw walls
+    ctx.lineCap = 'round';
+    for (let i = 0; i < walls.length; i++) {
+      const w = walls[i];
+      ctx.beginPath();
+      ctx.moveTo(w.x1, w.y1);
+      ctx.lineTo(w.x2, w.y2);
+      ctx.strokeStyle = '#2a2a2a';
+      ctx.lineWidth = CFG.WALL_THICK + 4;
+      ctx.stroke();
+      ctx.strokeStyle = '#555';
+      ctx.lineWidth = CFG.WALL_THICK;
+      ctx.stroke();
+    }
+
+    // Draw wall preview
+    if (drawing && mode === 'draw' && drawStart) {
+      ctx.beginPath();
+      ctx.moveTo(drawStart.x, drawStart.y);
+      ctx.lineTo(mouseX, mouseY);
+      ctx.strokeStyle = 'rgba(0,255,255,0.4)';
+      ctx.lineWidth = CFG.WALL_THICK;
+      ctx.stroke();
+    }
+
+    // Draw bumpers
+    for (let i = 0; i < bumpers.length; i++) {
+      const b = bumpers[i];
+      // Glow ring
+      const grd = ctx.createRadialGradient(b.x, b.y, b.r * 0.5, b.x, b.y, b.r * 1.8);
+      grd.addColorStop(0, 'rgba(255,150,0,0.12)');
+      grd.addColorStop(1, 'rgba(255,100,0,0)');
+      ctx.beginPath();
+      ctx.arc(b.x, b.y, b.r * 1.8, 0, Math.PI * 2);
+      ctx.fillStyle = grd;
+      ctx.fill();
+      // Bumper body
+      ctx.beginPath();
+      ctx.arc(b.x, b.y, b.r, 0, Math.PI * 2);
+      ctx.strokeStyle = '#f80';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      ctx.fillStyle = 'rgba(255,130,0,0.15)';
+      ctx.fill();
+    }
+
+    // Draw marble trails
+    for (let i = 0; i < marbles.length; i++) {
+      const m = marbles[i];
+      if (m.trail.length < 2) continue;
+      for (let t = 1; t < m.trail.length; t++) {
+        const alpha = (t / m.trail.length) * 0.4;
+        const width = (t / m.trail.length) * m.r * 0.7;
+        ctx.beginPath();
+        ctx.moveTo(m.trail[t-1].x, m.trail[t-1].y);
+        ctx.lineTo(m.trail[t].x, m.trail[t].y);
+        ctx.strokeStyle = 'hsla(' + m.hue + ',100%,65%,' + alpha + ')';
+        ctx.lineWidth = width;
+        ctx.lineCap = 'round';
+        ctx.stroke();
+      }
+    }
+
+    // Draw marbles
+    for (let i = 0; i < marbles.length; i++) {
+      const m = marbles[i];
+      const speed = Math.sqrt(m.vx * m.vx + m.vy * m.vy);
+      const glowRadius = m.r * 1.6 + Math.min(speed * 0.02, m.r);
+
+      // Glow
+      const grd = ctx.createRadialGradient(m.x, m.y, 0, m.x, m.y, glowRadius);
+      grd.addColorStop(0, 'hsla(' + m.hue + ',100%,70%,0.5)');
+      grd.addColorStop(1, 'hsla(' + m.hue + ',100%,50%,0)');
+      ctx.beginPath();
+      ctx.arc(m.x, m.y, glowRadius, 0, Math.PI * 2);
+      ctx.fillStyle = grd;
+      ctx.fill();
+
+      // Body gradient
+      const brd = ctx.createRadialGradient(m.x - m.r * 0.3, m.y - m.r * 0.3, m.r * 0.05, m.x, m.y, m.r);
+      brd.addColorStop(0, 'hsla(' + m.hue + ',100%,90%,1)');
+      brd.addColorStop(0.6, 'hsla(' + m.hue + ',100%,60%,1)');
+      brd.addColorStop(1, 'hsla(' + m.hue + ',80%,30%,1)');
+      ctx.beginPath();
+      ctx.arc(m.x, m.y, m.r, 0, Math.PI * 2);
+      ctx.fillStyle = brd;
+      ctx.fill();
+    }
+
+    // Erase cursor indicator
+    if (mode === 'erase') {
+      ctx.beginPath();
+      ctx.arc(mouseX, mouseY, 20, 0, Math.PI * 2);
+      ctx.strokeStyle = 'rgba(248,81,73,0.4)';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+    }
+
+    // Update count
+    countEl.textContent = marbles.length > 0 ? marbles.length + ' marbles' : '';
+  }
+
+  // ─── Loop ─────────────────────────────────────────────────────────────────
+  function loop(ts) {
+    animId = requestAnimationFrame(loop);
+    const dt = Math.min((ts - lastTime) / 1000, 0.05);
+    lastTime = ts;
+    if (dt > 0) updatePhysics(dt);
+    render();
+  }
+
+  requestAnimationFrame(ts => {
+    lastTime = ts;
+    loop(ts);
+  });
+
+  // ─── Presets ──────────────────────────────────────────────────────────────
+  function px(frac) { return frac * W; }
+  function py(frac) { return frac * H; }
+
+  function loadPreset(name) {
+    clearAll();
+    hideHint();
+    if (name === 'zigzag') {
+      walls.push(
+        { x1: px(0.1), y1: py(0.22), x2: px(0.65), y2: py(0.30) },
+        { x1: px(0.35), y1: py(0.40), x2: px(0.90), y2: py(0.48) },
+        { x1: px(0.1), y1: py(0.58), x2: px(0.65), y2: py(0.66) },
+        { x1: px(0.35), y1: py(0.76), x2: px(0.85), y2: py(0.82) }
+      );
+      // Spawn marbles across top
+      for (let i = 0; i < 8; i++) {
+        setTimeout(() => spawnMarble(px(0.15 + i * 0.085), TOOLBAR_H + 20), i * 120);
+      }
+    } else if (name === 'funnel') {
+      walls.push(
+        { x1: px(0.08), y1: py(0.10), x2: px(0.44), y2: py(0.55) },
+        { x1: px(0.92), y1: py(0.10), x2: px(0.56), y2: py(0.55) },
+        { x1: px(0.44), y1: py(0.55), x2: px(0.38), y2: py(0.75) },
+        { x1: px(0.56), y1: py(0.55), x2: px(0.62), y2: py(0.75) },
+        { x1: px(0.38), y1: py(0.75), x2: px(0.14), y2: py(0.90) },
+        { x1: px(0.62), y1: py(0.75), x2: px(0.86), y2: py(0.90) }
+      );
+      for (let i = 0; i < 14; i++) {
+        setTimeout(() => spawnMarble(px(0.15 + Math.random() * 0.70), TOOLBAR_H + 15), i * 80);
+      }
+    } else if (name === 'pinball') {
+      walls.push(
+        { x1: px(0.05), y1: py(0.15), x2: px(0.30), y2: py(0.32) },
+        { x1: px(0.95), y1: py(0.15), x2: px(0.70), y2: py(0.32) },
+        { x1: px(0.08), y1: py(0.55), x2: px(0.25), y2: py(0.70) },
+        { x1: px(0.92), y1: py(0.55), x2: px(0.75), y2: py(0.70) }
+      );
+      bumpers.push(
+        { x: px(0.50), y: py(0.22), r: CFG.BUMPER_RADIUS },
+        { x: px(0.35), y: py(0.40), r: CFG.BUMPER_RADIUS },
+        { x: px(0.65), y: py(0.40), r: CFG.BUMPER_RADIUS },
+        { x: px(0.50), y: py(0.56), r: CFG.BUMPER_RADIUS },
+        { x: px(0.28), y: py(0.20), r: CFG.BUMPER_RADIUS * 0.7 },
+        { x: px(0.72), y: py(0.20), r: CFG.BUMPER_RADIUS * 0.7 }
+      );
+      for (let i = 0; i < 10; i++) {
+        setTimeout(() => spawnMarble(px(0.3 + Math.random() * 0.40), TOOLBAR_H + 15), i * 180);
+      }
+    } else if (name === 'chaos') {
+      const rw = () => ({ x1: px(0.05 + Math.random() * 0.4), y1: py(0.1 + Math.random() * 0.7),
+                           x2: px(0.55 + Math.random() * 0.4), y2: py(0.1 + Math.random() * 0.7) });
+      for (let i = 0; i < 10; i++) walls.push(rw());
+      for (let i = 0; i < 5; i++) {
+        bumpers.push({ x: px(0.15 + Math.random() * 0.70), y: py(0.2 + Math.random() * 0.55), r: CFG.BUMPER_RADIUS });
+      }
+      for (let i = 0; i < 16; i++) {
+        setTimeout(() => spawnMarble(px(0.1 + Math.random() * 0.80), TOOLBAR_H + 15), i * 80);
+      }
+    }
+  }
+
+})();
+</script>
+</body>
+</html>

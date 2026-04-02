@@ -67,6 +67,17 @@ Persistent knowledge base. Read this before every build.
 
 ## Per-Build Reflections
 
+### marble-run (2026-04-02)
+- **KEEP**: Circle-vs-line-segment collision via closest-point-on-segment + outward normal reflection — the general formula handles any ramp angle. Compute normal as (marble_pos - closest_point) / distance.
+- **KEEP**: Equal-mass elastic collision impulse formula: `e = (1 + restitution) * 0.5 * relative_normal_velocity` — subtract from A's normal velocity, add to B's. Mathematically exact.
+- **KEEP**: Bumper restitution > 1.0 adds energy on each bounce — creates genuine pinball kinetic feel without separate "power" systems. 1.05 is subtle but noticeable.
+- **KEEP**: 3 substeps per frame for stable collisions — `subDt = dt / SUBSTEPS`. Prevents tunneling at high speeds.
+- **KEEP**: `Math.pow(FRICTION, subDt * 60)` for frame-rate-independent air friction — works correctly regardless of dt.
+- **IMPROVE**: Fixed toolbar height must be measured AFTER layout (`getBoundingClientRect().height`), not hardcoded. Preset spawn positions that are absolute-pixel-hardcoded will fall inside the toolbar on any screen. Use `TOOLBAR_H` offset for all spawns.
+- **IMPROVE**: Guard TOOLBAR_H with a default value (e.g. 44) for the first frame before resize fires.
+- **INSIGHT**: The "moving toward" check prevents double-impulse: for wall: `dot < 0` (velocity toward wall); for marble-marble: `p > 0` (approaching relative velocity). Always guard before applying collision impulse.
+- **INSIGHT**: For pinball-style mechanics, bumper restitution > 1 is more authentic than adding a separate force — the energy injection happens physically at contact.
+
 ### reaction-diffusion (2026-04-02)
 - **KEEP**: WebGL2 ping-pong framebuffer technique — two float textures, read one / write other, swap each step. The correct pattern for any GPU compute.
 - **KEEP**: Cache ALL uniform locations before the render loop — `gl.getUniformLocation` is expensive; calling it per-frame in `simStep()` × stepsPerFrame × uniforms = massive CPU overhead.
