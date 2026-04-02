@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="theme-color" content="#000000">
+<title>DNS Lookup</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body {
+  height: 100%;
+  background: #0a0a0a;
+  overflow-y: auto;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Courier New", monospace;
+  color: #ccc;
+}
+
+.wrap {
+  max-width: 480px;
+  margin: 0 auto;
+  padding: 12px;
+}
+
+h1 {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.2em;
+  color: #444;
+  margin-bottom: 8px;
+}
+
+.subtitle {
+  font-size: 0.45rem;
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
+  color: #333;
+  margin-bottom: 12px;
+}
+
+.input-row {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+#domainInput {
+  flex: 1;
+  background: #111;
+  border: 1px solid #222;
+  color: #aaa;
+  padding: 8px 10px;
+  font-family: inherit;
+  font-size: 0.75rem;
+  outline: none;
+  min-width: 0;
+}
+#domainInput:focus { border-color: #555; }
+#domainInput::placeholder { color: #333; }
+
+#btnLookup {
+  padding: 8px 14px;
+  background: #0ff;
+  border: 1px solid #0ff;
+  color: #0a0a0a;
+  font-family: inherit;
+  font-size: 0.55rem;
+  cursor: pointer;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  font-weight: 700;
+  white-space: nowrap;
+}
+#btnLookup:active { opacity: 0.7; }
+#btnLookup:disabled { opacity: 0.3; cursor: default; }
+
+.provider-row {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.provider-btn {
+  padding: 4px 10px;
+  background: transparent;
+  border: 1px solid #1a1a1a;
+  color: #444;
+  font-family: inherit;
+  font-size: 0.55rem;
+  cursor: pointer;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+.provider-btn:active { border-color: #555; color: #888; }
+.provider-btn.active { border-color: #0ff; color: #0ff; }
+
+#status {
+  font-size: 0.5rem;
+  color: #333;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  margin-bottom: 8px;
+  min-height: 1em;
+}
+
+.results-section {
+  margin-bottom: 12px;
+}
+
+.type-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+  margin-top: 10px;
+}
+
+.badge {
+  display: inline-block;
+  padding: 2px 8px;
+  font-size: 0.5rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  border: 1px solid;
+}
+
+.badge-a { border-color: #0ff; color: #0ff; }
+.badge-aaaa { border-color: #58a6ff; color: #58a6ff; }
+.badge-mx { border-color: #3fb950; color: #3fb950; }
+.badge-ns { border-color: #d29922; color: #d29922; }
+.badge-txt { border-color: #f85149; color: #f85149; }
+.badge-cname { border-color: #f0f; color: #f0f; }
+.badge-soa { border-color: #888; color: #888; }
+
+.type-count {
+  font-size: 0.45rem;
+  color: #333;
+}
+
+.record-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 4px;
+}
+
+.record-table td {
+  padding: 4px 8px;
+  border: 1px solid #1a1a1a;
+  font-size: 0.65rem;
+  color: #aaa;
+  word-break: break-all;
+}
+
+.record-table .label-cell {
+  color: #444;
+  font-size: 0.5rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  width: 60px;
+  white-space: nowrap;
+}
+
+.no-records {
+  font-size: 0.5rem;
+  color: #222;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  padding: 12px 0;
+  text-align: center;
+}
+
+.error-msg {
+  color: #f85149;
+  font-size: 0.55rem;
+  padding: 8px;
+  border: 1px solid #f85149;
+  margin-bottom: 8px;
+}
+
+.footer {
+  font-size: 0.4rem;
+  color: #222;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  padding-top: 12px;
+  text-align: center;
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>DNS Lookup</h1>
+  <div class="subtitle">DNS record query via DoH</div>
+
+  <div class="provider-row">
+    <button class="provider-btn active" id="provCloudflare">Cloudflare</button>
+    <button class="provider-btn" id="provGoogle">Google</button>
+  </div>
+
+  <div class="input-row">
+    <input type="text" id="domainInput" placeholder="example.com" autocomplete="off" spellcheck="false">
+    <button id="btnLookup">Lookup</button>
+  </div>
+
+  <div id="status"></div>
+  <div id="results"></div>
+
+  <div class="footer">DNS-over-HTTPS — zero dependencies</div>
+</div>
+<script>
+(function() {
+  var RECORD_TYPES = [
+    { type: 'A', code: 1 },
+    { type: 'AAAA', code: 28 },
+    { type: 'MX', code: 15 },
+    { type: 'NS', code: 2 },
+    { type: 'TXT', code: 16 },
+    { type: 'CNAME', code: 5 },
+    { type: 'SOA', code: 6 }
+  ];
+
+  var PROVIDERS = {
+    cloudflare: 'https:' + '/' + '/cloudflare-dns.com/dns-query',
+    google: 'https:' + '/' + '/dns.google/resolve'
+  };
+
+  var currentProvider = 'cloudflare';
+
+  var domainInput = document.getElementById('domainInput');
+  var btnLookup = document.getElementById('btnLookup');
+  var statusEl = document.getElementById('status');
+  var resultsEl = document.getElementById('results');
+  var provCloudflare = document.getElementById('provCloudflare');
+  var provGoogle = document.getElementById('provGoogle');
+
+  function setProvider(p) {
+    currentProvider = p;
+    provCloudflare.className = p === 'cloudflare' ? 'provider-btn active' : 'provider-btn';
+    provGoogle.className = p === 'google' ? 'provider-btn active' : 'provider-btn';
+  }
+
+  provCloudflare.addEventListener('click', function() { setProvider('cloudflare'); });
+  provGoogle.addEventListener('click', function() { setProvider('google'); });
+
+  function badgeClass(type) {
+    return 'badge badge-' + type.toLowerCase();
+  }
+
+  function buildUrl(domain, typeCode) {
+    var base = PROVIDERS[currentProvider];
+    if (currentProvider === 'cloudflare') {
+      return base + '?name=' + encodeURIComponent(domain) + '&type=' + typeCode;
+    }
+    return base + '?name=' + encodeURIComponent(domain) + '&type=' + typeCode;
+  }
+
+  function fetchDns(domain, typeCode) {
+    var url = buildUrl(domain, typeCode);
+    var headers = { 'Accept': 'application/dns-json' };
+    return fetch(url, { headers: headers })
+      .then(function(r) {
+        if (!r.ok) { throw new Error('HTTP ' + r.status); }
+        return r.json();
+      })
+      .then(function(data) {
+        return data.Answer || [];
+      })
+      .catch(function() {
+        return [];
+      });
+  }
+
+  function formatRecords(typeName, records) {
+    if (!records || records.length === 0) { return ''; }
+
+    var html = '<div class="type-header">';
+    html += '<span class="' + badgeClass(typeName) + '">' + typeName + '</span>';
+    html += '<span class="type-count">' + records.length + ' record' + (records.length !== 1 ? 's' : '') + '</span>';
+    html += '</div>';
+    html += '<table class="record-table">';
+
+    records.forEach(function(rec) {
+      var val = rec.data || '';
+      var ttl = rec.TTL !== undefined ? rec.TTL : '';
+      html += '<tr>';
+      html += '<td class="label-cell">Value</td>';
+      html += '<td>' + escapeHtml(val) + '</td>';
+      html += '<td class="label-cell">TTL</td>';
+      html += '<td style="width:60px">' + ttl + '</td>';
+      html += '</tr>';
+    });
+
+    html += '</table>';
+    return html;
+  }
+
+  function escapeHtml(str) {
+    var d = document.createElement('div');
+    d.textContent = str;
+    return d.innerHTML;
+  }
+
+  function doLookup() {
+    var domain = domainInput.value.trim();
+    if (!domain) { return; }
+
+    /* strip protocol if pasted */
+    domain = domain.replace(new RegExp('^https?:[/][/]', 'i'), '').replace(new RegExp('[/].*$'), '');
+
+    btnLookup.disabled = true;
+    statusEl.textContent = 'Querying ' + domain + '...';
+    resultsEl.innerHTML = '';
+
+    var promises = RECORD_TYPES.map(function(rt) {
+      return fetchDns(domain, rt.code).then(function(answers) {
+        return { type: rt.type, records: answers };
+      });
+    });
+
+    Promise.all(promises).then(function(allResults) {
+      var html = '';
+      var totalRecords = 0;
+      allResults.forEach(function(r) {
+        totalRecords += r.records.length;
+        html += formatRecords(r.type, r.records);
+      });
+
+      if (totalRecords === 0) {
+        html = '<div class="no-records">No records found</div>';
+      }
+
+      resultsEl.innerHTML = html;
+      statusEl.textContent = totalRecords + ' record' + (totalRecords !== 1 ? 's' : '') + ' found';
+      btnLookup.disabled = false;
+    }).catch(function(err) {
+      resultsEl.innerHTML = '<div class="error-msg">' + escapeHtml(err.message || 'Lookup failed') + '</div>';
+      statusEl.textContent = 'Error';
+      btnLookup.disabled = false;
+    });
+  }
+
+  btnLookup.addEventListener('click', doLookup);
+  domainInput.addEventListener('keydown', function(e) {
+    if (e.key === 'Enter') { doLookup(); }
+  });
+})();
+</script>
+</body>
+</html>

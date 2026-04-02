@@ -1,0 +1,689 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="theme-color" content="#000000">
+<title>cron-viz</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body {
+  height: 100%;
+  background: #0a0a0a;
+  overflow-y: auto;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+body {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Courier New", monospace;
+  color: #ccc;
+  padding: 12px;
+}
+.container {
+  max-width: 480px;
+  margin: 0 auto;
+}
+h1 {
+  font-size: 0.75rem;
+  color: #444;
+  text-transform: uppercase;
+  letter-spacing: 0.3em;
+  margin-bottom: 8px;
+}
+.cron-display {
+  font-size: clamp(1.2rem, 5vw, 2rem);
+  font-weight: 200;
+  color: #fff;
+  font-variant-numeric: tabular-nums;
+  padding: 8px 0;
+  border-bottom: 1px solid #1a1a1a;
+  margin-bottom: 8px;
+  word-break: break-all;
+}
+.desc {
+  font-size: 0.65rem;
+  color: #0ff;
+  margin-bottom: 12px;
+  min-height: 1.2em;
+  line-height: 1.4;
+}
+.input-row {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+.input-row input[type="text"] {
+  flex: 1;
+  background: #111;
+  border: 1px solid #222;
+  color: #aaa;
+  padding: 6px 8px;
+  font-family: inherit;
+  font-size: 0.75rem;
+  outline: none;
+}
+.input-row input[type="text"]:focus { border-color: #555; }
+.btn {
+  padding: 4px 10px;
+  background: transparent;
+  border: 1px solid #1a1a1a;
+  color: #444;
+  font-family: inherit;
+  font-size: 0.55rem;
+  cursor: pointer;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+.btn:active { border-color: #555; color: #888; }
+.btn.active { border-color: #0ff; color: #0ff; }
+.section-label {
+  font-size: 0.45rem;
+  color: #444;
+  text-transform: uppercase;
+  letter-spacing: 0.2em;
+  margin-bottom: 4px;
+  margin-top: 10px;
+}
+.field-group {
+  padding: 6px 8px;
+  border: 1px solid #1a1a1a;
+  margin-bottom: 8px;
+}
+.field-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 4px;
+}
+.field-name {
+  font-size: 0.55rem;
+  color: #555;
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
+}
+.field-value {
+  font-size: 0.65rem;
+  color: #aaa;
+  font-variant-numeric: tabular-nums;
+}
+.mode-btns {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 6px;
+  flex-wrap: wrap;
+}
+.mode-btns .btn { font-size: 0.45rem; padding: 3px 6px; }
+input[type="range"] {
+  width: 100%;
+  height: 3px;
+  accent-color: #0ff;
+  margin: 4px 0;
+}
+.multi-select {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+}
+.multi-select .btn {
+  font-size: 0.45rem;
+  padding: 3px 5px;
+  min-width: 28px;
+  text-align: center;
+}
+.step-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.55rem;
+  color: #555;
+}
+.step-row input[type="range"] { flex: 1; }
+.fire-times {
+  padding: 6px 8px;
+  border: 1px solid #1a1a1a;
+  margin-top: 8px;
+}
+.fire-times .section-label { margin-top: 0; }
+.fire-time {
+  font-size: 0.55rem;
+  color: #555;
+  padding: 2px 0;
+  font-variant-numeric: tabular-nums;
+}
+.fire-time:first-of-type { color: #aaa; }
+.presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-bottom: 12px;
+}
+.hidden { display: none; }
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>cron-viz</h1>
+  <div class="cron-display" id="cronDisplay">* * * * *</div>
+  <div class="desc" id="cronDesc">Every minute</div>
+
+  <div class="input-row">
+    <input type="text" id="cronInput" placeholder="Paste cron expression..." value="">
+    <button class="btn" id="btnParse">PARSE</button>
+  </div>
+
+  <div class="section-label">Presets</div>
+  <div class="presets" id="presets"></div>
+
+  <div class="section-label">Fields</div>
+
+  <div class="field-group" id="fieldMinute">
+    <div class="field-header">
+      <span class="field-name">Minute</span>
+      <span class="field-value" id="valMinute">*</span>
+    </div>
+    <div class="mode-btns">
+      <button class="btn active" data-field="minute" data-mode="every">Every</button>
+      <button class="btn" data-field="minute" data-mode="step">Step</button>
+      <button class="btn" data-field="minute" data-mode="specific">Pick</button>
+    </div>
+    <div id="minuteEvery" class="field-ctrl"></div>
+    <div id="minuteStep" class="field-ctrl hidden">
+      <div class="step-row">
+        <span>*/</span>
+        <input type="range" id="minuteStepVal" min="1" max="30" value="5">
+        <span id="minuteStepLabel">5</span>
+      </div>
+    </div>
+    <div id="minuteSpecific" class="field-ctrl hidden">
+      <div class="multi-select" id="minutePicks"></div>
+    </div>
+  </div>
+
+  <div class="field-group" id="fieldHour">
+    <div class="field-header">
+      <span class="field-name">Hour</span>
+      <span class="field-value" id="valHour">*</span>
+    </div>
+    <div class="mode-btns">
+      <button class="btn active" data-field="hour" data-mode="every">Every</button>
+      <button class="btn" data-field="hour" data-mode="step">Step</button>
+      <button class="btn" data-field="hour" data-mode="specific">Pick</button>
+    </div>
+    <div id="hourEvery" class="field-ctrl"></div>
+    <div id="hourStep" class="field-ctrl hidden">
+      <div class="step-row">
+        <span>*/</span>
+        <input type="range" id="hourStepVal" min="1" max="12" value="2">
+        <span id="hourStepLabel">2</span>
+      </div>
+    </div>
+    <div id="hourSpecific" class="field-ctrl hidden">
+      <div class="multi-select" id="hourPicks"></div>
+    </div>
+  </div>
+
+  <div class="field-group" id="fieldDom">
+    <div class="field-header">
+      <span class="field-name">Day of Month</span>
+      <span class="field-value" id="valDom">*</span>
+    </div>
+    <div class="mode-btns">
+      <button class="btn active" data-field="dom" data-mode="every">Every</button>
+      <button class="btn" data-field="dom" data-mode="step">Step</button>
+      <button class="btn" data-field="dom" data-mode="specific">Pick</button>
+    </div>
+    <div id="domEvery" class="field-ctrl"></div>
+    <div id="domStep" class="field-ctrl hidden">
+      <div class="step-row">
+        <span>*/</span>
+        <input type="range" id="domStepVal" min="1" max="15" value="2">
+        <span id="domStepLabel">2</span>
+      </div>
+    </div>
+    <div id="domSpecific" class="field-ctrl hidden">
+      <div class="multi-select" id="domPicks"></div>
+    </div>
+  </div>
+
+  <div class="field-group" id="fieldMonth">
+    <div class="field-header">
+      <span class="field-name">Month</span>
+      <span class="field-value" id="valMonth">*</span>
+    </div>
+    <div class="mode-btns">
+      <button class="btn active" data-field="month" data-mode="every">Every</button>
+      <button class="btn" data-field="month" data-mode="specific">Pick</button>
+    </div>
+    <div id="monthEvery" class="field-ctrl"></div>
+    <div id="monthSpecific" class="field-ctrl hidden">
+      <div class="multi-select" id="monthPicks"></div>
+    </div>
+  </div>
+
+  <div class="field-group" id="fieldDow">
+    <div class="field-header">
+      <span class="field-name">Day of Week</span>
+      <span class="field-value" id="valDow">*</span>
+    </div>
+    <div class="mode-btns">
+      <button class="btn active" data-field="dow" data-mode="every">Every</button>
+      <button class="btn" data-field="dow" data-mode="specific">Pick</button>
+    </div>
+    <div id="dowEvery" class="field-ctrl"></div>
+    <div id="dowSpecific" class="field-ctrl hidden">
+      <div class="multi-select" id="dowPicks"></div>
+    </div>
+  </div>
+
+  <div class="fire-times">
+    <div class="section-label">Next 10 fire times</div>
+    <div id="fireTimes"></div>
+  </div>
+</div>
+
+<script>
+(function() {
+  var FIELDS = ["minute", "hour", "dom", "month", "dow"];
+  var MONTH_NAMES = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  var DOW_NAMES = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+  var PRESETS = [
+    { label: "Every min", expr: "* * * * *" },
+    { label: "Hourly", expr: "0 * * * *" },
+    { label: "Daily midnight", expr: "0 0 * * *" },
+    { label: "Weekly Mon", expr: "0 0 * * 1" },
+    { label: "Monthly 1st", expr: "0 0 1 * *" },
+    { label: "Weekdays 9am", expr: "0 9 * * 1-5" },
+    { label: "Every 5 min", expr: "*/5 * * * *" },
+    { label: "Every 15 min", expr: "*/15 * * * *" }
+  ];
+
+  var state = {
+    minute: { mode: "every", step: 5, picks: [] },
+    hour:   { mode: "every", step: 2, picks: [] },
+    dom:    { mode: "every", step: 2, picks: [] },
+    month:  { mode: "every", step: 1, picks: [] },
+    dow:    { mode: "every", step: 1, picks: [] }
+  };
+
+  function $(id) { return document.getElementById(id); }
+
+  function buildPicks() {
+    var i, btn, container;
+    container = $("minutePicks");
+    for (i = 0; i < 60; i++) {
+      btn = document.createElement("button");
+      btn.className = "btn";
+      btn.textContent = String(i);
+      btn.setAttribute("data-pick-field", "minute");
+      btn.setAttribute("data-pick-val", String(i));
+      container.appendChild(btn);
+    }
+    container = $("hourPicks");
+    for (i = 0; i < 24; i++) {
+      btn = document.createElement("button");
+      btn.className = "btn";
+      btn.textContent = String(i);
+      btn.setAttribute("data-pick-field", "hour");
+      btn.setAttribute("data-pick-val", String(i));
+      container.appendChild(btn);
+    }
+    container = $("domPicks");
+    for (i = 1; i <= 31; i++) {
+      btn = document.createElement("button");
+      btn.className = "btn";
+      btn.textContent = String(i);
+      btn.setAttribute("data-pick-field", "dom");
+      btn.setAttribute("data-pick-val", String(i));
+      container.appendChild(btn);
+    }
+    container = $("monthPicks");
+    for (i = 1; i <= 12; i++) {
+      btn = document.createElement("button");
+      btn.className = "btn";
+      btn.textContent = MONTH_NAMES[i - 1];
+      btn.setAttribute("data-pick-field", "month");
+      btn.setAttribute("data-pick-val", String(i));
+      container.appendChild(btn);
+    }
+    container = $("dowPicks");
+    for (i = 0; i < 7; i++) {
+      btn = document.createElement("button");
+      btn.className = "btn";
+      btn.textContent = DOW_NAMES[i];
+      btn.setAttribute("data-pick-field", "dow");
+      btn.setAttribute("data-pick-val", String(i));
+      container.appendChild(btn);
+    }
+  }
+
+  function buildPresets() {
+    var container = $("presets");
+    PRESETS.forEach(function(p) {
+      var btn = document.createElement("button");
+      btn.className = "btn";
+      btn.textContent = p.label;
+      btn.addEventListener("click", function() {
+        parseCronExpr(p.expr);
+      });
+      container.appendChild(btn);
+    });
+  }
+
+  function getFieldExpr(field) {
+    var s = state[field];
+    if (s.mode === "every") return "*";
+    if (s.mode === "step") return "*/" + s.step;
+    if (s.mode === "specific" && s.picks.length > 0) {
+      var sorted = s.picks.slice().sort(function(a, b) { return a - b; });
+      return sorted.join(",");
+    }
+    return "*";
+  }
+
+  function getCronExpr() {
+    return FIELDS.map(getFieldExpr).join(" ");
+  }
+
+  function describeCron(expr) {
+    var parts = expr.split(/\s+/);
+    if (parts.length !== 5) return "Invalid expression";
+    var m = parts[0], h = parts[1], dom = parts[2], mo = parts[3], dow = parts[4];
+    var pieces = [];
+
+    if (m === "*" && h === "*" && dom === "*" && mo === "*" && dow === "*") {
+      return "Every minute";
+    }
+
+    /* minute */
+    if (m === "*") {
+      pieces.push("every minute");
+    } else if (m.indexOf("*/") === 0) {
+      pieces.push("every " + m.slice(2) + " minutes");
+    } else {
+      pieces.push("at minute " + m);
+    }
+
+    /* hour */
+    if (h === "*") {
+      pieces.push("of every hour");
+    } else if (h.indexOf("*/") === 0) {
+      pieces.push("every " + h.slice(2) + " hours");
+    } else {
+      pieces.push("at hour " + h);
+    }
+
+    /* dom */
+    if (dom !== "*") {
+      if (dom.indexOf("*/") === 0) {
+        pieces.push("every " + dom.slice(2) + " days");
+      } else {
+        pieces.push("on day " + dom);
+      }
+    }
+
+    /* month */
+    if (mo !== "*") {
+      var moNums = mo.split(",").map(function(v) {
+        var n = parseInt(v, 10);
+        return (n >= 1 && n <= 12) ? MONTH_NAMES[n - 1] : v;
+      });
+      pieces.push("in " + moNums.join(", "));
+    }
+
+    /* dow */
+    if (dow !== "*") {
+      var dowNums = dow.split(",").map(function(v) {
+        var n = parseInt(v, 10);
+        if (v.indexOf("-") !== -1) return v;
+        return (n >= 0 && n <= 6) ? DOW_NAMES[n] : v;
+      });
+      pieces.push("on " + dowNums.join(", "));
+    }
+
+    var result = pieces.join(", ");
+    return result.charAt(0).toUpperCase() + result.slice(1);
+  }
+
+  function expandField(expr, min, max) {
+    if (expr === "*") {
+      var all = [];
+      for (var i = min; i <= max; i++) all.push(i);
+      return all;
+    }
+    var vals = [];
+    var segments = expr.split(",");
+    segments.forEach(function(seg) {
+      if (seg.indexOf("*/") === 0) {
+        var step = parseInt(seg.slice(2), 10) || 1;
+        for (var i = min; i <= max; i += step) vals.push(i);
+      } else if (seg.indexOf("-") !== -1) {
+        var rng = seg.split("-");
+        var lo = parseInt(rng[0], 10);
+        var hi = parseInt(rng[1], 10);
+        for (var i = lo; i <= hi; i++) vals.push(i);
+      } else {
+        var n = parseInt(seg, 10);
+        if (!isNaN(n)) vals.push(n);
+      }
+    });
+    return vals.sort(function(a, b) { return a - b; });
+  }
+
+  function getNextFireTimes(expr, count) {
+    var parts = expr.split(/\s+/);
+    if (parts.length !== 5) return [];
+    var minutes = expandField(parts[0], 0, 59);
+    var hours = expandField(parts[1], 0, 23);
+    var doms = expandField(parts[2], 1, 31);
+    var months = expandField(parts[3], 1, 12);
+    var dows = expandField(parts[4], 0, 6);
+    var domWild = parts[2] === "*";
+    var dowWild = parts[4] === "*";
+    var results = [];
+    var now = new Date();
+    var d = new Date(now.getFullYear(), now.getMonth(), now.getDate(), now.getHours(), now.getMinutes() + 1, 0, 0);
+    var limit = 525600; /* one year of minutes */
+
+    for (var iter = 0; iter < limit && results.length < count; iter++) {
+      var mo = d.getMonth() + 1;
+      var day = d.getDate();
+      var hr = d.getHours();
+      var mn = d.getMinutes();
+      var wd = d.getDay();
+
+      if (months.indexOf(mo) !== -1 &&
+          hours.indexOf(hr) !== -1 &&
+          minutes.indexOf(mn) !== -1) {
+        var domMatch = domWild || doms.indexOf(day) !== -1;
+        var dowMatch = dowWild || dows.indexOf(wd) !== -1;
+        if (domWild && dowWild) {
+          results.push(new Date(d));
+        } else if (!domWild && !dowWild) {
+          if (domMatch || dowMatch) results.push(new Date(d));
+        } else {
+          if (domMatch && dowMatch) results.push(new Date(d));
+        }
+      }
+      d.setMinutes(d.getMinutes() + 1);
+    }
+    return results;
+  }
+
+  function formatDate(d) {
+    var days = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+    var pad = function(n) { return n < 10 ? "0" + n : String(n); };
+    return days[d.getDay()] + " " +
+           d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate()) +
+           " " + pad(d.getHours()) + ":" + pad(d.getMinutes());
+  }
+
+  function updateUI() {
+    var expr = getCronExpr();
+    $("cronDisplay").textContent = expr;
+    $("cronDesc").textContent = describeCron(expr);
+    $("cronInput").value = expr;
+
+    FIELDS.forEach(function(f) {
+      var valId = "val" + f.charAt(0).toUpperCase() + f.slice(1);
+      $(valId).textContent = getFieldExpr(f);
+    });
+
+    var times = getNextFireTimes(expr, 10);
+    var html = "";
+    times.forEach(function(t) {
+      html += '<div class="fire-time">' + formatDate(t) + '</div>';
+    });
+    if (times.length === 0) {
+      html = '<div class="fire-time">No fire times in next year</div>';
+    }
+    $("fireTimes").innerHTML = html;
+  }
+
+  function setMode(field, mode) {
+    state[field].mode = mode;
+    var group = $("field" + field.charAt(0).toUpperCase() + field.slice(1));
+    if (!group && field === "dom") group = $("fieldDom");
+    var btns = document.querySelectorAll('[data-field="' + field + '"]');
+    btns.forEach(function(b) {
+      if (b.getAttribute("data-mode") === mode) {
+        b.classList.add("active");
+      } else {
+        b.classList.remove("active");
+      }
+    });
+    var everyEl = $(field + "Every");
+    var stepEl = $(field + "Step");
+    var specEl = $(field + "Specific");
+    if (everyEl) everyEl.className = mode === "every" ? "field-ctrl" : "field-ctrl hidden";
+    if (stepEl) stepEl.className = mode === "step" ? "field-ctrl" : "field-ctrl hidden";
+    if (specEl) specEl.className = mode === "specific" ? "field-ctrl" : "field-ctrl hidden";
+    updateUI();
+  }
+
+  function togglePick(field, val) {
+    var arr = state[field].picks;
+    var idx = arr.indexOf(val);
+    if (idx === -1) {
+      arr.push(val);
+    } else {
+      arr.splice(idx, 1);
+    }
+    /* update button state */
+    var btns = document.querySelectorAll('[data-pick-field="' + field + '"]');
+    btns.forEach(function(b) {
+      var v = parseInt(b.getAttribute("data-pick-val"), 10);
+      if (arr.indexOf(v) !== -1) {
+        b.classList.add("active");
+      } else {
+        b.classList.remove("active");
+      }
+    });
+    updateUI();
+  }
+
+  function parseCronExpr(expr) {
+    expr = expr.trim();
+    /* handle common aliases */
+    if (expr === "@yearly" || expr === "@annually") expr = "0 0 1 1 *";
+    if (expr === "@monthly") expr = "0 0 1 * *";
+    if (expr === "@weekly") expr = "0 0 * * 0";
+    if (expr === "@daily" || expr === "@midnight") expr = "0 0 * * *";
+    if (expr === "@hourly") expr = "0 * * * *";
+
+    var parts = expr.split(/\s+/);
+    if (parts.length !== 5) return;
+
+    FIELDS.forEach(function(field, i) {
+      var part = parts[i];
+      state[field].picks = [];
+      /* clear all pick buttons */
+      var btns = document.querySelectorAll('[data-pick-field="' + field + '"]');
+      btns.forEach(function(b) { b.classList.remove("active"); });
+
+      if (part === "*") {
+        state[field].mode = "every";
+        setMode(field, "every");
+      } else if (part.indexOf("*/") === 0) {
+        state[field].mode = "step";
+        state[field].step = parseInt(part.slice(2), 10) || 1;
+        setMode(field, "step");
+        var stepInput = $(field + "StepVal");
+        if (stepInput) {
+          stepInput.value = state[field].step;
+          var label = $(field + "StepLabel");
+          if (label) label.textContent = state[field].step;
+        }
+      } else {
+        state[field].mode = "specific";
+        var vals = [];
+        part.split(",").forEach(function(seg) {
+          if (seg.indexOf("-") !== -1) {
+            var rng = seg.split("-");
+            var lo = parseInt(rng[0], 10);
+            var hi = parseInt(rng[1], 10);
+            for (var j = lo; j <= hi; j++) vals.push(j);
+          } else {
+            var n = parseInt(seg, 10);
+            if (!isNaN(n)) vals.push(n);
+          }
+        });
+        state[field].picks = vals;
+        setMode(field, "specific");
+        btns.forEach(function(b) {
+          var v = parseInt(b.getAttribute("data-pick-val"), 10);
+          if (vals.indexOf(v) !== -1) b.classList.add("active");
+        });
+      }
+    });
+    updateUI();
+  }
+
+  /* event delegation for mode buttons */
+  document.addEventListener("click", function(e) {
+    var target = e.target;
+    if (target.getAttribute("data-field") && target.getAttribute("data-mode")) {
+      setMode(target.getAttribute("data-field"), target.getAttribute("data-mode"));
+    }
+    if (target.getAttribute("data-pick-field")) {
+      togglePick(
+        target.getAttribute("data-pick-field"),
+        parseInt(target.getAttribute("data-pick-val"), 10)
+      );
+    }
+  });
+
+  /* step sliders */
+  ["minute", "hour", "dom"].forEach(function(field) {
+    var slider = $(field + "StepVal");
+    var label = $(field + "StepLabel");
+    if (slider && label) {
+      slider.addEventListener("input", function() {
+        state[field].step = parseInt(slider.value, 10);
+        label.textContent = slider.value;
+        updateUI();
+      });
+    }
+  });
+
+  /* parse button */
+  $("btnParse").addEventListener("click", function() {
+    parseCronExpr($("cronInput").value);
+  });
+
+  /* parse on Enter */
+  $("cronInput").addEventListener("keydown", function(e) {
+    if (e.key === "Enter") {
+      parseCronExpr($("cronInput").value);
+    }
+  });
+
+  /* init */
+  buildPicks();
+  buildPresets();
+  updateUI();
+})();
+</script>
+</body>
+</html>

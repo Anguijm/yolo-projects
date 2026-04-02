@@ -1,0 +1,501 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="theme-color" content="#000000">
+<title>git-resolve</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body {
+  height: 100%;
+  background: #0a0a0a;
+  overflow-y: auto;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+body {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Courier New", monospace;
+  color: #ccc;
+  padding: 12px;
+}
+:root {
+  --bg-page: #0a0a0a;
+  --bg-surface: #111;
+  --bg-elevated: #1a1a1a;
+  --bg-hover: #222;
+  --text-primary: #fff;
+  --text-body: #ccc;
+  --text-secondary: #aaa;
+  --text-tertiary: #555;
+  --text-label: #444;
+  --text-muted: #333;
+  --border-default: #1a1a1a;
+  --border-subtle: #111;
+  --border-visible: #222;
+  --border-active: #444;
+  --border-focus: #555;
+  --color-success: #3fb950;
+  --color-warning: #d29922;
+  --color-error: #f85149;
+  --color-info: #58a6ff;
+  --accent: #0ff;
+}
+.container {
+  max-width: 900px;
+  margin: 0 auto;
+}
+h1 {
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 0.2em;
+  color: var(--text-label);
+  margin-bottom: 8px;
+}
+.subtitle {
+  font-size: 0.45rem;
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
+  color: var(--text-muted);
+  margin-bottom: 12px;
+}
+textarea {
+  width: 100%;
+  height: 180px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-visible);
+  color: var(--text-secondary);
+  padding: 8px;
+  font-family: inherit;
+  font-size: 0.7rem;
+  outline: none;
+  resize: vertical;
+}
+textarea:focus { border-color: var(--border-focus); }
+.btn {
+  padding: 6px 14px;
+  background: transparent;
+  border: 1px solid var(--border-default);
+  color: var(--text-label);
+  font-family: inherit;
+  font-size: 0.55rem;
+  cursor: pointer;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  min-height: 44px;
+}
+.btn:active { border-color: #555; color: #888; }
+.btn.active, .btn.primary {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.btn-row {
+  display: flex;
+  gap: 6px;
+  margin: 8px 0;
+  flex-wrap: wrap;
+}
+.conflict-block {
+  border: 1px solid var(--border-visible);
+  margin-bottom: 8px;
+}
+.conflict-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 4px 8px;
+  background: var(--bg-elevated);
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.conflict-label {
+  font-size: 0.5rem;
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
+  color: var(--text-tertiary);
+}
+.conflict-actions {
+  display: flex;
+  gap: 4px;
+}
+.conflict-actions .btn {
+  min-height: 36px;
+  padding: 4px 10px;
+  font-size: 0.5rem;
+}
+.conflict-actions .btn.chosen {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.diff-view {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0;
+}
+.diff-side {
+  padding: 6px 8px;
+  font-size: 0.65rem;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+  min-height: 40px;
+  overflow-x: auto;
+}
+.diff-ours {
+  background: rgba(248, 81, 73, 0.06);
+  border-right: 1px solid var(--border-default);
+  color: var(--color-error);
+}
+.diff-theirs {
+  background: rgba(63, 185, 80, 0.06);
+  color: var(--color-success);
+}
+.diff-label {
+  font-size: 0.4rem;
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
+  color: var(--text-muted);
+  padding: 2px 8px;
+  background: var(--bg-surface);
+}
+.diff-labels {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+}
+.context-block {
+  padding: 4px 8px;
+  font-size: 0.65rem;
+  line-height: 1.5;
+  color: var(--text-tertiary);
+  white-space: pre-wrap;
+  word-break: break-word;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  margin-bottom: 8px;
+}
+#output-section {
+  display: none;
+  margin-top: 12px;
+}
+#resolved-output {
+  width: 100%;
+  height: 200px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-visible);
+  color: var(--color-success);
+  padding: 8px;
+  font-family: inherit;
+  font-size: 0.7rem;
+  outline: none;
+  resize: vertical;
+}
+.status-bar {
+  font-size: 0.45rem;
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
+  color: var(--text-tertiary);
+  margin: 8px 0;
+}
+.status-bar .count {
+  color: var(--accent);
+}
+#conflicts-area {
+  margin-top: 12px;
+}
+.empty-state {
+  padding: 24px;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 0.55rem;
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
+}
+@media (max-width: 500px) {
+  .diff-view {
+    grid-template-columns: 1fr;
+  }
+  .diff-labels {
+    grid-template-columns: 1fr;
+  }
+  .diff-ours {
+    border-right: none;
+    border-bottom: 1px solid var(--border-default);
+  }
+}
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>git-resolve</h1>
+  <div class="subtitle">Interactive merge conflict resolver</div>
+
+  <textarea id="input-area" placeholder="Paste a file with git conflict markers (<<<<<<, =======, >>>>>>) here..."></textarea>
+  <div class="btn-row">
+    <button class="btn primary" id="btn-parse">Parse Conflicts</button>
+    <button class="btn" id="btn-sample">Load Sample</button>
+    <button class="btn" id="btn-clear">Clear</button>
+  </div>
+
+  <div id="status-bar" class="status-bar"></div>
+  <div id="conflicts-area"></div>
+
+  <div id="output-section">
+    <div class="btn-row">
+      <button class="btn primary" id="btn-resolve">Generate Resolved File</button>
+      <button class="btn" id="btn-copy">Copy Output</button>
+      <button class="btn" id="btn-all-ours">Accept All Ours</button>
+      <button class="btn" id="btn-all-theirs">Accept All Theirs</button>
+    </div>
+    <textarea id="resolved-output" readonly></textarea>
+  </div>
+</div>
+<script>
+(function() {
+  var inputArea = document.getElementById('input-area');
+  var btnParse = document.getElementById('btn-parse');
+  var btnSample = document.getElementById('btn-sample');
+  var btnClear = document.getElementById('btn-clear');
+  var conflictsArea = document.getElementById('conflicts-area');
+  var statusBar = document.getElementById('status-bar');
+  var outputSection = document.getElementById('output-section');
+  var resolvedOutput = document.getElementById('resolved-output');
+  var btnResolve = document.getElementById('btn-resolve');
+  var btnCopy = document.getElementById('btn-copy');
+  var btnAllOurs = document.getElementById('btn-all-ours');
+  var btnAllTheirs = document.getElementById('btn-all-theirs');
+
+  var parsed = null;
+
+  var SAMPLE = [
+    'package main',
+    '',
+    'import "fmt"',
+    '',
+    '<<<<<<< HEAD',
+    'func greet(name string) {',
+    '    fmt.Printf("Hello, %s!\\n", name)',
+    '=======',
+    'func greet(name string, formal bool) {',
+    '    if formal {',
+    '        fmt.Printf("Good day, %s.\\n", name)',
+    '    } else {',
+    '        fmt.Printf("Hey %s!\\n", name)',
+    '    }',
+    '>>>>>>> feature-branch',
+    '}',
+    '',
+    '<<<<<<< HEAD',
+    'var version = "1.0.0"',
+    '=======',
+    'var version = "2.0.0-beta"',
+    '>>>>>>> feature-branch',
+    '',
+    'func main() {',
+    '<<<<<<< HEAD',
+    '    greet("World")',
+    '=======',
+    '    greet("World", true)',
+    '>>>>>>> feature-branch',
+    '}'
+  ].join('\n');
+
+  function parseConflicts(text) {
+    var lines = text.split('\n');
+    var segments = [];
+    var context = [];
+    var i = 0;
+    var conflictIndex = 0;
+
+    while (i < lines.length) {
+      if (lines[i].match(/^<{7}/)) {
+        if (context.length > 0) {
+          segments.push({ type: 'context', text: context.join('\n') });
+          context = [];
+        }
+        var oursLines = [];
+        var theirsLines = [];
+        var inOurs = true;
+        i++;
+        while (i < lines.length && !lines[i].match(/^>{7}/)) {
+          if (lines[i].match(/^={7}/)) {
+            inOurs = false;
+            i++;
+            continue;
+          }
+          if (inOurs) {
+            oursLines.push(lines[i]);
+          } else {
+            theirsLines.push(lines[i]);
+          }
+          i++;
+        }
+        segments.push({
+          type: 'conflict',
+          index: conflictIndex,
+          ours: oursLines.join('\n'),
+          theirs: theirsLines.join('\n'),
+          choice: null
+        });
+        conflictIndex++;
+        i++;
+      } else {
+        context.push(lines[i]);
+        i++;
+      }
+    }
+    if (context.length > 0) {
+      segments.push({ type: 'context', text: context.join('\n') });
+    }
+    return segments;
+  }
+
+  function escapeHtml(str) {
+    return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  }
+
+  function render() {
+    if (!parsed) {
+      conflictsArea.innerHTML = '<div class="empty-state">No conflicts parsed yet</div>';
+      statusBar.textContent = '';
+      outputSection.style.display = 'none';
+      return;
+    }
+
+    var totalConflicts = 0;
+    var resolvedCount = 0;
+    parsed.forEach(function(seg) {
+      if (seg.type === 'conflict') {
+        totalConflicts++;
+        if (seg.choice !== null) resolvedCount++;
+      }
+    });
+
+    statusBar.innerHTML = '<span class="count">' + resolvedCount + '</span> / ' + totalConflicts + ' conflicts resolved';
+
+    var html = '';
+    parsed.forEach(function(seg) {
+      if (seg.type === 'context') {
+        html += '<div class="context-block">' + escapeHtml(seg.text) + '</div>';
+      } else {
+        var idx = seg.index;
+        html += '<div class="conflict-block">';
+        html += '<div class="conflict-header">';
+        html += '<span class="conflict-label">Conflict #' + (idx + 1) + '</span>';
+        html += '<div class="conflict-actions">';
+        html += '<button class="btn' + (seg.choice === 'ours' ? ' chosen' : '') + '" data-idx="' + idx + '" data-choice="ours">Ours</button>';
+        html += '<button class="btn' + (seg.choice === 'theirs' ? ' chosen' : '') + '" data-idx="' + idx + '" data-choice="theirs">Theirs</button>';
+        html += '<button class="btn' + (seg.choice === 'both' ? ' chosen' : '') + '" data-idx="' + idx + '" data-choice="both">Both</button>';
+        html += '</div></div>';
+        html += '<div class="diff-labels"><div class="diff-label">Ours (HEAD)</div><div class="diff-label">Theirs (incoming)</div></div>';
+        html += '<div class="diff-view">';
+        html += '<div class="diff-side diff-ours">' + escapeHtml(seg.ours) + '</div>';
+        html += '<div class="diff-side diff-theirs">' + escapeHtml(seg.theirs) + '</div>';
+        html += '</div></div>';
+      }
+    });
+
+    conflictsArea.innerHTML = html;
+    outputSection.style.display = totalConflicts > 0 ? '' : 'none';
+
+    if (resolvedCount === totalConflicts && totalConflicts > 0) {
+      generateOutput();
+    }
+  }
+
+  function setChoice(idx, choice) {
+    parsed.forEach(function(seg) {
+      if (seg.type === 'conflict' && seg.index === idx) {
+        seg.choice = choice;
+      }
+    });
+    render();
+  }
+
+  function setAllChoices(choice) {
+    parsed.forEach(function(seg) {
+      if (seg.type === 'conflict') {
+        seg.choice = choice;
+      }
+    });
+    render();
+  }
+
+  function generateOutput() {
+    if (!parsed) return;
+    var parts = [];
+    parsed.forEach(function(seg) {
+      if (seg.type === 'context') {
+        parts.push(seg.text);
+      } else {
+        if (seg.choice === 'ours') {
+          parts.push(seg.ours);
+        } else if (seg.choice === 'theirs') {
+          parts.push(seg.theirs);
+        } else if (seg.choice === 'both') {
+          parts.push(seg.ours + '\n' + seg.theirs);
+        } else {
+          parts.push('/* UNRESOLVED CONFLICT #' + (seg.index + 1) + ' */');
+        }
+      }
+    });
+    resolvedOutput.value = parts.join('\n');
+  }
+
+  conflictsArea.addEventListener('click', function(e) {
+    var btn = e.target;
+    if (btn.tagName === 'BUTTON' && btn.dataset.idx !== undefined) {
+      setChoice(parseInt(btn.dataset.idx, 10), btn.dataset.choice);
+    }
+  });
+
+  btnParse.addEventListener('click', function() {
+    var text = inputArea.value.trim();
+    if (!text) return;
+    parsed = parseConflicts(text);
+    var hasConflicts = parsed.some(function(s) { return s.type === 'conflict'; });
+    if (!hasConflicts) {
+      statusBar.textContent = 'No conflict markers found in input';
+      conflictsArea.innerHTML = '<div class="empty-state">No <<<<<<< markers detected</div>';
+      outputSection.style.display = 'none';
+      return;
+    }
+    render();
+  });
+
+  btnSample.addEventListener('click', function() {
+    inputArea.value = SAMPLE;
+  });
+
+  btnClear.addEventListener('click', function() {
+    inputArea.value = '';
+    parsed = null;
+    resolvedOutput.value = '';
+    render();
+  });
+
+  btnResolve.addEventListener('click', function() {
+    generateOutput();
+  });
+
+  btnCopy.addEventListener('click', function() {
+    resolvedOutput.select();
+    document.execCommand('copy');
+    btnCopy.textContent = 'COPIED';
+    setTimeout(function() { btnCopy.textContent = 'COPY OUTPUT'; }, 1500);
+  });
+
+  btnAllOurs.addEventListener('click', function() {
+    setAllChoices('ours');
+  });
+
+  btnAllTheirs.addEventListener('click', function() {
+    setAllChoices('theirs');
+  });
+
+  render();
+})();
+</script>
+</body>
+</html>

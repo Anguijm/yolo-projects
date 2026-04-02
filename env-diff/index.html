@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="theme-color" content="#000000">
+<title>env-diff</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body {
+  height: 100%; background: #0a0a0a; color: #ccc;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Courier New", monospace;
+  overflow-y: auto; touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+:root {
+  --bg-surface: #111; --bg-elevated: #1a1a1a; --border-default: #1a1a1a;
+  --border-active: #444; --text-body: #ccc; --text-label: #444;
+  --text-tertiary: #555; --accent: #0ff;
+  --color-success: #3fb950; --color-error: #f85149; --color-warning: #d29922;
+}
+#app { max-width: 960px; margin: 0 auto; padding: 12px; }
+.top-bar {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 12px;
+}
+.top-bar .title {
+  font-size: 0.55rem; text-transform: uppercase; letter-spacing: 0.2em; color: var(--text-label);
+}
+.top-bar .title span { color: var(--accent); }
+.btn {
+  padding: 4px 10px; background: transparent; border: 1px solid var(--border-default);
+  color: var(--text-label); font-family: inherit; font-size: 0.55rem;
+  cursor: pointer; letter-spacing: 0.1em; text-transform: uppercase;
+}
+.btn:active { border-color: var(--accent); color: var(--accent); }
+.btn-primary { border-color: var(--accent); color: var(--accent); }
+.editors {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 12px;
+}
+@media (max-width: 600px) { .editors { grid-template-columns: 1fr; } }
+.editor-col label {
+  display: block; font-size: 0.45rem; text-transform: uppercase;
+  letter-spacing: 0.15em; color: var(--text-label); margin-bottom: 4px;
+}
+.editor-col textarea {
+  width: 100%; height: 200px; background: var(--bg-surface);
+  border: 1px solid var(--border-default); color: var(--text-body);
+  font-family: inherit; font-size: 0.7rem; padding: 8px; resize: vertical; outline: none;
+}
+.editor-col textarea:focus { border-color: var(--border-active); }
+.actions { display: flex; gap: 8px; margin-bottom: 12px; align-items: center; }
+#summary-bar {
+  font-size: 0.5rem; color: var(--text-tertiary); display: flex; gap: 12px;
+}
+#summary-bar .added { color: var(--color-success); }
+#summary-bar .removed { color: var(--color-error); }
+#summary-bar .changed { color: var(--color-warning); }
+#summary-bar .same { color: var(--text-tertiary); }
+#diff-output { margin-top: 8px; }
+.diff-table {
+  width: 100%; border-collapse: collapse; font-size: 0.65rem;
+}
+.diff-table th {
+  text-align: left; padding: 4px 8px; border-bottom: 1px solid #333;
+  font-size: 0.45rem; text-transform: uppercase; letter-spacing: 0.1em;
+  color: var(--text-label); font-weight: normal;
+}
+.diff-table td { padding: 4px 8px; border-bottom: 1px solid var(--border-default); }
+.diff-table .row-added { background: rgba(63,185,80,0.08); }
+.diff-table .row-added td:first-child { color: var(--color-success); }
+.diff-table .row-removed { background: rgba(248,81,73,0.08); }
+.diff-table .row-removed td:first-child { color: var(--color-error); }
+.diff-table .row-changed { background: rgba(210,153,34,0.08); }
+.diff-table .row-changed td:first-child { color: var(--color-warning); }
+.diff-table .row-same td { color: var(--text-tertiary); }
+.diff-table .old-val { color: var(--color-error); text-decoration: line-through; }
+.diff-table .new-val { color: var(--color-success); }
+.diff-table .arrow { color: var(--text-tertiary); padding: 0 4px; }
+.empty-state { color: var(--text-tertiary); font-size: 0.55rem; padding: 20px 0; text-align: center; }
+</style>
+</head>
+<body>
+<div id="app">
+  <div class="top-bar">
+    <div class="title"><span>&#9632;</span> env-diff</div>
+    <button class="btn" id="btn-copy">copy merged</button>
+  </div>
+  <div class="editors">
+    <div class="editor-col">
+      <label>left (.env)</label>
+      <textarea id="env-left" spellcheck="false" placeholder="DB_HOST=localhost&#10;DB_PORT=5432&#10;API_KEY=abc123&#10;DEBUG=true"></textarea>
+    </div>
+    <div class="editor-col">
+      <label>right (.env)</label>
+      <textarea id="env-right" spellcheck="false" placeholder="DB_HOST=production.db&#10;DB_PORT=5432&#10;API_KEY=xyz789&#10;NEW_VAR=hello"></textarea>
+    </div>
+  </div>
+  <div class="actions">
+    <button class="btn btn-primary" id="btn-compare">compare</button>
+    <div id="summary-bar"></div>
+  </div>
+  <div id="diff-output">
+    <div class="empty-state">Paste two .env files and click Compare</div>
+  </div>
+</div>
+<script>
+(function() {
+  'use strict';
+
+  var leftEl = document.getElementById('env-left');
+  var rightEl = document.getElementById('env-right');
+  var compareBtn = document.getElementById('btn-compare');
+  var copyBtn = document.getElementById('btn-copy');
+  var summaryBar = document.getElementById('summary-bar');
+  var diffOutput = document.getElementById('diff-output');
+  var lastResult = null;
+
+  /* parseEnv: text → [{key, value, line}] */
+  function parseEnv(text) {
+    var entries = [];
+    var lines = text.split('\n');
+    for (var i = 0; i < lines.length; i++) {
+      var line = lines[i].trim();
+      if (!line || line[0] === '#') continue;
+      var eq = line.indexOf('=');
+      if (eq < 1) continue;
+      entries.push({
+        key: line.substring(0, eq).trim(),
+        value: line.substring(eq + 1).trim(),
+        line: i + 1
+      });
+    }
+    return entries;
+  }
+
+  /* diffEnv: (left[], right[]) → {added, removed, changed, unchanged} */
+  function diffEnv(left, right) {
+    var leftMap = {};
+    var rightMap = {};
+    for (var i = 0; i < left.length; i++) leftMap[left[i].key] = left[i];
+    for (var j = 0; j < right.length; j++) rightMap[right[j].key] = right[j];
+
+    var added = [], removed = [], changed = [], unchanged = [];
+
+    for (var k in leftMap) {
+      if (!(k in rightMap)) {
+        removed.push(leftMap[k]);
+      } else if (leftMap[k].value !== rightMap[k].value) {
+        changed.push({ key: k, oldVal: leftMap[k].value, newVal: rightMap[k].value });
+      } else {
+        unchanged.push(leftMap[k]);
+      }
+    }
+    for (var m in rightMap) {
+      if (!(m in leftMap)) {
+        added.push(rightMap[m]);
+      }
+    }
+
+    return { added: added, removed: removed, changed: changed, unchanged: unchanged };
+  }
+
+  /* renderDiff: result → HTML */
+  function renderDiff(result) {
+    var html = '<table class="diff-table">';
+    html += '<tr><th>status</th><th>key</th><th>value</th></tr>';
+
+    for (var i = 0; i < result.added.length; i++) {
+      var a = result.added[i];
+      html += '<tr class="row-added"><td>+ added</td><td>' + esc(a.key) + '</td><td class="new-val">' + esc(a.value) + '</td></tr>';
+    }
+    for (var j = 0; j < result.removed.length; j++) {
+      var r = result.removed[j];
+      html += '<tr class="row-removed"><td>- removed</td><td>' + esc(r.key) + '</td><td class="old-val">' + esc(r.value) + '</td></tr>';
+    }
+    for (var k = 0; k < result.changed.length; k++) {
+      var c = result.changed[k];
+      html += '<tr class="row-changed"><td>~ changed</td><td>' + esc(c.key) + '</td><td>';
+      html += '<span class="old-val">' + esc(c.oldVal) + '</span>';
+      html += '<span class="arrow">&rarr;</span>';
+      html += '<span class="new-val">' + esc(c.newVal) + '</span>';
+      html += '</td></tr>';
+    }
+    for (var m = 0; m < result.unchanged.length; m++) {
+      var u = result.unchanged[m];
+      html += '<tr class="row-same"><td>= same</td><td>' + esc(u.key) + '</td><td>' + esc(u.value) + '</td></tr>';
+    }
+
+    html += '</table>';
+    return html;
+  }
+
+  function esc(s) { return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+
+  /* getMerged: use right-side values as "target" */
+  function getMerged(result) {
+    var lines = [];
+    for (var i = 0; i < result.unchanged.length; i++) {
+      lines.push(result.unchanged[i].key + '=' + result.unchanged[i].value);
+    }
+    for (var j = 0; j < result.changed.length; j++) {
+      lines.push(result.changed[j].key + '=' + result.changed[j].newVal);
+    }
+    for (var k = 0; k < result.added.length; k++) {
+      lines.push(result.added[k].key + '=' + result.added[k].value);
+    }
+    return lines.join('\n');
+  }
+
+  compareBtn.addEventListener('click', function() {
+    var left = parseEnv(leftEl.value);
+    var right = parseEnv(rightEl.value);
+    lastResult = diffEnv(left, right);
+
+    summaryBar.innerHTML =
+      '<span class="added">+' + lastResult.added.length + ' added</span>' +
+      '<span class="removed">-' + lastResult.removed.length + ' removed</span>' +
+      '<span class="changed">~' + lastResult.changed.length + ' changed</span>' +
+      '<span class="same">=' + lastResult.unchanged.length + ' same</span>';
+
+    diffOutput.innerHTML = renderDiff(lastResult);
+  });
+
+  copyBtn.addEventListener('click', function() {
+    if (!lastResult) return;
+    var merged = getMerged(lastResult);
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(merged).then(function() {
+        copyBtn.textContent = 'copied!';
+        setTimeout(function() { copyBtn.textContent = 'copy merged'; }, 1500);
+      });
+    } else {
+      var tmp = document.createElement('textarea');
+      tmp.value = merged;
+      tmp.style.position = 'fixed';
+      tmp.style.opacity = '0';
+      document.body.appendChild(tmp);
+      tmp.select();
+      try { document.execCommand('copy'); } catch(e) {}
+      document.body.removeChild(tmp);
+      copyBtn.textContent = 'copied!';
+      setTimeout(function() { copyBtn.textContent = 'copy merged'; }, 1500);
+    }
+  });
+
+})();
+</script>
+</body>
+</html>
