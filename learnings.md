@@ -2830,3 +2830,16 @@ Sequential Gemini reviews (focus: bugs, then security) caught **different issue 
 - **INSIGHT**: Invalidate ALL computed caches on ANY source mutation (add, delete, drag, strength change). Never try to partial-invalidate. The recompute is fast enough that full invalidation is correct and simple.
 - **INSIGHT**: Wire source type (circular B field) creates much more varied and surprising field configurations than pure monopoles. Users discover unexpected saddle points and neutral regions when mixing poles with wires.
 - **TEST CAUGHT**: All bugs found by self-audit (council review angles). Static tests catch structural issues only.
+
+### crystal-growth — DLA Diffusion Limited Aggregation (2026-04-02)
+- **KEEP**: Two-layer canvas approach for permanent aggregates — `bgCanvas` (offscreen, never cleared) holds the aggregate; main canvas = clear + `drawImage(bgCanvas)` + active walkers each frame. No re-rendering of existing pixels, O(1) per frame for the aggregate display.
+- **KEEP**: CSS `filter: blur(3px)` glow pass before crisp drawImage — draw bgCanvas blurred at reduced alpha, then draw crisp on top. The blurred layer "leaks" beyond the crisp edges giving a natural glow halo with zero extra math.
+- **KEEP**: `ctx.setTransform(DPR, 0, 0, DPR, 0, 0)` on resize instead of `ctx.scale(DPR, DPR)` — setTransform is absolute and avoids accumulation bugs when resize is called multiple times.
+- **KEEP**: `Uint8Array(W*H)` as collision grid for DLA — O(1) adjacency check with 4 simple array lookups. Much faster than Set<string> or 2D arrays with object allocation.
+- **KEEP**: Walker birth at `maxRadius + 15 + random*10` from center, kill at `maxRadius + 40`. Keeps computation focused near the active growth front, avoids walkers spending thousands of steps far from the aggregate.
+- **KEEP**: `getSymmetryPoints(x, y)` applies rotational symmetry at stick time — rotate each stuck point k times by 2π/n and add all copies to grid. Symmetry is free (no extra walkers needed), just apply it when sticking.
+- **BUG (self-audit)**: ICE/FIRE color normalization used `maxRadius+1` as divisor. When first walker sticks at distance ~5 with maxRadius=3, t=5/4=1.25 → clamped to 1 → bright white, even for inner pixels. As crystal grows, these inner pixels remain incorrectly bright. Fix: use screen-relative fixed scale `Math.min(W,H)*0.3` — same scale for all pixels regardless of when they were added.
+- **INSIGHT**: Any "distance-from-center" color that normalizes by current maxRadius will produce wrong colors for early pixels (added when maxRadius was small). Always use an absolute fixed scale (screen size * constant) for colors that don't update after being set.
+- **INSIGHT**: Symmetry order 6 is the default magic number for DLA — it produces the most recognizable snowflake crystals that users immediately recognize and share. 4× makes crosses, 8× makes spiky stars. Always default to the most recognizable/beautiful option.
+- **INSIGHT**: `title` attributes on buttons and sliders (especially controls with abstract units like "STICKY" or "WALKERS") are essential for a first-timer. Add them universally — they cost nothing and teach the interface.
+- **TEST CAUGHT**: All bugs found by self-audit (council review). Static tests catch structural issues; behavioral bugs require careful manual audit.

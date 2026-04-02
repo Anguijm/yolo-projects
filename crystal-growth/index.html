@@ -1,0 +1,588 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="theme-color" content="#000000">
+<title>Crystal Growth</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body {
+  height: 100%;
+  background: #000;
+  overflow: hidden;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  color: #aaa;
+  user-select: none;
+}
+#c {
+  position: fixed;
+  top: 0; left: 0;
+  width: 100%; height: 100%;
+  display: block;
+}
+/* Bottom HUD */
+#ui {
+  position: fixed;
+  bottom: 0; left: 0; right: 0;
+  padding: 10px 12px 14px;
+  background: linear-gradient(transparent, rgba(0,0,0,0.92) 25%);
+  pointer-events: none;
+}
+#ui > * { pointer-events: auto; }
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  align-items: center;
+  margin-bottom: 4px;
+}
+.row:last-child { margin-bottom: 0; }
+.section-label {
+  font-size: 0.4rem;
+  color: #333;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  min-width: 48px;
+  flex-shrink: 0;
+}
+.btn {
+  padding: 0 10px;
+  height: 36px;
+  background: transparent;
+  border: 1px solid #1a1a1a;
+  color: #444;
+  font-family: inherit;
+  font-size: 0.5rem;
+  cursor: pointer;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.btn:active { border-color: #555; color: #888; }
+.btn.active { border-color: #0ff; color: #0ff; }
+.btn.accent { border-color: #333; color: #666; }
+.btn.accent:active { border-color: #0ff; color: #0ff; }
+.sl-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.sl-label {
+  font-size: 0.38rem;
+  color: #2a2a2a;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+}
+input[type="range"] {
+  height: 3px;
+  accent-color: #444;
+  width: 72px;
+  cursor: pointer;
+}
+/* Top stats */
+#stats {
+  position: fixed;
+  top: 10px; left: 12px;
+  font-size: 0.42rem;
+  color: #2a2a2a;
+  letter-spacing: 0.15em;
+  pointer-events: none;
+  line-height: 1.6;
+}
+#hide-hint {
+  position: fixed;
+  top: 10px; right: 12px;
+  font-size: 0.38rem;
+  color: #1a1a1a;
+  letter-spacing: 0.15em;
+  cursor: pointer;
+  text-transform: uppercase;
+}
+#hide-hint:hover { color: #444; }
+/* Seed ring selector */
+.seed-btn.active { border-color: #0ff; color: #0ff; }
+#hint-bar {
+  position: fixed;
+  bottom: 0; left: 0; right: 0;
+  text-align: center;
+  font-size: 0.38rem;
+  color: #1c1c1c;
+  letter-spacing: 0.15em;
+  padding-bottom: 4px;
+  pointer-events: none;
+  text-transform: uppercase;
+}
+</style>
+</head>
+<body>
+
+<canvas id="c"></canvas>
+
+<div id="stats">
+  <div id="stat-pixels">PIXELS — 0</div>
+  <div id="stat-walkers">WALKERS — 0</div>
+  <div id="stat-gen">GENERATION — 0</div>
+  <div id="stat-fps">FPS — --</div>
+  <div style="margin-top:4px;color:#181818;">TAP CANVAS · ADD SEED</div>
+  <div style="color:#141414;">SPC PAUSE · R RESET · H HIDE</div>
+</div>
+
+<div id="hide-hint">H — HIDE</div>
+
+<div id="ui">
+  <!-- ROW 1: Symmetry -->
+  <div class="row">
+    <span class="section-label">SYMM</span>
+    <button class="btn" id="sym1" data-sym="1" title="No symmetry — free-form DLA growth">NONE</button>
+    <button class="btn" id="sym2" data-sym="2" title="2-fold bilateral symmetry">2×</button>
+    <button class="btn" id="sym3" data-sym="3" title="3-fold rotational symmetry">3×</button>
+    <button class="btn" id="sym4" data-sym="4" title="4-fold symmetry (crystal cross)">4×</button>
+    <button class="btn active" id="sym6" data-sym="6" title="6-fold snowflake symmetry (default)">6×</button>
+    <button class="btn" id="sym8" data-sym="8" title="8-fold symmetry (octagonal)">8×</button>
+    <span style="display:inline-block;width:8px;"></span>
+    <span class="section-label">COLOR</span>
+    <button class="btn active" id="colRadial" title="Color by angle — each arm gets a distinct hue">RADIAL</button>
+    <button class="btn" id="colAge" title="Color cycles slowly as the crystal grows">AGE</button>
+    <button class="btn" id="colIce" title="Dark center to bright-white tips — ice crystal look">ICE</button>
+    <button class="btn" id="colFire" title="Dark red center to yellow-white tips — lava/ember look">FIRE</button>
+  </div>
+  <!-- ROW 2: Sliders + Actions -->
+  <div class="row">
+    <div class="sl-wrap">
+      <span class="sl-label">SPEED</span>
+      <input type="range" id="sl-speed" min="1" max="60" value="20" step="1" title="Steps per animation frame — higher = faster growth">
+    </div>
+    <div class="sl-wrap">
+      <span class="sl-label">WALKERS</span>
+      <input type="range" id="sl-walkers" min="5" max="200" value="80" step="5" title="Number of simultaneous random walkers">
+    </div>
+    <div class="sl-wrap">
+      <span class="sl-label">STICKY</span>
+      <input type="range" id="sl-stick" min="5" max="100" value="100" step="5" title="Probability a walker sticks on contact — lower = denser, more rounded crystals">
+    </div>
+    <div class="sl-wrap">
+      <span class="sl-label">GLOW</span>
+      <input type="range" id="sl-glow" min="0" max="100" value="50" step="5" title="Glow halo intensity around crystal branches">
+    </div>
+    <span style="display:inline-block;width:8px;"></span>
+    <button class="btn accent" id="btn-pause" title="Pause / resume crystal growth (Space)">PAUSE</button>
+    <button class="btn accent" id="btn-reset" title="Clear and restart crystal growth (R)">RESET</button>
+    <button class="btn accent" id="btn-export" title="Save current crystal as PNG image">SAVE PNG</button>
+  </div>
+</div>
+
+<script>
+'use strict';
+
+/* ── CANVAS ──────────────────────────────────────────────────── */
+const canvas = document.getElementById('c');
+const ctx    = canvas.getContext('2d');
+let W, H, DPR, CX, CY;
+
+/* Offscreen canvas for the permanent aggregate */
+let bgCanvas, bgCtx;
+
+function resize() {
+  DPR = window.devicePixelRatio || 1;
+  W   = window.innerWidth;
+  H   = window.innerHeight;
+  CX  = W / 2 | 0;
+  CY  = H / 2 | 0;
+
+  canvas.width  = W * DPR;
+  canvas.height = H * DPR;
+  canvas.style.width  = W + 'px';
+  canvas.style.height = H + 'px';
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+
+  /* bgCanvas always in CSS pixel units (1:1 with grid) */
+  bgCanvas        = document.createElement('canvas');
+  bgCanvas.width  = W;
+  bgCanvas.height = H;
+  bgCtx           = bgCanvas.getContext('2d');
+}
+
+/* ── STATE ───────────────────────────────────────────────────── */
+let grid;           /* Uint8Array W×H, 0=empty 1=aggregate */
+let walkers = [];   /* active random walkers {x, y} */
+let generation = 0; /* how many pixels have been added */
+let maxRadius  = 12;/* bounding radius of aggregate from center */
+let paused     = false;
+let uiVisible  = true;
+
+/* Config */
+let symmetry    = 6;
+let stickiness  = 1.0;
+let walkerCount = 80;
+let stepsPerFrame = 20;
+let colorMode   = 'radial';  /* radial | age | ice | fire */
+let glowAlpha   = 0.5;
+
+/* Stats */
+let totalPixels = 0;
+let fpsCount    = 0, fpsLast = -1001, fpsVal = '--';
+
+/* ── COLOR FUNCTIONS ─────────────────────────────────────────── */
+function hsl(h, s, l) {
+  /* Returns a CSS color string */
+  return 'hsl(' + h + ',' + s + '%,' + l + '%)';
+}
+
+function colorForPixel(x, y) {
+  switch (colorMode) {
+    case 'radial': {
+      /* Hue based on angle from center — each arm gets distinct color */
+      const ang = Math.atan2(y - CY, x - CX) * (180 / Math.PI) + 180;
+      const sat = 90;
+      const lit = 55 + 10 * Math.sin((ang / 60) * Math.PI);
+      return hsl(ang, sat, lit);
+    }
+    case 'age': {
+      /* Hue slowly cycles with generation */
+      const h = (generation * 0.18) % 360;
+      return hsl(h, 85, 58);
+    }
+    case 'ice': {
+      /* Dark blue center → bright cyan → white tips
+         Use screen-relative fixed scale so colors are stable as crystal grows */
+      const scale = Math.min(W, H) * 0.3;
+      const d = Math.sqrt((x - CX) ** 2 + (y - CY) ** 2);
+      const t = Math.min(1, d / scale);
+      const l = Math.round(12 + t * 73);
+      const sat = Math.round(100 - t * 35);
+      return hsl(200 + t * 15, sat, l);
+    }
+    case 'fire': {
+      /* Dark red center → orange → yellow-white tips */
+      const scale = Math.min(W, H) * 0.3;
+      const d = Math.sqrt((x - CX) ** 2 + (y - CY) ** 2);
+      const t = Math.min(1, d / scale);
+      const h2 = Math.round(t * 55);    /* 0 (deep red) → 55 (yellow) */
+      const l2 = Math.round(12 + t * 73);
+      return hsl(h2, 100, l2);
+    }
+  }
+  return '#0ff';
+}
+
+/* ── GRID & AGGREGATE ────────────────────────────────────────── */
+function initGrid() {
+  grid = new Uint8Array(W * H);
+}
+
+function isInGrid(x, y) {
+  return x >= 0 && x < W && y >= 0 && y < H;
+}
+
+function isAdjacent(x, y) {
+  /* Check 4-connected neighbors (and diagonal for nicer crystals) */
+  return (y > 0     && grid[(y-1)*W+x] > 0) ||
+         (y < H-1   && grid[(y+1)*W+x] > 0) ||
+         (x > 0     && grid[y*W+(x-1)] > 0) ||
+         (x < W-1   && grid[y*W+(x+1)] > 0);
+}
+
+function getSymmetryPoints(x, y) {
+  const pts = [];
+  const dx = x - CX, dy = y - CY;
+  for (let k = 0; k < symmetry; k++) {
+    const ang = k * (2 * Math.PI / symmetry);
+    const cos = Math.cos(ang), sin = Math.sin(ang);
+    const nx  = Math.round(CX + dx * cos - dy * sin);
+    const ny  = Math.round(CY + dx * sin + dy * cos);
+    pts.push([nx, ny]);
+  }
+  return pts;
+}
+
+function stickAt(x, y) {
+  /* Apply symmetry and add all rotated copies to aggregate */
+  const pts = getSymmetryPoints(x, y);
+  let added = false;
+  for (const [px, py] of pts) {
+    if (!isInGrid(px, py)) continue;
+    if (grid[py * W + px] > 0) continue;  /* already filled */
+    grid[py * W + px] = 1;
+    totalPixels++;
+    generation++;
+    /* Compute color and draw to bgCanvas */
+    bgCtx.fillStyle = colorForPixel(px, py);
+    bgCtx.fillRect(px, py, 1, 1);
+    /* Update maxRadius */
+    const r = Math.sqrt((px - CX) ** 2 + (py - CY) ** 2);
+    if (r > maxRadius) maxRadius = r;
+    added = true;
+  }
+  return added;
+}
+
+function seedCenter() {
+  /* Place a small cluster of pixels at center */
+  const seedR = 2;
+  for (let dy2 = -seedR; dy2 <= seedR; dy2++) {
+    for (let dx2 = -seedR; dx2 <= seedR; dx2++) {
+      if (dx2 * dx2 + dy2 * dy2 <= seedR * seedR) {
+        const sx = CX + dx2, sy = CY + dy2;
+        if (isInGrid(sx, sy) && grid[sy * W + sx] === 0) {
+          grid[sy * W + sx] = 1;
+          totalPixels++;
+          bgCtx.fillStyle = colorForPixel(sx, sy);
+          bgCtx.fillRect(sx, sy, 1, 1);
+        }
+      }
+    }
+  }
+  maxRadius = seedR + 1;
+}
+
+/* ── WALKERS ─────────────────────────────────────────────────── */
+function spawnWalker() {
+  const spawnR = maxRadius + 15 + Math.random() * 10;
+  const ang    = Math.random() * Math.PI * 2;
+  return {
+    x: CX + Math.cos(ang) * spawnR,
+    y: CY + Math.sin(ang) * spawnR
+  };
+}
+
+/* Refill walkers to desired count */
+function refillWalkers() {
+  while (walkers.length < walkerCount) {
+    walkers.push(spawnWalker());
+  }
+}
+
+/* Single random-walk step for one walker. Returns false if consumed/dead. */
+function stepWalker(w) {
+  /* Random walk: pick a random direction */
+  const dir = (Math.random() * 4) | 0;
+  if      (dir === 0) w.x += 1;
+  else if (dir === 1) w.x -= 1;
+  else if (dir === 2) w.y += 1;
+  else                w.y -= 1;
+
+  const ix = w.x | 0;
+  const iy = w.y | 0;
+
+  /* Kill if out of canvas or too far from aggregate */
+  if (!isInGrid(ix, iy)) return false;
+  const dx2 = w.x - CX, dy2 = w.y - CY;
+  if (dx2 * dx2 + dy2 * dy2 > (maxRadius + 40) * (maxRadius + 40)) return false;
+
+  /* Stick check */
+  if (isAdjacent(ix, iy) && Math.random() < stickiness) {
+    stickAt(ix, iy);
+    return false;  /* consumed */
+  }
+  return true;  /* still alive */
+}
+
+/* ── SIMULATION STEP ─────────────────────────────────────────── */
+function simStep() {
+  refillWalkers();
+  /* Step each walker once */
+  const alive = [];
+  for (let i = 0; i < walkers.length; i++) {
+    if (stepWalker(walkers[i])) {
+      alive.push(walkers[i]);
+    }
+  }
+  walkers = alive;
+}
+
+/* ── RENDER ──────────────────────────────────────────────────── */
+function render() {
+  /* Dark background */
+  ctx.fillStyle = '#000005';
+  ctx.fillRect(0, 0, W, H);
+
+  /* Draw permanent aggregate from bgCanvas */
+  if (glowAlpha > 0.01) {
+    /* Glow pass: draw aggregate blurred (simulated by alpha-compositing) */
+    ctx.globalAlpha = glowAlpha;
+    ctx.filter = 'blur(3px)';
+    ctx.drawImage(bgCanvas, 0, 0);
+    ctx.filter = 'none';
+    ctx.globalAlpha = 1;
+  }
+  /* Crisp aggregate on top */
+  ctx.drawImage(bgCanvas, 0, 0);
+
+  /* Draw active walkers as dim dots */
+  ctx.fillStyle = 'rgba(100,180,255,0.18)';
+  for (const w of walkers) {
+    ctx.fillRect(w.x | 0, w.y | 0, 1, 1);
+  }
+}
+
+/* ── STATS ───────────────────────────────────────────────────── */
+const statPixels  = document.getElementById('stat-pixels');
+const statWalkers = document.getElementById('stat-walkers');
+const statGen     = document.getElementById('stat-gen');
+const statFps     = document.getElementById('stat-fps');
+
+function updateStats(ts) {
+  fpsCount++;
+  if (ts - fpsLast >= 1000) {
+    fpsVal    = fpsCount;
+    fpsCount  = 0;
+    fpsLast   = ts;
+  }
+  statPixels.textContent  = 'PIXELS — '  + totalPixels.toLocaleString();
+  statWalkers.textContent = 'WALKERS — ' + walkers.length;
+  statGen.textContent     = 'GENERATION — ' + generation.toLocaleString();
+  statFps.textContent     = 'FPS — ' + (typeof fpsVal === 'number' ? fpsVal : fpsVal);
+}
+
+/* ── MAIN LOOP ───────────────────────────────────────────────── */
+function loop(ts) {
+  requestAnimationFrame(loop);
+  if (!paused) {
+    for (let s = 0; s < stepsPerFrame; s++) simStep();
+  }
+  render();
+  updateStats(ts);
+}
+
+/* ── RESET ───────────────────────────────────────────────────── */
+function fullReset() {
+  walkers    = [];
+  generation = 0;
+  totalPixels = 0;
+  maxRadius  = 12;
+  initGrid();
+  bgCtx.clearRect(0, 0, W, H);
+  seedCenter();
+}
+
+/* ── UI CONTROLS ─────────────────────────────────────────────── */
+
+/* Symmetry buttons */
+document.querySelectorAll('[data-sym]').forEach(btn => {
+  btn.addEventListener('pointerdown', () => {
+    symmetry = parseInt(btn.dataset.sym);
+    document.querySelectorAll('[data-sym]').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+  });
+});
+
+/* Color mode buttons */
+function setColorMode(mode, el) {
+  colorMode = mode;
+  document.querySelectorAll('#colRadial,#colAge,#colIce,#colFire').forEach(b => b.classList.remove('active'));
+  el.classList.add('active');
+}
+document.getElementById('colRadial').addEventListener('pointerdown', (e) => setColorMode('radial', e.currentTarget));
+document.getElementById('colAge').addEventListener('pointerdown', (e) => setColorMode('age', e.currentTarget));
+document.getElementById('colIce').addEventListener('pointerdown', (e) => setColorMode('ice', e.currentTarget));
+document.getElementById('colFire').addEventListener('pointerdown', (e) => setColorMode('fire', e.currentTarget));
+
+/* Sliders */
+document.getElementById('sl-speed').addEventListener('input', (e) => {
+  stepsPerFrame = parseInt(e.target.value);
+});
+document.getElementById('sl-walkers').addEventListener('input', (e) => {
+  walkerCount = parseInt(e.target.value);
+});
+document.getElementById('sl-stick').addEventListener('input', (e) => {
+  stickiness = parseInt(e.target.value) / 100;
+});
+document.getElementById('sl-glow').addEventListener('input', (e) => {
+  glowAlpha = parseInt(e.target.value) / 100;
+});
+
+/* Pause */
+const pauseBtn = document.getElementById('btn-pause');
+pauseBtn.addEventListener('pointerdown', () => {
+  paused = !paused;
+  pauseBtn.textContent = paused ? 'RESUME' : 'PAUSE';
+  pauseBtn.classList.toggle('active', paused);
+});
+
+/* Reset */
+document.getElementById('btn-reset').addEventListener('pointerdown', () => {
+  fullReset();
+});
+
+/* Export PNG */
+document.getElementById('btn-export').addEventListener('pointerdown', () => {
+  /* Render to a fresh offscreen canvas without UI overlay */
+  const exp = document.createElement('canvas');
+  exp.width  = W;
+  exp.height = H;
+  const ec   = exp.getContext('2d');
+  ec.fillStyle = '#000005';
+  ec.fillRect(0, 0, W, H);
+  if (glowAlpha > 0.01) {
+    ec.globalAlpha = glowAlpha;
+    ec.filter = 'blur(3px)';
+    ec.drawImage(bgCanvas, 0, 0);
+    ec.filter = 'none';
+    ec.globalAlpha = 1;
+  }
+  ec.drawImage(bgCanvas, 0, 0);
+  exp.toBlob((blob) => {
+    const url = URL.createObjectURL(blob);
+    const a   = document.createElement('a');
+    a.href     = url;
+    a.download = 'crystal-' + Date.now() + '.png';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
+  }, 'image/png');
+});
+
+/* Hide UI */
+function toggleUI() {
+  uiVisible = !uiVisible;
+  document.getElementById('ui').style.display    = uiVisible ? '' : 'none';
+  document.getElementById('stats').style.display = uiVisible ? '' : 'none';
+  document.getElementById('hide-hint').textContent = uiVisible ? 'H — HIDE' : 'H — SHOW';
+}
+document.getElementById('hide-hint').addEventListener('pointerdown', toggleUI);
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'h' || e.key === 'H') toggleUI();
+  if (e.key === 'r' || e.key === 'R') fullReset();
+  if (e.key === ' ') { paused = !paused; pauseBtn.textContent = paused ? 'RESUME' : 'PAUSE'; pauseBtn.classList.toggle('active', paused); e.preventDefault(); }
+});
+
+/* Canvas tap: add a secondary seed point */
+canvas.addEventListener('pointerdown', (e) => {
+  /* Ignore if pointer started on #ui */
+  if (e.target !== canvas) return;
+  const rect = canvas.getBoundingClientRect();
+  const tx = (e.clientX - rect.left) | 0;
+  const ty = (e.clientY - rect.top)  | 0;
+  /* Stick 5 pixels in a small cluster at tap location */
+  for (let dy2 = -1; dy2 <= 1; dy2++) {
+    for (let dx2 = -1; dx2 <= 1; dx2++) {
+      const px = tx + dx2, py = ty + dy2;
+      if (isInGrid(px, py) && grid[py * W + px] === 0) {
+        grid[py * W + px] = 1;
+        totalPixels++;
+        bgCtx.fillStyle = colorForPixel(px, py);
+        bgCtx.fillRect(px, py, 1, 1);
+      }
+    }
+  }
+});
+
+/* Window resize */
+window.addEventListener('resize', () => {
+  resize();
+  fullReset();
+});
+
+/* ── INIT ────────────────────────────────────────────────────── */
+resize();
+fullReset();
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
