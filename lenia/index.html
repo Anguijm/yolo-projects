@@ -688,6 +688,11 @@ function setPreset(name) {
 }
 
 function setParam(key, val) {
+  /* Clamp sigma values to prevent NaN in shader (division by zero) */
+  if (key === 'sigma_g') { val = Math.max(0.001, val); }
+  if (key === 'sigma_k') { val = Math.max(0.005, val); }
+  /* Guard R against exceeding MAX_R=16 compile-time constant in shader */
+  if (key === 'R') { val = Math.min(16, Math.max(1, val)); }
   PARAMS[key] = val;
   if (key === 'R' || key === 'mu_k' || key === 'sigma_k') {
     PARAMS.knorm = computeKnorm(PARAMS.R, PARAMS.mu_k, PARAMS.sigma_k);
@@ -833,7 +838,8 @@ function init() {
     PROG_DISPLAY = makeProgram(vSrc, document.getElementById('display-src').textContent);
     PROG_PAINT   = makeProgram(vSrc, document.getElementById('paint-src').textContent);
   } catch (err) {
-    document.getElementById('err-panel').querySelector('p').textContent = err.message;
+    console.error('Lenia shader error:', err.message);
+    document.getElementById('err-panel').querySelector('p').textContent = 'Shader compilation failed. Check browser console for details.';
     document.getElementById('err-panel').style.display = 'flex';
     return;
   }
