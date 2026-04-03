@@ -80,9 +80,6 @@ Markdown Deck is a graduated YOLO project operating under Flagship rules: multi-
 
 ## Approved (Next Tock)
 
-- [ ] Pretext integration — inline 30KB IIFE bundle, replace autoFitContent DOM reflow with canvas-based text measurement. Fallback to scrollHeight for mixed-content slides (code blocks, images, tables).
-- [ ] Slide search — Ctrl+F opens search bar, searches across all slides, highlights matches, jumps to matching slide
-- [ ] Notes export — export speaker notes as standalone markdown file (slide heading + notes per slide)
 
 ## Parking Lot
 
@@ -152,3 +149,6 @@ These are features complex enough to prototype as standalone YOLO single-session
 | 2026-04-02 | Tock | Brainstormed 2 features (pending approval): Clipboard image paste, Per-slide talk time budget |
 | 2026-04-03 | Tock | Clipboard image paste: Ctrl+V inserts base64 data URL at cursor, with KB size feedback toast |
 | 2026-04-03 | Tock | Brainstormed 2 features (pending approval): Slide search, Notes export |
+| 2026-04-03 | Tock | Pretext canvas measurement: IIFE replaces DOM reflow in autoFitContent for simple slides; fallback to scrollHeight for complex content |
+| 2026-04-03 | Tock | Slide search: Ctrl+F overlay, searches slide bodies, highlights matches, keyboard nav (Enter/Esc/Arrows), jump-to-slide |
+| 2026-04-03 | Tock | Notes export: "Notes" toolbar button exports all speaker notes as speaker-notes.md with heading per slide |

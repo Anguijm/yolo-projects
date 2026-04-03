@@ -145,6 +145,17 @@ textarea:focus { outline: none; }
   .sg-keyword{color:#c678dd}.sg-string{color:#98c379}.sg-number{color:#d19a66}.sg-comment{color:#5c6370;font-style:italic}.sg-function{color:#61afef}.sg-operator{color:#56b6c2}.sg-builtin{color:#e5c07b}
   @page { size: landscape; margin: 0; }
 }
+/* Slide Search overlay */
+#search-overlay { display: none; position: fixed; top: 0; left: 0; right: 0; background: #0d0d0d; border-bottom: 1px solid #333; z-index: 2000; padding: 0.5rem 1rem; flex-direction: column; gap: 4px; }
+#search-overlay.open { display: flex; }
+#search-input { background: #111; border: 1px solid #333; color: #ccc; padding: 6px 10px; font-family: inherit; font-size: 0.8rem; outline: none; flex: 1; }
+#search-input:focus { border-color: #555; }
+#search-results { max-height: 180px; overflow-y: auto; }
+.sr-item { padding: 5px 8px; cursor: pointer; font-size: 0.65rem; color: #888; border-left: 2px solid transparent; display: block; width: 100%; text-align: left; background: none; border-top: none; border-right: none; border-bottom: none; font-family: inherit; }
+.sr-item:hover, .sr-item:focus { background: #1a1a1a; color: #ccc; border-left-color: #4ade80; outline: none; }
+.sr-num { color: #555; margin-right: 6px; }
+.sr-match { color: #4ade80; }
+
 /* Design panel */
 .design-panel { display: none; position: fixed; top: 0; right: 0; width: 340px; height: 100vh; background: #0d0d0d; border-left: 1px solid #1a1a1a; z-index: 900; flex-direction: column; }
 .design-panel.open { display: flex; }
@@ -321,6 +332,8 @@ These are speaker notes. They won't appear in the presentation but are preserved
       <button onclick="toggleDesignPanel()">Theme</button>
       <button onclick="exportDeck()">PPTX</button>
       <button onclick="exportPDF()">PDF</button>
+      <button onclick="exportNotes()" title="Export speaker notes as markdown">Notes</button>
+      <button onclick="openSearch()" title="Search slides (Ctrl+F)">Search</button>
       <button onclick="saveDeck()">Save</button>
       <button onclick="document.getElementById('file-open').click()">Open</button>
       <input type="file" id="file-open" accept=".md,.txt,.markdown" style="display:none" onchange="openFile(this)">
@@ -404,6 +417,15 @@ border-radius: 8px</textarea>
   <div class="design-help">
     Structured design tokens — edit values and hit Apply. Presets above load full themes. Tokens auto-generate all slide CSS.
   </div>
+</div>
+
+<div id="search-overlay">
+  <div style="display:flex;gap:6px;align-items:center">
+    <input id="search-input" type="text" placeholder="Search slides... (Esc to close)" oninput="doSearch()" onkeydown="handleSearchKey(event)" autocomplete="off">
+    <span id="search-count" style="font-size:0.55rem;color:#555;white-space:nowrap;min-width:4rem;text-align:right"></span>
+    <button onclick="closeSearch()" style="background:none;border:none;color:#555;cursor:pointer;font-size:1rem;line-height:1;padding:0 4px">&times;</button>
+  </div>
+  <div id="search-results"></div>
 </div>
 
 <div id="paste-feedback" style="position:fixed;bottom:12px;left:50%;transform:translateX(-50%);background:#0a2a0a;border:1px solid #166534;color:#4ade80;font-family:inherit;font-size:0.55rem;letter-spacing:0.1em;text-transform:uppercase;padding:5px 12px;pointer-events:none;z-index:9999;opacity:0;transition:opacity 0.15s;"></div>
@@ -972,6 +994,77 @@ function scalePreviewSlide() {
 }
 
 // Auto-shrink content that overflows the slide
+// ============ PRETEXT — Canvas-based text measurement IIFE ============
+// Estimates slide content height without DOM reflow for simple slides.
+// Falls back to scrollHeight for complex content (code, images, tables, math, diagrams).
+var Pretext = (function() {
+  var _cv = document.createElement('canvas');
+  var _cx = _cv.getContext('2d');
+
+  function _hasComplex(el) {
+    return !!(el.querySelector('pre, img, table, svg, .slide-diagram, .math-block, .math-inline, .pos-block, .columns'));
+  }
+
+  function _lines(text, maxW, font) {
+    if (!text.trim()) return 0;
+    _cx.font = font;
+    var words = text.split(/\s+/);
+    var lines = 1;
+    var cur = '';
+    for (var i = 0; i < words.length; i++) {
+      var test = cur ? cur + ' ' + words[i] : words[i];
+      if (_cx.measureText(test).width > maxW && cur) { lines++; cur = words[i]; }
+      else { cur = test; }
+    }
+    return lines;
+  }
+
+  // Returns estimated px height of inner content, or null to signal fallback.
+  function estimateHeight(slideEl, innerEl) {
+    if (_hasComplex(innerEl)) return null;
+    var slideW = slideEl.clientWidth;
+    if (slideW <= 0) return null;
+    var padL = parseFloat(getComputedStyle(slideEl).paddingLeft) || 0;
+    var padR = parseFloat(getComputedStyle(slideEl).paddingRight) || 0;
+    var contentW = slideW - padL - padR;
+    if (contentW <= 0) return null;
+
+    var cs = getComputedStyle(slideEl);
+    var baseFs = parseFloat(cs.fontSize) || 18.4;
+    var baseLh = baseFs * 1.5;
+    var fontFam = cs.fontFamily;
+    var totalH = 0;
+
+    var kids = innerEl.children;
+    for (var i = 0; i < kids.length; i++) {
+      var el = kids[i]; var tag = el.tagName; var txt = el.textContent || '';
+      if (tag === 'H1') { var s1 = baseFs * 2.435; totalH += s1 * 1.2 + s1 * 0.43; }
+      else if (tag === 'H2') { var s2 = baseFs * 1.565; totalH += s2 * 1.2 + s2 * 0.44; }
+      else if (tag === 'H3') { var s3 = baseFs * 1.13; totalH += s3 * 1.2 + s3 * 0.46; }
+      else if (tag === 'H4') { totalH += baseFs * 1.2 + baseFs * 0.33; }
+      else if (tag === 'P') {
+        var pLines = _lines(txt, contentW, 'normal ' + baseFs + 'px ' + fontFam);
+        totalH += (pLines || 1) * baseLh + baseFs * 0.6;
+      }
+      else if (tag === 'UL' || tag === 'OL') {
+        var liFs = baseFs * 0.957; var liLh = liFs * 1.7;
+        var liFont = 'normal ' + liFs + 'px ' + fontFam;
+        var lis = el.querySelectorAll('li');
+        for (var j = 0; j < lis.length; j++) {
+          totalH += (_lines(lis[j].textContent, contentW - 24, liFont) || 1) * liLh + baseFs * 0.17;
+        }
+        totalH += baseFs * 0.35;
+      }
+      else if (tag === 'BLOCKQUOTE') { totalH += baseLh + baseFs * 0.44; }
+      else if (tag === 'HR') { totalH += baseFs * 1.74; }
+      else { totalH += 30; }
+    }
+    return totalH;
+  }
+
+  return { estimateHeight: estimateHeight };
+})();
+
 function autoFitContent(slideEl) {
   var inner = slideEl.querySelector('.slide-inner');
   if (!inner) return;
@@ -979,7 +1072,9 @@ function autoFitContent(slideEl) {
   var slideH = slideEl.clientHeight;
   var pad = parseFloat(getComputedStyle(slideEl).paddingTop) + parseFloat(getComputedStyle(slideEl).paddingBottom);
   var available = slideH - pad;
-  var contentH = inner.scrollHeight;
+  // Canvas measurement first (avoids reflow); null = fallback to scrollHeight
+  var contentH = Pretext.estimateHeight(slideEl, inner);
+  if (contentH === null) contentH = inner.scrollHeight;
   if (contentH > available && available > 0) {
     var scale = available / contentH;
     scale = Math.max(scale, 0.5); // don't shrink below 50%
@@ -1215,7 +1310,11 @@ function stopPresent() {
 }
 
 document.addEventListener('keydown', e => {
-  if (e.key === 'Escape') { stopPresent(); return; }
+  if (e.key === 'Escape') {
+    if (document.getElementById('search-overlay').classList.contains('open')) { closeSearch(); return; }
+    stopPresent(); return;
+  }
+  if ((e.ctrlKey || e.metaKey) && e.key === 'f' && !presenting) { e.preventDefault(); openSearch(); return; }
   if (e.key === 'f' && !presenting && document.activeElement !== inputEl) { startPresent(); return; }
   if (e.key === 'ArrowRight' || e.key === ' ') {
     if (presenting || document.activeElement !== inputEl) { e.preventDefault(); nextSlide(); }
@@ -2474,6 +2573,122 @@ document.addEventListener('keydown', function(e) {
     reader.readAsDataURL(file);
   });
 })();
+
+// ============ SLIDE SEARCH ============
+window.openSearch = function() {
+  var overlay = document.getElementById('search-overlay');
+  overlay.classList.add('open');
+  document.getElementById('search-input').select();
+  document.getElementById('search-input').focus();
+  doSearch();
+};
+
+window.closeSearch = function() {
+  document.getElementById('search-overlay').classList.remove('open');
+  document.getElementById('search-results').innerHTML = '';
+  document.getElementById('search-count').textContent = '';
+};
+
+window.handleSearchKey = function(e) {
+  if (e.key === 'Escape') { closeSearch(); return; }
+  if (e.key === 'Enter') {
+    var first = document.querySelector('.sr-item');
+    if (first) first.click();
+    return;
+  }
+  if (e.key === 'ArrowDown') {
+    e.preventDefault();
+    var first2 = document.querySelector('.sr-item');
+    if (first2) first2.focus();
+  }
+};
+
+window.doSearch = function() {
+  var q = document.getElementById('search-input').value.trim().toLowerCase();
+  var resultsEl = document.getElementById('search-results');
+  var countEl = document.getElementById('search-count');
+  resultsEl.innerHTML = '';
+  if (!q) { countEl.textContent = ''; return; }
+
+  var matches = [];
+  for (var i = 0; i < slides.length; i++) {
+    var raw = slides[i];
+    // Search body only (exclude speaker notes)
+    var noteSep = raw.indexOf('\n???');
+    var searchable = noteSep >= 0 ? raw.substring(0, noteSep) : raw;
+    var lower = searchable.toLowerCase();
+    var matchPos = lower.indexOf(q);
+    if (matchPos >= 0) {
+      // Build context snippet around the match
+      var ctxStart = Math.max(0, matchPos - 25);
+      var ctxEnd = Math.min(searchable.length, matchPos + q.length + 50);
+      var ctxRaw = searchable.substring(ctxStart, ctxEnd).replace(/\n/g, ' ');
+      var relPos = matchPos - ctxStart;
+      matches.push({ idx: i, ctx: ctxRaw, pos: relPos, qLen: q.length });
+    }
+  }
+
+  countEl.textContent = matches.length + (matches.length === 1 ? ' result' : ' results');
+  if (!matches.length) {
+    resultsEl.innerHTML = '<div style="padding:6px 8px;font-size:0.6rem;color:#444">No matches found</div>';
+    return;
+  }
+
+  var html = '';
+  for (var m = 0; m < matches.length; m++) {
+    var match = matches[m];
+    var before = esc(match.ctx.substring(0, match.pos));
+    var hit = esc(match.ctx.substring(match.pos, match.pos + match.qLen));
+    var after = esc(match.ctx.substring(match.pos + match.qLen));
+    html += '<button class="sr-item" onclick="jumpToSlide(' + match.idx + ')" onkeydown="handleSrKey(event,' + match.idx + ')">'
+      + '<span class="sr-num">Slide ' + (match.idx + 1) + '</span>'
+      + '...' + before + '<span class="sr-match">' + hit + '</span>' + after + '...'
+      + '</button>';
+  }
+  resultsEl.innerHTML = html;
+};
+
+window.handleSrKey = function(e, idx) {
+  if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); jumpToSlide(idx); }
+  if (e.key === 'Escape') { closeSearch(); }
+  if (e.key === 'ArrowDown') { e.preventDefault(); var n = e.currentTarget.nextElementSibling; if (n) n.focus(); }
+  if (e.key === 'ArrowUp') { e.preventDefault(); var p = e.currentTarget.previousElementSibling; if (p) p.focus(); else document.getElementById('search-input').focus(); }
+};
+
+window.jumpToSlide = function(idx) {
+  currentSlide = idx;
+  currentFragment = 0;
+  renderPreview();
+  closeSearch();
+};
+
+// ============ NOTES EXPORT ============
+window.exportNotes = function() {
+  var parts = [];
+  for (var i = 0; i < slides.length; i++) {
+    var raw = slides[i];
+    var noteSep = raw.indexOf('\n???');
+    if (noteSep < 0) continue;
+    var body = raw.substring(0, noteSep).trim();
+    var notes = raw.substring(noteSep + 4).trim();
+    if (!notes) continue;
+    // Extract first heading as slide title, strip markdown
+    var titleMatch = body.match(/^#+\s*(.+)/m);
+    var title = titleMatch ? titleMatch[1].replace(/\*\*/g, '').replace(/\*/g, '').replace(/`/g, '') : ('Slide ' + (i + 1));
+    parts.push('## Slide ' + (i + 1) + ': ' + title + '\n\n' + notes);
+  }
+  if (!parts.length) {
+    alert('No speaker notes found.\n\nAdd notes to slides with ??? on its own line:\n\n## My Slide\nContent here...\n???\nSpeaker notes here.');
+    return;
+  }
+  var content = '# Speaker Notes\n\nGenerated from Markdown Deck — ' + new Date().toLocaleDateString() + '\n\n---\n\n' + parts.join('\n\n---\n\n') + '\n';
+  var blob = new Blob([content], { type: 'text/markdown' });
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement('a');
+  a.href = url; a.download = 'speaker-notes.md';
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  setTimeout(function() { URL.revokeObjectURL(url); }, 1000);
+};
 
 // Download as .md file
 window.saveDeck = function() {
