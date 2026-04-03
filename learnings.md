@@ -67,7 +67,23 @@ Persistent knowledge base. Read this before every build.
 
 ---
 
+### Calendar Heatmap Optimization
+- **runsPerDay as `hour.size × minute.size`** — When DOM/DOW conditions are satisfied for a given day, the total run count is just `fields.hour.size * fields.minute.size` because hours and minutes are independent. This is O(1) vs iterating 1440 minutes per day. Use this whenever computing "runs per day" for any calendar-style view.
+- **Optimized nextN with early skip** — Instead of iterating minute by minute through a year, skip entire months (jump to month+1 start), days (jump to day+1 start), and hours (jump to next hour) when they don't match. Reduces search space by orders of magnitude for sparse schedules.
+
+---
+
 ## Per-Build Reflections
+
+### cron-studio (2026-04-03)
+- **KEEP**: `runsPerDay = hour.size * minute.size` (O(1)) — when day/month conditions are met, hour and minute sets are independent so the product gives total daily runs. Eliminates the need to iterate 1440 minutes per day for a calendar view.
+- **KEEP**: Optimized `nextN` that skips entire months/days/hours — check month first, jump to month+1 if no match; check DOM/DOW, jump to day+1 if no match; check hour, jump to next hour boundary if no match. Handles rare schedules (once a year) without iterating 525,600 minutes.
+- **KEEP**: DOM element lookups at IIFE scope (outside init) work correctly when script tag is at end of body — elements are already parsed and available when the script executes, even before DOMContentLoaded fires.
+- **KEEP**: Count-selector sync bug fix — always update `state.expr = elInput.value` before `updateUI()` in any secondary control handler, not just in the input's own event handler. Prevents stale expression being used when count or other controls change during a debounce window.
+- **KEEP**: `indexOf('*/')` pattern for detecting step notation instead of regex — avoids the `//`-in-regex pitfall entirely. Also safer for detecting field patterns like `*/N`.
+- **INSIGHT**: For cron-style field parsers, a `Set<number>` is the ideal representation — `O(1)` membership testing in `isMatch`, easy to compute `.size` for the optimization, and the expansion (range/step/list) happens once at parse time.
+- **INSIGHT**: The "field labels" row (MIN HOUR DAY MONTH WDAY) aligned below the input is a cheap, zero-interaction way to teach syntax. Users immediately understand the field order without reading a manual.
+- **INSIGHT**: Calendar heatmaps (0-runs=dark, few-runs=dim accent, many-runs=bright accent) give dense information at a glance. Good for any "how often does X happen" visualization.
 
 ### http-headers (2026-04-03)
 - **KEEP**: Regex literals containing `//` (e.g. `/^HTTP\//`) are stripped by the test's `//.*?$` line-comment regex — the `//` inside the regex triggers the stripper. Fix: replace with string method (`line.slice(0,4).toUpperCase() === 'HTTP'`). Never use regex literals whose source contains `//`.
