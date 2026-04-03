@@ -82,6 +82,7 @@ Markdown Deck is a graduated YOLO project operating under Flagship rules: multi-
 
 ## Approved (Next Tock)
 
+- [ ] Pretext integration — inline 30KB IIFE bundle, replace autoFitContent DOM reflow with canvas-based text measurement. Fallback to scrollHeight for mixed-content slides (code blocks, images, tables).
 
 ## Parking Lot
 
