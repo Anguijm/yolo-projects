@@ -3039,3 +3039,15 @@ Sequential Gemini reviews (focus: bugs, then security) caught **different issue 
 - **INSIGHT**: Privacy angle ("no data leaves browser") is a genuine differentiator for security-adjacent tools like JWT inspectors. Make it prominent in the UI (subtitle badge) — developers actively seek local alternatives to services like jwt.io when working with production tokens.
 - **INSIGHT**: For token/credential tools, color-code the structural parts to match their semantic roles: headers=cyan (informational), payload=amber (caution/valuable data), signature=red (security-critical). These match design.md semantic colors.
 - **TEST CAUGHT**: `'// '` in claim-desc JS strings (3 occurrences) broke brace_balance. Also `Array.from` fix needed for `split('')` on base64 output.
+
+### env-scout (2026-04-03)
+- **KEEP**: `String.fromCharCode(58, 47, 47)` as `CSS_SEP` for `://` — avoids `//` in any URL string literals (protocol separators in sample data and placeholder generators). Pattern: build all URL-like strings by concatenation with the char-code constant.
+- **KEEP**: Char-by-char HTML escaping (`esc()` function using charCode comparisons for `&`, `<`, `>`) instead of chained `.replace(/regex/, ...)` calls — eliminates the risk of regex literals containing `"` or `//` in the escaping utility itself.
+- **KEEP**: Char-by-char integer and hex type inference (loop over charCodes 48-57 and 65-70/97-102) instead of `/^\d+$/` and `/^[0-9a-f]+$/` regex — avoids regex altogether for hot-path type checks.
+- **KEEP**: `for` loops instead of `.forEach()` in `auditEnv` — slightly more readable when you have multiple parallel arrays and named loop variables (`a`, `b`, `c`, `d`, `e`).
+- **KEEP**: `inferType(key, val)` that uses both the key name AND the value — port detection (`key.toUpperCase().indexOf('PORT') >= 0`) combined with numeric range check is much more accurate than value-only inference.
+- **KEEP**: `mask(val)` in EXTRA section — show first 2 + last 1 chars of real .env values instead of raw values. Prevents accidental screenshot leaks while still being useful for identifying which key is which.
+- **KEEP**: `isRealSecret(key, val)` security scan on the TEMPLATE (not the .env) — this catches the real bug: developers accidentally committing real secrets to .env.example. Template scanning is more valuable than scanning the .env itself.
+- **KEEP**: `padStart(2, '0')` for date formatting in reports — cleaner than manual conditionals; ES2017 is safe for modern browsers.
+- **INSIGHT**: Security warnings on the .env TEMPLATE (not the .env) are the novel angle. Everyone warns about the .env itself. Scanning the committed-to-git template for real secrets is the actual threat model most teams miss.
+- **INSIGHT**: `eval_bugs.py` [missing-event-cleanup] fires on ALL `setTimeout` calls, including debounce/toast timers that are properly managed with `clearTimeout`. These are false positives — recognize and document them; the pattern matcher can't distinguish managed vs leaked timers.

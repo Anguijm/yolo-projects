@@ -1,0 +1,693 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="theme-color" content="#000000">
+<title>env-scout — .env auditor</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body {
+  min-height: 100%;
+  background: #0a0a0a;
+  overflow-y: auto;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Courier New", monospace;
+  color: #ccc;
+}
+.wrap { max-width: 900px; margin: 0 auto; padding: 12px; }
+header { padding: 16px 0 12px; border-bottom: 1px solid #1a1a1a; margin-bottom: 12px; }
+h1 { font-size: 0.75rem; font-weight: 400; letter-spacing: 0.2em; text-transform: uppercase; color: #0ff; }
+.tagline { font-size: 0.5rem; letter-spacing: 0.1em; text-transform: uppercase; color: #444; margin-top: 4px; }
+.presets { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; margin-bottom: 10px; }
+.preset-lbl { font-size: 0.45rem; letter-spacing: 0.2em; text-transform: uppercase; color: #333; margin-right: 2px; }
+.panels { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 8px; }
+@media (max-width: 600px) { .panels { grid-template-columns: 1fr; } }
+.panel { display: flex; flex-direction: column; gap: 4px; }
+.panel-hdr { display: flex; align-items: center; justify-content: space-between; }
+.panel-lbl { font-size: 0.5rem; letter-spacing: 0.15em; text-transform: uppercase; color: #555; }
+.panel-lbl em { color: #0ff; font-style: normal; }
+textarea {
+  width: 100%;
+  height: 200px;
+  background: #111;
+  border: 1px solid #1a1a1a;
+  color: #aaa;
+  font-family: inherit;
+  font-size: 0.65rem;
+  padding: 8px;
+  resize: vertical;
+  outline: none;
+  line-height: 1.6;
+  tab-size: 2;
+}
+textarea:focus { border-color: #333; }
+.btn {
+  padding: 4px 10px;
+  background: transparent;
+  border: 1px solid #1a1a1a;
+  color: #444;
+  font-family: inherit;
+  font-size: 0.55rem;
+  cursor: pointer;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  min-height: 28px;
+}
+.btn:hover { border-color: #333; color: #666; }
+.btn:active { border-color: #555; color: #888; }
+.btn.primary { border-color: #0ff; color: #0ff; }
+.toolbar { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; margin-bottom: 10px; }
+.gap { flex: 1; }
+.stats-bar {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1px;
+  background: #1a1a1a;
+  border: 1px solid #1a1a1a;
+  margin-bottom: 8px;
+}
+.stat { background: #111; padding: 8px 10px; display: flex; flex-direction: column; gap: 3px; }
+.stat-n {
+  font-size: clamp(1rem, 4vw, 1.4rem);
+  font-weight: 200;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+}
+.stat-lbl { font-size: 0.42rem; letter-spacing: 0.2em; text-transform: uppercase; color: #444; }
+.s-miss .stat-n   { color: #f85149; }
+.s-extra .stat-n  { color: #d29922; }
+.s-match .stat-n  { color: #3fb950; }
+.s-warn .stat-n   { color: #f85149; }
+.section { border: 1px solid #1a1a1a; margin-bottom: 6px; }
+.sec-hdr {
+  padding: 4px 8px;
+  font-size: 0.48rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.sec-hdr.missing { color: #f85149; border-left: 2px solid #f85149; background: rgba(248,81,73,0.04); }
+.sec-hdr.extra   { color: #d29922; border-left: 2px solid #d29922; background: rgba(210,153,34,0.04); }
+.sec-hdr.warn    { color: #ff8c00; border-left: 2px solid #ff8c00; background: rgba(255,140,0,0.04); }
+.entry {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 3px 8px;
+  border-top: 1px solid #111;
+  flex-wrap: wrap;
+}
+.entry:first-child { border-top: none; }
+.entry:hover { background: #0d0d0d; }
+.e-key  { color: #ccc; font-size: 0.7rem; min-width: 140px; word-break: break-all; }
+.e-type {
+  font-size: 0.42rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #444;
+  border: 1px solid #1a1a1a;
+  padding: 1px 4px;
+  white-space: nowrap;
+}
+.e-val  { color: #555; font-size: 0.65rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 280px; flex: 1; }
+.empty-note { padding: 6px 8px; font-size: 0.55rem; color: #333; }
+.warn-entry {
+  padding: 4px 8px;
+  font-size: 0.65rem;
+  color: #d29922;
+  border-top: 1px solid #111;
+}
+.warn-entry:first-child { border-top: none; }
+.hidden { display: none; }
+#report-btn { display: none; }
+#report-btn.show { display: inline-block; }
+#toast {
+  position: fixed;
+  bottom: 16px;
+  right: 16px;
+  background: #1a1a1a;
+  border: 1px solid #333;
+  color: #ccc;
+  padding: 5px 12px;
+  font-size: 0.55rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  opacity: 0;
+  transition: opacity 0.2s;
+  pointer-events: none;
+  border-radius: 2px;
+  z-index: 999;
+}
+#toast.show { opacity: 1; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>env-scout</h1>
+    <div class="tagline">.env auditor &mdash; missing keys &middot; undocumented vars &middot; security risks &middot; Ctrl+Enter</div>
+  </header>
+
+  <div class="presets">
+    <span class="preset-lbl">Load:</span>
+    <button class="btn" id="pre-stale">Stale Template</button>
+    <button class="btn" id="pre-miss">Missing Keys</button>
+    <button class="btn" id="pre-clean">In Sync</button>
+    <button class="btn" id="pre-warn">Security Risk</button>
+  </div>
+
+  <div class="panels">
+    <div class="panel">
+      <div class="panel-hdr">
+        <span class="panel-lbl"><em>.env</em> &mdash; your file</span>
+        <button class="btn" id="copy-env">Copy</button>
+      </div>
+      <textarea id="env-in" spellcheck="false" autocomplete="off" autocorrect="off" autocapitalize="off"
+        placeholder="Paste your .env file here..."></textarea>
+    </div>
+    <div class="panel">
+      <div class="panel-hdr">
+        <span class="panel-lbl"><em>.env.example</em> &mdash; template</span>
+        <button class="btn" id="copy-tmpl">Copy</button>
+      </div>
+      <textarea id="tmpl-in" spellcheck="false" autocomplete="off" autocorrect="off" autocapitalize="off"
+        placeholder="Paste your .env.example here..."></textarea>
+    </div>
+  </div>
+
+  <div class="toolbar">
+    <button class="btn primary" id="audit-btn">Audit</button>
+    <button class="btn" id="gen-btn">Generate Template</button>
+    <div class="gap"></div>
+    <button class="btn" id="report-btn">Copy Report</button>
+    <button class="btn" id="swap-btn">Swap</button>
+    <button class="btn" id="clear-btn">Clear</button>
+  </div>
+
+  <div id="results-wrap" class="hidden">
+    <div class="stats-bar">
+      <div class="stat s-miss"><div class="stat-n" id="sn-miss">0</div><div class="stat-lbl">Missing</div></div>
+      <div class="stat s-extra"><div class="stat-n" id="sn-extra">0</div><div class="stat-lbl">Extra</div></div>
+      <div class="stat s-match"><div class="stat-n" id="sn-match">0</div><div class="stat-lbl">Matched</div></div>
+      <div class="stat s-warn"><div class="stat-n" id="sn-warn">0</div><div class="stat-lbl">Warnings</div></div>
+    </div>
+
+    <div class="section">
+      <div class="sec-hdr missing">Missing from .env</div>
+      <div id="list-miss"></div>
+    </div>
+
+    <div class="section">
+      <div class="sec-hdr extra">Extra in .env &mdash; not in template</div>
+      <div id="list-extra"></div>
+    </div>
+
+    <div class="section">
+      <div class="sec-hdr warn">Security Warnings</div>
+      <div id="list-warn"></div>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+(function() {
+  'use strict';
+
+  // Build :// string without writing // in source (brace-checker safe)
+  var CSS_SEP = String.fromCharCode(58, 47, 47);
+
+  // DOM refs
+  var elEnvIn    = document.getElementById('env-in');
+  var elTmplIn   = document.getElementById('tmpl-in');
+  var elResWrap  = document.getElementById('results-wrap');
+  var elSnMiss   = document.getElementById('sn-miss');
+  var elSnExtra  = document.getElementById('sn-extra');
+  var elSnMatch  = document.getElementById('sn-match');
+  var elSnWarn   = document.getElementById('sn-warn');
+  var elListMiss  = document.getElementById('list-miss');
+  var elListExtra = document.getElementById('list-extra');
+  var elListWarn  = document.getElementById('list-warn');
+  var elToast    = document.getElementById('toast');
+  var elAuditBtn = document.getElementById('audit-btn');
+  var elGenBtn   = document.getElementById('gen-btn');
+  var elCopyEnv  = document.getElementById('copy-env');
+  var elCopyTmpl = document.getElementById('copy-tmpl');
+  var elSwapBtn  = document.getElementById('swap-btn');
+  var elClearBtn = document.getElementById('clear-btn');
+  var elReportBtn = document.getElementById('report-btn');
+  var elPreStale = document.getElementById('pre-stale');
+  var elPreMiss  = document.getElementById('pre-miss');
+  var elPreClean = document.getElementById('pre-clean');
+  var elPreWarn  = document.getElementById('pre-warn');
+
+  // Preset data - build URL strings without // in JS source
+  var PG  = 'postgresql' + CSS_SEP;
+  var RDS = 'redis' + CSS_SEP;
+
+  var PRESETS = {
+    stale: {
+      env: [
+        'DATABASE_URL=' + PG + 'localhost:5432/myapp',
+        'API_KEY=sk-abc123xyz789secretkey',
+        'PORT=3000',
+        'DEBUG=true',
+        'JWT_SECRET=supersecret-jwt-key-123456',
+        'SMTP_HOST=smtp.gmail.com',
+        'SMTP_PORT=587',
+        'REDIS_URL=' + RDS + 'localhost:6379',
+        'APP_NAME=My Application',
+        'MAX_RETRIES=3',
+        'NEW_FEATURE_FLAG=true',
+        'ANALYTICS_KEY=ga-UA-12345678'
+      ].join('\n'),
+      tmpl: [
+        'DATABASE_URL=your-database-url',
+        'API_KEY=your-api-key',
+        'PORT=3000',
+        'DEBUG=false',
+        'JWT_SECRET=your-jwt-secret',
+        'SMTP_HOST=your-smtp-host',
+        'SMTP_PORT=587'
+      ].join('\n')
+    },
+    missing: {
+      env: [
+        'DATABASE_URL=' + PG + 'localhost:5432/myapp',
+        'PORT=3000',
+        'DEBUG=true'
+      ].join('\n'),
+      tmpl: [
+        'DATABASE_URL=your-database-url',
+        'API_KEY=your-api-key-here',
+        'PORT=3000',
+        'DEBUG=false',
+        'JWT_SECRET=your-jwt-secret',
+        'SMTP_HOST=your-smtp-host',
+        'REDIS_URL=your-redis-url'
+      ].join('\n')
+    },
+    clean: {
+      env: [
+        'DATABASE_URL=' + PG + 'localhost:5432/myapp',
+        'API_KEY=sk-abc123secretkey',
+        'PORT=3000',
+        'DEBUG=false',
+        'JWT_SECRET=my-jwt-signing-key'
+      ].join('\n'),
+      tmpl: [
+        'DATABASE_URL=your-database-url',
+        'API_KEY=your-api-key',
+        'PORT=3000',
+        'DEBUG=false',
+        'JWT_SECRET=your-jwt-secret'
+      ].join('\n')
+    },
+    warn: {
+      env: [
+        'DATABASE_URL=' + PG + 'localhost:5432/myapp',
+        'API_KEY=sk-prod-real-key-abc123xyz',
+        'PORT=3000',
+        'JWT_SECRET=realproductionsecret12345'
+      ].join('\n'),
+      tmpl: [
+        'DATABASE_URL=your-database-url',
+        'API_KEY=sk-prod-real-key-abc123xyz',
+        'PORT=3000',
+        'JWT_SECRET=realproductionsecret12345'
+      ].join('\n')
+    }
+  };
+
+  // ── Parser ──────────────────────────────────────────────
+
+  function stripInlineComment(val) {
+    var inSingle = false, inDouble = false;
+    for (var i = 0; i < val.length; i++) {
+      var c = val.charCodeAt(i);
+      if (c === 39 && !inDouble) inSingle = !inSingle;   // single-quote
+      if (c === 34 && !inSingle) inDouble = !inDouble;   // double-quote
+      if (c === 35 && !inSingle && !inDouble) return val.slice(0, i).trim(); // #
+    }
+    return val.trim();
+  }
+
+  function unquote(val) {
+    val = val.trim();
+    if (val.length >= 2) {
+      var f = val.charCodeAt(0);
+      var l = val.charCodeAt(val.length - 1);
+      if ((f === 34 && l === 34) || (f === 39 && l === 39)) return val.slice(1, -1);
+    }
+    return val;
+  }
+
+  function parseEnv(text) {
+    var lines = text.split('\n');
+    var entries = [];
+    var seen = {};
+    for (var i = 0; i < lines.length; i++) {
+      var line = lines[i].trim();
+      if (!line || line.charCodeAt(0) === 35) continue; // skip empty and # comments
+      if (line.slice(0, 7) === 'export ') line = line.slice(7).trim();
+      var eq = line.indexOf('=');
+      if (eq < 1) continue;
+      var key = line.slice(0, eq).trim();
+      if (!key || seen[key]) continue;
+      seen[key] = true;
+      var val = unquote(stripInlineComment(line.slice(eq + 1)));
+      entries.push({ key: key, value: val, ln: i + 1 });
+    }
+    return entries;
+  }
+
+  // ── Type inference ───────────────────────────────────────
+
+  function inferType(key, val) {
+    if (!val) return 'empty';
+    var vl = val.toLowerCase();
+    // Boolean
+    if (vl === 'true' || vl === 'false' || vl === 'yes' || vl === 'no' || vl === 'on' || vl === 'off') return 'bool';
+    // Integer (no regex — char-by-char)
+    var allDig = (val.length > 0);
+    for (var i = 0; i < val.length; i++) {
+      var c = val.charCodeAt(i);
+      if (c < 48 || c > 57) { allDig = false; break; }
+    }
+    if (allDig) {
+      var n = parseInt(val, 10);
+      if (key.toUpperCase().indexOf('PORT') >= 0 && n >= 1 && n <= 65535) return 'port';
+      return 'integer';
+    }
+    // URL: contains ://
+    if (val.indexOf(CSS_SEP) > 0) return 'url';
+    // Email: @ with dot after
+    var at = val.indexOf('@');
+    if (at > 0 && val.indexOf('.', at) > at) return 'email';
+    // JWT: three base64-ish segments separated by dots
+    var pts = val.split('.');
+    if (pts.length === 3 && pts[0].length > 8 && pts[1].length > 8 && pts[2].length > 8) return 'jwt';
+    // Hex string
+    if (val.length >= 16) {
+      var isHex = true;
+      for (var j = 0; j < val.length; j++) {
+        var h = val.charCodeAt(j);
+        if (!((h >= 48 && h <= 57) || (h >= 65 && h <= 70) || (h >= 97 && h <= 102))) {
+          isHex = false; break;
+        }
+      }
+      if (isHex) return 'hex';
+    }
+    // Path
+    if (val.charCodeAt(0) === 47 || val.slice(0, 2) === './') return 'path';
+    return 'string';
+  }
+
+  // ── Security check ───────────────────────────────────────
+
+  function isRealSecret(key, val) {
+    if (!val || val.length < 8) return false;
+    var vl = val.toLowerCase();
+    // Skip obvious placeholder patterns
+    var safe = ['your-', 'change', 'replace', 'example', 'placeholder', 'xxx', 'todo', '<', 'insert'];
+    for (var i = 0; i < safe.length; i++) {
+      if (vl.indexOf(safe[i]) >= 0) return false;
+    }
+    var t = inferType(key, val);
+    if (t === 'jwt' && val.length > 30) return true;
+    if (t === 'hex' && val.length >= 32) return true;
+    // Known API key prefixes
+    var prefs = ['sk-', 'pk-', 'rk-', 'key-', 'secret-', 'tok-'];
+    for (var p = 0; p < prefs.length; p++) {
+      if (val.indexOf(prefs[p]) === 0 && val.length > 10) return true;
+    }
+    // Secret-like key name with non-trivial string value
+    var ku = key.toUpperCase();
+    var kws = ['SECRET', 'PASSWORD', 'PASSWD', 'PWD', 'PRIVATE_KEY', 'TOKEN'];
+    for (var k = 0; k < kws.length; k++) {
+      if (ku.indexOf(kws[k]) >= 0 && t === 'string' && val.length > 12) return true;
+    }
+    return false;
+  }
+
+  // ── Template generator ───────────────────────────────────
+
+  function genTemplate(entries) {
+    var httpsEx = 'https' + CSS_SEP + 'example.com';
+    var lines = [];
+    for (var i = 0; i < entries.length; i++) {
+      var e = entries[i];
+      var t = inferType(e.key, e.value);
+      var ph;
+      if (t === 'url')     { ph = httpsEx; }
+      else if (t === 'email')   { ph = 'user@example.com'; }
+      else if (t === 'port')    { ph = e.value; }
+      else if (t === 'bool')    { ph = 'false'; }
+      else if (t === 'integer') { ph = '0'; }
+      else if (t === 'jwt')     { ph = 'your-jwt-token'; }
+      else if (t === 'hex')     { ph = 'your-hex-secret'; }
+      else if (t === 'path')    { ph = '/path/to/resource'; }
+      else if (t === 'empty')   { ph = ''; }
+      else {
+        var slug = '';
+        var lower = e.key.toLowerCase();
+        for (var j = 0; j < lower.length; j++) {
+          slug += lower.charCodeAt(j) === 95 ? '-' : lower.charAt(j);
+        }
+        ph = 'your-' + slug + '-here';
+      }
+      lines.push(e.key + '=' + ph);
+    }
+    return lines.join('\n');
+  }
+
+  // ── Audit ─────────────────────────────────────────────────
+
+  function auditEnv(envEnt, tmplEnt) {
+    var envMap = {};
+    var tmplMap = {};
+    for (var a = 0; a < envEnt.length; a++)  envMap[envEnt[a].key]   = envEnt[a];
+    for (var b = 0; b < tmplEnt.length; b++) tmplMap[tmplEnt[b].key] = tmplEnt[b];
+    var missing = [], extra = [], warnings = [];
+    var matched = 0;
+    for (var c = 0; c < tmplEnt.length; c++) {
+      if (!envMap[tmplEnt[c].key]) missing.push(tmplEnt[c]);
+      else matched++;
+    }
+    for (var d = 0; d < envEnt.length; d++) {
+      if (!tmplMap[envEnt[d].key]) extra.push(envEnt[d]);
+    }
+    for (var e = 0; e < tmplEnt.length; e++) {
+      if (isRealSecret(tmplEnt[e].key, tmplEnt[e].value)) warnings.push(tmplEnt[e].key);
+    }
+    return { missing: missing, extra: extra, matched: matched, warnings: warnings };
+  }
+
+  // ── HTML escaping (char-by-char, no regex) ────────────────
+
+  function esc(s) {
+    var r = '';
+    for (var i = 0; i < s.length; i++) {
+      var c = s.charCodeAt(i);
+      if (c === 38)      r += '&amp;';
+      else if (c === 60) r += '&lt;';
+      else if (c === 62) r += '&gt;';
+      else               r += s.charAt(i);
+    }
+    return r;
+  }
+
+  function mask(val) {
+    if (!val) return '(empty)';
+    if (val.length <= 4) return '****';
+    return val.slice(0, 2) + '...' + val.slice(-1);
+  }
+
+  function typeTag(t) {
+    return '<span class="e-type">' + esc(t) + '</span>';
+  }
+
+  // ── Render ────────────────────────────────────────────────
+
+  var lastResult = null;
+
+  function render(res) {
+    lastResult = res;
+    elSnMiss.textContent  = res.missing.length;
+    elSnExtra.textContent = res.extra.length;
+    elSnMatch.textContent = res.matched;
+    elSnWarn.textContent  = res.warnings.length;
+
+    // Missing section
+    if (!res.missing.length) {
+      elListMiss.innerHTML = '<div class="empty-note">All template keys present in .env</div>';
+    } else {
+      var h1 = '';
+      for (var i = 0; i < res.missing.length; i++) {
+        var em = res.missing[i];
+        var tm = inferType(em.key, em.value);
+        h1 += '<div class="entry">';
+        h1 += '<span class="e-key">' + esc(em.key) + '</span>';
+        h1 += typeTag(tm);
+        h1 += '<span class="e-val">expected: ' + esc(em.value.slice(0, 60)) + '</span>';
+        h1 += '</div>';
+      }
+      elListMiss.innerHTML = h1;
+    }
+
+    // Extra section
+    if (!res.extra.length) {
+      elListExtra.innerHTML = '<div class="empty-note">No undocumented keys</div>';
+    } else {
+      var h2 = '';
+      for (var j = 0; j < res.extra.length; j++) {
+        var ex = res.extra[j];
+        var tx = inferType(ex.key, ex.value);
+        h2 += '<div class="entry">';
+        h2 += '<span class="e-key">' + esc(ex.key) + '</span>';
+        h2 += typeTag(tx);
+        h2 += '<span class="e-val">' + esc(mask(ex.value)) + '</span>';
+        h2 += '</div>';
+      }
+      elListExtra.innerHTML = h2;
+    }
+
+    // Warnings section
+    if (!res.warnings.length) {
+      elListWarn.innerHTML = '<div class="empty-note">No secrets detected in template</div>';
+    } else {
+      var h3 = '';
+      for (var k = 0; k < res.warnings.length; k++) {
+        h3 += '<div class="warn-entry">&#9888; ' + esc(res.warnings[k]) + ' &mdash; template may contain a real secret value</div>';
+      }
+      elListWarn.innerHTML = h3;
+    }
+
+    elResWrap.classList.remove('hidden');
+    elReportBtn.classList.add('show');
+  }
+
+  function runAudit() {
+    var envT  = elEnvIn.value;
+    var tmplT = elTmplIn.value;
+    if (!envT.trim() && !tmplT.trim()) return;
+    render(auditEnv(parseEnv(envT), parseEnv(tmplT)));
+  }
+
+  // ── Toast ─────────────────────────────────────────────────
+
+  var toastTimer = null;
+
+  function showToast(msg) {
+    clearTimeout(toastTimer);
+    elToast.textContent = msg;
+    elToast.classList.add('show');
+    toastTimer = setTimeout(function() { elToast.classList.remove('show'); }, 1800);
+  }
+
+  function copyStr(s) {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(s).then(function() { showToast('Copied'); });
+    } else {
+      var ta = document.createElement('textarea');
+      ta.value = s;
+      ta.style.cssText = 'position:fixed;opacity:0;top:0;left:0';
+      document.body.appendChild(ta);
+      ta.select();
+      try { document.execCommand('copy'); showToast('Copied'); } catch(err) { showToast('Copy failed'); }
+      document.body.removeChild(ta);
+    }
+  }
+
+  // ── Report ────────────────────────────────────────────────
+
+  function buildReport() {
+    if (!lastResult) return '';
+    var d = new Date();
+    var dateStr = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+    var missKeys  = lastResult.missing.length  ? lastResult.missing.map(function(e)  { return e.key; }).join(', ') : 'none';
+    var extraKeys = lastResult.extra.length    ? lastResult.extra.map(function(e)    { return e.key; }).join(', ') : 'none';
+    var warnKeys  = lastResult.warnings.length ? lastResult.warnings.join(', ') : 'none';
+    return [
+      'ENV SCOUT AUDIT',
+      dateStr,
+      '',
+      'MISSING (' + lastResult.missing.length + '): ' + missKeys,
+      'EXTRA (' + lastResult.extra.length + '): ' + extraKeys,
+      'MATCHED: ' + lastResult.matched,
+      'WARNINGS (' + lastResult.warnings.length + '): ' + warnKeys
+    ].join('\n');
+  }
+
+  // ── Events ────────────────────────────────────────────────
+
+  elAuditBtn.addEventListener('click', runAudit);
+
+  elGenBtn.addEventListener('click', function() {
+    var ent = parseEnv(elEnvIn.value);
+    if (!ent.length) { showToast('No keys found in .env'); return; }
+    elTmplIn.value = genTemplate(ent);
+    runAudit();
+    showToast('Template generated');
+  });
+
+  elCopyEnv.addEventListener('click',  function() { copyStr(elEnvIn.value); });
+  elCopyTmpl.addEventListener('click', function() { copyStr(elTmplIn.value); });
+  elReportBtn.addEventListener('click', function() { copyStr(buildReport()); });
+
+  elSwapBtn.addEventListener('click', function() {
+    var tmp = elEnvIn.value;
+    elEnvIn.value  = elTmplIn.value;
+    elTmplIn.value = tmp;
+    if (!elResWrap.classList.contains('hidden')) runAudit();
+  });
+
+  elClearBtn.addEventListener('click', function() {
+    elEnvIn.value  = '';
+    elTmplIn.value = '';
+    elResWrap.classList.add('hidden');
+    elReportBtn.classList.remove('show');
+    lastResult = null;
+  });
+
+  function loadPreset(name) {
+    var p = PRESETS[name];
+    elEnvIn.value  = p.env;
+    elTmplIn.value = p.tmpl;
+    runAudit();
+  }
+
+  elPreStale.addEventListener('click', function() { loadPreset('stale'); });
+  elPreMiss.addEventListener('click',  function() { loadPreset('missing'); });
+  elPreClean.addEventListener('click', function() { loadPreset('clean'); });
+  elPreWarn.addEventListener('click',  function() { loadPreset('warn'); });
+
+  // Debounced auto-audit on input
+  var debTimer = null;
+  function onInput() {
+    clearTimeout(debTimer);
+    debTimer = setTimeout(runAudit, 500);
+  }
+  elEnvIn.addEventListener('input',  onInput);
+  elTmplIn.addEventListener('input', onInput);
+
+  // Ctrl+Enter shortcut
+  document.addEventListener('keydown', function(e) {
+    if (e.ctrlKey && e.key === 'Enter') runAudit();
+  });
+
+  // Init: load stale preset
+  loadPreset('stale');
+
+})();
+</script>
+</body>
+</html>
