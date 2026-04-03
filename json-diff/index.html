@@ -1,0 +1,924 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
+  <meta name="theme-color" content="#000000">
+  <title>JSON Diff</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body {
+      height: 100%;
+      background: #0a0a0a;
+      overflow-y: auto;
+      touch-action: manipulation;
+      -webkit-tap-highlight-color: transparent;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Courier New", monospace;
+      color: #ccc;
+      font-size: 13px;
+    }
+
+    #app {
+      max-width: 900px;
+      margin: 0 auto;
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      min-height: 100%;
+    }
+
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 4px 0;
+    }
+    .header-title {
+      font-size: 0.7rem;
+      font-weight: 700;
+      letter-spacing: 0.25em;
+      text-transform: uppercase;
+      color: #555;
+    }
+    .header-sub {
+      font-size: 0.5rem;
+      letter-spacing: 0.1em;
+      color: #333;
+      text-transform: uppercase;
+    }
+
+    /* Input grid */
+    .input-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+    @media (max-width: 600px) {
+      .input-grid { grid-template-columns: 1fr; }
+    }
+
+    .input-col {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .input-label {
+      font-size: 0.5rem;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: #444;
+    }
+    textarea {
+      background: #111;
+      border: 1px solid #1a1a1a;
+      color: #aaa;
+      padding: 8px;
+      font-family: inherit;
+      font-size: 0.7rem;
+      line-height: 1.5;
+      resize: vertical;
+      min-height: 180px;
+      outline: none;
+      width: 100%;
+    }
+    textarea:focus { border-color: #555; }
+    textarea::placeholder { color: #333; }
+    .error-msg {
+      font-size: 0.55rem;
+      color: #f85149;
+      min-height: 16px;
+      letter-spacing: 0.05em;
+    }
+
+    /* Button row */
+    .btn-row {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+    .btn {
+      padding: 0 12px;
+      height: 36px;
+      background: transparent;
+      border: 1px solid #1a1a1a;
+      color: #444;
+      font-family: inherit;
+      font-size: 0.55rem;
+      cursor: pointer;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      min-width: 64px;
+    }
+    .btn:hover { border-color: #333; color: #666; }
+    .btn:active { border-color: #555; color: #888; }
+    .btn.primary {
+      border-color: #0ff;
+      color: #0ff;
+    }
+    .btn.primary:hover { background: rgba(0,255,255,0.05); }
+    .btn-icon {
+      padding: 0 8px;
+      height: 36px;
+      min-width: 36px;
+      background: transparent;
+      border: 1px solid #1a1a1a;
+      color: #444;
+      font-family: inherit;
+      font-size: 0.7rem;
+      cursor: pointer;
+    }
+    .btn-icon:hover { border-color: #333; color: #666; }
+    .btn-icon:active { border-color: #555; color: #888; }
+
+    #toggle-unchanged {
+      margin-left: auto;
+    }
+    #toggle-unchanged.active {
+      border-color: #444;
+      color: #888;
+    }
+
+    /* Stats bar */
+    #stats-bar {
+      display: flex;
+      gap: 16px;
+      padding: 6px 8px;
+      border: 1px solid #1a1a1a;
+      font-size: 0.55rem;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+    #stats-bar.hidden { display: none; }
+    .stat { display: flex; align-items: center; gap: 6px; }
+    .stat-dot {
+      width: 6px; height: 6px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+    .stat-added .stat-dot { background: #3fb950; }
+    .stat-removed .stat-dot { background: #f85149; }
+    .stat-changed .stat-dot { background: #d29922; }
+    .stat-count { color: #aaa; }
+    .stat-label { color: #444; }
+    .stat-total { margin-left: auto; color: #333; }
+
+    /* Diff output */
+    #diff-output {
+      border: 1px solid #1a1a1a;
+      padding: 8px;
+      display: none;
+    }
+    #diff-output.visible { display: block; }
+
+    .diff-empty {
+      color: #333;
+      font-size: 0.6rem;
+      letter-spacing: 0.1em;
+      text-align: center;
+      padding: 24px 0;
+    }
+
+    /* Diff tree nodes */
+    .diff-node {
+      display: grid;
+      grid-template-columns: 14px 1fr;
+      gap: 0;
+      line-height: 1.7;
+    }
+    .diff-gutter {
+      color: #333;
+      font-size: 0.6rem;
+      user-select: none;
+      padding-top: 1px;
+    }
+    .diff-content {
+      display: flex;
+      flex-direction: column;
+      gap: 0;
+    }
+
+    .diff-line {
+      display: flex;
+      align-items: baseline;
+      gap: 6px;
+      padding: 1px 0;
+      min-height: 20px;
+    }
+    .diff-key {
+      color: #777;
+      font-size: 0.65rem;
+      flex-shrink: 0;
+    }
+    .diff-colon { color: #444; flex-shrink: 0; font-size: 0.65rem; }
+    .diff-val {
+      font-size: 0.65rem;
+      word-break: break-all;
+    }
+    .diff-copy-btn {
+      padding: 0 5px;
+      height: 18px;
+      background: transparent;
+      border: 1px solid #1a1a1a;
+      color: #333;
+      font-family: inherit;
+      font-size: 0.45rem;
+      cursor: pointer;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      flex-shrink: 0;
+      opacity: 0;
+      transition: opacity 0.1s;
+    }
+    .diff-line:hover .diff-copy-btn { opacity: 1; }
+    /* Always show copy btns on touch devices (no hover) */
+    @media (hover: none) {
+      .diff-copy-btn { opacity: 0.5; }
+    }
+    .diff-copy-btn:active { border-color: #555; color: #888; }
+
+    /* Type colors */
+    .type-added .diff-key { color: #3fb950; }
+    .type-added .diff-val { color: #3fb950; }
+    .type-added .diff-gutter { color: #3fb950; }
+    .type-added .diff-colon { color: #3fb950; }
+
+    .type-removed .diff-key { color: #f85149; }
+    .type-removed .diff-val { color: #f85149; }
+    .type-removed .diff-gutter { color: #f85149; }
+    .type-removed .diff-colon { color: #f85149; }
+
+    .type-changed .diff-key { color: #d29922; }
+    .type-changed .diff-gutter { color: #d29922; }
+
+    .type-unchanged .diff-key { color: #2a2a2a; }
+    .type-unchanged .diff-val { color: #2a2a2a; }
+    .type-unchanged .diff-colon { color: #1a1a1a; }
+    .type-unchanged .diff-gutter { color: #1a1a1a; }
+
+    .type-container .diff-key { color: #888; }
+
+    /* Changed: two-line display */
+    .val-old { color: #f85149; text-decoration: line-through; opacity: 0.8; }
+    .val-new { color: #3fb950; }
+    .val-arrow { color: #333; font-size: 0.5rem; margin: 0 4px; }
+    .val-type-badge {
+      font-size: 0.45rem;
+      letter-spacing: 0.08em;
+      color: #333;
+      padding: 1px 3px;
+      border: 1px solid #1a1a1a;
+      margin-left: 4px;
+    }
+
+    /* Collapsible sections */
+    .diff-children {
+      padding-left: 16px;
+      border-left: 1px solid #1a1a1a;
+      margin-left: 4px;
+    }
+
+    .unchanged-collapsed {
+      font-size: 0.55rem;
+      color: #2a2a2a;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      padding: 2px 0;
+      cursor: pointer;
+      user-select: none;
+    }
+    .unchanged-collapsed:hover { color: #444; }
+
+    /* Bracket lines */
+    .diff-bracket { color: #333; font-size: 0.65rem; line-height: 1.7; }
+
+    /* Legend */
+    .legend {
+      margin-left: auto;
+      display: flex;
+      gap: 10px;
+      align-items: center;
+    }
+    .leg-item {
+      font-size: 0.5rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+    .leg-add { color: #3fb950; }
+    .leg-rem { color: #f85149; }
+    .leg-chg { color: #d29922; }
+
+    /* Intro/help */
+    #intro {
+      color: #2a2a2a;
+      font-size: 0.55rem;
+      letter-spacing: 0.05em;
+      text-align: center;
+      padding: 20px 0;
+      line-height: 1.8;
+    }
+  </style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <span class="header-title">JSON Diff</span>
+    <span class="header-sub">structural comparison</span>
+  </header>
+
+  <div class="input-grid">
+    <div class="input-col">
+      <span class="input-label">Left (base)</span>
+      <textarea id="left-input" placeholder='{"name": "Alice", "age": 30}'></textarea>
+      <div id="error-left" class="error-msg"></div>
+    </div>
+    <div class="input-col">
+      <span class="input-label">Right (changed)</span>
+      <textarea id="right-input" placeholder='{"name": "Alice", "age": 31, "city": "NY"}'></textarea>
+      <div id="error-right" class="error-msg"></div>
+    </div>
+  </div>
+
+  <div class="btn-row">
+    <button id="btn-diff" class="btn primary" title="Diff (Ctrl+Enter)">Diff</button>
+    <button id="btn-swap" class="btn" title="Swap left and right">Swap</button>
+    <button id="btn-load-sample" class="btn" title="Load example data">Sample</button>
+    <button id="btn-clear" class="btn" title="Clear both inputs">Clear</button>
+    <button id="toggle-unchanged" class="btn" title="Toggle unchanged keys">Show Unchanged</button>
+    <span class="legend">
+      <span class="leg-item leg-add">+ added</span>
+      <span class="leg-item leg-rem">- removed</span>
+      <span class="leg-item leg-chg">~ changed</span>
+    </span>
+  </div>
+
+  <div id="stats-bar" class="hidden">
+    <span class="stat stat-added">
+      <span class="stat-dot"></span>
+      <span id="count-added" class="stat-count">0</span>
+      <span class="stat-label">added</span>
+    </span>
+    <span class="stat stat-removed">
+      <span class="stat-dot"></span>
+      <span id="count-removed" class="stat-count">0</span>
+      <span class="stat-label">removed</span>
+    </span>
+    <span class="stat stat-changed">
+      <span class="stat-dot"></span>
+      <span id="count-changed" class="stat-count">0</span>
+      <span class="stat-label">changed</span>
+    </span>
+    <span id="stats-identical" class="stat-total"></span>
+  </div>
+
+  <div id="diff-output">
+    <div id="intro">Paste two JSON objects above and click DIFF</div>
+  </div>
+</div>
+
+<script>
+(function() {
+  /* State */
+  var state = {
+    left: '',
+    right: '',
+    showUnchanged: false,
+    diffNodes: null
+  };
+
+  /* DOM refs cached at init */
+  var elLeftInput, elRightInput, elBtnDiff, elBtnSwap, elBtnLoadSample,
+      elBtnClear, elToggleUnchanged, elStatsBar, elCountAdded,
+      elCountRemoved, elCountChanged, elStatsIdentical,
+      elDiffOutput, elErrorLeft, elErrorRight;
+
+  /* Debounce timer */
+  var debounceTimer = null;
+  /* ---- DIFF ENGINE ---- */
+
+  function typeOf(v) {
+    if (v === null) return 'null';
+    if (Array.isArray(v)) return 'array';
+    return typeof v;
+  }
+
+  function isDeep(v) {
+    return v !== null && (typeof v === 'object' || Array.isArray(v));
+  }
+
+  /* Recursively diff two values. Returns a DiffNode. */
+  function diffValues(key, left, right) {
+    var lt = typeOf(left);
+    var rt = typeOf(right);
+
+    /* Both are objects (non-array) */
+    if (lt === 'object' && rt === 'object') {
+      return {
+        type: 'container',
+        kind: 'object',
+        key: key,
+        children: diffObjects(left, right)
+      };
+    }
+
+    /* Both are arrays */
+    if (lt === 'array' && rt === 'array') {
+      return {
+        type: 'container',
+        kind: 'array',
+        key: key,
+        children: diffArrays(left, right)
+      };
+    }
+
+    /* Same value (and same type) */
+    if (lt === rt && JSON.stringify(left) === JSON.stringify(right)) {
+      return { type: 'unchanged', key: key, val: left };
+    }
+
+    /* Everything else: changed */
+    return { type: 'changed', key: key, leftVal: left, rightVal: right, leftType: lt, rightType: rt };
+  }
+
+  function diffObjects(left, right) {
+    var allKeys = Object.create(null);
+    var k;
+    var leftKeys = Object.keys(left);
+    var rightKeys = Object.keys(right);
+    var i;
+    for (i = 0; i < leftKeys.length; i++) allKeys[leftKeys[i]] = true;
+    for (i = 0; i < rightKeys.length; i++) allKeys[rightKeys[i]] = true;
+
+    var nodes = [];
+    var keys = Object.keys(allKeys);
+    for (i = 0; i < keys.length; i++) {
+      k = keys[i];
+      var inLeft = Object.prototype.hasOwnProperty.call(left, k);
+      var inRight = Object.prototype.hasOwnProperty.call(right, k);
+
+      if (inLeft && !inRight) {
+        nodes.push({ type: 'removed', key: k, val: left[k] });
+      } else if (!inLeft && inRight) {
+        nodes.push({ type: 'added', key: k, val: right[k] });
+      } else {
+        nodes.push(diffValues(k, left[k], right[k]));
+      }
+    }
+    return nodes;
+  }
+
+  function diffArrays(left, right) {
+    var len = Math.max(left.length, right.length);
+    var nodes = [];
+    for (var i = 0; i < len; i++) {
+      if (i >= left.length) {
+        nodes.push({ type: 'added', key: '[' + i + ']', val: right[i] });
+      } else if (i >= right.length) {
+        nodes.push({ type: 'removed', key: '[' + i + ']', val: left[i] });
+      } else {
+        nodes.push(diffValues('[' + i + ']', left[i], right[i]));
+      }
+    }
+    return nodes;
+  }
+
+  /* Count change stats recursively */
+  function countChanges(nodes, acc) {
+    if (!acc) acc = { added: 0, removed: 0, changed: 0, unchanged: 0 };
+    for (var i = 0; i < nodes.length; i++) {
+      var n = nodes[i];
+      if (n.type === 'added') acc.added++;
+      else if (n.type === 'removed') acc.removed++;
+      else if (n.type === 'changed') acc.changed++;
+      else if (n.type === 'unchanged') acc.unchanged++;
+      if (n.children) countChanges(n.children, acc);
+    }
+    return acc;
+  }
+
+  function hasChanges(nodes) {
+    for (var i = 0; i < nodes.length; i++) {
+      var n = nodes[i];
+      if (n.type === 'added' || n.type === 'removed' || n.type === 'changed') return true;
+      if (n.children && hasChanges(n.children)) return true;
+    }
+    return false;
+  }
+
+  /* ---- RENDER ENGINE ---- */
+
+  function escHtml(s) {
+    return String(s)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/\x22/g, '&quot;');
+  }
+
+  function formatVal(v) {
+    var t = typeOf(v);
+    if (t === 'string') return '"' + escHtml(v.length > 80 ? v.slice(0, 80) + '...' : v) + '"';
+    if (t === 'null') return 'null';
+    if (t === 'object') return '{' + Object.keys(v).length + ' keys}';
+    if (t === 'array') return '[' + v.length + ' items]';
+    return escHtml(String(v));
+  }
+
+  function makeCopyBtn(text) {
+    var btn = document.createElement('button');
+    btn.className = 'diff-copy-btn';
+    btn.textContent = 'COPY';
+    btn.title = 'Copy value';
+    var tid = null;
+    btn.addEventListener('pointerdown', function(e) {
+      e.stopPropagation();
+      navigator.clipboard.writeText(text).then(function() {
+        btn.textContent = 'OK';
+        if (tid !== null) clearTimeout(tid);
+        tid = setTimeout(function() {
+          btn.textContent = 'COPY';
+          tid = null;
+        }, 1200);
+      }).catch(function() { /* clipboard denied */ });
+    });
+    return btn;
+  }
+
+  /* Build DOM for a list of diff nodes */
+  function buildDiffDOM(nodes, depth) {
+    var frag = document.createDocumentFragment();
+
+    /* Group consecutive unchanged nodes if showUnchanged is off */
+    var i = 0;
+    while (i < nodes.length) {
+      var n = nodes[i];
+
+      if (n.type === 'unchanged' && !state.showUnchanged) {
+        /* Collect run of unchanged */
+        var run = [];
+        while (i < nodes.length && nodes[i].type === 'unchanged') {
+          run.push(nodes[i]);
+          i++;
+        }
+        var collapsed = document.createElement('div');
+        collapsed.className = 'unchanged-collapsed';
+        collapsed.textContent = '... ' + run.length + ' unchanged';
+        frag.appendChild(collapsed);
+        continue;
+      }
+
+      frag.appendChild(buildNodeDOM(n, depth));
+      i++;
+    }
+    return frag;
+  }
+
+  function buildNodeDOM(n, depth) {
+    var wrapper = document.createElement('div');
+    wrapper.className = 'diff-node type-' + n.type;
+
+    var gutter = document.createElement('div');
+    gutter.className = 'diff-gutter';
+
+    var content = document.createElement('div');
+    content.className = 'diff-content';
+
+    if (n.type === 'added') {
+      gutter.textContent = '+';
+      var line = makeLine(n.key, n.val, 'added', true);
+      content.appendChild(line);
+    } else if (n.type === 'removed') {
+      gutter.textContent = '-';
+      var line = makeLine(n.key, n.val, 'removed', false);
+      content.appendChild(line);
+    } else if (n.type === 'changed') {
+      gutter.textContent = '~';
+      var line = makeChangedLine(n);
+      content.appendChild(line);
+    } else if (n.type === 'unchanged') {
+      gutter.textContent = ' ';
+      var line = makeLine(n.key, n.val, 'unchanged', false);
+      content.appendChild(line);
+    } else if (n.type === 'container') {
+      /* Container: key + { or [ + children + } or ] */
+      gutter.textContent = hasChanges(n.children) ? '~' : ' ';
+      var openBracket = n.kind === 'object' ? '{' : '[';
+      var closeBracket = n.kind === 'object' ? '}' : ']';
+
+      var headerLine = document.createElement('div');
+      headerLine.className = 'diff-line';
+      if (n.key !== null && n.key !== undefined) {
+        var keySpan = document.createElement('span');
+        keySpan.className = 'diff-key';
+        keySpan.textContent = n.key + ':';
+        headerLine.appendChild(keySpan);
+      }
+      var brSpan = document.createElement('span');
+      brSpan.className = 'diff-bracket';
+      brSpan.textContent = openBracket;
+      headerLine.appendChild(brSpan);
+      content.appendChild(headerLine);
+
+      var children = document.createElement('div');
+      children.className = 'diff-children';
+      children.appendChild(buildDiffDOM(n.children, depth + 1));
+      content.appendChild(children);
+
+      var closeLine = document.createElement('div');
+      closeLine.className = 'diff-bracket';
+      closeLine.textContent = closeBracket;
+      content.appendChild(closeLine);
+    }
+
+    wrapper.appendChild(gutter);
+    wrapper.appendChild(content);
+    return wrapper;
+  }
+
+  function makeLine(key, val, cssType, isRight) {
+    var line = document.createElement('div');
+    line.className = 'diff-line';
+
+    if (key !== null && key !== undefined) {
+      var keySpan = document.createElement('span');
+      keySpan.className = 'diff-key';
+      keySpan.textContent = key;
+      line.appendChild(keySpan);
+
+      var colon = document.createElement('span');
+      colon.className = 'diff-colon';
+      colon.textContent = ':';
+      line.appendChild(colon);
+    }
+
+    if (!isDeep(val)) {
+      var valSpan = document.createElement('span');
+      valSpan.className = 'diff-val';
+      valSpan.innerHTML = formatVal(val);
+      line.appendChild(valSpan);
+
+      var copyText = (typeof val === 'string') ? val : JSON.stringify(val);
+      line.appendChild(makeCopyBtn(copyText));
+    } else {
+      /* Inline summary for objects/arrays */
+      var valSpan = document.createElement('span');
+      valSpan.className = 'diff-val';
+      valSpan.innerHTML = formatVal(val);
+      line.appendChild(valSpan);
+    }
+
+    return line;
+  }
+
+  function makeChangedLine(n) {
+    var line = document.createElement('div');
+    line.className = 'diff-line';
+
+    if (n.key !== null && n.key !== undefined) {
+      var keySpan = document.createElement('span');
+      keySpan.className = 'diff-key';
+      keySpan.textContent = n.key;
+      line.appendChild(keySpan);
+
+      var colon = document.createElement('span');
+      colon.className = 'diff-colon';
+      colon.textContent = ':';
+      line.appendChild(colon);
+    }
+
+    if (!isDeep(n.leftVal) && !isDeep(n.rightVal)) {
+      var oldSpan = document.createElement('span');
+      oldSpan.className = 'val-old';
+      oldSpan.innerHTML = formatVal(n.leftVal);
+      line.appendChild(oldSpan);
+
+      var arrow = document.createElement('span');
+      arrow.className = 'val-arrow';
+      arrow.textContent = '\u2192';
+      line.appendChild(arrow);
+
+      var newSpan = document.createElement('span');
+      newSpan.className = 'val-new';
+      newSpan.innerHTML = formatVal(n.rightVal);
+      line.appendChild(newSpan);
+
+      if (n.leftType !== n.rightType) {
+        var badge = document.createElement('span');
+        badge.className = 'val-type-badge';
+        badge.textContent = n.leftType + ' \u2192 ' + n.rightType;
+        line.appendChild(badge);
+      }
+
+      var copyText = (typeof n.rightVal === 'string') ? n.rightVal : JSON.stringify(n.rightVal);
+      line.appendChild(makeCopyBtn(copyText));
+    } else {
+      /* Deep change — show type badge */
+      var badge = document.createElement('span');
+      badge.className = 'val-type-badge';
+      badge.textContent = n.leftType + ' \u2192 ' + n.rightType;
+      line.appendChild(badge);
+    }
+
+    return line;
+  }
+
+  /* ---- PARSE & DIFF ---- */
+
+  function parseInput(str) {
+    var s = str.trim();
+    if (!s) return { ok: false, val: null, err: '' };
+    try {
+      return { ok: true, val: JSON.parse(s), err: null };
+    } catch (e) {
+      return { ok: false, val: null, err: e.message };
+    }
+  }
+
+  function runDiff() {
+    var lStr = elLeftInput.value;
+    var rStr = elRightInput.value;
+
+    elErrorLeft.textContent = '';
+    elErrorRight.textContent = '';
+
+    var l = parseInput(lStr);
+    var r = parseInput(rStr);
+
+    if (lStr.trim() && !l.ok) elErrorLeft.textContent = l.err;
+    if (rStr.trim() && !r.ok) elErrorRight.textContent = r.err;
+
+    if (!lStr.trim() || !rStr.trim()) {
+      elDiffOutput.classList.remove('visible');
+      elStatsBar.classList.add('hidden');
+      return;
+    }
+    if (!l.ok || !r.ok) return;
+
+    /* Build diff */
+    var nodes;
+    var lt = typeOf(l.val);
+    var rt = typeOf(r.val);
+
+    if (lt === 'object' && rt === 'object') {
+      nodes = diffObjects(l.val, r.val);
+    } else if (lt === 'array' && rt === 'array') {
+      nodes = diffArrays(l.val, r.val);
+    } else {
+      /* Top-level type mismatch or primitives */
+      nodes = [diffValues(null, l.val, r.val)];
+    }
+
+    state.diffNodes = nodes;
+
+    /* Stats */
+    var stats = countChanges(nodes);
+    elCountAdded.textContent = stats.added;
+    elCountRemoved.textContent = stats.removed;
+    elCountChanged.textContent = stats.changed;
+    var total = stats.added + stats.removed + stats.changed;
+    elStatsIdentical.textContent = total === 0 ? 'IDENTICAL' : '';
+    elStatsBar.classList.remove('hidden');
+
+    /* Render diff tree */
+    elDiffOutput.classList.add('visible');
+    elDiffOutput.innerHTML = '';
+    if (total === 0 && !state.showUnchanged) {
+      var eq = document.createElement('div');
+      eq.className = 'diff-empty';
+      eq.textContent = 'No differences found';
+      elDiffOutput.appendChild(eq);
+    } else {
+      elDiffOutput.appendChild(buildDiffDOM(nodes, 0));
+    }
+  }
+
+  function scheduleDiff() {
+    if (debounceTimer !== null) clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(function() {
+      debounceTimer = null;
+      runDiff();
+    }, 300);
+  }
+
+  /* ---- SAMPLES ---- */
+
+  var SAMPLE_LEFT = JSON.stringify({
+    "id": 1001,
+    "name": "Alice Johnson",
+    "email": "alice@example.com",
+    "role": "admin",
+    "active": true,
+    "score": 98.5,
+    "tags": ["frontend", "react"],
+    "address": {
+      "city": "San Francisco",
+      "zip": "94102"
+    }
+  }, null, 2);
+
+  var SAMPLE_RIGHT = JSON.stringify({
+    "id": 1001,
+    "name": "Alice Johnson",
+    "email": "alice@newdomain.com",
+    "role": "superadmin",
+    "active": true,
+    "score": 102.0,
+    "tags": ["frontend", "react", "typescript"],
+    "address": {
+      "city": "Oakland",
+      "zip": "94612",
+      "country": "US"
+    },
+    "lastLogin": "2026-04-03T09:00:00Z"
+  }, null, 2);
+
+  /* ---- INIT ---- */
+
+  function init() {
+    elLeftInput       = document.getElementById('left-input');
+    elRightInput      = document.getElementById('right-input');
+    elBtnDiff         = document.getElementById('btn-diff');
+    elBtnSwap         = document.getElementById('btn-swap');
+    elBtnLoadSample   = document.getElementById('btn-load-sample');
+    elBtnClear        = document.getElementById('btn-clear');
+    elToggleUnchanged = document.getElementById('toggle-unchanged');
+    elStatsBar        = document.getElementById('stats-bar');
+    elCountAdded      = document.getElementById('count-added');
+    elCountRemoved    = document.getElementById('count-removed');
+    elCountChanged    = document.getElementById('count-changed');
+    elStatsIdentical  = document.getElementById('stats-identical');
+    elDiffOutput      = document.getElementById('diff-output');
+    elErrorLeft       = document.getElementById('error-left');
+    elErrorRight      = document.getElementById('error-right');
+
+    elBtnDiff.addEventListener('click', runDiff);
+
+    elLeftInput.addEventListener('input', scheduleDiff);
+    elRightInput.addEventListener('input', scheduleDiff);
+
+    document.addEventListener('keydown', function(e) {
+      if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+        e.preventDefault();
+        runDiff();
+      }
+    });
+
+    elBtnSwap.addEventListener('click', function() {
+      var tmp = elLeftInput.value;
+      elLeftInput.value = elRightInput.value;
+      elRightInput.value = tmp;
+      elErrorLeft.textContent = '';
+      elErrorRight.textContent = '';
+      runDiff();
+    });
+
+    elBtnLoadSample.addEventListener('click', function() {
+      elLeftInput.value = SAMPLE_LEFT;
+      elRightInput.value = SAMPLE_RIGHT;
+      elErrorLeft.textContent = '';
+      elErrorRight.textContent = '';
+      runDiff();
+    });
+
+    elBtnClear.addEventListener('click', function() {
+      elLeftInput.value = '';
+      elRightInput.value = '';
+      elErrorLeft.textContent = '';
+      elErrorRight.textContent = '';
+      elDiffOutput.classList.remove('visible');
+      elDiffOutput.innerHTML = '';
+      elStatsBar.classList.add('hidden');
+      state.diffNodes = null;
+    });
+
+    elToggleUnchanged.addEventListener('click', function() {
+      state.showUnchanged = !state.showUnchanged;
+      elToggleUnchanged.classList.toggle('active', state.showUnchanged);
+      elToggleUnchanged.textContent = state.showUnchanged ? 'Hide Unchanged' : 'Show Unchanged';
+      if (state.diffNodes) {
+        /* Re-render without re-diffing */
+        elDiffOutput.innerHTML = '';
+        var stats = countChanges(state.diffNodes);
+        var total = stats.added + stats.removed + stats.changed;
+        if (total === 0 && !state.showUnchanged) {
+          var eq = document.createElement('div');
+          eq.className = 'diff-empty';
+          eq.textContent = 'No differences found';
+          elDiffOutput.appendChild(eq);
+        } else {
+          elDiffOutput.appendChild(buildDiffDOM(state.diffNodes, 0));
+        }
+      }
+    });
+  }
+
+  document.addEventListener('DOMContentLoaded', init);
+})();
+</script>
+</body>
+</html>
