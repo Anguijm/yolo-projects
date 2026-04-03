@@ -25,7 +25,12 @@ Naval Scribe is a graduated YOLO project operating under Flagship rules alongsid
 
 ## Approved (Next Tock)
 
-<!-- all approved items completed this tock -->
+<!-- pending approval — brainstormed this tock -->
+
+## Pending (Not Yet Approved)
+
+- [ ] **Classification Marking Toggle** — Dropdown: UNCLASSIFIED / CUI / FOR OFFICIAL USE ONLY / SECRET. Adds the selected marking as a centered header/footer banner in both the live preview and .docx export. Satisfies real compliance needs; absent = no marking (default). Stored in draft state.
+- [ ] **Letterhead Presets per Command** — Store up to 5 named command presets (command name, address, UIC) in localStorage. "Save as Preset" button captures the current From block; a preset picker dropdown instantly pre-fills it. Eliminates re-typing command info across sessions.
 
 ## Recently Completed
 
@@ -57,3 +62,4 @@ Naval Scribe is a graduated YOLO project operating under Flagship rules alongsid
 | 2026-04-03 | Tock | No approved items; brainstormed 2 PENDING features: Saved Drafts Library, Print-to-PDF mode |
 | 2026-04-03 | Tock | No approved items; brainstormed 2 PENDING features: SSIC Code Lookup & Autocomplete, Signature Block Builder |
 | 2026-04-03 | Tock | Implemented all 4 approved features: Saved Drafts Library, Print-to-PDF, SSIC Autocomplete (46 codes), Signature Block Builder. Also fixed: autoSave now saves full state, DOCX w:spacing merged, single-para no-number naval standard, New/Clear button added |
+| 2026-04-03 | Tock | No approved items; brainstormed 2 PENDING features: Classification Marking Toggle, Letterhead Presets per Command |
