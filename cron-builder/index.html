@@ -1,0 +1,934 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="theme-color" content="#000000">
+<title>Cron Builder</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body {
+  height: 100%;
+  background: #0a0a0a;
+  overflow-y: auto;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Courier New", monospace;
+}
+:root {
+  --bg-page: #0a0a0a;
+  --bg-surface: #111;
+  --bg-elevated: #1a1a1a;
+  --bg-hover: #222;
+  --text-primary: #fff;
+  --text-body: #ccc;
+  --text-secondary: #aaa;
+  --text-tertiary: #555;
+  --text-label: #444;
+  --border-default: #1a1a1a;
+  --border-active: #444;
+  --border-focus: #555;
+  --color-success: #3fb950;
+  --color-error: #f85149;
+  --accent: #0ff;
+}
+
+body {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 12px;
+  gap: 10px;
+  min-height: 100%;
+}
+
+.page-header {
+  width: 100%;
+  max-width: 480px;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+.page-title {
+  font-size: 0.65rem;
+  color: var(--text-label);
+  text-transform: uppercase;
+  letter-spacing: 0.2em;
+}
+.page-sub {
+  font-size: 0.5rem;
+  color: var(--text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+
+/* Main expression input */
+.expr-wrap {
+  width: 100%;
+  max-width: 480px;
+  display: flex;
+  gap: 6px;
+  align-items: stretch;
+}
+#expr-input {
+  flex: 1;
+  background: #111;
+  border: 1px solid #222;
+  color: #fff;
+  padding: 10px 12px;
+  font-family: inherit;
+  font-size: 1rem;
+  outline: none;
+  letter-spacing: 0.05em;
+  min-height: 44px;
+}
+#expr-input:focus { border-color: var(--border-focus); }
+#expr-input.error { border-color: var(--color-error); color: var(--color-error); }
+
+#copy-btn {
+  background: transparent;
+  border: 1px solid #222;
+  color: #555;
+  font-family: inherit;
+  font-size: 0.55rem;
+  padding: 0 12px;
+  cursor: pointer;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  min-height: 44px;
+  min-width: 56px;
+  white-space: nowrap;
+}
+#copy-btn:active { border-color: var(--accent); color: var(--accent); }
+#copy-btn.copied { border-color: var(--color-success); color: var(--color-success); }
+
+/* Field grid */
+.fields-grid {
+  width: 100%;
+  max-width: 480px;
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 6px;
+}
+.field-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.field-label {
+  font-size: 0.45rem;
+  color: var(--text-label);
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
+  text-align: center;
+}
+.field-range {
+  font-size: 0.45rem;
+  color: var(--text-tertiary);
+  text-align: center;
+  letter-spacing: 0.05em;
+}
+.field-input {
+  background: #111;
+  border: 1px solid #1a1a1a;
+  color: #aaa;
+  padding: 6px 4px;
+  font-family: inherit;
+  font-size: 0.75rem;
+  outline: none;
+  text-align: center;
+  width: 100%;
+  min-height: 36px;
+}
+.field-input:focus { border-color: var(--border-focus); color: #ccc; }
+.field-input.error { border-color: var(--color-error); color: var(--color-error); }
+.field-input.ok { border-color: #1a3a1a; }
+
+/* Description panel */
+.desc-panel {
+  width: 100%;
+  max-width: 480px;
+  padding: 10px 12px;
+  border: 1px solid #1a1a1a;
+  min-height: 48px;
+  display: flex;
+  align-items: center;
+}
+#description {
+  font-size: 0.8rem;
+  color: var(--accent);
+  letter-spacing: 0.02em;
+  line-height: 1.4;
+}
+#description.error {
+  color: var(--color-error);
+  font-size: 0.65rem;
+}
+
+/* Presets */
+.section-label {
+  width: 100%;
+  max-width: 480px;
+  font-size: 0.45rem;
+  color: var(--text-label);
+  text-transform: uppercase;
+  letter-spacing: 0.2em;
+  padding-bottom: 2px;
+  border-bottom: 1px solid #1a1a1a;
+}
+
+.presets-row {
+  width: 100%;
+  max-width: 480px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+.preset-btn {
+  background: transparent;
+  border: 1px solid #1a1a1a;
+  color: #444;
+  font-family: inherit;
+  font-size: 0.55rem;
+  padding: 0 10px;
+  cursor: pointer;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  min-height: 36px;
+  white-space: nowrap;
+}
+.preset-btn:active { border-color: #555; color: #888; }
+.preset-btn:hover { border-color: #333; color: #666; }
+
+/* Timezone */
+.tz-row {
+  width: 100%;
+  max-width: 480px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.tz-label {
+  font-size: 0.5rem;
+  color: var(--text-label);
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
+  flex-shrink: 0;
+}
+#tz-select {
+  background: #111;
+  border: 1px solid #1a1a1a;
+  color: #aaa;
+  font-family: inherit;
+  font-size: 0.65rem;
+  padding: 4px 8px;
+  outline: none;
+  cursor: pointer;
+  min-height: 36px;
+  flex: 1;
+}
+#tz-select:focus { border-color: var(--border-focus); }
+
+/* Next runs */
+.runs-panel {
+  width: 100%;
+  max-width: 480px;
+  border: 1px solid #1a1a1a;
+  overflow: hidden;
+}
+.runs-header {
+  padding: 5px 10px;
+  background: #111;
+  font-size: 0.45rem;
+  color: var(--text-label);
+  text-transform: uppercase;
+  letter-spacing: 0.2em;
+  border-bottom: 1px solid #1a1a1a;
+}
+#runs-list {
+  list-style: none;
+}
+#runs-list li {
+  padding: 5px 10px;
+  font-size: 0.65rem;
+  color: var(--text-secondary);
+  border-bottom: 1px solid #111;
+  display: flex;
+  gap: 12px;
+  align-items: baseline;
+}
+#runs-list li:last-child { border-bottom: none; }
+#runs-list li .run-n {
+  color: var(--text-label);
+  font-size: 0.5rem;
+  min-width: 16px;
+}
+#runs-list li .run-rel {
+  color: var(--text-tertiary);
+  font-size: 0.55rem;
+  margin-left: auto;
+}
+#runs-list .no-runs {
+  color: var(--color-error);
+  font-size: 0.6rem;
+  padding: 10px;
+}
+
+/* Syntax ref */
+.syntax-grid {
+  width: 100%;
+  max-width: 480px;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 3px 12px;
+}
+.syn-val {
+  font-size: 0.6rem;
+  color: var(--accent);
+  letter-spacing: 0.05em;
+}
+.syn-desc {
+  font-size: 0.55rem;
+  color: var(--text-tertiary);
+}
+
+.footer {
+  width: 100%;
+  max-width: 480px;
+  font-size: 0.4rem;
+  color: var(--text-label);
+  text-align: center;
+  letter-spacing: 0.1em;
+  padding-bottom: 8px;
+}
+</style>
+</head>
+<body>
+
+<div class="page-header">
+  <span class="page-title">Cron Builder</span>
+  <span class="page-sub">* * * * * — schedule any job</span>
+</div>
+
+<div class="expr-wrap">
+  <input id="expr-input" type="text" value="* * * * *" autocomplete="off" spellcheck="false" autocorrect="off" autocapitalize="none">
+  <button id="copy-btn">Copy</button>
+</div>
+
+<div class="fields-grid">
+  <div class="field-cell">
+    <div class="field-label">Minute</div>
+    <input id="field-min" class="field-input" type="text" value="*">
+    <div class="field-range">0–59</div>
+  </div>
+  <div class="field-cell">
+    <div class="field-label">Hour</div>
+    <input id="field-hour" class="field-input" type="text" value="*">
+    <div class="field-range">0–23</div>
+  </div>
+  <div class="field-cell">
+    <div class="field-label">Day</div>
+    <input id="field-dom" class="field-input" type="text" value="*">
+    <div class="field-range">1–31</div>
+  </div>
+  <div class="field-cell">
+    <div class="field-label">Month</div>
+    <input id="field-month" class="field-input" type="text" value="*">
+    <div class="field-range">1–12</div>
+  </div>
+  <div class="field-cell">
+    <div class="field-label">Weekday</div>
+    <input id="field-dow" class="field-input" type="text" value="*">
+    <div class="field-range">0–6 (Sun=0)</div>
+  </div>
+</div>
+
+<div class="desc-panel">
+  <div id="description">Every minute</div>
+</div>
+
+<div class="section-label">Presets</div>
+<div class="presets-row" id="presets-row"></div>
+
+<div class="tz-row">
+  <span class="tz-label">Timezone</span>
+  <select id="tz-select"></select>
+</div>
+
+<div class="runs-panel">
+  <div class="runs-header">Next 10 scheduled runs</div>
+  <ul id="runs-list"></ul>
+</div>
+
+<div class="section-label">Syntax Reference</div>
+<div class="syntax-grid">
+  <span class="syn-val">*</span><span class="syn-desc">Any value (wildcard)</span>
+  <span class="syn-val">*/n</span><span class="syn-desc">Every n units (step)</span>
+  <span class="syn-val">a-b</span><span class="syn-desc">Range from a to b</span>
+  <span class="syn-val">a,b,c</span><span class="syn-desc">List of specific values</span>
+  <span class="syn-val">a-b/n</span><span class="syn-desc">Range a–b, every n</span>
+</div>
+
+<div class="footer">100% offline — no data leaves your browser</div>
+
+<script>
+(function() {
+  'use strict';
+
+  /* ---- State ---- */
+  var state = {
+    expr: '* * * * *',
+    tz: 'UTC',
+    error: null
+  };
+
+  /* ---- DOM refs (cached at init) ---- */
+  var elExpr, elDesc, elRunsList, elTz, elCopyBtn;
+  var elMin, elHour, elDom, elMonth, elDow;
+  var copyTimeoutId = null;
+
+  /* ---- Constants ---- */
+  var MONTH_NAMES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  var DOW_NAMES = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  var WEEKDAY_LONG = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+  var MONTH_LONG = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+
+  var PRESETS = [
+    { label: '@yearly',     expr: '0 0 1 1 *',    desc: 'Jan 1st midnight' },
+    { label: '@monthly',    expr: '0 0 1 * *',    desc: '1st of month' },
+    { label: '@weekly',     expr: '0 0 * * 0',    desc: 'Sunday midnight' },
+    { label: '@daily',      expr: '0 0 * * *',    desc: 'Midnight daily' },
+    { label: '@hourly',     expr: '0 * * * *',    desc: 'Top of hour' },
+    { label: 'Every 5m',    expr: '*/5 * * * *',  desc: 'Every 5 minutes' },
+    { label: 'Every 15m',   expr: '*/15 * * * *', desc: 'Every 15 minutes' },
+    { label: 'Every 30m',   expr: '*/30 * * * *', desc: 'Every 30 minutes' },
+    { label: 'Mon–Fri 9am', expr: '0 9 * * 1-5',  desc: 'Weekdays at 9am' },
+    { label: 'Weeknights',  expr: '0 0 * * 1-5',  desc: 'Midnight Mon–Fri' },
+    { label: 'Twice/day',   expr: '0 0,12 * * *', desc: 'Midnight + noon' },
+    { label: 'Sat 9am',     expr: '0 9 * * 6',    desc: 'Saturday morning' }
+  ];
+
+  var TIMEZONES = [
+    'UTC',
+    'America/New_York', 'America/Chicago', 'America/Denver', 'America/Los_Angeles',
+    'America/Sao_Paulo', 'Europe/London', 'Europe/Paris', 'Europe/Berlin',
+    'Europe/Moscow', 'Asia/Dubai', 'Asia/Kolkata', 'Asia/Bangkok',
+    'Asia/Singapore', 'Asia/Shanghai', 'Asia/Tokyo', 'Australia/Sydney',
+    'Pacific/Auckland'
+  ];
+
+  /* ---- Cron parsing ---- */
+  function expandField(str, lo, hi) {
+    var values = [];
+    var parts = str.split(',');
+    for (var pi = 0; pi < parts.length; pi++) {
+      var part = parts[pi].trim();
+      if (part === '*') {
+        for (var i = lo; i <= hi; i++) values.push(i);
+        continue;
+      }
+      var slashIdx = part.indexOf('/');
+      if (slashIdx !== -1) {
+        var rangePart = part.slice(0, slashIdx);
+        var stepStr = part.slice(slashIdx + 1);
+        var step = parseInt(stepStr, 10);
+        if (isNaN(step) || step < 1) throw new Error('Invalid step in: ' + part);
+        var rLo = lo, rHi = hi;
+        if (rangePart !== '*') {
+          var dashIdx2 = rangePart.indexOf('-');
+          if (dashIdx2 !== -1) {
+            rLo = parseInt(rangePart.slice(0, dashIdx2), 10);
+            rHi = parseInt(rangePart.slice(dashIdx2 + 1), 10);
+          } else {
+            rLo = parseInt(rangePart, 10);
+            rHi = hi;
+          }
+          if (isNaN(rLo) || isNaN(rHi)) throw new Error('Invalid range in: ' + part);
+        }
+        for (var v = rLo; v <= rHi; v += step) values.push(v);
+        continue;
+      }
+      var dashIdx = part.indexOf('-');
+      if (dashIdx !== -1) {
+        var a = parseInt(part.slice(0, dashIdx), 10);
+        var b = parseInt(part.slice(dashIdx + 1), 10);
+        if (isNaN(a) || isNaN(b)) throw new Error('Invalid range: ' + part);
+        for (var vi = a; vi <= b; vi++) values.push(vi);
+        continue;
+      }
+      var num = parseInt(part, 10);
+      if (isNaN(num)) throw new Error('Invalid value: ' + part);
+      values.push(num);
+    }
+    /* validate bounds */
+    for (var ci = 0; ci < values.length; ci++) {
+      if (values[ci] < lo || values[ci] > hi) {
+        throw new Error('Value ' + values[ci] + ' out of range [' + lo + ',' + hi + ']');
+      }
+    }
+    /* deduplicate and sort */
+    var set = {};
+    var result = [];
+    for (var ri = 0; ri < values.length; ri++) {
+      if (!set[values[ri]]) { set[values[ri]] = true; result.push(values[ri]); }
+    }
+    result.sort(function(x, y) { return x - y; });
+    return result;
+  }
+
+  function parseCron(expr) {
+    var parts = expr.trim().split(/\s+/);
+    if (parts.length !== 5) throw new Error('Must have exactly 5 fields: min hour day month weekday');
+    /* expand dow allowing 0-7 (7=Sunday alias), then normalize 7→0 */
+    var rawDows = expandField(parts[4], 0, 7);
+    var normDows = [];
+    var dowSeen = {};
+    for (var di = 0; di < rawDows.length; di++) {
+      var dv = rawDows[di] === 7 ? 0 : rawDows[di];
+      if (!dowSeen[dv]) { dowSeen[dv] = true; normDows.push(dv); }
+    }
+    normDows.sort(function(a, b) { return a - b; });
+    return {
+      mins:   expandField(parts[0], 0, 59),
+      hours:  expandField(parts[1], 0, 23),
+      doms:   expandField(parts[2], 1, 31),
+      months: expandField(parts[3], 1, 12),
+      dows:   normDows,
+      rawDom: parts[2],
+      rawDow: parts[4]
+    };
+  }
+
+  /* ---- Human description ---- */
+  function describeList(vals, names, unit) {
+    if (!names) {
+      if (vals.length === 1) return '' + vals[0];
+      if (vals.length <= 4) return vals.join(', ');
+      return vals[0] + '–' + vals[vals.length - 1];
+    }
+    if (vals.length === 1) return names[vals[0]];
+    if (vals.length <= 4) return vals.map(function(v) { return names[v]; }).join(', ');
+    return names[vals[0]] + '–' + names[vals[vals.length - 1]];
+  }
+
+  function isWildcard(raw) {
+    return raw === '*';
+  }
+  function isStep(raw) {
+    return raw.indexOf('/') !== -1 && raw.indexOf(',') === -1;
+  }
+
+  function describeMinute(raw, vals) {
+    if (isWildcard(raw)) return 'every minute';
+    if (isStep(raw) && raw.indexOf('-') === -1) {
+      var step = parseInt(raw.split('/')[1], 10);
+      if (step === 1) return 'every minute';
+      return 'every ' + step + ' minutes';
+    }
+    if (vals.length === 60) return 'every minute';
+    if (vals.length === 1) return 'at minute ' + vals[0];
+    return 'at minutes ' + describeList(vals, null, '');
+  }
+
+  function describeHour(raw, vals) {
+    if (isWildcard(raw)) return null; /* no hour constraint */
+    if (isStep(raw) && raw.indexOf('-') === -1) {
+      var step = parseInt(raw.split('/')[1], 10);
+      if (step === 1) return 'every hour';
+      return 'every ' + step + ' hours';
+    }
+    if (vals.length === 1) {
+      var h = vals[0];
+      var ampm = h === 0 ? '12am (midnight)' : h < 12 ? h + 'am' : h === 12 ? '12pm (noon)' : (h - 12) + 'pm';
+      return 'at ' + ampm;
+    }
+    var parts2 = vals.map(function(h) {
+      return h === 0 ? '12am' : h < 12 ? h + 'am' : h === 12 ? '12pm' : (h - 12) + 'pm';
+    });
+    if (parts2.length <= 4) return 'at ' + parts2.join(', ');
+    return 'between ' + parts2[0] + ' and ' + parts2[parts2.length - 1];
+  }
+
+  function describeDom(raw, vals) {
+    if (isWildcard(raw)) return null;
+    if (vals.length === 1) {
+      var v = vals[0];
+      var suffix = v === 1 ? 'st' : v === 2 ? 'nd' : v === 3 ? 'rd' : 'th';
+      return 'on the ' + v + suffix;
+    }
+    return 'on days ' + vals.join(', ');
+  }
+
+  function describeMonth(raw, vals) {
+    if (isWildcard(raw)) return null;
+    if (isStep(raw) && raw.indexOf('-') === -1) {
+      var step = parseInt(raw.split('/')[1], 10);
+      return 'every ' + step + ' months';
+    }
+    var names = vals.map(function(m) { return MONTH_LONG[m - 1]; });
+    if (names.length === 1) return 'in ' + names[0];
+    if (names.length <= 4) return 'in ' + names.join(', ');
+    return 'from ' + names[0] + ' to ' + names[names.length - 1];
+  }
+
+  function describeDow(raw, vals) {
+    if (isWildcard(raw)) return null;
+    var names = vals.map(function(d) { return WEEKDAY_LONG[d]; });
+    if (names.length === 1) return 'on ' + names[0] + 's';
+    if (names.length === 7) return 'every day';
+    if (names.length <= 4) return 'on ' + names.join(', ');
+    return 'from ' + names[0] + ' to ' + names[names.length - 1];
+  }
+
+  function buildDescription(parsed) {
+    var minutePart = describeMinute(parsed.rawMin || '*', parsed.mins);
+    var hourPart   = describeHour(parsed.rawHour || '*', parsed.hours);
+    var domPart    = describeDom(parsed.rawDom || '*', parsed.doms);
+    var monthPart  = describeMonth(parsed.rawMonth || '*', parsed.months);
+    var dowPart    = describeDow(parsed.rawDow || '*', parsed.dows);
+
+    /* assemble */
+    var parts3 = [];
+
+    /* time clause */
+    if (!hourPart) {
+      /* wildcard hour */
+      parts3.push(minutePart.charAt(0).toUpperCase() + minutePart.slice(1));
+    } else {
+      var hourIsStep = isStep(parsed.rawHour || '') && parsed.rawHour !== '*';
+      if (hourIsStep) {
+        parts3.push(hourPart.charAt(0).toUpperCase() + hourPart.slice(1));
+        if (!isWildcard(parsed.rawMin || '*')) parts3.push(minutePart);
+      } else {
+        /* specific hour */
+        var minSuffix = isWildcard(parsed.rawMin || '*') ? '' : ', ' + minutePart;
+        parts3.push(hourPart.charAt(0).toUpperCase() + hourPart.slice(1) + minSuffix);
+      }
+    }
+
+    /* day-of-week OR day-of-month */
+    var domRestricted = !isWildcard(parsed.rawDom || '*');
+    var dowRestricted = !isWildcard(parsed.rawDow || '*');
+    if (domRestricted && dowRestricted) {
+      /* cron semantics: either matches */
+      if (domPart) parts3.push(domPart + ' or');
+      if (dowPart) parts3.push(dowPart);
+    } else {
+      if (domPart) parts3.push(domPart);
+      if (dowPart) parts3.push(dowPart);
+    }
+
+    if (monthPart) parts3.push(monthPart);
+
+    return parts3.join(' ');
+  }
+
+  /* ---- Next runs ---- */
+  function toTZParts(d, tz) {
+    /* returns {min, hour, dom, month(1-based), dow} in tz */
+    try {
+      var fmt = new Intl.DateTimeFormat('en-US', {
+        timeZone: tz,
+        minute: 'numeric',
+        hour: 'numeric',
+        hour12: false,
+        day: 'numeric',
+        month: 'numeric',
+        weekday: 'narrow'
+      });
+      var parts = fmt.formatToParts(d);
+      var obj = {};
+      for (var pi = 0; pi < parts.length; pi++) {
+        obj[parts[pi].type] = parts[pi].value;
+      }
+      return {
+        min:   parseInt(obj.minute || '0', 10),
+        hour:  parseInt(obj.hour || '0', 10) % 24,
+        dom:   parseInt(obj.day || '1', 10),
+        month: parseInt(obj.month || '1', 10),
+        dow:   'SuMoTuWeThFrSa'.indexOf(obj.weekday) / 2
+      };
+    } catch(e) {
+      return null;
+    }
+  }
+
+  function setContains(arr, v) {
+    for (var i = 0; i < arr.length; i++) if (arr[i] === v) return true;
+    return false;
+  }
+
+  function getNextRuns(parsed, tz, count) {
+    var runs = [];
+    var domRestricted = !isWildcard(parsed.rawDom || '*');
+    var dowRestricted = !isWildcard(parsed.rawDow || '*');
+
+    /* start from next minute */
+    var d = new Date();
+    d.setSeconds(0, 0);
+    d.setTime(d.getTime() + 60000);
+
+    var maxIter = 500000;
+    var iter = 0;
+    while (runs.length < count && iter < maxIter) {
+      iter++;
+      var p = toTZParts(d, tz);
+      if (!p) break;
+
+      var minOk   = setContains(parsed.mins, p.min);
+      var hourOk  = setContains(parsed.hours, p.hour);
+      var monthOk = setContains(parsed.months, p.month);
+      var domOk   = setContains(parsed.doms, p.dom);
+      var dowOk   = setContains(parsed.dows, p.dow);
+
+      /* day match: if both restricted -> either; else per-field */
+      var dayOk;
+      if (domRestricted && dowRestricted) {
+        dayOk = domOk || dowOk;
+      } else if (domRestricted) {
+        dayOk = domOk;
+      } else if (dowRestricted) {
+        dayOk = dowOk;
+      } else {
+        dayOk = true;
+      }
+
+      if (minOk && hourOk && monthOk && dayOk) {
+        runs.push(new Date(d));
+      }
+      d.setTime(d.getTime() + 60000);
+    }
+    return runs;
+  }
+
+  function relTime(d) {
+    var diff = d.getTime() - Date.now();
+    var secs = Math.round(diff / 1000);
+    if (secs < 60) return 'in ' + secs + 's';
+    var mins = Math.round(secs / 60);
+    if (mins < 60) return 'in ' + mins + 'm';
+    var hrs = Math.round(mins / 60);
+    if (hrs < 24) return 'in ' + hrs + 'h';
+    var days = Math.round(hrs / 24);
+    return 'in ' + days + 'd';
+  }
+
+  function formatRun(d, tz) {
+    try {
+      return new Intl.DateTimeFormat('en-US', {
+        timeZone: tz,
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+        hour: 'numeric',
+        minute: '2-digit',
+        hour12: true,
+        weekday: 'short'
+      }).format(d);
+    } catch(e) {
+      return d.toISOString();
+    }
+  }
+
+  /* ---- Render ---- */
+  function render() {
+    var expr = state.expr;
+    var parts = expr.trim().split(/\s+/);
+    var rawFields = parts.length === 5 ? parts : ['*','*','*','*','*'];
+
+    /* sync sub-fields (only if they differ, to avoid cursor jumping) */
+    if (elMin.value !== rawFields[0]) elMin.value = rawFields[0];
+    if (elHour.value !== rawFields[1]) elHour.value = rawFields[1];
+    if (elDom.value !== rawFields[2]) elDom.value = rawFields[2];
+    if (elMonth.value !== rawFields[3]) elMonth.value = rawFields[3];
+    if (elDow.value !== rawFields[4]) elDow.value = rawFields[4];
+
+    var parsed = null;
+    try {
+      parsed = parseCron(expr);
+      parsed.rawMin   = rawFields[0];
+      parsed.rawHour  = rawFields[1];
+      parsed.rawDom   = rawFields[2];
+      parsed.rawMonth = rawFields[3];
+      parsed.rawDow   = rawFields[4];
+
+      elExpr.classList.remove('error');
+      [elMin, elHour, elDom, elMonth, elDow].forEach(function(el) {
+        el.classList.remove('error');
+        el.classList.add('ok');
+      });
+
+      var desc = buildDescription(parsed);
+      elDesc.textContent = desc;
+      elDesc.classList.remove('error');
+
+      /* next runs */
+      var runs = getNextRuns(parsed, state.tz, 10);
+      elRunsList.innerHTML = '';
+      if (runs.length === 0) {
+        var li = document.createElement('li');
+        li.className = 'no-runs';
+        li.textContent = 'No runs found in next ~1 year';
+        elRunsList.appendChild(li);
+      } else {
+        for (var i = 0; i < runs.length; i++) {
+          var li2 = document.createElement('li');
+          var nEl = document.createElement('span');
+          nEl.className = 'run-n';
+          nEl.textContent = (i + 1) + '.';
+          var tEl = document.createElement('span');
+          tEl.textContent = formatRun(runs[i], state.tz);
+          var rEl = document.createElement('span');
+          rEl.className = 'run-rel';
+          rEl.textContent = relTime(runs[i]);
+          li2.appendChild(nEl);
+          li2.appendChild(tEl);
+          li2.appendChild(rEl);
+          elRunsList.appendChild(li2);
+        }
+      }
+
+    } catch(err) {
+      elExpr.classList.add('error');
+      elDesc.textContent = err.message;
+      elDesc.classList.add('error');
+      elRunsList.innerHTML = '';
+      [elMin, elHour, elDom, elMonth, elDow].forEach(function(el) {
+        el.classList.remove('ok');
+        el.classList.add('error');
+      });
+    }
+  }
+
+  /* ---- Event handlers ---- */
+  function onExprInput() {
+    state.expr = elExpr.value;
+    /* sync fields without triggering their own events */
+    render();
+  }
+
+  function onFieldChange() {
+    var newExpr = [elMin.value, elHour.value, elDom.value, elMonth.value, elDow.value].join(' ').trim();
+    state.expr = newExpr;
+    elExpr.value = newExpr;
+    render();
+  }
+
+  function showCopied() {
+    if (copyTimeoutId !== null) clearTimeout(copyTimeoutId);
+    elCopyBtn.textContent = 'Copied!';
+    elCopyBtn.classList.add('copied');
+    copyTimeoutId = setTimeout(function() {
+      elCopyBtn.textContent = 'Copy';
+      elCopyBtn.classList.remove('copied');
+      copyTimeoutId = null;
+    }, 1500);
+  }
+
+  function onCopy() {
+    var txt = state.expr;
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(txt).then(function() {
+        showCopied();
+      }).catch(function() { fallbackCopy(txt); });
+    } else {
+      fallbackCopy(txt);
+    }
+  }
+
+  function fallbackCopy(txt) {
+    var ta = document.createElement('textarea');
+    ta.value = txt;
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    try { document.execCommand('copy'); } catch(e) { /* ignore */ }
+    document.body.removeChild(ta);
+    showCopied();
+  }
+
+  function setPreset(expr) {
+    state.expr = expr;
+    elExpr.value = expr;
+    render();
+  }
+
+  /* ---- Init ---- */
+  function init() {
+    elExpr    = document.getElementById('expr-input');
+    elDesc    = document.getElementById('description');
+    elRunsList= document.getElementById('runs-list');
+    elTz      = document.getElementById('tz-select');
+    elCopyBtn = document.getElementById('copy-btn');
+    elMin     = document.getElementById('field-min');
+    elHour    = document.getElementById('field-hour');
+    elDom     = document.getElementById('field-dom');
+    elMonth   = document.getElementById('field-month');
+    elDow     = document.getElementById('field-dow');
+
+    /* populate timezones */
+    for (var ti = 0; ti < TIMEZONES.length; ti++) {
+      var opt = document.createElement('option');
+      opt.value = TIMEZONES[ti];
+      opt.textContent = TIMEZONES[ti];
+      elTz.appendChild(opt);
+    }
+    /* try to use local timezone */
+    try {
+      var localTz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+      if (TIMEZONES.indexOf(localTz) !== -1) {
+        elTz.value = localTz;
+        state.tz = localTz;
+      }
+    } catch(e) { /* stay UTC */ }
+
+    /* populate presets */
+    var presetsRow = document.getElementById('presets-row');
+    for (var pri = 0; pri < PRESETS.length; pri++) {
+      (function(p) {
+        var btn = document.createElement('button');
+        btn.className = 'preset-btn';
+        btn.textContent = p.label;
+        btn.title = p.expr + ' — ' + p.desc;
+        btn.addEventListener('pointerdown', function(e) {
+          e.preventDefault();
+          setPreset(p.expr);
+        });
+        presetsRow.appendChild(btn);
+      })(PRESETS[pri]);
+    }
+
+    /* events */
+    elExpr.addEventListener('input', onExprInput);
+    elExpr.addEventListener('change', onExprInput);
+    elMin.addEventListener('input', onFieldChange);
+    elHour.addEventListener('input', onFieldChange);
+    elDom.addEventListener('input', onFieldChange);
+    elMonth.addEventListener('input', onFieldChange);
+    elDow.addEventListener('input', onFieldChange);
+    elTz.addEventListener('change', function() {
+      state.tz = elTz.value;
+      render();
+    });
+    elCopyBtn.addEventListener('pointerdown', function(e) {
+      e.preventDefault();
+      onCopy();
+    });
+
+    /* initial render */
+    render();
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init);
+  } else {
+    init();
+  }
+})();
+</script>
+</body>
+</html>
