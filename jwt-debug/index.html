@@ -1,0 +1,746 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="theme-color" content="#000000">
+<title>JWT Debug</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body {
+  height: 100%;
+  background: #0a0a0a;
+  color: #ccc;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Courier New", monospace;
+  overflow-y: auto;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+:root {
+  --accent: #0ff;
+  --header-color: #f85149;
+  --payload-color: #d29922;
+  --sig-color: #58a6ff;
+  --bg-surface: #111;
+  --bg-elevated: #1a1a1a;
+  --border: #1a1a1a;
+  --border-active: #444;
+}
+
+.container {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 12px;
+  padding-bottom: 40px;
+}
+
+header {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin-bottom: 14px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border);
+}
+
+header h1 {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--accent);
+  text-transform: uppercase;
+  letter-spacing: 0.2em;
+}
+
+header span {
+  font-size: 0.5rem;
+  color: #444;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+
+.input-area {
+  margin-bottom: 10px;
+}
+
+textarea {
+  width: 100%;
+  height: 90px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  color: #aaa;
+  font-family: inherit;
+  font-size: 0.65rem;
+  padding: 8px;
+  resize: none;
+  outline: none;
+  line-break: anywhere;
+  word-break: break-all;
+  line-height: 1.5;
+}
+textarea:focus { border-color: #555; }
+textarea::placeholder { color: #333; }
+
+/* JWT visual colorizer */
+.jwt-visual {
+  font-size: 0.6rem;
+  word-break: break-all;
+  line-break: anywhere;
+  padding: 6px 8px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  min-height: 24px;
+  margin-bottom: 10px;
+  color: #333;
+  display: none;
+}
+.jwt-visual.active { display: block; }
+.jwt-header-part { color: var(--header-color); }
+.jwt-payload-part { color: var(--payload-color); }
+.jwt-sig-part { color: var(--sig-color); }
+.jwt-dot { color: #444; }
+
+/* Status row */
+.status-row {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+  min-height: 22px;
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  font-size: 0.5rem;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  border: 1px solid;
+}
+.badge-valid   { border-color: #3fb950; color: #3fb950; }
+.badge-expired { border-color: #f85149; color: #f85149; background: rgba(248,81,73,0.08); }
+.badge-warn    { border-color: #d29922; color: #d29922; }
+.badge-info    { border-color: #444;    color: #555; }
+.badge-crit    { border-color: #f85149; color: #f85149; background: rgba(248,81,73,0.15); }
+
+/* Three panels */
+.panels {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+@media (max-width: 500px) {
+  .panels { grid-template-columns: 1fr; }
+}
+
+.panel {
+  border: 1px solid var(--border);
+  overflow: hidden;
+}
+
+.panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 8px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-surface);
+}
+
+.panel-label {
+  font-size: 0.45rem;
+  text-transform: uppercase;
+  letter-spacing: 0.2em;
+  font-weight: 600;
+}
+.label-header  { color: var(--header-color); }
+.label-payload { color: var(--payload-color); }
+.label-sig     { color: var(--sig-color); }
+
+.copy-btn {
+  background: transparent;
+  border: 1px solid #1a1a1a;
+  color: #444;
+  font-family: inherit;
+  font-size: 0.45rem;
+  padding: 2px 7px;
+  cursor: pointer;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+.copy-btn:active { border-color: #555; color: #888; }
+.copy-btn.copied { color: #3fb950; border-color: #3fb950; }
+
+.panel-body {
+  padding: 8px;
+  font-size: 0.6rem;
+  line-height: 1.7;
+  min-height: 60px;
+  overflow-x: auto;
+  white-space: pre;
+  color: #aaa;
+  background: #0a0a0a;
+}
+.panel-body.empty { color: #333; white-space: normal; }
+
+/* JSON syntax highlight */
+.jk { color: #58a6ff; }   /* key */
+.js { color: #a5d6ff; }   /* string value */
+.jn { color: #79c0ff; }   /* number */
+.jb { color: #ff7b72; }   /* boolean/null */
+
+/* Sig panel — spans full width */
+.panel-sig { grid-column: 1 / -1; }
+
+/* Claims table */
+.claims-panel {
+  border: 1px solid var(--border);
+  margin-bottom: 8px;
+}
+
+.claims-header {
+  padding: 4px 8px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-surface);
+  font-size: 0.45rem;
+  text-transform: uppercase;
+  letter-spacing: 0.2em;
+  color: #555;
+}
+
+.claim-row {
+  display: grid;
+  grid-template-columns: 80px 1fr 1fr;
+  gap: 0;
+  border-bottom: 1px solid #111;
+  font-size: 0.55rem;
+  line-height: 1.4;
+}
+.claim-row:last-child { border-bottom: none; }
+
+.claim-key   { padding: 4px 8px; color: var(--payload-color); background: #0d0d0d; }
+.claim-val   { padding: 4px 8px; color: #aaa; border-left: 1px solid #111; word-break: break-all; }
+.claim-desc  { padding: 4px 8px; color: #444; border-left: 1px solid #111; font-size: 0.5rem; }
+
+/* Warnings panel */
+.warnings {
+  margin-bottom: 8px;
+  display: none;
+}
+.warnings.active { display: block; }
+
+.warning-item {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  padding: 6px 8px;
+  border: 1px solid;
+  margin-bottom: 4px;
+  font-size: 0.55rem;
+  line-height: 1.5;
+}
+.warning-item:last-child { margin-bottom: 0; }
+
+.warn-crit { border-color: rgba(248,81,73,0.4); background: rgba(248,81,73,0.06); color: #f85149; }
+.warn-warn { border-color: rgba(210,153,34,0.4); background: rgba(210,153,34,0.05); color: #d29922; }
+.warn-info { border-color: #222; color: #555; }
+
+.warn-icon { flex-shrink: 0; font-style: normal; }
+.warn-text b { font-weight: 600; display: block; }
+
+/* Placeholder state */
+.placeholder {
+  padding: 24px;
+  text-align: center;
+  font-size: 0.55rem;
+  color: #333;
+  border: 1px dashed #1a1a1a;
+  margin-bottom: 8px;
+}
+
+.action-row {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 10px;
+  flex-wrap: wrap;
+}
+
+.btn {
+  padding: 4px 10px;
+  background: transparent;
+  border: 1px solid #1a1a1a;
+  color: #444;
+  font-family: inherit;
+  font-size: 0.55rem;
+  cursor: pointer;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+.btn:active { border-color: #555; color: #888; }
+.btn-clear { border-color: #222; }
+
+</style>
+</head>
+<body>
+<div class="container">
+
+  <header>
+    <h1>JWT Debug</h1>
+    <span>offline decoder &amp; security auditor</span>
+  </header>
+
+  <div class="input-area">
+    <textarea id="input" placeholder="Paste JWT here — token never leaves your browser" spellcheck="false" autocorrect="off" autocapitalize="off"></textarea>
+  </div>
+
+  <div id="jwt-visual" class="jwt-visual"></div>
+
+  <div class="action-row">
+    <button class="btn btn-clear" id="btn-clear">Clear</button>
+    <button class="btn" id="btn-sample">Load sample</button>
+  </div>
+
+  <div id="status-row" class="status-row"></div>
+
+  <div id="warnings" class="warnings"></div>
+
+  <div id="placeholder" class="placeholder">Paste a JWT above to decode it. Your token never leaves this page.</div>
+  <div id="output-area"></div>
+
+</div>
+
+<script>
+(function() {
+  /* ── constants ──────────────────────────────────────────── */
+  const KNOWN_CLAIMS = {
+    iss: 'Issuer — who issued the token',
+    sub: 'Subject — whom the token refers to',
+    aud: 'Audience — who the token is intended for',
+    exp: 'Expiration time (Unix timestamp)',
+    nbf: 'Not Before — earliest valid time (Unix timestamp)',
+    iat: 'Issued At (Unix timestamp)',
+    jti: 'JWT ID — unique identifier',
+  };
+
+  const SAMPLE_JWT =
+    'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9' +
+    '.eyJzdWIiOiJ1c2VyXzEyMyIsIm5hbWUiOiJBbGljZSBTbWl0aCIsImVtYWlsIjoiYWxpY2VA' +
+    'ZXhhbXBsZS5jb20iLCJyb2xlIjoiYWRtaW4iLCJpYXQiOjE3MDAwMDAwMDAsImV4cCI6MTc' +
+    'wMDM2MDAwMCwiaXNzIjoiaHR0cHM6Ly9hdXRoLmV4YW1wbGUuY29tIiwianRpIjoiYWJjZGVm' +
+    'LTEyMzQ1NiJ9' +
+    '.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c';
+
+  /* ── DOM refs (cached) ──────────────────────────────────── */
+  const elInput      = document.getElementById('input');
+  const elVisual     = document.getElementById('jwt-visual');
+  const elStatusRow  = document.getElementById('status-row');
+  const elWarnings   = document.getElementById('warnings');
+  const elPlaceholder= document.getElementById('placeholder');
+  const elOutput     = document.getElementById('output-area');
+  const elBtnClear   = document.getElementById('btn-clear');
+  const elBtnSample  = document.getElementById('btn-sample');
+
+  /* ── base64url decode ───────────────────────────────────── */
+  function base64urlDecode(str) {
+    /* convert base64url → base64 */
+    let s = str.replace(/-/g, '+').replace(/_/g, '/');
+    /* pad */
+    const pad = s.length % 4;
+    if (pad === 2) s += '==';
+    else if (pad === 3) s += '=';
+    try {
+      return atob(s);
+    } catch (e) {
+      throw new Error('Invalid base64url segment');
+    }
+  }
+
+  function base64urlDecodeJSON(str) {
+    const raw = base64urlDecode(str);
+    try {
+      return JSON.parse(raw);
+    } catch (e) {
+      throw new Error('Segment is not valid JSON');
+    }
+  }
+
+  function base64urlToHex(str) {
+    try {
+      const raw = base64urlDecode(str);
+      return Array.from(raw).map(function(c) {
+        return c.charCodeAt(0).toString(16).padStart(2, '0');
+      }).join('');
+    } catch (e) {
+      return str;
+    }
+  }
+
+  /* ── parse JWT ──────────────────────────────────────────── */
+  function parseJWT(raw) {
+    const parts = raw.trim().split('.');
+    if (parts.length !== 3) throw new Error('JWT must have exactly 3 parts (header.payload.signature)');
+    const header  = base64urlDecodeJSON(parts[0]);
+    const payload = base64urlDecodeJSON(parts[1]);
+    const sigHex  = base64urlToHex(parts[2]);
+    return { parts: parts, header: header, payload: payload, sigHex: sigHex };
+  }
+
+  /* ── JSON syntax highlight (char-by-char, no regex with quotes) ── */
+  var DQUOTE = 34; /* char code for " */
+  var BSLASH = 92; /* char code for \ */
+
+  function highlightJSON(obj) {
+    var str = JSON.stringify(obj, null, 2);
+    var out = [];
+    var i = 0;
+    var n = str.length;
+    while (i < n) {
+      var cc = str.charCodeAt(i);
+      if (cc === DQUOTE) {
+        /* scan to closing quote */
+        var j = i + 1;
+        while (j < n && str.charCodeAt(j) !== DQUOTE) {
+          if (str.charCodeAt(j) === BSLASH) j++;
+          j++;
+        }
+        var token = str.slice(i, j + 1);
+        /* look ahead past whitespace for ':' to decide key vs value */
+        var k = j + 1;
+        while (k < n && str[k] === ' ') k++;
+        if (str[k] === ':') {
+          out.push('<span class="jk">');
+          out.push(escHtml(token));
+          out.push('</span>');
+        } else {
+          out.push('<span class="js">');
+          out.push(escHtml(token));
+          out.push('</span>');
+        }
+        i = j + 1;
+      } else if (str.slice(i, i + 4) === 'true') {
+        out.push('<span class="jb">true</span>');
+        i += 4;
+      } else if (str.slice(i, i + 5) === 'false') {
+        out.push('<span class="jb">false</span>');
+        i += 5;
+      } else if (str.slice(i, i + 4) === 'null') {
+        out.push('<span class="jb">null</span>');
+        i += 4;
+      } else if (cc === 45 || (cc >= 48 && cc <= 57)) {
+        /* number: optional minus, digits, optional .digits, optional e/E */
+        var j2 = i;
+        if (str[j2] === '-') j2++;
+        while (j2 < n && str.charCodeAt(j2) >= 48 && str.charCodeAt(j2) <= 57) j2++;
+        if (j2 < n && str[j2] === '.') {
+          j2++;
+          while (j2 < n && str.charCodeAt(j2) >= 48 && str.charCodeAt(j2) <= 57) j2++;
+        }
+        if (j2 < n && (str[j2] === 'e' || str[j2] === 'E')) {
+          j2++;
+          if (j2 < n && (str[j2] === '+' || str[j2] === '-')) j2++;
+          while (j2 < n && str.charCodeAt(j2) >= 48 && str.charCodeAt(j2) <= 57) j2++;
+        }
+        out.push('<span class="jn">');
+        out.push(escHtml(str.slice(i, j2)));
+        out.push('</span>');
+        i = j2;
+      } else {
+        out.push(escHtml(str[i]));
+        i++;
+      }
+    }
+    return out.join('');
+  }
+
+  function escHtml(s) {
+    return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  }
+
+  /* ── human date ─────────────────────────────────────────── */
+  function tsToHuman(ts) {
+    try {
+      const d = new Date(ts * 1000);
+      return d.toISOString().replace('T', ' ').replace('.000Z', ' UTC');
+    } catch (e) {
+      return String(ts);
+    }
+  }
+
+  function tsRelative(ts) {
+    const diffMs = ts * 1000 - Date.now();
+    const diffS  = Math.round(Math.abs(diffMs) / 1000);
+    const past   = diffMs < 0;
+    if (diffS < 60)        return (past ? '' : 'in ') + diffS + 's' + (past ? ' ago' : '');
+    if (diffS < 3600)      return (past ? '' : 'in ') + Math.round(diffS/60) + 'm' + (past ? ' ago' : '');
+    if (diffS < 86400)     return (past ? '' : 'in ') + Math.round(diffS/3600) + 'h' + (past ? ' ago' : '');
+    return (past ? '' : 'in ') + Math.round(diffS/86400) + 'd' + (past ? ' ago' : '');
+  }
+
+  /* ── build warnings ─────────────────────────────────────── */
+  function buildWarnings(header, payload) {
+    const now = Math.floor(Date.now() / 1000);
+    const items = [];
+
+    /* alg:none */
+    if (header.alg && header.alg.toLowerCase() === 'none') {
+      items.push({ level: 'crit', icon: '!!!', title: 'Algorithm is "none"', text: 'The signature is not verified. This token provides NO security guarantee.' });
+    }
+
+    /* exp checks */
+    if (typeof payload.exp === 'number') {
+      if (payload.exp < now) {
+        items.push({ level: 'crit', icon: '!!', title: 'Token is expired', text: 'exp: ' + tsToHuman(payload.exp) + ' (' + tsRelative(payload.exp) + ')' });
+      } else {
+        const secsLeft = payload.exp - now;
+        if (secsLeft > 86400) {
+          items.push({ level: 'warn', icon: '!', title: 'Long-lived token', text: 'Expires in ' + tsRelative(payload.exp) + '. Tokens valid > 24h are a security risk if stolen.' });
+        }
+      }
+    } else {
+      items.push({ level: 'warn', icon: '!', title: 'No expiration claim (exp)', text: 'This token never expires. Consider adding an exp claim.' });
+    }
+
+    /* nbf check */
+    if (typeof payload.nbf === 'number' && payload.nbf > now) {
+      items.push({ level: 'warn', icon: '!', title: 'Token not yet valid', text: 'nbf: ' + tsToHuman(payload.nbf) + ' — valid starting ' + tsRelative(payload.nbf) });
+    }
+
+    /* alg info */
+    if (header.alg) {
+      const alg = header.alg.toUpperCase();
+      if (alg === 'HS256' || alg === 'HS384' || alg === 'HS512') {
+        items.push({ level: 'info', icon: 'i', title: alg + ' — Symmetric (HMAC)', text: 'Both parties share the same secret. Never expose the secret key in client-side code.' });
+      } else if (alg.startsWith('RS') || alg.startsWith('ES') || alg.startsWith('PS')) {
+        items.push({ level: 'info', icon: 'i', title: alg + ' — Asymmetric', text: 'Signed with a private key; verified with a public key. Good choice for distributed systems.' });
+      }
+    }
+
+    return items;
+  }
+
+  /* ── render ─────────────────────────────────────────────── */
+  function render(raw) {
+    const trimmed = raw.trim();
+
+    if (!trimmed) {
+      showEmpty();
+      return;
+    }
+
+    let parsed;
+    try {
+      parsed = parseJWT(trimmed);
+    } catch (e) {
+      showError(e.message);
+      return;
+    }
+
+    const { parts, header, payload, sigHex } = parsed;
+    const now = Math.floor(Date.now() / 1000);
+
+    /* ── JWT colorized visual ── */
+    elVisual.innerHTML =
+      '<span class="jwt-header-part">'  + escHtml(parts[0]) + '</span>' +
+      '<span class="jwt-dot">.</span>' +
+      '<span class="jwt-payload-part">' + escHtml(parts[1]) + '</span>' +
+      '<span class="jwt-dot">.</span>' +
+      '<span class="jwt-sig-part">'     + escHtml(parts[2]) + '</span>';
+    elVisual.classList.add('active');
+
+    /* ── status badges ── */
+    const badges = [];
+    const isExpired = typeof payload.exp === 'number' && payload.exp < now;
+    const isNbf     = typeof payload.nbf === 'number' && payload.nbf > now;
+    const isAlgNone = header.alg && header.alg.toLowerCase() === 'none';
+
+    if (isAlgNone) {
+      badges.push('<span class="badge badge-crit">UNSIGNED</span>');
+    }
+    if (isExpired) {
+      badges.push('<span class="badge badge-expired">EXPIRED ' + escHtml(tsRelative(payload.exp)) + '</span>');
+    } else if (typeof payload.exp === 'number') {
+      badges.push('<span class="badge badge-valid">VALID ' + escHtml(tsRelative(payload.exp)) + '</span>');
+    } else {
+      badges.push('<span class="badge badge-warn">NO EXPIRY</span>');
+    }
+    if (isNbf) {
+      badges.push('<span class="badge badge-warn">NOT YET VALID</span>');
+    }
+    if (header.alg) {
+      badges.push('<span class="badge badge-info">' + escHtml(header.alg.toUpperCase()) + '</span>');
+    }
+    if (header.typ) {
+      badges.push('<span class="badge badge-info">TYPE: ' + escHtml(header.typ.toUpperCase()) + '</span>');
+    }
+    elStatusRow.innerHTML = badges.join('');
+
+    /* ── warnings ── */
+    const warnings = buildWarnings(header, payload);
+    if (warnings.length > 0) {
+      elWarnings.innerHTML = warnings.map(function(w) {
+        return '<div class="warning-item warn-' + w.level + '">' +
+          '<i class="warn-icon">[' + w.icon + ']</i>' +
+          '<span class="warn-text"><b>' + escHtml(w.title) + '</b>' + escHtml(w.text) + '</span>' +
+          '</div>';
+      }).join('');
+      elWarnings.classList.add('active');
+    } else {
+      elWarnings.innerHTML = '';
+      elWarnings.classList.remove('active');
+    }
+
+    /* ── main panels ── */
+    elPlaceholder.style.display = 'none';
+
+    elOutput.innerHTML =
+      /* header + payload panels */
+      '<div class="panels">' +
+        buildJSONPanel('header-out',  'header',  'HEADER',  header,  'label-header',  'copy-h') +
+        buildJSONPanel('payload-out', 'payload', 'PAYLOAD', payload, 'label-payload', 'copy-p') +
+      '</div>' +
+      /* signature panel */
+      buildSigPanel(sigHex) +
+      /* known claims table */
+      buildClaimsTable(payload);
+
+    /* attach copy listeners */
+    attachCopy('copy-h', JSON.stringify(header, null, 2));
+    attachCopy('copy-p', JSON.stringify(payload, null, 2));
+  }
+
+  function buildJSONPanel(panelId, _name, label, obj, labelClass, copyId) {
+    const highlighted = highlightJSON(obj);
+    return '<div class="panel" id="' + panelId + '">' +
+      '<div class="panel-header">' +
+        '<span class="panel-label ' + labelClass + '">' + label + '</span>' +
+        '<button class="copy-btn" id="' + copyId + '">Copy</button>' +
+      '</div>' +
+      '<div class="panel-body"><code>' + highlighted + '</code></div>' +
+    '</div>';
+  }
+
+  function buildSigPanel(hex) {
+    return '<div class="panel panel-sig">' +
+      '<div class="panel-header">' +
+        '<span class="panel-label label-sig">SIGNATURE (hex)</span>' +
+      '</div>' +
+      '<div class="panel-body" style="font-size:0.55rem;white-space:pre-wrap;word-break:break-all;color:#58a6ff">' +
+        escHtml(hex) +
+      '</div>' +
+    '</div>';
+  }
+
+  function buildClaimsTable(payload) {
+    const timeKeys = ['exp', 'iat', 'nbf'];
+    const rows = Object.keys(payload)
+      .filter(function(k) { return KNOWN_CLAIMS[k]; })
+      .map(function(k) {
+        let val = String(payload[k]);
+        if (timeKeys.indexOf(k) !== -1 && typeof payload[k] === 'number') {
+          val = String(payload[k]) + '  (' + tsToHuman(payload[k]) + ')';
+        }
+        const desc = KNOWN_CLAIMS[k] || '';
+        return '<div class="claim-row">' +
+          '<div class="claim-key">' + escHtml(k) + '</div>' +
+          '<div class="claim-val">' + escHtml(val) + '</div>' +
+          '<div class="claim-desc">' + escHtml(desc) + '</div>' +
+        '</div>';
+      });
+    if (rows.length === 0) return '';
+    return '<div class="claims-panel">' +
+      '<div class="claims-header">Standard Claims</div>' +
+      rows.join('') +
+    '</div>';
+  }
+
+  function showEmpty() {
+    elVisual.classList.remove('active');
+    elVisual.innerHTML = '';
+    elStatusRow.innerHTML = '';
+    elWarnings.innerHTML = '';
+    elWarnings.classList.remove('active');
+    elPlaceholder.style.display = '';
+    elOutput.innerHTML = '';
+  }
+
+  function showError(msg) {
+    elVisual.classList.remove('active');
+    elStatusRow.innerHTML = '<span class="badge badge-expired">INVALID</span>';
+    elWarnings.innerHTML = '<div class="warning-item warn-crit"><i class="warn-icon">[!]</i><span class="warn-text"><b>Parse error — </b>' + escHtml(msg) + '</span></div>';
+    elWarnings.classList.add('active');
+    elPlaceholder.style.display = 'none';
+    elOutput.innerHTML = '';
+  }
+
+  /* ── copy helper ─────────────────────────────────────────── */
+  function attachCopy(btnId, text) {
+    const btn = document.getElementById(btnId);
+    if (!btn) return;
+    btn.addEventListener('click', function() {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(function() {
+          flashCopied(btn);
+        }).catch(function() {
+          fallbackCopy(text, btn);
+        });
+      } else {
+        fallbackCopy(text, btn);
+      }
+    });
+  }
+
+  function fallbackCopy(text, btn) {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.top = '-9999px';
+    document.body.appendChild(ta);
+    ta.select();
+    try { document.execCommand('copy'); } catch (e) { /* ignore */ }
+    document.body.removeChild(ta);
+    flashCopied(btn);
+  }
+
+  function flashCopied(btn) {
+    const orig = btn.textContent;
+    btn.textContent = 'Copied!';
+    btn.classList.add('copied');
+    setTimeout(function() {
+      btn.textContent = orig;
+      btn.classList.remove('copied');
+    }, 1500);
+  }
+
+  /* ── event listeners ─────────────────────────────────────── */
+  elInput.addEventListener('input', function() {
+    render(elInput.value);
+  });
+
+  elInput.addEventListener('paste', function() {
+    /* defer so value reflects pasted content */
+    setTimeout(function() { render(elInput.value); }, 0);
+  });
+
+  elBtnClear.addEventListener('click', function() {
+    elInput.value = '';
+    showEmpty();
+  });
+
+  elBtnSample.addEventListener('click', function() {
+    elInput.value = SAMPLE_JWT;
+    render(SAMPLE_JWT);
+  });
+
+  /* init */
+  showEmpty();
+
+})();
+</script>
+</body>
+</html>

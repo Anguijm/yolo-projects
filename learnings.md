@@ -6,10 +6,11 @@ Persistent knowledge base. Read this before every build.
 
 ## Accumulated Principles
 
-### Test Brace Balancer Pitfalls (token-count, env-vault, snap-mock)
+### Test Brace Balancer Pitfalls (token-count, env-vault, snap-mock, jwt-debug)
 - **Single-quote inside double-quoted string eats braces** — `"'"` in source code causes the test's single-quote stripper (`'(?:[^'\\]|\\.)*'`) to match from the embedded `'` through to the next real `'` in the file, consuming `{` and `}` along the way. Fix: use char code `39` instead of `=== "'"` in tokenizer loops, or use `=== '\''` (escaped).
 - **Template literals with `${expr}` leave orphaned braces** — The test strips `` `...` `` but interpolation expression braces inside `${}` are left behind if the backtick regex doesn't handle nested braces. Always use string concatenation for dynamic HTML in tool-visible code.
 - **`\\` in `//` line-comment regex needs `$` not `\\$`** — The test's comment stripper pattern `//.*?$` works correctly with `re.MULTILINE`; check that `$` is not accidentally escaped as `\\$` in Python (which matches a literal dollar sign, not end-of-line).
+- **Regex literals containing `"` cause the double-quote stripper to partially consume them** — The test strips double-quoted strings (`"(?:[^"\\]|\\.)*"`) but does NOT strip regex literals. If a regex literal contains a `"` character (e.g., `/("(?:[^"\\]|\\.)*")/g`), the stripping regex will match starting at the first `"`, consume part of the regex literal, and leave unbalanced parens/brackets behind. **Fix: never put regex literals with embedded `"` in code. Use a char-by-char approach or character codes instead.**
 
 ### BPE Tokenizer Heuristics (token-count)
 - **`\r\n` must count as one token** — Handle carriage return by consuming the following `\n` in a single token increment to avoid double-counting Windows line endings.
@@ -66,6 +67,16 @@ Persistent knowledge base. Read this before every build.
 ---
 
 ## Per-Build Reflections
+
+### jwt-debug (2026-04-03)
+- **KEEP**: Char-by-char JSON syntax highlighter (`while (i < n)` + charCode comparisons) avoids the brace-balancer test bug entirely — no regex literals with embedded quotes.
+- **KEEP**: Separate static `#placeholder` div from dynamic `#output-area` div — prevents stale DOM ref bug. When you cache `elPlaceholder = getElementById('placeholder')` and then later set `elMain.innerHTML = 'new content'`, the cached ref is detached and `elPlaceholder.style.display = 'none'` becomes a silent no-op. Fix: keep the placeholder outside the output container.
+- **KEEP**: IIFE wrapping `(function() { ... })()` — keeps all state private, no global leakage.
+- **KEEP**: Const char codes (`var DQUOTE = 34; var BSLASH = 92`) for char-by-char parsers — makes the intent clear without using character literals that might confuse string strippers.
+- **IMPROVE**: Always audit for unused function parameters and dead functions before shipping. `escAttr()` was defined but never called; `buildSigPanel(raw, hex)` had an unused `raw` parameter. Dead code adds noise.
+- **INSIGHT**: The "token never leaves your browser" angle is the strongest selling point for any dev tool that processes sensitive data (JWTs, env files, API keys, certificates). Lead with it in the UI.
+- **INSIGHT**: For JWT tooling, the sample token should demonstrate multiple features at once — use an expired token so the "EXPIRED" badge fires on first click of "Load sample". This is a better demo than a valid token.
+- **TEST CAUGHT**: Regex literal `/("(?:[^"\\]|\\.)*")\s*:|("(?:[^"\\]|\\.)*")/g` caused brace balance failure — the double-quote inside the regex confused the test's string stripper. Caught before shipping, fixed with char-by-char approach.
 
 ### chmod-calc (2026-04-02)
 - **KEEP**: Single source-of-truth `state` object (one JS object with boolean fields) + one `updateUI()` function that reads it and writes all DOM — eliminates sync bugs between representations. Never update DOM from multiple code paths.
