@@ -34,6 +34,10 @@ Naval Scribe is a graduated YOLO project operating under Flagship rules alongsid
 
 - **Print-to-PDF mode** — "Print" button that triggers `window.print()` with `@media print` CSS hiding the form panel, top bar, and all UI chrome so only the formatted letter page is sent to the print dialog. Users get a properly margined PDF in one click, no .docx conversion needed. Implementation: add `@media print { #form-panel, #top-bar { display: none; } #preview-panel { padding: 0; } }` and a print button.
 
+- **SSIC Code Lookup & Autocomplete** — Inline searchable dropdown for Standard Subject Identification Codes. As the user types in the SSIC field, it filters a bundled list of SSIC numbers and official subject titles, auto-filling on selection. Eliminates context-switch to SECNAV Manual 5210.11 and reduces miscoded correspondence. Implementation: static JS object of SSIC ranges/titles bundled in the HTML (<100KB), `keyup` event filters and renders a custom dropdown, no external requests.
+
+- **Signature Block Builder** — Structured sub-form for name, paygrade (E-1 through O-10, WO/CWO), designator, billet title, and by-direction checkbox that outputs a correctly formatted signature block per naval correspondence standards. Enforces correct rank abbreviations, name capitalization, and element order — common error sources for junior personnel. Implementation: paygrade→abbreviation lookup table (~3KB), formatter assembles block in real time and injects into preview at correct position.
+
 ## Parking Lot
 
 - SSIC code search/lookup database
@@ -50,3 +54,4 @@ Naval Scribe is a graduated YOLO project operating under Flagship rules alongsid
 | 2026-04-02 | Tock | Added Memorandum of Agreement with multiple signers |
 | 2026-04-03 | Tock | Inline markdown tables in body (preview + .docx); paste-to-parse references block |
 | 2026-04-03 | Tock | No approved items; brainstormed 2 PENDING features: Saved Drafts Library, Print-to-PDF mode |
+| 2026-04-03 | Tock | No approved items; brainstormed 2 PENDING features: SSIC Code Lookup & Autocomplete, Signature Block Builder |
