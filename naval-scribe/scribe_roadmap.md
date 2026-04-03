@@ -25,10 +25,14 @@ Naval Scribe is a graduated YOLO project operating under Flagship rules alongsid
 
 ## Approved (Next Tock)
 
-- [ ] Saved Drafts Library — multiple named drafts in localStorage, save/load/delete drawer
-- [ ] Print-to-PDF mode — window.print() with @media print CSS hiding UI, one-click PDF
-- [ ] SSIC Code Lookup & Autocomplete — searchable dropdown, bundled SSIC list, auto-fill on select
-- [ ] Signature Block Builder — paygrade sub-form, rank abbreviation lookup, by-direction checkbox
+<!-- all approved items completed this tock -->
+
+## Recently Completed
+
+- [x] Saved Drafts Library — multiple named drafts in localStorage, save/load/delete drawer (up to 25 drafts, full state including via/refs/encls/parties)
+- [x] Print-to-PDF mode — window.print() with @media print CSS hiding UI, one-click PDF
+- [x] SSIC Code Lookup & Autocomplete — searchable dropdown, 46 bundled codes, keyboard nav, auto-fill on select
+- [x] Signature Block Builder — paygrade select (E-1 through O-10 + W-1 to W-5), abbreviation lookup, by-direction checkbox, acting checkbox
 
 ## Completed
 
@@ -52,3 +56,4 @@ Naval Scribe is a graduated YOLO project operating under Flagship rules alongsid
 | 2026-04-03 | Tock | Inline markdown tables in body (preview + .docx); paste-to-parse references block |
 | 2026-04-03 | Tock | No approved items; brainstormed 2 PENDING features: Saved Drafts Library, Print-to-PDF mode |
 | 2026-04-03 | Tock | No approved items; brainstormed 2 PENDING features: SSIC Code Lookup & Autocomplete, Signature Block Builder |
+| 2026-04-03 | Tock | Implemented all 4 approved features: Saved Drafts Library, Print-to-PDF, SSIC Autocomplete (46 codes), Signature Block Builder. Also fixed: autoSave now saves full state, DOCX w:spacing merged, single-para no-number naval standard, New/Clear button added |

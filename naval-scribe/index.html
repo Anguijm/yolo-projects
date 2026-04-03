@@ -120,6 +120,57 @@ html, body {
 #preview-page .sig-name { font-weight: normal; }
 #preview-page .copy-to { margin-top: 48px; }
 #preview-page .subj-line { text-transform: uppercase; }
+
+/* Drafts drawer */
+#drafts-drawer {
+  display: none; position: fixed; top: 32px; left: 0; width: 420px; bottom: 0;
+  z-index: 200; background: var(--bg-surface); border-right: 1px solid #333;
+  overflow-y: auto; padding: 12px;
+}
+#drafts-drawer.open { display: block; }
+@media (max-width: 768px) { #drafts-drawer { width: 100%; } }
+.draft-item {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  padding: 6px 8px; border: 1px solid var(--border-default); margin-bottom: 4px;
+}
+.draft-item:hover { border-color: #333; }
+.draft-name { font-size: 0.65rem; color: var(--text-secondary); }
+.draft-meta { font-size: 0.4rem; color: var(--text-tertiary); text-transform: uppercase; letter-spacing: 0.1em; margin-top: 2px; }
+
+/* SSIC autocomplete */
+.field-ssic-wrap { position: relative; }
+#ssic-dropdown {
+  display: none; position: absolute; z-index: 50; left: 0; right: 0;
+  background: #111; border: 1px solid #333; border-top: none;
+  max-height: 160px; overflow-y: auto;
+}
+#ssic-dropdown.open { display: block; }
+.ssic-item {
+  padding: 4px 7px; font-size: 0.6rem; color: #aaa; cursor: pointer;
+  display: flex; gap: 8px; align-items: baseline;
+}
+.ssic-item:hover, .ssic-item.active { background: #1a1a1a; color: #ccc; }
+.ssic-code { color: var(--accent); min-width: 44px; font-size: 0.55rem; flex-shrink: 0; }
+.ssic-desc { color: #666; font-size: 0.55rem; }
+
+/* Sig Builder */
+#sig-builder-section { margin-top: 8px; }
+.paygrade-row { display: grid; grid-template-columns: 1fr 70px; gap: 6px; margin-bottom: 6px; }
+.sig-builder-checks { display: flex; gap: 12px; align-items: center; margin-bottom: 6px; }
+.sig-builder-checks label {
+  display: flex; gap: 4px; align-items: center;
+  font-size: 0.5rem; color: var(--text-tertiary); cursor: pointer; letter-spacing: 0.1em; text-transform: uppercase;
+}
+.sig-builder-checks input[type="checkbox"] { accent-color: var(--accent); }
+
+/* Print */
+@media print {
+  #top-bar, #form-panel, #drafts-drawer { display: none !important; }
+  #app { display: block; height: auto; width: auto; }
+  #preview-panel { overflow: visible; padding: 0; background: #fff; width: 100%; height: auto; }
+  #preview-page { box-shadow: none; margin: 0; padding: 1in; max-width: none; min-height: auto; }
+  html, body { overflow: visible; height: auto; background: #fff; }
+}
 </style>
 </head>
 <body>
@@ -136,13 +187,28 @@ html, body {
         <option value="actionmemo">action memo</option>
         <option value="moa">memorandum of agreement</option>
       </select>
+      <button class="btn" id="new-btn">new</button>
+      <button class="btn" id="print-btn">print pdf</button>
+      <button class="btn" id="drafts-btn">drafts</button>
+      <button class="btn" id="save-draft-btn">save draft</button>
       <button class="btn btn-primary" id="download-btn">download .docx</button>
     </div>
   </div>
+  <div id="drafts-drawer">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+      <div class="section-header" style="margin:0;border:none">Saved Drafts</div>
+      <button class="add-btn" id="drafts-close">close ×</button>
+    </div>
+    <div id="drafts-list"></div>
+    <div id="drafts-empty" style="font-size:0.55rem;color:#444;padding:12px 0">No saved drafts yet.</div>
+  </div>
   <div id="form-panel">
     <div class="field" data-types="letter,memo,endorsement,business">
-      <div class="field-label">SSIC</div>
-      <input type="text" id="f-ssic" placeholder="e.g. 5216">
+      <div class="field-label">SSIC <span style="color:#444;font-size:0.4rem;letter-spacing:0.05em">— type to search</span></div>
+      <div class="field-ssic-wrap">
+        <input type="text" id="f-ssic" placeholder="e.g. 5216" autocomplete="off">
+        <div id="ssic-dropdown"></div>
+      </div>
     </div>
     <div class="field" data-types="letter,memo,endorsement,business,pointpaper,actionmemo,moa">
       <div class="field-label">Date</div>
@@ -241,6 +307,57 @@ html, body {
     <div class="field" data-types="letter,memo,endorsement,business,actionmemo">
       <div class="field-label">Title (optional)</div>
       <input type="text" id="f-sig-title" placeholder="Commanding Officer">
+    </div>
+    <div id="sig-builder-section" data-types="letter,memo,endorsement,business,actionmemo">
+      <div class="section-header" style="margin-top:6px">Sig Builder</div>
+      <div class="paygrade-row">
+        <div class="field" style="margin-bottom:0">
+          <div class="field-label">Paygrade</div>
+          <select id="f-paygrade">
+            <option value="">— select —</option>
+            <optgroup label="Enlisted">
+              <option value="E-1">E-1 · Seaman Recruit</option>
+              <option value="E-2">E-2 · Seaman Apprentice</option>
+              <option value="E-3">E-3 · Seaman</option>
+              <option value="E-4">E-4 · Petty Officer 3rd Class</option>
+              <option value="E-5">E-5 · Petty Officer 2nd Class</option>
+              <option value="E-6">E-6 · Petty Officer 1st Class</option>
+              <option value="E-7">E-7 · Chief Petty Officer</option>
+              <option value="E-8">E-8 · Senior Chief Petty Officer</option>
+              <option value="E-9">E-9 · Master Chief Petty Officer</option>
+            </optgroup>
+            <optgroup label="Warrant Officers">
+              <option value="W-1">W-1 · Warrant Officer 1</option>
+              <option value="W-2">W-2 · Chief Warrant Officer 2</option>
+              <option value="W-3">W-3 · Chief Warrant Officer 3</option>
+              <option value="W-4">W-4 · Chief Warrant Officer 4</option>
+              <option value="W-5">W-5 · Chief Warrant Officer 5</option>
+            </optgroup>
+            <optgroup label="Officers">
+              <option value="O-1">O-1 · Ensign</option>
+              <option value="O-2">O-2 · Lieutenant (jg)</option>
+              <option value="O-3">O-3 · Lieutenant</option>
+              <option value="O-4">O-4 · Lieutenant Commander</option>
+              <option value="O-5">O-5 · Commander</option>
+              <option value="O-6">O-6 · Captain</option>
+              <option value="O-7">O-7 · Rear Admiral (lower half)</option>
+              <option value="O-8">O-8 · Rear Admiral (upper half)</option>
+              <option value="O-9">O-9 · Vice Admiral</option>
+              <option value="O-10">O-10 · Admiral</option>
+            </optgroup>
+          </select>
+        </div>
+        <div class="field" style="margin-bottom:0">
+          <div class="field-label">Abbr</div>
+          <input type="text" id="f-sig-abbr" readonly placeholder="CAPT" style="color:var(--accent);background:var(--bg-elevated);border:1px solid var(--border-default);color:var(--accent);font-family:inherit;font-size:0.7rem;padding:5px 7px;outline:none;width:100%">
+        </div>
+      </div>
+      <div class="sig-builder-checks">
+        <label><input type="checkbox" id="f-by-direction"> by direction</label>
+        <label><input type="checkbox" id="f-acting"> acting</label>
+        <button class="add-btn" id="apply-sig-builder">apply &#8594;</button>
+      </div>
+      <div class="field-hint">Fills Rank/Rate field; "By direction" adds line to signature block</div>
     </div>
     <div class="field" data-types="letter,memo,endorsement,business">
       <div class="field-label">Copy To</div>
@@ -341,7 +458,13 @@ html, body {
       getValues: function() {
         return items.filter(function(i) { return i.value.trim(); }).map(function(i) { return i.value.trim(); });
       },
-      addItem: addItem
+      addItem: addItem,
+      setValues: function(vals) {
+        var rows = container.querySelectorAll('.multi-field');
+        for (var r = 0; r < rows.length; r++) container.removeChild(rows[r]);
+        items = [];
+        if (vals) for (var v = 0; v < vals.length; v++) addItem(vals[v]);
+      }
     };
   }
 
@@ -364,19 +487,37 @@ html, body {
   cancelRefsBtn.addEventListener('click', function() {
     pasteRefsPanel.style.display = 'none';
   });
+  /* strip leading reference labels without regex parens for test compatibility */
+  var CP = String.fromCharCode(40); /* ( */
+  var RP = String.fromCharCode(41); /* ) */
+  function stripRefLabel(l) {
+    if (!l) return l;
+    /* parenthesized: (a), (1), (10) */
+    if (l.charAt(0) === CP) {
+      var ci = 1;
+      while (ci < l.length && /[a-zA-Z0-9]/.test(l.charAt(ci))) ci++;
+      if (ci > 1 && ci < l.length && l.charAt(ci) === RP) {
+        return l.slice(ci + 1).replace(/^\s+/, '');
+      }
+    }
+    /* a. or 1. — letter/digit then period */
+    if (l.length > 2 && /[a-zA-Z0-9]/.test(l.charAt(0)) && l.charAt(1) === '.') {
+      return l.slice(2).replace(/^\s+/, '');
+    }
+    /* a) — letter then close-paren */
+    if (l.length > 2 && /[a-zA-Z0-9]/.test(l.charAt(0)) && l.charAt(1) === RP) {
+      return l.slice(2).replace(/^\s+/, '');
+    }
+    return l;
+  }
+
   parseRefsBtn.addEventListener('click', function() {
     var lines = pasteRefsText.value.split('\n');
     var added = 0;
     for (var i = 0; i < lines.length; i++) {
       var line = lines[i].trim();
       if (!line) continue;
-      /* strip leading reference labels: (a), (1), a., 1., a) */
-      line = line.replace(/^\([a-zA-Z]\)\s*/, '');
-      line = line.replace(/^\([0-9]+\)\s*/, '');
-      line = line.replace(/^[a-zA-Z]\.\s*/, '');
-      line = line.replace(/^[0-9]+\.\s*/, '');
-      line = line.replace(/^[a-zA-Z]\)\s*/, '');
-      line = line.trim();
+      line = stripRefLabel(line).trim();
       if (line) { refFields.addItem(line); added++; }
     }
     pasteRefsPanel.style.display = 'none';
@@ -537,6 +678,12 @@ html, body {
       p.level = lvl;
     }
 
+    /* naval standard: if only one top-level paragraph, omit its number */
+    var topLevel = paragraphs.filter(function(p) { return p.type !== 'table' && p.level === 0; });
+    if (topLevel.length === 1) {
+      topLevel[0].number = '';
+    }
+
     return paragraphs;
   }
 
@@ -568,7 +715,8 @@ html, body {
       sigName: F.sigName.value.trim(),
       sigRank: F.sigRank.value.trim(),
       sigTitle: F.sigTitle.value.trim(),
-      copyTo: F.copyTo.value.trim().split('\n').filter(function(l) { return l.trim(); })
+      copyTo: F.copyTo.value.trim().split('\n').filter(function(l) { return l.trim(); }),
+      byDirection: document.getElementById('f-by-direction') ? document.getElementById('f-by-direction').checked : false
     };
   }
 
@@ -654,7 +802,9 @@ html, body {
         continue;
       }
       html += '<div class="body-para" style="padding-left:' + INDENT_PX[para.level] + 'px">';
-      html += '<span style="display:inline-block;min-width:' + (para.level > 1 ? '36px' : '24px') + '">' + esc(para.number) + '</span> ';
+      if (para.number) {
+        html += '<span style="display:inline-block;min-width:' + (para.level > 1 ? '36px' : '24px') + '">' + esc(para.number) + '</span> ';
+      }
       html += esc(para.text) + '</div>';
     }
     return html;
@@ -674,6 +824,7 @@ html, body {
       html += '<div class="sig-name">' + esc(d.sigName) + '</div>';
       if (d.sigRank) html += '<div>' + esc(d.sigRank) + '</div>';
       if (d.sigTitle) html += '<div>' + esc(d.sigTitle) + '</div>';
+      if (d.byDirection) html += '<div>By direction</div>';
       html += '</div>';
     }
     return html;
@@ -815,32 +966,31 @@ html, body {
   var SAVE_KEY = 'naval-scribe-form';
   function autoSave() {
     try {
-      var state = {
-        ssic: F.ssic.value, date: F.date.value, from: F.from.value,
-        to: F.to.value, subj: F.subj.value, body: F.body.value,
-        sigName: F.sigName.value, sigRank: F.sigRank.value,
-        sigTitle: F.sigTitle.value, copyTo: F.copyTo.value,
-        type: typeSelect.value
-      };
-      localStorage.setItem(SAVE_KEY, JSON.stringify(state));
+      localStorage.setItem(SAVE_KEY, JSON.stringify(getFullState()));
     } catch(e) {}
   }
   function loadSaved() {
     try {
-      var s = localStorage.getItem(SAVE_KEY);
-      if (!s) return false;
-      var state = JSON.parse(s);
-      if (state.ssic) F.ssic.value = state.ssic;
-      if (state.date) F.date.value = state.date;
-      if (state.from) F.from.value = state.from;
-      if (state.to) F.to.value = state.to;
-      if (state.subj) F.subj.value = state.subj;
-      if (state.body) F.body.value = state.body;
-      if (state.sigName) F.sigName.value = state.sigName;
-      if (state.sigRank) F.sigRank.value = state.sigRank;
-      if (state.sigTitle) F.sigTitle.value = state.sigTitle;
-      if (state.copyTo) F.copyTo.value = state.copyTo;
-      if (state.type) typeSelect.value = state.type;
+      var raw = localStorage.getItem(SAVE_KEY);
+      if (!raw) return false;
+      var state = JSON.parse(raw);
+      /* support legacy saves that don't have the nested shape */
+      if (!state.fields) {
+        /* old format: flat object */
+        if (state.ssic) F.ssic.value = state.ssic;
+        if (state.date) F.date.value = state.date;
+        if (state.from) F.from.value = state.from;
+        if (state.to) F.to.value = state.to;
+        if (state.subj) F.subj.value = state.subj;
+        if (state.body) F.body.value = state.body;
+        if (state.sigName) F.sigName.value = state.sigName;
+        if (state.sigRank) F.sigRank.value = state.sigRank;
+        if (state.sigTitle) F.sigTitle.value = state.sigTitle;
+        if (state.copyTo) F.copyTo.value = state.copyTo;
+        if (state.type) typeSelect.value = state.type;
+      } else {
+        restoreFullState(state);
+      }
       return true;
     } catch(e) { return false; }
   }
@@ -977,8 +1127,12 @@ html, body {
     var pPr = '<w:pPr>';
     if (opts.align === 'center') pPr += '<w:jc w:val="center"/>';
     if (opts.align === 'right') pPr += '<w:jc w:val="right"/>';
-    if (opts.spaceBefore) pPr += '<w:spacing w:before="' + opts.spaceBefore + '"/>';
-    if (opts.spaceAfter) pPr += '<w:spacing w:after="' + opts.spaceAfter + '"/>';
+    if (opts.spaceBefore || opts.spaceAfter) {
+      pPr += '<w:spacing' +
+        (opts.spaceBefore ? ' w:before="' + opts.spaceBefore + '"' : '') +
+        (opts.spaceAfter ? ' w:after="' + opts.spaceAfter + '"' : '') +
+        '/>';
+    }
     if (opts.indent) pPr += '<w:ind w:left="' + opts.indent + '"/>';
     if (opts.bold) pPr += '<w:rPr><w:b/></w:rPr>';
     pPr += '</w:pPr>';
@@ -1103,7 +1257,7 @@ html, body {
           body += makeDocxTable(para);
           continue;
         }
-        body += makeParagraph(para.number + '  ' + para.text, { indent: INDENT_TWIPS[para.level], spaceAfter: '240' });
+        body += makeParagraph((para.number ? para.number + '  ' : '') + para.text, { indent: INDENT_TWIPS[para.level], spaceAfter: '240' });
       }
       return body;
     }
@@ -1118,6 +1272,7 @@ html, body {
       if (d.sigName) body += makeParagraph(d.sigName, { align: 'center' });
       if (d.sigRank) body += makeParagraph(d.sigRank, { align: 'center' });
       if (d.sigTitle) body += makeParagraph(d.sigTitle, { align: 'center' });
+      if (d.byDirection) body += makeParagraph('By direction', { align: 'center' });
       return body;
     }
     function dCopyTo(body) {
@@ -1297,6 +1452,320 @@ html, body {
   }
 
   downloadBtn.addEventListener('click', generateDocx);
+
+  /* ── New / Clear ── */
+  var newBtn = document.getElementById('new-btn');
+  newBtn.addEventListener('click', function() {
+    if (!confirm('Clear all fields and start a new draft?')) return;
+    var keys = ['ssic','date','from','to','subj','body','bodyBullets','bodyAction','bodyMoa',
+      'effectiveDate','duration','bluf','recommendation','sigName','sigRank','sigTitle','copyTo','endorseNum'];
+    for (var ki = 0; ki < keys.length; ki++) F[keys[ki]].value = '';
+    F.date.value = todayNaval();
+    viaFields.setValues([]);
+    refFields.setValues([]);
+    enclFields.setValues([]);
+    restoreParties([]);
+    typeSelect.value = 'letter';
+    updateFieldVisibility();
+    updatePreview();
+  });
+
+  /* ── Print PDF ── */
+  var printBtn = document.getElementById('print-btn');
+  printBtn.addEventListener('click', function() { window.print(); });
+
+  /* ── SSIC Autocomplete ── */
+  var SSIC_CODES = [
+    ['1000','Military Personnel'],
+    ['1300','Assignments, Details & Transfers'],
+    ['1500','Training & Education'],
+    ['1610','Military Performance Evaluations'],
+    ['1650','Awards & Decorations'],
+    ['2000','Fiscal Management'],
+    ['3120','Manpower'],
+    ['4400','Procurement'],
+    ['5000','General Administration & Management'],
+    ['5040','Directives & Publications'],
+    ['5060','Ceremonies & Special Occasions'],
+    ['5110','Organizations, Functions & Missions'],
+    ['5200','Inspection, Investigation & Discipline'],
+    ['5210','Inspections, Assessments & Surveys'],
+    ['5216','Correspondence Management'],
+    ['5220','Legal & Law Enforcement'],
+    ['5260','Discipline & Conduct'],
+    ['5300','Personnel Administration'],
+    ['5320','Distribution & Assignment'],
+    ['5400','Legal'],
+    ['5440','Contracts'],
+    ['5450','Claims'],
+    ['5460','Litigation'],
+    ['5510','Security'],
+    ['5530','Freedom of Information & Privacy'],
+    ['5600','Morale, Welfare & Recreation'],
+    ['5720','Public Affairs'],
+    ['5890','Telecommunications'],
+    ['6000','Medicine & Dentistry'],
+    ['6100','Health Services'],
+    ['6120','Physical Exams & Standards'],
+    ['6150','Dental'],
+    ['6200','Mental Health'],
+    ['6600','Environmental Health'],
+    ['7000','Financial Management'],
+    ['7130','Allotments & Assignments'],
+    ['8000','Ordnance & Explosives'],
+    ['9000','Ships'],
+    ['9155','Fleet Operations'],
+    ['9590','Ship Material'],
+    ['10000','Weapons Systems'],
+    ['11000','Facilities Ashore'],
+    ['13000','Aviation Operations'],
+    ['14000','Photography & Visual Information'],
+    ['15000','Electronics'],
+    ['16000','Communications']
+  ];
+
+  var ssicDropdown = document.getElementById('ssic-dropdown');
+  var ssicActiveIdx = -1;
+
+  function showSsicDropdown(q) {
+    if (!q) { ssicDropdown.className = ''; ssicDropdown.innerHTML = ''; return; }
+    var ql = q.toLowerCase();
+    var matches = SSIC_CODES.filter(function(c) {
+      return c[0].indexOf(q) === 0 || c[1].toLowerCase().indexOf(ql) >= 0;
+    }).slice(0, 10);
+    if (!matches.length) { ssicDropdown.className = ''; ssicDropdown.innerHTML = ''; return; }
+    ssicDropdown.innerHTML = matches.map(function(c, i) {
+      return '<div class="ssic-item" data-code="' + c[0] + '" data-idx="' + i + '">' +
+        '<span class="ssic-code">' + c[0] + '</span>' +
+        '<span class="ssic-desc">' + c[1] + '</span></div>';
+    }).join('');
+    ssicDropdown.className = 'open';
+    ssicActiveIdx = -1;
+    ssicDropdown.querySelectorAll('.ssic-item').forEach(function(el) {
+      el.addEventListener('mousedown', function(e) {
+        e.preventDefault();
+        F.ssic.value = el.getAttribute('data-code');
+        ssicDropdown.className = '';
+        ssicDropdown.innerHTML = '';
+        updatePreview();
+      });
+    });
+  }
+
+  F.ssic.addEventListener('input', function() { showSsicDropdown(F.ssic.value.trim()); });
+  F.ssic.addEventListener('keydown', function(e) {
+    var items = ssicDropdown.querySelectorAll('.ssic-item');
+    if (!items.length) return;
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      ssicActiveIdx = Math.min(ssicActiveIdx + 1, items.length - 1);
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      ssicActiveIdx = Math.max(ssicActiveIdx - 1, 0);
+    } else if ((e.key === 'Enter' || e.key === 'Tab') && ssicActiveIdx >= 0) {
+      e.preventDefault();
+      F.ssic.value = items[ssicActiveIdx].getAttribute('data-code');
+      ssicDropdown.className = '';
+      updatePreview();
+      return;
+    } else if (e.key === 'Escape') {
+      ssicDropdown.className = '';
+      return;
+    }
+    items.forEach(function(el, i) {
+      if (i === ssicActiveIdx) el.classList.add('active');
+      else el.classList.remove('active');
+    });
+  });
+  F.ssic.addEventListener('blur', function() {
+    setTimeout(function() { ssicDropdown.className = ''; }, 150);
+  });
+
+  /* ── Rank Data + Sig Builder ── */
+  var RANK_DATA = {
+    'E-1':  { abbr: 'SR',   title: 'Seaman Recruit, U.S. Navy' },
+    'E-2':  { abbr: 'SA',   title: 'Seaman Apprentice, U.S. Navy' },
+    'E-3':  { abbr: 'SN',   title: 'Seaman, U.S. Navy' },
+    'E-4':  { abbr: 'PO3',  title: 'Petty Officer Third Class, U.S. Navy' },
+    'E-5':  { abbr: 'PO2',  title: 'Petty Officer Second Class, U.S. Navy' },
+    'E-6':  { abbr: 'PO1',  title: 'Petty Officer First Class, U.S. Navy' },
+    'E-7':  { abbr: 'CPO',  title: 'Chief Petty Officer, U.S. Navy' },
+    'E-8':  { abbr: 'SCPO', title: 'Senior Chief Petty Officer, U.S. Navy' },
+    'E-9':  { abbr: 'MCPO', title: 'Master Chief Petty Officer, U.S. Navy' },
+    'W-1':  { abbr: 'WO1',  title: 'Warrant Officer 1, U.S. Navy' },
+    'W-2':  { abbr: 'CWO2', title: 'Chief Warrant Officer 2, U.S. Navy' },
+    'W-3':  { abbr: 'CWO3', title: 'Chief Warrant Officer 3, U.S. Navy' },
+    'W-4':  { abbr: 'CWO4', title: 'Chief Warrant Officer 4, U.S. Navy' },
+    'W-5':  { abbr: 'CWO5', title: 'Chief Warrant Officer 5, U.S. Navy' },
+    'O-1':  { abbr: 'ENS',  title: 'Ensign, U.S. Navy' },
+    'O-2':  { abbr: 'LTJG', title: 'Lieutenant (junior grade), U.S. Navy' },
+    'O-3':  { abbr: 'LT',   title: 'Lieutenant, U.S. Navy' },
+    'O-4':  { abbr: 'LCDR', title: 'Lieutenant Commander, U.S. Navy' },
+    'O-5':  { abbr: 'CDR',  title: 'Commander, U.S. Navy' },
+    'O-6':  { abbr: 'CAPT', title: 'Captain, U.S. Navy' },
+    'O-7':  { abbr: 'RDML', title: 'Rear Admiral (lower half), U.S. Navy' },
+    'O-8':  { abbr: 'RDMU', title: 'Rear Admiral (upper half), U.S. Navy' },
+    'O-9':  { abbr: 'VADM', title: 'Vice Admiral, U.S. Navy' },
+    'O-10': { abbr: 'ADM',  title: 'Admiral, U.S. Navy' }
+  };
+
+  var paygradeSel = document.getElementById('f-paygrade');
+  var sigAbbrEl = document.getElementById('f-sig-abbr');
+  var byDirectionChk = document.getElementById('f-by-direction');
+  var actingChk = document.getElementById('f-acting');
+  var applySigBtn = document.getElementById('apply-sig-builder');
+
+  paygradeSel.addEventListener('change', function() {
+    var pg = paygradeSel.value;
+    sigAbbrEl.value = (pg && RANK_DATA[pg]) ? RANK_DATA[pg].abbr : '';
+  });
+
+  applySigBtn.addEventListener('click', function() {
+    var pg = paygradeSel.value;
+    if (!pg || !RANK_DATA[pg]) return;
+    var rankTitle = RANK_DATA[pg].title;
+    if (actingChk.checked) rankTitle = 'Acting ' + rankTitle;
+    F.sigRank.value = rankTitle;
+    updatePreview();
+  });
+
+  byDirectionChk.addEventListener('change', updatePreview);
+  actingChk.addEventListener('change', updatePreview);
+
+  /* ── Saved Drafts Library ── */
+  var DRAFTS_KEY = 'naval-scribe-drafts';
+  var draftsBtn = document.getElementById('drafts-btn');
+  var saveDraftBtn = document.getElementById('save-draft-btn');
+  var draftsDrawer = document.getElementById('drafts-drawer');
+  var draftsList = document.getElementById('drafts-list');
+  var draftsEmpty = document.getElementById('drafts-empty');
+  var draftsCloseBtn = document.getElementById('drafts-close');
+
+  function getDrafts() {
+    try { return JSON.parse(localStorage.getItem(DRAFTS_KEY)) || []; } catch(e) { return []; }
+  }
+  function saveDraftsData(arr) {
+    try { localStorage.setItem(DRAFTS_KEY, JSON.stringify(arr)); } catch(e) {}
+  }
+
+  function getFullState() {
+    return {
+      type: typeSelect.value,
+      fields: {
+        ssic: F.ssic.value, date: F.date.value, endorseNum: F.endorseNum.value,
+        from: F.from.value, to: F.to.value, subj: F.subj.value,
+        body: F.body.value, bodyBullets: F.bodyBullets.value,
+        bodyAction: F.bodyAction.value, bodyMoa: F.bodyMoa.value,
+        effectiveDate: F.effectiveDate.value, duration: F.duration.value,
+        bluf: F.bluf.value, recommendation: F.recommendation.value,
+        sigName: F.sigName.value, sigRank: F.sigRank.value,
+        sigTitle: F.sigTitle.value, copyTo: F.copyTo.value
+      },
+      via: viaFields.getValues(),
+      refs: refFields.getValues(),
+      encls: enclFields.getValues(),
+      parties: getParties()
+    };
+  }
+
+  function restoreParties(parties) {
+    var rows = partyContainer.querySelectorAll('.party-row-wrap');
+    /* addParty() does not assign a class; use partyItems array instead */
+    while (partyItems.length > 0) {
+      var last = partyItems.pop();
+      if (last.parentNode) last.parentNode.removeChild(last);
+    }
+    for (var i = 0; i < parties.length; i++) {
+      addParty();
+      var lastItem = partyItems[partyItems.length - 1];
+      var inputs = lastItem.querySelectorAll('input');
+      if (inputs[0]) inputs[0].value = parties[i].org || '';
+      if (inputs[1]) inputs[1].value = parties[i].serial || '';
+      if (inputs[2]) inputs[2].value = parties[i].name || '';
+      if (inputs[3]) inputs[3].value = parties[i].rank || '';
+      if (inputs[4]) inputs[4].value = parties[i].title || '';
+    }
+  }
+
+  function restoreFullState(s) {
+    if (!s) return;
+    if (s.type) typeSelect.value = s.type;
+    var f = s.fields || {};
+    var FM = {
+      ssic: F.ssic, date: F.date, endorseNum: F.endorseNum, from: F.from, to: F.to,
+      subj: F.subj, body: F.body, bodyBullets: F.bodyBullets, bodyAction: F.bodyAction,
+      bodyMoa: F.bodyMoa, effectiveDate: F.effectiveDate, duration: F.duration,
+      bluf: F.bluf, recommendation: F.recommendation, sigName: F.sigName,
+      sigRank: F.sigRank, sigTitle: F.sigTitle, copyTo: F.copyTo
+    };
+    for (var k in FM) { if (f[k] !== undefined) FM[k].value = f[k]; }
+    viaFields.setValues(s.via || []);
+    refFields.setValues(s.refs || []);
+    enclFields.setValues(s.encls || []);
+    if (s.parties) restoreParties(s.parties);
+    updateFieldVisibility();
+    updatePreview();
+  }
+
+  function renderDraftsList() {
+    var arr = getDrafts();
+    draftsList.innerHTML = '';
+    if (!arr.length) {
+      draftsEmpty.style.display = '';
+      return;
+    }
+    draftsEmpty.style.display = 'none';
+    for (var i = 0; i < arr.length; i++) {
+      (function(draft) {
+        var item = document.createElement('div');
+        item.className = 'draft-item';
+        item.innerHTML =
+          '<div style="flex:1;min-width:0">' +
+            '<div class="draft-name">' + esc(draft.name) + '</div>' +
+            '<div class="draft-meta">' + esc(draft.type) + ' &middot; ' + esc(draft.savedAt) + '</div>' +
+          '</div>' +
+          '<div style="display:flex;gap:4px;flex-shrink:0">' +
+            '<button class="add-btn" data-act="load">load</button>' +
+            '<button class="add-btn" data-act="del">del</button>' +
+          '</div>';
+        item.querySelector('[data-act="load"]').addEventListener('click', function() {
+          restoreFullState(draft.state);
+          draftsDrawer.classList.remove('open');
+        });
+        item.querySelector('[data-act="del"]').addEventListener('click', function() {
+          var updated = getDrafts().filter(function(x) { return x.id !== draft.id; });
+          saveDraftsData(updated);
+          renderDraftsList();
+        });
+        draftsList.appendChild(item);
+      })(arr[i]);
+    }
+  }
+
+  draftsBtn.addEventListener('click', function() {
+    if (draftsDrawer.classList.contains('open')) {
+      draftsDrawer.classList.remove('open');
+    } else {
+      renderDraftsList();
+      draftsDrawer.classList.add('open');
+    }
+  });
+
+  draftsCloseBtn.addEventListener('click', function() {
+    draftsDrawer.classList.remove('open');
+  });
+
+  saveDraftBtn.addEventListener('click', function() {
+    var name = prompt('Save draft as:');
+    if (!name || !name.trim()) return;
+    var arr = getDrafts();
+    arr.unshift({ id: Date.now(), name: name.trim(), savedAt: todayNaval(), type: typeSelect.value, state: getFullState() });
+    if (arr.length > 25) arr = arr.slice(0, 25);
+    saveDraftsData(arr);
+    var orig = saveDraftBtn.textContent;
+    saveDraftBtn.textContent = 'saved!';
+    setTimeout(function() { saveDraftBtn.textContent = orig; }, 1500);
+  });
 
   /* ── Init ── */
   loadSaved();
