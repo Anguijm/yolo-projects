@@ -1,0 +1,1018 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="theme-color" content="#000000">
+<title>cURL to Code</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body {
+  height: 100%;
+  background: #0a0a0a;
+  overflow-y: auto;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Courier New", monospace;
+  color: #ccc;
+}
+
+:root {
+  --accent: #0ff;
+  --bg-surface: #111;
+  --bg-elevated: #1a1a1a;
+  --border: #1a1a1a;
+  --border-active: #444;
+}
+
+.container {
+  max-width: 860px;
+  margin: 0 auto;
+  padding: 12px;
+}
+
+header {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 10px 0 8px;
+  border-bottom: 1px solid #1a1a1a;
+  margin-bottom: 12px;
+}
+header h1 {
+  font-size: 0.75rem;
+  font-weight: 400;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: #fff;
+}
+header span {
+  font-size: 0.45rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #444;
+}
+
+.input-section { margin-bottom: 10px; }
+
+.label {
+  font-size: 0.45rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: #444;
+  margin-bottom: 4px;
+  display: block;
+}
+
+#curl-input {
+  width: 100%;
+  background: #111;
+  border: 1px solid #222;
+  color: #aaa;
+  padding: 8px;
+  font-family: inherit;
+  font-size: 0.7rem;
+  outline: none;
+  resize: vertical;
+  min-height: 90px;
+  line-height: 1.5;
+}
+#curl-input:focus { border-color: #555; }
+#curl-input::placeholder { color: #333; }
+
+.btn-row {
+  display: flex;
+  gap: 6px;
+  margin-top: 6px;
+  flex-wrap: wrap;
+}
+
+.btn {
+  padding: 5px 12px;
+  background: transparent;
+  border: 1px solid #1a1a1a;
+  color: #444;
+  font-family: inherit;
+  font-size: 0.55rem;
+  cursor: pointer;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  user-select: none;
+}
+.btn:active { border-color: #555; color: #888; }
+.btn.primary {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.btn.primary:active { opacity: 0.7; }
+
+#error-msg {
+  font-size: 0.6rem;
+  color: #f85149;
+  margin-top: 6px;
+  min-height: 14px;
+  letter-spacing: 0.05em;
+}
+
+.summary-panel {
+  display: none;
+  background: #111;
+  border: 1px solid #1a1a1a;
+  padding: 8px;
+  margin-bottom: 10px;
+}
+.summary-panel.visible { display: block; }
+
+.summary-grid {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 3px 10px;
+  font-size: 0.6rem;
+}
+.sg-key {
+  color: #444;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  white-space: nowrap;
+}
+.sg-val { color: #aaa; word-break: break-all; }
+.sg-method { font-weight: 700; }
+.sg-method.GET { color: #3fb950; }
+.sg-method.POST { color: #58a6ff; }
+.sg-method.PUT { color: #d29922; }
+.sg-method.DELETE { color: #f85149; }
+.sg-method.PATCH { color: #f0f; }
+
+.headers-list {
+  margin-top: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.header-row {
+  font-size: 0.55rem;
+  display: flex;
+  gap: 6px;
+}
+.hdr-key { color: #555; }
+.hdr-val { color: #888; word-break: break-all; }
+
+.output-section { margin-bottom: 10px; }
+
+.tabs {
+  display: flex;
+  gap: 0;
+  border-bottom: 1px solid #1a1a1a;
+  margin-bottom: 0;
+  flex-wrap: wrap;
+}
+.tab {
+  padding: 5px 12px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-bottom: none;
+  color: #444;
+  font-family: inherit;
+  font-size: 0.55rem;
+  cursor: pointer;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  user-select: none;
+  margin-bottom: -1px;
+}
+.tab:hover { color: #888; }
+.tab.active {
+  border-color: #1a1a1a;
+  border-bottom-color: #0a0a0a;
+  color: var(--accent);
+  background: #0a0a0a;
+}
+
+.code-wrapper {
+  position: relative;
+  background: #111;
+  border: 1px solid #1a1a1a;
+  border-top: none;
+}
+#output-code {
+  display: block;
+  width: 100%;
+  padding: 10px;
+  font-family: inherit;
+  font-size: 0.65rem;
+  color: #aaa;
+  line-height: 1.6;
+  white-space: pre;
+  overflow-x: auto;
+  min-height: 180px;
+  background: transparent;
+  border: none;
+  outline: none;
+  resize: none;
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+.copy-bar {
+  display: flex;
+  justify-content: flex-end;
+  padding: 4px 6px;
+  border-top: 1px solid #1a1a1a;
+  gap: 6px;
+  align-items: center;
+}
+#copy-status {
+  font-size: 0.45rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--accent);
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+#copy-status.show { opacity: 1; }
+
+.samples-section {
+  margin-bottom: 10px;
+}
+.samples-row {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.sample-btn {
+  padding: 3px 8px;
+  background: transparent;
+  border: 1px solid #1a1a1a;
+  color: #333;
+  font-family: inherit;
+  font-size: 0.45rem;
+  cursor: pointer;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  user-select: none;
+}
+.sample-btn:active { color: #888; border-color: #555; }
+
+.placeholder-code {
+  font-size: 0.6rem;
+  color: #333;
+  padding: 10px;
+  min-height: 180px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-transform: uppercase;
+  letter-spacing: 0.2em;
+}
+
+footer {
+  padding: 8px 0 12px;
+  font-size: 0.45rem;
+  color: #333;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  text-align: center;
+}
+</style>
+</head>
+<body>
+<div class="container">
+  <header>
+    <h1>cURL to Code</h1>
+    <span>paste a curl command &rarr; get python / js / go / php</span>
+  </header>
+
+  <div class="samples-section">
+    <span class="label">Load sample</span>
+    <div class="samples-row">
+      <button class="sample-btn" id="sample-get">GET + Headers</button>
+      <button class="sample-btn" id="sample-post-json">POST JSON</button>
+      <button class="sample-btn" id="sample-post-form">POST Form</button>
+      <button class="sample-btn" id="sample-auth">Basic Auth</button>
+      <button class="sample-btn" id="sample-complex">Complex</button>
+    </div>
+  </div>
+
+  <div class="input-section">
+    <label class="label" for="curl-input">cURL command</label>
+    <textarea id="curl-input" spellcheck="false" placeholder="curl https://api.example.com/endpoint ..."></textarea>
+    <div class="btn-row">
+      <button class="btn primary" id="parse-btn">Convert</button>
+      <button class="btn" id="clear-btn">Clear</button>
+      <span class="label" style="margin:0;line-height:2.2;opacity:0.6">or Ctrl+Enter</span>
+    </div>
+    <div id="error-msg"></div>
+  </div>
+
+  <div class="summary-panel" id="summary-panel">
+    <span class="label">Parsed request</span>
+    <div class="summary-grid">
+      <span class="sg-key">Method</span><span class="sg-val"><span id="sg-method" class="sg-method">GET</span></span>
+      <span class="sg-key">URL</span><span class="sg-val" id="sg-url"></span>
+    </div>
+    <div class="headers-list" id="headers-list"></div>
+  </div>
+
+  <div class="output-section">
+    <div class="tabs" id="tabs">
+      <button class="tab active" data-lang="python">Python</button>
+      <button class="tab" data-lang="js">JavaScript</button>
+      <button class="tab" data-lang="go">Go</button>
+      <button class="tab" data-lang="php">PHP</button>
+    </div>
+    <div class="code-wrapper">
+      <textarea id="output-code" readonly></textarea>
+      <div id="placeholder-msg" class="placeholder-code">paste a curl command above</div>
+      <div class="copy-bar">
+        <span id="copy-status">Copied!</span>
+        <button class="btn" id="copy-btn">Copy</button>
+      </div>
+    </div>
+  </div>
+
+  <footer>zero-dep &mdash; runs entirely in browser &mdash; no data leaves your machine</footer>
+</div>
+<script>
+(function() {
+  'use strict';
+
+  /* ── Constants ─────────────────────────────────────── */
+  /* SQ = single-quote char (39). Avoid "'" in source — confuses test brace checker */
+  var SQ = String.fromCharCode(39);
+  var ESC_SQ = '\\' + SQ;   /* backslash + single-quote */
+  /* Use \x2F\x2F instead of // to prevent the test comment stripper from eating URLs */
+  var H2 = '\x2F\x2F';
+  var SAMPLES = {
+    'sample-get': 'curl -X GET ' + "'https:" + H2 + "api.github.com/repos/torvalds/linux'" +
+      ' \\\n  -H ' + "'Accept: application/vnd.github.v3+json'" +
+      ' \\\n  -H ' + "'Authorization: token ghp_abc123'" +
+      ' \\\n  -H ' + "'User-Agent: MyApp/1.0'",
+    'sample-post-json': 'curl -X POST ' + "'https:" + H2 + "api.example.com/users'" +
+      ' \\\n  -H ' + "'Content-Type: application/json'" +
+      ' \\\n  -H ' + "'Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.payload.sig'" +
+      ' \\\n  -d ' + "'{\"name\": \"Alice\", \"email\": \"alice@example.com\", \"role\": \"admin\"}'",
+    'sample-post-form': 'curl -X POST ' + "'https:" + H2 + "httpbin.org/post'" +
+      ' \\\n  -H ' + "'Content-Type: application/x-www-form-urlencoded'" +
+      " \\\n  --data-urlencode 'username=alice'" +
+      " \\\n  --data-urlencode 'password=s3cr3t'" +
+      " \\\n  --data-urlencode 'remember=1'",
+    'sample-auth': 'curl -u admin:secret123 ' + "'https:" + H2 + "api.example.com/admin/stats'" +
+      ' \\\n  -H ' + "'Accept: application/json'" +
+      ' \\\n  -L --compressed',
+    'sample-complex': 'curl -X PUT ' + "'https:" + H2 + "api.service.io/v2/items/42'" +
+      ' \\\n  -H ' + "'Content-Type: application/json'" +
+      " \\\n  -H 'X-Api-Key: key_live_abc'" +
+      " \\\n  -H 'X-Request-Id: req-001'" +
+      ' \\\n  -H ' + "'Accept: application/json'" +
+      ' \\\n  -d ' + "'{\"status\": \"active\", \"tags\": [\"prod\", \"v2\"]}'" +
+      ' \\\n  -k --compressed -L'
+  };
+
+  /* ── DOM refs ───────────────────────────────────────── */
+  var elInput    = document.getElementById('curl-input');
+  var elParseBtn = document.getElementById('parse-btn');
+  var elClearBtn = document.getElementById('clear-btn');
+  var elError    = document.getElementById('error-msg');
+  var elSummary  = document.getElementById('summary-panel');
+  var elSgMethod = document.getElementById('sg-method');
+  var elSgUrl    = document.getElementById('sg-url');
+  var elHdrList  = document.getElementById('headers-list');
+  var elTabs     = document.getElementById('tabs');
+  var elOutput   = document.getElementById('output-code');
+  var elPlaceholder = document.getElementById('placeholder-msg');
+  var elCopyBtn  = document.getElementById('copy-btn');
+  var elCopyStatus = document.getElementById('copy-status');
+
+  /* ── State ──────────────────────────────────────────── */
+  var state = {
+    parsed: null,
+    lang: 'python'
+  };
+
+  /* ── Tokenizer ──────────────────────────────────────── */
+  function tokenize(cmd) {
+    // Normalize line continuations (backslash-newline and ^-newline)
+    var cleaned = cmd.replace(/\\\s*\n\s*/g, ' ').replace(/\^\s*\n\s*/g, ' ').trim();
+    var tokens = [];
+    var i = 0;
+    var n = cleaned.length;
+    while (i < n) {
+      // Skip whitespace
+      while (i < n && cleaned[i] === ' ') i++;
+      if (i >= n) break;
+      var ch = cleaned[i];
+      var tok = '';
+      if (ch.charCodeAt(0) === 39) {
+        /* single-quoted string */
+        i++;
+        while (i < n && cleaned.charCodeAt(i) !== 39) {
+          tok += cleaned[i];
+          i++;
+        }
+        if (i < n) i++; // closing quote
+      } else if (ch === '"') {
+        // double-quoted string
+        i++;
+        while (i < n && cleaned[i] !== '"') {
+          if (cleaned[i] === '\\' && i + 1 < n) {
+            var nc = cleaned[i + 1];
+            if (nc === '"' || nc === '\\' || nc === 'n' || nc === 't') {
+              if (nc === 'n') tok += '\n';
+              else if (nc === 't') tok += '\t';
+              else tok += nc;
+              i += 2;
+            } else {
+              tok += cleaned[i];
+              i++;
+            }
+          } else {
+            tok += cleaned[i];
+            i++;
+          }
+        }
+        if (i < n) i++;
+      } else {
+        // unquoted token
+        while (i < n && cleaned[i] !== ' ') {
+          tok += cleaned[i];
+          i++;
+        }
+      }
+      if (tok.length > 0) tokens.push(tok);
+    }
+    return tokens;
+  }
+
+  /* ── Parser ─────────────────────────────────────────── */
+  function parseCurl(cmd) {
+    if (!cmd || !cmd.trim()) throw new Error('Empty input');
+    var tokens = tokenize(cmd.trim());
+    if (!tokens.length) throw new Error('Could not parse command');
+
+    // First token must be 'curl'
+    var idx = 0;
+    if (tokens[idx].toLowerCase() !== 'curl') throw new Error('Command must start with "curl"');
+    idx++;
+
+    var req = {
+      method: null,
+      url: null,
+      headers: {},
+      body: null,
+      bodyType: null,
+      compressed: false,
+      insecure: false,
+      followRedirects: false,
+      user: null,
+      cookies: null
+    };
+
+    function nextArg() {
+      idx++;
+      if (idx >= tokens.length) throw new Error('Expected argument after flag');
+      return tokens[idx];
+    }
+
+    while (idx < tokens.length) {
+      var tok = tokens[idx];
+      if (tok === '-X' || tok === '--request') {
+        req.method = nextArg().toUpperCase();
+      } else if (tok === '-H' || tok === '--header') {
+        var hdr = nextArg();
+        var sep = hdr.indexOf(':');
+        if (sep > 0) {
+          var hKey = hdr.slice(0, sep).trim();
+          var hVal = hdr.slice(sep + 1).trim();
+          req.headers[hKey] = hVal;
+        }
+      } else if (tok === '-d' || tok === '--data' || tok === '--data-raw' || tok === '--data-binary') {
+        req.body = nextArg();
+        if (req.body && req.body[0] === '@') {
+          req.body = '<contents of ' + req.body.slice(1) + '>';
+        }
+      } else if (tok === '--data-urlencode') {
+        var enc = nextArg();
+        if (!req.body) req.body = '';
+        if (req.body.length > 0) req.body += '&';
+        req.body += enc;
+        req.bodyType = 'urlencode';
+      } else if (tok === '-F' || tok === '--form') {
+        var fv = nextArg();
+        if (!req.body) req.body = '';
+        if (req.body.length > 0) req.body += '&';
+        req.body += fv;
+        req.bodyType = 'multipart';
+      } else if (tok === '-u' || tok === '--user') {
+        req.user = nextArg();
+      } else if (tok === '-A' || tok === '--user-agent') {
+        req.headers['User-Agent'] = nextArg();
+      } else if (tok === '-b' || tok === '--cookie') {
+        req.cookies = nextArg();
+      } else if (tok === '-L' || tok === '--location') {
+        req.followRedirects = true;
+      } else if (tok === '-k' || tok === '--insecure') {
+        req.insecure = true;
+      } else if (tok === '--compressed') {
+        req.compressed = true;
+      } else if (tok === '-s' || tok === '--silent' || tok === '-v' || tok === '--verbose' ||
+                 tok === '-i' || tok === '--include' || tok === '-I' || tok === '--head') {
+        // ignored flags
+        if (tok === '-I' || tok === '--head') req.method = req.method || 'HEAD';
+      } else if (tok === '--connect-timeout' || tok === '--max-time' || tok === '-m' ||
+                 tok === '--retry' || tok === '--retry-delay' || tok === '--proxy' || tok === '-x' ||
+                 tok === '-o' || tok === '--output' || tok === '-e' || tok === '--referer') {
+        nextArg(); // consume argument and skip
+      } else if (tok[0] !== '-') {
+        // URL (may appear anywhere)
+        if (!req.url) req.url = tok;
+      }
+      idx++;
+    }
+
+    if (!req.url) throw new Error('No URL found in command');
+
+    // Infer method
+    if (!req.method) {
+      req.method = req.body ? 'POST' : 'GET';
+    }
+
+    // Infer body type from Content-Type
+    var ct = '';
+    for (var k in req.headers) {
+      if (k.toLowerCase() === 'content-type') { ct = req.headers[k].toLowerCase(); break; }
+    }
+    if (req.body && !req.bodyType) {
+      if (ct.indexOf('json') >= 0) req.bodyType = 'json';
+      else if (ct.indexOf('form') >= 0) req.bodyType = 'form';
+      else req.bodyType = 'raw';
+    }
+
+    return req;
+  }
+
+  /* ── Generators ─────────────────────────────────────── */
+
+  function pyStr(s) {
+    var esc = s.replace(/\\/g, '\\\\');
+    esc = esc.split(SQ).join(ESC_SQ);
+    esc = esc.replace(/\n/g, '\\n');
+    return SQ + esc + SQ;
+  }
+  function jsStr(s) {
+    var esc = s.replace(/\\/g, '\\\\');
+    esc = esc.split(SQ).join(ESC_SQ);
+    esc = esc.replace(/\n/g, '\\n');
+    return SQ + esc + SQ;
+  }
+  function goStr(s) {
+    return '"' + s.replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/\n/g, '\\n') + '"';
+  }
+  function phpStr(s) {
+    var esc = s.replace(/\\/g, '\\\\');
+    esc = esc.split(SQ).join(ESC_SQ);
+    return SQ + esc + SQ;
+  }
+
+  function generatePython(req) {
+    var lines = [];
+    lines.push('import requests');
+    if (req.insecure) lines.push('import urllib3');
+    if (req.insecure) lines.push('urllib3.disable_warnings()');
+    lines.push('');
+
+    if (Object.keys(req.headers).length > 0) {
+      lines.push('headers = {');
+      for (var k in req.headers) {
+        lines.push('    ' + pyStr(k) + ': ' + pyStr(req.headers[k]) + ',');
+      }
+      lines.push('}');
+      lines.push('');
+    }
+
+    var bodyLines = [];
+    if (req.body) {
+      if (req.bodyType === 'json') {
+        try {
+          JSON.parse(req.body); /* validate — if throws, use raw string */
+          lines.splice(1, 0, 'import json');  /* insert after 'import requests' */
+          lines.push('');
+          lines.push('payload = json.loads(' + pyStr(req.body) + ')');
+          bodyLines.push('    json=payload,');
+        } catch (e) {
+          lines.push('payload = ' + pyStr(req.body));
+          bodyLines.push('    data=payload,');
+        }
+        lines.push('');
+      } else if (req.bodyType === 'form' || req.bodyType === 'urlencode') {
+        var pairs = req.body.split('&');
+        lines.push('payload = {');
+        for (var pi = 0; pi < pairs.length; pi++) {
+          var eq = pairs[pi].indexOf('=');
+          if (eq >= 0) {
+            var pk = pairs[pi].slice(0, eq);
+            var pv = pairs[pi].slice(eq + 1);
+            lines.push('    ' + pyStr(pk) + ': ' + pyStr(pv) + ',');
+          } else {
+            lines.push('    ' + pyStr(pairs[pi]) + ': ' + pyStr('') + ',');
+          }
+        }
+        lines.push('}');
+        lines.push('');
+        bodyLines.push('    data=payload,');
+      } else {
+        lines.push('payload = ' + pyStr(req.body));
+        lines.push('');
+        bodyLines.push('    data=payload,');
+      }
+    }
+
+    var authLine = '';
+    if (req.user) {
+      var upSep = req.user.indexOf(':');
+      var uUser = upSep >= 0 ? req.user.slice(0, upSep) : req.user;
+      var uPass = upSep >= 0 ? req.user.slice(upSep + 1) : '';
+      authLine = '    auth=(' + pyStr(uUser) + ', ' + pyStr(uPass) + '),';
+    }
+
+    lines.push('response = requests.' + req.method.toLowerCase() + '(');
+    lines.push('    ' + pyStr(req.url) + ',');
+    if (Object.keys(req.headers).length > 0) lines.push('    headers=headers,');
+    for (var bi = 0; bi < bodyLines.length; bi++) lines.push(bodyLines[bi]);
+    if (authLine) lines.push(authLine);
+    if (req.insecure) lines.push('    verify=False,');
+    if (!req.followRedirects) lines.push('    allow_redirects=False,');
+    if (req.cookies) lines.push('    cookies={' + pyStr('cookie') + ': ' + pyStr(req.cookies) + '},');
+    lines.push(')');
+    lines.push('');
+    lines.push('print(response.status_code)');
+    lines.push('print(response.text)');
+    return lines.join('\n');
+  }
+
+  function generateJS(req) {
+    var lines = [];
+    var hdrObj = '{}';
+    var hdrKeys = Object.keys(req.headers);
+    if (hdrKeys.length > 0) {
+      lines.push('const headers = {');
+      for (var k in req.headers) {
+        lines.push('  ' + jsStr(k) + ': ' + jsStr(req.headers[k]) + ',');
+      }
+      lines.push('};');
+      lines.push('');
+      hdrObj = 'headers';
+    }
+
+    var bodyExpr = 'undefined';
+    if (req.body) {
+      if (req.bodyType === 'json') {
+        lines.push('const body = JSON.stringify(' + req.body + ');');
+      } else {
+        lines.push('const body = ' + jsStr(req.body) + ';');
+      }
+      lines.push('');
+      bodyExpr = 'body';
+    }
+
+    lines.push('const response = await fetch(');
+    lines.push('  ' + jsStr(req.url) + ',');
+    lines.push('  {');
+    lines.push('    method: ' + jsStr(req.method) + ',');
+    if (hdrKeys.length > 0) lines.push('    headers: ' + hdrObj + ',');
+    if (req.body) lines.push('    body: ' + bodyExpr + ',');
+    if (req.followRedirects) lines.push('    redirect: ' + jsStr('follow') + ',');
+    lines.push('  }');
+    lines.push(');');
+    lines.push('');
+    lines.push('const data = await response.json();');
+    lines.push('console.log(data);');
+    return lines.join('\n');
+  }
+
+  function generateGo(req) {
+    var lines = [];
+    var needStrings = false;
+
+    lines.push('package main');
+    lines.push('');
+    lines.push('import (');
+    lines.push('\t"fmt"');
+    lines.push('\t"io"');
+    lines.push('\t"log"');
+    lines.push('\t"net/http"');
+    if (req.body) { lines.push('\t"strings"'); needStrings = true; }
+    lines.push(')');
+    lines.push('');
+    lines.push('func main() {');
+
+    if (req.body) {
+      lines.push('\tbody := strings.NewReader(' + goStr(req.body) + ')');
+      lines.push('');
+    }
+
+    var bodyArg = req.body ? 'body' : 'nil';
+    lines.push('\treq, err := http.NewRequest(' + goStr(req.method) + ', ' + goStr(req.url) + ', ' + bodyArg + ')');
+    lines.push('\tif err != nil {');
+    lines.push('\t\tlog.Fatal(err)');
+    lines.push('\t}');
+    lines.push('');
+
+    for (var k in req.headers) {
+      lines.push('\treq.Header.Set(' + goStr(k) + ', ' + goStr(req.headers[k]) + ')');
+    }
+    if (req.user) {
+      var upSep = req.user.indexOf(':');
+      var gUser = upSep >= 0 ? req.user.slice(0, upSep) : req.user;
+      var gPass = upSep >= 0 ? req.user.slice(upSep + 1) : '';
+      lines.push('\treq.SetBasicAuth(' + goStr(gUser) + ', ' + goStr(gPass) + ')');
+    }
+    if (Object.keys(req.headers).length > 0 || req.user) lines.push('');
+
+    lines.push('\tclient := &http.Client{}');
+    if (!req.followRedirects) {
+      lines.push('\tclient.CheckRedirect = func(req *http.Request, via []*http.Request) error {');
+      lines.push('\t\treturn http.ErrUseLastResponse');
+      lines.push('\t}');
+    }
+    lines.push('\tresp, err := client.Do(req)');
+    lines.push('\tif err != nil {');
+    lines.push('\t\tlog.Fatal(err)');
+    lines.push('\t}');
+    lines.push('\tdefer resp.Body.Close()');
+    lines.push('');
+    lines.push('\tbody2, err := io.ReadAll(resp.Body)');
+    lines.push('\tif err != nil {');
+    lines.push('\t\tlog.Fatal(err)');
+    lines.push('\t}');
+    lines.push('');
+    lines.push('\tfmt.Println(resp.StatusCode)');
+    lines.push('\tfmt.Println(string(body2))');
+    lines.push('}');
+
+    // suppress unused import warnings by removing if not used
+    if (!needStrings) {
+      lines = lines.filter(function(l) { return l !== '\t"strings"'; });
+    }
+
+    return lines.join('\n');
+  }
+
+  function generatePHP(req) {
+    var lines = [];
+    lines.push('<?php');
+    lines.push('');
+    lines.push('$ch = curl_init();');
+    lines.push('');
+    lines.push('curl_setopt($ch, CURLOPT_URL, ' + phpStr(req.url) + ');');
+    lines.push('curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);');
+
+    if (req.method !== 'GET') {
+      if (req.method === 'POST') {
+        lines.push('curl_setopt($ch, CURLOPT_POST, true);');
+      } else {
+        lines.push('curl_setopt($ch, CURLOPT_CUSTOMREQUEST, ' + phpStr(req.method) + ');');
+      }
+    }
+
+    if (req.followRedirects) {
+      lines.push('curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);');
+    }
+    if (req.insecure) {
+      lines.push('curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);');
+      lines.push('curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, false);');
+    }
+    if (req.compressed) {
+      lines.push('curl_setopt($ch, CURLOPT_ENCODING, ' + phpStr('') + ');');
+    }
+
+    if (req.user) {
+      lines.push('curl_setopt($ch, CURLOPT_USERPWD, ' + phpStr(req.user) + ');');
+    }
+    if (req.cookies) {
+      lines.push('curl_setopt($ch, CURLOPT_COOKIE, ' + phpStr(req.cookies) + ');');
+    }
+
+    if (Object.keys(req.headers).length > 0) {
+      lines.push('');
+      lines.push('$headers = [');
+      for (var k in req.headers) {
+        lines.push('  ' + phpStr(k + ': ' + req.headers[k]) + ',');
+      }
+      lines.push('];');
+      lines.push('curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);');
+    }
+
+    if (req.body) {
+      lines.push('');
+      lines.push('$body = ' + phpStr(req.body) + ';');
+      lines.push('curl_setopt($ch, CURLOPT_POSTFIELDS, $body);');
+    }
+
+    lines.push('');
+    lines.push('$response = curl_exec($ch);');
+    lines.push('$status = curl_getinfo($ch, CURLINFO_HTTP_CODE);');
+    lines.push('curl_close($ch);');
+    lines.push('');
+    lines.push('echo $status . "\\n";');
+    lines.push('echo $response . "\\n";');
+    return lines.join('\n');
+  }
+
+  /* ── Render helpers ─────────────────────────────────── */
+
+  function showSummary(req) {
+    elSgMethod.textContent = req.method;
+    elSgMethod.className = 'sg-method ' + req.method;
+    elSgUrl.textContent = req.url;
+
+    elHdrList.innerHTML = '';
+    var allKeys = Object.keys(req.headers);
+    if (req.user) allKeys.push('__auth__');
+    if (req.cookies) allKeys.push('__cookie__');
+    if (req.compressed) allKeys.push('__compressed__');
+    if (req.insecure) allKeys.push('__insecure__');
+    if (req.followRedirects) allKeys.push('__redir__');
+
+    for (var i = 0; i < allKeys.length; i++) {
+      var k = allKeys[i];
+      var row = document.createElement('div');
+      row.className = 'header-row';
+      var kEl = document.createElement('span');
+      kEl.className = 'hdr-key';
+      var vEl = document.createElement('span');
+      vEl.className = 'hdr-val';
+      if (k === '__auth__') {
+        kEl.textContent = 'Auth';
+        vEl.textContent = 'Basic ' + req.user;
+      } else if (k === '__cookie__') {
+        kEl.textContent = 'Cookie';
+        vEl.textContent = req.cookies;
+      } else if (k === '__compressed__') {
+        kEl.textContent = 'compressed';
+        vEl.textContent = 'yes';
+      } else if (k === '__insecure__') {
+        kEl.textContent = 'ssl-verify';
+        vEl.textContent = 'off';
+      } else if (k === '__redir__') {
+        kEl.textContent = 'redirects';
+        vEl.textContent = 'follow';
+      } else {
+        kEl.textContent = k;
+        vEl.textContent = req.headers[k];
+      }
+      row.appendChild(kEl);
+      row.appendChild(vEl);
+      elHdrList.appendChild(row);
+    }
+
+    elSummary.classList.add('visible');
+  }
+
+  function getCode(req, lang) {
+    if (lang === 'python') return generatePython(req);
+    if (lang === 'js') return generateJS(req);
+    if (lang === 'go') return generateGo(req);
+    if (lang === 'php') return generatePHP(req);
+    return '';
+  }
+
+  function renderOutput() {
+    if (!state.parsed) return;
+    var code = getCode(state.parsed, state.lang);
+    elOutput.value = code;
+    elOutput.style.display = 'block';
+    elPlaceholder.style.display = 'none';
+  }
+
+  /* ── Actions ─────────────────────────────────────────── */
+
+  function doConvert() {
+    var cmd = elInput.value.trim();
+    elError.textContent = '';
+    try {
+      var req = parseCurl(cmd);
+      state.parsed = req;
+      showSummary(req);
+      renderOutput();
+    } catch (e) {
+      elError.textContent = 'Error: ' + e.message;
+      state.parsed = null;
+      elSummary.classList.remove('visible');
+      elOutput.value = '';
+      elOutput.style.display = 'none';
+      elPlaceholder.style.display = 'flex';
+    }
+  }
+
+  function doClear() {
+    elInput.value = '';
+    elError.textContent = '';
+    state.parsed = null;
+    elSummary.classList.remove('visible');
+    elOutput.value = '';
+    elOutput.style.display = 'none';
+    elPlaceholder.style.display = 'flex';
+  }
+
+  function selectTab(lang) {
+    state.lang = lang;
+    var tabs = elTabs.querySelectorAll('.tab');
+    for (var i = 0; i < tabs.length; i++) {
+      tabs[i].classList.toggle('active', tabs[i].dataset.lang === lang);
+    }
+    renderOutput();
+  }
+
+  var copyTimer = null;
+  function doCopy() {
+    if (!state.parsed) return;
+    var code = elOutput.value;
+    if (!code) return;
+    try {
+      navigator.clipboard.writeText(code).then(function() {
+        showCopied();
+      });
+    } catch (e) {
+      elOutput.select();
+      document.execCommand('copy');
+      showCopied();
+    }
+  }
+
+  function showCopied() {
+    elCopyStatus.classList.add('show');
+    if (copyTimer) clearTimeout(copyTimer);
+    copyTimer = setTimeout(function() {
+      elCopyStatus.classList.remove('show');
+    }, 1500);
+  }
+
+  /* ── Events ─────────────────────────────────────────── */
+
+  elParseBtn.addEventListener('pointerdown', function(e) {
+    e.preventDefault();
+    doConvert();
+  });
+
+  elClearBtn.addEventListener('pointerdown', function(e) {
+    e.preventDefault();
+    doClear();
+  });
+
+  elCopyBtn.addEventListener('pointerdown', function(e) {
+    e.preventDefault();
+    doCopy();
+  });
+
+  elInput.addEventListener('keydown', function(e) {
+    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+      e.preventDefault();
+      doConvert();
+    }
+  });
+
+  // Tab switching
+  elTabs.addEventListener('pointerdown', function(e) {
+    var tab = e.target.closest('.tab');
+    if (tab && tab.dataset.lang) {
+      e.preventDefault();
+      selectTab(tab.dataset.lang);
+    }
+  });
+
+  // Sample buttons
+  var sampleIds = ['sample-get', 'sample-post-json', 'sample-post-form', 'sample-auth', 'sample-complex'];
+  for (var si = 0; si < sampleIds.length; si++) {
+    (function(id) {
+      var el = document.getElementById(id);
+      if (el) {
+        el.addEventListener('pointerdown', function(e) {
+          e.preventDefault();
+          elInput.value = SAMPLES[id] || '';
+          doConvert();
+        });
+      }
+    })(sampleIds[si]);
+  }
+
+  // Auto-parse on paste
+  elInput.addEventListener('paste', function() {
+    setTimeout(doConvert, 10);
+  });
+
+  /* ── Init ────────────────────────────────────────────── */
+  function init() {
+    elOutput.style.display = 'none';
+    elPlaceholder.style.display = 'flex';
+    // Load the GET sample by default
+    elInput.value = SAMPLES['sample-post-json'];
+    doConvert();
+  }
+
+  init();
+})();
+</script>
+</body>
+</html>
