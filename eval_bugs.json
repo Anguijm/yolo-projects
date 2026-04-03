@@ -1,0 +1,184 @@
+[
+  {
+    "pattern_id": "url-double-slash-in-string",
+    "description": "http:// or https:// URLs in JS string literals break comment-stripping brace-balance checkers. The // triggers the //.*$ comment regex, truncating the line and leaving an unclosed string.",
+    "detection_regex": "(?:\"[^\"]*https?://|'[^']*https?://)[^\"']*[\"']",
+    "example_bad": "const ns = \"http://www.w3.org/2000/svg\";",
+    "example_fix": "const ns = \"http:\\x2f\\x2fwww.w3.org\\x2f2000\\x2fsvg\";\n// or: const ns = 'http:' + '//www.w3.org/2000/svg';"
+  },
+  {
+    "pattern_id": "missing-clipboard-fallback",
+    "description": "navigator.clipboard.writeText() fails silently on HTTP (non-HTTPS) contexts or when permissions are denied. An empty .catch() or no fallback means copy silently fails.",
+    "detection_regex": "navigator\\.clipboard\\.writeText\\([^)]+\\)(?:\\.catch\\(\\s*(?:function\\s*\\(\\)\\s*\\{\\s*\\}|\\(\\)\\s*=>\\s*\\{\\s*\\}|\\w+)\\))?(?!\\s*\\.then)",
+    "example_bad": "navigator.clipboard.writeText(text).catch(() => {});\nshowToast('Copied!');",
+    "example_fix": "if (navigator.clipboard && window.isSecureContext) {\n  navigator.clipboard.writeText(text).then(() => showToast('Copied!')).catch(fallback);\n} else {\n  fallback();\n}\nfunction fallback() {\n  const ta = document.createElement('textarea');\n  ta.value = text; ta.style.position = 'fixed'; ta.style.left = '-9999px';\n  document.body.appendChild(ta); ta.select();\n  document.execCommand('copy'); document.body.removeChild(ta);\n  showToast('Copied!');\n}"
+  },
+  {
+    "pattern_id": "getboundingclientrect-in-loop",
+    "description": "Calling getBoundingClientRect() or getComputedStyle() inside render loops or hot paths causes forced synchronous reflow, killing performance at 60fps.",
+    "detection_regex": "(?:function\\s+(?:render|draw|update|tick|animate|loop|frame).*\\{[\\s\\S]*?|requestAnimationFrame[\\s\\S]*?)(?:getBoundingClientRect|getComputedStyle)",
+    "example_bad": "function render() {\n  const rect = canvas.getBoundingClientRect();\n  // ... draw using rect ...\n  requestAnimationFrame(render);\n}",
+    "example_fix": "let cachedRect;\nfunction onResize() { cachedRect = canvas.getBoundingClientRect(); }\nwindow.addEventListener('resize', onResize);\nonResize();\nfunction render() {\n  // ... draw using cachedRect ...\n  requestAnimationFrame(render);\n}"
+  },
+  {
+    "pattern_id": "missing-event-cleanup",
+    "description": "Event listeners attached with addEventListener are never removed, or setInterval/setTimeout IDs are not tracked for cleanup, causing memory leaks and ghost callbacks.",
+    "detection_regex": "(?:setInterval|setTimeout)\\s*\\([^)]+\\)(?!\\s*;\\s*(?:var|let|const|\\w+\\s*=))",
+    "example_bad": "setInterval(scheduler, 25);\nsetTimeout(() => card.flip(), 300);",
+    "example_fix": "const schedulerId = setInterval(scheduler, 25);\nconst flipTimeout = setTimeout(() => card.flip(), 300);\n// In cleanup:\nclearInterval(schedulerId);\nclearTimeout(flipTimeout);"
+  },
+  {
+    "pattern_id": "classname-overwrite",
+    "description": "Setting el.className = 'value' destroys ALL existing classes including animation, state, and dynamic classes. Use classList.add/remove instead.",
+    "detection_regex": "\\.className\\s*=\\s*['\"]",
+    "example_bad": "cell.className = 'cell player1';",
+    "example_fix": "cell.classList.remove('player1', 'player2');\ncell.classList.add('player1');"
+  },
+  {
+    "pattern_id": "for-in-on-objects",
+    "description": "Using for...in to iterate object keys is vulnerable to prototype pollution in environments where you cannot control the global scope. Use Object.keys() or Object.entries() instead.",
+    "detection_regex": "for\\s*\\(\\s*(?:var|let|const)?\\s*\\w+\\s+in\\s+(?!\\[)",
+    "example_bad": "for (var key in stats) {\n  total += stats[key];\n}",
+    "example_fix": "Object.keys(stats).forEach(function(key) {\n  total += stats[key];\n});"
+  },
+  {
+    "pattern_id": "falsy-zero-default",
+    "description": "Using || for numeric defaults treats 0 as falsy, making zero an impossible input value. parseInt(v) || 32 silently converts 0 to 32.",
+    "detection_regex": "(?:parseInt|parseFloat|Number)\\([^)]+\\)\\s*\\|\\|\\s*\\d+",
+    "example_bad": "const shift = parseInt(input.value) || 3;\nconst size = parseFloat(slider.value) || 32;",
+    "example_fix": "let shift = parseInt(input.value, 10);\nif (isNaN(shift)) shift = 3;\nlet size = parseFloat(slider.value);\nif (isNaN(size)) size = 32;"
+  },
+  {
+    "pattern_id": "missing-deleteShader",
+    "description": "WebGL fragment/vertex shaders must be deleted with gl.deleteShader() after linking the program. Otherwise GPU memory leaks on every recompile.",
+    "detection_regex": "gl\\.linkProgram\\([^)]+\\)(?![\\s\\S]*?gl\\.deleteShader)",
+    "example_bad": "gl.attachShader(prog, vertShader);\ngl.attachShader(prog, fragShader);\ngl.linkProgram(prog);",
+    "example_fix": "gl.attachShader(prog, vertShader);\ngl.attachShader(prog, fragShader);\ngl.linkProgram(prog);\ngl.deleteShader(vertShader);\ngl.deleteShader(fragShader);"
+  },
+  {
+    "pattern_id": "raf-no-dt-cap",
+    "description": "requestAnimationFrame pauses when the tab is hidden but performance.now() keeps counting. On return, the delta can be minutes, causing physics explosions or instant timeouts.",
+    "detection_regex": "requestAnimationFrame[\\s\\S]{0,300}(?:performance\\.now|Date\\.now|timestamp)[\\s\\S]{0,200}(?:dt|delta|elapsed)\\s*=(?![\\s\\S]{0,100}Math\\.min)",
+    "example_bad": "function tick(ts) {\n  const dt = (ts - lastTs) / 1000;\n  update(dt);\n  requestAnimationFrame(tick);\n}",
+    "example_fix": "function tick(ts) {\n  const dt = Math.min((ts - lastTs) / 1000, 0.05);\n  update(dt);\n  requestAnimationFrame(tick);\n}"
+  },
+  {
+    "pattern_id": "regex-in-render-loop",
+    "description": "Compiling regex with new RegExp() inside a render loop or hot path wastes CPU. Pre-compile regex outside the loop.",
+    "detection_regex": "(?:for\\s*\\(|while\\s*\\(|function\\s+(?:render|draw|update|tick))[\\s\\S]*?new\\s+RegExp\\(",
+    "example_bad": "function render(items) {\n  for (var i = 0; i < items.length; i++) {\n    var match = items[i].match(new RegExp(pattern));\n  }\n}",
+    "example_fix": "var compiledPattern = new RegExp(pattern);\nfunction render(items) {\n  for (var i = 0; i < items.length; i++) {\n    var match = items[i].match(compiledPattern);\n  }\n}"
+  },
+  {
+    "pattern_id": "innerhtml-xss",
+    "description": "User input or external data injected into innerHTML without escaping HTML entities enables XSS attacks. Even 'safe' data can contain <, >, &, quotes.",
+    "detection_regex": "\\.innerHTML\\s*(?:=|\\+=)\\s*(?!(?:'<|\"<|`<))[^;]*(?:input|value|text|data|name|title|user|arg|param|query)",
+    "example_bad": "el.innerHTML = '<span>' + userName + '</span>';",
+    "example_fix": "function escHtml(s) {\n  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')\n    .replace(/\"/g,'&quot;').replace(/'/g,'&#39;');\n}\nel.innerHTML = '<span>' + escHtml(userName) + '</span>';"
+  },
+  {
+    "pattern_id": "stale-timeout-on-reset",
+    "description": "Game reset or state change does not clear pending setTimeout/setInterval callbacks, causing ghost callbacks that corrupt the new state.",
+    "detection_regex": "(?:function\\s+(?:newGame|reset|restart|init))[\\s\\S]*?\\{(?![\\s\\S]*?clearTimeout|[\\s\\S]*?clearInterval)",
+    "example_bad": "function newGame() {\n  score = 0;\n  board = createBoard();\n  render();\n}",
+    "example_fix": "function newGame() {\n  clearTimeout(evalTimeout);\n  clearTimeout(flipTimeout);\n  clearInterval(gameTimer);\n  score = 0;\n  board = createBoard();\n  render();\n}"
+  },
+  {
+    "pattern_id": "missing-pointercancel",
+    "description": "Handling pointerdown and pointerup but not pointercancel leaves drag state stuck when the OS interrupts a gesture (notification, orientation change).",
+    "detection_regex": "addEventListener\\(['\"]pointerdown['\"](?![\\s\\S]*?addEventListener\\(['\"]pointercancel['\"])",
+    "example_bad": "canvas.addEventListener('pointerdown', onDown);\ncanvas.addEventListener('pointerup', onUp);",
+    "example_fix": "canvas.addEventListener('pointerdown', onDown);\ncanvas.addEventListener('pointerup', onUp);\ncanvas.addEventListener('pointercancel', onUp);\ncanvas.addEventListener('pointerleave', onUp);"
+  },
+  {
+    "pattern_id": "exponentialramp-from-zero",
+    "description": "Web Audio exponentialRampToValueAtTime() throws DOMException when gain is exactly 0. Use setTargetAtTime() for release envelopes, or clamp starting value to >= 0.001.",
+    "detection_regex": "exponentialRampToValueAtTime\\s*\\(\\s*0*\\.?0+\\s*,",
+    "example_bad": "gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.15);",
+    "example_fix": "gain.gain.cancelScheduledValues(ctx.currentTime);\ngain.gain.setValueAtTime(gain.gain.value || 0.001, ctx.currentTime);\ngain.gain.setTargetAtTime(0.001, ctx.currentTime, 0.05);"
+  },
+  {
+    "pattern_id": "canvas-created-in-loop",
+    "description": "Creating canvas elements or calling createElement('canvas') inside a render loop leaks memory and will crash the tab by exceeding the browser's canvas context limit.",
+    "detection_regex": "(?:function\\s+(?:render|draw|update|tick|animate|frame)|requestAnimationFrame)[\\s\\S]*?createElement\\(['\"]canvas['\"]\\)",
+    "example_bad": "function render() {\n  var offscreen = document.createElement('canvas');\n  // ... use offscreen ...\n  requestAnimationFrame(render);\n}",
+    "example_fix": "var offscreen = document.createElement('canvas');\nfunction render() {\n  // ... reuse offscreen ...\n  requestAnimationFrame(render);\n}"
+  },
+  {
+    "pattern_id": "missing-raf-cancel",
+    "description": "requestAnimationFrame loops that can be re-triggered without cancelling the previous frame ID cause exponentially multiplying concurrent animation loops.",
+    "detection_regex": "requestAnimationFrame\\s*\\([^)]+\\)(?![\\s\\S]{0,50}cancelAnimationFrame)",
+    "example_bad": "function startAnimation() {\n  function loop() {\n    draw();\n    requestAnimationFrame(loop);\n  }\n  requestAnimationFrame(loop);\n}",
+    "example_fix": "var animId;\nfunction startAnimation() {\n  cancelAnimationFrame(animId);\n  function loop() {\n    draw();\n    animId = requestAnimationFrame(loop);\n  }\n  animId = requestAnimationFrame(loop);\n}"
+  },
+  {
+    "pattern_id": "toiso-local-date-bug",
+    "description": "toISOString().slice(0,10) returns UTC date which can be a different day than the user's local date. Use getFullYear/getMonth/getDate for local dates.",
+    "detection_regex": "toISOString\\(\\)\\.slice\\(0\\s*,\\s*10\\)",
+    "example_bad": "const today = new Date().toISOString().slice(0, 10);",
+    "example_fix": "const d = new Date();\nconst today = d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');"
+  },
+  {
+    "pattern_id": "split-empty-string-surrogate",
+    "description": "String.split('') breaks UTF-16 surrogate pairs (emojis, CJK extension B+). Use [...str] or Array.from(str) for character-level operations.",
+    "detection_regex": "\\.split\\(['\"]['\"]\\)",
+    "example_bad": "const chars = text.split('');",
+    "example_fix": "const chars = [...text];\n// or: const chars = Array.from(text);"
+  },
+  {
+    "pattern_id": "mouseup-on-canvas-only",
+    "description": "Attaching mouseup/pointerup to canvas only means drags that escape the canvas boundary leave the drag state stuck. Attach to window instead.",
+    "detection_regex": "canvas\\.addEventListener\\(['\"](?:mouseup|pointerup)['\"]",
+    "example_bad": "canvas.addEventListener('mouseup', onUp);",
+    "example_fix": "window.addEventListener('mouseup', onUp);"
+  },
+  {
+    "pattern_id": "unbounded-array-growth",
+    "description": "Arrays that grow with push() every frame without a cap will eventually crash. Trail arrays, particle arrays, and history arrays need maximum length enforcement.",
+    "detection_regex": "(?:trail|history|points|path|particles|buffer)\\.push\\([^)]+\\)(?![\\s\\S]{0,80}(?:\\.shift|splice|length\\s*>|while))",
+    "example_bad": "function update() {\n  trail.push({x: player.x, y: player.y});\n}",
+    "example_fix": "var MAX_TRAIL = 500;\nfunction update() {\n  trail.push({x: player.x, y: player.y});\n  while (trail.length > MAX_TRAIL) trail.shift();\n}"
+  },
+  {
+    "pattern_id": "dom-query-in-render",
+    "description": "DOM queries (getElementById, querySelector, querySelectorAll) inside render loops or hot paths trigger layout recalculation every frame. Cache element references at init.",
+    "detection_regex": "(?:function\\s+(?:render|draw|update|tick|animate|frame|loop)|requestAnimationFrame)[\\s\\S]*?(?:getElementById|querySelector|querySelectorAll)\\(",
+    "example_bad": "function render() {\n  document.getElementById('score').textContent = score;\n  document.getElementById('fps').textContent = fps;\n  requestAnimationFrame(render);\n}",
+    "example_fix": "var scoreEl = document.getElementById('score');\nvar fpsEl = document.getElementById('fps');\nfunction render() {\n  scoreEl.textContent = score;\n  fpsEl.textContent = fps;\n  requestAnimationFrame(render);\n}"
+  },
+  {
+    "pattern_id": "no-audiocontext-resume",
+    "description": "AudioContext starts in suspended state on iOS/Safari. Failing to call audioCtx.resume() after creation results in permanent silence on mobile browsers.",
+    "detection_regex": "new\\s+(?:window\\.)?AudioContext(?![\\s\\S]{0,200}\\.resume\\(\\))",
+    "example_bad": "const ctx = new AudioContext();",
+    "example_fix": "const ctx = new AudioContext();\nctx.resume();"
+  },
+  {
+    "pattern_id": "a-an-grammar",
+    "description": "Using 'a' before vowel-starting words ('a orange', 'a elegant') is a grammar error. Apply regex-based a/an correction for user-facing text.",
+    "detection_regex": "\\ba\\s+(?=[aeiouAEIOU]\\w)",
+    "example_bad": "return 'a ' + adjective + ' day';",
+    "example_fix": "function aOrAn(word) {\n  return /^[aeiouAEIOU]/.test(word) ? 'an' : 'a';\n}\nreturn aOrAn(adjective) + ' ' + adjective + ' day';"
+  },
+  {
+    "pattern_id": "revoke-object-url",
+    "description": "URL.createObjectURL() creates persistent blob URLs. Not calling revokeObjectURL() after use causes memory leaks that will eventually crash the tab.",
+    "detection_regex": "URL\\.createObjectURL\\([^)]+\\)(?![\\s\\S]{0,300}revokeObjectURL)",
+    "example_bad": "const url = URL.createObjectURL(blob);\nlink.href = url;",
+    "example_fix": "const url = URL.createObjectURL(blob);\nlink.href = url;\nsetTimeout(() => URL.revokeObjectURL(url), 5000);"
+  },
+  {
+    "pattern_id": "float-buffer-size",
+    "description": "Web Audio createBuffer() requires integer length. sampleRate * duration can produce non-integer values, crashing with an error.",
+    "detection_regex": "createBuffer\\([^,]+,\\s*(?:(?:audioCtx|ctx|actx|context)\\.sampleRate\\s*\\*|sampleRate\\s*\\*)(?!.*Math\\.floor)",
+    "example_bad": "const buf = ctx.createBuffer(1, ctx.sampleRate * 0.15, ctx.sampleRate);",
+    "example_fix": "const buf = ctx.createBuffer(1, Math.floor(ctx.sampleRate * 0.15), ctx.sampleRate);"
+  },
+  {
+    "pattern_id": "markdown-code-block-order",
+    "description": "Custom markdown parsers must extract code blocks BEFORE running bold/italic/heading transforms. Otherwise inline patterns corrupt code content.",
+    "detection_regex": "(?:replace\\([^)]*\\*\\*|replace\\([^)]*__)[\\s\\S]*?(?:replace\\([^)]*```|replace\\([^)]*`[^`])",
+    "example_bad": "text = text.replace(/\\*\\*(.+?)\\*\\*/g, '<b>$1</b>');\ntext = text.replace(/```([\\s\\S]+?)```/g, '<pre>$1</pre>');",
+    "example_fix": "// Extract code blocks first\nvar codeBlocks = [];\ntext = text.replace(/```([\\s\\S]+?)```/g, function(m, c) {\n  codeBlocks.push(c); return '%%CODE' + (codeBlocks.length-1) + '%%';\n});\ntext = text.replace(/\\*\\*(.+?)\\*\\*/g, '<b>$1</b>');\n// Restore code blocks\ntext = text.replace(/%%CODE(\\d+)%%/g, function(m, i) {\n  return '<pre>' + escHtml(codeBlocks[i]) + '</pre>';\n});"
+  }
+]
