@@ -1,0 +1,987 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="theme-color" content="#000000">
+<title>yaml-fmt</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body {
+  height: 100%;
+  background: #0a0a0a;
+  overflow-y: auto;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+body {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Courier New", monospace;
+  color: #ccc;
+}
+:root {
+  --bg-page: #0a0a0a;
+  --bg-surface: #111;
+  --bg-elevated: #1a1a1a;
+  --bg-hover: #222;
+  --text-primary: #fff;
+  --text-body: #ccc;
+  --text-secondary: #aaa;
+  --text-tertiary: #555;
+  --text-label: #444;
+  --text-muted: #333;
+  --border-default: #1a1a1a;
+  --border-subtle: #111;
+  --border-visible: #222;
+  --border-active: #444;
+  --border-focus: #555;
+  --color-success: #3fb950;
+  --color-error: #f85149;
+  --accent: #0ff;
+}
+#app {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  gap: 8px;
+}
+#header {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+}
+#header h1 {
+  font-size: 0.85rem;
+  font-weight: 200;
+  color: var(--text-primary);
+  text-transform: uppercase;
+  letter-spacing: 0.2em;
+}
+#header span {
+  font-size: 0.45rem;
+  color: var(--text-label);
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
+}
+#toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+.btn-group {
+  display: flex;
+  gap: 0;
+}
+.btn-group .btn { margin-left: -1px; }
+.btn-group .btn:first-child { margin-left: 0; }
+.sep {
+  width: 1px;
+  height: 18px;
+  background: var(--border-visible);
+  margin: 0 4px;
+}
+.btn {
+  padding: 4px 10px;
+  background: transparent;
+  border: 1px solid var(--border-default);
+  color: var(--text-label);
+  font-family: inherit;
+  font-size: 0.55rem;
+  cursor: pointer;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.btn:active { border-color: var(--border-focus); color: #888; }
+.btn.active { border-color: var(--accent); color: var(--accent); }
+#editor-area {
+  display: flex;
+  gap: 8px;
+  flex: 1;
+  min-height: 0;
+}
+#input-panel, #output-panel {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+.panel-label {
+  font-size: 0.45rem;
+  color: var(--text-label);
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
+}
+#input, #output {
+  flex: 1;
+  min-height: 300px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-default);
+  color: var(--text-body);
+  padding: 8px;
+  font-family: inherit;
+  font-size: 0.75rem;
+  resize: none;
+  outline: none;
+  line-height: 1.5;
+  tab-size: 2;
+  white-space: pre;
+  overflow: auto;
+}
+#input:focus { border-color: var(--border-focus); }
+#input::placeholder { color: var(--text-muted); }
+#output { color: var(--text-secondary); }
+#error-bar {
+  display: none;
+  padding: 6px 8px;
+  border-left: 3px solid var(--color-error);
+  background: var(--bg-surface);
+  font-size: 0.55rem;
+  color: var(--color-error);
+  gap: 8px;
+  align-items: center;
+}
+#error-bar.visible { display: flex; }
+#error-msg { flex: 1; }
+#error-line { color: var(--text-tertiary); }
+#stats-bar {
+  padding: 6px 8px;
+  border: 1px solid var(--border-default);
+  font-size: 0.45rem;
+  color: var(--text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+@media (max-width: 639px) {
+  #editor-area { flex-direction: column; }
+  #input, #output { min-height: 200px; }
+}
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="header">
+    <h1>yaml-fmt</h1>
+    <span>YAML formatter &amp; converter</span>
+  </div>
+  <div id="toolbar">
+    <div class="btn-group">
+      <button class="btn active" id="btn-yaml" title="Format output as YAML">YAML</button>
+      <button class="btn" id="btn-json" title="Format output as JSON">JSON</button>
+    </div>
+    <div class="sep"></div>
+    <div class="btn-group">
+      <button class="btn active" id="btn-indent-2" title="Use 2-space indentation">2 sp</button>
+      <button class="btn" id="btn-indent-4" title="Use 4-space indentation">4 sp</button>
+    </div>
+    <div class="sep"></div>
+    <button class="btn" id="btn-sort" title="Sort all keys alphabetically (recursive)">Sort Keys</button>
+    <div class="sep"></div>
+    <button class="btn" id="btn-copy" title="Copy formatted output to clipboard">Copy</button>
+    <button class="btn" id="btn-paste" title="Paste from clipboard into input">Paste</button>
+    <button class="btn" id="btn-clear" title="Clear input and output">Clear</button>
+    <button class="btn" id="btn-sample" title="Load a sample YAML document">Sample</button>
+  </div>
+  <div id="error-bar">
+    <span id="error-msg"></span>
+    <span id="error-line"></span>
+  </div>
+  <div id="editor-area">
+    <div id="input-panel">
+      <span class="panel-label" id="input-label">INPUT</span>
+      <textarea id="input" placeholder="Paste YAML or JSON here..." spellcheck="false"></textarea>
+    </div>
+    <div id="output-panel">
+      <span class="panel-label" id="output-label">OUTPUT</span>
+      <textarea id="output" readonly spellcheck="false"></textarea>
+    </div>
+  </div>
+  <div id="stats-bar">
+    <span><span id="line-count">0</span> lines</span>
+    <span><span id="key-count">0</span> keys</span>
+    <span>depth <span id="depth-count">0</span></span>
+    <span><span id="byte-count">0</span> B</span>
+  </div>
+</div>
+<script>
+(function() {
+  "use strict";
+
+  /* ===== YAML PARSER ===== */
+
+  function parseYaml(text) {
+    var lines = text.split("\n");
+    var root = undefined;
+    var stack = [];
+    var i = 0;
+
+    function currentIndent(line) {
+      var m = line.match(/^( *)/);
+      return m ? m[1].length : 0;
+    }
+
+    function trimComment(val) {
+      var inSingle = false, inDouble = false;
+      for (var j = 0; j < val.length; j++) {
+        var cc = val.charCodeAt(j);
+        var isEscaped = (j > 0 && val.charCodeAt(j - 1) === 92);
+        if (cc === 39 && !inDouble && !isEscaped) inSingle = !inSingle;
+        else if (cc === 34 && !inSingle && !isEscaped) inDouble = !inDouble;
+        else if (cc === 35 && !inSingle && !inDouble) {
+          if (j === 0 || val[j - 1] === " ") return val.substring(0, j).trimEnd();
+        }
+      }
+      return val;
+    }
+
+    function parseScalar(val) {
+      val = trimComment(val).trim();
+      if (val === "" || val === "~" || val === "null" || val === "Null" || val === "NULL") return null;
+      if (val === "true" || val === "True" || val === "TRUE" || val === "yes" || val === "Yes" || val === "YES" || val === "on" || val === "On" || val === "ON") return true;
+      if (val === "false" || val === "False" || val === "FALSE" || val === "no" || val === "No" || val === "NO" || val === "off" || val === "Off" || val === "OFF") return false;
+      if (/^-?\d+$/.test(val)) { var n = parseInt(val, 10); if (n >= Number.MIN_SAFE_INTEGER && n <= Number.MAX_SAFE_INTEGER) return n; }
+      if (/^-?(\d+\.?\d*|\.\d+)([eE][+-]?\d+)?$/.test(val) && val !== "") { var f = parseFloat(val); if (!isNaN(f)) return f; }
+      if (val === ".inf" || val === ".Inf" || val === ".INF") return Infinity;
+      if (val === "-.inf" || val === "-.Inf" || val === "-.INF") return -Infinity;
+      if (val === ".nan" || val === ".NaN" || val === ".NAN") return NaN;
+      if ((val.charCodeAt(0) === 34 && val.charCodeAt(val.length - 1) === 34) || (val.charCodeAt(0) === 39 && val.charCodeAt(val.length - 1) === 39)) {
+        return val.slice(1, -1);
+      }
+      return val;
+    }
+
+    function parseFlowValue(val) {
+      val = val.trim();
+      if (val === "") return "";
+      if (val.charCodeAt(0) === 123) return parseFlowMapping(val);
+      if (val.charCodeAt(0) === 91) return parseFlowSequence(val);
+      return parseScalar(val);
+    }
+
+    function parseFlowSequence(str) {
+      str = str.trim();
+      if (str.charCodeAt(0) !== 91) return parseScalar(str);
+      str = str.slice(1);
+      if (str.charCodeAt(str.length - 1) === 93) str = str.slice(0, -1);
+      var result = [];
+      var items = splitFlowItems(str);
+      for (var j = 0; j < items.length; j++) {
+        var item = items[j].trim();
+        if (item !== "") result.push(parseFlowValue(item));
+      }
+      return result;
+    }
+
+    function parseFlowMapping(str) {
+      str = str.trim();
+      if (str.charCodeAt(0) !== 123) return parseScalar(str);
+      str = str.slice(1);
+      if (str.charCodeAt(str.length - 1) === 125) str = str.slice(0, -1);
+      var result = Object.create(null);
+      var items = splitFlowItems(str);
+      for (var j = 0; j < items.length; j++) {
+        var item = items[j].trim();
+        if (item === "") continue;
+        var colonIdx = item.indexOf(":");
+        if (colonIdx === -1) continue;
+        var k = item.substring(0, colonIdx).trim();
+        var v = item.substring(colonIdx + 1).trim();
+        if ((k.charCodeAt(0) === 34 && k.charCodeAt(k.length - 1) === 34) || (k.charCodeAt(0) === 39 && k.charCodeAt(k.length - 1) === 39)) k = k.slice(1, -1);
+        result[k] = parseFlowValue(v);
+      }
+      return result;
+    }
+
+    function splitFlowItems(str) {
+      var items = [];
+      var depth = 0;
+      var current = "";
+      var inSingle = false, inDouble = false;
+      for (var j = 0; j < str.length; j++) {
+        var c = str[j];
+        var isEsc = (j > 0 && str.charCodeAt(j - 1) === 92);
+        if (c.charCodeAt(0) === 39 && !inDouble && !isEsc) inSingle = !inSingle;
+        else if (c.charCodeAt(0) === 34 && !inSingle && !isEsc) inDouble = !inDouble;
+        if (!inSingle && !inDouble) {
+          if (c.charCodeAt(0) === 91 || c.charCodeAt(0) === 123) depth++;
+          else if (c.charCodeAt(0) === 93 || c.charCodeAt(0) === 125) depth--;
+          else if (c === "," && depth === 0) {
+            items.push(current);
+            current = "";
+            continue;
+          }
+        }
+        current += c;
+      }
+      if (current.trim() !== "") items.push(current);
+      return items;
+    }
+
+    function collectBlock(startLine, baseIndent) {
+      var blockLines = [];
+      for (var j = startLine; j < lines.length; j++) {
+        var l = lines[j];
+        if (l.trim() === "" || currentIndent(l) > baseIndent) {
+          blockLines.push(l);
+        } else {
+          break;
+        }
+      }
+      return blockLines;
+    }
+
+    function parseBlock(startIdx, endIdx, parentIndent) {
+      var idx = startIdx;
+      var result = undefined;
+      var isArray = false;
+      var isMap = false;
+
+      while (idx < endIdx) {
+        var line = lines[idx];
+        var trimmed = line.trim();
+
+        if (trimmed === "" || trimmed[0] === "#" || trimmed === "---" || trimmed === "...") {
+          idx++;
+          continue;
+        }
+
+        var indent = currentIndent(line);
+        if (indent < parentIndent) break;
+        if (indent > parentIndent && result !== undefined) break;
+        if (indent > parentIndent && result === undefined) { parentIndent = indent; }
+
+        if (trimmed[0] === "-" && (trimmed.length === 1 || trimmed[1] === " ")) {
+          if (result === undefined) { result = []; isArray = true; }
+          if (!isArray) break;
+
+          var afterDash = trimmed.length > 2 ? trimmed.substring(2) : "";
+          var colonMatch = afterDash.match(new RegExp("^([^:" + "{}" + "\\[\\]]+?):\\s*(.*)"));
+
+          if (afterDash === "" || afterDash.trim() === "") {
+            var childLines = collectBlock(idx + 1, indent + 2);
+            if (childLines.length > 0) {
+              var subEnd = idx + 1 + childLines.length;
+              var child = parseBlock(idx + 1, subEnd, indent + 2);
+              result.push(child !== undefined ? child : null);
+              idx = subEnd;
+            } else {
+              result.push(null);
+              idx++;
+            }
+          } else if (colonMatch && afterDash.trim().charCodeAt(0) !== 123 && afterDash.trim().charCodeAt(0) !== 91 && afterDash.trim().charCodeAt(0) !== 39 && afterDash.trim().charCodeAt(0) !== 34) {
+            var mapObj = Object.create(null);
+            var subStart = idx;
+            var dashIndent = indent + 2;
+            var tempIdx = idx;
+
+            while (tempIdx < endIdx) {
+              var tl = lines[tempIdx];
+              var tt = tl.trim();
+              if (tt === "" || tt[0] === "#") { tempIdx++; continue; }
+              var ti = currentIndent(tl);
+
+              if (tempIdx === subStart) {
+                var cm = afterDash.match(new RegExp("^([^:" + "{}" + "\\[\\]]+?):\\s*(.*)"));
+                if (cm) {
+                  var mk = cm[1].trim();
+                  if ((mk.charCodeAt(0) === 34 && mk.charCodeAt(mk.length - 1) === 34) || (mk.charCodeAt(0) === 39 && mk.charCodeAt(mk.length - 1) === 39)) mk = mk.slice(1, -1);
+                  var mv = cm[2];
+                  if (mv === "" || mv.trim() === "") {
+                    var childBlock = collectBlock(tempIdx + 1, dashIndent);
+                    if (childBlock.length > 0) {
+                      var cbEnd = tempIdx + 1 + childBlock.length;
+                      mapObj[mk] = parseBlock(tempIdx + 1, cbEnd, dashIndent);
+                      tempIdx = cbEnd;
+                    } else {
+                      mapObj[mk] = null;
+                      tempIdx++;
+                    }
+                  } else {
+                    mapObj[mk] = parseFlowValue(mv);
+                    tempIdx++;
+                  }
+                } else {
+                  tempIdx++;
+                }
+              } else if (ti >= dashIndent) {
+                var km = tt.match(new RegExp("^([^:" + "{}" + "\\[\\]]+?):\\s*(.*)"));
+                if (km) {
+                  var kk = km[1].trim();
+                  if ((kk.charCodeAt(0) === 34 && kk.charCodeAt(kk.length - 1) === 34) || (kk.charCodeAt(0) === 39 && kk.charCodeAt(kk.length - 1) === 39)) kk = kk.slice(1, -1);
+                  var kv = km[2];
+                  if (kv === "" || kv.trim() === "") {
+                    var childBlock2 = collectBlock(tempIdx + 1, ti + 2);
+                    if (childBlock2.length > 0) {
+                      var cb2End = tempIdx + 1 + childBlock2.length;
+                      mapObj[kk] = parseBlock(tempIdx + 1, cb2End, ti + 2);
+                      tempIdx = cb2End;
+                    } else {
+                      mapObj[kk] = null;
+                      tempIdx++;
+                    }
+                  } else {
+                    mapObj[kk] = parseFlowValue(kv);
+                    tempIdx++;
+                  }
+                } else {
+                  break;
+                }
+              } else {
+                break;
+              }
+            }
+            result.push(mapObj);
+            idx = tempIdx;
+          } else {
+            result.push(parseFlowValue(afterDash));
+            idx++;
+          }
+        } else {
+          var keyMatch = trimmed.match(new RegExp("^([^:" + "{}" + "\\[\\]]+?):\\s*(.*)"));
+          if (keyMatch) {
+            if (result === undefined) { result = Object.create(null); isMap = true; }
+            if (!isMap) break;
+
+            var key = keyMatch[1].trim();
+            if ((key.charCodeAt(0) === 34 && key.charCodeAt(key.length - 1) === 34) || (key.charCodeAt(0) === 39 && key.charCodeAt(key.length - 1) === 39)) key = key.slice(1, -1);
+            var value = keyMatch[2];
+
+            if (value === "" || value.trim() === "") {
+              var nextIdx = idx + 1;
+              while (nextIdx < endIdx && lines[nextIdx].trim() === "") nextIdx++;
+              if (nextIdx < endIdx && currentIndent(lines[nextIdx]) > indent) {
+                var nextTrimmed = lines[nextIdx].trim();
+                if (nextTrimmed[0] === "|" || nextTrimmed[0] === ">") {
+                  idx++;
+                  continue;
+                }
+                var childBlock3 = collectBlock(idx + 1, indent);
+                var cb3End = idx + 1 + childBlock3.length;
+                result[key] = parseBlock(idx + 1, cb3End, indent + 2);
+                idx = cb3End;
+              } else {
+                result[key] = null;
+                idx++;
+              }
+            } else if (/^\s*([|>][+-]?)\s*(#.*)?$/.test(value)) {
+              var blockStyle = value.trim().replace(/\s*#.*$/, "");
+              var litLines = [];
+              var j2 = idx + 1;
+              while (j2 < endIdx) {
+                var bl = lines[j2];
+                if (bl.trim() === "") { litLines.push(""); j2++; continue; }
+                if (currentIndent(bl) > indent) {
+                  litLines.push(bl.substring(indent + 2));
+                  j2++;
+                } else {
+                  break;
+                }
+              }
+              var litText;
+              if (blockStyle[0] === "|") {
+                litText = litLines.join("\n");
+              } else {
+                litText = litLines.join(" ").replace(/\s+/g, " ");
+              }
+              if (blockStyle.length > 1 && blockStyle[1] === "-") {
+                litText = litText.replace(new RegExp("[\\n\\s]+$"), "");
+              } else if (blockStyle.length === 1 || blockStyle[1] !== "+") {
+                litText = litText.replace(/\n+$/, "") + "\n";
+              }
+              result[key] = litText;
+              idx = j2;
+            } else {
+              result[key] = parseFlowValue(value);
+              idx++;
+            }
+          } else {
+            if (result === undefined) return parseScalar(trimmed);
+            idx++;
+          }
+        }
+      }
+
+      return result;
+    }
+
+    /* Reject tabs used for indentation only (tabs inside values are fine) */
+    var rawLines = text.split("\n");
+    for (var ti = 0; ti < rawLines.length; ti++) {
+      if (/^\s*\t/.test(rawLines[ti])) {
+        throw { message: "Tab character found (use spaces for indentation)", line: ti + 1, column: null };
+      }
+    }
+
+    lines = rawLines;
+    var result = parseBlock(0, lines.length, 0);
+    return result;
+  }
+
+  /* ===== YAML SERIALIZER ===== */
+
+  function yamlNeedsQuote(val) {
+    if (typeof val !== "string") return false;
+    var lower = val.toLowerCase();
+    var specials = ["true","false","yes","no","on","off","null","~",".inf","-.inf",".nan"];
+    if (specials.indexOf(lower) !== -1) return true;
+    if (/^-?\d+(\.\d+)?([eE][+-]?\d+)?$/.test(val)) return true;
+    if (val === "") return true;
+    if (new RegExp("[:" + "{}" + "\\[\\],&*?|>!%@\`#]").test(val) && val.charCodeAt(0) !== 34 && val.charCodeAt(0) !== 39) return true;
+    if (val.indexOf("\n") !== -1) return false;
+    return false;
+  }
+
+  function yamlQuote(val) {
+    var DQ = String.fromCharCode(34);
+    var SQ = String.fromCharCode(39);
+    if (val.indexOf(DQ) === -1) return DQ + val + DQ;
+    return SQ + val.replace(new RegExp(SQ, "g"), SQ + SQ) + SQ;
+  }
+
+  function formatYaml(data, opts) {
+    var indent = opts.indent || 2;
+    var sortKeys = opts.sortKeys || false;
+
+    function serialize(obj, depth) {
+      var pad = "";
+      for (var p = 0; p < depth * indent; p++) pad += " ";
+      var childPad = "";
+      for (var p2 = 0; p2 < (depth + 1) * indent; p2++) childPad += " ";
+
+      if (obj === null || obj === undefined) return "null";
+      if (typeof obj === "boolean") return obj ? "true" : "false";
+      if (typeof obj === "number") {
+        if (obj !== obj) return ".nan";
+        if (obj === Infinity) return ".inf";
+        if (obj === -Infinity) return "-.inf";
+        return String(obj);
+      }
+      if (typeof obj === "string") {
+        if (obj.indexOf("\n") !== -1) {
+          var litLines = obj.split("\n");
+          var result = "|\n";
+          for (var li = 0; li < litLines.length; li++) {
+            if (litLines[li] === "" && li === litLines.length - 1) continue;
+            result += childPad + litLines[li] + "\n";
+          }
+          return result.replace(/\n$/, "");
+        }
+        if (yamlNeedsQuote(obj)) return yamlQuote(obj);
+        return obj;
+      }
+      if (Array.isArray(obj)) {
+        if (obj.length === 0) return String.fromCharCode(91, 93);
+        var arrLines = [];
+        for (var ai = 0; ai < obj.length; ai++) {
+          var itemVal = serialize(obj[ai], depth + 1);
+          if (typeof obj[ai] === "object" && obj[ai] !== null && !Array.isArray(obj[ai])) {
+            var keys = Object.keys(obj[ai]);
+            if (sortKeys) keys.sort();
+            var firstLine = true;
+            var mapStr = "";
+            for (var ki = 0; ki < keys.length; ki++) {
+              var kv = serialize(obj[ai][keys[ki]], depth + 1);
+              var needsBlock = (typeof obj[ai][keys[ki]] === "object" && obj[ai][keys[ki]] !== null);
+              if (firstLine) {
+                if (needsBlock) {
+                  mapStr += pad + "- " + keys[ki] + ":\n" + childPad + "  " + kv.trim();
+                } else {
+                  mapStr += pad + "- " + keys[ki] + ": " + kv;
+                }
+                firstLine = false;
+              } else {
+                if (needsBlock) {
+                  mapStr += "\n" + childPad + keys[ki] + ":\n" + childPad + "  " + kv.trim();
+                } else {
+                  mapStr += "\n" + childPad + keys[ki] + ": " + kv;
+                }
+              }
+            }
+            arrLines.push(mapStr);
+          } else if (Array.isArray(obj[ai])) {
+            var nested = serialize(obj[ai], depth + 1);
+            arrLines.push(pad + "- " + nested.trim());
+          } else {
+            arrLines.push(pad + "- " + itemVal);
+          }
+        }
+        return arrLines.join("\n");
+      }
+      if (typeof obj === "object") {
+        var okeys = Object.keys(obj);
+        if (sortKeys) okeys.sort();
+        if (okeys.length === 0) return String.fromCharCode(123, 125);
+        var mapLines = [];
+        for (var mi = 0; mi < okeys.length; mi++) {
+          var mkey = okeys[mi];
+          var mval = obj[mkey];
+          var needsQuoteKey = yamlNeedsQuote(mkey);
+          var displayKey = needsQuoteKey ? yamlQuote(mkey) : mkey;
+
+          if (typeof mval === "object" && mval !== null) {
+            var sub = serialize(mval, depth + 1);
+            mapLines.push(pad + displayKey + ":\n" + sub);
+          } else {
+            var sv = serialize(mval, depth + 1);
+            mapLines.push(pad + displayKey + ": " + sv);
+          }
+        }
+        return mapLines.join("\n");
+      }
+      return String(obj);
+    }
+
+    var out = serialize(data, 0);
+    if (!out.endsWith("\n")) out += "\n";
+    return out;
+  }
+
+  function formatJson(data, opts) {
+    var indent = opts.indent || 2;
+    var sortKeys = opts.sortKeys || false;
+
+    if (sortKeys) {
+      data = deepSortKeys(data);
+    }
+    return JSON.stringify(data, null, indent) + "\n";
+  }
+
+  function deepSortKeys(obj) {
+    if (obj === null || typeof obj !== "object") return obj;
+    if (Array.isArray(obj)) return obj.map(deepSortKeys);
+    var sorted = Object.create(null);
+    var keys = Object.keys(obj).sort();
+    for (var i = 0; i < keys.length; i++) {
+      sorted[keys[i]] = deepSortKeys(obj[keys[i]]);
+    }
+    return sorted;
+  }
+
+  /* ===== CORE FUNCTIONS ===== */
+
+  function parseInput(raw) {
+    if (!raw || raw.trim() === "") return { data: null, format: "unknown" };
+
+    var trimmed = raw.trim();
+
+    /* Try JSON first if it looks like JSON */
+    if (trimmed.charCodeAt(0) === 123 || trimmed.charCodeAt(0) === 91) {
+      try {
+        var jsonData = JSON.parse(trimmed);
+        return { data: jsonData, format: "json" };
+      } catch (e) {
+        /* fall through to YAML */
+      }
+    }
+
+    /* Try YAML */
+    try {
+      var yamlData = parseYaml(raw);
+      if (yamlData === undefined) yamlData = null;
+      return { data: yamlData, format: "yaml" };
+    } catch (e) {
+      /* If YAML fails and we haven't tried JSON yet, try JSON */
+      if (trimmed.charCodeAt(0) !== 123 && trimmed.charCodeAt(0) !== 91) {
+        try {
+          var jsonData2 = JSON.parse(trimmed);
+          return { data: jsonData2, format: "json" };
+        } catch (e2) {
+          /* ignore */
+        }
+      }
+      return {
+        error: {
+          message: e.message || "Parse error",
+          line: e.line || null,
+          column: e.column || null
+        }
+      };
+    }
+  }
+
+  function countKeys(obj) {
+    if (obj === null || typeof obj !== "object") return 0;
+    if (Array.isArray(obj)) {
+      var c = 0;
+      for (var i = 0; i < obj.length; i++) c += countKeys(obj[i]);
+      return c;
+    }
+    var keys = Object.keys(obj);
+    var count = keys.length;
+    for (var j = 0; j < keys.length; j++) count += countKeys(obj[keys[j]]);
+    return count;
+  }
+
+  function maxDepth(obj) {
+    if (obj === null || typeof obj !== "object") return 0;
+    if (Array.isArray(obj)) {
+      var d = 0;
+      for (var i = 0; i < obj.length; i++) { var cd = maxDepth(obj[i]); if (cd > d) d = cd; }
+      return d + 1;
+    }
+    var keys = Object.keys(obj);
+    var md = 0;
+    for (var j = 0; j < keys.length; j++) { var kd = maxDepth(obj[keys[j]]); if (kd > md) md = kd; }
+    return md + 1;
+  }
+
+  function computeStats(raw, data) {
+    var lineCount = raw === "" ? 0 : raw.split("\n").length;
+    var byteSize = new Blob([raw]).size;
+    return {
+      lines: lineCount,
+      keys: countKeys(data),
+      depth: maxDepth(data),
+      bytes: byteSize
+    };
+  }
+
+  /* ===== STATE ===== */
+
+  var state = {
+    inputText: "",
+    outputText: "",
+    mode: "yaml",
+    parseError: null,
+    inputFormat: "unknown",
+    stats: { lines: 0, keys: 0, depth: 0, bytes: 0 },
+    lastData: null
+  };
+
+  var formatOpts = { indent: 2, sortKeys: false };
+
+  /* ===== DOM REFS ===== */
+
+  function $(id) { return document.getElementById(id); }
+
+  /* ===== UI HANDLERS ===== */
+
+  function updateStats(stats) {
+    $("line-count").textContent = stats.lines;
+    $("key-count").textContent = stats.keys;
+    $("depth-count").textContent = stats.depth;
+    $("byte-count").textContent = stats.bytes;
+  }
+
+  function showError(err) {
+    $("error-msg").textContent = err.message;
+    $("error-line").textContent = err.line ? "line " + err.line + (err.column ? ":" + err.column : "") : "";
+    $("error-bar").classList.add("visible");
+  }
+
+  function hideError() {
+    $("error-bar").classList.remove("visible");
+    $("error-msg").textContent = "";
+    $("error-line").textContent = "";
+  }
+
+  function highlightErrorLine(line) {
+    /* Simple approach: scroll to approximate line position */
+    var textarea = $("input");
+    var lines = textarea.value.split("\n");
+    var pos = 0;
+    for (var i = 0; i < Math.min(line - 1, lines.length); i++) {
+      pos += lines[i].length + 1;
+    }
+    textarea.setSelectionRange(pos, pos + (lines[line - 1] || "").length);
+    textarea.focus();
+  }
+
+  function clearErrorHighlight() {
+    /* No-op for now; selection clears naturally */
+  }
+
+  function runFormat() {
+    if (state.lastData === null && state.inputText.trim() === "") {
+      $("output").value = "";
+      return;
+    }
+    if (state.lastData === undefined || state.lastData === null) {
+      if (state.inputText.trim() === "") {
+        $("output").value = "";
+      }
+      return;
+    }
+    try {
+      if (state.mode === "json") {
+        state.outputText = formatJson(state.lastData, formatOpts);
+        $("output-label").textContent = "OUTPUT \u2014 JSON";
+      } else {
+        state.outputText = formatYaml(state.lastData, formatOpts);
+        $("output-label").textContent = "OUTPUT \u2014 YAML";
+      }
+      $("output").value = state.outputText;
+    } catch (e) {
+      $("output").value = "/* Format error: " + e.message + " */";
+    }
+  }
+
+  function handleInput() {
+    var raw = $("input").value;
+    state.inputText = raw;
+
+    if (!raw || raw.trim() === "") {
+      state.lastData = null;
+      state.inputFormat = "unknown";
+      $("output").value = "";
+      $("input-label").textContent = "INPUT";
+      hideError();
+      clearErrorHighlight();
+      updateStats({ lines: 0, keys: 0, depth: 0, bytes: 0 });
+      return;
+    }
+
+    /* Size checks */
+    var byteSize = new Blob([raw]).size;
+    if (byteSize > 2 * 1024 * 1024) {
+      showError({ message: "Input exceeds 2MB limit", line: null, column: null });
+      return;
+    }
+    if (byteSize > 500 * 1024) {
+      showError({ message: "Large input \u2014 formatting may be slow", line: null, column: null });
+    }
+
+    var result = parseInput(raw);
+
+    if (result.error) {
+      state.parseError = result.error;
+      showError(result.error);
+      if (result.error.line) highlightErrorLine(result.error.line);
+      return;
+    }
+
+    state.lastData = result.data;
+    state.inputFormat = result.format;
+    state.parseError = null;
+    hideError();
+    clearErrorHighlight();
+
+    $("input-label").textContent = "INPUT \u2014 " + result.format.toUpperCase() + " detected";
+
+    var stats = computeStats(raw, result.data);
+    state.stats = stats;
+    updateStats(stats);
+
+    runFormat();
+  }
+
+  function handleModeToggle(newMode) {
+    state.mode = newMode;
+    $("btn-yaml").classList.toggle("active", newMode === "yaml");
+    $("btn-json").classList.toggle("active", newMode === "json");
+    runFormat();
+  }
+
+  function handleCopy() {
+    var text = $("output").value;
+    if (!text) return;
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(function() {
+        var btn = $("btn-copy");
+        btn.textContent = "COPIED";
+        setTimeout(function() { btn.textContent = "COPY"; }, 1000);
+      }).catch(function() { /* clipboard permission denied */ });
+    }
+  }
+
+  function handleClear() {
+    $("input").value = "";
+    $("output").value = "";
+    state.inputText = "";
+    state.outputText = "";
+    state.lastData = null;
+    state.parseError = null;
+    state.inputFormat = "unknown";
+    hideError();
+    clearErrorHighlight();
+    updateStats({ lines: 0, keys: 0, depth: 0, bytes: 0 });
+    $("input-label").textContent = "INPUT";
+    $("output-label").textContent = "OUTPUT";
+  }
+
+  function handleIndentChange(n) {
+    formatOpts.indent = n;
+    $("btn-indent-2").classList.toggle("active", n === 2);
+    $("btn-indent-4").classList.toggle("active", n === 4);
+    runFormat();
+  }
+
+  function handleSortToggle() {
+    formatOpts.sortKeys = !formatOpts.sortKeys;
+    $("btn-sort").classList.toggle("active", formatOpts.sortKeys);
+    runFormat();
+  }
+
+  function handlePaste() {
+    if (navigator.clipboard && navigator.clipboard.readText) {
+      navigator.clipboard.readText().then(function(text) {
+        if (text) {
+          $("input").value = text;
+          handleInput();
+        }
+      }).catch(function() { /* clipboard permission denied */ });
+    }
+  }
+
+  function handleSample() {
+    var sample = "server:\n  host: localhost\n  port: 8080\n  ssl: true\n  workers: 4\n\ndatabase:\n  engine: postgres\n  host: db.example.com\n  port: 5432\n  name: myapp\n  credentials:\n    username: admin\n    password: secret123\n  pool:\n    min: 5\n    max: 20\n    timeout: 30\n\nlogging:\n  level: info\n  format: json\n  outputs:\n    - type: file\n      path: /var/log/app.log\n    - type: stdout\n      colorize: true\n\nfeatures:\n  - name: dark-mode\n    enabled: true\n    rollout: 100\n  - name: beta-api\n    enabled: false\n    rollout: 0\n\nmetadata:\n  version: \"2.1.0\"\n  environment: production\n  tags:\n    - web\n    - api\n    - microservice\n";
+    $("input").value = sample;
+    handleInput();
+  }
+
+  function debounce(fn, ms) {
+    var timer = null;
+    return function() {
+      var args = arguments;
+      var ctx = this;
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(function() { fn.apply(ctx, args); }, ms);
+    };
+  }
+
+  /* ===== INIT ===== */
+
+  function init() {
+    var debouncedInput = debounce(handleInput, 250);
+
+    $("input").addEventListener("input", debouncedInput);
+    $("btn-yaml").addEventListener("click", function() { handleModeToggle("yaml"); });
+    $("btn-json").addEventListener("click", function() { handleModeToggle("json"); });
+    $("btn-indent-2").addEventListener("click", function() { handleIndentChange(2); });
+    $("btn-indent-4").addEventListener("click", function() { handleIndentChange(4); });
+    $("btn-sort").addEventListener("click", handleSortToggle);
+    $("btn-copy").addEventListener("click", handleCopy);
+    $("btn-paste").addEventListener("click", handlePaste);
+    $("btn-clear").addEventListener("click", handleClear);
+    $("btn-sample").addEventListener("click", handleSample);
+
+    /* Hide paste button if clipboard API unavailable */
+    if (!navigator.clipboard || !navigator.clipboard.readText) {
+      $("btn-paste").style.display = "none";
+    }
+
+    /* Load sample on start */
+    handleSample();
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", init);
+  } else {
+    init();
+  }
+})();
+</script>
+</body>
+</html>
