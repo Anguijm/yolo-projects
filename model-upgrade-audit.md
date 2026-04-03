@@ -69,6 +69,17 @@ Run this audit BEFORE switching to a new Claude model version. The goal is to st
 
 **Action:** Run one full tick-tock cycle on new model with current prompts. Note friction points. Simplify after.
 
+## Layer 5: MCP Spec Changes
+
+**Check before every upgrade:**
+- [ ] Review Anthropic MCP changelog for breaking changes or new capabilities
+- [ ] Check if new tool types are available (streaming, multi-modal, etc.)
+- [ ] Verify Gemini MCP connector still works with new spec version
+- [ ] Check for new auth patterns or connector requirements
+- [ ] Review https://claude.ai/settings/connectors for any connector updates needed
+
+**Action:** If spec changed, update tool calls in cron prompts. If new capabilities available, evaluate for adoption.
+
 ## Post-Audit
 
 1. Create a git branch `model-upgrade/<version>`
