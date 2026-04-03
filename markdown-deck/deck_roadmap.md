@@ -79,6 +79,8 @@ Markdown Deck is a graduated YOLO project operating under Flagship rules: multi-
 
 - **Standalone HTML Export** — "Share" toolbar button exports the full deck as a single self-contained `.html` file: all slides embedded as JSON, inline CSS/JS, arrow-key + click navigation, speaker-notes toggle, and a slide counter. No server required; the recipient opens one file in any browser. High business value for sharing with clients. Effort: medium.
 - **Slide Outline Panel** — Collapsible side panel (toolbar button or `O` shortcut) listing all slide H1 titles as a numbered, clickable outline. Current slide is highlighted; clicking any title jumps to that slide. Solves navigation pain in large decks (20+ slides). Effort: low.
+- **Find & Replace (Ctrl+H)** — Overlay panel in the markdown editor: find text in source, replace single occurrence or all. Separate from Ctrl+F slide search (which searches rendered content). Essential for editing large decks (renaming terms, fixing repeated typos). Effort: low.
+- **Kiosk / Auto-Advance Mode** — Toolbar toggle to enable kiosk mode during presentation: slides auto-advance every N seconds (configurable 5–60s slider), with optional loop. Dismisses on Esc or any key press. High value for lobby screens, conference booths, self-running demos. Effort: low.
 
 ## Approved (Next Tock)
 
@@ -155,3 +157,4 @@ These are features complex enough to prototype as standalone YOLO single-session
 | 2026-04-03 | Tock | Slide search: Ctrl+F overlay, searches slide bodies, highlights matches, keyboard nav (Enter/Esc/Arrows), jump-to-slide |
 | 2026-04-03 | Tock | Notes export: "Notes" toolbar button exports all speaker notes as speaker-notes.md with heading per slide |
 | 2026-04-03 | Tock | Brainstormed 2 features (pending approval): Standalone HTML export, Slide Outline Panel |
+| 2026-04-03 | Tock | Brainstormed 2 features (pending approval): Find & Replace (Ctrl+H), Kiosk/Auto-Advance Mode |
