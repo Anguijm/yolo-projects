@@ -25,8 +25,8 @@ Naval Scribe is a graduated YOLO project operating under Flagship rules alongsid
 
 ## Approved (Next Tock)
 
-- [ ] Inline tables in body text — parse markdown-style tables and render in preview + .docx
-- [ ] Paste-to-parse references — paste a block of references, auto-split into lettered (a), (b), (c) entries
+- [x] Inline tables in body text — parse markdown-style tables and render in preview + .docx
+- [x] Paste-to-parse references — paste a block of references, auto-split into lettered (a), (b), (c) entries
 
 ## Parking Lot
 
@@ -42,3 +42,4 @@ Naval Scribe is a graduated YOLO project operating under Flagship rules alongsid
 |------|------|-----------|
 | 2026-04-02 | Tick | Initial build: 6 correspondence types, .docx export, council review |
 | 2026-04-02 | Tock | Added Memorandum of Agreement with multiple signers |
+| 2026-04-03 | Tock | Inline markdown tables in body (preview + .docx); paste-to-parse references block |

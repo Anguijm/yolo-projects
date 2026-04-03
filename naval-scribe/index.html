@@ -173,7 +173,17 @@ html, body {
     <div class="field" data-types="letter,endorsement,moa">
       <div class="field-label">References</div>
       <div id="ref-list"></div>
-      <button class="add-btn" id="add-ref">+ add ref</button>
+      <div style="display:flex;gap:4px;align-items:center;margin-bottom:4px">
+        <button class="add-btn" id="add-ref">+ add ref</button>
+        <button class="add-btn" id="paste-refs-btn">paste block</button>
+      </div>
+      <div id="paste-refs-panel" style="display:none">
+        <textarea id="paste-refs-text" rows="5" style="width:100%;background:#1a1a1a;border:1px solid #222;color:#ccc;font-family:inherit;font-size:0.65rem;padding:5px 7px;outline:none;resize:vertical" placeholder="Paste references here, one per line.&#10;Leading labels like (a), 1., a. are stripped automatically."></textarea>
+        <div style="display:flex;gap:4px;margin-top:4px">
+          <button class="add-btn" id="parse-refs-btn">parse &amp; add</button>
+          <button class="add-btn" id="cancel-refs-btn">cancel</button>
+        </div>
+      </div>
       <div class="field-hint">Lettered (a), (b), (c)...</div>
     </div>
     <div class="field" data-types="letter,endorsement,moa">
@@ -206,7 +216,7 @@ html, body {
     </div>
     <div class="section-header">Body</div>
     <div class="field" data-types="letter,memo,endorsement,business">
-      <textarea id="f-body" rows="12" placeholder="Type or paste correspondence body text here.&#10;&#10;Use blank lines between paragraphs.&#10;Indent with spaces or tabs for sub-paragraphs.&#10;Numbering (1. a. (1) (a)) is auto-applied."></textarea>
+      <textarea id="f-body" rows="12" placeholder="Type or paste correspondence body text here.&#10;&#10;Use blank lines between paragraphs.&#10;Indent with spaces or tabs for sub-paragraphs.&#10;Numbering (1. a. (1) (a)) is auto-applied.&#10;&#10;Tables: use markdown syntax (| Col1 | Col2 |) on consecutive lines."></textarea>
     </div>
     <div class="field" data-types="pointpaper">
       <textarea id="f-body-bullets" rows="12" placeholder="One bullet point per line.&#10;&#10;Each line becomes a bullet.&#10;Keep each bullet under 5 lines.&#10;Point papers should fit on one page."></textarea>
@@ -339,6 +349,40 @@ html, body {
   var refFields = makeMultiField('ref-list', 'add-ref', 'ref');
   var enclFields = makeMultiField('encl-list', 'add-encl', 'encl');
 
+  /* ── Paste-to-parse references ── */
+  var pasteRefsBtn = document.getElementById('paste-refs-btn');
+  var pasteRefsPanel = document.getElementById('paste-refs-panel');
+  var pasteRefsText = document.getElementById('paste-refs-text');
+  var parseRefsBtn = document.getElementById('parse-refs-btn');
+  var cancelRefsBtn = document.getElementById('cancel-refs-btn');
+
+  pasteRefsBtn.addEventListener('click', function() {
+    var hidden = pasteRefsPanel.style.display === 'none';
+    pasteRefsPanel.style.display = hidden ? '' : 'none';
+    if (hidden) { pasteRefsText.value = ''; pasteRefsText.focus(); }
+  });
+  cancelRefsBtn.addEventListener('click', function() {
+    pasteRefsPanel.style.display = 'none';
+  });
+  parseRefsBtn.addEventListener('click', function() {
+    var lines = pasteRefsText.value.split('\n');
+    var added = 0;
+    for (var i = 0; i < lines.length; i++) {
+      var line = lines[i].trim();
+      if (!line) continue;
+      /* strip leading reference labels: (a), (1), a., 1., a) */
+      line = line.replace(/^\([a-zA-Z]\)\s*/, '');
+      line = line.replace(/^\([0-9]+\)\s*/, '');
+      line = line.replace(/^[a-zA-Z]\.\s*/, '');
+      line = line.replace(/^[0-9]+\.\s*/, '');
+      line = line.replace(/^[a-zA-Z]\)\s*/, '');
+      line = line.trim();
+      if (line) { refFields.addItem(line); added++; }
+    }
+    pasteRefsPanel.style.display = 'none';
+    if (added) updatePreview();
+  });
+
   /* Party multi-field for MOA (each party = name, rank, title, org) */
   var partyContainer = document.getElementById('party-list');
   var addPartyBtn = document.getElementById('add-party');
@@ -402,42 +446,92 @@ html, body {
     function(n) { return '(' + toAlpha(n) + ')'; }
   ];
 
+  function parseTableBlock(lines) {
+    var rows = [];
+    var separatorIdx = -1;
+    for (var i = 0; i < lines.length; i++) {
+      var cells = lines[i].split('|').slice(1, -1).map(function(c) { return c.trim(); });
+      var isSep = cells.length > 0 && cells.every(function(c) { return /^[-:\s]+$/.test(c) && c.indexOf('-') >= 0; });
+      if (isSep) { separatorIdx = rows.length; continue; }
+      rows.push(cells);
+    }
+    var headers = separatorIdx > 0 ? rows[0] : null;
+    var bodyRows = separatorIdx > 0 ? rows.slice(1) : rows;
+    return { type: 'table', headers: headers, rows: bodyRows };
+  }
+
   function parseBodyParagraphs(text) {
     if (!text.trim()) return [];
     var lines = text.split('\n');
     var paragraphs = [];
     var current = '';
     var currentIndent = 0;
+    var i = 0;
 
-    for (var i = 0; i < lines.length; i++) {
+    while (i < lines.length) {
       var line = lines[i];
-      if (line.trim() === '') {
+      var trimmed = line.trim();
+
+      /* detect start of a markdown table block */
+      if (trimmed.charAt(0) === '|' && trimmed.charAt(trimmed.length - 1) === '|') {
         if (current.trim()) {
           paragraphs.push({ text: current.trim(), indent: currentIndent });
           current = '';
         }
+        var tableLines = [];
+        while (i < lines.length) {
+          var tl = lines[i].trim();
+          if (tl.charAt(0) === '|' && tl.charAt(tl.length - 1) === '|') {
+            tableLines.push(tl);
+            i++;
+          } else { break; }
+        }
+        /* only treat as table if it has a separator row */
+        var hasSep = tableLines.some(function(l) {
+          var cells = l.split('|').slice(1, -1);
+          return cells.length > 0 && cells.every(function(c) { return /^[-:\s]+$/.test(c) && c.indexOf('-') >= 0; });
+        });
+        if (hasSep && tableLines.length >= 2) {
+          paragraphs.push(parseTableBlock(tableLines));
+        } else {
+          for (var ti = 0; ti < tableLines.length; ti++) {
+            if (!current) { currentIndent = 0; current = tableLines[ti]; }
+            else current += ' ' + tableLines[ti];
+          }
+        }
         continue;
       }
+
+      if (trimmed === '') {
+        if (current.trim()) {
+          paragraphs.push({ text: current.trim(), indent: currentIndent });
+          current = '';
+        }
+        i++;
+        continue;
+      }
+
       var spaces = line.match(/^(\s*)/)[1].length;
       var level = Math.min(Math.floor(spaces / 4), 3);
       if (!current) {
         currentIndent = level;
-        current = line.trim();
+        current = trimmed;
       } else {
-        current += ' ' + line.trim();
+        current += ' ' + trimmed;
       }
+      i++;
     }
     if (current.trim()) {
       paragraphs.push({ text: current.trim(), indent: currentIndent });
     }
 
-    /* apply numbering */
+    /* apply numbering (skip tables) */
     var counters = [0, 0, 0, 0];
     for (var j = 0; j < paragraphs.length; j++) {
       var p = paragraphs[j];
+      if (p.type === 'table') continue;
       var lvl = p.indent;
       counters[lvl]++;
-      /* reset deeper counters */
       for (var k = lvl + 1; k < 4; k++) counters[k] = 0;
       p.number = LEVEL_FORMATS[lvl](counters[lvl]);
       p.level = lvl;
@@ -530,10 +624,35 @@ html, body {
     return html;
   }
 
+  function renderTableHTML(tbl) {
+    var html = '<table style="border-collapse:collapse;margin-bottom:24px;width:100%;font-size:inherit">';
+    if (tbl.headers) {
+      html += '<thead><tr>';
+      for (var h = 0; h < tbl.headers.length; h++) {
+        html += '<th style="border:1px solid #000;padding:3px 8px;text-align:left;font-weight:bold;background:#f0f0f0">' + esc(tbl.headers[h]) + '</th>';
+      }
+      html += '</tr></thead>';
+    }
+    html += '<tbody>';
+    for (var r = 0; r < tbl.rows.length; r++) {
+      html += '<tr>';
+      for (var c = 0; c < tbl.rows[r].length; c++) {
+        html += '<td style="border:1px solid #000;padding:3px 8px">' + esc(tbl.rows[r][c]) + '</td>';
+      }
+      html += '</tr>';
+    }
+    html += '</tbody></table>';
+    return html;
+  }
+
   function renderBody(d, html) {
     var INDENT_PX = [0, 36, 72, 108];
     for (var b = 0; b < d.body.length; b++) {
       var para = d.body[b];
+      if (para.type === 'table') {
+        html += renderTableHTML(para);
+        continue;
+      }
       html += '<div class="body-para" style="padding-left:' + INDENT_PX[para.level] + 'px">';
       html += '<span style="display:inline-block;min-width:' + (para.level > 1 ? '36px' : '24px') + '">' + esc(para.number) + '</span> ';
       html += esc(para.text) + '</div>';
@@ -892,6 +1011,45 @@ html, body {
     return s;
   }
 
+  function makeDocxTable(tbl) {
+    var ba = 'w:val="single" w:sz="4" w:space="0" w:color="auto"';
+    var allRows = [];
+    if (tbl.headers) allRows.push({ cells: tbl.headers, isHeader: true });
+    for (var r = 0; r < tbl.rows.length; r++) allRows.push({ cells: tbl.rows[r], isHeader: false });
+    var colCount = allRows.length > 0 ? allRows[0].cells.length : 1;
+    var colWidth = Math.floor(8640 / colCount);
+
+    var x = '<w:tbl>';
+    x += '<w:tblPr><w:tblW w:w="0" w:type="auto"/>';
+    x += '<w:tblBorders>';
+    x += '<w:top ' + ba + '/><w:left ' + ba + '/>';
+    x += '<w:bottom ' + ba + '/><w:right ' + ba + '/>';
+    x += '<w:insideH ' + ba + '/><w:insideV ' + ba + '/>';
+    x += '</w:tblBorders></w:tblPr>';
+    x += '<w:tblGrid>';
+    for (var g = 0; g < colCount; g++) x += '<w:gridCol w:w="' + colWidth + '"/>';
+    x += '</w:tblGrid>';
+
+    for (var ri = 0; ri < allRows.length; ri++) {
+      var row = allRows[ri];
+      x += '<w:tr>';
+      for (var ci = 0; ci < row.cells.length; ci++) {
+        x += '<w:tc><w:tcPr><w:tcW w:w="' + colWidth + '" w:type="dxa"/>';
+        x += '<w:tcBorders>';
+        x += '<w:top ' + ba + '/><w:left ' + ba + '/>';
+        x += '<w:bottom ' + ba + '/><w:right ' + ba + '/>';
+        x += '</w:tcBorders></w:tcPr>';
+        var cellText = row.cells[ci] || '';
+        var rPr = row.isHeader ? '<w:rPr><w:b/></w:rPr>' : '<w:rPr/>';
+        x += '<w:p><w:r>' + rPr + '<w:t xml:space="preserve">' + escXml(cellText) + '</w:t></w:r></w:p>';
+        x += '</w:tc>';
+      }
+      x += '</w:tr>';
+    }
+    x += '</w:tbl>';
+    return x;
+  }
+
   function generateDocx() {
     var d = getData();
     var ALPHA = 'abcdefghijklmnopqrstuvwxyz';
@@ -941,6 +1099,10 @@ html, body {
       var INDENT_TWIPS = [0, 540, 1080, 1620];
       for (var b = 0; b < d.body.length; b++) {
         var para = d.body[b];
+        if (para.type === 'table') {
+          body += makeDocxTable(para);
+          continue;
+        }
         body += makeParagraph(para.number + '  ' + para.text, { indent: INDENT_TWIPS[para.level], spaceAfter: '240' });
       }
       return body;
