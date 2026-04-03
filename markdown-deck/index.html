@@ -156,6 +156,38 @@ textarea:focus { outline: none; }
 .sr-num { color: #555; margin-right: 6px; }
 .sr-match { color: #4ade80; }
 
+/* Slide Outline Panel */
+#outline-panel { display: none; position: fixed; top: 0; left: 0; width: 260px; height: 100vh; background: #0d0d0d; border-right: 1px solid #1a1a1a; z-index: 801; flex-direction: column; overflow: hidden; }
+#outline-panel.open { display: flex; }
+#outline-panel .op-header { padding: 0.5rem 0.75rem; border-bottom: 1px solid #1a1a1a; display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; }
+#outline-panel .op-header h3 { font-size: 0.55rem; color: #555; letter-spacing: 0.2em; font-weight: 300; text-transform: uppercase; }
+#outline-list { flex: 1; overflow-y: auto; padding: 0.25rem 0; }
+.op-item { display: block; width: 100%; text-align: left; background: none; border: none; border-left: 2px solid transparent; padding: 5px 12px; font-family: inherit; font-size: 0.6rem; color: #666; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.op-item:hover { background: #1a1a1a; color: #aaa; }
+.op-item.active { border-left-color: #4ade80; color: #ccc; }
+.op-num { color: #444; margin-right: 6px; font-variant-numeric: tabular-nums; }
+
+/* Find & Replace */
+#fnr-overlay { display: none; position: fixed; top: 0; left: 0; right: 0; background: #0d0d0d; border-bottom: 1px solid #333; z-index: 2001; padding: 0.5rem 1rem; flex-direction: column; gap: 6px; }
+#fnr-overlay.open { display: flex; }
+.fnr-row { display: flex; gap: 6px; align-items: center; }
+.fnr-label { font-size: 0.5rem; color: #555; text-transform: uppercase; letter-spacing: 0.1em; min-width: 3.2rem; }
+.fnr-input { flex: 1; background: #111; border: 1px solid #333; color: #ccc; padding: 5px 8px; font-family: inherit; font-size: 0.75rem; outline: none; }
+.fnr-input:focus { border-color: #555; }
+.fnr-btn { background: #1a1a1a; border: 1px solid #333; color: #888; padding: 4px 10px; font-family: inherit; font-size: 0.55rem; cursor: pointer; white-space: nowrap; letter-spacing: 0.05em; }
+.fnr-btn:hover { border-color: #555; color: #ccc; }
+#fnr-count { font-size: 0.55rem; color: #555; white-space: nowrap; min-width: 5rem; }
+
+/* Kiosk modal */
+#kiosk-modal { display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%,-50%); background: #111; border: 1px solid #333; z-index: 3000; padding: 1.5rem; min-width: 240px; }
+#kiosk-modal.open { display: block; }
+#kiosk-modal h3 { font-size: 0.55rem; color: #555; letter-spacing: 0.2em; margin-bottom: 1rem; text-transform: uppercase; }
+.kiosk-row { display: flex; align-items: center; gap: 8px; margin-bottom: 0.75rem; font-size: 0.65rem; color: #888; }
+.kiosk-row input[type="number"] { width: 60px; background: #1a1a1a; border: 1px solid #333; color: #ccc; padding: 4px 6px; font-family: inherit; font-size: 0.65rem; text-align: right; }
+.kiosk-row input[type="checkbox"] { accent-color: #4ade80; cursor: pointer; }
+.kiosk-row label { cursor: pointer; }
+#kiosk-indicator { position: fixed; bottom: 3.2rem; right: 1.5rem; font-size: 0.5rem; color: #444; z-index: 1001; letter-spacing: 0.15em; text-transform: uppercase; display: none; }
+
 /* Design panel */
 .design-panel { display: none; position: fixed; top: 0; right: 0; width: 340px; height: 100vh; background: #0d0d0d; border-left: 1px solid #1a1a1a; z-index: 900; flex-direction: column; }
 .design-panel.open { display: flex; }
@@ -333,7 +365,11 @@ These are speaker notes. They won't appear in the presentation but are preserved
       <button onclick="exportDeck()">PPTX</button>
       <button onclick="exportPDF()">PDF</button>
       <button onclick="exportNotes()" title="Export speaker notes as markdown">Notes</button>
+      <button onclick="exportStandaloneHTML()" title="Export as standalone HTML presentation">HTML</button>
       <button onclick="openSearch()" title="Search slides (Ctrl+F)">Search</button>
+      <button onclick="openFindReplace()" title="Find and replace in markdown (Ctrl+H)">Find/Replace</button>
+      <button onclick="toggleOutline()" title="Toggle slide outline panel (O)">Outline</button>
+      <button onclick="openKioskConfig()" title="Kiosk auto-advance mode">Kiosk</button>
       <button onclick="saveDeck()">Save</button>
       <button onclick="document.getElementById('file-open').click()">Open</button>
       <input type="file" id="file-open" accept=".md,.txt,.markdown" style="display:none" onchange="openFile(this)">
@@ -429,6 +465,50 @@ border-radius: 8px</textarea>
 </div>
 
 <div id="paste-feedback" style="position:fixed;bottom:12px;left:50%;transform:translateX(-50%);background:#0a2a0a;border:1px solid #166534;color:#4ade80;font-family:inherit;font-size:0.55rem;letter-spacing:0.1em;text-transform:uppercase;padding:5px 12px;pointer-events:none;z-index:9999;opacity:0;transition:opacity 0.15s;"></div>
+
+<!-- Outline Panel -->
+<div id="outline-panel">
+  <div class="op-header">
+    <h3>Outline</h3>
+    <button onclick="closeOutline()" style="background:none;border:none;color:#555;cursor:pointer;font-size:0.9rem;padding:0 2px;line-height:1">&times;</button>
+  </div>
+  <div id="outline-list"></div>
+</div>
+
+<!-- Find & Replace -->
+<div id="fnr-overlay">
+  <div class="fnr-row">
+    <span class="fnr-label">Find</span>
+    <input id="fnr-find" class="fnr-input" type="text" placeholder="Search text..." autocomplete="off" oninput="fnrCount()" onkeydown="handleFnrKey(event)">
+    <span id="fnr-count"></span>
+    <button onclick="closeFindReplace()" style="background:none;border:none;color:#555;cursor:pointer;font-size:1rem;padding:0 4px;line-height:1">&times;</button>
+  </div>
+  <div class="fnr-row">
+    <span class="fnr-label">Replace</span>
+    <input id="fnr-replace" class="fnr-input" type="text" placeholder="Replace with..." autocomplete="off" onkeydown="handleFnrKey(event)">
+    <button class="fnr-btn" onclick="doReplace()">Replace</button>
+    <button class="fnr-btn" onclick="doReplaceAll()">All</button>
+  </div>
+</div>
+
+<!-- Kiosk Modal -->
+<div id="kiosk-modal">
+  <h3>Kiosk / Auto-Advance</h3>
+  <div class="kiosk-row">
+    <label for="kiosk-interval">Interval</label>
+    <input id="kiosk-interval" type="number" min="1" max="300" value="5">
+    <span>seconds per slide</span>
+  </div>
+  <div class="kiosk-row">
+    <input id="kiosk-loop" type="checkbox" checked>
+    <label for="kiosk-loop">Loop</label>
+  </div>
+  <div style="display:flex;gap:6px;margin-top:0.75rem">
+    <button class="fnr-btn" onclick="startKiosk()">Start</button>
+    <button class="fnr-btn" onclick="closeKioskModal()">Cancel</button>
+  </div>
+</div>
+<div id="kiosk-indicator"></div>
 
 <script>
 const inputEl = document.getElementById('input');
@@ -1312,9 +1392,15 @@ function stopPresent() {
 document.addEventListener('keydown', e => {
   if (e.key === 'Escape') {
     if (document.getElementById('search-overlay').classList.contains('open')) { closeSearch(); return; }
+    if (document.getElementById('fnr-overlay').classList.contains('open')) { closeFindReplace(); return; }
+    if (document.getElementById('outline-panel').classList.contains('open')) { closeOutline(); return; }
+    if (document.getElementById('kiosk-modal').classList.contains('open')) { closeKioskModal(); return; }
+    if (_kioskTimer) { stopKiosk(); stopPresent(); return; }
     stopPresent(); return;
   }
   if ((e.ctrlKey || e.metaKey) && e.key === 'f' && !presenting) { e.preventDefault(); openSearch(); return; }
+  if ((e.ctrlKey || e.metaKey) && e.key === 'h' && !presenting) { e.preventDefault(); openFindReplace(); return; }
+  if (e.key === 'o' && !presenting && document.activeElement !== inputEl) { e.preventDefault(); toggleOutline(); return; }
   if (e.key === 'f' && !presenting && document.activeElement !== inputEl) { startPresent(); return; }
   if (e.key === 'ArrowRight' || e.key === ' ') {
     if (presenting || document.activeElement !== inputEl) { e.preventDefault(); nextSlide(); }
@@ -2718,6 +2804,349 @@ window.openFile = function(input) {
   };
   reader.readAsText(file);
   input.value = ''; // Reset so same file can be re-opened
+};
+
+// ============ SLIDE OUTLINE PANEL ============
+function renderOutline() {
+  var list = document.getElementById('outline-list');
+  if (!list) return;
+  var html = '';
+  for (var oi = 0; oi < slides.length; oi++) {
+    var rawOi = slides[oi];
+    var oiTitle = '';
+    var oiMatch = rawOi.match(/^#+\s*(.+)/m);
+    if (oiMatch) {
+      oiTitle = oiMatch[1].replace(/\*\*/g, '').replace(/\*/g, '').replace(/`/g, '').replace(/~~(.+?)~~/g, '$1').trim();
+    } else {
+      oiTitle = '(untitled)';
+    }
+    html += '<button class="op-item' + (oi === currentSlide ? ' active' : '') + '" onclick="goSlide(' + oi + ');closeOutline()">'
+      + '<span class="op-num">' + (oi + 1) + '</span>' + esc(oiTitle)
+      + '</button>';
+  }
+  list.innerHTML = html;
+}
+
+window.toggleOutline = function() {
+  var panel = document.getElementById('outline-panel');
+  if (panel.classList.contains('open')) { closeOutline(); } else { openOutline(); }
+};
+
+function openOutline() {
+  renderOutline();
+  document.getElementById('outline-panel').classList.add('open');
+}
+
+function closeOutline() {
+  document.getElementById('outline-panel').classList.remove('open');
+}
+
+// ============ FIND & REPLACE ============
+window.openFindReplace = function() {
+  var overlay = document.getElementById('fnr-overlay');
+  overlay.classList.add('open');
+  var findEl = document.getElementById('fnr-find');
+  var sel = inputEl.value.substring(inputEl.selectionStart, inputEl.selectionEnd);
+  if (sel && sel.length < 120) findEl.value = sel;
+  findEl.select();
+  findEl.focus();
+  fnrCount();
+};
+
+window.closeFindReplace = function() {
+  document.getElementById('fnr-overlay').classList.remove('open');
+  document.getElementById('fnr-count').textContent = '';
+};
+
+window.fnrCount = function() {
+  var q = document.getElementById('fnr-find').value;
+  var countEl = document.getElementById('fnr-count');
+  if (!q) { countEl.textContent = ''; return; }
+  var text = inputEl.value;
+  var count = 0, pos = 0;
+  while ((pos = text.indexOf(q, pos)) !== -1) { count++; pos += q.length; }
+  countEl.textContent = count + (count === 1 ? ' match' : ' matches');
+};
+
+window.doReplace = function() {
+  var q = document.getElementById('fnr-find').value;
+  var r = document.getElementById('fnr-replace').value;
+  if (!q) return;
+  var text = inputEl.value;
+  var start = inputEl.selectionStart;
+  var pos = text.indexOf(q, start);
+  if (pos === -1) pos = text.indexOf(q); // wrap around
+  if (pos === -1) { document.getElementById('fnr-count').textContent = '0 matches'; return; }
+  inputEl.value = text.substring(0, pos) + r + text.substring(pos + q.length);
+  inputEl.setSelectionRange(pos + r.length, pos + r.length);
+  inputEl.focus();
+  parseSlides(); renderPreview(); autoSave();
+  fnrCount();
+};
+
+window.doReplaceAll = function() {
+  var q = document.getElementById('fnr-find').value;
+  var r = document.getElementById('fnr-replace').value;
+  if (!q) return;
+  var count = 0;
+  var text = inputEl.value;
+  var result = '';
+  var pos = 0, next;
+  while ((next = text.indexOf(q, pos)) !== -1) {
+    result += text.substring(pos, next) + r;
+    pos = next + q.length;
+    count++;
+  }
+  result += text.substring(pos);
+  if (count > 0) {
+    inputEl.value = result;
+    parseSlides(); renderPreview(); autoSave();
+  }
+  document.getElementById('fnr-count').textContent = count + ' replaced';
+};
+
+window.handleFnrKey = function(e) {
+  if (e.key === 'Escape') { closeFindReplace(); return; }
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    if (e.target.id === 'fnr-find') doReplace();
+    else doReplaceAll();
+  }
+};
+
+// ============ KIOSK / AUTO-ADVANCE MODE ============
+var _kioskTimer = null;
+var _kioskCountdownTimer = null;
+var _kioskCountdown = 0;
+
+window.openKioskConfig = function() {
+  document.getElementById('kiosk-modal').classList.add('open');
+};
+
+window.closeKioskModal = function() {
+  document.getElementById('kiosk-modal').classList.remove('open');
+};
+
+function _updateKioskIndicator() {
+  var el = document.getElementById('kiosk-indicator');
+  if (!el) return;
+  if (_kioskTimer) {
+    el.style.display = 'block';
+    el.textContent = 'AUTO ' + _kioskCountdown + 's';
+  } else {
+    el.style.display = 'none';
+  }
+}
+
+window.startKiosk = function() {
+  var intervalSecs = parseInt(document.getElementById('kiosk-interval').value, 10) || 5;
+  var doLoop = document.getElementById('kiosk-loop').checked;
+  closeKioskModal();
+  startPresent();
+  _kioskCountdown = intervalSecs;
+  _updateKioskIndicator();
+  _kioskTimer = setInterval(function() {
+    if (currentSlide < slides.length - 1) {
+      nextSlide();
+      _kioskCountdown = intervalSecs;
+    } else if (doLoop) {
+      goSlide(0);
+      _kioskCountdown = intervalSecs;
+    } else {
+      stopKiosk();
+    }
+  }, intervalSecs * 1000);
+  _kioskCountdownTimer = setInterval(function() {
+    _kioskCountdown = Math.max(0, _kioskCountdown - 1);
+    _updateKioskIndicator();
+  }, 1000);
+};
+
+window.stopKiosk = function() {
+  if (_kioskTimer) { clearInterval(_kioskTimer); _kioskTimer = null; }
+  if (_kioskCountdownTimer) { clearInterval(_kioskCountdownTimer); _kioskCountdownTimer = null; }
+  _updateKioskIndicator();
+};
+
+// ============ STANDALONE HTML EXPORT ============
+window.exportStandaloneHTML = function() {
+  if (slides.length === 0) { alert('No slides to export.'); return; }
+
+  // Render all slides + capture per-slide overrides and notes
+  var renderedSlides = [];
+  var overridesPerSlide = [];
+  var notesPerSlide = [];
+
+  for (var si = 0; si < slides.length; si++) {
+    var rawSi = slides[si];
+    var siNoteSep = rawSi.indexOf('\n???');
+    var siNote = siNoteSep >= 0 ? rawSi.substring(siNoteSep + 4).trim() : '';
+    var siHtml = md(rawSi); // sets window._currentSlideOverrides
+    renderedSlides.push(siHtml);
+    notesPerSlide.push(siNote);
+    overridesPerSlide.push(overridesToStyle(window._currentSlideOverrides || {}));
+  }
+
+  // Design CSS from current theme (designStyleEl is the module-level var set by applyDesign)
+  var designCss = '';
+  if (designStyleEl) designCss = designStyleEl.textContent;
+
+  // Embed slide data safely (escape </script to prevent parser issues)
+  var escapedSlides = JSON.stringify(renderedSlides).replace(/<\/script/gi, '<\\/script');
+  var escapedOverrides = JSON.stringify(overridesPerSlide).replace(/<\/script/gi, '<\\/script');
+  var escapedNotes = JSON.stringify(notesPerSlide).replace(/<\/script/gi, '<\\/script');
+
+  var lines = [];
+  lines.push('<!DOCTYPE html>');
+  lines.push('<html lang="en">');
+  lines.push('<head>');
+  lines.push('<meta charset="UTF-8">');
+  lines.push('<meta name="viewport" content="width=device-width, initial-scale=1.0">');
+  lines.push('<meta name="apple-mobile-web-app-capable" content="yes">');
+  lines.push('<title>Presentation</title>');
+  lines.push('<style>');
+  lines.push('* { margin:0; padding:0; box-sizing:border-box; }');
+  lines.push('html, body { height:100%; background:#0a0a0a; overflow:hidden; font-family:"SF Mono","Fira Code",monospace; touch-action:manipulation; }');
+  lines.push('#wrap { position:fixed; inset:0; display:flex; align-items:center; justify-content:center; padding-bottom:44px; }');
+  lines.push('#slide { width:960px; height:540px; background:#0a0a0a; border:1px solid #222; padding:3rem 4rem; display:flex; flex-direction:column; justify-content:center; overflow:hidden; transform-origin:center center; position:relative; }');
+  lines.push('#slide.has-positioned { justify-content:flex-start; }');
+  lines.push('.pos-block { position:absolute; box-sizing:border-box; }');
+  lines.push('#slide h1 { font-size:2.8rem; color:#fff; margin-bottom:1.2rem; line-height:1.2; }');
+  lines.push('#slide h2 { font-size:1.8rem; color:#60a5fa; margin-bottom:0.8rem; }');
+  lines.push('#slide h3 { font-size:1.3rem; color:#a78bfa; margin-bottom:0.6rem; }');
+  lines.push('#slide p { font-size:1.15rem; color:#ccc; margin-bottom:0.7rem; line-height:1.5; }');
+  lines.push('#slide ul, #slide ol { margin:0.4rem 0 0.4rem 1.5rem; font-size:1.1rem; color:#ccc; line-height:1.7; }');
+  lines.push('#slide li { margin-bottom:0.2rem; }');
+  lines.push('#slide code { background:#1a1a1a; padding:0.15rem 0.4rem; border-radius:3px; font-size:0.95rem; color:#4ade80; }');
+  lines.push('#slide pre { background:#111; padding:1rem; border-radius:6px; overflow-x:auto; margin:0.5rem 0; }');
+  lines.push('#slide pre code { background:none; padding:0; font-size:0.85rem; color:#ccc; }');
+  lines.push('#slide blockquote { border-left:3px solid #333; padding-left:1rem; color:#888; font-style:italic; margin:0.5rem 0; }');
+  lines.push('#slide strong { color:#fff; }');
+  lines.push('#slide em { color:#fbbf24; }');
+  lines.push('#slide hr { border:none; border-top:1px solid #333; margin:1rem 0; }');
+  lines.push('#slide a { color:#60a5fa; }');
+  lines.push('#slide del { color:#666; text-decoration:line-through; }');
+  lines.push('#slide mark { background:rgba(250,204,21,0.25); color:#fbbf24; padding:0.1rem 0.3rem; border-radius:3px; }');
+  lines.push('#slide sup { font-size:0.7em; vertical-align:super; }');
+  lines.push('#slide sub { font-size:0.7em; vertical-align:sub; }');
+  lines.push('#slide img { display:block; margin:0.8rem 0; max-width:100%; max-height:40vh; border-radius:4px; }');
+  lines.push('#slide h4 { font-size:1.2rem; color:#888; margin-bottom:0.4rem; }');
+  lines.push('#slide table { border-collapse:collapse; font-size:0.85rem; margin:0.5rem 0; }');
+  lines.push('#slide th { text-align:left; padding:0.4rem 1rem; border-bottom:2px solid #444; color:#fff; font-weight:600; }');
+  lines.push('#slide td { padding:0.3rem 1rem; border-bottom:1px solid #222; }');
+  lines.push('.columns { display:grid; grid-template-columns:1fr 1fr; gap:2rem; align-items:start; flex:1; }');
+  lines.push('.fragment { opacity:0; transition:opacity 0.3s ease; }');
+  lines.push('.fragment.visible { opacity:1; }');
+  lines.push('.slide-inner { max-height:100%; transform-origin:top left; }');
+  lines.push('.math-inline { font-family:"Times New Roman","Cambria Math",serif; font-style:italic; }');
+  lines.push('.math-block { font-family:"Times New Roman","Cambria Math",serif; font-style:italic; font-size:1.3em; text-align:center; margin:1rem 0; }');
+  lines.push('.math-frac { display:inline-flex; flex-direction:column; align-items:center; vertical-align:middle; font-size:0.85em; line-height:1.1; }');
+  lines.push('.math-num { border-bottom:1px solid currentColor; padding:0 0.2em 0.1em; }');
+  lines.push('.math-den { padding:0.1em 0.2em 0; }');
+  lines.push('.code-lang { display:block; font-size:0.6rem; color:#555; letter-spacing:0.1em; margin-bottom:-0.2rem; text-transform:uppercase; }');
+  // Syntax highlighting tokens
+  lines.push('.sg-keyword{color:#c678dd}.sg-string{color:#98c379}.sg-number{color:#d19a66}.sg-comment{color:#5c6370;font-style:italic}.sg-function{color:#61afef}.sg-operator{color:#56b6c2}.sg-type{color:#e5c07b}.sg-builtin{color:#e5c07b}.sg-tag{color:#e06c75}.sg-attr{color:#d19a66}.sg-property{color:#e06c75}.sg-selector{color:#e06c75}.sg-value{color:#98c379}.sg-punct{color:#abb2bf}.sg-regex{color:#56b6c2}.sg-decorator{color:#61afef}');
+  // Controls bar
+  lines.push('#controls { position:fixed; bottom:0; left:0; right:0; height:44px; background:#0d0d0d; border-top:1px solid #1a1a1a; display:flex; align-items:center; justify-content:center; gap:1rem; z-index:10; }');
+  lines.push('#controls button { background:#1a1a1a; border:1px solid #333; color:#888; padding:4px 12px; font-family:inherit; font-size:0.65rem; cursor:pointer; border-radius:3px; }');
+  lines.push('#controls button:hover { color:#ccc; border-color:#555; }');
+  lines.push('#counter { font-size:0.65rem; color:#555; min-width:5rem; text-align:center; }');
+  lines.push('#notes-bar { position:fixed; bottom:44px; left:0; right:0; max-height:130px; overflow-y:auto; background:#0a150a; border-top:1px solid #1a3a1a; padding:0.5rem 1.5rem; font-size:0.75rem; color:#4ade80; line-height:1.5; display:none; }');
+  // Inject current design theme CSS
+  if (designCss) lines.push(designCss.replace(/(\.slide|\.present-slide)/g, '#slide'));
+  lines.push('</style>');
+  lines.push('</head>');
+  lines.push('<body>');
+  lines.push('<div id="wrap"><div id="slide"></div></div>');
+  lines.push('<div id="notes-bar"></div>');
+  lines.push('<div id="controls">');
+  lines.push('  <button id="btn-prev" title="Previous (Left Arrow)">&#8592;</button>');
+  lines.push('  <span id="counter"></span>');
+  lines.push('  <button id="btn-next" title="Next (Right Arrow / Space)">&#8594;</button>');
+  lines.push('  <button id="btn-notes" title="Toggle speaker notes">Notes</button>');
+  lines.push('</div>');
+  lines.push('<script>');
+  lines.push('var SLIDES = ' + escapedSlides + ';');
+  lines.push('var OVERRIDES = ' + escapedOverrides + ';');
+  lines.push('var NOTES = ' + escapedNotes + ';');
+  lines.push('var cur = 0, frg = 0;');
+  lines.push('var slideEl = document.getElementById("slide");');
+  lines.push('var counterEl = document.getElementById("counter");');
+  lines.push('var notesEl = document.getElementById("notes-bar");');
+  lines.push('function scaleSlide() {');
+  lines.push('  var wrap = document.getElementById("wrap");');
+  lines.push('  var cw = wrap.clientWidth - 16, ch = wrap.clientHeight - 16;');
+  lines.push('  var s = Math.min(cw / 960, ch / 540);');
+  lines.push('  slideEl.style.transform = "scale(" + s + ")";');
+  lines.push('}');
+  lines.push('function showFrags() {');
+  lines.push('  slideEl.querySelectorAll(".fragment").forEach(function(f) {');
+  lines.push('    f.classList.toggle("visible", parseInt(f.dataset.fragment, 10) <= frg);');
+  lines.push('  });');
+  lines.push('}');
+  lines.push('function getFragCount() {');
+  lines.push('  var fh = slideEl.querySelector(".has-fragments");');
+  lines.push('  return fh ? parseInt(fh.dataset.totalFragments, 10) || 0 : 0;');
+  lines.push('}');
+  lines.push('function show() {');
+  lines.push('  slideEl.innerHTML = SLIDES[cur];');
+  lines.push('  var ov = OVERRIDES[cur];');
+  lines.push('  if (ov) {');
+  lines.push('    var pairs = ov.split(";");');
+  lines.push('    for (var i = 0; i < pairs.length; i++) {');
+  lines.push('      var pair = pairs[i].trim(); if (!pair) continue;');
+  lines.push('      var ci = pair.indexOf(":"); if (ci < 1) continue;');
+  lines.push('      var prop = pair.substring(0, ci).trim();');
+  lines.push('      var val = pair.substring(ci + 1).trim();');
+  lines.push('      if (prop === "background") slideEl.style.background = val;');
+  lines.push('      else if (prop === "color") slideEl.style.color = val;');
+  lines.push('      else if (prop === "font-family") slideEl.style.fontFamily = val;');
+  lines.push('      else if (prop === "text-align") slideEl.style.textAlign = val;');
+  lines.push('    }');
+  lines.push('  } else {');
+  lines.push('    slideEl.style.background = "";');
+  lines.push('    slideEl.style.color = "";');
+  lines.push('    slideEl.style.fontFamily = "";');
+  lines.push('    slideEl.style.textAlign = "";');
+  lines.push('  }');
+  lines.push('  if (slideEl.querySelector(".pos-flag")) slideEl.classList.add("has-positioned");');
+  lines.push('  else slideEl.classList.remove("has-positioned");');
+  lines.push('  showFrags();');
+  lines.push('  counterEl.textContent = (cur + 1) + " / " + SLIDES.length;');
+  lines.push('  notesEl.textContent = NOTES[cur] || "";');
+  lines.push('  scaleSlide();');
+  lines.push('}');
+  lines.push('function next() {');
+  lines.push('  var total = getFragCount();');
+  lines.push('  if (total > 0 && frg < total) { frg++; showFrags(); return; }');
+  lines.push('  if (cur < SLIDES.length - 1) { cur++; frg = 0; show(); }');
+  lines.push('}');
+  lines.push('function prev() {');
+  lines.push('  if (frg > 0) { frg--; showFrags(); return; }');
+  lines.push('  if (cur > 0) { cur--; frg = 0; show(); }');
+  lines.push('}');
+  lines.push('document.getElementById("btn-prev").addEventListener("click", prev);');
+  lines.push('document.getElementById("btn-next").addEventListener("click", next);');
+  lines.push('document.getElementById("btn-notes").addEventListener("click", function() {');
+  lines.push('  notesEl.style.display = notesEl.style.display === "none" ? "block" : "none";');
+  lines.push('});');
+  lines.push('document.addEventListener("keydown", function(e) {');
+  lines.push('  if (e.key === "ArrowRight" || e.key === " ") { e.preventDefault(); next(); }');
+  lines.push('  if (e.key === "ArrowLeft") { e.preventDefault(); prev(); }');
+  lines.push('});');
+  lines.push('window.addEventListener("resize", scaleSlide);');
+  lines.push('show();');
+  lines.push('<' + '/script>');
+  lines.push('</body>');
+  lines.push('</html>');
+
+  var content = lines.join('\n');
+  var blob = new Blob([content], { type: 'text/html' });
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement('a');
+  a.href = url; a.download = 'presentation.html';
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  setTimeout(function() { URL.revokeObjectURL(url); }, 1000);
 };
 
 // Load saved content on startup

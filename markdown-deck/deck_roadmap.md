@@ -67,6 +67,10 @@ Markdown Deck is a graduated YOLO project operating under Flagship rules: multi-
 ### P1 — Presentation Features (lowest priority per user)
 - [x] Presenter view (current slide + next slide + speaker notes + timer)
 - [x] Slide transitions (fade, slide-left, zoom) — fade/slide/zoom with direction-aware animation, localStorage persistence
+- [x] Standalone HTML Export — self-contained .html with embedded slides, nav, speaker notes toggle, slide counter
+- [x] Slide Outline Panel — collapsible side panel with clickable H1 titles, O shortcut, current slide highlighted
+- [x] Find & Replace (Ctrl+H) — overlay in markdown editor, find/replace single or all occurrences
+- [x] Kiosk / Auto-Advance Mode — auto-advance every N seconds, configurable, loop option, Esc to dismiss
 - [ ] Markdown editor improvements: line numbers, tab indentation — deprioritized
 - [ ] Animation within slides — deprioritized
 
@@ -80,10 +84,6 @@ Markdown Deck is a graduated YOLO project operating under Flagship rules: multi-
 
 ## Approved (Next Tock)
 
-- [ ] Standalone HTML Export — self-contained .html with embedded slides, nav, speaker notes toggle, slide counter
-- [ ] Slide Outline Panel — collapsible side panel with clickable H1 titles, O shortcut, current slide highlighted
-- [ ] Find & Replace (Ctrl+H) — overlay in markdown editor, find/replace single or all occurrences
-- [ ] Kiosk / Auto-Advance Mode — auto-advance every N seconds, configurable, loop option, Esc to dismiss
 
 ## Parking Lot
 
@@ -157,3 +157,4 @@ These are features complex enough to prototype as standalone YOLO single-session
 | 2026-04-03 | Tock | Notes export: "Notes" toolbar button exports all speaker notes as speaker-notes.md with heading per slide |
 | 2026-04-03 | Tock | Brainstormed 2 features (pending approval): Standalone HTML export, Slide Outline Panel |
 | 2026-04-03 | Tock | Brainstormed 2 features (pending approval): Find & Replace (Ctrl+H), Kiosk/Auto-Advance Mode |
+| 2026-04-03 | Tock | All 4 approved features: Standalone HTML Export, Slide Outline Panel, Find & Replace (Ctrl+H), Kiosk Auto-Advance |
