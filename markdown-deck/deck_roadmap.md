@@ -77,12 +77,12 @@ Markdown Deck is a graduated YOLO project operating under Flagship rules: multi-
 
 ## Proposed Features (Pending Approval)
 
-- **Slide search** — Ctrl+F opens a search bar that searches text across all slides, highlights matches, and jumps to the matching slide in the thumbnail strip. Useful for navigating long decks.
-- **Notes export** — Export speaker notes as a standalone markdown/text file (presentation script). Button in editor: "Export Notes". Outputs each slide heading + its notes block, skipping slides with no notes.
 
 ## Approved (Next Tock)
 
 - [ ] Pretext integration — inline 30KB IIFE bundle, replace autoFitContent DOM reflow with canvas-based text measurement. Fallback to scrollHeight for mixed-content slides (code blocks, images, tables).
+- [ ] Slide search — Ctrl+F opens search bar, searches across all slides, highlights matches, jumps to matching slide
+- [ ] Notes export — export speaker notes as standalone markdown file (slide heading + notes per slide)
 
 ## Parking Lot
 
