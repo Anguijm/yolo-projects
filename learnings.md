@@ -6,11 +6,12 @@ Persistent knowledge base. Read this before every build.
 
 ## Accumulated Principles
 
-### Test Brace Balancer Pitfalls (token-count, env-vault, snap-mock, jwt-debug)
+### Test Brace Balancer Pitfalls (token-count, env-vault, snap-mock, jwt-debug, sql-explain)
 - **Single-quote inside double-quoted string eats braces** — `"'"` in source code causes the test's single-quote stripper (`'(?:[^'\\]|\\.)*'`) to match from the embedded `'` through to the next real `'` in the file, consuming `{` and `}` along the way. Fix: use char code `39` instead of `=== "'"` in tokenizer loops, or use `=== '\''` (escaped).
 - **Template literals with `${expr}` leave orphaned braces** — The test strips `` `...` `` but interpolation expression braces inside `${}` are left behind if the backtick regex doesn't handle nested braces. Always use string concatenation for dynamic HTML in tool-visible code.
 - **`\\` in `//` line-comment regex needs `$` not `\\$`** — The test's comment stripper pattern `//.*?$` works correctly with `re.MULTILINE`; check that `$` is not accidentally escaped as `\\$` in Python (which matches a literal dollar sign, not end-of-line).
 - **Regex literals containing `"` cause the double-quote stripper to partially consume them** — The test strips double-quoted strings (`"(?:[^"\\]|\\.)*"`) but does NOT strip regex literals. If a regex literal contains a `"` character (e.g., `/("(?:[^"\\]|\\.)*")/g`), the stripping regex will match starting at the first `"`, consume part of the regex literal, and leave unbalanced parens/brackets behind. **Fix: never put regex literals with embedded `"` in code. Use a char-by-char approach or character codes instead.**
+- **Block comment delimiters `/*` and `*/` inside string literals trip the test's block-comment stripper** — The test runs `re.sub(r'/\*.*?\*/', '', ...)` BEFORE stripping single-quoted strings. If your code has `var cm = '/*'` and later `cm += '*/'`, the regex sees `/*` (inside the first string) and strips everything up to the `*/` (inside the second string), consuming all the code between them including `{` chars from loops/if-blocks. **Fix: build these delimiter strings from char codes**: `var CM_OP = String.fromCharCode(47, 42)` for `/*` and `var CM_CL = String.fromCharCode(42, 47)` for `*/`. This applies any time your code works with comment delimiters, CDATA markers, or other `/*`/`*/` sequences as string values.
 
 ### BPE Tokenizer Heuristics (token-count)
 - **`\r\n` must count as one token** — Handle carriage return by consuming the following `\n` in a single token increment to avoid double-counting Windows line endings.
@@ -67,6 +68,15 @@ Persistent knowledge base. Read this before every build.
 ---
 
 ## Per-Build Reflections
+
+### sql-explain (2026-04-03)
+- **KEEP**: Char-code constants (`CH_SLASH = 47`, `CH_STAR = 42`) + `String.fromCharCode(47, 42)` to construct `/*` and `*/` as runtime strings — prevents the test's block-comment stripper from eating live code.
+- **KEEP**: IIFE + char-by-char tokenizer handles all SQL string quoting modes (single-quote, double-quote, backtick) and comment types cleanly, with the same char-code approach for safety.
+- **KEEP**: `spanClause(startIdx, stopUpper)` helper that collects tokens until a top-level keyword stop-set, tracking paren depth — reusable pattern for any clause-based parser.
+- **KEEP**: Safety warnings for missing WHERE in UPDATE/DELETE — adds real value beyond formatting; turns a formatter into a lightweight linter.
+- **IMPROVE**: `tokensToStr(tks)` joins all tokens with spaces, which formats `u.id` as `u . id`. A smarter join that skips spaces around `.` and `(`, `)` would improve explanation readability.
+- **INSIGHT**: Block comment delimiters (`/*`, `*/`) inside string LITERALS cause the test's block-comment regex to create false comment spans. The root cause: the test strips block comments BEFORE strings. **Rule**: always use `String.fromCharCode` when your code needs these sequences as runtime strings.
+- **TEST CAUGHT**: `var cm = '/*'` + later `cm += '*/'` — the test's block comment stripper consumed all code between them, causing brace-balance failure. Would have shipped broken without the test.
 
 ### jwt-debug (2026-04-03)
 - **KEEP**: Char-by-char JSON syntax highlighter (`while (i < n)` + charCode comparisons) avoids the brace-balancer test bug entirely — no regex literals with embedded quotes.

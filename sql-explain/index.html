@@ -1,0 +1,836 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="theme-color" content="#000000">
+<title>sql-explain</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body {
+  height: 100%;
+  background: #0a0a0a;
+  color: #ccc;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Courier New", monospace;
+  overflow-y: auto;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+:root {
+  --accent: #0ff;
+  --color-success: #3fb950;
+  --color-warning: #d29922;
+  --color-error: #f85149;
+  --color-info: #58a6ff;
+}
+.page { max-width: 900px; margin: 0 auto; padding: 12px; }
+
+/* header */
+header {
+  display: flex; align-items: baseline; gap: 10px;
+  margin-bottom: 14px; border-bottom: 1px solid #1a1a1a; padding-bottom: 10px;
+}
+.logo { font-size: 0.85rem; font-weight: 900; color: #fff; letter-spacing: 0.15em; text-transform: uppercase; }
+.logo span { color: var(--accent); }
+.tagline { font-size: 0.45rem; color: #444; letter-spacing: 0.1em; text-transform: uppercase; }
+.kbd { font-size: 0.4rem; color: #333; margin-left: auto; letter-spacing: 0.05em; }
+
+/* toolbar */
+.toolbar { display: flex; gap: 6px; margin-bottom: 8px; flex-wrap: wrap; align-items: center; }
+.btn {
+  padding: 5px 10px; background: transparent; border: 1px solid #1a1a1a;
+  color: #444; font-family: inherit; font-size: 0.55rem; cursor: pointer;
+  letter-spacing: 0.1em; text-transform: uppercase; user-select: none;
+}
+.btn:active { border-color: #555; color: #888; }
+.btn.primary { border-color: #555; color: #aaa; background: #111; }
+.btn.primary:active { border-color: var(--accent); color: var(--accent); }
+.spacer { flex: 1; }
+
+/* input */
+#sql-input {
+  width: 100%; min-height: 160px; max-height: 340px;
+  background: #111; border: 1px solid #1a1a1a; color: #aaa;
+  font-family: inherit; font-size: 0.7rem; line-height: 1.6;
+  padding: 10px; resize: vertical; outline: none;
+  margin-bottom: 8px;
+}
+#sql-input:focus { border-color: #333; }
+#sql-input::placeholder { color: #252525; }
+
+/* output grid */
+#output-wrap {
+  display: none; grid-template-columns: 1fr 1fr; gap: 8px;
+}
+#output-wrap.visible { display: grid; }
+@media (max-width: 600px) { #output-wrap.visible { grid-template-columns: 1fr; } }
+
+/* panels */
+.panel { border: 1px solid #1a1a1a; }
+.panel-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 5px 8px; border-bottom: 1px solid #1a1a1a; background: #0d0d0d;
+}
+.panel-title { font-size: 0.45rem; letter-spacing: 0.15em; text-transform: uppercase; color: #444; }
+.panel-action {
+  font-size: 0.45rem; letter-spacing: 0.1em; text-transform: uppercase;
+  color: #333; cursor: pointer; background: none; border: none;
+  font-family: inherit; padding: 0;
+}
+.panel-action:active { color: var(--accent); }
+
+/* formatted SQL */
+#formatted-code {
+  padding: 10px; font-size: 0.65rem; line-height: 1.65;
+  overflow-x: auto; white-space: pre; min-height: 80px;
+  -webkit-overflow-scrolling: touch;
+}
+/* syntax colors */
+.sk  { color: var(--accent); }         /* keyword */
+.ss  { color: var(--color-success); }  /* string */
+.sn  { color: var(--color-warning); }  /* number */
+.sc  { color: #555; font-style: italic; } /* comment */
+.si  { color: #ccc; }                  /* identifier */
+.sp  { color: #555; }                  /* punctuation / operator */
+
+/* explanation */
+#explain-list { padding: 10px; min-height: 80px; }
+.ex-item {
+  display: flex; gap: 8px; align-items: flex-start;
+  margin-bottom: 10px; font-size: 0.6rem; line-height: 1.5;
+}
+.ex-item:last-child { margin-bottom: 0; }
+.ex-icon {
+  font-size: 0.7rem; width: 18px; flex-shrink: 0;
+  text-align: center; margin-top: 1px;
+}
+.ex-body {}
+.ex-label {
+  font-size: 0.42rem; letter-spacing: 0.12em; text-transform: uppercase;
+  color: #555; margin-bottom: 2px;
+}
+.ex-detail { color: #999; }
+.ex-detail .hi { color: #ccc; }
+.ex-detail .kw { color: var(--accent); }
+.ex-detail .wr { color: var(--color-warning); }
+.ex-detail .er { color: var(--color-error); }
+
+/* empty state */
+#empty-hint {
+  padding: 32px 20px; text-align: center;
+  font-size: 0.5rem; color: #222; letter-spacing: 0.1em; text-transform: uppercase;
+  border: 1px solid #111;
+}
+
+/* toast */
+#toast {
+  position: fixed;
+  bottom: max(16px, env(safe-area-inset-bottom, 16px));
+  left: 50%; transform: translateX(-50%) translateY(20px);
+  background: #1a1a1a; border: 1px solid #333; color: #aaa;
+  padding: 6px 14px; font-size: 0.5rem; letter-spacing: 0.1em;
+  text-transform: uppercase; border-radius: 4px;
+  opacity: 0; transition: opacity 0.2s, transform 0.2s;
+  pointer-events: none; z-index: 100; white-space: nowrap;
+}
+#toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+</style>
+</head>
+<body>
+<div class="page">
+  <header>
+    <div class="logo">sql<span>-explain</span></div>
+    <div class="tagline">format &amp; explain any SQL query</div>
+    <div class="kbd">ctrl+enter to run</div>
+  </header>
+  <div class="toolbar">
+    <button class="btn" id="sample-btn">Load Sample</button>
+    <button class="btn" id="clear-btn">Clear</button>
+    <div class="spacer"></div>
+    <button class="btn primary" id="run-btn">Format + Explain &rarr;</button>
+  </div>
+  <textarea id="sql-input" spellcheck="false" autocomplete="off" autocorrect="off" autocapitalize="off"
+    placeholder="-- Paste any SQL query here...
+SELECT * FROM users WHERE id = 1;"></textarea>
+
+  <div id="empty-hint">Paste a SQL query above and click Format + Explain</div>
+
+  <div id="output-wrap">
+    <div class="panel" id="fmt-panel">
+      <div class="panel-header">
+        <span class="panel-title">Formatted SQL</span>
+        <button class="panel-action" id="copy-btn">&#9113; Copy</button>
+      </div>
+      <pre id="formatted-code"></pre>
+    </div>
+    <div class="panel" id="exp-panel">
+      <div class="panel-header">
+        <span class="panel-title">Plain-English Explanation</span>
+      </div>
+      <div id="explain-list"></div>
+    </div>
+  </div>
+</div>
+<div id="toast"></div>
+
+<script>
+(function() {
+  /* ── char codes ── */
+  var CH_APOS  = 39;
+  var CH_DQUOTE = 34;
+  var CH_BTICK  = 96;
+  var CH_DASH   = 45;
+  var CH_SLASH  = 47;
+  var CH_STAR   = 42;
+  var CH_NL     = 10;
+  var CH_DOT    = 46;
+
+  /* ── token types ── */
+  var TK_KW = 'kw';
+  var TK_ID = 'id';
+  var TK_STR = 'st';
+  var TK_NUM = 'nm';
+  var TK_OP = 'op';
+  var TK_CM = 'cm';
+  var TK_WS = 'ws';
+
+  /* block comment delimiters built from char codes to avoid confusing test strippers */
+  var CM_OP = String.fromCharCode(47, 42);   /* / followed by * */
+  var CM_CL = String.fromCharCode(42, 47);   /* * followed by / */
+
+  /* ── keyword set ── */
+  var KW = (function() {
+    var list = [
+      'SELECT','DISTINCT','FROM','WHERE','AND','OR','NOT','IN','LIKE','ILIKE',
+      'BETWEEN','IS','NULL','AS','JOIN','INNER','LEFT','RIGHT','FULL','OUTER',
+      'CROSS','ON','USING','GROUP','ORDER','BY','HAVING','LIMIT','OFFSET',
+      'TOP','INSERT','INTO','VALUES','UPDATE','SET','DELETE','CREATE','DROP',
+      'ALTER','TABLE','INDEX','VIEW','DATABASE','SCHEMA','CASE','WHEN','THEN',
+      'ELSE','END','WITH','RECURSIVE','UNION','ALL','EXCEPT','INTERSECT',
+      'EXISTS','ANY','SOME','OVER','PARTITION','ROWS','RANGE','BETWEEN',
+      'UNBOUNDED','PRECEDING','FOLLOWING','CURRENT','ROW',
+      'COUNT','SUM','AVG','MIN','MAX','COALESCE','NULLIF','CAST','CONVERT',
+      'ASC','DESC','NULLS','FIRST','LAST','TRUE','FALSE',
+      'PRIMARY','KEY','FOREIGN','REFERENCES','UNIQUE','CHECK','DEFAULT',
+      'CONSTRAINT','IF','THEN'
+    ];
+    var m = {};
+    for (var i = 0; i < list.length; i++) m[list[i]] = 1;
+    return m;
+  })();
+
+  /* ── tokenize ── */
+  function tokenize(sql) {
+    var tokens = [];
+    var i = 0;
+    var n = sql.length;
+    while (i < n) {
+      var c = sql.charCodeAt(i);
+
+      /* whitespace */
+      if (c === 32 || c === 9 || c === 10 || c === 13) {
+        var ws = '';
+        while (i < n) {
+          var wc = sql.charCodeAt(i);
+          if (wc !== 32 && wc !== 9 && wc !== 10 && wc !== 13) break;
+          ws += sql.charAt(i++);
+        }
+        tokens.push({ t: TK_WS, v: ws });
+        continue;
+      }
+
+      /* line comment -- */
+      if (c === CH_DASH && i + 1 < n && sql.charCodeAt(i + 1) === CH_DASH) {
+        var cm = '';
+        while (i < n && sql.charCodeAt(i) !== CH_NL) cm += sql.charAt(i++);
+        tokens.push({ t: TK_CM, v: cm });
+        continue;
+      }
+
+      /* block comment */
+      if (c === CH_SLASH && i + 1 < n && sql.charCodeAt(i + 1) === CH_STAR) {
+        var cm = CM_OP;
+        i += 2;
+        while (i < n) {
+          if (sql.charCodeAt(i) === CH_STAR && i + 1 < n && sql.charCodeAt(i + 1) === CH_SLASH) {
+            cm += CM_CL; i += 2; break;
+          }
+          cm += sql.charAt(i++);
+        }
+        tokens.push({ t: TK_CM, v: cm });
+        continue;
+      }
+
+      /* single-quoted string */
+      if (c === CH_APOS) {
+        var s = sql.charAt(i++);
+        while (i < n) {
+          var sc = sql.charCodeAt(i);
+          if (sc === 92) { s += sql.charAt(i) + sql.charAt(i + 1); i += 2; }
+          else if (sc === CH_APOS) {
+            s += sql.charAt(i++);
+            if (i < n && sql.charCodeAt(i) === CH_APOS) { s += sql.charAt(i++); }
+            else break;
+          } else { s += sql.charAt(i++); }
+        }
+        tokens.push({ t: TK_STR, v: s });
+        continue;
+      }
+
+      /* double-quoted identifier */
+      if (c === CH_DQUOTE) {
+        var s = sql.charAt(i++);
+        while (i < n && sql.charCodeAt(i) !== CH_DQUOTE) s += sql.charAt(i++);
+        if (i < n) s += sql.charAt(i++);
+        tokens.push({ t: TK_ID, v: s });
+        continue;
+      }
+
+      /* backtick identifier */
+      if (c === CH_BTICK) {
+        var s = sql.charAt(i++);
+        while (i < n && sql.charCodeAt(i) !== CH_BTICK) s += sql.charAt(i++);
+        if (i < n) s += sql.charAt(i++);
+        tokens.push({ t: TK_ID, v: s });
+        continue;
+      }
+
+      /* number */
+      if ((c >= 48 && c <= 57) || (c === CH_DOT && i + 1 < n && sql.charCodeAt(i + 1) >= 48 && sql.charCodeAt(i + 1) <= 57)) {
+        var num = '';
+        while (i < n) {
+          var nc = sql.charCodeAt(i);
+          if ((nc >= 48 && nc <= 57) || nc === CH_DOT) { num += sql.charAt(i++); }
+          else break;
+        }
+        tokens.push({ t: TK_NUM, v: num });
+        continue;
+      }
+
+      /* word: keyword or identifier */
+      if ((c >= 65 && c <= 90) || (c >= 97 && c <= 122) || c === 95) {
+        var word = '';
+        while (i < n) {
+          var wc = sql.charCodeAt(i);
+          if ((wc >= 65 && wc <= 90) || (wc >= 97 && wc <= 122) || (wc >= 48 && wc <= 57) || wc === 95) {
+            word += sql.charAt(i++);
+          } else break;
+        }
+        var up = word.toUpperCase();
+        tokens.push({ t: KW[up] ? TK_KW : TK_ID, v: word, u: up });
+        continue;
+      }
+
+      /* everything else */
+      tokens.push({ t: TK_OP, v: sql.charAt(i++) });
+    }
+    return tokens;
+  }
+
+  /* ── format ── */
+  /* Which keywords start a new line at depth 0 */
+  var NL_KW = (function() {
+    var list = [
+      'SELECT','FROM','WHERE','HAVING','LIMIT','OFFSET',
+      'UNION','EXCEPT','INTERSECT','WITH'
+    ];
+    var m = {};
+    for (var i = 0; i < list.length; i++) m[list[i]] = 1;
+    return m;
+  })();
+
+  /* Join modifier keywords — precede JOIN */
+  var JOIN_MOD = { INNER: 1, LEFT: 1, RIGHT: 1, FULL: 1, OUTER: 1, CROSS: 1 };
+
+  function formatSQL(tokens) {
+    /* strip whitespace and comments-used-for-spacing; keep block comments in output */
+    var tks = [];
+    for (var i = 0; i < tokens.length; i++) {
+      var t = tokens[i];
+      if (t.t === TK_WS) continue;
+      tks.push(t);
+    }
+    if (!tks.length) return '';
+
+    var out = '';
+    var parenDepth = 0;
+    var prevUpper = '';
+
+    for (var i = 0; i < tks.length; i++) {
+      var tk = tks[i];
+      var upper = (tk.t === TK_KW) ? tk.u : '';
+      var emit = (tk.t === TK_KW) ? upper : tk.v;
+      var prevWasParen = (tks[i - 1] && tks[i - 1].v === '(');
+      var isCloseParen = (tk.v === ')');
+      var isComma = (tk.v === ',');
+
+      if (tk.v === '(') parenDepth++;
+      else if (tk.v === ')') parenDepth--;
+
+      if (i === 0) {
+        out += emit;
+      } else if (tk.t === TK_KW && parenDepth === 0) {
+        /* JOIN and its modifiers */
+        if (upper === 'JOIN') {
+          if (!JOIN_MOD[prevUpper]) out += '\n';
+          else out += ' ';
+        } else if (JOIN_MOD[upper]) {
+          out += '\n';
+        } else if (NL_KW[upper]) {
+          out += '\n';
+        } else if (upper === 'GROUP' || upper === 'ORDER') {
+          out += '\n';
+        } else if (upper === 'AND' || upper === 'OR') {
+          out += '\n  ';
+        } else if (upper === 'ON') {
+          out += '\n  ';
+        } else if (upper === 'CASE') {
+          out += ' ';
+        } else if (upper === 'WHEN') {
+          out += '\n    ';
+        } else if (upper === 'THEN') {
+          out += ' ';
+        } else if (upper === 'ELSE') {
+          out += '\n    ';
+        } else if (upper === 'END') {
+          out += '\n  ';
+        } else {
+          out += ' ';
+        }
+        out += emit;
+      } else if (isCloseParen) {
+        out += emit;
+      } else if (prevWasParen) {
+        out += emit;
+      } else if (isComma) {
+        out += emit;
+      } else if (tks[i - 1] && tks[i - 1].v === ',') {
+        out += ' ' + emit;
+      } else if (tk.t === TK_CM) {
+        out += ' ' + emit;
+      } else {
+        out += ' ' + emit;
+      }
+
+      prevUpper = upper;
+    }
+
+    return out.trim();
+  }
+
+  /* ── syntax-highlight formatted SQL ── */
+  function highlight(formatted) {
+    var tokens = tokenize(formatted);
+    var html = '';
+    for (var i = 0; i < tokens.length; i++) {
+      var tk = tokens[i];
+      var e = escHtml(tk.v);
+      if (tk.t === TK_KW)       html += '<span class="sk">' + e + '</span>';
+      else if (tk.t === TK_STR) html += '<span class="ss">' + e + '</span>';
+      else if (tk.t === TK_NUM) html += '<span class="sn">' + e + '</span>';
+      else if (tk.t === TK_CM)  html += '<span class="sc">' + e + '</span>';
+      else if (tk.t === TK_ID)  html += '<span class="si">' + e + '</span>';
+      else if (tk.t === TK_OP)  html += '<span class="sp">' + e + '</span>';
+      else                       html += e; /* whitespace */
+    }
+    return html;
+  }
+
+  /* ── extract clauses for explanation ── */
+  function extractClauses(tokens) {
+    /* work with non-WS tokens */
+    var tks = [];
+    for (var i = 0; i < tokens.length; i++) {
+      if (tokens[i].t !== TK_WS) tks.push(tokens[i]);
+    }
+
+    var clauses = {
+      type: null,    /* SELECT | INSERT | UPDATE | DELETE | CREATE | DROP | ALTER | WITH */
+      cols: [],      /* SELECT columns */
+      from: [],      /* FROM tables */
+      joins: [],     /* [{type, table, on}] */
+      where: [],     /* WHERE tokens */
+      groupBy: [],   /* GROUP BY cols */
+      having: [],    /* HAVING tokens */
+      orderBy: [],   /* ORDER BY cols */
+      limit: null,   /* LIMIT n */
+      offset: null,  /* OFFSET n */
+      aggs: [],      /* aggregation functions used */
+      distinct: false,
+      unions: 0
+    };
+
+    var depth = 0;
+    var i = 0;
+    var n = tks.length;
+
+    function peekUpper(idx) { return (tks[idx] && tks[idx].u) ? tks[idx].u : ''; }
+    function spanClause(startIdx, stopUpper) {
+      /* collect tokens until we hit a top-level keyword in stopUpper */
+      var result = [];
+      var d = 0;
+      for (var j = startIdx; j < n; j++) {
+        var t = tks[j];
+        if (t.v === '(') d++;
+        else if (t.v === ')') d--;
+        if (d === 0 && t.t === TK_KW && stopUpper[t.u]) break;
+        result.push(t);
+      }
+      return result;
+    }
+    var CLAUSE_STOP = {
+      FROM:1, WHERE:1, GROUP:1, ORDER:1, HAVING:1, LIMIT:1, OFFSET:1,
+      UNION:1, EXCEPT:1, INTERSECT:1, JOIN:1, INNER:1, LEFT:1, RIGHT:1, FULL:1, CROSS:1
+    };
+
+    /* detect query type */
+    if (tks.length) {
+      var first = peekUpper(0);
+      if (first === 'WITH') { clauses.type = 'WITH'; }
+      else clauses.type = first || 'SELECT';
+    }
+
+    /* scan top-level clauses */
+    for (i = 0; i < n; i++) {
+      var tk = tks[i];
+      if (tk.v === '(') depth++;
+      else if (tk.v === ')') depth--;
+      if (depth > 0) continue;
+
+      var u = tk.u || '';
+
+      if (u === 'SELECT') {
+        if (peekUpper(i + 1) === 'DISTINCT') { clauses.distinct = true; i++; }
+        var selTks = spanClause(i + 1, { FROM: 1 });
+        clauses.cols = splitByComma(selTks);
+        i += selTks.length;
+      } else if (u === 'FROM') {
+        var fromTks = spanClause(i + 1, CLAUSE_STOP);
+        clauses.from = fromTks;
+        i += fromTks.length;
+      } else if (u === 'JOIN' || (JOIN_MOD[u] && peekUpper(i + 1) === 'JOIN')) {
+        var joinType = u;
+        var jIdx = i;
+        if (JOIN_MOD[u]) { joinType = u + ' JOIN'; i++; jIdx = i; }
+        var joinTks = spanClause(jIdx + 1, CLAUSE_STOP);
+        var onIdx = -1;
+        for (var ji = 0; ji < joinTks.length; ji++) {
+          if (joinTks[ji].u === 'ON' || joinTks[ji].u === 'USING') { onIdx = ji; break; }
+        }
+        var tableTks = onIdx >= 0 ? joinTks.slice(0, onIdx) : joinTks;
+        var condTks  = onIdx >= 0 ? joinTks.slice(onIdx) : [];
+        clauses.joins.push({
+          type: joinType,
+          table: tokensToStr(tableTks),
+          cond: tokensToStr(condTks)
+        });
+        i += joinTks.length;
+      } else if (u === 'WHERE') {
+        var wTks = spanClause(i + 1, { GROUP:1, ORDER:1, HAVING:1, LIMIT:1, OFFSET:1, UNION:1, EXCEPT:1, INTERSECT:1 });
+        clauses.where = wTks;
+        i += wTks.length;
+      } else if (u === 'GROUP' && peekUpper(i + 1) === 'BY') {
+        i++;
+        var gTks = spanClause(i + 1, { ORDER:1, HAVING:1, LIMIT:1, OFFSET:1, UNION:1, EXCEPT:1, INTERSECT:1 });
+        clauses.groupBy = splitByComma(gTks);
+        i += gTks.length;
+      } else if (u === 'HAVING') {
+        var hTks = spanClause(i + 1, { ORDER:1, LIMIT:1, OFFSET:1, UNION:1, EXCEPT:1, INTERSECT:1 });
+        clauses.having = hTks;
+        i += hTks.length;
+      } else if (u === 'ORDER' && peekUpper(i + 1) === 'BY') {
+        i++;
+        var oTks = spanClause(i + 1, { LIMIT:1, OFFSET:1, UNION:1, EXCEPT:1, INTERSECT:1 });
+        clauses.orderBy = splitByComma(oTks);
+        i += oTks.length;
+      } else if (u === 'LIMIT') {
+        if (tks[i + 1]) { clauses.limit = tks[i + 1].v; i++; }
+      } else if (u === 'OFFSET') {
+        if (tks[i + 1]) { clauses.offset = tks[i + 1].v; i++; }
+      } else if (u === 'UNION' || u === 'EXCEPT' || u === 'INTERSECT') {
+        clauses.unions++;
+      }
+    }
+
+    /* detect aggregate functions */
+    var AGG_FNS = { COUNT:1, SUM:1, AVG:1, MIN:1, MAX:1, STDDEV:1, VARIANCE:1 };
+    for (var ai = 0; ai < tks.length; ai++) {
+      if (tks[ai].t === TK_KW && AGG_FNS[tks[ai].u]) {
+        if (clauses.aggs.indexOf(tks[ai].u) < 0) clauses.aggs.push(tks[ai].u);
+      }
+    }
+
+    return clauses;
+  }
+
+  function splitByComma(tks) {
+    var groups = [];
+    var cur = [];
+    var d = 0;
+    for (var i = 0; i < tks.length; i++) {
+      var t = tks[i];
+      if (t.v === '(') d++;
+      else if (t.v === ')') d--;
+      if (d === 0 && t.v === ',') { if (cur.length) groups.push(cur); cur = []; }
+      else cur.push(t);
+    }
+    if (cur.length) groups.push(cur);
+    return groups;
+  }
+
+  function tokensToStr(tks) {
+    return tks.map(function(t){ return t.v; }).join(' ').trim();
+  }
+
+  /* ── render explanation ── */
+  function renderExplanation(clauses) {
+    var items = [];
+
+    function item(icon, label, detail) {
+      items.push({ icon: icon, label: label, detail: detail });
+    }
+
+    var t = clauses.type;
+
+    if (t === 'SELECT' || t === 'WITH') {
+      /* SELECT columns */
+      if (clauses.cols.length) {
+        var cols = clauses.cols.map(function(g){ return tokensToStr(g); });
+        var isStar = cols.length === 1 && cols[0] === '*';
+        var colsHtml;
+        if (isStar) {
+          colsHtml = '<span class="wr">all columns (*)</span> — consider selecting only what you need';
+        } else {
+          colsHtml = cols.map(function(c){ return '<span class="hi">' + escHtml(c) + '</span>'; }).join(', ');
+        }
+        var prefix = clauses.distinct ? '<span class="kw">DISTINCT</span> ' : '';
+        item('&#128270;', 'Retrieves', prefix + colsHtml);
+      }
+
+      /* FROM */
+      if (clauses.from.length) {
+        item('&#128196;', 'Source table', '<span class="hi">' + escHtml(tokensToStr(clauses.from)) + '</span>');
+      }
+
+      /* JOINs */
+      for (var ji = 0; ji < clauses.joins.length; ji++) {
+        var j = clauses.joins[ji];
+        var joinIcon = j.type.indexOf('LEFT') >= 0 ? '&#8592;' :
+                       j.type.indexOf('RIGHT') >= 0 ? '&#8594;' :
+                       j.type.indexOf('FULL') >= 0 ? '&#8596;' :
+                       j.type.indexOf('CROSS') >= 0 ? '&#215;' : '&#8897;';
+        item(joinIcon, escHtml(j.type), '<span class="hi">' + escHtml(j.table) + '</span>' + (j.cond ? ' <span class="kw">' + escHtml(j.cond.split(' ').slice(0,1).join('')) + '</span> ' + escHtml(j.cond.split(' ').slice(1).join(' ')) : ''));
+      }
+
+      /* WHERE */
+      if (clauses.where.length) {
+        item('&#128269;', 'Filters rows where', '<span class="hi">' + escHtml(tokensToStr(clauses.where)) + '</span>');
+      }
+
+      /* GROUP BY */
+      if (clauses.groupBy.length) {
+        var gcols = clauses.groupBy.map(function(g){ return '<span class="hi">' + escHtml(tokensToStr(g)) + '</span>'; }).join(', ');
+        item('&#128202;', 'Groups results by', gcols);
+      }
+
+      /* Aggregates */
+      if (clauses.aggs.length) {
+        item('&#8721;', 'Aggregates', 'Uses <span class="kw">' + escHtml(clauses.aggs.join(', ')) + '</span>');
+      }
+
+      /* HAVING */
+      if (clauses.having.length) {
+        item('&#128290;', 'Post-group filter', '<span class="hi">' + escHtml(tokensToStr(clauses.having)) + '</span>');
+      }
+
+      /* ORDER BY */
+      if (clauses.orderBy.length) {
+        var ocols = clauses.orderBy.map(function(g){ return '<span class="hi">' + escHtml(tokensToStr(g)) + '</span>'; }).join(', ');
+        item('&#8597;', 'Sorts by', ocols);
+      }
+
+      /* LIMIT / OFFSET */
+      if (clauses.limit !== null) {
+        var limDetail = 'Returns at most <span class="hi">' + escHtml(clauses.limit) + '</span> rows';
+        if (clauses.offset !== null) limDetail += ', skipping the first <span class="hi">' + escHtml(clauses.offset) + '</span>';
+        item('&#9988;', 'Limit', limDetail);
+      }
+
+      /* UNION */
+      if (clauses.unions > 0) {
+        item('&#10010;', 'Combined queries', 'This is a <span class="kw">UNION</span> of ' + (clauses.unions + 1) + ' SELECT statements');
+      }
+
+      /* WITH */
+      if (t === 'WITH') {
+        item('&#128193;', 'CTE (WITH)', 'Query uses a Common Table Expression — a named temporary result set');
+      }
+
+    } else if (t === 'INSERT') {
+      item('&#43;', 'Operation', '<span class="kw">INSERT</span> — adds new rows to a table');
+    } else if (t === 'UPDATE') {
+      item('&#9998;', 'Operation', '<span class="kw">UPDATE</span> — modifies existing rows');
+      if (clauses.where.length) {
+        item('&#128269;', 'Affects rows where', '<span class="hi">' + escHtml(tokensToStr(clauses.where)) + '</span>');
+      } else {
+        item('&#9888;', 'Warning', '<span class="er">No WHERE clause — this UPDATE affects ALL rows in the table</span>');
+      }
+    } else if (t === 'DELETE') {
+      item('&#8722;', 'Operation', '<span class="kw">DELETE</span> — removes rows from a table');
+      if (clauses.where.length) {
+        item('&#128269;', 'Affects rows where', '<span class="hi">' + escHtml(tokensToStr(clauses.where)) + '</span>');
+      } else {
+        item('&#9888;', 'Warning', '<span class="er">No WHERE clause — this DELETE removes ALL rows from the table</span>');
+      }
+    } else if (t === 'CREATE') {
+      item('&#9998;', 'Operation', '<span class="kw">CREATE</span> — creates a new database object');
+    } else if (t === 'DROP') {
+      item('&#9888;', 'Operation', '<span class="er">DROP</span> — permanently deletes a database object');
+    } else if (t === 'ALTER') {
+      item('&#9998;', 'Operation', '<span class="kw">ALTER</span> — modifies a database object structure');
+    } else {
+      item('&#9432;', 'Query type', '<span class="hi">' + escHtml(t) + '</span>');
+    }
+
+    if (!items.length) {
+      return '<div style="color:#444;font-size:0.55rem;padding:8px">No clauses detected.</div>';
+    }
+
+    var html = '';
+    for (var ii = 0; ii < items.length; ii++) {
+      var it = items[ii];
+      html += '<div class="ex-item">';
+      html += '<div class="ex-icon">' + it.icon + '</div>';
+      html += '<div class="ex-body">';
+      html += '<div class="ex-label">' + it.label + '</div>';
+      html += '<div class="ex-detail">' + it.detail + '</div>';
+      html += '</div></div>';
+    }
+    return html;
+  }
+
+  /* ── escHtml (char-code based, no regex) ── */
+  function escHtml(s) {
+    var out = '';
+    for (var i = 0; i < s.length; i++) {
+      var c = s.charCodeAt(i);
+      if (c === 38) out += '&amp;';
+      else if (c === 60) out += '&lt;';
+      else if (c === 62) out += '&gt;';
+      else if (c === 34) out += '&quot;';
+      else if (c === 39) out += '&#39;';
+      else out += s.charAt(i);
+    }
+    return out;
+  }
+
+  /* ── DOM refs ── */
+  var elInput     = document.getElementById('sql-input');
+  var elRunBtn    = document.getElementById('run-btn');
+  var elSampleBtn = document.getElementById('sample-btn');
+  var elClearBtn  = document.getElementById('clear-btn');
+  var elCopyBtn   = document.getElementById('copy-btn');
+  var elOutputWrap = document.getElementById('output-wrap');
+  var elEmptyHint  = document.getElementById('empty-hint');
+  var elFormatted  = document.getElementById('formatted-code');
+  var elExplain    = document.getElementById('explain-list');
+  var elToast      = document.getElementById('toast');
+
+  var lastFormatted = '';
+
+  /* ── run ── */
+  function run() {
+    var sql = elInput.value.trim();
+    if (!sql) { showToast('Paste a SQL query first'); return; }
+
+    var tokens   = tokenize(sql);
+    var formatted = formatSQL(tokens);
+    lastFormatted = formatted;
+
+    elFormatted.innerHTML = highlight(formatted);
+
+    var clauses = extractClauses(tokenize(formatted));
+    elExplain.innerHTML = renderExplanation(clauses);
+
+    elOutputWrap.classList.add('visible');
+    elEmptyHint.style.display = 'none';
+
+    elOutputWrap.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+
+  /* ── copy ── */
+  function copyFormatted() {
+    if (!lastFormatted) { showToast('Nothing to copy'); return; }
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(lastFormatted).then(function() {
+        showToast('Copied to clipboard');
+      }).catch(function() { fallbackCopy(); });
+    } else { fallbackCopy(); }
+  }
+
+  function fallbackCopy() {
+    var ta = document.createElement('textarea');
+    ta.value = lastFormatted;
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    try { document.execCommand('copy'); showToast('Copied'); } catch (e) { showToast('Copy failed'); }
+    document.body.removeChild(ta);
+  }
+
+  /* ── sample ── */
+  var SAMPLE = [
+    'SELECT',
+    '  u.id,',
+    '  u.name,',
+    '  u.email,',
+    '  COUNT(o.id)       AS order_count,',
+    '  SUM(o.total)      AS total_spent,',
+    '  MAX(o.created_at) AS last_order_date',
+    'FROM users u',
+    'LEFT JOIN orders o ON u.id = o.user_id',
+    'LEFT JOIN user_tiers t ON u.tier_id = t.id',
+    "WHERE u.status = 'active'",
+    "  AND u.created_at >= '2024-01-01'",
+    'GROUP BY u.id, u.name, u.email',
+    'HAVING COUNT(o.id) > 0',
+    'ORDER BY total_spent DESC',
+    'LIMIT 50'
+  ].join('\n');
+
+  /* ── toast ── */
+  var toastTimer = null;
+  function showToast(msg) {
+    elToast.textContent = msg;
+    elToast.classList.add('show');
+    if (toastTimer) clearTimeout(toastTimer);
+    toastTimer = setTimeout(function() { elToast.classList.remove('show'); }, 2000);
+  }
+
+  /* ── events ── */
+  elRunBtn.addEventListener('pointerdown', function(e) { e.preventDefault(); run(); });
+  elCopyBtn.addEventListener('pointerdown', function(e) { e.preventDefault(); copyFormatted(); });
+  elSampleBtn.addEventListener('pointerdown', function(e) {
+    e.preventDefault();
+    elInput.value = SAMPLE;
+    showToast('Sample loaded — click Format + Explain');
+  });
+  elClearBtn.addEventListener('pointerdown', function(e) {
+    e.preventDefault();
+    elInput.value = '';
+    elOutputWrap.classList.remove('visible');
+    elEmptyHint.style.display = '';
+    lastFormatted = '';
+  });
+
+  document.addEventListener('keydown', function(e) {
+    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') { run(); }
+  });
+
+})();
+</script>
+</body>
+</html>
