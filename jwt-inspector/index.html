@@ -1,0 +1,784 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="theme-color" content="#000000">
+<title>JWT Inspector</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body {
+  height: 100%;
+  background: #0a0a0a;
+  color: #ccc;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Courier New", monospace;
+  overflow-y: auto;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+:root {
+  --cyan: #0ff;
+  --amber: #d29922;
+  --red: #f85149;
+  --green: #3fb950;
+  --surface: #111;
+  --elevated: #1a1a1a;
+  --hover: #222;
+}
+
+.container {
+  max-width: 680px;
+  margin: 0 auto;
+  padding: 12px;
+}
+
+/* Header */
+.page-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 16px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid #1a1a1a;
+}
+.page-title {
+  font-size: 0.75rem;
+  color: #aaa;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+}
+.page-sub {
+  font-size: 0.45rem;
+  color: #444;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  margin-left: auto;
+}
+
+/* Input area */
+.input-wrap {
+  position: relative;
+  margin-bottom: 8px;
+}
+#jwt-in {
+  width: 100%;
+  min-height: 90px;
+  background: #111;
+  border: 1px solid #222;
+  color: #aaa;
+  padding: 8px;
+  font-family: inherit;
+  font-size: 0.7rem;
+  line-height: 1.5;
+  outline: none;
+  resize: vertical;
+  word-break: break-all;
+}
+#jwt-in:focus { border-color: #444; }
+#jwt-in::placeholder { color: #333; }
+
+.input-toolbar {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.btn {
+  padding: 0 10px;
+  height: 36px;
+  background: transparent;
+  border: 1px solid #1a1a1a;
+  color: #444;
+  font-family: inherit;
+  font-size: 0.55rem;
+  cursor: pointer;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  user-select: none;
+}
+.btn:active { border-color: #555; color: #888; }
+.btn.active { border-color: var(--cyan); color: var(--cyan); }
+.btn.primary {
+  border-color: #333;
+  color: #888;
+}
+.btn.primary:active { border-color: #666; color: #ccc; }
+.btn.small { height: 28px; font-size: 0.5rem; padding: 0 8px; }
+
+/* Error banner */
+#err-msg {
+  display: none;
+  padding: 8px;
+  border: 1px solid var(--red);
+  color: var(--red);
+  font-size: 0.6rem;
+  margin-bottom: 12px;
+  background: rgba(248, 81, 73, 0.05);
+}
+
+/* Token parts visual */
+.section-label {
+  font-size: 0.45rem;
+  color: #444;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  margin-bottom: 6px;
+}
+
+#token-parts {
+  display: none;
+  padding: 8px;
+  background: #111;
+  border: 1px solid #1a1a1a;
+  font-size: 0.6rem;
+  line-height: 1.6;
+  word-break: break-all;
+  margin-bottom: 12px;
+}
+.tp-h { color: var(--cyan); }
+.tp-dot { color: #333; }
+.tp-p { color: var(--amber); }
+.tp-s { color: var(--red); }
+
+/* Decoded panels */
+.panels {
+  display: none;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.panels.visible { display: flex; flex-direction: column; }
+
+.panel {
+  border: 1px solid #1a1a1a;
+  background: #111;
+}
+.panel-head {
+  display: flex;
+  align-items: center;
+  padding: 6px 8px;
+  border-bottom: 1px solid #1a1a1a;
+  gap: 6px;
+}
+.panel-label {
+  font-size: 0.5rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+}
+.panel-label.hdr { color: var(--cyan); }
+.panel-label.pay { color: var(--amber); }
+.panel-label.sig { color: var(--red); }
+.panel-copy {
+  margin-left: auto;
+  padding: 0 10px;
+  height: 36px;
+  background: transparent;
+  border: 1px solid #1a1a1a;
+  color: #444;
+  font-family: inherit;
+  font-size: 0.5rem;
+  cursor: pointer;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  user-select: none;
+}
+.panel-copy:active { border-color: #555; color: #888; }
+
+.panel-body {
+  padding: 8px;
+  font-size: 0.65rem;
+  line-height: 1.7;
+  overflow-x: auto;
+}
+
+/* JSON coloring */
+.jk { color: #aaa; }          /* key */
+.js { color: #3fb950; }        /* string value */
+.jn { color: #79c0ff; }        /* number */
+.jb { color: var(--amber); }   /* boolean/null */
+.claim-desc {
+  color: #444;
+  font-size: 0.5rem;
+  margin-left: 8px;
+  letter-spacing: 0.05em;
+}
+
+/* Expiration badge */
+#exp-badge {
+  display: none;
+  padding: 6px 10px;
+  font-size: 0.6rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  border: 1px solid;
+  margin-bottom: 12px;
+  width: fit-content;
+}
+#exp-badge.ok   { border-color: var(--green); color: var(--green); background: rgba(63, 185, 80, 0.05); }
+#exp-badge.warn { border-color: var(--amber); color: var(--amber); background: rgba(210, 153, 34, 0.05); }
+#exp-badge.err  { border-color: var(--red);   color: var(--red);   background: rgba(248, 81, 73, 0.05); }
+#exp-badge.none { border-color: #333; color: #555; }
+
+/* Signature section */
+.sig-section {
+  display: none;
+  border: 1px solid #1a1a1a;
+  padding: 10px;
+  margin-bottom: 12px;
+}
+.sig-section.visible { display: block; }
+.sig-title {
+  font-size: 0.5rem;
+  color: #444;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  margin-bottom: 8px;
+}
+.sig-row {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+#secret-in {
+  flex: 1;
+  height: 36px;
+  background: #111;
+  border: 1px solid #222;
+  color: #aaa;
+  padding: 0 8px;
+  font-family: inherit;
+  font-size: 0.65rem;
+  outline: none;
+  min-width: 0;
+}
+#secret-in:focus { border-color: #444; }
+#secret-in::placeholder { color: #333; }
+#verify-btn {
+  height: 36px;
+  padding: 0 12px;
+  white-space: nowrap;
+}
+#sig-result {
+  margin-top: 8px;
+  font-size: 0.6rem;
+  display: none;
+}
+#sig-result.ok  { color: var(--green); display: block; }
+#sig-result.err { color: var(--red);   display: block; }
+
+/* Algorithm note */
+.alg-note {
+  font-size: 0.5rem;
+  color: #444;
+  margin-top: 6px;
+  display: none;
+}
+.alg-note.visible { display: block; }
+
+/* Responsive */
+@media (max-width: 420px) {
+  .sig-row { flex-wrap: wrap; }
+  #verify-btn { width: 100%; }
+}
+</style>
+</head>
+<body>
+<div class="container">
+
+  <div class="page-header">
+    <span class="page-title">JWT Inspector</span>
+    <span class="page-sub">offline &bull; zero-dependency</span>
+  </div>
+
+  <div class="input-wrap">
+    <textarea id="jwt-in" placeholder="Paste JWT token here..." spellcheck="false" autocomplete="off" autocorrect="off" autocapitalize="off"></textarea>
+  </div>
+
+  <div class="input-toolbar">
+    <button class="btn" id="clear-btn">Clear</button>
+    <button class="btn" id="sample-btn">Load Sample</button>
+  </div>
+
+  <div id="err-msg"></div>
+
+  <div id="token-parts">
+    <div class="section-label">Token Parts</div>
+    <span id="tp-h" class="tp-h"></span><span class="tp-dot">.</span><span id="tp-p" class="tp-p"></span><span class="tp-dot">.</span><span id="tp-s" class="tp-s"></span>
+  </div>
+
+  <div id="exp-badge"></div>
+
+  <div class="panels" id="panels">
+
+    <div class="panel">
+      <div class="panel-head">
+        <span class="panel-label hdr">Header</span>
+        <button class="panel-copy" id="copy-hdr">Copy</button>
+      </div>
+      <div class="panel-body" id="header-block"></div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head">
+        <span class="panel-label pay">Payload</span>
+        <button class="panel-copy" id="copy-pay">Copy</button>
+      </div>
+      <div class="panel-body" id="payload-block"></div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head">
+        <span class="panel-label sig">Signature</span>
+      </div>
+      <div class="panel-body" id="sig-block"></div>
+    </div>
+
+  </div><!-- /panels -->
+
+  <div class="sig-section" id="sig-section">
+    <div class="sig-title">Verify Signature</div>
+    <div class="sig-row">
+      <input type="text" id="secret-in" placeholder="HMAC secret (HS256/384/512)" autocomplete="off" spellcheck="false">
+      <button class="btn" id="verify-btn">Verify</button>
+    </div>
+    <div id="sig-result"></div>
+    <div class="alg-note" id="alg-note">RS256/ES256 signatures cannot be verified client-side without a public key upload.</div>
+  </div>
+
+</div><!-- /container -->
+
+<script>
+(function() {
+  'use strict';
+
+  /* ── DOM refs ── */
+  var elIn       = document.getElementById('jwt-in');
+  var elClear    = document.getElementById('clear-btn');
+  var elSample   = document.getElementById('sample-btn');
+  var elErr      = document.getElementById('err-msg');
+  var elParts    = document.getElementById('token-parts');
+  var elTpH      = document.getElementById('tp-h');
+  var elTpP      = document.getElementById('tp-p');
+  var elTpS      = document.getElementById('tp-s');
+  var elExpBadge = document.getElementById('exp-badge');
+  var elPanels   = document.getElementById('panels');
+  var elHdrBlock = document.getElementById('header-block');
+  var elPayBlock = document.getElementById('payload-block');
+  var elSigBlock = document.getElementById('sig-block');
+  var elCopyHdr  = document.getElementById('copy-hdr');
+  var elCopyPay  = document.getElementById('copy-pay');
+  var elSigSec   = document.getElementById('sig-section');
+  var elSecretIn = document.getElementById('secret-in');
+  var elVerify   = document.getElementById('verify-btn');
+  var elSigRes   = document.getElementById('sig-result');
+  var elAlgNote  = document.getElementById('alg-note');
+
+  /* ── State ── */
+  var state = {
+    raw: '',
+    error: null,
+    parts: null,
+    header: null,
+    payload: null,
+    secret: '',
+    sigValid: null,
+    sigChecking: false,
+    headerStr: '',
+    payloadStr: ''
+  };
+
+  /* ── Standard JWT claim descriptions ── */
+  var CLAIMS = {
+    iss: 'Issuer — identifies who issued the token',
+    sub: 'Subject — identifies the principal (user ID)',
+    aud: 'Audience — identifies recipients the token is intended for',
+    exp: 'Expiration Time — token must not be accepted after this time',
+    nbf: 'Not Before — token must not be accepted before this time',
+    iat: 'Issued At — time at which the token was issued',
+    jti: 'JWT ID — unique identifier for this token (prevents replay)',
+    typ: 'Type — media type of the JWT',
+    alg: 'Algorithm — cryptographic algorithm used to secure the token',
+    cty: 'Content Type — media type of the secured content',
+    kid: 'Key ID — indicates which key was used to sign the token'
+  };
+
+  /* ── base64url decode ── */
+  function b64urlDecode(str) {
+    str = str.replace(/-/g, '+').replace(/_/g, '/');
+    while (str.length % 4 !== 0) str += '=';
+    try {
+      return decodeURIComponent(
+        Array.from(atob(str)).map(function(c) {
+          return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+        }).join('')
+      );
+    } catch (e) {
+      return atob(str);
+    }
+  }
+
+  /* ── Parse JWT ── */
+  function parseToken(raw) {
+    raw = raw.trim();
+    if (!raw) return { error: null, parts: null, header: null, payload: null };
+    var dots = raw.split('.');
+    if (dots.length !== 3) {
+      return { error: 'Invalid JWT: expected 3 parts separated by "." but got ' + dots.length, parts: null, header: null, payload: null };
+    }
+    var hStr, pStr, header, payload;
+    try {
+      hStr = b64urlDecode(dots[0]);
+      header = JSON.parse(hStr);
+    } catch (e) {
+      return { error: 'Invalid header: ' + e.message, parts: null, header: null, payload: null };
+    }
+    try {
+      pStr = b64urlDecode(dots[1]);
+      payload = JSON.parse(pStr);
+    } catch (e) {
+      return { error: 'Invalid payload: ' + e.message, parts: null, header: null, payload: null };
+    }
+    return {
+      error: null,
+      parts: { h: dots[0], p: dots[1], s: dots[2] },
+      header: header,
+      payload: payload,
+      headerStr: hStr,
+      payloadStr: pStr
+    };
+  }
+
+  /* ── Expiration status ── */
+  function expStatus(payload) {
+    var now = Math.floor(Date.now() / 1000);
+    if (payload.exp === undefined) return { cls: 'none', label: 'No Expiration (exp claim absent)' };
+    var exp = payload.exp;
+    var diff = exp - now;
+    if (diff < 0) {
+      var ago = formatDuration(-diff);
+      return { cls: 'err', label: 'Expired ' + ago + ' ago' };
+    }
+    if (payload.nbf !== undefined && payload.nbf > now) {
+      return { cls: 'warn', label: 'Not Yet Valid (nbf in ' + formatDuration(payload.nbf - now) + ')' };
+    }
+    return { cls: 'ok', label: 'Valid — expires in ' + formatDuration(diff) };
+  }
+
+  function formatDuration(secs) {
+    if (secs < 60) return secs + 's';
+    if (secs < 3600) return Math.floor(secs / 60) + 'm ' + (secs % 60) + 's';
+    if (secs < 86400) return Math.floor(secs / 3600) + 'h ' + Math.floor((secs % 3600) / 60) + 'm';
+    return Math.floor(secs / 86400) + 'd ' + Math.floor((secs % 86400) / 3600) + 'h';
+  }
+
+  /* ── Syntax-color a JSON object ── */
+  function colorJSON(obj, claimDescs) {
+    var lines = [];
+    var keys = Object.keys(obj);
+    lines.push('{');
+    for (var i = 0; i < keys.length; i++) {
+      var k = keys[i];
+      var v = obj[k];
+      var comma = (i < keys.length - 1) ? ',' : '';
+      var desc = (claimDescs && CLAIMS[k]) ? '<span class="claim-desc">/' + '/ ' + CLAIMS[k] + '</span>' : '';
+      var valHtml = colorValue(v);
+      lines.push('  <span class="jk">' + esc(JSON.stringify(k)) + '</span>: ' + valHtml + comma + desc);
+    }
+    lines.push('}');
+    return lines.join('\n');
+  }
+
+  function colorValue(v) {
+    if (v === null) return '<span class="jb">null</span>';
+    if (typeof v === 'boolean') return '<span class="jb">' + v + '</span>';
+    if (typeof v === 'number') return '<span class="jn">' + v + '</span>';
+    if (typeof v === 'string') return '<span class="js">' + esc(JSON.stringify(v)) + '</span>';
+    if (Array.isArray(v)) {
+      if (v.length === 0) return '[]';
+      return '[' + v.map(colorValue).join(', ') + ']';
+    }
+    if (typeof v === 'object') return esc(JSON.stringify(v));
+    return esc(String(v));
+  }
+
+  function esc(s) {
+    return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  }
+
+  /* ── Format Unix timestamp ── */
+  function fmtUnix(ts) {
+    try {
+      return new Date(ts * 1000).toISOString().replace('T', ' ').replace(/\.\d{3}Z$/, ' UTC');
+    } catch (e) {
+      return String(ts);
+    }
+  }
+
+  /* ── Colored payload with extra date hints ── */
+  function colorPayloadJSON(obj) {
+    var lines = [];
+    var keys = Object.keys(obj);
+    var dateKeys = { exp: true, nbf: true, iat: true };
+    lines.push('{');
+    for (var i = 0; i < keys.length; i++) {
+      var k = keys[i];
+      var v = obj[k];
+      var comma = (i < keys.length - 1) ? ',' : '';
+      var desc = CLAIMS[k] ? '<span class="claim-desc">/' + '/ ' + CLAIMS[k] + '</span>' : '';
+      var valHtml = colorValue(v);
+      if (dateKeys[k] && typeof v === 'number') {
+        valHtml = '<span class="jn">' + v + '</span><span class="claim-desc"> (' + fmtUnix(v) + ')</span>';
+      }
+      lines.push('  <span class="jk">' + esc(JSON.stringify(k)) + '</span>: ' + valHtml + comma + desc);
+    }
+    lines.push('}');
+    return lines.join('\n');
+  }
+
+  /* ── Copy to clipboard ── */
+  function copyText(str, btn) {
+    navigator.clipboard.writeText(str).then(function() {
+      var orig = btn.textContent;
+      btn.textContent = 'Copied!';
+      btn.style.color = '#3fb950';
+      btn.style.borderColor = '#3fb950';
+      setTimeout(function() {
+        btn.textContent = orig;
+        btn.style.color = '';
+        btn.style.borderColor = '';
+      }, 1400);
+    }).catch(function() {
+      /* fallback */
+      var ta = document.createElement('textarea');
+      ta.value = str;
+      ta.style.position = 'fixed';
+      ta.style.opacity = '0';
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      document.body.removeChild(ta);
+    });
+  }
+
+  /* ── Render ── */
+  function render() {
+    /* Error */
+    if (state.error) {
+      elErr.textContent = state.error;
+      elErr.style.display = 'block';
+    } else {
+      elErr.style.display = 'none';
+    }
+
+    /* Token parts visual */
+    if (state.parts) {
+      var h = state.parts.h, p = state.parts.p, s = state.parts.s;
+      elTpH.textContent = h.length > 60 ? h.slice(0, 60) + '\u2026' : h;
+      elTpP.textContent = p.length > 80 ? p.slice(0, 80) + '\u2026' : p;
+      elTpS.textContent = s.length > 60 ? s.slice(0, 60) + '\u2026' : s;
+      elParts.style.display = 'block';
+    } else {
+      elParts.style.display = 'none';
+    }
+
+    /* Expiration badge */
+    if (state.payload) {
+      var exp = expStatus(state.payload);
+      elExpBadge.classList.remove('ok', 'warn', 'err', 'none');
+      elExpBadge.classList.add(exp.cls);
+      elExpBadge.textContent = exp.label;
+      elExpBadge.style.display = 'block';
+    } else {
+      elExpBadge.style.display = 'none';
+    }
+
+    /* Decoded panels */
+    if (state.header && state.payload) {
+      elPanels.classList.add('visible');
+      elHdrBlock.innerHTML = colorJSON(state.header, true);
+      elPayBlock.innerHTML = colorPayloadJSON(state.payload);
+      var sigSpan = document.createElement('span');
+      sigSpan.classList.add('tp-s');
+      sigSpan.textContent = state.parts ? state.parts.s : '';
+      var sigDesc = document.createElement('span');
+      sigDesc.classList.add('claim-desc');
+      sigDesc.textContent = '/' + '/ Signature \u2014 base64url encoded, cannot be decoded as text';
+      elSigBlock.textContent = '';
+      elSigBlock.appendChild(sigSpan);
+      elSigBlock.appendChild(document.createTextNode('\n'));
+      elSigBlock.appendChild(sigDesc);
+    } else {
+      elPanels.classList.remove('visible');
+    }
+
+    /* Signature verification section */
+    if (state.header) {
+      var alg = state.header.alg || '';
+      var isHmac = /^HS(256|384|512)$/.test(alg);
+      elSigSec.classList.add('visible');
+      if (!isHmac && alg) {
+        elAlgNote.classList.add('visible');
+        elVerify.disabled = true;
+        elVerify.style.opacity = '0.4';
+      } else {
+        elAlgNote.classList.remove('visible');
+        elVerify.disabled = false;
+        elVerify.style.opacity = '';
+      }
+    } else {
+      elSigSec.classList.remove('visible');
+    }
+
+    /* Sig result */
+    elSigRes.classList.remove('ok', 'err');
+    if (state.sigChecking) {
+      elSigRes.textContent = 'Verifying...';
+      elSigRes.style.display = 'block';
+    } else if (state.sigValid === true) {
+      elSigRes.classList.add('ok');
+      elSigRes.textContent = '\u2713 Signature Valid';
+    } else if (state.sigValid === false) {
+      elSigRes.classList.add('err');
+      elSigRes.textContent = '\u2717 Signature Invalid';
+    } else {
+      elSigRes.style.display = 'none';
+    }
+  }
+
+  /* ── HS256/384/512 verification via WebCrypto ── */
+  function getHashName(alg) {
+    if (alg === 'HS256') return 'SHA-256';
+    if (alg === 'HS384') return 'SHA-384';
+    if (alg === 'HS512') return 'SHA-512';
+    return 'SHA-256';
+  }
+
+  function verifySig(rawToken, secret, alg) {
+    var parts = rawToken.trim().split('.');
+    if (parts.length !== 3) return Promise.resolve(false);
+    var signingInput = parts[0] + '.' + parts[1];
+    var sigB64 = parts[2].replace(/-/g, '+').replace(/_/g, '/');
+    while (sigB64.length % 4 !== 0) sigB64 += '=';
+
+    var enc = new TextEncoder();
+    var keyData = enc.encode(secret);
+    var data = enc.encode(signingInput);
+    var hashName = getHashName(alg);
+
+    return crypto.subtle.importKey(
+      'raw', keyData,
+      { name: 'HMAC', hash: { name: hashName } },
+      false,
+      ['verify']
+    ).then(function(key) {
+      var sigBytes;
+      try {
+        sigBytes = Uint8Array.from(atob(sigB64), function(c) { return c.charCodeAt(0); });
+      } catch (e) {
+        return false;
+      }
+      return crypto.subtle.verify('HMAC', key, sigBytes, data);
+    }).catch(function() { return false; });
+  }
+
+  /* ── Sample JWT (decoded from base64url inline) ── */
+  /* Header: {"alg":"HS256","typ":"JWT"}
+     Payload: {"sub":"1234567890","name":"Jane Doe","iss":"example.com","iat":1700000000,"exp":9999999999}
+     Secret: secret */
+  var SAMPLE = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.' +
+    'eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkphbmUgRG9lIiwiaXNzIjoiZXhhbXBsZS5jb20iLCJpYXQiOjE3MDAwMDAwMDAsImV4cCI6OTk5OTk5OTk5OX0.' +
+    'a9Zqf1XzEg2YLqOtW6NhIHBqCMFBxv0PdBv8e9K8pMU';
+  var SAMPLE_SECRET = 'secret';
+
+  /* ── Event handlers ── */
+  elIn.addEventListener('input', function() {
+    var raw = elIn.value.trim();
+    state.raw = raw;
+    state.sigValid = null;
+    state.sigChecking = false;
+
+    if (!raw) {
+      state.error = null;
+      state.parts = null;
+      state.header = null;
+      state.payload = null;
+      state.headerStr = '';
+      state.payloadStr = '';
+      render();
+      return;
+    }
+
+    var result = parseToken(raw);
+    state.error = result.error;
+    state.parts = result.parts;
+    state.header = result.header;
+    state.payload = result.payload;
+    state.headerStr = result.headerStr || '';
+    state.payloadStr = result.payloadStr || '';
+    render();
+  });
+
+  elClear.addEventListener('pointerdown', function() {
+    elIn.value = '';
+    state.raw = '';
+    state.error = null;
+    state.parts = null;
+    state.header = null;
+    state.payload = null;
+    state.sigValid = null;
+    state.sigChecking = false;
+    state.headerStr = '';
+    state.payloadStr = '';
+    render();
+    elIn.focus();
+  });
+  elClear.addEventListener('pointercancel', function() {});
+
+  elSample.addEventListener('pointerdown', function() {
+    elIn.value = SAMPLE;
+    elIn.dispatchEvent(new Event('input'));
+  });
+  elSample.addEventListener('pointercancel', function() {});
+
+  elCopyHdr.addEventListener('pointerdown', function() {
+    if (state.headerStr) copyText(state.headerStr, elCopyHdr);
+  });
+  elCopyHdr.addEventListener('pointercancel', function() {});
+
+  elCopyPay.addEventListener('pointerdown', function() {
+    if (state.payloadStr) copyText(state.payloadStr, elCopyPay);
+  });
+  elCopyPay.addEventListener('pointercancel', function() {});
+
+  elVerify.addEventListener('pointerdown', function() {
+    if (!state.raw || !elSecretIn.value) return;
+    var alg = (state.header && state.header.alg) ? state.header.alg : 'HS256';
+    state.sigChecking = true;
+    state.sigValid = null;
+    render();
+    verifySig(state.raw, elSecretIn.value, alg).then(function(valid) {
+      state.sigChecking = false;
+      state.sigValid = valid;
+      render();
+    });
+  });
+  elVerify.addEventListener('pointercancel', function() {});
+
+  /* Auto-paste on load if hash has token */
+  (function() {
+    var h = window.location.hash;
+    if (h && h.length > 2) {
+      var token = decodeURIComponent(h.slice(1));
+      if (token.split('.').length === 3) {
+        elIn.value = token;
+        elIn.dispatchEvent(new Event('input'));
+      }
+    }
+  })();
+
+})();
+</script>
+</body>
+</html>

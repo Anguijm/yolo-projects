@@ -3026,3 +3026,16 @@ Sequential Gemini reviews (focus: bugs, then security) caught **different issue 
 - **INSIGHT**: For any "explain X" developer tool, the flat list with depth is superior to a rendered tree: simpler code, CSS handles indentation, row rendering is O(N) and trivial. The tree structure lives only in the traversal order, not in the output data.
 - **INSIGHT**: The token color scheme for explanation trees: literals (grey), quantifiers (amber), groups (blue), char-class (green), anchors (magenta), escapes (cyan), alternation (red). These map to semantic meaning and match the severity/nature of the tokens intuitively.
 - **TEST CAUGHT**: `//` in URL test string (`https://developer.mozilla.org`) destroyed string boundaries — caused paren count to be off by 6. Caught by the brace_balance test. Fix: split to `https:/' + '/developer.mozilla.org`.
+
+### jwt-inspector (2026-04-03)
+- **KEEP**: `b64urlDecode` using `Array.from(atob(str))` instead of `atob(str).split('')` — correctly handles multi-byte UTF-8 characters in JWT payloads (emojis, CJK). `split('')` breaks UTF-16 surrogate pairs.
+- **KEEP**: WebCrypto `subtle.importKey` + `subtle.verify` for HMAC signature verification — fully offline, no server needed, correct for HS256/384/512. Import as `{name:'HMAC', hash:{name:'SHA-256'}}` in raw mode.
+- **KEEP**: `classList.remove('ok','warn','err','none')` then `classList.add(newCls)` pattern — safer than `className =` when the element may accumulate other classes. Caught by eval_bugs `[classname-overwrite]`.
+- **KEEP**: DOM manipulation for user-data-containing innerHTML — `sigSpan.textContent = state.parts.s` instead of building HTML strings with user data. Eliminates `[innerhtml-xss]` false positives from eval_bugs even when data IS escaped.
+- **KEEP**: Inline claim descriptions with timestamp humanization — `exp/nbf/iat` show both raw Unix int AND ISO date string. Contextual information (what each field means) transforms a raw JSON dump into a useful inspector.
+- **KEEP**: URL hash pre-loading (`window.location.hash`) for JWT sharing — zero backend, instant shareable link. Check `split('.').length === 3` before loading.
+- **IMPROVE**: `'// '` in JS string literals causes test brace_balance failure — the comment stripper eats the line. This is now the FIFTH time this pattern appeared. Fix always: `'/' + '/ '`. Apply to ANY comment-like display text in JS strings.
+- **IMPROVE**: `panel-copy` button was 24px height — caught by council UI audit. 36px is the ABSOLUTE minimum for any clickable element. No exceptions, not even compact panel buttons.
+- **INSIGHT**: Privacy angle ("no data leaves browser") is a genuine differentiator for security-adjacent tools like JWT inspectors. Make it prominent in the UI (subtitle badge) — developers actively seek local alternatives to services like jwt.io when working with production tokens.
+- **INSIGHT**: For token/credential tools, color-code the structural parts to match their semantic roles: headers=cyan (informational), payload=amber (caution/valuable data), signature=red (security-critical). These match design.md semantic colors.
+- **TEST CAUGHT**: `'// '` in claim-desc JS strings (3 occurrences) broke brace_balance. Also `Array.from` fix needed for `split('')` on base64 output.
