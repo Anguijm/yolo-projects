@@ -1,0 +1,593 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="theme-color" content="#000000">
+<title>JSON → TypeScript</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body {
+  height: 100%;
+  background: #0a0a0a;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Courier New", monospace;
+  color: #ccc;
+  overflow: hidden;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+:root { --accent: #0ff; }
+.app { display: flex; flex-direction: column; height: 100vh; height: 100dvh; }
+header {
+  padding: 8px 12px;
+  border-bottom: 1px solid #1a1a1a;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-shrink: 0;
+}
+.logo { font-size: 0.7rem; letter-spacing: 0.2em; text-transform: uppercase; color: #fff; }
+.logo .arr { color: var(--accent); }
+.tagline { font-size: 0.48rem; color: #444; letter-spacing: 0.1em; margin-top: 1px; }
+.opts-bar {
+  padding: 5px 10px;
+  border-bottom: 1px solid #1a1a1a;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  align-items: center;
+  flex-shrink: 0;
+}
+.opt-group { display: flex; align-items: center; gap: 3px; }
+.opt-label { font-size: 0.44rem; color: #444; letter-spacing: 0.1em; text-transform: uppercase; }
+.opt-input {
+  background: #111;
+  border: 1px solid #1a1a1a;
+  color: #aaa;
+  padding: 3px 6px;
+  font-family: inherit;
+  font-size: 0.6rem;
+  outline: none;
+  width: 72px;
+}
+.opt-input:focus { border-color: #555; }
+.toggle-btn {
+  padding: 3px 7px;
+  background: transparent;
+  border: 1px solid #1a1a1a;
+  color: #444;
+  font-family: inherit;
+  font-size: 0.44rem;
+  cursor: pointer;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+.toggle-btn.on { border-color: var(--accent); color: var(--accent); }
+.panes { display: flex; flex: 1; min-height: 0; }
+.pane { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+.pane + .pane { border-left: 1px solid #1a1a1a; }
+.pane-hdr {
+  padding: 4px 8px;
+  border-bottom: 1px solid #1a1a1a;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex-shrink: 0;
+  background: #0a0a0a;
+}
+.pane-title { font-size: 0.44rem; letter-spacing: 0.2em; color: #444; text-transform: uppercase; flex: 1; }
+.btn {
+  padding: 3px 7px;
+  background: transparent;
+  border: 1px solid #1a1a1a;
+  color: #444;
+  font-family: inherit;
+  font-size: 0.44rem;
+  cursor: pointer;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+.btn:active { border-color: #555; color: #888; }
+.btn.primary { border-color: var(--accent); color: var(--accent); }
+textarea {
+  flex: 1;
+  background: transparent;
+  border: none;
+  color: #ccc;
+  font-family: inherit;
+  font-size: 0.73rem;
+  padding: 10px 12px;
+  resize: none;
+  outline: none;
+  line-height: 1.55;
+}
+textarea.output { color: #7ec8e3; }
+.error-bar {
+  padding: 4px 10px;
+  font-size: 0.48rem;
+  color: #f85149;
+  border-top: 1px solid #200a0a;
+  background: #0f0505;
+  display: none;
+  flex-shrink: 0;
+}
+.stats-bar { padding: 3px 10px; font-size: 0.44rem; color: #333; border-top: 1px solid #111; flex-shrink: 0; }
+.out-stats-bar { padding: 3px 10px; font-size: 0.44rem; color: #333; border-top: 1px solid #111; flex-shrink: 0; }
+.toast {
+  position: fixed;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #1a1a1a;
+  border: 1px solid var(--accent);
+  color: var(--accent);
+  padding: 5px 14px;
+  font-size: 0.5rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.2s;
+  white-space: nowrap;
+}
+.toast.show { opacity: 1; }
+@media (max-width: 600px) {
+  .panes { flex-direction: column; }
+  .pane + .pane { border-left: none; border-top: 1px solid #1a1a1a; }
+  textarea { font-size: 0.68rem; padding: 8px 10px; }
+}
+/* Syntax-style coloring in output pane */
+textarea.output { caret-color: var(--accent); }
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <div>
+      <div class="logo">JSON <span class="arr">&#8594;</span> TypeScript</div>
+      <div class="tagline">paste json · get typed interfaces instantly · &#x2318;&#x21e7;F format · &#x2318;&#x21e7;C copy</div>
+    </div>
+  </header>
+  <div class="opts-bar">
+    <div class="opt-group">
+      <span class="opt-label">Root</span>
+      <input type="text" class="opt-input" id="opt-root" value="Root" maxlength="40" placeholder="Root" autocomplete="off" spellcheck="false">
+    </div>
+    <div class="opt-group">
+      <span class="opt-label">Kind</span>
+      <button class="toggle-btn on" id="opt-interface">INTERFACE</button>
+    </div>
+    <button class="toggle-btn on" id="opt-export">EXPORT</button>
+    <button class="toggle-btn" id="opt-readonly">READONLY</button>
+    <button class="toggle-btn on" id="opt-optional">OPT NULLS</button>
+    <button class="toggle-btn" id="opt-camel">CAMELCASE</button>
+    <button class="toggle-btn on" id="opt-semi">SEMIS</button>
+  </div>
+  <div class="panes">
+    <div class="pane">
+      <div class="pane-hdr">
+        <span class="pane-title">JSON INPUT</span>
+        <button class="btn" id="btn-sample">SAMPLE</button>
+        <button class="btn" id="btn-format">FORMAT</button>
+        <button class="btn" id="btn-clear">CLEAR</button>
+      </div>
+      <textarea id="json-input" placeholder="Paste your JSON here..." spellcheck="false" autocorrect="off" autocapitalize="off"></textarea>
+      <div class="error-bar" id="error-bar"></div>
+      <div class="stats-bar" id="stats-bar">&mdash;</div>
+    </div>
+    <div class="pane">
+      <div class="pane-hdr">
+        <span class="pane-title">TYPESCRIPT OUTPUT</span>
+        <button class="btn primary" id="btn-copy">COPY</button>
+      </div>
+      <textarea id="ts-output" class="output" readonly spellcheck="false" placeholder="TypeScript interfaces will appear here..."></textarea>
+      <div class="out-stats-bar" id="out-stats-bar">&mdash;</div>
+    </div>
+  </div>
+</div>
+<div class="toast" id="toast">COPIED</div>
+<script>
+(function() {
+  'use strict';
+
+  var opts = {
+    rootName: 'Root',
+    useInterface: true,
+    exportKw: true,
+    readonly: false,
+    optionalNulls: true,
+    camelCase: false,
+    semicolons: true
+  };
+
+  var toastTimer = null;
+  var debounceTimer = null;
+
+  /* ---- String helpers ---- */
+  function toCamel(str) {
+    return str.replace(/_([a-z0-9])/g, function(_, c) { return c.toUpperCase(); });
+  }
+
+  function capitalize(str) {
+    if (!str) return '';
+    return str.charAt(0).toUpperCase() + str.slice(1);
+  }
+
+  function toPascal(str) {
+    return str.split(/[_\s-]+/).map(capitalize).join('');
+  }
+
+  function isValidIdent(key) {
+    return /^[a-zA-Z_$][a-zA-Z0-9_$]*$/.test(key);
+  }
+
+  function quoteKey(key) {
+    if (isValidIdent(key)) return key;
+    return '"' + key.replace(/\\/g, '\\\\').replace(/\x22/g, '\\"') + '"';
+  }
+
+  function sanitizeName(s) {
+    var cleaned = s.replace(/[^a-zA-Z0-9_$]/g, '');
+    if (!cleaned) return 'Root';
+    if (/^[0-9]/.test(cleaned)) cleaned = 'I' + cleaned;
+    return cleaned;
+  }
+
+  /* ---- Type inference ---- */
+
+  /* Infer TS type string from a JS value. Populates interfaces Map. */
+  function inferType(value, name, interfaces) {
+    if (value === null) return 'null';
+    if (typeof value === 'boolean') return 'boolean';
+    if (typeof value === 'number') return 'number';
+    if (typeof value === 'string') return 'string';
+    if (typeof value === 'undefined') return 'undefined';
+
+    if (Array.isArray(value)) {
+      return inferArrayType(value, name, interfaces);
+    }
+
+    if (typeof value === 'object') {
+      return inferObjectType(value, name, interfaces);
+    }
+
+    return 'unknown';
+  }
+
+  function inferArrayType(arr, name, interfaces) {
+    if (arr.length === 0) return 'unknown[]';
+
+    var itemName = name + 'Item';
+
+    /* Partition: plain objects vs everything else */
+    var objItems = [];
+    var otherTypes = new Set();
+    arr.forEach(function(v) {
+      if (v !== null && typeof v === 'object' && !Array.isArray(v)) {
+        objItems.push(v);
+      } else {
+        otherTypes.add(inferType(v, itemName, interfaces));
+      }
+    });
+
+    if (objItems.length > 0 && otherTypes.size === 0) {
+      /* Homogeneous array of objects: merge schemas from first 5 items */
+      var merged = mergeObjectSchemas(objItems.slice(0, 5), itemName, interfaces);
+      interfaces.set(itemName, merged);
+      return itemName + '[]';
+    }
+
+    if (otherTypes.size > 0 && objItems.length === 0) {
+      /* Primitive / mixed primitive array */
+      var types = Array.from(otherTypes);
+      if (types.length === 1) return types[0] + '[]';
+      return '(' + types.join(' | ') + ')[]';
+    }
+
+    /* Mixed objects + primitives */
+    inferObjectType(objItems[0], itemName, interfaces);
+    otherTypes.add(itemName);
+    var allTypes = Array.from(otherTypes);
+    return '(' + allTypes.join(' | ') + ')[]';
+  }
+
+  /* Merge multiple object schemas: union field types, mark missing as optional */
+  function mergeObjectSchemas(objects, name, interfaces) {
+    /* Collect all keys and all their observed types */
+    var keyTypes = new Map();  /* key -> Set of type strings */
+    var keySeen = new Map();   /* key -> count */
+    var total = objects.length;
+
+    objects.forEach(function(obj) {
+      Object.keys(obj).forEach(function(k) {
+        var displayKey = opts.camelCase ? toCamel(k) : k;
+        if (!keyTypes.has(displayKey)) {
+          keyTypes.set(displayKey, new Set());
+          keySeen.set(displayKey, 0);
+        }
+        var childName = name + capitalize(toPascal(k));
+        var t = inferType(obj[k], childName, interfaces);
+        keyTypes.get(displayKey).add(t);
+        keySeen.set(displayKey, keySeen.get(displayKey) + 1);
+      });
+    });
+
+    var fields = [];
+    keyTypes.forEach(function(types, displayKey) {
+      var typeList = Array.from(types);
+      var typeStr;
+      if (typeList.length === 1) {
+        typeStr = typeList[0];
+      } else {
+        typeStr = typeList.join(' | ');
+      }
+      var seenCount = keySeen.get(displayKey);
+      var optional = (seenCount < total) || (opts.optionalNulls && types.has('null'));
+      /* If type is only null and optional, widen to unknown */
+      if (typeStr === 'null' && optional) typeStr = 'unknown';
+      fields.push({ key: displayKey, type: typeStr, optional: optional });
+    });
+
+    return fields;
+  }
+
+  function inferObjectType(obj, name, interfaces) {
+    var fields = [];
+    Object.keys(obj).forEach(function(k) {
+      var v = obj[k];
+      var displayKey = opts.camelCase ? toCamel(k) : k;
+      var childName = name + capitalize(toPascal(k));
+      var fieldType = inferType(v, childName, interfaces);
+      var isNullish = v === null;
+      var optional = opts.optionalNulls && isNullish;
+      /* Widen null-only optional field to unknown */
+      var displayType = (fieldType === 'null' && optional) ? 'unknown' : fieldType;
+      fields.push({ key: displayKey, type: displayType, optional: optional });
+    });
+    interfaces.set(name, fields);
+    return name;
+  }
+
+  /* ---- Code generation ---- */
+
+  function renderBlock(name, fields) {
+    var kw = opts.useInterface ? 'interface' : 'type';
+    var eq = opts.useInterface ? '' : ' =';
+    var ex = opts.exportKw ? 'export ' : '';
+    var ro = opts.readonly ? 'readonly ' : '';
+    var sep = opts.semicolons ? ';' : '';
+
+    var lines = [ex + kw + ' ' + name + eq + ' {'];
+    fields.forEach(function(f) {
+      var key = quoteKey(f.key);
+      var opt = f.optional ? '?' : '';
+      lines.push('  ' + ro + key + opt + ': ' + f.type + sep);
+    });
+    lines.push('}');
+    return lines.join('\n');
+  }
+
+  /* ---- Main generate ---- */
+
+  function generate() {
+    var rawInput = elJsonInput.value;
+    var input = rawInput.trim();
+    var errorBar = elErrorBar;
+    var statsBar = elStatsBar;
+    var outStatsBar = elOutStatsBar;
+    var tsOut = elTsOutput;
+
+    opts.rootName = sanitizeName(elOptRoot.value.trim() || 'Root');
+
+    if (!input) {
+      tsOut.value = '';
+      errorBar.style.display = 'none';
+      statsBar.textContent = '\u2014';
+      outStatsBar.textContent = '\u2014';
+      return;
+    }
+
+    var parsed;
+    try {
+      parsed = JSON.parse(input);
+    } catch (e) {
+      errorBar.textContent = 'Parse error: ' + e.message;
+      errorBar.style.display = 'block';
+      statsBar.textContent = rawInput.length + ' chars';
+      outStatsBar.textContent = '\u2014';
+      tsOut.value = '';
+      return;
+    }
+
+    errorBar.style.display = 'none';
+
+    var interfaces = new Map();
+    var rootType = inferType(parsed, opts.rootName, interfaces);
+
+    var parts = [];
+
+    /* Render interfaces deepest-first (reverse insertion order) */
+    var entries = Array.from(interfaces.entries()).reverse();
+    entries.forEach(function(entry) {
+      parts.push(renderBlock(entry[0], entry[1]));
+    });
+
+    /* If root is primitive/array of primitives, emit type alias */
+    if (!interfaces.has(opts.rootName)) {
+      var ex = opts.exportKw ? 'export ' : '';
+      var sep = opts.semicolons ? ';' : '';
+      parts.push(ex + 'type ' + opts.rootName + ' = ' + rootType + sep);
+    }
+
+    var output = parts.join('\n\n');
+    tsOut.value = output;
+
+    var ifaceCount = interfaces.size;
+    var inputLines = rawInput.split('\n').length;
+    var outLines = output.split('\n').length;
+    statsBar.textContent = rawInput.length + ' chars \u00b7 ' + inputLines + ' lines';
+    outStatsBar.textContent = ifaceCount + ' interface' + (ifaceCount !== 1 ? 's' : '') + ' \u00b7 ' + outLines + ' lines generated';
+  }
+
+  function scheduleGenerate() {
+    clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(generate, 180);
+  }
+
+  /* ---- Toggle buttons ---- */
+
+  function wireToggle(id, optKey, labelFn) {
+    var btn = document.getElementById(id);
+    btn.addEventListener('click', function() {
+      opts[optKey] = !opts[optKey];
+      btn.classList.toggle('on', opts[optKey]);
+      if (labelFn) btn.textContent = labelFn(opts[optKey]);
+      generate();
+    });
+  }
+
+  /* ---- Toast ---- */
+
+  function showToast(msg) {
+    var toast = document.getElementById('toast');
+    toast.textContent = msg || 'COPIED';
+    clearTimeout(toastTimer);
+    toast.classList.add('show');
+    toastTimer = setTimeout(function() { toast.classList.remove('show'); }, 1500);
+  }
+
+  /* ---- Clipboard ---- */
+
+  function copyText(text) {
+    if (!text) return;
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(function() {
+        showToast('COPIED');
+      }).catch(function() { fallbackCopy(text); });
+    } else {
+      fallbackCopy(text);
+    }
+  }
+
+  function fallbackCopy(text) {
+    var ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.cssText = 'position:fixed;top:-999px;left:-999px;opacity:0';
+    document.body.appendChild(ta);
+    ta.focus();
+    ta.select();
+    ta.setSelectionRange(0, 99999);
+    try {
+      document.execCommand('copy');
+      showToast('COPIED');
+    } catch (_) {
+      showToast('COPY FAILED');
+    }
+    document.body.removeChild(ta);
+  }
+
+  /* ---- Sample JSON ---- */
+
+  /* Pre-formatted sample — stored as template literal so brace-checker ignores its content */
+  var SAMPLE = `{
+  "id": 1,
+  "name": "Alice Johnson",
+  "email": "alice@example.com",
+  "is_active": true,
+  "score": 98.5,
+  "tags": ["typescript", "developer", "open-source"],
+  "address": {
+    "street": "123 Main St",
+    "city": "San Francisco",
+    "zip": "94105",
+    "country": null
+  },
+  "posts": [
+    {
+      "id": 101,
+      "title": "Getting started with TypeScript",
+      "published": true,
+      "views": 1420
+    },
+    {
+      "id": 102,
+      "title": "Advanced generics",
+      "published": false,
+      "views": 0
+    }
+  ]
+}`;
+
+  /* ---- Init ---- */
+
+  /* ---- Cached DOM refs (set in init, used in generate) ---- */
+  var elJsonInput, elTsOutput, elErrorBar, elStatsBar, elOutStatsBar, elOptRoot;
+
+  function init() {
+    elJsonInput   = document.getElementById('json-input');
+    elTsOutput    = document.getElementById('ts-output');
+    elErrorBar    = document.getElementById('error-bar');
+    elStatsBar    = document.getElementById('stats-bar');
+    elOutStatsBar = document.getElementById('out-stats-bar');
+    elOptRoot     = document.getElementById('opt-root');
+
+    var jsonInput = elJsonInput;
+    var tsOutput  = elTsOutput;
+
+    jsonInput.addEventListener('input', scheduleGenerate);
+
+    elOptRoot.addEventListener('input', scheduleGenerate);
+
+    wireToggle('opt-interface', 'useInterface', function(on) { return on ? 'INTERFACE' : 'TYPE'; });
+    wireToggle('opt-export', 'exportKw', null);
+    wireToggle('opt-readonly', 'readonly', null);
+    wireToggle('opt-optional', 'optionalNulls', null);
+    wireToggle('opt-camel', 'camelCase', null);
+    wireToggle('opt-semi', 'semicolons', null);
+
+    document.getElementById('btn-sample').addEventListener('click', function() {
+      jsonInput.value = SAMPLE;
+      generate();
+    });
+
+    document.getElementById('btn-format').addEventListener('click', function() {
+      var val = jsonInput.value.trim();
+      if (!val) return;
+      try {
+        jsonInput.value = JSON.stringify(JSON.parse(val), null, 2);
+        generate();
+      } catch (_) { /* parse error already shown in error-bar */ }
+    });
+
+    document.getElementById('btn-clear').addEventListener('click', function() {
+      jsonInput.value = '';
+      generate();
+      jsonInput.focus();
+    });
+
+    document.getElementById('btn-copy').addEventListener('click', function() {
+      copyText(tsOutput.value);
+    });
+
+    /* Keyboard shortcuts */
+    document.addEventListener('keydown', function(e) {
+      /* Ctrl/Cmd+Shift+F = format */
+      if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'F') {
+        e.preventDefault();
+        document.getElementById('btn-format').click();
+      }
+      /* Ctrl/Cmd+Shift+C = copy output */
+      if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'C') {
+        e.preventDefault();
+        document.getElementById('btn-copy').click();
+      }
+    });
+  }
+
+  init();
+})();
+</script>
+</body>
+</html>

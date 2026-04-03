@@ -2921,3 +2921,14 @@ Sequential Gemini reviews (focus: bugs, then security) caught **different issue 
 - **INSIGHT**: For tools with "relative" units (em, %, rem, vw, vh), always expose the context parameters prominently — a rem conversion that assumes 16px when the user has 20px is actively wrong and misleading. Defaults should be clearly visible and overridable.
 - **INSIGHT**: `ch` and `ex` units are font-dependent and can only be approximated in pure JS (no DOM measurement). The correct approach is (1) use the approximation (ch ≈ 0.5em), (2) label it "approx" in the UI, and (3) explain why in the description. Never hide that an approximation is being made.
 - **TEST CAUGHT**: All bugs found by self-audit (council review). Static tests catch structural issues; logic/UX issues require manual review.
+
+### json-ts (2026-04-03)
+- **KEEP**: Template literals (backticks) for multi-line JS constants that contain `{`/`}` — the test's backtick stripper removes the entire literal, preventing false brace-balance failures. Use backtick strings for any embedded JSON or HTML snippets in JS constants.
+- **KEEP**: Avoid literal `"` inside regex literals (e.g., `/"/g`) — the test's double-quote stripper treats the regex's `"` as the start of a string, then greedily matches to the NEXT `"` in the file (potentially thousands of chars away). Use `\x22` escape instead: `/\x22/g`.
+- **KEEP**: Cache ALL DOM refs at `init()` time, use module-level vars (e.g., `var elJsonInput;`) — calling `getElementById` on every keystroke is wasteful even if not perceptibly slow.
+- **KEEP**: `mergeObjectSchemas` over arrays of heterogeneous objects: union field types, mark missing keys as optional. Covers the real-world case of "some API responses have nullable fields".
+- **KEEP**: `inferObjectType` + `inferArrayType` split — cleaner than one giant switch. Each function handles its case fully and populates the shared `interfaces` Map.
+- **IMPROVE**: The `eval_bugs.py` pattern `[dom-query-in-render]` can false-positive if `function renderBlock` appears near a `generate()` that HAD DOM queries. Self-audit the actual code, not the pattern match message.
+- **INSIGHT**: For JSON → code converters, insertion order of a Map matters — reversing entries before rendering puts deepest (most primitive) types first, which is the correct TypeScript convention (referenced types before referencing types).
+- **INSIGHT**: TypeScript allows `type Root = { ... }` (object type alias) and `interface Root { ... }` interchangeably for most use cases. Both are valid; offering a toggle lets users match their team convention.
+- **TEST CAUGHT**: Regex `/"/g` created an orphan `"` that the test's double-quote stripper matched across 7000+ chars into the template literal SAMPLE. Fixed by using `\x22`. This would have caused false "brace imbalance" test failures.
