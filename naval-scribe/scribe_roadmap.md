@@ -25,18 +25,15 @@ Naval Scribe is a graduated YOLO project operating under Flagship rules alongsid
 
 ## Approved (Next Tock)
 
+- [ ] Saved Drafts Library — multiple named drafts in localStorage, save/load/delete drawer
+- [ ] Print-to-PDF mode — window.print() with @media print CSS hiding UI, one-click PDF
+- [ ] SSIC Code Lookup & Autocomplete — searchable dropdown, bundled SSIC list, auto-fill on select
+- [ ] Signature Block Builder — paygrade sub-form, rank abbreviation lookup, by-direction checkbox
+
+## Completed
+
 - [x] Inline tables in body text — parse markdown-style tables and render in preview + .docx
 - [x] Paste-to-parse references — paste a block of references, auto-split into lettered (a), (b), (c) entries
-
-## Pending (Brainstormed — Not Yet Approved)
-
-- **Saved Drafts Library** — Multiple named drafts persisted in localStorage. User can name a draft, save it to a list, browse saved drafts, load or delete them. Solves the overwrite problem with the current single-slot auto-save. Implementation: `drafts` key in localStorage holds an array of `{name, type, fields, savedAt}`; a collapsible drawer in the form panel lists them.
-
-- **Print-to-PDF mode** — "Print" button that triggers `window.print()` with `@media print` CSS hiding the form panel, top bar, and all UI chrome so only the formatted letter page is sent to the print dialog. Users get a properly margined PDF in one click, no .docx conversion needed. Implementation: add `@media print { #form-panel, #top-bar { display: none; } #preview-panel { padding: 0; } }` and a print button.
-
-- **SSIC Code Lookup & Autocomplete** — Inline searchable dropdown for Standard Subject Identification Codes. As the user types in the SSIC field, it filters a bundled list of SSIC numbers and official subject titles, auto-filling on selection. Eliminates context-switch to SECNAV Manual 5210.11 and reduces miscoded correspondence. Implementation: static JS object of SSIC ranges/titles bundled in the HTML (<100KB), `keyup` event filters and renders a custom dropdown, no external requests.
-
-- **Signature Block Builder** — Structured sub-form for name, paygrade (E-1 through O-10, WO/CWO), designator, billet title, and by-direction checkbox that outputs a correctly formatted signature block per naval correspondence standards. Enforces correct rank abbreviations, name capitalization, and element order — common error sources for junior personnel. Implementation: paygrade→abbreviation lookup table (~3KB), formatter assembles block in real time and injects into preview at correct position.
 
 ## Parking Lot
 
