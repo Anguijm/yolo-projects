@@ -77,18 +77,17 @@ Markdown Deck is a graduated YOLO project operating under Flagship rules: multi-
 
 ## Proposed Features (Pending Approval)
 
-- **Standalone HTML Export** — "Share" toolbar button exports the full deck as a single self-contained `.html` file: all slides embedded as JSON, inline CSS/JS, arrow-key + click navigation, speaker-notes toggle, and a slide counter. No server required; the recipient opens one file in any browser. High business value for sharing with clients. Effort: medium.
-- **Slide Outline Panel** — Collapsible side panel (toolbar button or `O` shortcut) listing all slide H1 titles as a numbered, clickable outline. Current slide is highlighted; clicking any title jumps to that slide. Solves navigation pain in large decks (20+ slides). Effort: low.
-- **Find & Replace (Ctrl+H)** — Overlay panel in the markdown editor: find text in source, replace single occurrence or all. Separate from Ctrl+F slide search (which searches rendered content). Essential for editing large decks (renaming terms, fixing repeated typos). Effort: low.
-- **Kiosk / Auto-Advance Mode** — Toolbar toggle to enable kiosk mode during presentation: slides auto-advance every N seconds (configurable 5–60s slider), with optional loop. Dismisses on Esc or any key press. High value for lobby screens, conference booths, self-running demos. Effort: low.
 
 ## Approved (Next Tock)
 
+- [ ] Standalone HTML Export — self-contained .html with embedded slides, nav, speaker notes toggle, slide counter
+- [ ] Slide Outline Panel — collapsible side panel with clickable H1 titles, O shortcut, current slide highlighted
+- [ ] Find & Replace (Ctrl+H) — overlay in markdown editor, find/replace single or all occurrences
+- [ ] Kiosk / Auto-Advance Mode — auto-advance every N seconds, configurable, loop option, Esc to dismiss
 
 ## Parking Lot
 
 - Per-slide talk time budget — total duration ÷ slides, amber/red warnings when over
-- Standalone HTML export — self-contained .html with embedded slides, nav, speaker notes toggle
 - Laser pointer & annotation mode — L for laser, S for spotlight, A for freehand annotation during present
 - Slide transitions (fade, slide-left, zoom) — deprioritized
 - Markdown editor improvements: line numbers, tab indentation — deprioritized
