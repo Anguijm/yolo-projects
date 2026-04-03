@@ -144,7 +144,7 @@ html, body {
       <div class="field-label">SSIC</div>
       <input type="text" id="f-ssic" placeholder="e.g. 5216">
     </div>
-    <div class="field" data-types="letter,memo,endorsement,business,pointpaper,actionmemo">
+    <div class="field" data-types="letter,memo,endorsement,business,pointpaper,actionmemo,moa">
       <div class="field-label">Date</div>
       <input type="text" id="f-date" placeholder="DD Mon YYYY">
     </div>
@@ -166,17 +166,17 @@ html, body {
       <button class="add-btn" id="add-via">+ add via</button>
       <div class="field-hint">Chain of command routing</div>
     </div>
-    <div class="field" data-types="letter,memo,endorsement,business,pointpaper,actionmemo">
+    <div class="field" data-types="letter,memo,endorsement,business,pointpaper,actionmemo,moa">
       <div class="field-label">Subject</div>
       <input type="text" id="f-subj" placeholder="Subject line (auto-uppercased)">
     </div>
-    <div class="field" data-types="letter,endorsement">
+    <div class="field" data-types="letter,endorsement,moa">
       <div class="field-label">References</div>
       <div id="ref-list"></div>
       <button class="add-btn" id="add-ref">+ add ref</button>
       <div class="field-hint">Lettered (a), (b), (c)...</div>
     </div>
-    <div class="field" data-types="letter,endorsement">
+    <div class="field" data-types="letter,endorsement,moa">
       <div class="field-label">Enclosures</div>
       <div id="encl-list"></div>
       <button class="add-btn" id="add-encl">+ add encl</button>
@@ -348,14 +348,16 @@ html, body {
     var idx = partyItems.length;
     var row = document.createElement('div');
     row.style.cssText = 'margin-bottom:8px;padding:6px;border:1px solid #1a1a1a;';
+    var inputStyle = 'background:#1a1a1a;border:1px solid #222;color:#ccc;font-family:inherit;font-size:0.65rem;padding:4px 6px;outline:none';
     row.innerHTML =
       '<div style="display:flex;justify-content:space-between;margin-bottom:4px"><span style="font-size:0.4rem;color:#555;text-transform:uppercase;letter-spacing:0.1em">Party ' + (idx + 1) + '</span><button class="add-btn" style="font-size:0.4rem">x</button></div>' +
-      '<input type="text" placeholder="Organization" style="width:100%;margin-bottom:3px;background:#1a1a1a;border:1px solid #222;color:#ccc;font-family:inherit;font-size:0.65rem;padding:4px 6px;outline:none">' +
+      '<input type="text" placeholder="Organization" style="width:100%;margin-bottom:3px;' + inputStyle + '">' +
+      '<input type="text" placeholder="Serial Number (e.g. N00024-26-MOA-0001)" style="width:100%;margin-bottom:3px;' + inputStyle + '">' +
       '<div style="display:grid;grid-template-columns:1fr 1fr;gap:3px">' +
-      '<input type="text" placeholder="Name" style="background:#1a1a1a;border:1px solid #222;color:#ccc;font-family:inherit;font-size:0.65rem;padding:4px 6px;outline:none">' +
-      '<input type="text" placeholder="Rank" style="background:#1a1a1a;border:1px solid #222;color:#ccc;font-family:inherit;font-size:0.65rem;padding:4px 6px;outline:none">' +
+      '<input type="text" placeholder="Name" style="' + inputStyle + '">' +
+      '<input type="text" placeholder="Rank" style="' + inputStyle + '">' +
       '</div>' +
-      '<input type="text" placeholder="Title" style="width:100%;margin-top:3px;background:#1a1a1a;border:1px solid #222;color:#ccc;font-family:inherit;font-size:0.65rem;padding:4px 6px;outline:none">';
+      '<input type="text" placeholder="Title" style="width:100%;margin-top:3px;' + inputStyle + '">';
 
     var inputs = row.querySelectorAll('input');
     for (var i = 0; i < inputs.length; i++) inputs[i].addEventListener('input', updatePreview);
@@ -377,9 +379,10 @@ html, body {
       var inputs = row.querySelectorAll('input');
       return {
         org: inputs[0].value.trim(),
-        name: inputs[1].value.trim(),
-        rank: inputs[2].value.trim(),
-        title: inputs[3].value.trim()
+        serial: inputs[1].value.trim(),
+        name: inputs[2].value.trim(),
+        rank: inputs[3].value.trim(),
+        title: inputs[4].value.trim()
       };
     }).filter(function(p) { return p.org || p.name; });
   }
@@ -640,6 +643,15 @@ html, body {
 
       case 'moa':
         if (d.date) html += '<div style="text-align:right;margin-bottom:24px">' + esc(d.date) + '</div>';
+        /* serial numbers from each party */
+        if (d.parties.some(function(p) { return p.serial; })) {
+          for (var sn = 0; sn < d.parties.length; sn++) {
+            if (d.parties[sn].serial) {
+              html += '<div style="text-align:right;font-size:0.85em;margin-bottom:2px">' + esc(d.parties[sn].org + ': ' + d.parties[sn].serial) + '</div>';
+            }
+          }
+          html += '<div class="hdr-gap"></div>';
+        }
         html += '<div style="text-align:center;font-weight:bold;margin-bottom:12px">MEMORANDUM OF AGREEMENT</div>';
         html += '<div style="text-align:center;margin-bottom:24px;font-size:0.9em">';
         html += 'BETWEEN<br>';
@@ -649,6 +661,8 @@ html, body {
         }
         html += '</div>';
         if (d.subj) html += '<div class="hdr-line subj-line" style="text-align:center;margin-bottom:24px"><strong>Subject: </strong>' + esc(d.subj) + '</div>';
+        /* References and Enclosures */
+        html = renderRefEncl(d, html);
         if (d.effectiveDate || d.duration) {
           html += '<div class="body-para">';
           if (d.effectiveDate) html += '<strong>Effective Date:</strong> ' + esc(d.effectiveDate) + '<br>';
@@ -667,6 +681,7 @@ html, body {
             if (p.rank) html += '<div>' + esc(p.rank) + '</div>';
             if (p.title) html += '<div>' + esc(p.title) + '</div>';
             if (p.org) html += '<div>' + esc(p.org) + '</div>';
+            if (p.serial) html += '<div style="font-size:0.85em;color:#666">' + esc(p.serial) + '</div>';
             html += '</div>';
           }
           html += '</div>';
@@ -1020,11 +1035,16 @@ html, body {
         break;
 
       case 'moa':
-        if (d.date) body += makeParagraph(d.date, { align: 'right', spaceAfter: '240' });
+        if (d.date) body += makeParagraph(d.date, { align: 'right', spaceAfter: '120' });
+        /* serial numbers */
+        for (var sn = 0; sn < d.parties.length; sn++) {
+          if (d.parties[sn].serial) {
+            body += makeParagraph(d.parties[sn].org + ': ' + d.parties[sn].serial, { align: 'right', spaceAfter: '60' });
+          }
+        }
+        body += emptyParagraph();
         body += makeParagraph('MEMORANDUM OF AGREEMENT', { align: 'center', bold: true, spaceAfter: '120' });
-        /* parties header */
-        var partiesText = 'BETWEEN';
-        body += makeParagraph(partiesText, { align: 'center', spaceAfter: '60' });
+        body += makeParagraph('BETWEEN', { align: 'center', spaceAfter: '60' });
         for (var pi = 0; pi < d.parties.length; pi++) {
           body += makeParagraph(d.parties[pi].org || d.parties[pi].name, { align: 'center', bold: true, spaceAfter: '60' });
           if (pi < d.parties.length - 1) {
@@ -1033,10 +1053,12 @@ html, body {
         }
         body += emptyParagraph();
         if (d.subj) body += makeParagraph([{ text: 'Subject:  ', bold: true }, { text: d.subj }], { align: 'center', spaceAfter: '240' });
+        /* references and enclosures */
+        body = dRefEncl(body);
         if (d.effectiveDate) body += makeParagraph([{ text: 'Effective Date:  ', bold: true }, { text: d.effectiveDate }], { spaceAfter: '120' });
         if (d.duration) body += makeParagraph([{ text: 'Duration:  ', bold: true }, { text: d.duration }], { spaceAfter: '240' });
         body = dBodyParas(body);
-        /* multiple signature blocks */
+        /* multiple signature blocks with serial numbers */
         body += emptyParagraph(3);
         for (var si = 0; si < d.parties.length; si++) {
           var party = d.parties[si];
@@ -1046,6 +1068,7 @@ html, body {
           if (party.rank) body += makeParagraph(party.rank, { align: 'center' });
           if (party.title) body += makeParagraph(party.title, { align: 'center' });
           if (party.org) body += makeParagraph(party.org, { align: 'center' });
+          if (party.serial) body += makeParagraph(party.serial, { align: 'center' });
         }
         break;
     }
