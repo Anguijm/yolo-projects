@@ -1,0 +1,956 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="theme-color" content="#000000">
+<title>HTTP Header Analyzer</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background: #0a0a0a;
+  color: #ccc;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 13px;
+  line-height: 1.6;
+  min-height: 100vh;
+  padding: 16px;
+}
+
+.container {
+  max-width: 540px;
+  margin: 0 auto;
+}
+
+.title {
+  color: #fff;
+  font-size: clamp(1rem, 5vw, 1.25rem);
+  font-weight: 900;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  margin-bottom: 4px;
+}
+
+.subtitle {
+  color: #555;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  margin-bottom: 24px;
+}
+
+textarea#input {
+  width: 100%;
+  height: 180px;
+  background: #111;
+  border: 1px solid #222;
+  color: #ccc;
+  font-family: inherit;
+  font-size: 12px;
+  padding: 12px;
+  resize: vertical;
+  outline: none;
+  display: block;
+  line-height: 1.5;
+}
+
+textarea#input:focus {
+  border-color: #555;
+}
+
+textarea#input::placeholder {
+  color: #444;
+}
+
+.btn-row {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+  margin-bottom: 24px;
+}
+
+button {
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  cursor: pointer;
+  padding: 9px 16px;
+  border: 1px solid #1a1a1a;
+  background: transparent;
+  color: #444;
+  outline: none;
+}
+
+button:hover {
+  border-color: #444;
+  color: #aaa;
+}
+
+button:focus {
+  border-color: #555;
+  color: #aaa;
+}
+
+button.primary {
+  border-color: #333;
+  color: #aaa;
+  flex: 1;
+}
+
+button.primary:hover {
+  border-color: #0ff;
+  color: #0ff;
+}
+
+#output {
+  display: none;
+}
+
+#output.visible {
+  display: block;
+}
+
+.grade-box {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  background: #111;
+  border: 1px solid #222;
+  padding: 20px;
+  margin-bottom: 12px;
+}
+
+.grade-letter {
+  font-size: clamp(2.5rem, 12vw, 5rem);
+  font-weight: 900;
+  line-height: 1;
+  min-width: 80px;
+  text-align: center;
+}
+
+.grade-right {
+  flex: 1;
+}
+
+.score-num {
+  color: #fff;
+  font-size: 14px;
+  font-weight: 700;
+  margin-bottom: 8px;
+}
+
+.score-bar-track {
+  width: 100%;
+  height: 6px;
+  background: #1a1a1a;
+  border: 1px solid #222;
+}
+
+.score-bar-fill {
+  height: 100%;
+  width: 0%;
+  transition: width 0.6s ease;
+}
+
+.grade-label {
+  color: #555;
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  margin-top: 8px;
+}
+
+.section-title {
+  color: #aaa;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  padding: 10px 0 6px;
+  border-bottom: 1px solid #1a1a1a;
+  margin-bottom: 2px;
+}
+
+.header-row {
+  border-bottom: 1px solid #1a1a1a;
+  cursor: pointer;
+  user-select: none;
+}
+
+.header-row:hover .row-main {
+  background: #111;
+}
+
+.row-main {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 0;
+  flex-wrap: nowrap;
+}
+
+.badge {
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 2px 5px;
+  border: 1px solid;
+  flex-shrink: 0;
+  min-width: 36px;
+  text-align: center;
+}
+
+.badge-good { color: #3fb950; border-color: #3fb950; }
+.badge-warn { color: #d29922; border-color: #d29922; }
+.badge-miss { color: #f85149; border-color: #f85149; }
+.badge-info { color: #58a6ff; border-color: #58a6ff; }
+.badge-crit { color: #f85149; border-color: #f85149; background: rgba(248,81,73,0.1); }
+
+.row-name {
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  flex-shrink: 0;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 175px;
+}
+
+.row-value {
+  color: #555;
+  font-size: 11px;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+.score-chip {
+  font-size: 9px;
+  font-weight: 700;
+  padding: 2px 5px;
+  border: 1px solid #222;
+  color: #aaa;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.score-chip.chip-pos { color: #3fb950; border-color: #3fb950; }
+.score-chip.chip-neg { color: #f85149; border-color: #f85149; }
+.score-chip.chip-zero { color: #555; border-color: #333; }
+
+.row-detail {
+  display: none;
+  padding: 6px 0 10px 44px;
+  color: #aaa;
+  font-size: 11px;
+  line-height: 1.6;
+  border-top: 1px solid #1a1a1a;
+}
+
+.row-detail.open {
+  display: block;
+}
+
+.row-detail .detail-val {
+  color: #777;
+  word-break: break-all;
+  margin-bottom: 4px;
+}
+
+.row-detail .detail-msg {
+  color: #aaa;
+}
+
+.row-chevron {
+  color: #333;
+  font-size: 10px;
+  flex-shrink: 0;
+  margin-left: 2px;
+  transition: transform 0.15s ease;
+}
+
+.header-row.expanded .row-chevron {
+  transform: rotate(90deg);
+}
+
+.copy-btn {
+  font-family: inherit;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  cursor: pointer;
+  padding: 7px 14px;
+  border: 1px solid #1a1a1a;
+  background: transparent;
+  color: #444;
+  outline: none;
+  margin-top: 20px;
+  width: 100%;
+}
+
+.copy-btn:hover {
+  border-color: #444;
+  color: #aaa;
+}
+
+.copy-btn.copied {
+  border-color: #3fb950;
+  color: #3fb950;
+}
+
+.cors-warn {
+  background: rgba(248,81,73,0.08);
+  border: 1px solid rgba(248,81,73,0.3);
+  color: #f85149;
+  font-size: 11px;
+  padding: 10px 12px;
+  margin: 8px 0;
+  line-height: 1.5;
+}
+
+.cors-warn .warn-title {
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-size: 10px;
+  margin-bottom: 3px;
+}
+
+#missing-section {
+  margin-top: 16px;
+}
+
+.missing-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 0;
+  border-bottom: 1px solid #1a1a1a;
+}
+
+.missing-name {
+  color: #aaa;
+  font-size: 11px;
+  font-weight: 700;
+  flex: 1;
+}
+
+.missing-pts {
+  color: #555;
+  font-size: 10px;
+  letter-spacing: 0.06em;
+}
+
+.footer-note {
+  color: #333;
+  font-size: 10px;
+  text-align: center;
+  margin-top: 32px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding-bottom: 24px;
+}
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="title">HTTP Header Analyzer</div>
+  <div class="subtitle">Paste raw HTTP response headers to analyze security posture</div>
+
+  <textarea id="input" rows="8" placeholder="HTTP/2 200 OK&#10;content-type: text/html; charset=utf-8&#10;strict-transport-security: max-age=31536000&#10;..."></textarea>
+
+  <div class="btn-row">
+    <button id="btn-sample">Load Sample</button>
+    <button id="btn-analyze" class="primary">Analyze</button>
+  </div>
+
+  <div id="output">
+    <div class="grade-box">
+      <div id="grade-letter" class="grade-letter">-</div>
+      <div class="grade-right">
+        <div id="score-num" class="score-num">0 / 100</div>
+        <div class="score-bar-track">
+          <div id="score-bar-fill" class="score-bar-fill"></div>
+        </div>
+        <div class="grade-label">Security Score</div>
+      </div>
+    </div>
+
+    <div id="cors-warn-box"></div>
+
+    <div class="section-title">Headers Analyzed</div>
+    <div id="header-rows"></div>
+
+    <div id="missing-section">
+      <div class="section-title">Missing Security Headers</div>
+      <div id="missing-rows"></div>
+    </div>
+
+    <button class="copy-btn" id="btn-copy">Copy Report</button>
+  </div>
+
+  <div class="footer-note">HTTP Header Analyzer &mdash; no data leaves your browser</div>
+</div>
+
+<script>
+(function() {
+
+  var SAMPLE = [
+    'HTTP/2 200 OK',
+    'content-type: text/html; charset=utf-8',
+    'x-frame-options: SAMEORIGIN',
+    'x-content-type-options: nosniff',
+    'referrer-policy: strict-origin-when-cross-origin',
+    'strict-transport-security: max-age=31536000; includeSubDomains',
+    'cache-control: no-store, no-cache, must-revalidate',
+    'set-cookie: session=abc123; Path=/; HttpOnly; Secure; SameSite=Strict',
+    'server: nginx',
+    'x-powered-by: Express',
+    'content-length: 4829',
+    'vary: Accept-Encoding'
+  ].join('\n');
+
+  var state = {
+    analyzed: false,
+    score: 0,
+    grade: '',
+    gradeColor: '',
+    headerRows: [],
+    missingRows: [],
+    corsWarning: null
+  };
+
+  function parseHeaders(raw) {
+    var lines = raw.split('\n');
+    var map = {};
+    var order = [];
+    for (var i = 0; i < lines.length; i++) {
+      var line = lines[i].trim();
+      if (!line) continue;
+      if (i === 0 && line.slice(0, 4).toUpperCase() === 'HTTP') continue;
+      var colonIdx = line.indexOf(':');
+      if (colonIdx < 1) continue;
+      var name = line.slice(0, colonIdx).trim().toLowerCase();
+      var value = line.slice(colonIdx + 1).trim();
+      if (name === 'set-cookie') {
+        if (!map['set-cookie']) {
+          map['set-cookie'] = [];
+          order.push('set-cookie');
+        }
+        map['set-cookie'].push(value);
+      } else {
+        if (!map[name]) order.push(name);
+        map[name] = value;
+      }
+    }
+    return { map: map, order: order };
+  }
+
+  function analyze(raw) {
+    var parsed = parseHeaders(raw);
+    var map = parsed.map;
+    var order = parsed.order;
+
+    var totalScore = 0;
+    var headerRows = [];
+    var missingRows = [];
+    var corsWarning = null;
+
+    var scoredHeaders = {
+      'strict-transport-security': true,
+      'content-security-policy': true,
+      'x-frame-options': true,
+      'x-content-type-options': true,
+      'referrer-policy': true,
+      'permissions-policy': true,
+      'cross-origin-opener-policy': true,
+      'server': true,
+      'x-powered-by': true,
+      'set-cookie': true,
+      'content-type': true,
+      'cache-control': true
+    };
+
+    /* Track which scored headers were found */
+    var foundScored = {};
+
+    /* Process each present header */
+    for (var hi = 0; hi < order.length; hi++) {
+      var hname = order[hi];
+      var hval = map[hname];
+      var displayVal = Array.isArray(hval) ? hval.join('; ') : hval;
+
+      if (!scoredHeaders[hname]) {
+        headerRows.push({
+          name: hname,
+          value: displayVal,
+          badge: 'INFO',
+          score: null,
+          detail: 'Informational header — not scored.'
+        });
+        continue;
+      }
+
+      foundScored[hname] = true;
+
+      var result = scoreHeader(hname, hval);
+      totalScore += result.pts;
+
+      headerRows.push({
+        name: hname,
+        value: displayVal,
+        badge: result.badge,
+        score: result.pts,
+        scoreMax: result.max,
+        detail: result.detail
+      });
+    }
+
+    /* Check CORS warning */
+    if (map['access-control-allow-origin'] === '*') {
+      var creds = map['access-control-allow-credentials'];
+      if (creds && creds.toLowerCase() === 'true') {
+        corsWarning = {
+          title: 'CRITICAL: CORS Misconfiguration',
+          msg: 'Access-Control-Allow-Origin: * combined with Access-Control-Allow-Credentials: true allows any origin to make credentialed cross-origin requests. This is a serious security vulnerability.'
+        };
+      }
+    }
+
+    /* Missing scored headers */
+    var scoredList = [
+      { name: 'strict-transport-security', pts: 15, label: 'Strict-Transport-Security' },
+      { name: 'content-security-policy', pts: 20, label: 'Content-Security-Policy' },
+      { name: 'x-frame-options', pts: 8, label: 'X-Frame-Options' },
+      { name: 'x-content-type-options', pts: 8, label: 'X-Content-Type-Options' },
+      { name: 'referrer-policy', pts: 5, label: 'Referrer-Policy' },
+      { name: 'permissions-policy', pts: 5, label: 'Permissions-Policy' },
+      { name: 'cross-origin-opener-policy', pts: 5, label: 'Cross-Origin-Opener-Policy' },
+      { name: 'content-type', pts: 5, label: 'Content-Type' },
+      { name: 'cache-control', pts: 5, label: 'Cache-Control' }
+    ];
+
+    /* server and x-powered-by: if absent that's good (max points), so skip from missing */
+
+    for (var si = 0; si < scoredList.length; si++) {
+      var sh = scoredList[si];
+      if (!foundScored[sh.name]) {
+        /* set-cookie: only dock if present */
+        missingRows.push({
+          name: sh.label,
+          pts: sh.pts
+        });
+      }
+    }
+
+    /* Server/x-powered-by: if absent, add their points */
+    if (!foundScored['server']) {
+      totalScore += 8;
+    }
+    if (!foundScored['x-powered-by']) {
+      totalScore += 6;
+    }
+
+    /* Cap at 100 */
+    if (totalScore > 100) totalScore = 100;
+    if (totalScore < 0) totalScore = 0;
+
+    var grade = getGrade(totalScore);
+
+    return {
+      score: totalScore,
+      grade: grade.letter,
+      gradeColor: grade.color,
+      headerRows: headerRows,
+      missingRows: missingRows,
+      corsWarning: corsWarning
+    };
+  }
+
+  function scoreHeader(name, val) {
+    var v = Array.isArray(val) ? val[0] : val;
+    var vl = v ? v.toLowerCase() : '';
+
+    if (name === 'strict-transport-security') {
+      var maxAgeMatch = vl.match(/max-age\s*=\s*(\d+)/);
+      var maxAge = maxAgeMatch ? parseInt(maxAgeMatch[1], 10) : 0;
+      var hasSubDomains = vl.indexOf('includesubdomains') !== -1;
+      if (!maxAgeMatch) {
+        return { pts: 0, max: 15, badge: 'WARN', detail: 'Header present but max-age is missing or invalid. Needs max-age >= 31536000.' };
+      }
+      if (maxAge >= 31536000) {
+        var det = 'max-age is ' + maxAge + ' (>= 1 year). ' + (hasSubDomains ? 'includeSubDomains is set — excellent.' : 'Consider adding includeSubDomains.');
+        return { pts: 15, max: 15, badge: 'GOOD', detail: det };
+      } else {
+        var det2 = 'max-age is ' + maxAge + ', which is less than 1 year (31536000). Increase to at least 31536000.';
+        return { pts: 7, max: 15, badge: 'WARN', detail: det2 };
+      }
+    }
+
+    if (name === 'content-security-policy') {
+      var pts = 10;
+      var issues = [];
+      var notes = [];
+      if (vl.indexOf("'unsafe-inline'") !== -1) {
+        pts -= 5;
+        issues.push("'unsafe-inline' allows inline scripts/styles — weakens CSP significantly.");
+      }
+      if (vl.indexOf("'unsafe-eval'") !== -1) {
+        pts -= 5;
+        issues.push("'unsafe-eval' allows eval() — weakens CSP significantly.");
+      }
+      if (pts === 10) {
+        notes.push('No unsafe-inline or unsafe-eval detected.');
+        pts = 20;
+      }
+      if (pts < 0) pts = 0;
+      var badge = pts >= 20 ? 'GOOD' : (pts >= 5 ? 'WARN' : 'MISS');
+      var detParts = issues.concat(notes);
+      return { pts: pts, max: 20, badge: badge, detail: detParts.join(' ') || 'Content-Security-Policy is present.' };
+    }
+
+    if (name === 'x-frame-options') {
+      if (vl === 'deny') return { pts: 8, max: 8, badge: 'GOOD', detail: 'DENY prevents all framing — best option.' };
+      if (vl === 'sameorigin') return { pts: 6, max: 8, badge: 'GOOD', detail: 'SAMEORIGIN allows framing from same origin. Consider DENY for stricter protection.' };
+      return { pts: 0, max: 8, badge: 'WARN', detail: 'Value "' + v + '" is not recommended. Use DENY or SAMEORIGIN.' };
+    }
+
+    if (name === 'x-content-type-options') {
+      if (vl === 'nosniff') return { pts: 8, max: 8, badge: 'GOOD', detail: 'nosniff prevents MIME-type sniffing attacks.' };
+      return { pts: 0, max: 8, badge: 'WARN', detail: 'Value should be "nosniff". Got: "' + v + '".' };
+    }
+
+    if (name === 'referrer-policy') {
+      var strict5 = ['no-referrer', 'strict-origin', 'strict-origin-when-cross-origin', 'no-referrer-when-downgrade'];
+      var mid2 = ['same-origin', 'origin-when-cross-origin'];
+      if (strict5.indexOf(vl) !== -1) {
+        return { pts: 5, max: 5, badge: 'GOOD', detail: '"' + v + '" is a secure referrer policy.' };
+      }
+      if (mid2.indexOf(vl) !== -1) {
+        return { pts: 2, max: 5, badge: 'WARN', detail: '"' + v + '" leaks origin to cross-origin requests. Consider strict-origin or no-referrer.' };
+      }
+      if (vl === 'unsafe-url') {
+        return { pts: 0, max: 5, badge: 'WARN', detail: '"unsafe-url" sends full URL to all requests including cross-origin — not recommended.' };
+      }
+      return { pts: 0, max: 5, badge: 'WARN', detail: 'Unrecognized referrer policy: "' + v + '".' };
+    }
+
+    if (name === 'permissions-policy') {
+      return { pts: 5, max: 5, badge: 'GOOD', detail: 'Permissions-Policy is present and restricts browser feature access.' };
+    }
+
+    if (name === 'cross-origin-opener-policy') {
+      if (vl === 'same-origin') return { pts: 5, max: 5, badge: 'GOOD', detail: 'same-origin provides the strongest isolation.' };
+      if (vl === 'same-origin-allow-popups') return { pts: 3, max: 5, badge: 'WARN', detail: 'same-origin-allow-popups allows some cross-origin popups. Use same-origin for full isolation.' };
+      return { pts: 0, max: 5, badge: 'WARN', detail: 'Value "' + v + '" does not provide meaningful cross-origin isolation.' };
+    }
+
+    if (name === 'server') {
+      if (/\d/.test(v)) {
+        return { pts: 0, max: 8, badge: 'WARN', detail: 'Server header reveals version info ("' + v + '"). Remove version number or suppress this header entirely.' };
+      }
+      return { pts: 4, max: 8, badge: 'WARN', detail: 'Server header present ("' + v + '"). Ideally suppress this header entirely to reduce fingerprinting.' };
+    }
+
+    if (name === 'x-powered-by') {
+      return { pts: 0, max: 6, badge: 'WARN', detail: 'X-Powered-By reveals technology stack ("' + v + '"). Remove this header to reduce fingerprinting.' };
+    }
+
+    if (name === 'set-cookie') {
+      var cookies = Array.isArray(val) ? val : [val];
+      var totalCookiePts = 0;
+      var details = [];
+      for (var ci = 0; ci < cookies.length; ci++) {
+        var cv = cookies[ci];
+        var cvl = cv.toLowerCase();
+        var cookiePts = 0;
+        var flags = [];
+        if (cvl.indexOf('; secure') !== -1 || cvl.indexOf(';secure') !== -1 || /;\s*secure/i.test(cv)) {
+          cookiePts += 4;
+          flags.push('Secure');
+        }
+        if (/;\s*httponly/i.test(cv)) {
+          cookiePts += 3;
+          flags.push('HttpOnly');
+        }
+        if (/;\s*samesite\s*=\s*(strict|lax)/i.test(cv)) {
+          cookiePts += 3;
+          flags.push('SameSite=Strict/Lax');
+        }
+        totalCookiePts += cookiePts;
+        var cookieName = cv.split('=')[0].trim();
+        var missing = [];
+        if (flags.indexOf('Secure') === -1) missing.push('Secure');
+        if (flags.indexOf('HttpOnly') === -1) missing.push('HttpOnly');
+        if (flags.indexOf('SameSite=Strict/Lax') === -1) missing.push('SameSite');
+        var msg = cookieName + ': ' + (flags.length ? flags.join(', ') : 'no security flags') + (missing.length ? '. Missing: ' + missing.join(', ') : '');
+        details.push(msg);
+      }
+      var avgPts = Math.round(totalCookiePts / cookies.length);
+      if (avgPts > 10) avgPts = 10;
+      var cookieBadge = avgPts >= 8 ? 'GOOD' : (avgPts >= 4 ? 'WARN' : 'MISS');
+      return { pts: avgPts, max: 10, badge: cookieBadge, detail: details.join(' | ') };
+    }
+
+    if (name === 'content-type') {
+      if (vl.indexOf('charset') !== -1) {
+        return { pts: 5, max: 5, badge: 'GOOD', detail: 'Content-Type includes charset specification.' };
+      }
+      return { pts: 2, max: 5, badge: 'WARN', detail: 'Content-Type present but missing charset. Add charset=utf-8.' };
+    }
+
+    if (name === 'cache-control') {
+      if (vl.indexOf('no-store') !== -1) {
+        return { pts: 5, max: 5, badge: 'GOOD', detail: 'no-store prevents caching of sensitive responses.' };
+      }
+      if (vl.indexOf('private') !== -1) {
+        return { pts: 5, max: 5, badge: 'GOOD', detail: 'private ensures response is not stored by shared caches.' };
+      }
+      if (vl.indexOf('max-age=0') !== -1) {
+        return { pts: 3, max: 5, badge: 'WARN', detail: 'max-age=0 forces revalidation but no-store is more secure for sensitive content.' };
+      }
+      if (vl.indexOf('public') !== -1 && vl.indexOf('max-age') !== -1) {
+        return { pts: 2, max: 5, badge: 'WARN', detail: 'Public caching with max-age. Ensure sensitive data is not cached publicly.' };
+      }
+      return { pts: 0, max: 5, badge: 'WARN', detail: 'Cache-Control value "' + v + '" does not clearly protect against unwanted caching.' };
+    }
+
+    return { pts: 0, max: 0, badge: 'INFO', detail: 'No scoring rule for this header.' };
+  }
+
+  function getGrade(score) {
+    if (score >= 95) return { letter: 'A+', color: '#0ff' };
+    if (score >= 85) return { letter: 'A', color: '#3fb950' };
+    if (score >= 70) return { letter: 'B', color: '#58a6ff' };
+    if (score >= 55) return { letter: 'C', color: '#d29922' };
+    if (score >= 40) return { letter: 'D', color: '#f85149' };
+    return { letter: 'F', color: '#f85149' };
+  }
+
+  function render() {
+    if (!state.analyzed) return;
+
+    var output = document.getElementById('output');
+    output.classList.add('visible');
+
+    var gradeLetter = document.getElementById('grade-letter');
+    gradeLetter.textContent = state.grade;
+    gradeLetter.style.color = state.gradeColor;
+
+    document.getElementById('score-num').textContent = state.score + ' / 100';
+
+    var fill = document.getElementById('score-bar-fill');
+    fill.style.background = state.gradeColor;
+    /* Trigger reflow for transition */
+    fill.style.width = '0%';
+    requestAnimationFrame(function() {
+      requestAnimationFrame(function() {
+        fill.style.width = state.score + '%';
+      });
+    });
+
+    /* CORS warning */
+    var corsBox = document.getElementById('cors-warn-box');
+    if (state.corsWarning) {
+      corsBox.innerHTML = '<div class="cors-warn"><div class="warn-title">' + escHtml(state.corsWarning.title) + '</div>' + escHtml(state.corsWarning.msg) + '</div>';
+    } else {
+      corsBox.innerHTML = '';
+    }
+
+    /* Header rows */
+    var headerRowsEl = document.getElementById('header-rows');
+    headerRowsEl.innerHTML = '';
+    for (var i = 0; i < state.headerRows.length; i++) {
+      headerRowsEl.appendChild(buildHeaderRow(state.headerRows[i], i));
+    }
+
+    /* Missing rows */
+    var missingSection = document.getElementById('missing-section');
+    var missingRowsEl = document.getElementById('missing-rows');
+    missingRowsEl.innerHTML = '';
+
+    if (state.missingRows.length === 0) {
+      missingSection.style.display = 'none';
+    } else {
+      missingSection.style.display = '';
+      for (var j = 0; j < state.missingRows.length; j++) {
+        var mr = state.missingRows[j];
+        var mDiv = document.createElement('div');
+        mDiv.className = 'missing-row';
+        mDiv.innerHTML = '<span class="badge badge-miss">MISS</span><span class="missing-name">' + escHtml(mr.name) + '</span><span class="missing-pts">up to ' + mr.pts + ' pts</span>';
+        missingRowsEl.appendChild(mDiv);
+      }
+    }
+  }
+
+  function buildHeaderRow(row, idx) {
+    var wrapper = document.createElement('div');
+    wrapper.className = 'header-row';
+
+    var badgeClass = 'badge-info';
+    if (row.badge === 'GOOD') badgeClass = 'badge-good';
+    else if (row.badge === 'WARN') badgeClass = 'badge-warn';
+    else if (row.badge === 'MISS') badgeClass = 'badge-miss';
+    else if (row.badge === 'CRIT') badgeClass = 'badge-crit';
+
+    var scoreChip = '';
+    if (row.score !== null && row.score !== undefined) {
+      var chipClass = 'score-chip';
+      if (row.score === row.scoreMax && row.scoreMax > 0) {
+        chipClass += ' chip-pos';
+      } else if (row.score === 0) {
+        chipClass += ' chip-zero';
+      } else {
+        chipClass += ' chip-neg';
+      }
+      scoreChip = '<span class="' + chipClass + '">' + row.score + '/' + row.scoreMax + '</span>';
+    }
+
+    var truncVal = row.value;
+    if (truncVal && truncVal.length > 48) {
+      truncVal = truncVal.slice(0, 48) + '…';
+    }
+
+    var mainHtml = '<div class="row-main">' +
+      '<span class="row-chevron">&#9658;</span>' +
+      '<span class="badge ' + badgeClass + '">' + row.badge + '</span>' +
+      '<span class="row-name">' + escHtml(row.name) + '</span>' +
+      '<span class="row-value">' + escHtml(truncVal || '') + '</span>' +
+      scoreChip +
+      '</div>';
+
+    var detailHtml = '<div class="row-detail" id="detail-' + idx + '">' +
+      '<div class="detail-val">' + escHtml(row.value || '') + '</div>' +
+      '<div class="detail-msg">' + escHtml(row.detail || '') + '</div>' +
+      '</div>';
+
+    wrapper.innerHTML = mainHtml + detailHtml;
+
+    wrapper.addEventListener('click', function() {
+      var det = document.getElementById('detail-' + idx);
+      if (det) det.classList.toggle('open');
+      wrapper.classList.toggle('expanded');
+    });
+
+    return wrapper;
+  }
+
+  function escHtml(str) {
+    if (!str) return '';
+    return str
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
+  function runAnalyze() {
+    var raw = document.getElementById('input').value.trim();
+    if (!raw) return;
+    var result = analyze(raw);
+    state.analyzed = true;
+    state.score = result.score;
+    state.grade = result.grade;
+    state.gradeColor = result.gradeColor;
+    state.headerRows = result.headerRows;
+    state.missingRows = result.missingRows;
+    state.corsWarning = result.corsWarning;
+    render();
+    var output = document.getElementById('output');
+    output.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  document.getElementById('btn-sample').addEventListener('click', function() {
+    document.getElementById('input').value = SAMPLE;
+  });
+
+  document.getElementById('btn-analyze').addEventListener('click', runAnalyze);
+
+  document.getElementById('input').addEventListener('keydown', function(e) {
+    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+      e.preventDefault();
+      runAnalyze();
+    }
+  });
+
+  document.getElementById('btn-copy').addEventListener('click', function() {
+    if (!state.analyzed) return;
+    var lines = ['HTTP Header Analysis Report', '===========================', ''];
+    lines.push('Score: ' + state.score + ' / 100  (Grade: ' + state.grade + ')');
+    lines.push('');
+
+    var goodCount = 0;
+    var warnCount = 0;
+    for (var i = 0; i < state.headerRows.length; i++) {
+      var r = state.headerRows[i];
+      if (r.badge === 'GOOD') goodCount++;
+      else if (r.badge === 'WARN' || r.badge === 'MISS') warnCount++;
+    }
+    lines.push('Headers: ' + state.headerRows.length + ' found, ' + goodCount + ' good, ' + warnCount + ' need attention');
+    lines.push('');
+
+    if (state.missingRows.length > 0) {
+      lines.push('Missing Security Headers:');
+      for (var j = 0; j < state.missingRows.length; j++) {
+        lines.push('  - ' + state.missingRows[j].name + ' (up to ' + state.missingRows[j].pts + ' pts)');
+      }
+      lines.push('');
+    }
+
+    lines.push('Header Details:');
+    for (var k = 0; k < state.headerRows.length; k++) {
+      var hr = state.headerRows[k];
+      if (hr.score !== null && hr.score !== undefined) {
+        lines.push('  [' + hr.badge + '] ' + hr.name + ' — ' + hr.score + '/' + hr.scoreMax + ' pts');
+      } else {
+        lines.push('  [' + hr.badge + '] ' + hr.name);
+      }
+      if (hr.detail && hr.detail !== 'Informational header — not scored.') {
+        lines.push('         ' + hr.detail);
+      }
+    }
+
+    var text = lines.join('\n');
+    var btn = document.getElementById('btn-copy');
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(function() {
+        btn.textContent = 'Copied!';
+        btn.classList.add('copied');
+        setTimeout(function() {
+          btn.textContent = 'Copy Report';
+          btn.classList.remove('copied');
+        }, 2000);
+      });
+    } else {
+      var ta = document.createElement('textarea');
+      ta.value = text;
+      ta.style.position = 'fixed';
+      ta.style.opacity = '0';
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      document.body.removeChild(ta);
+      btn.textContent = 'Copied!';
+      btn.classList.add('copied');
+      setTimeout(function() {
+        btn.textContent = 'Copy Report';
+        btn.classList.remove('copied');
+      }, 2000);
+    }
+  });
+
+})();
+</script>
+</body>
+</html>

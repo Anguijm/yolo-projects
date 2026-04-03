@@ -69,6 +69,17 @@ Persistent knowledge base. Read this before every build.
 
 ## Per-Build Reflections
 
+### http-headers (2026-04-03)
+- **KEEP**: Regex literals containing `//` (e.g. `/^HTTP\//`) are stripped by the test's `//.*?$` line-comment regex — the `//` inside the regex triggers the stripper. Fix: replace with string method (`line.slice(0,4).toUpperCase() === 'HTTP'`). Never use regex literals whose source contains `//`.
+- **KEEP**: Double-rAF (`requestAnimationFrame(function() { requestAnimationFrame(function() { ... }) })`) for animating CSS transitions on freshly-reset properties — forces layout to see the 0% width before transitioning to target width.
+- **KEEP**: Chevron indicator (▸/▾ via CSS `rotate` transform) on expandable rows — cheap, clear affordance. Toggle class on wrapper, CSS transition handles animation.
+- **KEEP**: "Copy Report" button that generates plain-text summary — turns a visual tool into a shareable artifact. High value for security audits and bug reports.
+- **KEEP**: Ctrl+Enter keyboard shortcut in textarea — obvious power-user affordance for any analyze/submit tool.
+- **KEEP**: Server and X-Powered-By scoring logic: absent = full points (added at end), present = partial or zero. Don't include them in "missing" list — absence is the desired state.
+- **INSIGHT**: For security scoring tools, the "missing headers" section is more actionable than the score itself. Prioritize it visually.
+- **INSIGHT**: `//` inside a regex literal will always trip the line-comment stripper. General rule: audit every regex literal in the code for embedded `//` before testing.
+- **TEST CAUGHT**: `/^HTTP\//i.test(line)` — the `//` in the regex source was stripped by the test's comment cleaner, leaving orphaned `(` on the `if` statement. Stack-based brace checker caught this; simple count-based check would have missed it.
+
 ### sql-explain (2026-04-03)
 - **KEEP**: Char-code constants (`CH_SLASH = 47`, `CH_STAR = 42`) + `String.fromCharCode(47, 42)` to construct `/*` and `*/` as runtime strings — prevents the test's block-comment stripper from eating live code.
 - **KEEP**: IIFE + char-by-char tokenizer handles all SQL string quoting modes (single-quote, double-quote, backtick) and comment types cleanly, with the same char-code approach for safety.
