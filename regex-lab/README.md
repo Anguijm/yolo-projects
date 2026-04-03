@@ -1,21 +1,19 @@
 # Regex Lab
 
-Live regular expression tester. Type a pattern, paste test text, see matches highlighted in real-time with capture groups extracted. Flags toggle, replacement preview, and regex cheat sheet.
+Interactive regex tester and explainer. Type a pattern and see exactly what each token does, with live match highlighting.
 
-## Features
+## What it does
 
-- Real-time match highlighting with alternating colors
-- Flag toggles: global (g), case-insensitive (i), multiline (m), dotAll (s)
-- Capture group extraction per match (numbered and named groups)
-- Zero-width match visibility (visual indicator for ^, $, \b matches)
-- Replacement preview with substitution patterns ($1, $2, etc.)
-- XSS-safe HTML escaping (prevents injection from test text)
-- Graceful error handling on invalid regex syntax
-- Debounced input (150ms) for smooth typing experience
-- Regex cheat sheet in collapsible details element
-- Match count display
-- Dark theme, monospace typography, mobile-first
+- **Live explanation tree** — every regex token (literals, char classes, groups, anchors, quantifiers, lookaheads) is broken down with a plain-English description
+- **Live match highlighting** — color-coded matches in your test string, cycling through 5 colors for multiple matches
+- **Capture groups panel** — shows every capture group value per match, including named groups
+- **Flag toggles** — toggle `g`, `i`, `m`, `s`, `u` flags and see results update instantly
+- **8 presets** — email, URL, phone, IPv4, ISO date, hex color, semver, HTML tag
 
-## How to Run
+## How to run
 
-Open `index.html`. Type a regex pattern, enter test text. Matches are highlighted instantly. Toggle flags, view capture groups, test replacements. Expand the cheat sheet for quick regex reference.
+Open `index.html` in any modern browser. No server required.
+
+## Stack
+
+Single HTML file, zero dependencies, vanilla JS ES5-compatible.

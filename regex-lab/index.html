@@ -8,259 +8,788 @@
 <meta name="theme-color" content="#000000">
 <title>Regex Lab</title>
 <style>
-:root{--bg:#0a0a12;--panel:#0e0e1a;--border:rgba(255,255,255,0.06);--accent:#4af;--match1:#2a4a1a;--match2:#1a3a4a;--text:#999;--dim:#555;--err:#f44;--mono:ui-monospace,'Courier New',monospace}
-*{margin:0;padding:0;box-sizing:border-box}
-html,body{height:100%;background:var(--bg);overflow-y:auto;touch-action:manipulation;-webkit-tap-highlight-color:transparent;font-family:system-ui,sans-serif;color:var(--text)}
-#app{max-width:600px;margin:0 auto;padding:10px 8px}
-h1{font-size:0.5rem;font-weight:200;color:#aaa;letter-spacing:0.2em;text-align:center;margin-bottom:8px}
-
-.card{background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:10px;margin-bottom:6px}
-.card-title{font-size:0.32rem;color:var(--dim);letter-spacing:0.1em;text-transform:uppercase;margin-bottom:6px}
-
-/* Pattern input */
-#pattern-row{display:flex;gap:4px;align-items:center;margin-bottom:6px}
-#pattern-row span{font-size:0.5rem;color:var(--dim);font-family:var(--mono)}
-#pattern{flex:1;background:var(--bg);border:1px solid var(--border);color:#ccc;padding:6px 8px;font-family:var(--mono);font-size:0.45rem;border-radius:5px;outline:none}
-#pattern:focus{border-color:var(--accent)}
-#pattern.err{border-color:var(--err)}
-#flags{display:flex;gap:4px;margin-bottom:6px}
-.flag{padding:3px 8px;background:rgba(255,255,255,0.03);border:1px solid var(--border);color:var(--dim);font-size:0.35rem;cursor:pointer;border-radius:4px;font-family:var(--mono);transition:all 0.1s}
-.flag.on{border-color:var(--accent);color:var(--accent)}
-#error-msg{font-size:0.3rem;color:var(--err);min-height:14px;margin-bottom:4px}
-
-/* Test text */
-#test-text{width:100%;background:var(--bg);border:1px solid var(--border);color:#ccc;padding:8px;font-family:var(--mono);font-size:0.4rem;border-radius:6px;outline:none;resize:vertical;min-height:80px;line-height:1.6}
-#test-text:focus{border-color:var(--accent)}
-
-/* Highlighted output */
-#highlight-out{background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:8px;font-family:var(--mono);font-size:0.4rem;line-height:1.6;min-height:40px;word-break:break-word;white-space:pre-wrap}
-#highlight-out mark{border-radius:2px;padding:0 1px}
-.m0{background:rgba(80,200,80,0.2);color:#8f8}
-.m1{background:rgba(80,150,255,0.2);color:#8cf}
-
-/* Stats */
-#stats{font-size:0.3rem;color:var(--dim);font-family:monospace;margin-top:4px}
-
-/* Matches list */
-#matches{max-height:200px;overflow-y:auto;font-family:var(--mono);font-size:0.35rem}
-.match-item{padding:4px 6px;border-bottom:1px solid var(--border)}
-.match-idx{color:var(--dim);min-width:20px;display:inline-block}
-.match-val{color:#8f8}
-.match-group{color:#8cf;margin-left:8px}
-.group-label{color:var(--dim)}
-
-/* Replace */
-#replace-row{display:flex;gap:4px;margin-bottom:6px}
-#replace-input{flex:1;background:var(--bg);border:1px solid var(--border);color:#ccc;padding:6px 8px;font-family:var(--mono);font-size:0.4rem;border-radius:5px;outline:none}
-#replace-input:focus{border-color:var(--accent)}
-#replace-out{background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:8px;font-family:var(--mono);font-size:0.4rem;line-height:1.6;min-height:30px;word-break:break-word;white-space:pre-wrap;color:#fa0}
-
-/* Cheat sheet */
-details{margin-top:6px}
-details summary{font-size:0.32rem;color:var(--dim);cursor:pointer;letter-spacing:0.05em}
-.cheat{font-size:0.3rem;color:var(--dim);font-family:var(--mono);line-height:1.8;padding:6px 0;columns:2;column-gap:12px}
-.cheat span{color:var(--accent)}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body {
+  min-height: 100%;
+  background: #0a0a0a;
+  color: #ccc;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Courier New", monospace;
+  overflow-y: auto;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+#app {
+  max-width: 920px;
+  margin: 0 auto;
+  padding: 12px;
+}
+header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+h1 {
+  font-size: 0.75rem;
+  font-weight: 400;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  color: #444;
+}
+#match-count {
+  font-size: 0.6rem;
+  letter-spacing: 0.1em;
+  color: #444;
+  min-width: 80px;
+  text-align: right;
+}
+#match-count.has-matches { color: #0ff; }
+#match-count.no-matches { color: #555; }
+#match-count.is-error { color: #f85149; }
+#pattern-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 4px;
+  flex-wrap: wrap;
+}
+.slash {
+  color: #555;
+  font-size: 1.1rem;
+  font-weight: 200;
+  user-select: none;
+}
+#pattern-input {
+  flex: 1;
+  min-width: 160px;
+  background: #111;
+  border: 1px solid #222;
+  color: #0ff;
+  padding: 0 10px;
+  font-family: inherit;
+  font-size: 0.85rem;
+  outline: none;
+  height: 36px;
+}
+#pattern-input:focus { border-color: #555; }
+#pattern-input.is-error { border-color: #f85149; color: #f85149; }
+#flags-bar { display: flex; gap: 3px; }
+.flag-btn {
+  min-height: 36px;
+  min-width: 32px;
+  padding: 0 8px;
+  background: transparent;
+  border: 1px solid #1a1a1a;
+  color: #444;
+  font-family: inherit;
+  font-size: 0.65rem;
+  cursor: pointer;
+  letter-spacing: 0.05em;
+}
+.flag-btn.active { border-color: #0ff; color: #0ff; }
+.flag-btn:active { opacity: 0.7; }
+#error-msg {
+  color: #f85149;
+  font-size: 0.6rem;
+  min-height: 14px;
+  margin-bottom: 6px;
+  letter-spacing: 0.05em;
+}
+#presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-bottom: 12px;
+}
+.preset-btn {
+  padding: 0 10px;
+  min-height: 36px;
+  background: transparent;
+  border: 1px solid #1a1a1a;
+  color: #444;
+  font-family: inherit;
+  font-size: 0.55rem;
+  cursor: pointer;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+.preset-btn:active { border-color: #555; color: #888; }
+#main-area {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  align-items: start;
+}
+@media (max-width: 620px) {
+  #main-area { grid-template-columns: 1fr; }
+}
+#explanation-panel, #right-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.panel-label {
+  font-size: 0.5rem;
+  letter-spacing: 0.25em;
+  text-transform: uppercase;
+  color: #444;
+  padding-bottom: 5px;
+  border-bottom: 1px solid #1a1a1a;
+  user-select: none;
+}
+#explanation {
+  min-height: 180px;
+  max-height: 420px;
+  overflow-y: auto;
+  border: 1px solid #1a1a1a;
+  padding: 6px 0;
+}
+.exp-empty {
+  color: #333;
+  font-size: 0.65rem;
+  padding: 12px 10px;
+  font-style: italic;
+}
+.exp-row {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 4px 10px;
+  border-bottom: 1px solid #0d0d0d;
+  font-size: 0.68rem;
+  line-height: 1.4;
+}
+.exp-row:last-child { border-bottom: none; }
+.exp-row.indent-1 { padding-left: 24px; }
+.exp-row.indent-2 { padding-left: 38px; }
+.exp-row.indent-3 { padding-left: 52px; }
+.exp-row.indent-4 { padding-left: 66px; }
+.exp-row.indent-5 { padding-left: 80px; }
+.exp-row.alt-label-row {
+  padding: 3px 10px;
+  border-bottom: none;
+}
+.exp-tok {
+  font-size: 0.72rem;
+  font-weight: 600;
+  min-width: 56px;
+  flex-shrink: 0;
+  word-break: break-all;
+}
+.tok-literal   { color: #bbb; }
+.tok-special   { color: #ffb347; }
+.tok-anchor    { color: #f0f; }
+.tok-escape    { color: #0ff; }
+.tok-char-class{ color: #3fb950; }
+.tok-group     { color: #58a6ff; }
+.tok-lookahead { color: #a78bfa; }
+.tok-alternation { color: #f85149; }
+.tok-alt-label { color: #333; font-size: 0.5rem; letter-spacing: 0.15em; text-transform: uppercase; font-weight: 400; }
+.exp-desc {
+  color: #555;
+  font-size: 0.6rem;
+  flex: 1;
+}
+.exp-quant {
+  color: #d29922;
+  font-size: 0.6rem;
+  white-space: nowrap;
+}
+#test-input {
+  width: 100%;
+  background: #111;
+  border: 1px solid #222;
+  color: #aaa;
+  padding: 8px;
+  font-family: inherit;
+  font-size: 0.75rem;
+  resize: vertical;
+  outline: none;
+  min-height: 100px;
+}
+#test-input:focus { border-color: #555; }
+#highlighted {
+  background: #111;
+  border: 1px solid #1a1a1a;
+  padding: 8px;
+  font-size: 0.75rem;
+  line-height: 1.7;
+  white-space: pre-wrap;
+  word-break: break-all;
+  min-height: 48px;
+  color: #444;
+}
+.match   { background: rgba(0,255,255,0.14); border-bottom: 1px solid #0ff; color: #ccc; }
+.match-1 { background: rgba(240,0,240,0.14); border-bottom: 1px solid #f0f; color: #ccc; }
+.match-2 { background: rgba(255,165,0,0.14); border-bottom: 1px solid #d29922; color: #ccc; }
+.match-3 { background: rgba(63,185,80,0.14); border-bottom: 1px solid #3fb950; color: #ccc; }
+.match-4 { background: rgba(88,166,255,0.14); border-bottom: 1px solid #58a6ff; color: #ccc; }
+#groups-panel { display: none; }
+#groups-table { font-size: 0.63rem; line-height: 1.6; border: 1px solid #1a1a1a; }
+.gm-header {
+  padding: 3px 8px;
+  background: #111;
+  color: #555;
+  font-size: 0.55rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  border-bottom: 1px solid #1a1a1a;
+}
+.gm-full { color: #888; display: inline; }
+.g-row {
+  display: grid;
+  grid-template-columns: 90px 1fr;
+  gap: 6px;
+  padding: 2px 8px;
+  border-bottom: 1px solid #0d0d0d;
+}
+.g-row:last-child { border-bottom: none; }
+.g-label { color: #444; }
+.g-val   { color: #aaa; word-break: break-all; }
+.g-undef { color: #333; font-style: italic; }
 </style>
 </head>
 <body>
 <div id="app">
-  <h1>REGEX LAB</h1>
-
-  <div class="card">
-    <div class="card-title">Pattern</div>
-    <div id="pattern-row">
-      <span>/</span>
-      <input type="text" id="pattern" value="(\w+)@(\w+)\.(\w+)" placeholder="regex pattern" autocomplete="off" spellcheck="false">
-      <span>/</span>
+  <header>
+    <div>
+      <h1>Regex Lab</h1>
+      <div style="font-size:0.5rem;color:#333;letter-spacing:0.1em;margin-top:2px">Type a pattern to see what each part does</div>
     </div>
-    <div id="flags">
-      <button class="flag on" data-flag="g">g</button>
-      <button class="flag on" data-flag="i">i</button>
-      <button class="flag" data-flag="m">m</button>
-      <button class="flag" data-flag="s">s</button>
+    <span id="match-count"></span>
+  </header>
+
+  <div id="pattern-bar">
+    <span class="slash">/</span>
+    <input type="text" id="pattern-input" placeholder="enter pattern" autocomplete="off" spellcheck="false">
+    <span class="slash">/</span>
+    <div id="flags-bar">
+      <button class="flag-btn active" data-flag="g" title="Global — find all matches">g</button>
+      <button class="flag-btn" data-flag="i" title="Ignore case">i</button>
+      <button class="flag-btn" data-flag="m" title="Multiline — ^ and $ match line boundaries">m</button>
+      <button class="flag-btn" data-flag="s" title="Dotall — dot matches newline">s</button>
+      <button class="flag-btn" data-flag="u" title="Unicode mode">u</button>
     </div>
-    <div id="error-msg"></div>
   </div>
 
-  <div class="card">
-    <div class="card-title">Test String</div>
-    <textarea id="test-text">Contact us at hello@example.com or support@test.org for info. Also reach admin@company.net anytime.</textarea>
+  <div id="error-msg"></div>
+
+  <div id="presets">
+    <button class="preset-btn" data-preset="email" title="Email address pattern">email</button>
+    <button class="preset-btn" data-preset="url" title="HTTP/HTTPS URL">url</button>
+    <button class="preset-btn" data-preset="phone" title="US phone number">phone</button>
+    <button class="preset-btn" data-preset="ipv4" title="IPv4 address">ipv4</button>
+    <button class="preset-btn" data-preset="date" title="ISO date YYYY-MM-DD">date</button>
+    <button class="preset-btn" data-preset="hex" title="CSS hex color">hex color</button>
+    <button class="preset-btn" data-preset="semver" title="Semantic version">semver</button>
+    <button class="preset-btn" data-preset="html" title="HTML tag">html tag</button>
   </div>
 
-  <div class="card">
-    <div class="card-title">Highlighted Matches</div>
-    <div id="highlight-out"></div>
-    <div id="stats"></div>
-  </div>
-
-  <div class="card">
-    <div class="card-title">Matches &amp; Groups</div>
-    <div id="matches"></div>
-  </div>
-
-  <div class="card">
-    <div class="card-title">Replace</div>
-    <div id="replace-row">
-      <input type="text" id="replace-input" value="[$1 at $2]" placeholder="replacement pattern">
+  <div id="main-area">
+    <div id="explanation-panel">
+      <div class="panel-label">Explanation</div>
+      <div id="explanation"><div class="exp-empty">Enter a pattern above to see the explanation</div></div>
     </div>
-    <div id="replace-out"></div>
-  </div>
 
-  <details>
-    <summary>Regex Cheat Sheet</summary>
-    <div class="cheat">
-      <span>.</span> any char<br>
-      <span>\d</span> digit<br>
-      <span>\w</span> word char<br>
-      <span>\s</span> whitespace<br>
-      <span>\b</span> word boundary<br>
-      <span>^</span> start of line<br>
-      <span>$</span> end of line<br>
-      <span>*</span> 0 or more<br>
-      <span>+</span> 1 or more<br>
-      <span>?</span> 0 or 1<br>
-      <span>{n}</span> exactly n<br>
-      <span>{n,m}</span> n to m<br>
-      <span>[abc]</span> char class<br>
-      <span>[^abc]</span> negated<br>
-      <span>(..)</span> capture group<br>
-      <span>(?:..)</span> non-capture<br>
-      <span>a|b</span> alternation<br>
-      <span>(?=..)</span> lookahead<br>
+    <div id="right-panel">
+      <div class="panel-label">Test String</div>
+      <textarea id="test-input" rows="6" spellcheck="false" placeholder="Type or paste text to match against..."></textarea>
+
+      <div class="panel-label">Matches</div>
+      <div id="highlighted"></div>
+
+      <div id="groups-panel">
+        <div class="panel-label" style="margin-top:8px">Capture Groups</div>
+        <div id="groups-table"></div>
+      </div>
     </div>
-  </details>
+  </div>
 </div>
 
 <script>
-(function(){
+/* jshint esversion: 5 */
+(function() {
 'use strict';
 
-// ---- State ----
-var flags={g:true,i:true,m:false,s:false};
-var debounceTimer=null;
+/* ── DOM refs (cached at init) ── */
+var elPattern, elTestInput, elHighlighted, elExplanation, elErrorMsg,
+    elMatchCount, elGroupsPanel, elGroupsTable, elAllFlagBtns;
 
-// ---- Escape HTML to prevent XSS ----
-function escapeHtml(str){
-  var sq=String.fromCharCode(39);
-  return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(new RegExp(sq,'g'),'&#39;');
+/* ── State ── */
+var state = {
+  flags: 'g',
+  debounceTimer: null
+};
+
+/* ── Presets ── */
+var PRESETS = {
+  'email': {
+    pattern: '[\\w.+\\-]+@[\\w\\-]+\\.[\\w.]{2,}',
+    flags: 'gi',
+    test: 'Contact: support@example.com or hello.world+tag@sub.domain.co.uk\nInvalid: @missing.com, noatsign.com'
+  },
+  'url': {
+    pattern: 'https?:/' + '/[\\w.\\-]+(?:\\.[\\w.\\-]+)+(?:[/?#][^\\s]*)?',
+    flags: 'gi',
+    test: 'Docs: https:/' + '/developer.mozilla.org/en-US/docs\nAPI: http:/' + '/api.example.com/v2/users?page=1\nNot: ftp:/' + '/other.com or bare text'
+  },
+  'phone': {
+    pattern: '\\(?\\d{3}\\)?[\\-. ]\\d{3}[\\-. ]\\d{4}',
+    flags: 'g',
+    test: 'Call (555) 123-4567 or 555.987.6543\nAlso valid: 555-000-0000\nNot: 12345 or 555-12-3456'
+  },
+  'ipv4': {
+    pattern: '\\b(25[0-5]|2[0-4]\\d|[01]?\\d\\d?)\\.(25[0-5]|2[0-4]\\d|[01]?\\d\\d?)\\.(25[0-5]|2[0-4]\\d|[01]?\\d\\d?)\\.(25[0-5]|2[0-4]\\d|[01]?\\d\\d?)\\b',
+    flags: 'g',
+    test: 'Server: 192.168.1.1, Gateway: 10.0.0.1, DNS: 8.8.8.8\nInvalid: 999.0.0.1 or 256.1.1.1'
+  },
+  'date': {
+    pattern: '(\\d{4})-(0[1-9]|1[0-2])-(0[1-9]|[12]\\d|3[01])',
+    flags: 'g',
+    test: 'Events on 2024-01-15, 2024-12-31, and 2025-06-01\nInvalid: 2024-13-01, 2024-00-15, 2024-01-32'
+  },
+  'hex': {
+    pattern: '#([0-9a-fA-F]{6}|[0-9a-fA-F]{3})\\b',
+    flags: 'g',
+    test: 'Colors: #fff, #000000, #3fb950, #FF5733, #abc\nNot: #xyz or #12345 or #1234567'
+  },
+  'semver': {
+    pattern: '\\bv?(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(?:-((?:0|[1-9]\\d*|\\d*[a-zA-Z\\-][\\w\\-]*)(?:\\.(?:0|[1-9]\\d*|\\d*[a-zA-Z\\-][\\w\\-]*))*))?\\b',
+    flags: 'g',
+    test: 'Releases: 1.0.0, v2.3.1, 3.0.0-alpha.1, 1.2.3-beta.4, v10.20.30\nInvalid: 1.0, v1, 01.2.3'
+  },
+  'html': {
+    pattern: '<(\\/?[\\w]+)(?:\\s[^>]*)?>',
+    flags: 'g',
+    test: '<div class="container"><h1>Hello World</h1><p>Some <strong>bold</strong> text</p></div>\n<img src="photo.jpg" alt="Photo" />'
+  }
+};
+
+/* ── Helpers ── */
+function escHtml(str) {
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
 }
 
-// ---- Build regex from pattern + flags ----
-function buildRegex(){
-  var pattern=document.getElementById('pattern').value;
-  var flagStr='';
-  if(flags.g)flagStr+='g';
-  if(flags.i)flagStr+='i';
-  if(flags.m)flagStr+='m';
-  if(flags.s)flagStr+='s';
-  try{
-    var re=new RegExp(pattern,flagStr);
-    document.getElementById('pattern').classList.remove('err');
-    document.getElementById('error-msg').textContent='';
-    return re;
-  }catch(e){
-    document.getElementById('pattern').classList.add('err');
-    document.getElementById('error-msg').textContent=e.message;
-    return null;
+/* ── Regex Tokenizer (recursive descent) ── */
+function tokenize(pattern) {
+  if (!pattern) return [];
+  var pos = 0;
+  var captureNum = 0;
+  var rows = [];
+
+  function peek() { return pos < pattern.length ? pattern[pos] : null; }
+  function next() { return pattern[pos++]; }
+
+  function parseAlternation(depth) {
+    parseBranch(depth);
+    while (peek() === '|') {
+      next(); /* consume | */
+      rows.push({ depth: depth, token: '|', type: 'alternation', desc: 'OR — try next alternative', isAlt: true });
+      parseBranch(depth);
+    }
+  }
+
+  function parseBranch(depth) {
+    while (pos < pattern.length && peek() !== ')' && peek() !== '|') {
+      parseAtom(depth);
+    }
+  }
+
+  function parseAtom(depth) {
+    var ch = peek();
+    if (ch === null) return;
+    if (ch === '(') { parseGroup(depth); return; }
+    if (ch === '[') { parseClass(depth); return; }
+    if (ch === '\\') { parseEscape(depth); return; }
+    next();
+    var row = { depth: depth };
+    if (ch === '.') {
+      row.token = '.'; row.type = 'special'; row.desc = 'Any character (except newline)';
+    } else if (ch === '^') {
+      row.token = '^'; row.type = 'anchor'; row.desc = 'Start of string (or line with m flag)';
+    } else if (ch === '$') {
+      row.token = '$'; row.type = 'anchor'; row.desc = 'End of string (or line with m flag)';
+    } else {
+      row.token = ch; row.type = 'literal';
+      row.desc = 'Literal: "' + ch + '"';
+    }
+    parseQuantifier(row);
+    rows.push(row);
+  }
+
+  function parseGroup(depth) {
+    next(); /* consume ( */
+    var groupType, groupName, openToken, openDesc;
+    if (pattern.slice(pos, pos + 2) === '?:') {
+      pos += 2; groupType = 'non-cap';
+      openToken = '(?:'; openDesc = 'Non-capturing group';
+    } else if (pattern.slice(pos, pos + 2) === '?=') {
+      pos += 2; groupType = 'lookahead';
+      openToken = '(?='; openDesc = 'Lookahead: match only if followed by';
+    } else if (pattern.slice(pos, pos + 2) === '?!') {
+      pos += 2; groupType = 'neg-ahead';
+      openToken = '(?!'; openDesc = 'Negative lookahead: match only if NOT followed by';
+    } else if (pattern.slice(pos, pos + 3) === '?<=') {
+      pos += 3; groupType = 'lookbehind';
+      openToken = '(?<='; openDesc = 'Lookbehind: match only if preceded by';
+    } else if (pattern.slice(pos, pos + 3) === '?<!') {
+      pos += 3; groupType = 'neg-behind';
+      openToken = '(?<!'; openDesc = 'Negative lookbehind: match only if NOT preceded by';
+    } else if (pattern.slice(pos, pos + 2) === '?<') {
+      pos += 2;
+      var nameEnd = pattern.indexOf('>', pos);
+      if (nameEnd !== -1) { groupName = pattern.slice(pos, nameEnd); pos = nameEnd + 1; }
+      groupType = 'named'; captureNum++;
+      openToken = '(?<' + (groupName || '') + '>';
+      openDesc = 'Named capture group \'' + (groupName || '?') + '\' (group ' + captureNum + ')';
+    } else {
+      groupType = 'capture'; captureNum++;
+      openToken = '('; openDesc = 'Capture group ' + captureNum + ' — saves matched text';
+    }
+    rows.push({ depth: depth, token: openToken, type: 'group', desc: openDesc, isOpen: true });
+    parseAlternation(depth + 1);
+    if (peek() === ')') next();
+    var closeRow = { depth: depth, token: ')', type: 'group', desc: 'End group', isClose: true };
+    parseQuantifier(closeRow);
+    rows.push(closeRow);
+  }
+
+  function parseClass(depth) {
+    next(); /* consume [ */
+    var raw = '[';
+    var negated = false;
+    if (peek() === '^') { next(); negated = true; raw += '^'; }
+    while (pos < pattern.length) {
+      var c = next();
+      raw += c;
+      if (c === '\\' && pos < pattern.length) { raw += next(); }
+      else if (c === ']') { break; }
+    }
+    var row = {
+      depth: depth, token: raw, type: 'char-class',
+      desc: (negated ? 'Any char NOT in set: ' : 'Any char in set: ') + raw
+    };
+    parseQuantifier(row);
+    rows.push(row);
+  }
+
+  function parseEscape(depth) {
+    next(); /* consume \ */
+    if (pos >= pattern.length) {
+      rows.push({ depth: depth, token: '\\', type: 'escape', desc: 'Lone backslash' });
+      return;
+    }
+    var c = next();
+    var DESCS = {
+      'd': 'Digit [0-9]',         'D': 'Non-digit [^0-9]',
+      'w': 'Word char [a-zA-Z0-9_]', 'W': 'Non-word char',
+      's': 'Whitespace',          'S': 'Non-whitespace',
+      'b': 'Word boundary',       'B': 'Non-word boundary',
+      'n': 'Newline',             'r': 'Carriage return',
+      't': 'Tab',                 'f': 'Form feed',
+      'v': 'Vertical tab',        '0': 'Null char'
+    };
+    /* handle back-references \1..\9 */
+    var desc;
+    if (c >= '1' && c <= '9') {
+      desc = 'Backreference to capture group ' + c;
+    } else {
+      desc = DESCS[c] || ('Escaped literal: "' + c + '"');
+    }
+    var row = { depth: depth, token: '\\' + c, type: 'escape', desc: desc };
+    parseQuantifier(row);
+    rows.push(row);
+  }
+
+  function parseQuantifier(row) {
+    var ch = peek();
+    if (ch === null) return;
+    var quant = '', quantDesc = '';
+    if (ch === '*') {
+      next(); quant = '*'; quantDesc = '0 or more';
+    } else if (ch === '+') {
+      next(); quant = '+'; quantDesc = '1 or more';
+    } else if (ch === '?') {
+      next(); quant = '?'; quantDesc = '0 or 1 (optional)';
+    } else if (ch === '{') {
+      var m = pattern.slice(pos).match(/^\{(\d+)(,\d*)?}/);
+      if (m) {
+        pos += m[0].length;
+        quant = m[0];
+        var mn = parseInt(m[1], 10);
+        if (!m[2]) {
+          quantDesc = 'exactly ' + mn;
+        } else if (m[2] === ',') {
+          quantDesc = mn + ' or more';
+        } else {
+          var mx = parseInt(m[2].slice(1), 10);
+          quantDesc = 'between ' + mn + ' and ' + mx;
+        }
+      }
+    }
+    if (quant) {
+      var lazy = (peek() === '?');
+      if (lazy) { next(); quant += '?'; quantDesc += ' (lazy)'; }
+      row.quant = quant;
+      row.quantDesc = quantDesc;
+    }
+  }
+
+  try { parseAlternation(0); } catch (e) { /* partial parse ok */ }
+  return rows;
+}
+
+/* ── Render explanation rows ── */
+function renderExplanation(rows) {
+  if (!rows || rows.length === 0) {
+    return '<div class="exp-empty">Enter a pattern above to see the explanation</div>';
+  }
+  var html = '';
+  for (var i = 0; i < rows.length; i++) {
+    var row = rows[i];
+    var depthClass = row.depth > 0 ? ' indent-' + Math.min(row.depth, 5) : '';
+    if (row.isAlt) {
+      html += '<div class="exp-row alt-label-row' + depthClass + '">' +
+        '<span class="exp-tok tok-alternation">|</span>' +
+        '<span class="exp-desc" style="color:#3a3a3a">or</span>' +
+        '</div>';
+      continue;
+    }
+    var tokHtml = '<span class="exp-tok tok-' + row.type + '">' + escHtml(row.token) + '</span>';
+    var descHtml = '<span class="exp-desc">' + escHtml(row.desc) + '</span>';
+    var quantHtml = row.quant
+      ? ' <span class="exp-quant">' + escHtml(row.quant) + ' <span style="color:#896a00">' + escHtml(row.quantDesc) + '</span></span>'
+      : '';
+    html += '<div class="exp-row' + depthClass + '">' + tokHtml + ' ' + descHtml + quantHtml + '</div>';
+  }
+  return html;
+}
+
+/* ── Run regex matches ── */
+function runMatches(pattern, flags, input) {
+  if (!pattern) return { matches: [], error: null };
+  try {
+    var re = new RegExp(pattern, flags);
+    var matches = [];
+    if (flags.indexOf('g') !== -1 || flags.indexOf('y') !== -1) {
+      var m;
+      var limit = 2000;
+      var iter = 0;
+      while ((m = re.exec(input)) !== null && iter < limit) {
+        matches.push(m);
+        iter++;
+        if (m[0].length === 0) re.lastIndex++;
+      }
+    } else {
+      var sm = re.exec(input);
+      if (sm) matches.push(sm);
+    }
+    return { matches: matches, error: null };
+  } catch (e) {
+    return { matches: [], error: e.message };
   }
 }
 
-// ---- Main update ----
-function update(){
-  var re=buildRegex();
-  var text=document.getElementById('test-text').value;
+/* ── Render highlighted text ── */
+var MATCH_CLASSES = ['match', 'match-1', 'match-2', 'match-3', 'match-4'];
+function renderHighlighted(text, matches) {
+  if (!matches || matches.length === 0) {
+    return '<span style="color:#333">' + escHtml(text) + '</span>';
+  }
+  var result = '';
+  var lastEnd = 0;
+  for (var i = 0; i < matches.length; i++) {
+    var m = matches[i];
+    var start = m.index;
+    var end = m.index + m[0].length;
+    if (start > lastEnd) {
+      result += '<span style="color:#333">' + escHtml(text.slice(lastEnd, start)) + '</span>';
+    }
+    result += '<mark class="' + MATCH_CLASSES[i % 5] + '" title="Match ' + (i + 1) + '">' + escHtml(m[0]) + '</mark>';
+    lastEnd = end;
+  }
+  result += '<span style="color:#333">' + escHtml(text.slice(lastEnd)) + '</span>';
+  return result;
+}
 
-  if(!re||text==null){
-    document.getElementById('highlight-out').textContent=text||'';
-    document.getElementById('stats').textContent='';
-    document.getElementById('matches').innerHTML='';
-    document.getElementById('replace-out').textContent='';
+/* ── Render capture groups ── */
+function renderGroups(matches) {
+  if (!matches || matches.length === 0) return null;
+  var hasGroups = false;
+  for (var i = 0; i < matches.length; i++) {
+    if (matches[i].length > 1) { hasGroups = true; break; }
+  }
+  if (!hasGroups) return null;
+
+  var html = '';
+  var shown = Math.min(matches.length, 8);
+  for (var j = 0; j < shown; j++) {
+    var m = matches[j];
+    if (m.length <= 1) continue;
+    html += '<div class="gm-header">Match ' + (j + 1) + ': <span class="gm-full">' + escHtml(m[0]) + '</span></div>';
+    for (var g = 1; g < m.length; g++) {
+      var val = m[g];
+      html += '<div class="g-row"><span class="g-label">Group ' + g + '</span>';
+      if (val === undefined) {
+        html += '<span class="g-undef">did not participate</span>';
+      } else {
+        html += '<span class="g-val">' + escHtml(val) + '</span>';
+      }
+      html += '</div>';
+    }
+    if (m.groups) {
+      var names = Object.keys(m.groups);
+      for (var n = 0; n < names.length; n++) {
+        var nm = names[n];
+        var nv = m.groups[nm];
+        html += '<div class="g-row"><span class="g-label">' + escHtml(nm) + '</span>';
+        if (nv === undefined) {
+          html += '<span class="g-undef">did not participate</span>';
+        } else {
+          html += '<span class="g-val">' + escHtml(nv) + '</span>';
+        }
+        html += '</div>';
+      }
+    }
+  }
+  if (matches.length > 8) {
+    html += '<div class="gm-header" style="color:#333">...and ' + (matches.length - 8) + ' more matches</div>';
+  }
+  return html;
+}
+
+/* ── Main render ── */
+function render() {
+  var pattern = elPattern.value;
+  var flags = state.flags;
+  var input = elTestInput.value;
+
+  elErrorMsg.textContent = '';
+  elPattern.classList.remove('is-error');
+
+  /* explanation */
+  var rows = tokenize(pattern);
+  elExplanation.innerHTML = renderExplanation(rows);
+
+  /* matches */
+  var result = runMatches(pattern, flags, input);
+
+  if (result.error) {
+    elErrorMsg.textContent = result.error;
+    elPattern.classList.add('is-error');
+    elMatchCount.textContent = 'error';
+    elMatchCount.className = 'is-error';
+    elHighlighted.innerHTML = '<span style="color:#333">' + escHtml(input) + '</span>';
+    elGroupsPanel.style.display = 'none';
     return;
   }
 
-  // Find all matches with groups
-  var allMatches=[];
-  // Ensure global flag for matchAll
-  var reGlobal=new RegExp(re.source,re.flags.indexOf('g')>=0?re.flags:re.flags+'g');
-  var iter=text.matchAll(reGlobal);
-  var m;
-  while(true){
-    var result=iter.next();
-    if(result.done)break;
-    m=result.value;
-    allMatches.push({index:m.index,match:m[0],groups:Array.from(m).slice(1),named:m.groups||null});
+  var matches = result.matches;
+  var count = matches.length;
+
+  if (!pattern) {
+    elMatchCount.textContent = '';
+    elMatchCount.className = '';
+  } else if (count === 0) {
+    elMatchCount.textContent = 'no matches';
+    elMatchCount.className = 'no-matches';
+  } else {
+    elMatchCount.textContent = count + ' match' + (count === 1 ? '' : 'es');
+    elMatchCount.className = 'has-matches';
   }
 
-  // Highlighted output
-  var html='';
-  var lastIdx=0;
-  for(var i=0;i<allMatches.length;i++){
-    var am=allMatches[i];
-    if(am.index>lastIdx){
-      html+=escapeHtml(text.substring(lastIdx,am.index));
-    }
-    var cls=i%2===0?'m0':'m1';
-    var matchEsc=escapeHtml(am.match);
-    html+=matchEsc.length===0?'<mark class="'+cls+'" style="border-left:2px solid #f80">\u200b</mark>':'<mark class="'+cls+'">'+matchEsc+'</mark>';
-    lastIdx=am.index+am.match.length;
-  }
-  if(lastIdx<text.length)html+=escapeHtml(text.substring(lastIdx));
-  document.getElementById('highlight-out').innerHTML=html;
+  elHighlighted.innerHTML = renderHighlighted(input, matches);
 
-  // Stats
-  document.getElementById('stats').textContent=allMatches.length+' match'+(allMatches.length!==1?'es':'');
-
-  // Match list with groups
-  var matchHtml='';
-  for(var i=0;i<allMatches.length;i++){
-    var am=allMatches[i];
-    matchHtml+='<div class="match-item"><span class="match-idx">'+(i+1)+'</span>';
-    matchHtml+='<span class="match-val">'+escapeHtml(am.match)+'</span>';
-    for(var g=0;g<am.groups.length;g++){
-      if(am.groups[g]!==undefined){
-        matchHtml+='<span class="match-group"><span class="group-label">$'+(g+1)+':</span> '+escapeHtml(am.groups[g])+'</span>';
-      }
-    }
-    if(am.named){for(var gn in am.named){if(am.named[gn]!==undefined){
-      matchHtml+='<span class="match-group"><span class="group-label">&lt;'+escapeHtml(gn)+'&gt;:</span> '+escapeHtml(am.named[gn])+'</span>'}}}
-    matchHtml+='</div>';
-  }
-  document.getElementById('matches').innerHTML=matchHtml;
-
-  // Replace preview
-  var replaceStr=document.getElementById('replace-input').value;
-  try{
-    var replaced=text.replace(re,replaceStr);
-    document.getElementById('replace-out').textContent=replaced;
-  }catch(e){
-    document.getElementById('replace-out').textContent='Replace error: '+e.message;
+  var groupsHtml = renderGroups(matches);
+  if (groupsHtml) {
+    elGroupsPanel.style.display = 'block';
+    elGroupsTable.innerHTML = groupsHtml;
+  } else {
+    elGroupsPanel.style.display = 'none';
   }
 }
 
-// ---- Debounced update ----
-function debouncedUpdate(){
-  clearTimeout(debounceTimer);
-  debounceTimer=setTimeout(update,150);
+/* ── Load preset ── */
+function loadPreset(name) {
+  var p = PRESETS[name];
+  if (!p) return;
+  elPattern.value = p.pattern;
+  elTestInput.value = p.test;
+  state.flags = p.flags || 'g';
+  /* sync flag buttons */
+  for (var i = 0; i < elAllFlagBtns.length; i++) {
+    var btn = elAllFlagBtns[i];
+    if (state.flags.indexOf(btn.dataset.flag) !== -1) {
+      btn.classList.add('active');
+    } else {
+      btn.classList.remove('active');
+    }
+  }
+  render();
 }
 
-// ---- Event listeners ----
-document.getElementById('pattern').addEventListener('input',debouncedUpdate);
-document.getElementById('test-text').addEventListener('input',debouncedUpdate);
-document.getElementById('replace-input').addEventListener('input',debouncedUpdate);
+/* ── Init ── */
+function init() {
+  elPattern      = document.getElementById('pattern-input');
+  elTestInput    = document.getElementById('test-input');
+  elHighlighted  = document.getElementById('highlighted');
+  elExplanation  = document.getElementById('explanation');
+  elErrorMsg     = document.getElementById('error-msg');
+  elMatchCount   = document.getElementById('match-count');
+  elGroupsPanel  = document.getElementById('groups-panel');
+  elGroupsTable  = document.getElementById('groups-table');
+  elAllFlagBtns  = document.querySelectorAll('.flag-btn');
 
-// Flag toggles
-var flagBtns=document.querySelectorAll('.flag');
-for(var i=0;i<flagBtns.length;i++){
-  flagBtns[i].addEventListener('click',function(){
-    var f=this.dataset.flag;
-    flags[f]=!flags[f];
-    this.classList.toggle('on',flags[f]);
-    update();
+  /* pattern input */
+  elPattern.addEventListener('input', function() {
+    clearTimeout(state.debounceTimer);
+    state.debounceTimer = setTimeout(render, 150);
   });
+
+  /* test input */
+  elTestInput.addEventListener('input', function() {
+    clearTimeout(state.debounceTimer);
+    state.debounceTimer = setTimeout(render, 150);
+  });
+
+  /* flag toggles */
+  for (var i = 0; i < elAllFlagBtns.length; i++) {
+    (function(btn) {
+      btn.addEventListener('pointerdown', function(e) {
+        e.preventDefault();
+        var flag = btn.dataset.flag;
+        if (state.flags.indexOf(flag) !== -1) {
+          state.flags = state.flags.replace(flag, '');
+          btn.classList.remove('active');
+        } else {
+          state.flags += flag;
+          btn.classList.add('active');
+        }
+        render();
+      });
+    })(elAllFlagBtns[i]);
+  }
+
+  /* preset buttons */
+  var presetBtns = document.querySelectorAll('.preset-btn');
+  for (var j = 0; j < presetBtns.length; j++) {
+    (function(btn) {
+      btn.addEventListener('pointerdown', function(e) {
+        e.preventDefault();
+        loadPreset(btn.dataset.preset);
+      });
+    })(presetBtns[j]);
+  }
+
+  /* load default */
+  loadPreset('email');
 }
 
-// ---- Init ----
-update();
+document.addEventListener('DOMContentLoaded', init);
+
 })();
 </script>
 </body>
