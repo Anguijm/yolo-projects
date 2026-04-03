@@ -80,7 +80,6 @@ Markdown Deck is a graduated YOLO project operating under Flagship rules: multi-
 
 ## Approved (Next Tock)
 
-- [ ] Clipboard image paste — Ctrl+V with image on clipboard inserts base64 data URL at cursor. Web Clipboard API, zero-dep.
 
 ## Parking Lot
 
@@ -148,3 +147,4 @@ These are features complex enough to prototype as standalone YOLO single-session
 | 2026-04-02 | Tock | Slide transitions: fade/slide/zoom for presentation mode, direction-aware, localStorage persistence |
 | 2026-04-02 | Tock | Brainstormed 2 features (pending approval): Standalone HTML export, Laser pointer & annotation mode |
 | 2026-04-02 | Tock | Brainstormed 2 features (pending approval): Clipboard image paste, Per-slide talk time budget |
+| 2026-04-03 | Tock | Clipboard image paste: Ctrl+V inserts base64 data URL at cursor, with KB size feedback toast |

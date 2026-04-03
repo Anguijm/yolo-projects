@@ -406,6 +406,8 @@ border-radius: 8px</textarea>
   </div>
 </div>
 
+<div id="paste-feedback" style="position:fixed;bottom:12px;left:50%;transform:translateX(-50%);background:#0a2a0a;border:1px solid #166534;color:#4ade80;font-family:inherit;font-size:0.55rem;letter-spacing:0.1em;text-transform:uppercase;padding:5px 12px;pointer-events:none;z-index:9999;opacity:0;transition:opacity 0.15s;"></div>
+
 <script>
 const inputEl = document.getElementById('input');
 const previewEl = document.getElementById('slide-preview');
@@ -2424,6 +2426,54 @@ document.addEventListener('keydown', function(e) {
     });
   }
 });
+
+// Clipboard image paste — Ctrl+V with image inserts base64 data URL at cursor
+(function() {
+  var pasteTimer = null;
+  var pasteBar = document.getElementById('paste-feedback');
+  function showPasteFeedback(msg) {
+    pasteBar.textContent = msg;
+    pasteBar.style.opacity = '1';
+    clearTimeout(pasteTimer);
+    pasteTimer = setTimeout(function() { pasteBar.style.opacity = '0'; }, 1800);
+  }
+
+  inputEl.addEventListener('paste', function(e) {
+    var items = e.clipboardData && e.clipboardData.items;
+    if (!items) return;
+    var imageItem = null;
+    for (var i = 0; i < items.length; i++) {
+      if (items[i].type.indexOf('image') === 0) { imageItem = items[i]; break; }
+    }
+    if (!imageItem) return; // no image — let default text paste happen
+    e.preventDefault();
+    var file = imageItem.getAsFile();
+    if (!file) return;
+    var reader = new FileReader();
+    reader.onload = function(ev) {
+      var dataUrl = ev.target.result;
+      var altText = 'image';
+      var markdown = '![' + altText + '](' + dataUrl + ')';
+      var start = inputEl.selectionStart;
+      var end = inputEl.selectionEnd;
+      var val = inputEl.value;
+      // Insert with surrounding newlines if not at start of line
+      var before = val.substring(0, start);
+      var after = val.substring(end);
+      var needNL = before.length > 0 && before[before.length - 1] !== '\n';
+      var insert = (needNL ? '\n' : '') + markdown + '\n';
+      inputEl.value = before + insert + after;
+      var newCursor = start + insert.length;
+      inputEl.setSelectionRange(newCursor, newCursor);
+      inputEl.focus();
+      parseSlides();
+      renderPreview();
+      autoSave();
+      showPasteFeedback('Image pasted as base64 (' + (Math.round(dataUrl.length / 1024)) + ' KB)');
+    };
+    reader.readAsDataURL(file);
+  });
+})();
 
 // Download as .md file
 window.saveDeck = function() {
