@@ -1,0 +1,850 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="theme-color" content="#000000">
+<title>CSS Units</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body {
+  height: 100%;
+  background: #0a0a0a;
+  color: #ccc;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Courier New", monospace;
+  overflow-y: auto;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+:root {
+  --accent: #0ff;
+  --bg-surface: #111;
+  --bg-elevated: #1a1a1a;
+  --border: #1a1a1a;
+  --border-active: #444;
+}
+#app {
+  max-width: 480px;
+  margin: 0 auto;
+  padding: 12px;
+  padding-bottom: 32px;
+}
+header {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 14px;
+  border-bottom: 1px solid #1a1a1a;
+  padding-bottom: 8px;
+}
+header h1 {
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+header p {
+  font-size: 0.5rem;
+  color: #444;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+#header-shortcut {
+  margin-left: auto;
+  font-size: 0.4rem;
+  color: #333;
+  letter-spacing: 0.1em;
+}
+
+/* Value input row */
+#input-row {
+  display: flex;
+  gap: 6px;
+  align-items: stretch;
+  margin-bottom: 10px;
+}
+#val-input {
+  flex: 1;
+  background: #111;
+  border: 1px solid #222;
+  color: #fff;
+  padding: 10px 10px;
+  font-family: inherit;
+  font-size: 1.4rem;
+  font-weight: 200;
+  outline: none;
+  min-width: 0;
+  -moz-appearance: textfield;
+}
+#val-input::-webkit-inner-spin-button,
+#val-input::-webkit-outer-spin-button { -webkit-appearance: none; }
+#val-input:focus { border-color: #555; }
+#unit-badge {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 14px;
+  background: var(--accent);
+  color: #000;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  min-width: 52px;
+  text-align: center;
+}
+
+/* Unit pills */
+#unit-pills-wrap {
+  margin-bottom: 10px;
+}
+.unit-group-label {
+  font-size: 0.4rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: #333;
+  margin-bottom: 4px;
+  margin-top: 6px;
+}
+.unit-group-label:first-child { margin-top: 0; }
+.unit-pills-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.unit-pill {
+  padding: 5px 9px;
+  background: transparent;
+  border: 1px solid #1a1a1a;
+  color: #555;
+  font-family: inherit;
+  font-size: 0.55rem;
+  cursor: pointer;
+  letter-spacing: 0.08em;
+  text-transform: lowercase;
+  min-height: 36px;
+  user-select: none;
+  transition: border-color 0.1s, color 0.1s;
+}
+.unit-pill:hover { border-color: #333; color: #888; }
+.unit-pill.active {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+/* Context panel */
+#ctx-section { margin-bottom: 10px; }
+#ctx-toggle {
+  width: 100%;
+  padding: 6px 10px;
+  background: transparent;
+  border: 1px solid #1a1a1a;
+  color: #444;
+  font-family: inherit;
+  font-size: 0.5rem;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  cursor: pointer;
+  text-align: left;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  min-height: 36px;
+}
+#ctx-toggle:hover { border-color: #333; color: #666; }
+#ctx-panel {
+  border: 1px solid #1a1a1a;
+  border-top: none;
+  padding: 8px 10px;
+  display: none;
+}
+#ctx-panel.open { display: block; }
+.ctx-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+.ctx-row:last-child { margin-bottom: 0; }
+.ctx-label {
+  font-size: 0.45rem;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: #444;
+  width: 88px;
+  flex-shrink: 0;
+}
+.ctx-input {
+  width: 70px;
+  background: #111;
+  border: 1px solid #222;
+  color: #aaa;
+  padding: 4px 6px;
+  font-family: inherit;
+  font-size: 0.65rem;
+  outline: none;
+  -moz-appearance: textfield;
+}
+.ctx-input::-webkit-inner-spin-button,
+.ctx-input::-webkit-outer-spin-button { -webkit-appearance: none; }
+.ctx-input:focus { border-color: #555; }
+.ctx-unit {
+  font-size: 0.45rem;
+  color: #333;
+  letter-spacing: 0.1em;
+}
+.ctx-note {
+  font-size: 0.4rem;
+  color: #333;
+  flex: 1;
+  letter-spacing: 0.05em;
+}
+
+/* Ruler */
+#ruler-section {
+  margin-bottom: 10px;
+  border: 1px solid #1a1a1a;
+  padding: 6px 8px;
+}
+#ruler-header {
+  font-size: 0.4rem;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: #333;
+  margin-bottom: 5px;
+  display: flex;
+  justify-content: space-between;
+}
+#ruler-track {
+  height: 6px;
+  background: #1a1a1a;
+  position: relative;
+  overflow: hidden;
+}
+#ruler-bar {
+  height: 100%;
+  background: var(--accent);
+  width: 0;
+  transition: width 0.15s ease;
+  max-width: 100%;
+}
+#ruler-info {
+  font-size: 0.4rem;
+  color: #444;
+  margin-top: 4px;
+  letter-spacing: 0.05em;
+}
+
+/* Viewport presets */
+#vp-presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 6px;
+}
+.vp-preset-btn {
+  padding: 3px 7px;
+  background: transparent;
+  border: 1px solid #1a1a1a;
+  color: #3a3a3a;
+  font-family: inherit;
+  font-size: 0.42rem;
+  cursor: pointer;
+  letter-spacing: 0.06em;
+  min-height: 28px;
+}
+.vp-preset-btn:hover { border-color: #333; color: #666; }
+
+/* Results table */
+#results-section {}
+.results-group-header {
+  font-size: 0.4rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: #333;
+  padding: 6px 8px 3px;
+  border-left: 1px solid #1a1a1a;
+  border-right: 1px solid #1a1a1a;
+  border-top: 1px solid #1a1a1a;
+  background: #0d0d0d;
+}
+.results-group-header:first-child { border-top: 1px solid #1a1a1a; }
+#results-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.result-row {
+  cursor: pointer;
+  border-bottom: 1px solid #111;
+}
+.result-row td {
+  padding: 7px 8px;
+  vertical-align: middle;
+}
+.result-row:hover td { background: #141414; }
+.result-row.active-unit td { background: #0d1a1a; }
+.result-row.active-unit td.unit-cell { color: var(--accent); }
+td.unit-cell {
+  font-size: 0.6rem;
+  color: #555;
+  width: 42px;
+  letter-spacing: 0.05em;
+  border-left: 1px solid #1a1a1a;
+}
+td.value-cell {
+  font-size: 0.75rem;
+  color: #ccc;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  padding-right: 12px;
+}
+td.desc-cell {
+  font-size: 0.42rem;
+  color: #333;
+  letter-spacing: 0.05em;
+  border-right: 1px solid #1a1a1a;
+}
+td.copy-cell {
+  font-size: 0.38rem;
+  color: #2a2a2a;
+  width: 32px;
+  text-align: center;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+.result-row:hover td.copy-cell { color: #444; }
+.result-row.active-unit td.value-cell { color: #fff; font-weight: 700; }
+td.value-cell.approx { color: #555; font-style: italic; }
+
+/* N/A row */
+.result-row.na td.value-cell { color: #2a2a2a; }
+.result-row.na td.unit-cell { color: #2a2a2a; }
+.result-row.na td.desc-cell { color: #1f1f1f; }
+.result-row.na { cursor: default; }
+
+/* Border wrapper for last table row */
+.table-wrap {
+  border: 1px solid #1a1a1a;
+  border-top: none;
+  overflow: hidden;
+}
+
+/* Toast */
+#toast {
+  position: fixed;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%) translateY(60px);
+  background: var(--accent);
+  color: #000;
+  font-size: 0.5rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  padding: 6px 14px;
+  opacity: 0;
+  transition: transform 0.2s ease, opacity 0.2s ease;
+  pointer-events: none;
+}
+#toast.show {
+  transform: translateX(-50%) translateY(0);
+  opacity: 1;
+}
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <h1>CSS Units</h1>
+    <p>Length unit converter</p>
+    <span id="header-shortcut">C = copy current</span>
+  </header>
+
+  <div id="input-row">
+    <input type="number" id="val-input" value="100" inputmode="decimal" aria-label="Value">
+    <div id="unit-badge">px</div>
+  </div>
+
+  <div id="unit-pills-wrap"></div>
+
+  <div id="ctx-section">
+    <button id="ctx-toggle">Context <span id="ctx-arrow">▸</span></button>
+    <div id="ctx-panel">
+      <div class="ctx-row">
+        <span class="ctx-label">Base font</span>
+        <input type="number" class="ctx-input" id="base-font" value="16" min="1" max="64" inputmode="numeric" aria-label="Base font size">
+        <span class="ctx-unit">px</span>
+        <span class="ctx-note">rem basis</span>
+      </div>
+      <div class="ctx-row">
+        <span class="ctx-label">Parent font</span>
+        <input type="number" class="ctx-input" id="parent-font" value="16" min="1" max="64" inputmode="numeric" aria-label="Parent font size">
+        <span class="ctx-unit">px</span>
+        <span class="ctx-note">em, % basis</span>
+      </div>
+      <div class="ctx-row">
+        <span class="ctx-label">Viewport W</span>
+        <input type="number" class="ctx-input" id="vp-width" value="1440" min="1" max="7680" inputmode="numeric" aria-label="Viewport width">
+        <span class="ctx-unit">px</span>
+        <span class="ctx-note">vw, vmin/vmax</span>
+      </div>
+      <div class="ctx-row">
+        <span class="ctx-label">Viewport H</span>
+        <input type="number" class="ctx-input" id="vp-height" value="900" min="1" max="4320" inputmode="numeric" aria-label="Viewport height">
+        <span class="ctx-unit">px</span>
+        <span class="ctx-note">vh, vmin/vmax</span>
+      </div>
+      <div id="vp-presets"></div>
+    </div>
+  </div>
+
+  <div id="ruler-section">
+    <div id="ruler-header">
+      <span>PIXEL RULER</span>
+      <span id="ruler-label">100 px</span>
+    </div>
+    <div id="ruler-track">
+      <div id="ruler-bar"></div>
+    </div>
+    <div id="ruler-info"></div>
+  </div>
+
+  <div id="results-section"></div>
+</div>
+<div id="toast">Copied</div>
+
+<script>
+(function () {
+  /* ─── DATA ─────────────────────────────────────────────────────── */
+  var UNIT_GROUPS = [
+    {
+      label: 'Absolute',
+      units: ['px', 'pt', 'pc', 'cm', 'mm', 'in'],
+    },
+    {
+      label: 'Root-relative',
+      units: ['rem'],
+    },
+    {
+      label: 'Parent-relative',
+      units: ['em', '%'],
+    },
+    {
+      label: 'Viewport',
+      units: ['vw', 'vh', 'vmin', 'vmax'],
+    },
+    {
+      label: 'Dynamic viewport',
+      units: ['dvh', 'dvw', 'svh', 'svw', 'lvh', 'lvw'],
+    },
+    {
+      label: 'Character (approx)',
+      units: ['ch', 'ex'],
+    },
+  ];
+
+  var UNIT_DESC = {
+    px:   'pixels — screen dots',
+    pt:   'points — 1pt = 1.333px (print)',
+    pc:   'picas — 1pc = 16px (print)',
+    cm:   'centimeters (1in = 2.54cm)',
+    mm:   'millimeters (1in = 25.4mm)',
+    in:   'inches (96px per inch)',
+    rem:  'root em — relative to <html> font',
+    em:   'em — relative to parent font',
+    '%':  'percent of parent font size',
+    vw:   '1% of viewport width',
+    vh:   '1% of viewport height',
+    vmin: '1% of min(vw, vh)',
+    vmax: '1% of max(vw, vh)',
+    dvh:  'dynamic vh — varies with mobile toolbar',
+    dvw:  'dynamic vw — varies with mobile toolbar',
+    svh:  'small vh — toolbar fully visible',
+    svw:  'small vw — toolbar fully visible',
+    lvh:  'large vh — toolbar fully hidden',
+    lvw:  'large vw — toolbar fully hidden',
+    ch:   '≈0.5em — width of "0" glyph (approx)',
+    ex:   '≈0.5em — x-height of current font (approx)',
+  };
+
+  /* Units that require special context — used to highlight rows when context is collapsed */
+  var APPROX_UNITS = { ch: true, ex: true };
+  var DYNAMIC_VP_UNITS = { dvh: true, dvw: true, svh: true, svw: true, lvh: true, lvw: true };
+
+  /* ─── STATE ─────────────────────────────────────────────────────── */
+  var state = {
+    value: 100,
+    unit: 'px',
+    baseFontSize: 16,
+    parentFontSize: 16,
+    viewportW: 1440,
+    viewportH: 900,
+  };
+
+  /* ─── CONVERSION ────────────────────────────────────────────────── */
+  function toPx(value, unit, s) {
+    var vpMin = Math.min(s.viewportW, s.viewportH);
+    var vpMax = Math.max(s.viewportW, s.viewportH);
+    switch (unit) {
+      case 'px':   return value;
+      case 'pt':   return value * (96 / 72);
+      case 'pc':   return value * 16;
+      case 'cm':   return value * (96 / 2.54);
+      case 'mm':   return value * (96 / 25.4);
+      case 'in':   return value * 96;
+      case 'rem':  return value * s.baseFontSize;
+      case 'em':   return value * s.parentFontSize;
+      case '%':    return value * s.parentFontSize / 100;
+      case 'vw':   return value * s.viewportW / 100;
+      case 'vh':   return value * s.viewportH / 100;
+      case 'vmin': return value * vpMin / 100;
+      case 'vmax': return value * vpMax / 100;
+      case 'dvh':  return value * s.viewportH / 100;
+      case 'dvw':  return value * s.viewportW / 100;
+      case 'svh':  return value * s.viewportH / 100;
+      case 'svw':  return value * s.viewportW / 100;
+      case 'lvh':  return value * s.viewportH / 100;
+      case 'lvw':  return value * s.viewportW / 100;
+      case 'ch':   return value * s.parentFontSize * 0.5;
+      case 'ex':   return value * s.parentFontSize * 0.5;
+      default:     return NaN;
+    }
+  }
+
+  function fromPx(px, unit, s) {
+    var vpMin = Math.min(s.viewportW, s.viewportH);
+    var vpMax = Math.max(s.viewportW, s.viewportH);
+    switch (unit) {
+      case 'px':   return px;
+      case 'pt':   return px * (72 / 96);
+      case 'pc':   return px / 16;
+      case 'cm':   return px * (2.54 / 96);
+      case 'mm':   return px * (25.4 / 96);
+      case 'in':   return px / 96;
+      case 'rem':  return s.baseFontSize !== 0 ? px / s.baseFontSize : NaN;
+      case 'em':   return s.parentFontSize !== 0 ? px / s.parentFontSize : NaN;
+      case '%':    return s.parentFontSize !== 0 ? px / s.parentFontSize * 100 : NaN;
+      case 'vw':   return s.viewportW !== 0 ? px / s.viewportW * 100 : NaN;
+      case 'vh':   return s.viewportH !== 0 ? px / s.viewportH * 100 : NaN;
+      case 'vmin': return vpMin !== 0 ? px / vpMin * 100 : NaN;
+      case 'vmax': return vpMax !== 0 ? px / vpMax * 100 : NaN;
+      case 'dvh':  return s.viewportH !== 0 ? px / s.viewportH * 100 : NaN;
+      case 'dvw':  return s.viewportW !== 0 ? px / s.viewportW * 100 : NaN;
+      case 'svh':  return s.viewportH !== 0 ? px / s.viewportH * 100 : NaN;
+      case 'svw':  return s.viewportW !== 0 ? px / s.viewportW * 100 : NaN;
+      case 'lvh':  return s.viewportH !== 0 ? px / s.viewportH * 100 : NaN;
+      case 'lvw':  return s.viewportW !== 0 ? px / s.viewportW * 100 : NaN;
+      case 'ch':   return (s.parentFontSize * 0.5) !== 0 ? px / (s.parentFontSize * 0.5) : NaN;
+      case 'ex':   return (s.parentFontSize * 0.5) !== 0 ? px / (s.parentFontSize * 0.5) : NaN;
+      default:     return NaN;
+    }
+  }
+
+  function formatVal(v) {
+    if (!isFinite(v)) return '—';
+    var abs = Math.abs(v);
+    if (abs === 0) return '0';
+    if (abs >= 1000) return v.toFixed(2);
+    if (abs >= 10)   return v.toFixed(4);
+    if (abs >= 0.01) return v.toFixed(5);
+    return v.toExponential(3);
+  }
+
+  /* ─── DOM REFS ──────────────────────────────────────────────────── */
+  var valInput    = document.getElementById('val-input');
+  var unitBadge   = document.getElementById('unit-badge');
+  var pillsWrap   = document.getElementById('unit-pills-wrap');
+  var ctxToggle   = document.getElementById('ctx-toggle');
+  var ctxArrow    = document.getElementById('ctx-arrow');
+  var ctxPanel    = document.getElementById('ctx-panel');
+  var baseFontEl  = document.getElementById('base-font');
+  var parentFontEl= document.getElementById('parent-font');
+  var vpWidthEl   = document.getElementById('vp-width');
+  var vpHeightEl  = document.getElementById('vp-height');
+  var rulerBar    = document.getElementById('ruler-bar');
+  var rulerLabel  = document.getElementById('ruler-label');
+  var rulerTrack  = document.getElementById('ruler-track');
+  var rulerInfo   = document.getElementById('ruler-info');
+  var resultsEl   = document.getElementById('results-section');
+  var toastEl     = document.getElementById('toast');
+  var vpPresetsEl = document.getElementById('vp-presets');
+
+  /* ─── VIEWPORT PRESETS ─────────────────────────────────────────── */
+  var VP_PRESETS = [
+    { label: 'iPhone SE',  w: 375,  h: 667  },
+    { label: 'iPhone 14',  w: 390,  h: 844  },
+    { label: 'iPad',       w: 768,  h: 1024 },
+    { label: 'Laptop',     w: 1280, h: 800  },
+    { label: 'Desktop',    w: 1440, h: 900  },
+    { label: '4K',         w: 2560, h: 1440 },
+  ];
+
+  function buildVpPresets() {
+    vpPresetsEl.innerHTML = '';
+    VP_PRESETS.forEach(function (p) {
+      var btn = document.createElement('button');
+      btn.className = 'vp-preset-btn';
+      btn.textContent = p.label;
+      btn.setAttribute('title', p.w + ' × ' + p.h);
+      btn.setAttribute('type', 'button');
+      btn.addEventListener('pointerdown', function () {
+        state.viewportW = p.w;
+        state.viewportH = p.h;
+        vpWidthEl.value = p.w;
+        vpHeightEl.value = p.h;
+        saveCtx();
+        render();
+      });
+      vpPresetsEl.appendChild(btn);
+    });
+  }
+
+  /* ─── LOCALSTORAGE ──────────────────────────────────────────────── */
+  var LS_KEY = 'css-units-ctx';
+
+  function saveCtx() {
+    try {
+      localStorage.setItem(LS_KEY, JSON.stringify({
+        baseFontSize: state.baseFontSize,
+        parentFontSize: state.parentFontSize,
+        viewportW: state.viewportW,
+        viewportH: state.viewportH,
+      }));
+    } catch (e) { /* ignore quota errors */ }
+  }
+
+  function loadCtx() {
+    try {
+      var raw = localStorage.getItem(LS_KEY);
+      if (!raw) return;
+      var saved = JSON.parse(raw);
+      if (saved.baseFontSize > 0)   { state.baseFontSize = saved.baseFontSize;   baseFontEl.value = saved.baseFontSize; }
+      if (saved.parentFontSize > 0) { state.parentFontSize = saved.parentFontSize; parentFontEl.value = saved.parentFontSize; }
+      if (saved.viewportW > 0)      { state.viewportW = saved.viewportW;   vpWidthEl.value = saved.viewportW; }
+      if (saved.viewportH > 0)      { state.viewportH = saved.viewportH;   vpHeightEl.value = saved.viewportH; }
+    } catch (e) { /* ignore parse errors */ }
+  }
+
+  /* ─── PILL RENDERING ────────────────────────────────────────────── */
+  function buildPills() {
+    pillsWrap.innerHTML = '';
+    UNIT_GROUPS.forEach(function (grp) {
+      var labelEl = document.createElement('div');
+      labelEl.className = 'unit-group-label';
+      labelEl.textContent = grp.label;
+      pillsWrap.appendChild(labelEl);
+
+      var rowEl = document.createElement('div');
+      rowEl.className = 'unit-pills-row';
+      grp.units.forEach(function (u) {
+        var btn = document.createElement('button');
+        btn.className = 'unit-pill' + (u === state.unit ? ' active' : '');
+        btn.textContent = u;
+        btn.setAttribute('title', UNIT_DESC[u] || u);
+        btn.setAttribute('data-unit', u);
+        btn.setAttribute('type', 'button');
+        btn.addEventListener('pointerdown', function () {
+          state.unit = u;
+          render();
+        });
+        rowEl.appendChild(btn);
+      });
+      pillsWrap.appendChild(rowEl);
+    });
+  }
+
+  function updatePills() {
+    var pills = pillsWrap.querySelectorAll('.unit-pill');
+    pills.forEach(function (btn) {
+      btn.classList.toggle('active', btn.getAttribute('data-unit') === state.unit);
+    });
+  }
+
+  /* ─── RESULTS RENDERING ─────────────────────────────────────────── */
+  function buildResults() {
+    resultsEl.innerHTML = '';
+    var pxValue = toPx(state.value, state.unit, state);
+
+    UNIT_GROUPS.forEach(function (grp) {
+      var hdr = document.createElement('div');
+      hdr.className = 'results-group-header';
+      hdr.textContent = grp.label.toUpperCase();
+      resultsEl.appendChild(hdr);
+
+      var wrap = document.createElement('div');
+      wrap.className = 'table-wrap';
+
+      var table = document.createElement('table');
+      table.style.width = '100%';
+      table.style.borderCollapse = 'collapse';
+
+      grp.units.forEach(function (u) {
+        var converted = fromPx(pxValue, u, state);
+        var isActive = (u === state.unit);
+        var isApprox = !!APPROX_UNITS[u];
+        var isDynamic = !!DYNAMIC_VP_UNITS[u];
+        var isNA = !isFinite(converted);
+
+        var tr = document.createElement('tr');
+        tr.className = 'result-row' +
+          (isActive ? ' active-unit' : '') +
+          (isNA ? ' na' : '');
+        tr.setAttribute('data-unit', u);
+
+        var tdUnit = document.createElement('td');
+        tdUnit.className = 'unit-cell';
+        tdUnit.textContent = u;
+
+        var tdVal = document.createElement('td');
+        tdVal.className = 'value-cell' + (isApprox || isDynamic ? ' approx' : '');
+        tdVal.textContent = isNA ? '—' : formatVal(converted);
+
+        var tdDesc = document.createElement('td');
+        tdDesc.className = 'desc-cell';
+        tdDesc.textContent = UNIT_DESC[u] || '';
+
+        var tdCopy = document.createElement('td');
+        tdCopy.className = 'copy-cell';
+        tdCopy.textContent = isNA ? '' : 'COPY';
+
+        tr.appendChild(tdUnit);
+        tr.appendChild(tdVal);
+        tr.appendChild(tdDesc);
+        tr.appendChild(tdCopy);
+
+        if (!isNA) {
+          tr.addEventListener('pointerdown', function () {
+            var cssVal = formatVal(converted) + u;
+            copyText(cssVal);
+          });
+        }
+
+        table.appendChild(tr);
+      });
+
+      wrap.appendChild(table);
+      resultsEl.appendChild(wrap);
+    });
+  }
+
+  /* ─── RULER ─────────────────────────────────────────────────────── */
+  function updateRuler(pxValue) {
+    rulerLabel.textContent = formatVal(pxValue) + ' px';
+    var trackW = rulerTrack.clientWidth || 400;
+    if (!isFinite(pxValue)) {
+      rulerBar.style.width = '0';
+      rulerInfo.textContent = 'out of range';
+      return;
+    }
+    if (pxValue === 0) {
+      rulerBar.style.width = '0';
+      rulerInfo.textContent = 'zero';
+      return;
+    }
+    if (pxValue < 0) {
+      rulerBar.style.width = '0';
+      rulerInfo.textContent = 'negative value';
+      return;
+    }
+    var pct = Math.min(pxValue / trackW * 100, 100);
+    rulerBar.style.width = pct + '%';
+    if (pxValue > trackW) {
+      rulerInfo.textContent = 'exceeds panel width (' + Math.round(pxValue) + 'px shown capped)';
+    } else {
+      rulerInfo.textContent = Math.round(pct) + '% of panel width (' + Math.round(trackW) + 'px)';
+    }
+  }
+
+  /* ─── MAIN RENDER ───────────────────────────────────────────────── */
+  function render() {
+    unitBadge.textContent = state.unit;
+    updatePills();
+    var pxValue = toPx(state.value, state.unit, state);
+    updateRuler(pxValue);
+    buildResults();
+  }
+
+  /* ─── TOAST / COPY ──────────────────────────────────────────────── */
+  var toastTimer = null;
+  function copyText(text) {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).catch(function () { fallbackCopy(text); });
+    } else {
+      fallbackCopy(text);
+    }
+    showToast(text);
+  }
+
+  function fallbackCopy(text) {
+    var ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    try { document.execCommand('copy'); } catch (e) { /* ignore */ }
+    document.body.removeChild(ta);
+  }
+
+  function showToast(text) {
+    toastEl.textContent = 'Copied: ' + text;
+    toastEl.classList.add('show');
+    if (toastTimer) clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () {
+      toastEl.classList.remove('show');
+    }, 1800);
+  }
+
+  /* ─── EVENTS ────────────────────────────────────────────────────── */
+  valInput.addEventListener('input', function () {
+    var v = parseFloat(this.value);
+    state.value = isFinite(v) ? v : 0;
+    render();
+  });
+
+  ctxToggle.addEventListener('pointerdown', function () {
+    var open = ctxPanel.classList.toggle('open');
+    ctxArrow.textContent = open ? '▾' : '▸';
+  });
+
+  baseFontEl.addEventListener('input', function () {
+    var v = parseFloat(this.value);
+    if (v > 0) { state.baseFontSize = v; saveCtx(); render(); }
+  });
+
+  parentFontEl.addEventListener('input', function () {
+    var v = parseFloat(this.value);
+    if (v > 0) { state.parentFontSize = v; saveCtx(); render(); }
+  });
+
+  vpWidthEl.addEventListener('input', function () {
+    var v = parseFloat(this.value);
+    if (v > 0) { state.viewportW = v; saveCtx(); render(); }
+  });
+
+  vpHeightEl.addEventListener('input', function () {
+    var v = parseFloat(this.value);
+    if (v > 0) { state.viewportH = v; saveCtx(); render(); }
+  });
+
+  /* Keyboard shortcuts */
+  document.addEventListener('keydown', function (e) {
+    if (e.target.tagName === 'INPUT') return;
+    if (e.key === 'c' && !e.ctrlKey && !e.metaKey) {
+      /* copy current value as CSS */
+      var pxValue = toPx(state.value, state.unit, state);
+      var converted = fromPx(pxValue, state.unit, state);
+      copyText(formatVal(converted) + state.unit);
+    }
+  });
+
+  /* ─── INIT ──────────────────────────────────────────────────────── */
+  loadCtx();
+  buildPills();
+  buildVpPresets();
+  render();
+})();
+</script>
+</body>
+</html>
