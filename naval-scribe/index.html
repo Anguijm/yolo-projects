@@ -163,6 +163,31 @@ html, body {
 }
 .sig-builder-checks input[type="checkbox"] { accent-color: var(--accent); }
 
+/* Classification banner */
+.class-banner {
+  text-align: center; font-weight: bold; font-size: 10pt;
+  letter-spacing: 0.1em; padding: 3px 0; margin-bottom: 0;
+  font-family: 'Times New Roman', Times, serif;
+}
+.class-banner[data-class="UNCLASSIFIED"] { color: #007a00; }
+.class-banner[data-class="CUI"] { background: #d29922; color: #000; }
+.class-banner[data-class="FOUO"] { background: #d29922; color: #000; }
+.class-banner[data-class="SECRET"] { background: #cc0000; color: #fff; }
+.class-banner[data-class="TOP SECRET"] { background: #ff8000; color: #fff; }
+#class-select { color: #007a00; }
+#class-select.cui { color: #d29922; }
+#class-select.fouo { color: #d29922; }
+#class-select.secret { color: #cc0000; }
+#class-select.topsecret { color: #ff8000; }
+
+/* Preset field */
+.preset-row { display: flex; gap: 4px; align-items: center; }
+.preset-row select {
+  flex: 1; background: var(--bg-elevated); border: 1px solid var(--border-default);
+  color: var(--text-secondary); font-family: inherit; font-size: 0.55rem;
+  padding: 3px 6px; outline: none; cursor: pointer;
+}
+
 /* Print */
 @media print {
   #top-bar, #form-panel, #drafts-drawer { display: none !important; }
@@ -178,6 +203,13 @@ html, body {
   <div id="top-bar">
     <div class="title"><span>&#9632;</span> naval-scribe</div>
     <div class="top-controls">
+      <select id="class-select">
+        <option value="UNCLASSIFIED">UNCLASSIFIED</option>
+        <option value="CUI">CUI</option>
+        <option value="FOUO">FOUO</option>
+        <option value="SECRET">SECRET</option>
+        <option value="TOP SECRET">TOP SECRET</option>
+      </select>
       <select id="type-select">
         <option value="letter">standard naval letter</option>
         <option value="memo">memorandum</option>
@@ -217,6 +249,14 @@ html, body {
     <div class="field" data-types="endorsement">
       <div class="field-label">Endorsement Number</div>
       <input type="text" id="f-endorse-num" placeholder="FIRST (or SECOND, THIRD...)">
+    </div>
+    <div class="field" data-types="letter,memo,endorsement,business" id="preset-field">
+      <div class="field-label">Command Presets <span style="color:#444;font-size:0.4rem;letter-spacing:0.05em">— up to 5</span></div>
+      <div class="preset-row">
+        <select id="preset-select"><option value="">— load preset —</option></select>
+        <button class="add-btn" id="save-preset-btn">save</button>
+        <button class="add-btn" id="del-preset-btn">del</button>
+      </div>
     </div>
     <div class="field" data-types="letter,memo,endorsement,business">
       <div class="field-label">From</div>
@@ -688,6 +728,15 @@ html, body {
   }
 
   /* ── Get form data ── */
+  var classSel = document.getElementById('class-select');
+
+  function updateClassStyle() {
+    var classMap = { 'CUI': 'cui', 'FOUO': 'fouo', 'SECRET': 'secret', 'TOP SECRET': 'topsecret' };
+    classSel.className = classMap[classSel.value] || '';
+  }
+  classSel.addEventListener('change', function() { updateClassStyle(); updatePreview(); });
+  updateClassStyle();
+
   function getData() {
     var type = typeSelect.value;
     var bodyText = type === 'pointpaper' ? F.bodyBullets.value :
@@ -695,6 +744,7 @@ html, body {
                    type === 'moa' ? F.bodyMoa.value : F.body.value;
     return {
       type: type,
+      classification: classSel.value,
       ssic: F.ssic.value.trim(),
       date: F.date.value.trim(),
       endorseNum: F.endorseNum.value.trim().toUpperCase() || 'FIRST',
@@ -959,7 +1009,10 @@ html, body {
         break;
     }
 
-    previewPage.innerHTML = html;
+    /* Classification banners */
+    var cl = d.classification;
+    var banner = '<div class="class-banner" data-class="' + esc(cl) + '">' + esc(cl) + '</div>';
+    previewPage.innerHTML = banner + html + banner;
   }
 
   /* localStorage auto-save */
@@ -1425,10 +1478,60 @@ html, body {
       '</Relationships>';
 
     /* word/_rels/document.xml.rels */
-    var wordRels = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
-      '<Relationships xmlns="http:/' + '/schemas.openxmlformats.org/package/2006/relationships">' +
-      '<Relationship Id="rId1" Type="http:/' + '/schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>' +
-      '</Relationships>';
+    var REL_PKG = 'http:/' + '/schemas.openxmlformats.org/officeDocument/2006/relationships';
+    var classVal = d.classification;
+    var hasClass = classVal && classVal !== 'UNCLASSIFIED';
+    /* Class color map */
+    var classColors = { 'CUI': 'CF7000', 'FOUO': 'CF7000', 'SECRET': 'CC0000', 'TOP SECRET': 'FF8000' };
+    var classColor = hasClass ? (classColors[classVal] || '000000') : '007A00';
+
+    function makeClassHdrFtr(ns) {
+      var tag = ns === 'hdr' ? 'w:hdr' : 'w:ftr';
+      return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+        '<' + tag + ' ' + OOXML_NS + '>' +
+        '<w:p>' +
+        '<w:pPr><w:jc w:val="center"/></w:pPr>' +
+        '<w:r><w:rPr><w:b/><w:color w:val="' + classColor + '"/></w:rPr>' +
+        '<w:t>' + escXml(classVal) + '</w:t></w:r>' +
+        '</w:p>' +
+        '</' + tag + '>';
+    }
+
+    var wordRels;
+    if (hasClass || true) {
+      /* Always emit header/footer for classification (including UNCLASSIFIED green) */
+      wordRels = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+        '<Relationships xmlns="http:/' + '/schemas.openxmlformats.org/package/2006/relationships">' +
+        '<Relationship Id="rId1" Type="' + REL_PKG + '/styles" Target="styles.xml"/>' +
+        '<Relationship Id="rId2" Type="' + REL_PKG + '/header" Target="header1.xml"/>' +
+        '<Relationship Id="rId3" Type="' + REL_PKG + '/footer" Target="footer1.xml"/>' +
+        '</Relationships>';
+    } else {
+      wordRels = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+        '<Relationships xmlns="http:/' + '/schemas.openxmlformats.org/package/2006/relationships">' +
+        '<Relationship Id="rId1" Type="' + REL_PKG + '/styles" Target="styles.xml"/>' +
+        '</Relationships>';
+    }
+
+    /* Patch sectPr to include header/footer references */
+    var HDR_TYPE = 'http:/' + '/schemas.openxmlformats.org/officeDocument/2006/relationships';
+    docXml = docXml.replace(
+      '</w:sectPr>',
+      '<w:headerReference w:type="default" r:id="rId2"/>' +
+      '<w:footerReference w:type="default" r:id="rId3"/>' +
+      '</w:sectPr>'
+    );
+
+    /* Content types with header/footer */
+    contentTypes = contentTypes.replace(
+      '</Types>',
+      '<Override PartName="/word/header1.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.header+xml"/>' +
+      '<Override PartName="/word/footer1.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.footer+xml"/>' +
+      '</Types>'
+    );
+
+    var hdrXml = makeClassHdrFtr('hdr');
+    var ftrXml = makeClassHdrFtr('ftr');
 
     /* Build ZIP */
     var zipBytes = createZip([
@@ -1436,7 +1539,9 @@ html, body {
       { name: '_rels/.rels', data: rootRels },
       { name: 'word/document.xml', data: docXml },
       { name: 'word/_rels/document.xml.rels', data: wordRels },
-      { name: 'word/styles.xml', data: stylesXml }
+      { name: 'word/styles.xml', data: stylesXml },
+      { name: 'word/header1.xml', data: hdrXml },
+      { name: 'word/footer1.xml', data: ftrXml }
     ]);
 
     /* Download */
@@ -1466,6 +1571,8 @@ html, body {
     enclFields.setValues([]);
     restoreParties([]);
     typeSelect.value = 'letter';
+    classSel.value = 'UNCLASSIFIED';
+    updateClassStyle();
     updateFieldVisibility();
     updatePreview();
   });
@@ -1651,6 +1758,7 @@ html, body {
   function getFullState() {
     return {
       type: typeSelect.value,
+      classification: classSel.value,
       fields: {
         ssic: F.ssic.value, date: F.date.value, endorseNum: F.endorseNum.value,
         from: F.from.value, to: F.to.value, subj: F.subj.value,
@@ -1690,6 +1798,7 @@ html, body {
   function restoreFullState(s) {
     if (!s) return;
     if (s.type) typeSelect.value = s.type;
+    if (s.classification) { classSel.value = s.classification; updateClassStyle(); }
     var f = s.fields || {};
     var FM = {
       ssic: F.ssic, date: F.date, endorseNum: F.endorseNum, from: F.from, to: F.to,
@@ -1767,8 +1876,70 @@ html, body {
     setTimeout(function() { saveDraftBtn.textContent = orig; }, 1500);
   });
 
+  /* ── Letterhead Presets ── */
+  var PRESETS_KEY = 'naval-scribe-presets';
+  var presetSelect = document.getElementById('preset-select');
+  var savePresetBtn = document.getElementById('save-preset-btn');
+  var delPresetBtn = document.getElementById('del-preset-btn');
+
+  function getPresets() {
+    try { return JSON.parse(localStorage.getItem(PRESETS_KEY)) || []; } catch(e) { return []; }
+  }
+  function savePresetsData(arr) {
+    try { localStorage.setItem(PRESETS_KEY, JSON.stringify(arr)); } catch(e) {}
+  }
+
+  function renderPresets() {
+    var arr = getPresets();
+    presetSelect.innerHTML = '<option value="">— load preset —</option>';
+    for (var i = 0; i < arr.length; i++) {
+      var opt = document.createElement('option');
+      opt.value = arr[i].id;
+      opt.textContent = arr[i].label;
+      presetSelect.appendChild(opt);
+    }
+  }
+
+  presetSelect.addEventListener('change', function() {
+    var id = presetSelect.value;
+    if (!id) return;
+    var arr = getPresets();
+    for (var i = 0; i < arr.length; i++) {
+      if (String(arr[i].id) === id) {
+        F.from.value = arr[i].from;
+        updatePreview();
+        break;
+      }
+    }
+    presetSelect.value = '';
+  });
+
+  savePresetBtn.addEventListener('click', function() {
+    var fromVal = F.from.value.trim();
+    if (!fromVal) { alert('Enter a From value first.'); return; }
+    var arr = getPresets();
+    if (arr.length >= 5) { alert('Maximum 5 presets. Delete one first.'); return; }
+    var label = prompt('Name this preset:');
+    if (!label || !label.trim()) return;
+    arr.push({ id: Date.now(), label: label.trim(), from: fromVal });
+    savePresetsData(arr);
+    renderPresets();
+    var orig = savePresetBtn.textContent;
+    savePresetBtn.textContent = 'saved!';
+    setTimeout(function() { savePresetBtn.textContent = orig; }, 1200);
+  });
+
+  delPresetBtn.addEventListener('click', function() {
+    var id = presetSelect.value;
+    if (!id) { alert('Select a preset to delete.'); return; }
+    var arr = getPresets().filter(function(p) { return String(p.id) !== id; });
+    savePresetsData(arr);
+    renderPresets();
+  });
+
   /* ── Init ── */
   loadSaved();
+  renderPresets();
   updateFieldVisibility();
   renderPreview();
 
