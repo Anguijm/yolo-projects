@@ -188,6 +188,37 @@ html, body {
   padding: 3px 6px; outline: none; cursor: pointer;
 }
 
+/* Boilerplate panel */
+#boilerplate-panel { margin-bottom: 4px; }
+.bp-toggle {
+  background: transparent; border: none; border-top: 1px solid var(--border-default);
+  color: var(--text-tertiary); font-family: inherit; font-size: 0.4rem;
+  letter-spacing: 0.15em; text-transform: uppercase; padding: 5px 0;
+  cursor: pointer; width: 100%; text-align: left;
+}
+.bp-toggle:hover { color: var(--text-secondary); }
+.bp-body { display: none; padding: 4px 0 8px; }
+.bp-body.open { display: block; }
+.bp-cat {
+  font-size: 0.38rem; color: var(--text-label);
+  text-transform: uppercase; letter-spacing: 0.12em; margin: 6px 0 3px;
+}
+.bp-items { display: flex; flex-wrap: wrap; gap: 3px; }
+.bp-item {
+  padding: 2px 7px; background: transparent; border: 1px solid var(--border-default);
+  color: var(--text-tertiary); font-family: inherit; font-size: 0.45rem; cursor: pointer;
+}
+.bp-item:hover { color: var(--text-secondary); border-color: var(--border-active); }
+
+/* Page 2 continuation header indicator in preview */
+.page2-hdr-preview {
+  margin-top: 48px; padding-top: 12px; border-top: 2px dashed #ccc; color: #666;
+}
+.page2-hdr-label {
+  text-align: center; font-size: 7pt; color: #bbb; margin-bottom: 6px;
+  text-transform: uppercase; letter-spacing: 0.1em;
+}
+
 /* Print */
 @media print {
   #top-bar, #form-panel, #drafts-drawer { display: none !important; }
@@ -321,6 +352,10 @@ html, body {
       <textarea id="f-recommendation" rows="3" placeholder="Specific recommended action"></textarea>
     </div>
     <div class="section-header">Body</div>
+    <div id="boilerplate-panel" data-types="letter,memo,endorsement,business">
+      <button class="bp-toggle" id="bp-toggle">&#9660; boilerplate library</button>
+      <div class="bp-body" id="bp-body"></div>
+    </div>
     <div class="field" data-types="letter,memo,endorsement,business">
       <textarea id="f-body" rows="12" placeholder="Type or paste correspondence body text here.&#10;&#10;Use blank lines between paragraphs.&#10;Indent with spaces or tabs for sub-paragraphs.&#10;Numbering (1. a. (1) (a)) is auto-applied.&#10;&#10;Tables: use markdown syntax (| Col1 | Col2 |) on consecutive lines."></textarea>
     </div>
@@ -1009,6 +1044,23 @@ html, body {
         break;
     }
 
+    /* Page 2 continuation header indicator */
+    if (d.type === 'letter' || d.type === 'memo' || d.type === 'endorsement' || d.type === 'actionmemo') {
+      if (d.ssic || d.date || d.to) {
+        html += '<div class="page2-hdr-preview">';
+        html += '<div class="page2-hdr-label">continuation page header (page 2+)</div>';
+        if (d.ssic || d.date) {
+          html += '<div style="text-align:right;margin-bottom:2px;font-size:9pt">';
+          if (d.ssic) html += esc(d.ssic) + '<br>';
+          if (d.date) html += esc(d.date);
+          html += '</div>';
+        }
+        if (d.to) html += '<div style="font-size:9pt">' + esc(d.to) + '</div>';
+        html += '<div style="font-weight:bold;margin-top:4px;font-size:9pt">2</div>';
+        html += '</div>';
+      }
+    }
+
     /* Classification banners */
     var cl = d.classification;
     var banner = '<div class="class-banner" data-class="' + esc(cl) + '">' + esc(cl) + '</div>';
@@ -1497,41 +1549,69 @@ html, body {
         '</' + tag + '>';
     }
 
-    var wordRels;
-    if (hasClass || true) {
-      /* Always emit header/footer for classification (including UNCLASSIFIED green) */
-      wordRels = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
-        '<Relationships xmlns="http:/' + '/schemas.openxmlformats.org/package/2006/relationships">' +
-        '<Relationship Id="rId1" Type="' + REL_PKG + '/styles" Target="styles.xml"/>' +
-        '<Relationship Id="rId2" Type="' + REL_PKG + '/header" Target="header1.xml"/>' +
-        '<Relationship Id="rId3" Type="' + REL_PKG + '/footer" Target="footer1.xml"/>' +
-        '</Relationships>';
-    } else {
-      wordRels = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
-        '<Relationships xmlns="http:/' + '/schemas.openxmlformats.org/package/2006/relationships">' +
-        '<Relationship Id="rId1" Type="' + REL_PKG + '/styles" Target="styles.xml"/>' +
-        '</Relationships>';
+    /* Continuation page header (page 2+): SSIC, Date, Addressee, page number */
+    function makeContHdr() {
+      var x = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>';
+      x += '<w:hdr ' + OOXML_NS + '>';
+      if (d.ssic) {
+        x += '<w:p><w:pPr><w:jc w:val="right"/><w:spacing w:after="0"/></w:pPr>';
+        x += '<w:r><w:rPr/><w:t>' + escXml(d.ssic) + '</w:t></w:r></w:p>';
+      }
+      if (d.date) {
+        x += '<w:p><w:pPr><w:jc w:val="right"/><w:spacing w:after="0"/></w:pPr>';
+        x += '<w:r><w:rPr/><w:t>' + escXml(d.date) + '</w:t></w:r></w:p>';
+      }
+      if (d.to) {
+        x += '<w:p><w:pPr><w:spacing w:after="0"/></w:pPr>';
+        x += '<w:r><w:rPr/><w:t>' + escXml(d.to) + '</w:t></w:r></w:p>';
+      }
+      x += '<w:p><w:pPr><w:spacing w:after="0"/></w:pPr>';
+      x += '<w:r><w:fldChar w:fldCharType="begin"/></w:r>';
+      x += '<w:r><w:instrText xml:space="preserve"> PAGE </w:instrText></w:r>';
+      x += '<w:r><w:fldChar w:fldCharType="end"/></w:r></w:p>';
+      x += '<w:p><w:pPr><w:jc w:val="center"/></w:pPr>';
+      x += '<w:r><w:rPr><w:b/><w:color w:val="' + classColor + '"/></w:rPr>';
+      x += '<w:t>' + escXml(classVal) + '</w:t></w:r></w:p>';
+      x += '</w:hdr>';
+      return x;
     }
 
-    /* Patch sectPr to include header/footer references */
+    /* Always use titlePg: separate first-page header (class only) + default header (continuation) */
+    var wordRels = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+      '<Relationships xmlns="http:/' + '/schemas.openxmlformats.org/package/2006/relationships">' +
+      '<Relationship Id="rId1" Type="' + REL_PKG + '/styles" Target="styles.xml"/>' +
+      '<Relationship Id="rId2" Type="' + REL_PKG + '/header" Target="header1.xml"/>' +
+      '<Relationship Id="rId3" Type="' + REL_PKG + '/footer" Target="footer1.xml"/>' +
+      '<Relationship Id="rId4" Type="' + REL_PKG + '/header" Target="header2.xml"/>' +
+      '<Relationship Id="rId5" Type="' + REL_PKG + '/footer" Target="footer2.xml"/>' +
+      '</Relationships>';
+
+    /* Patch sectPr: titlePg enables separate first-page and default headers */
     var HDR_TYPE = 'http:/' + '/schemas.openxmlformats.org/officeDocument/2006/relationships';
+    docXml = docXml.replace('<w:sectPr>', '<w:sectPr><w:titlePg/>');
     docXml = docXml.replace(
       '</w:sectPr>',
-      '<w:headerReference w:type="default" r:id="rId2"/>' +
-      '<w:footerReference w:type="default" r:id="rId3"/>' +
+      '<w:headerReference w:type="first" r:id="rId2"/>' +
+      '<w:footerReference w:type="first" r:id="rId3"/>' +
+      '<w:headerReference w:type="default" r:id="rId4"/>' +
+      '<w:footerReference w:type="default" r:id="rId5"/>' +
       '</w:sectPr>'
     );
 
-    /* Content types with header/footer */
+    /* Content types with all four header/footer files */
     contentTypes = contentTypes.replace(
       '</Types>',
       '<Override PartName="/word/header1.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.header+xml"/>' +
       '<Override PartName="/word/footer1.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.footer+xml"/>' +
+      '<Override PartName="/word/header2.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.header+xml"/>' +
+      '<Override PartName="/word/footer2.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.footer+xml"/>' +
       '</Types>'
     );
 
-    var hdrXml = makeClassHdrFtr('hdr');
-    var ftrXml = makeClassHdrFtr('ftr');
+    var hdrXml = makeClassHdrFtr('hdr');   /* page 1: classification banner only */
+    var ftrXml = makeClassHdrFtr('ftr');   /* page 1 footer */
+    var hdr2Xml = makeContHdr();           /* pages 2+: SSIC/Date/To/page# + class */
+    var ftr2Xml = makeClassHdrFtr('ftr'); /* pages 2+ footer */
 
     /* Build ZIP */
     var zipBytes = createZip([
@@ -1541,7 +1621,9 @@ html, body {
       { name: 'word/_rels/document.xml.rels', data: wordRels },
       { name: 'word/styles.xml', data: stylesXml },
       { name: 'word/header1.xml', data: hdrXml },
-      { name: 'word/footer1.xml', data: ftrXml }
+      { name: 'word/footer1.xml', data: ftrXml },
+      { name: 'word/header2.xml', data: hdr2Xml },
+      { name: 'word/footer2.xml', data: ftr2Xml }
     ]);
 
     /* Download */
@@ -1935,6 +2017,96 @@ html, body {
     var arr = getPresets().filter(function(p) { return String(p.id) !== id; });
     savePresetsData(arr);
     renderPresets();
+  });
+
+  /* ── Boilerplate Library ── */
+  var BOILERPLATE_CATS = [
+    { cat: 'Opening', items: [
+      { label: 'Request', text: 'Request approval for [ACTION].' },
+      { label: 'Purpose', text: 'Purpose.  The purpose of this [letter/memorandum] is to [STATE PURPOSE].' },
+      { label: 'Background', text: 'Background.  Per reference (a), [BACKGROUND CONTEXT].' },
+      { label: 'Forward', text: 'Forwarded for appropriate action.' }
+    ]},
+    { cat: 'Standard', items: [
+      { label: 'Pt of Contact', text: '[RANK NAME] is the point of contact for this action and may be reached at DSN [DSN] or commercial [PHONE].' },
+      { label: 'Effective Date', text: 'This [letter/memorandum] is effective upon receipt.' },
+      { label: 'Per Reference', text: 'Per reference (a), ...' },
+      { label: 'Compliance', text: 'This action complies with applicable directives and regulations.' },
+      { label: 'Encl Info', text: 'Enclosure (1) provides additional details regarding this matter.' }
+    ]},
+    { cat: 'Action', items: [
+      { label: 'Recommend Approval', text: 'Recommend approval.' },
+      { label: 'Recommend Disapproval', text: 'Recommend disapproval for the following reasons:' },
+      { label: 'No Objection', text: 'No objection to the proposed action.' },
+      { label: 'Concur', text: 'Concur.' },
+      { label: 'Non-Concur', text: 'Non-concur for the following reasons:' },
+      { label: 'Action By', text: 'Request action by [DATE].' }
+    ]},
+    { cat: 'Admin', items: [
+      { label: 'Forward Routing', text: 'This correspondence is forwarded for appropriate action and return.' },
+      { label: 'Admin Correction', text: 'Administrative corrections have been made to the basic letter.' },
+      { label: 'By Direction', text: 'By direction of [COMMANDER],' }
+    ]}
+  ];
+
+  var bpToggleBtn = document.getElementById('bp-toggle');
+  var bpBodyEl = document.getElementById('bp-body');
+
+  function renderBoilerplate() {
+    var html = '';
+    for (var ci = 0; ci < BOILERPLATE_CATS.length; ci++) {
+      var cat = BOILERPLATE_CATS[ci];
+      html += '<div class="bp-cat">' + esc(cat.cat) + '</div><div class="bp-items">';
+      for (var ii = 0; ii < cat.items.length; ii++) {
+        html += '<button class="bp-item" data-ci="' + ci + '" data-ii="' + ii + '">' + esc(cat.items[ii].label) + '</button>';
+      }
+      html += '</div>';
+    }
+    bpBodyEl.innerHTML = html;
+    var btns = bpBodyEl.querySelectorAll('.bp-item');
+    for (var bi = 0; bi < btns.length; bi++) {
+      btns[bi].addEventListener('click', function() {
+        var ci2 = parseInt(this.getAttribute('data-ci'));
+        var ii2 = parseInt(this.getAttribute('data-ii'));
+        insertBoilerplate(BOILERPLATE_CATS[ci2].items[ii2].text);
+      });
+    }
+  }
+
+  function getActiveBodyTA() {
+    var type = typeSelect.value;
+    if (type === 'pointpaper') return F.bodyBullets;
+    if (type === 'actionmemo') return F.bodyAction;
+    if (type === 'moa') return F.bodyMoa;
+    return F.body;
+  }
+
+  function insertBoilerplate(text) {
+    var ta = getActiveBodyTA();
+    var start = ta.selectionStart;
+    var end = ta.selectionEnd;
+    var before = ta.value.substring(0, start);
+    var after = ta.value.substring(end);
+    var prefix = '';
+    if (before && before.charAt(before.length - 1) !== '\n') prefix = '\n\n';
+    else if (before && before.charAt(before.length - 2) !== '\n') prefix = '\n';
+    ta.value = before + prefix + text + after;
+    ta.selectionStart = ta.selectionEnd = (before + prefix + text).length;
+    ta.focus();
+    updatePreview();
+  }
+
+  var bpOpen = false;
+  bpToggleBtn.addEventListener('click', function() {
+    bpOpen = !bpOpen;
+    if (bpOpen) {
+      renderBoilerplate();
+      bpBodyEl.classList.add('open');
+      bpToggleBtn.textContent = String.fromCharCode(9650) + ' boilerplate library';
+    } else {
+      bpBodyEl.classList.remove('open');
+      bpToggleBtn.textContent = String.fromCharCode(9660) + ' boilerplate library';
+    }
   });
 
   /* ── Init ── */

@@ -25,10 +25,14 @@ Naval Scribe is a graduated YOLO project operating under Flagship rules alongsid
 
 ## Approved (Next Tock)
 
-- [ ] Second-Page Header Continuation — auto-insert recipient/SSIC/date header on page 2+, preview indicator + DOCX support
-- [ ] Boilerplate Paragraph Library — 12-15 standard naval paragraph templates, one-click insert at cursor
+_(queue empty — brainstorm 2 new items next Tock)_
 
 ## Recently Completed
+
+- [x] Second-Page Header Continuation — visual indicator in preview (dashed break + SSIC/Date/To/Page# section), DOCX uses `<w:titlePg/>` with first-page (class only) and default (continuation) headers/footers
+- [x] Boilerplate Paragraph Library — 13 templates across 4 categories (Opening, Standard, Action, Admin), collapsible panel in form, one-click insert at cursor
+
+## Previously Completed
 
 - [x] Classification Marking Toggle — UNCLASSIFIED/CUI/FOUO/SECRET/TOP SECRET dropdown, colored banner in preview, proper DOCX header+footer XML with color-coded text
 - [x] Letterhead Presets per Command — save up to 5 named presets (label + From value) in localStorage, one-click load to pre-fill From field, delete support
@@ -63,3 +67,4 @@ Naval Scribe is a graduated YOLO project operating under Flagship rules alongsid
 | 2026-04-03 | Tock | No approved items; brainstormed 2 PENDING features: Classification Marking Toggle, Letterhead Presets per Command |
 | 2026-04-03 | Tock | Implemented Classification Marking Toggle (UNCLASSIFIED/CUI/FOUO/SECRET/TOP SECRET, preview banner + DOCX header/footer) and Letterhead Presets (up to 5 named presets, fill From field) |
 | 2026-04-04 | Tock | No approved items; brainstormed 2 PENDING features: Second-Page Header Continuation, Boilerplate Paragraph Library |
+| 2026-04-04 | Tock | Implemented both approved features: Second-Page Header (preview indicator + DOCX titlePg/dual-header) and Boilerplate Library (13 templates, 4 categories, cursor-insert) |

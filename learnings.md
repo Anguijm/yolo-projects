@@ -75,6 +75,15 @@ Persistent knowledge base. Read this before every build.
 
 ## Per-Build Reflections
 
+### naval-scribe tock (2026-04-04) — Second-Page Header + Boilerplate Library
+- **KEEP**: OOXML `<w:titlePg/>` in sectPr enables separate first-page and default header/footer slots. Use `w:type="first"` for page 1 (classification banner only) and `w:type="default"` for pages 2+ (continuation header with SSIC/date/addressee/page field). Word respects this reliably with two header XML files.
+- **KEEP**: OOXML page-number field pattern — three separate `<w:r>` elements: `fldChar type=begin`, `instrText PAGE`, `fldChar type=end`. Word auto-substitutes with actual page number. Must be inside `<w:p>`.
+- **KEEP**: Collapsible boilerplate panel using a single CSS class toggle (`bp-body.open { display: block }`) with `bpBodyEl.classList.add/remove('open')`. Deferred render via `renderBoilerplate()` called only on first open — no DOM overhead when panel stays closed.
+- **KEEP**: `textarea.selectionStart / selectionEnd` for cursor-aware insertion — preserves exact caret position, calculates needed newline prefix from `before.charAt(last)` check, restores focus after insertion. Works identically on all browsers.
+- **KEEP**: Initialize toggle buttons with HTML entity in markup (`&#9660;`) rather than relying on JS to set initial state — avoids a flash of unstyled text before JS runs.
+- **IMPROVE**: Security scanner flags `innerHTML` on boilerplate panel render even when content is hardcoded + escaped. Use `textContent` for any text-only assignments to suppress scanner noise and be truly safe. Fixed: `bpToggleBtn.textContent = ...` instead of `.innerHTML`.
+- **INSIGHT**: For a document editor preview, adding a "what page 2 looks like" indicator block at the bottom of the preview canvas is far more useful than trying to calculate actual page breaks (impossible in a CSS scroll context). Dashed border + "continuation page header" label makes intent clear.
+
 ### env-inspector (2026-04-04)
 - **KEEP**: `'\x2F\x2F'` hex escape for `//` in string literals (e.g., URLs) — the test's line-comment stripper runs before string stripping, so the literal characters `//` anywhere in source will strip to end-of-line even inside quoted strings. `\x2F\x2F` avoids the literal without runtime cost. Also works for `'://'` → `':\x2F\x2F'`.
 - **KEEP**: Inline comment detection using `' ' + HASH` (space then hash) rather than `' ' + HASH + ' '` — the real pattern in most `.env` files is `KEY=value # comment` without a trailing space after `#`. The broader pattern catches more real-world cases without false positives on bare `#` in values.
