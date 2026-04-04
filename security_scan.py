@@ -61,7 +61,7 @@ RULES = [
         "severity": CRITICAL,
         "category": "Secrets",
         "description": "Hardcoded password",
-        "regex": r"""(?:password|passwd|pwd)\s*[:=]\s*['"][^'"]{4,}['"]""",
+        "regex": r"""(?:password|passwd|pwd)\s*[:=]\s*['"][^'"]{8,}['"]""",
         "target": "js",
         "remediation": "Never hardcode passwords. Use server-side authentication flows.",
     },
@@ -108,7 +108,8 @@ RULES = [
         "severity": CRITICAL,
         "category": "XSS",
         "description": "eval() with dynamic content",
-        "regex": r"""(?<!\w)eval\s*\(\s*(?!['"])""",
+        "regex": r"""(?<![.\w])eval\s*\(""",
+        "strip_strings": True,
         "case_insensitive": False,
         "target": "js",
         "remediation": "Replace eval() with JSON.parse(), Function() with known input, or a proper parser.",
@@ -323,7 +324,12 @@ def run_rule(rule, js_parts, line_offsets, full_html):
         targets.append(("HTML", full_html, 1))
 
     for source_label, code, base_line in targets:
-        for m in compiled.finditer(code):
+        scan_code = code
+        if rule.get("strip_strings"):
+            scan_code = re.sub(r"""'(?:[^'\\]|\\.)*'""", "''", scan_code)
+            scan_code = re.sub(r'"(?:[^"\\]|\\.)*"', '""', scan_code)
+            scan_code = re.sub(r'`(?:[^`\\]|\\.)*`', '``', scan_code)
+        for m in compiled.finditer(scan_code):
             line_in_chunk = code[: m.start()].count("\n")
             abs_line = base_line + line_in_chunk
             matched_text = m.group(0)
