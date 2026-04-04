@@ -81,6 +81,8 @@ Markdown Deck is a graduated YOLO project operating under Flagship rules: multi-
 
 ## Proposed Features (Pending Approval)
 
+- **Laser pointer & annotation mode** — During fullscreen presentation: L = glowing laser dot (cursor/touch), A = freehand annotation drawing on slide canvas, S = spotlight (radial dim + lit circle around cursor), C = clear, Esc = exit. Pure overlay, no markdown/PPTX impact. Highest-value presenter feature missing from current build.
+- **Per-slide talk time budget** — Presenter sets total duration (e.g. 20 min); budget = total ÷ slides. Supports `<!-- time: 2m -->` per-slide overrides. Presenter view shows slide time-used / budget with color ring (green→amber→red) and an overall progress bar. Optional opt-in chime at budget exhaustion via AudioContext.
 
 ## Approved (Next Tock)
 
@@ -158,3 +160,4 @@ These are features complex enough to prototype as standalone YOLO single-session
 | 2026-04-03 | Tock | Brainstormed 2 features (pending approval): Standalone HTML export, Slide Outline Panel |
 | 2026-04-03 | Tock | Brainstormed 2 features (pending approval): Find & Replace (Ctrl+H), Kiosk/Auto-Advance Mode |
 | 2026-04-03 | Tock | All 4 approved features: Standalone HTML Export, Slide Outline Panel, Find & Replace (Ctrl+H), Kiosk Auto-Advance |
+| 2026-04-04 | Tock | Brainstormed 2 features (pending approval): Laser pointer & annotation mode, Per-slide talk time budget |
