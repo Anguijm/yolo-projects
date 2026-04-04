@@ -119,7 +119,7 @@
 
 ---
 
-### 7. Human-in-the-Loop Escalation — WEAK
+### 7. Human-in-the-Loop Escalation — WEAK → RESOLVED
 
 **What exists:**
 - The tick-tock model allows the human to intervene ("build" for tick, "deck" for tock)
@@ -133,7 +133,7 @@
 - **No approval gate for risky operations.** The system auto-pushes to GitHub without any human approval step for builds that score below a threshold.
 - **No escalation from Phase 4.** When experiments are marked "high effort" or involve architectural changes, there's no alert to the human.
 
-**Fix:** Add a `needs_review` array to `session_state.json`. When council review averages below 7/10, or when a build fails all 3 retry cycles, append to `needs_review` with the project name and reason. At session start, if `needs_review` is non-empty, display it before proceeding. For critical failures, use PAI's notification system (`curl -s -X POST http://localhost:8888/notify`) to alert the human.
+**Fix applied (2026-04-02):** Added halt-file escalation to both `program.md` (Dark Factory section) and `skills/10-tick.md` (Test phase). Rule: if `test_project.py` fails 3 times in a row on the same project, the agent writes a `.harness_halt` file in the project directory containing the error and timestamp, then STOPS. No further builds are attempted until a human removes the halt file. This is a simple, file-based circuit breaker that requires zero infrastructure — the human sees the halt file on next check and can investigate.
 
 ---
 
