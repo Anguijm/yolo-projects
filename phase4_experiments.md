@@ -2,16 +2,16 @@
 
 R&D intelligence pipeline that extracts actionable experiments from YouTube content and feeds them into the dev loop.
 
-## Status (as of 2026-04-03)
+## Status (as of 2026-04-05)
 
-**32 experiments processed: 22 adopted, 10 parked, 0 backlog.**
+**44 experiments processed: 27 adopted, 10 parked, 7 backlog.**
 
-The original backlog is fully cleared. New experiments arrive daily via RSS auto-discovery cron (06:15 JST).
+New experiments arrive daily via RSS auto-discovery cron (06:15 JST) using `fetch_youtube_rss.py` helper script. Always commits `phase4_run.json` as proof of execution.
 
 ## Architecture
 
 Phase 4 runs as a **daily automated cron** (trigger ID: `trig_01ABkrVvExqfkAQMKTNSjXmS`):
-- **Auto-discovery**: Fetches YouTube RSS feeds from 6 channels, extracts new videos
+- **Auto-discovery**: `fetch_youtube_rss.py` fetches RSS feeds from 7 channels, outputs clean JSON
 - **Processing**: Summarizes videos, extracts experiment cards, deduplicates
 - **Backlog review**: Flags stale items, recommends top 3
 - **State update**: Updates experiments.json + session_state.json, commits and pushes
