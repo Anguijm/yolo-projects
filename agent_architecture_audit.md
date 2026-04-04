@@ -17,14 +17,14 @@
 | 4 | Self-Reflection / Self-Critique | STRONG | Post-build reflection, learnings.md, Algorithm LEARN phase |
 | 5 | Error Recovery / Retry Logic | ADEQUATE | Dark Factory 3-retry loop, but no circuit breaker or escalation |
 | 6 | Guardrails / Safety Constraints | ADEQUATE | Bedrock rules + design system, but no token/cost hard limits |
-| 7 | Human-in-the-Loop Escalation | WEAK | No explicit escalation path when autonomous builds fail |
+| 7 | Human-in-the-Loop Escalation | RESOLVED | .harness_halt file written after 3 consecutive test failures |
 | 8 | Observability / Logging | ADEQUATE | build_log.py exists but build-logs/ is empty; session_state works |
-| 9 | Cost Management / Budget Controls | WEAK | No token tracking, no per-run cost caps, no spend alerts |
+| 9 | Cost Management / Budget Controls | RESOLVED | 15-call Gemini cap per session, partial review on exceed |
 | 10 | Evaluation / Quality Metrics | STRONG | test_project.py + eval_bugs.py + 6-angle council + golden prompts |
 | 11 | Context Management / Compression | ADEQUATE | session_state.json recovery, but no explicit context window management in cron |
 | 12 | Multi-Agent Coordination | STRONG | Gemini-as-reviewer, Phase 4 pipeline, tick-tock scheduling, PAI Agent system |
 
-**Overall: 5 STRONG, 5 ADEQUATE, 2 WEAK, 0 MISSING**
+**Overall: 5 STRONG, 5 ADEQUATE, 0 WEAK (2 RESOLVED), 0 MISSING**
 
 ---
 
@@ -157,7 +157,7 @@
 
 ---
 
-### 9. Cost Management / Budget Controls — WEAK
+### 9. Cost Management / Budget Controls — WEAK → RESOLVED
 
 **What exists:**
 - **Implicit scope control:** "Keep the scope small", single-file HTML, zero dependencies
@@ -172,7 +172,9 @@
 - **No model cost awareness.** The system doesn't distinguish between expensive (Opus) and cheap (Haiku) model calls.
 - **No Gemini API quota tracking.** If the Gemini free tier runs out, the system fails without graceful degradation.
 
-**Fix:** Add a `cost_tracking` section to `session_state.json`:
+**Fix applied (2026-04-02):** Added a per-session Gemini MCP call cap of 15 to both `program.md` (Gemini Code Audit section) and `skills/10-tick.md` (Review phase). Rule: the agent tracks total Gemini MCP calls during the session. At 15 calls, it skips remaining council review angles and ships with partial review, logging "PARTIAL REVIEW: Gemini cap reached." This is a practical guardrail since we cannot track API tokens directly from the cron agent — but we CAN count tool invocations. 15 calls covers: 1 brainstorm + 1 code review + 6 council angles + 7 buffer for retries/follow-ups. Anything beyond that indicates a runaway loop.
+
+Original proposed fix (deferred):
 ```json
 {
   "cost_tracking": {
@@ -183,7 +185,7 @@
   }
 }
 ```
-Check these counters at session start. If over budget, skip to a "zero-cost" activity (reviewing learnings, reorganizing experiments). For deeper tracking, log API call counts in `build_log.py` events.
+This daily-aggregate tracking in `session_state.json` remains a good future enhancement but requires cross-session counter persistence that the current cron setup doesn't support cleanly.
 
 ---
 
@@ -239,13 +241,11 @@ Check these counters at session start. If over budget, skip to a "zero-cost" act
 **Impact:** Fixes observability gap. **Effort:** Low (< 1 session).
 The `BuildLog` class exists and is well-designed. Add import and event calls to `skills/10-tick.md` methodology. Every phase transition should log an event. This gives you timing data, failure tracking, and an audit trail for free.
 
-### P1 — Add failure notification and human escalation
-**Impact:** Fixes the WEAK human-in-the-loop rating. **Effort:** Low-Medium.
-Add `needs_review` array to `session_state.json`. When council scores average below 7, or Dark Factory exhausts retries, append an entry. Use PAI's notification curl to alert immediately on critical failures. Display the queue at session start.
+### P1 — ~~Add failure notification and human escalation~~ RESOLVED
+**Status:** Fixed 2026-04-02. `.harness_halt` file escalation added to `program.md` and `skills/10-tick.md`.
 
-### P2 — Add basic cost tracking counters
-**Impact:** Fixes the WEAK cost management rating. **Effort:** Low.
-Add `daily_build_count` and `daily_gemini_calls` to `session_state.json`. Check at session start. If over threshold, switch to low-cost activities. This prevents runaway spend without complex token counting.
+### P2 — ~~Add basic cost tracking counters~~ RESOLVED
+**Status:** Fixed 2026-04-02. Per-session Gemini call cap (15) added to `program.md` and `skills/10-tick.md`.
 
 ### P3 — Cap and archive learnings.md
 **Impact:** Improves context management. **Effort:** Low.
@@ -259,4 +259,4 @@ Add `consecutive_build_failures` to `session_state.json`. If >= 3, next session 
 
 ## Conclusion
 
-The YOLO/PAI system is architecturally mature for an autonomous build pipeline. It covers 12/12 standard agent architecture components with no outright MISSING pieces. The strongest areas are evaluation (multi-layered testing), memory (multi-timescale stores), and self-reflection (JSONL learning logs). The two WEAK areas — human escalation and cost management — are both fixable with lightweight additions to `session_state.json` and the existing notification infrastructure. The most impactful single fix is wiring the existing `BuildLog` class into the skill chain, which would immediately close the observability gap.
+The YOLO/PAI system is architecturally mature for an autonomous build pipeline. It covers 12/12 standard agent architecture components with no outright MISSING pieces. The strongest areas are evaluation (multi-layered testing), memory (multi-timescale stores), and self-reflection (JSONL learning logs). The two formerly WEAK areas — human escalation and cost management — have been resolved with lightweight guardrails: a `.harness_halt` file circuit breaker for failed builds, and a 15-call Gemini cap per session. The most impactful remaining fix is wiring the existing `BuildLog` class into the skill chain, which would immediately close the observability gap.

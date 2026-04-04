@@ -25,11 +25,13 @@
 ### 3. Test
 - Run `python3 test_project.py <project-name>`
 - If ANY check fails → fix → retest (max 3 retries per Dark Factory protocol)
+- **Halt escalation:** If test_project.py fails 3 times in a row on the same project, STOP. Write a `.harness_halt` file in the project directory containing the error output and timestamp. Do NOT attempt more builds until a human removes the halt file. This prevents infinite retry loops in autonomous cron runs.
 
 ### 4. Review
 - Send actual JS code to `mcp__gemini__gemini-analyze-code` (focus: bugs)
 - Fix every real bug Gemini identifies
 - Retest after fixes
+- **Gemini call cap:** Track total Gemini MCP calls this session. If the count reaches 15, skip remaining council review angles and ship with partial review. Log "PARTIAL REVIEW: Gemini cap reached" in the commit message. This prevents runaway API costs in autonomous sessions.
 
 ### 5. Ship
 - Write `README.md` in project folder

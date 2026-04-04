@@ -118,6 +118,7 @@ The build process is a **Dark Factory**: spec in → autonomous build → automa
    - Fix the specific failure
    - Re-run the **entire** test suite (not just the failed check)
    - Repeat until all checks pass — maximum 3 retry cycles
+   - **Halt on exhaustion:** If all 3 retry cycles fail on the same project, STOP. Write a `.harness_halt` file in the project directory with the error and timestamp. Do not attempt more builds until the halt file is removed by a human.
 2. After Gemini code audit, if bugs are found:
    - Fix all identified bugs
    - Re-run the full test suite again
@@ -134,6 +135,7 @@ The goal: the human never sees a broken project. Every shipped build has survive
 2. Gemini reviews for: bugs, security issues, performance problems, UX issues.
 3. Address every issue Gemini identifies as a bug or security risk. Style suggestions are optional.
 4. If Gemini identifies a critical bug, fix it and re-run the full test suite.
+5. **Gemini call cap:** Track Gemini MCP calls per session. Cap at 15 calls. If reached, skip remaining council angles and ship with partial review. Log "PARTIAL REVIEW: Gemini cap reached" in learnings.
 
 ## When Done
 
