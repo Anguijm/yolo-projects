@@ -27,6 +27,11 @@ Naval Scribe is a graduated YOLO project operating under Flagship rules alongsid
 
 *(nothing pending — brainstorm next session)*
 
+## Pending (Brainstormed 2026-04-04)
+
+- [ ] **Second-Page Header Continuation** — When a naval letter body exceeds one page, auto-insert the correct second-page header block (recipient short name, SSIC, date on same line) in both the live preview (a visible page-break indicator) and the .docx export. Preview shows a faint horizontal rule labeled "— PAGE 2 —" with the header repeated. DOCX adds the header as a text block before the continuation body. Required by SECNAV Manual 5216.5.
+- [ ] **Boilerplate Paragraph Library** — A small collapsible panel (or dropdown) with 12–15 standard Naval paragraph templates: endorsement language, authority-to-act citations, request-mast statements, EVAL/FITREP acknowledgment phrases, separation request authority, etc. One-click inserts the selected paragraph at the cursor position in the body textarea. Stored as constants in JS, zero external dependencies.
+
 ## Recently Completed
 
 - [x] Classification Marking Toggle — UNCLASSIFIED/CUI/FOUO/SECRET/TOP SECRET dropdown, colored banner in preview, proper DOCX header+footer XML with color-coded text
@@ -61,3 +66,4 @@ Naval Scribe is a graduated YOLO project operating under Flagship rules alongsid
 | 2026-04-03 | Tock | Implemented all 4 approved features: Saved Drafts Library, Print-to-PDF, SSIC Autocomplete (46 codes), Signature Block Builder. Also fixed: autoSave now saves full state, DOCX w:spacing merged, single-para no-number naval standard, New/Clear button added |
 | 2026-04-03 | Tock | No approved items; brainstormed 2 PENDING features: Classification Marking Toggle, Letterhead Presets per Command |
 | 2026-04-03 | Tock | Implemented Classification Marking Toggle (UNCLASSIFIED/CUI/FOUO/SECRET/TOP SECRET, preview banner + DOCX header/footer) and Letterhead Presets (up to 5 named presets, fill From field) |
+| 2026-04-04 | Tock | No approved items; brainstormed 2 PENDING features: Second-Page Header Continuation, Boilerplate Paragraph Library |
