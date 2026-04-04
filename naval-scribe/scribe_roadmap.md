@@ -25,12 +25,8 @@ Naval Scribe is a graduated YOLO project operating under Flagship rules alongsid
 
 ## Approved (Next Tock)
 
-*(nothing pending — brainstorm next session)*
-
-## Pending (Brainstormed 2026-04-04)
-
-- [ ] **Second-Page Header Continuation** — When a naval letter body exceeds one page, auto-insert the correct second-page header block (recipient short name, SSIC, date on same line) in both the live preview (a visible page-break indicator) and the .docx export. Preview shows a faint horizontal rule labeled "— PAGE 2 —" with the header repeated. DOCX adds the header as a text block before the continuation body. Required by SECNAV Manual 5216.5.
-- [ ] **Boilerplate Paragraph Library** — A small collapsible panel (or dropdown) with 12–15 standard Naval paragraph templates: endorsement language, authority-to-act citations, request-mast statements, EVAL/FITREP acknowledgment phrases, separation request authority, etc. One-click inserts the selected paragraph at the cursor position in the body textarea. Stored as constants in JS, zero external dependencies.
+- [ ] Second-Page Header Continuation — auto-insert recipient/SSIC/date header on page 2+, preview indicator + DOCX support
+- [ ] Boilerplate Paragraph Library — 12-15 standard naval paragraph templates, one-click insert at cursor
 
 ## Recently Completed
 
