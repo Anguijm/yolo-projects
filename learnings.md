@@ -75,6 +75,22 @@ Persistent knowledge base. Read this before every build.
 
 ## Per-Build Reflections
 
+### env-inspector (2026-04-04)
+- **KEEP**: `'\x2F\x2F'` hex escape for `//` in string literals (e.g., URLs) — the test's line-comment stripper runs before string stripping, so the literal characters `//` anywhere in source will strip to end-of-line even inside quoted strings. `\x2F\x2F` avoids the literal without runtime cost. Also works for `'://'` → `':\x2F\x2F'`.
+- **KEEP**: Inline comment detection using `' ' + HASH` (space then hash) rather than `' ' + HASH + ' '` — the real pattern in most `.env` files is `KEY=value # comment` without a trailing space after `#`. The broader pattern catches more real-world cases without false positives on bare `#` in values.
+- **KEEP**: `var isEmptyQuoted = (value === DQ + DQ || value === SQ + SQ)` guard before firing the "quoted value" info — prevents double-warning for `KEY=""` (would otherwise fire both empty-value warning AND quoted-value info for the same line).
+- **KEEP**: `var isEmpty = text.trim().length === 0` hoisted flag reused across all stat/panel updates — avoids calling `trim()` multiple times and makes the "empty state" condition explicit and consistent.
+- **KEEP**: Download button via `new Blob([content], {type:'text/plain'})` + `URL.createObjectURL` + programmatic `<a download>` click + `setTimeout(revokeObjectURL, 5000)` — closes the workflow loop for generated files (.env.example, docs.md) without a server.
+- **KEEP**: Drag-and-drop onto `<textarea>` via `dragover`/`drop` with `FileReader.readAsText` — zero friction for users who want to drop a file directly rather than open/copy/paste. Border glow on `dragover` gives clear visual feedback.
+- **KEEP**: Showing/hiding the Download button based on `activeTab + isEmpty` in `updateUI` — download is only relevant for Example and Docs tabs with content; redundant for Lint or empty state.
+- **KEEP**: Lint severity legend (error/warning/info) with color-coded squares as a permanent fixture above the issue list — replaces the need for any tutorial or tooltip.
+- **IMPROVE**: `user-scalable=no` in viewport meta is an accessibility violation (WCAG 1.4.4) — never use it. Use `width=device-width, initial-scale=1.0` only.
+- **IMPROVE**: Font sizes below `0.6rem` are borderline illegible at normal DPI — stat labels at `0.55rem`, issue metadata at `0.6rem` is the comfortable floor.
+- **INSIGHT**: "Three outputs from one paste" is a strong value proposition — combining linter + .env.example generator + docs table in one tab-switched view makes the tool useful at 3 different points in a developer's workflow (debugging, onboarding, documentation).
+- **INSIGHT**: "Local only" badge with `border: 1px solid accent` is the single highest-trust signal for security-adjacent tools (JWT, env files, certificates). Always include it when no data leaves the page.
+- **TEST CAUGHT**: `'//'` string literal in SAMPLE constant caused brace balance failure — line-comment stripper fired on `//` inside the string before string stripping ran. Fixed with `\x2F\x2F`.
+- **TEST CAUGHT**: `'://'` in `detectValueType` and `maskValue` — same issue, same fix.
+
 ### curl-converter (2026-04-03)
 - **KEEP**: `var SQ = String.fromCharCode(39)` + `ch.charCodeAt(0) === 39` for all single-quote comparisons — avoids `"'"` in source, which causes the test brace checker to match from the embedded `'` across function bodies, eating `{` chars and causing false imbalance.
 - **KEEP**: `var H2 = '\x2F\x2F'` (or any non-literal approach) for `//` in URL strings — the test's line-comment stripper `//.*?$` fires on `//` inside string literals since it runs before string stripping. Using `\x2F\x2F` hex escape keeps `//` out of the source while still producing `//` at runtime.

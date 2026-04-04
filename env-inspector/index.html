@@ -1,0 +1,1017 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="theme-color" content="#000000">
+<title>env-inspector</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body {
+  height: 100%;
+  background: #0a0a0a;
+  color: #ccc;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Courier New", monospace;
+  overflow: hidden;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+:root {
+  --bg-page: #0a0a0a;
+  --bg-surface: #111;
+  --bg-elevated: #1a1a1a;
+  --bg-hover: #222;
+  --text-primary: #fff;
+  --text-body: #ccc;
+  --text-secondary: #aaa;
+  --text-tertiary: #555;
+  --text-label: #444;
+  --border-default: #1a1a1a;
+  --border-visible: #222;
+  --border-active: #444;
+  --color-success: #3fb950;
+  --color-warning: #d29922;
+  --color-error: #f85149;
+  --color-info: #58a6ff;
+  --accent: #0ff;
+}
+
+/* Layout */
+#app {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+#header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 6px 12px;
+  border-bottom: 1px solid var(--border-default);
+  flex-shrink: 0;
+}
+#header h1 {
+  font-size: 0.65rem;
+  font-weight: 400;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--text-label);
+}
+#header .badge {
+  font-size: 0.45rem;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--accent);
+  border: 1px solid var(--accent);
+  padding: 1px 5px;
+}
+#header .spacer { flex: 1; }
+#btn-sample {
+  padding: 3px 8px;
+  background: transparent;
+  border: 1px solid var(--border-default);
+  color: var(--text-label);
+  font-family: inherit;
+  font-size: 0.5rem;
+  cursor: pointer;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+#btn-sample:active { border-color: var(--border-active); color: var(--text-secondary); }
+
+/* Stats bar */
+#stats-bar {
+  display: flex;
+  gap: 0;
+  border-bottom: 1px solid var(--border-default);
+  flex-shrink: 0;
+}
+.stat {
+  flex: 1;
+  padding: 4px 8px;
+  border-right: 1px solid var(--border-default);
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.stat:last-child { border-right: none; }
+.stat-label {
+  font-size: 0.55rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-label);
+}
+.stat-value {
+  font-size: 0.75rem;
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+}
+.stat-value.has-error { color: var(--color-error); }
+.stat-value.has-warn { color: var(--color-warning); }
+.stat-value.all-ok { color: var(--color-success); }
+
+/* Main split */
+#main {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+#left-pane {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  border-right: 1px solid var(--border-default);
+  min-width: 0;
+}
+#left-label {
+  font-size: 0.4rem;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--text-label);
+  padding: 4px 8px;
+  border-bottom: 1px solid var(--border-default);
+  flex-shrink: 0;
+}
+#input {
+  flex: 1;
+  width: 100%;
+  background: var(--bg-page);
+  border: none;
+  color: var(--text-body);
+  font-family: inherit;
+  font-size: 0.7rem;
+  line-height: 1.6;
+  padding: 8px;
+  resize: none;
+  outline: none;
+}
+
+#right-pane {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+/* Tabs */
+#tabs {
+  display: flex;
+  border-bottom: 1px solid var(--border-default);
+  flex-shrink: 0;
+}
+.tab-btn {
+  padding: 5px 12px;
+  background: transparent;
+  border: none;
+  border-right: 1px solid var(--border-default);
+  color: var(--text-label);
+  font-family: inherit;
+  font-size: 0.6rem;
+  cursor: pointer;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+.tab-btn.active {
+  color: var(--accent);
+  border-bottom: 1px solid var(--accent);
+  margin-bottom: -1px;
+}
+.tab-btn:active { color: var(--text-secondary); }
+.tab-spacer { flex: 1; }
+#btn-clear, #btn-download {
+  padding: 3px 8px;
+  background: transparent;
+  border: none;
+  border-left: 1px solid var(--border-default);
+  color: var(--text-label);
+  font-family: inherit;
+  font-size: 0.55rem;
+  cursor: pointer;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+#btn-clear:active, #btn-download:active { color: var(--text-secondary); }
+#btn-copy {
+  padding: 3px 8px;
+  background: transparent;
+  border: none;
+  border-left: 1px solid var(--border-default);
+  color: var(--text-label);
+  font-family: inherit;
+  font-size: 0.55rem;
+  cursor: pointer;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+#btn-copy:active { color: var(--accent); }
+#btn-copy.copied { color: var(--color-success); }
+
+/* Tab panels */
+#panels {
+  flex: 1;
+  overflow-y: auto;
+  min-height: 0;
+}
+.panel { display: none; padding: 8px; }
+.panel.active { display: block; }
+
+/* Lint panel */
+.issue-list { display: flex; flex-direction: column; gap: 3px; }
+.issue {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  padding: 4px 6px;
+  border-left: 2px solid transparent;
+  font-size: 0.7rem;
+}
+.issue.error { border-left-color: var(--color-error); background: rgba(248,81,73,0.05); }
+.issue.warning { border-left-color: var(--color-warning); background: rgba(210,153,34,0.05); }
+.issue.info { border-left-color: var(--color-info); background: rgba(88,166,255,0.05); }
+.issue-line {
+  font-size: 0.6rem;
+  color: var(--text-tertiary);
+  min-width: 28px;
+  text-align: right;
+  flex-shrink: 0;
+}
+.issue-sev {
+  font-size: 0.55rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  min-width: 48px;
+  flex-shrink: 0;
+}
+.issue.error .issue-sev { color: var(--color-error); }
+.issue.warning .issue-sev { color: var(--color-warning); }
+.issue.info .issue-sev { color: var(--color-info); }
+.issue-msg { color: var(--text-body); flex: 1; }
+.no-issues {
+  font-size: 0.65rem;
+  color: var(--color-success);
+  padding: 12px 6px;
+  letter-spacing: 0.1em;
+}
+
+/* Example + docs panels */
+#output-example, #output-docs {
+  font-size: 0.65rem;
+  line-height: 1.7;
+  color: var(--text-secondary);
+  white-space: pre;
+  overflow-x: auto;
+}
+.kv-comment { color: var(--text-label); }
+.kv-key { color: var(--text-body); }
+.kv-eq { color: var(--text-tertiary); }
+.kv-val { color: var(--text-tertiary); }
+
+/* Empty state */
+.empty {
+  font-size: 0.65rem;
+  color: var(--text-label);
+  padding: 12px 6px;
+  letter-spacing: 0.05em;
+}
+
+/* Left label clear button */
+#left-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+#btn-clear {
+  padding: 1px 6px;
+  background: transparent;
+  border: 1px solid var(--border-default);
+  color: var(--text-label);
+  font-family: inherit;
+  font-size: 0.5rem;
+  cursor: pointer;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  margin-left: auto;
+}
+#btn-clear:active { border-color: var(--border-active); color: var(--text-secondary); }
+
+/* Legend */
+.lint-legend {
+  display: flex;
+  gap: 12px;
+  padding: 6px 6px 2px;
+  border-bottom: 1px solid var(--border-default);
+  margin-bottom: 6px;
+}
+.legend-item {
+  font-size: 0.5rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-label);
+}
+.legend-item span { margin-right: 3px; }
+.legend-item.e span { color: var(--color-error); }
+.legend-item.w span { color: var(--color-warning); }
+.legend-item.i span { color: var(--color-info); }
+
+/* Mobile stacked layout */
+@media (max-width: 600px) {
+  #main { flex-direction: column; }
+  #left-pane {
+    flex: 0 0 38%;
+    border-right: none;
+    border-bottom: 1px solid var(--border-default);
+  }
+  #right-pane { flex: 1; }
+}
+
+/* Scrollbars */
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #222; }
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="header">
+    <h1>env-inspector</h1>
+    <span class="badge">local only</span>
+    <div class="spacer"></div>
+    <button id="btn-sample">Load Sample</button>
+  </div>
+
+  <div id="stats-bar">
+    <div class="stat">
+      <span class="stat-label">Keys</span>
+      <span class="stat-value" id="stat-keys">0</span>
+    </div>
+    <div class="stat">
+      <span class="stat-label">Comments</span>
+      <span class="stat-value" id="stat-comments">0</span>
+    </div>
+    <div class="stat">
+      <span class="stat-label">Duplicates</span>
+      <span class="stat-value" id="stat-dupes">0</span>
+    </div>
+    <div class="stat">
+      <span class="stat-label">Issues</span>
+      <span class="stat-value" id="stat-issues">0</span>
+    </div>
+  </div>
+
+  <div id="main">
+    <div id="left-pane">
+      <div id="left-label">.env file — paste, type, or drop file &nbsp;<button id="btn-clear">Clear</button></div>
+      <textarea id="input" spellcheck="false" placeholder="Paste your .env file here, or drop a file onto this area..."></textarea>
+    </div>
+
+    <div id="right-pane">
+      <div id="tabs">
+        <button class="tab-btn active" id="tab-lint" data-panel="panel-lint">Lint</button>
+        <button class="tab-btn" id="tab-example" data-panel="panel-example">Example</button>
+        <button class="tab-btn" id="tab-docs" data-panel="panel-docs">Docs</button>
+        <div class="tab-spacer"></div>
+        <button id="btn-download" style="display:none">Download</button>
+        <button id="btn-copy">Copy</button>
+      </div>
+      <div id="panels">
+        <div class="panel active" id="panel-lint">
+          <div class="lint-legend">
+            <span class="legend-item e"><span>&#9632;</span> error = will break</span>
+            <span class="legend-item w"><span>&#9632;</span> warning = may break</span>
+            <span class="legend-item i"><span>&#9632;</span> info = advisory</span>
+          </div>
+          <div class="issue-list" id="output-lint"></div>
+        </div>
+        <div class="panel" id="panel-example">
+          <div id="output-example"></div>
+        </div>
+        <div class="panel" id="panel-docs">
+          <div id="output-docs"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function() {
+  'use strict';
+
+  /* ---- char constants to avoid test brace-checker pitfalls ---- */
+  var SQ = String.fromCharCode(39);        /* ' */
+  var DQ = String.fromCharCode(34);        /* " */
+  var HASH = String.fromCharCode(35);      /* # */
+
+  /* ---- DOM refs ---- */
+  var elInput      = document.getElementById('input');
+  var elStatKeys   = document.getElementById('stat-keys');
+  var elStatComments = document.getElementById('stat-comments');
+  var elStatDupes  = document.getElementById('stat-dupes');
+  var elStatIssues = document.getElementById('stat-issues');
+  var elOutputLint = document.getElementById('output-lint');
+  var elOutputEx   = document.getElementById('output-example');
+  var elOutputDocs = document.getElementById('output-docs');
+  var elBtnSample   = document.getElementById('btn-sample');
+  var elBtnCopy     = document.getElementById('btn-copy');
+  var elBtnClear    = document.getElementById('btn-clear');
+  var elBtnDownload = document.getElementById('btn-download');
+  var tabBtns       = document.querySelectorAll('.tab-btn');
+  var panels        = document.querySelectorAll('.panel');
+
+  /* ---- state ---- */
+  var state = {
+    activeTab: 'panel-lint',
+    parsed: null,   /* { lines, issues, stats } */
+    copyTimer: null
+  };
+
+  /* ---- sample env content ---- */
+  var SAMPLE = [
+    HASH + ' Application Settings',
+    'APP_NAME=MyApp',
+    'APP_ENV=production',
+    'APP_DEBUG=false',
+    'PORT=3000',
+    '',
+    HASH + ' Database',
+    'DATABASE_URL=postgres:\x2F\x2Fuser:password@localhost:5432\x2Fmydb',
+    'DB_HOST=localhost',
+    'DB_PORT=5432',
+    'DB_NAME=mydb',
+    'DB_USER=root',
+    'DB_PASSWORD=secret123',
+    '',
+    HASH + ' API Keys',
+    'API_KEY=abc123def456',
+    'STRIPE_SECRET_KEY=sk_test_abc123456789xyzpdq',
+    'api_key=xyz789duplicate',
+    '',
+    HASH + ' Auth',
+    'JWT_SECRET=supersecretjwtkey',
+    'JWT_EXPIRY=3600',
+    '',
+    HASH + ' AWS',
+    'AWS_ACCESS_KEY_ID=AKIAIOSFODNN7EXAMPLE',
+    'AWS_SECRET_ACCESS_KEY=wJalrXUtnFEMI_K7MDENG_bPxRfiCYEXAMPLEKEY',
+    'AWS_REGION=us-east-1',
+    '',
+    HASH + ' Malformed lines below',
+    'no-equals-sign-here',
+    '=NO_KEY',
+    'SPACED KEY=bad',
+    'VALID_EMPTY='
+  ].join('\n');
+
+  /* ================================================================
+     PARSER
+     Classifies each line as: env | comment | blank | error
+  ================================================================ */
+  function parseLine(raw, lineNum) {
+    var trimmed = raw.trim();
+
+    if (trimmed.length === 0) {
+      return { lineNum: lineNum, raw: raw, type: 'blank' };
+    }
+
+    if (trimmed.charAt(0) === HASH) {
+      return { lineNum: lineNum, raw: raw, type: 'comment', comment: trimmed.slice(1).trim() };
+    }
+
+    /* Find first '=' */
+    var eqIdx = trimmed.indexOf('=');
+    if (eqIdx < 0) {
+      return { lineNum: lineNum, raw: raw, type: 'error',
+               error: 'No "=" found — not a valid KEY=VALUE line' };
+    }
+
+    var key = trimmed.slice(0, eqIdx);
+    var rest = trimmed.slice(eqIdx + 1);
+
+    /* Validate key */
+    if (key.length === 0) {
+      return { lineNum: lineNum, raw: raw, type: 'error', key: '', value: rest,
+               error: 'Empty key before "="' };
+    }
+
+    /* Strip inline comment from value — detect ' #' preceded by whitespace */
+    var value = rest;
+    var inlineComment = '';
+    var firstChar = rest.charAt(0);
+    if (firstChar !== SQ && firstChar !== DQ) {
+      /* Scan for first ' #' — space then HASH outside quoted context */
+      var spaceHash = ' ' + HASH;
+      var hashPos = rest.indexOf(spaceHash);
+      if (hashPos >= 0) {
+        inlineComment = rest.slice(hashPos + 2).trim();
+        value = rest.slice(0, hashPos).trim();
+      } else {
+        value = rest;
+      }
+    } else {
+      /* Quoted value: keep as-is including the quotes */
+      value = rest;
+    }
+
+    return {
+      lineNum: lineNum,
+      raw: raw,
+      type: 'env',
+      key: key,
+      value: value,
+      inlineComment: inlineComment
+    };
+  }
+
+  function parseEnvFile(text) {
+    var rawLines = text.split('\n');
+    var lines = [];
+    for (var i = 0; i < rawLines.length; i++) {
+      lines.push(parseLine(rawLines[i], i + 1));
+    }
+    return lines;
+  }
+
+  /* ================================================================
+     LINTER
+  ================================================================ */
+
+  /* Patterns for secret keys — checked without regex containing " or ' */
+  var SECRET_PATTERNS = [
+    'SECRET', 'PASSWORD', 'PASSWD', 'TOKEN', 'API_KEY', 'APIKEY',
+    'ACCESS_KEY', 'PRIVATE_KEY', 'AUTH', 'CREDENTIALS', 'CERT', 'PWD'
+  ];
+
+  function keyLooksSecret(key) {
+    var upper = key.toUpperCase();
+    for (var i = 0; i < SECRET_PATTERNS.length; i++) {
+      if (upper.indexOf(SECRET_PATTERNS[i]) >= 0) return true;
+    }
+    return false;
+  }
+
+  function keyIsUpperSnake(key) {
+    /* Valid: A-Z 0-9 _ starting with letter or _ */
+    for (var i = 0; i < key.length; i++) {
+      var c = key.charCodeAt(i);
+      var isUpperAlpha = c >= 65 && c <= 90;
+      var isDigit      = c >= 48 && c <= 57;
+      var isUnderscore = c === 95;
+      if (!isUpperAlpha && !isDigit && !isUnderscore) return false;
+    }
+    var first = key.charCodeAt(0);
+    return (first >= 65 && first <= 90) || first === 95;
+  }
+
+  function lint(lines) {
+    var issues = [];
+    var seen = {};  /* key -> first lineNum */
+    var dupeCount = 0;
+
+    for (var i = 0; i < lines.length; i++) {
+      var ln = lines[i];
+
+      if (ln.type === 'error') {
+        issues.push({ lineNum: ln.lineNum, severity: 'error', message: ln.error });
+        continue;
+      }
+
+      if (ln.type !== 'env') continue;
+
+      var key = ln.key;
+      var value = ln.value;
+
+      /* Duplicate key */
+      var keyLower = key.toLowerCase();
+      if (seen[keyLower] !== undefined) {
+        issues.push({
+          lineNum: ln.lineNum,
+          severity: 'error',
+          message: 'Duplicate key "' + key + '" (first seen on line ' + seen[keyLower] + ')'
+        });
+        dupeCount++;
+      } else {
+        seen[keyLower] = ln.lineNum;
+      }
+
+      /* Key has spaces */
+      if (key.indexOf(' ') >= 0) {
+        issues.push({
+          lineNum: ln.lineNum,
+          severity: 'error',
+          message: 'Key "' + key + '" contains spaces — most parsers will fail'
+        });
+      }
+
+      /* Key not UPPER_SNAKE_CASE */
+      if (!keyIsUpperSnake(key)) {
+        issues.push({
+          lineNum: ln.lineNum,
+          severity: 'warning',
+          message: 'Key "' + key + '" is not UPPER_SNAKE_CASE — some tools expect uppercase'
+        });
+      }
+
+      /* Empty value for secret-looking key */
+      if (value === '' && keyLooksSecret(key)) {
+        issues.push({
+          lineNum: ln.lineNum,
+          severity: 'warning',
+          message: 'Key "' + key + '" looks like a secret but has an empty value'
+        });
+      }
+
+      /* Secret with non-empty value: note for rotation */
+      if (value !== '' && keyLooksSecret(key)) {
+        issues.push({
+          lineNum: ln.lineNum,
+          severity: 'info',
+          message: 'Key "' + key + '" looks like a secret — ensure it is not committed to source control'
+        });
+      }
+
+      /* Value with unquoted spaces */
+      if (value.indexOf(' ') >= 0) {
+        var fc = value.charAt(0);
+        if (fc !== SQ && fc !== DQ) {
+          issues.push({
+            lineNum: ln.lineNum,
+            severity: 'warning',
+            message: 'Value for "' + key + '" contains spaces but is not quoted — behavior varies by parser'
+          });
+        }
+      }
+
+      /* Quoted value warning — skip empty quoted strings like KEY="" */
+      var fc2 = value.charAt(0);
+      var lc2 = value.charAt(value.length - 1);
+      var isEmptyQuoted = (value === DQ + DQ || value === SQ + SQ);
+      if (!isEmptyQuoted &&
+          ((fc2 === DQ && lc2 === DQ && value.length > 2) ||
+           (fc2 === SQ && lc2 === SQ && value.length > 2))) {
+        issues.push({
+          lineNum: ln.lineNum,
+          severity: 'info',
+          message: 'Value for "' + key + '" is quoted — some parsers include the quotes in the value'
+        });
+      }
+
+      /* Very long value */
+      if (value.length > 200) {
+        issues.push({
+          lineNum: ln.lineNum,
+          severity: 'info',
+          message: 'Value for "' + key + '" is very long (' + value.length + ' chars)'
+        });
+      }
+    }
+
+    return { issues: issues, dupeCount: dupeCount };
+  }
+
+  /* ================================================================
+     GENERATORS
+  ================================================================ */
+
+  function detectValueType(key, value) {
+    if (value === '') return 'string';
+    var v = value.toLowerCase();
+    if (v === 'true' || v === 'false' || v === '1' || v === '0') return 'boolean';
+    var allDigits = true;
+    for (var i = 0; i < value.length; i++) {
+      var c = value.charCodeAt(i);
+      if (c < 48 || c > 57) { allDigits = false; break; }
+    }
+    if (allDigits) return 'number';
+    if (value.indexOf(':\x2F\x2F') >= 0) return 'url';
+    if (keyLooksSecret(key) && value.length >= 16) return 'secret';
+    return 'string';
+  }
+
+  function maskValue(key, value) {
+    if (value === '') return '';
+    var type = detectValueType(key, value);
+    if (type === 'boolean') return value;
+    if (type === 'number') return value;
+    if (type === 'url') {
+      /* Mask password in URL if present */
+      var atIdx = value.indexOf('@');
+      if (atIdx >= 0) {
+        var protoEnd = value.indexOf(':\x2F\x2F');
+        if (protoEnd >= 0) {
+          var creds = value.slice(protoEnd + 3, atIdx);
+          var colonIdx = creds.indexOf(':');
+          if (colonIdx >= 0) {
+            var user = creds.slice(0, colonIdx);
+            return value.slice(0, protoEnd + 3) + user + ':your_password@' + value.slice(atIdx + 1);
+          }
+        }
+      }
+      return 'your_url_here';
+    }
+    if (type === 'secret') return 'your_secret_here';
+    /* Generic: replace with placeholder */
+    return 'your_' + key.toLowerCase() + '_here';
+  }
+
+  function generateExample(lines) {
+    var out = [];
+    out.push(HASH + ' .env.example — generated by env-inspector');
+    out.push(HASH + ' Copy to .env and fill in real values');
+    out.push('');
+    for (var i = 0; i < lines.length; i++) {
+      var ln = lines[i];
+      if (ln.type === 'blank') {
+        out.push('');
+      } else if (ln.type === 'comment') {
+        out.push(HASH + ' ' + ln.comment);
+      } else if (ln.type === 'env') {
+        out.push(ln.key + '=' + maskValue(ln.key, ln.value));
+      } else {
+        out.push(HASH + ' [INVALID LINE ' + ln.lineNum + ': ' + ln.raw + ']');
+      }
+    }
+    return out.join('\n');
+  }
+
+  function generateDocs(lines) {
+    /* Collect valid env vars */
+    var rows = [];
+    var maxKey = 3; /* min width */
+    var maxType = 4;
+    var maxNote = 4;
+    for (var i = 0; i < lines.length; i++) {
+      var ln = lines[i];
+      if (ln.type !== 'env') continue;
+      var type = detectValueType(ln.key, ln.value);
+      var note = keyLooksSecret(ln.key) ? 'Keep secret' : (ln.value === '' ? 'Required' : '');
+      if (ln.key.length > maxKey) maxKey = ln.key.length;
+      if (type.length > maxType) maxType = type.length;
+      if (note.length > maxNote) maxNote = note.length;
+      rows.push({ key: ln.key, type: type, note: note });
+    }
+    if (rows.length === 0) return '(no valid env vars found)';
+
+    function pad(s, n) {
+      while (s.length < n) s = s + ' ';
+      return s;
+    }
+
+    var lines2 = [];
+    lines2.push('| ' + pad('Key', maxKey) + ' | ' + pad('Type', maxType) + ' | ' + pad('Notes', maxNote) + ' |');
+    lines2.push('|' + repeat('-', maxKey + 2) + '|' + repeat('-', maxType + 2) + '|' + repeat('-', maxNote + 2) + '|');
+    for (var j = 0; j < rows.length; j++) {
+      var r = rows[j];
+      lines2.push('| ' + pad(r.key, maxKey) + ' | ' + pad(r.type, maxType) + ' | ' + pad(r.note, maxNote) + ' |');
+    }
+    return lines2.join('\n');
+  }
+
+  function repeat(ch, n) {
+    var s = '';
+    for (var i = 0; i < n; i++) s += ch;
+    return s;
+  }
+
+  /* ================================================================
+     UI UPDATE
+  ================================================================ */
+
+  function getActivePanel() {
+    for (var i = 0; i < panels.length; i++) {
+      if (panels[i].id === state.activeTab) return panels[i];
+    }
+    return null;
+  }
+
+  function getCopyText() {
+    if (state.activeTab === 'panel-lint') {
+      /* Copy all issues as plain text */
+      if (!state.parsed || state.parsed.issues.length === 0) return '';
+      return state.parsed.issues.map(function(iss) {
+        return 'L' + iss.lineNum + ' [' + iss.severity.toUpperCase() + '] ' + iss.message;
+      }).join('\n');
+    }
+    if (state.activeTab === 'panel-example') {
+      return elOutputEx.textContent;
+    }
+    if (state.activeTab === 'panel-docs') {
+      return elOutputDocs.textContent;
+    }
+    return '';
+  }
+
+  function updateUI() {
+    var text = elInput.value;
+    var lines = parseEnvFile(text);
+    var lintResult = lint(lines);
+    var issues = lintResult.issues;
+    var dupeCount = lintResult.dupeCount;
+
+    /* Stats */
+    var validKeys = 0, commentCount = 0;
+    var seen2 = {};
+    for (var i = 0; i < lines.length; i++) {
+      var ln = lines[i];
+      if (ln.type === 'env') {
+        var kl = ln.key ? ln.key.toLowerCase() : '';
+        if (!seen2[kl]) { validKeys++; seen2[kl] = true; }
+      }
+      if (ln.type === 'comment') commentCount++;
+    }
+
+    elStatKeys.textContent = String(validKeys);
+    elStatComments.textContent = String(commentCount);
+
+    elStatDupes.textContent = String(dupeCount);
+    elStatDupes.className = 'stat-value' + (dupeCount > 0 ? ' has-error' : '');
+
+    var errCount = 0, warnCount = 0;
+    for (var j = 0; j < issues.length; j++) {
+      if (issues[j].severity === 'error') errCount++;
+      if (issues[j].severity === 'warning') warnCount++;
+    }
+    var isEmpty = text.trim().length === 0;
+    elStatIssues.textContent = String(issues.length);
+    elStatIssues.className = 'stat-value' + (errCount > 0 ? ' has-error' : warnCount > 0 ? ' has-warn' : (!isEmpty && issues.length === 0) ? ' all-ok' : '');
+
+    /* Store parsed state */
+    state.parsed = { lines: lines, issues: issues };
+
+    /* Lint panel */
+    if (isEmpty) {
+      elOutputLint.innerHTML = '<div class="empty">Paste a .env file, or drop a file onto the left pane.</div>';
+    } else if (issues.length === 0) {
+      elOutputLint.innerHTML = '<div class="no-issues">&#10003; No issues found</div>';
+    } else {
+      var html = '';
+      for (var k = 0; k < issues.length; k++) {
+        var iss = issues[k];
+        var sev = iss.severity;
+        html += '<div class="issue ' + sev + '">';
+        html += '<span class="issue-line">L' + iss.lineNum + '</span>';
+        html += '<span class="issue-sev">' + sev + '</span>';
+        html += '<span class="issue-msg">' + escHtml(iss.message) + '</span>';
+        html += '</div>';
+      }
+      elOutputLint.innerHTML = html;
+    }
+
+    /* Example panel */
+    if (isEmpty) {
+      elOutputEx.textContent = '(paste a .env file to generate .env.example with masked values)';
+    } else {
+      elOutputEx.textContent = generateExample(lines);
+    }
+
+    /* Docs panel */
+    if (isEmpty) {
+      elOutputDocs.textContent = '(paste a .env file to generate a markdown reference table)';
+    } else {
+      elOutputDocs.textContent = generateDocs(lines);
+    }
+
+    /* Show/hide download button — only for Example and Docs */
+    var showDownload = (state.activeTab === 'panel-example' || state.activeTab === 'panel-docs') && !isEmpty;
+    elBtnDownload.style.display = showDownload ? '' : 'none';
+  }
+
+  function escHtml(s) {
+    return s
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;');
+  }
+
+  /* ================================================================
+     EVENTS
+  ================================================================ */
+
+  /* Tab switching */
+  tabBtns.forEach(function(btn) {
+    btn.addEventListener('pointerdown', function(e) {
+      e.preventDefault();
+      var targetId = btn.getAttribute('data-panel');
+      state.activeTab = targetId;
+      tabBtns.forEach(function(b) { b.classList.toggle('active', b === btn); });
+      panels.forEach(function(p) { p.classList.toggle('active', p.id === targetId); });
+      updateUI(); /* refresh download button visibility */
+    });
+  });
+
+  /* Input debounce */
+  var debounceTimer = null;
+  elInput.addEventListener('input', function() {
+    clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(updateUI, 180);
+  });
+
+  /* Sample button */
+  elBtnSample.addEventListener('pointerdown', function(e) {
+    e.preventDefault();
+    elInput.value = SAMPLE;
+    updateUI();
+  });
+
+  /* Clear button */
+  elBtnClear.addEventListener('pointerdown', function(e) {
+    e.preventDefault();
+    elInput.value = '';
+    updateUI();
+    elInput.focus();
+  });
+
+  /* Download button — downloads current tab output as a file */
+  elBtnDownload.addEventListener('pointerdown', function(e) {
+    e.preventDefault();
+    var content, filename;
+    if (state.activeTab === 'panel-example') {
+      content = elOutputEx.textContent;
+      filename = '.env.example';
+    } else {
+      content = elOutputDocs.textContent;
+      filename = 'env-docs.md';
+    }
+    if (!content) return;
+    var blob = new Blob([content], { type: 'text/plain' });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(function() { URL.revokeObjectURL(url); }, 5000);
+  });
+
+  /* Drag-and-drop file onto textarea */
+  elInput.addEventListener('dragover', function(e) {
+    e.preventDefault();
+    elInput.style.borderColor = '#0ff';
+  });
+  elInput.addEventListener('dragleave', function() {
+    elInput.style.borderColor = '';
+  });
+  elInput.addEventListener('drop', function(e) {
+    e.preventDefault();
+    elInput.style.borderColor = '';
+    var files = e.dataTransfer && e.dataTransfer.files;
+    if (!files || files.length === 0) return;
+    var file = files[0];
+    var reader = new FileReader();
+    reader.onload = function(ev) {
+      elInput.value = ev.target.result;
+      updateUI();
+    };
+    reader.readAsText(file);
+  });
+
+  /* Copy button */
+  elBtnCopy.addEventListener('pointerdown', function(e) {
+    e.preventDefault();
+    var text = getCopyText();
+    if (!text) return;
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(function() {
+        flashCopied();
+      }).catch(function() {
+        fallbackCopy(text);
+      });
+    } else {
+      fallbackCopy(text);
+    }
+  });
+
+  function fallbackCopy(text) {
+    var ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    try { document.execCommand('copy'); } catch(e) {}
+    document.body.removeChild(ta);
+    flashCopied();
+  }
+
+  function flashCopied() {
+    elBtnCopy.textContent = 'Copied!';
+    elBtnCopy.classList.add('copied');
+    clearTimeout(state.copyTimer);
+    state.copyTimer = setTimeout(function() {
+      elBtnCopy.textContent = 'Copy';
+      elBtnCopy.classList.remove('copied');
+    }, 1500);
+  }
+
+  /* ================================================================
+     INIT
+  ================================================================ */
+  elInput.value = SAMPLE;
+  updateUI();
+
+})();
+</script>
+</body>
+</html>
