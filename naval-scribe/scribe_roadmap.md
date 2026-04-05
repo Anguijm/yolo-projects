@@ -31,6 +31,8 @@ _(queue empty — pending human approval)_
 
 - [ ] **Endorsement Chaining** — Load any saved draft, then layer 1st/2nd/Nth endorsements on top of it. The UI shows the chain: Original + each endorsement in order. Export as a single .docx with proper OOXML endorsement headers ("FIRST ENDORSEMENT ON [ORIGINATOR] [SSIC] OF [DATE]"). Rationale: the most common naval routing workflow; existing Endorsement type only creates standalone endorsements, not a chained document.
 - [ ] **Distribution / Copy-To Block** — Add a multi-entry "Copy to:" section (same pattern as Via/Ref/Encl) that renders at the bottom of the letter body in preview and .docx. Include a "Distribution" checkbox for wide distribution per SECNAVINST 5216.5D. Rationale: every real naval letter has a distribution list; currently missing from the form and export.
+- [ ] **Auto-Format Import (Paste Existing Letter)** — Paste raw text of any naval letter into an import field; a regex-based parser extracts From/To/Via/Subj/SSIC/Date/References/Body paragraphs and pre-fills the entire form. Naval letter format is rigid enough (labeled fields, numbered paragraphs) to parse reliably. Rationale: staff officers receive letters and need to draft replies — currently they must retype every field from scratch; this closes that workflow gap entirely.
+- [ ] **Command Address Book** — Persistent localStorage directory of frequently-used commands/units with formal names (e.g., "COMMANDING OFFICER, USS ENTERPRISE (CVN 65)"). Pre-seeded with ~20 common addressees (SECNAV, CNO, BUPERS, regional commands). One click populates any To/From/Via field; full CRUD (add/edit/delete custom entries). Rationale: typing formal command names correctly every time is error-prone and tedious; staff write to the same commands repeatedly.
 
 ## Recently Completed
 
@@ -74,3 +76,4 @@ _(queue empty — pending human approval)_
 | 2026-04-04 | Tock | No approved items; brainstormed 2 PENDING features: Second-Page Header Continuation, Boilerplate Paragraph Library |
 | 2026-04-04 | Tock | Implemented both approved features: Second-Page Header (preview indicator + DOCX titlePg/dual-header) and Boilerplate Library (13 templates, 4 categories, cursor-insert) |
 | 2026-04-05 | Tock | No approved items; brainstormed 2 PENDING features: Endorsement Chaining, Distribution/Copy-To Block |
+| 2026-04-05 | Tock | No approved items; brainstormed 2 PENDING features: Auto-Format Import, Command Address Book |
