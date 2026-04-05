@@ -23,20 +23,20 @@ Naval Scribe is a graduated YOLO project operating under Flagship rules alongsid
 - [x] localStorage auto-save
 - [x] Times New Roman 12pt, 1-inch margins
 
-## Approved (Next Tock)
+## Approved (Next Tock — priority order)
 
-_(queue empty — pending human approval)_
+- [ ] **Naval Instruction format** — Add "Naval Instruction" as a selectable correspondence type. Structured format per SECNAVINST 5215.1: instruction number (SSIC + serial), subject, references, enclosures, numbered sections with purpose/scope/policy/action, cancellation/review date, signature block. Preview + .docx export.
+- [ ] **Auto-Format Import (Paste Existing Letter)** — Paste raw text of any naval letter; regex parser extracts From/To/Via/Subj/SSIC/Date/References/Body and pre-fills the form.
 
-## Pending Approval
+## Approved (Remaining — one per tock)
 
-- [ ] **Endorsement Chaining** — Load any saved draft, then layer 1st/2nd/Nth endorsements on top of it. The UI shows the chain: Original + each endorsement in order. Export as a single .docx with proper OOXML endorsement headers ("FIRST ENDORSEMENT ON [ORIGINATOR] [SSIC] OF [DATE]"). Rationale: the most common naval routing workflow; existing Endorsement type only creates standalone endorsements, not a chained document.
-- [ ] **Distribution / Copy-To Block** — Add a multi-entry "Copy to:" section (same pattern as Via/Ref/Encl) that renders at the bottom of the letter body in preview and .docx. Include a "Distribution" checkbox for wide distribution per SECNAVINST 5216.5D. Rationale: every real naval letter has a distribution list; currently missing from the form and export.
-- [ ] **Auto-Format Import (Paste Existing Letter)** — Paste raw text of any naval letter into an import field; a regex-based parser extracts From/To/Via/Subj/SSIC/Date/References/Body paragraphs and pre-fills the entire form. Naval letter format is rigid enough (labeled fields, numbered paragraphs) to parse reliably. Rationale: staff officers receive letters and need to draft replies — currently they must retype every field from scratch; this closes that workflow gap entirely.
-- [ ] **Command Address Book** — Persistent localStorage directory of frequently-used commands/units with formal names (e.g., "COMMANDING OFFICER, USS ENTERPRISE (CVN 65)"). Pre-seeded with ~20 common addressees (SECNAV, CNO, BUPERS, regional commands). One click populates any To/From/Via field; full CRUD (add/edit/delete custom entries). Rationale: typing formal command names correctly every time is error-prone and tedious; staff write to the same commands repeatedly.
-- [ ] **Reply Draft Auto-Fill** — From any loaded saved draft, one click generates a pre-populated reply: From/To swapped, subject prefixed with "REPLY TO", date cleared, SSIC preserved, opening boilerplate inserted ("1. Reference (a) is acknowledged..."), original letter auto-added to references list. Closes the "receive a letter → draft a response" workflow gap with zero backend risk — pure state manipulation in JS. Rationale: staff officers spend significant time manually constructing reply templates; this collapses a multi-step process to one click.
-- [ ] **Letter Status Tracker** — Add a `status` field to each saved draft: Draft → Signed → Transmitted → Replied. Draft library shows color-coded status badge and date milestone per letter. Filter/sort library by status. Rationale: staff officers track multiple concurrent correspondence actions; no tool currently connects the draft with its routing lifecycle. Pure localStorage — zero implementation risk.
-- [ ] **Template Letter Library** — Pre-built templates for the 12 most common naval letter situations: Leave/Liberty Request, Letter of Recommendation, Endorsement Request, Award Nomination, FITREP Acknowledgement, Request Mast, Inspector General Complaint, Congressional Inquiry Response, UCMJ Notification, Training Request, Transfer Request, and Sailor of the Quarter/Year nomination. Each template pre-fills the correct correspondence type, subject line, SSIC, and boilerplate body paragraphs with `[PLACEHOLDER]` hints. One click loads the template into the full form for editing. Rationale: staff officers draft the same letter types repeatedly; starting from scratch wastes time and risks structural errors. Pure JSON data + form state manipulation — zero deps, zero implementation risk. Viability: HIGH (Gemini MCP unavailable — assessed internally).
-- [ ] **Routing Slip Generator** — Generate a standard DON routing slip alongside any letter: action officer name/position/phone, due date, priority (ROUTINE/PRIORITY/IMMEDIATE), and a configurable chain of up to 8 reviewers (name, position, signature line, date line). Renders in a preview tab and exports as a separate .docx (or optionally as a cover page prepended to the letter .docx). Rationale: virtually all naval correspondence requires a routing slip — the action package is incomplete without one. Extends the proven OOXML ZIP generation logic already in use; zero new deps. Viability: HIGH (Gemini MCP unavailable — assessed internally).
+- [ ] Endorsement Chaining — layer endorsements on saved drafts, export as single .docx
+- [ ] Distribution / Copy-To Block — multi-entry copy-to section with Distribution checkbox
+- [ ] Command Address Book — localStorage directory of commands, one-click fill To/From/Via
+- [ ] Reply Draft Auto-Fill — one click generates reply with swapped From/To, boilerplate
+- [ ] Letter Status Tracker — Draft→Signed→Transmitted→Replied per saved draft
+- [ ] Template Letter Library — 12 pre-built templates for common letter situations
+- [ ] Routing Slip Generator — DON routing slip with reviewer chain, .docx export
 
 ## Recently Completed
 
