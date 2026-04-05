@@ -1,0 +1,65 @@
+name: Daily YouTube Research (Phase 4)
+
+on:
+  schedule:
+    # 06:15 JST = 21:15 UTC
+    - cron: '15 21 * * *'
+  workflow_dispatch: # Manual trigger for testing
+
+jobs:
+  research:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: pip install anthropic
+
+      - name: Fetch YouTube RSS feeds
+        run: python3 fetch_youtube_rss.py --since $(date -d '3 days ago' +%Y-%m-%d) > /tmp/rss_scan.json
+
+      - name: Generate experiment cards
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: python3 scripts/process_experiments.py /tmp/rss_scan.json
+
+      - name: Write run report
+        run: |
+          python3 -c "
+          import json
+          from datetime import datetime, timezone
+          scan = json.load(open('/tmp/rss_scan.json'))
+          exps = json.load(open('experiments.json'))
+          backlog = len([e for e in exps if e.get('status') == 'backlog'])
+          new_added = 0
+          if open('/tmp/new_count.txt', 'r'):
+              new_added = int(open('/tmp/new_count.txt').read().strip() or '0')
+          run = {
+              'last_run_utc': datetime.now(timezone.utc).isoformat(),
+              'channels_scanned': scan.get('channels_scanned', 7),
+              'feeds_successful': scan.get('feeds_successful', 0),
+              'feeds_failed': scan.get('feeds_failed', 0),
+              'new_videos_found': len(scan.get('new_videos', [])),
+              'new_experiments_added': new_added,
+              'total_experiments': len(exps),
+              'backlog_count': backlog,
+              'status': 'success' if scan.get('feeds_successful', 0) > 0 else 'empty'
+          }
+          json.dump(run, open('phase4_run.json', 'w'), indent=2)
+          print(f'Run report: {new_added} new experiments, {backlog} backlog')
+          "
+
+      - name: Commit and push
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "cron(phase4): daily scan - automated via GitHub Actions"
+          file_pattern: 'phase4_run.json experiments.json'
