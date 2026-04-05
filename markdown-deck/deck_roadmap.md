@@ -87,6 +87,8 @@ Markdown Deck is a graduated YOLO project operating under Flagship rules: multi-
 - **Named Snapshots (Version History)** — Ctrl+Shift+S saves a named checkpoint of the deck text to localStorage (up to 20 snapshots, auto-pruned). A "History" panel (toolbar button) lists snapshots with timestamp + name label; click any to preview (word count delta shown) and restore. Protects against accidental deletion, enables experiment-and-rollback authoring. localStorage-only, zero deps.
 - **Inline Chart Blocks** — Fenced ` ```chart bar ` / `line` / `pie` blocks with CSV-style `label,value` rows render as pure inline SVG in slides (bar rects, line polylines, pie arc paths with a legend). Optional title row (`# My Chart`). PPTX export falls back to a formatted text table. Zero deps — all pure SVG math in ~200 lines JS. Differentiates Deck from text-only tools for data-driven presentations.
 - **Slide Sorter View** — `Shift+V` (or toolbar button) toggles a full-screen 4-column grid of all slide thumbnails with slide numbers; click any to jump to that slide in the editor; drag to reorder (reuses existing drag-reorder logic). Solves the thumbnail-strip limitation for large decks (30+ slides). Pure layout mode — no markdown/PPTX impact.
+- **Keyboard Shortcut Reference** — `?` key (or toolbar `?` button) opens a searchable modal listing every keyboard shortcut organized by category: Editing, Presentation, Navigation, Export. Filter by typing; Esc to close. Deck now has 25+ shortcuts with zero in-app discoverability — this closes the gap entirely. Pure HTML/CSS modal, zero deps, ~30 min scope. Makes the power-user feature set self-documenting.
+- **Handout Print Mode** — "Print Handout" option in the export menu renders slides in a printable grid (2 or 4 per page, user-selectable), with optional speaker notes below each mini-slide thumbnail. Uses @media print CSS + window.print(), the same approach as the existing PDF export button. Zero deps, no canvas, no new infrastructure. Useful for distributing physical or printed handouts after a talk.
 
 ## Approved (Next Tock)
 
@@ -167,3 +169,4 @@ These are features complex enough to prototype as standalone YOLO single-session
 | 2026-04-04 | Tock | Brainstormed 2 features (pending approval): Laser pointer & annotation mode, Per-slide talk time budget |
 | 2026-04-05 | Tock | Brainstormed 2 features (pending approval): Deck Statistics Panel, Named Snapshots (Version History) |
 | 2026-04-05 | Tock | Brainstormed 2 features (pending approval): Inline Chart Blocks, Slide Sorter View |
+| 2026-04-05 | Tock | Brainstormed 2 features (pending approval): Keyboard Shortcut Reference (?), Handout Print Mode |
