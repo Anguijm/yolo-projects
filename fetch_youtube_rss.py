@@ -15,13 +15,18 @@ from urllib.request import urlopen, Request
 from urllib.error import URLError
 
 CHANNELS = {
+    # Kept from original roster
     "@NateBJones": "UC0C-17n9iuUQPylguM1d-lQ",
     "@MLOps": "UCG6qpjVnBTTT8wLGBygANOQ",
     "@DavidOndrej": "UCPGrgwfbkjTIgPoOh2q1BAg",
     "[un]prompted": "UC5GCrYGsm7EHQzQZj65A-5w",
     "@NateHerk": "UC2ojq-nuP8ceeHqiroeKhBA",
-    "@TwoMinutePapers": "UCbfYPyITQ-7l4upoX8nvctg",
-    "@Fireship": "UCsBjURrPoezykLs9EqgamOA",
+    # Added — council-evaluated, signal 8-10/10
+    "@swyx": "UC50YKpKY_2Y86Qo4DZY3mMQ",
+    "@GregKamradt": "UC7mHKIdjuKTJVamHqR5JTRg",
+    "@AIJasonZ": "UCrXSVX9a1mj8l0CMLwKgMVw",
+    "@echohive": "UCL7przoMtZTmiQMhc9ifIww",
+    "@ShawTalebi": "UCa9gErQ9AE5jT2DZLjXBIdA",
 }
 
 RSS_URL = "https://www.youtube.com/feeds/videos.xml?channel_id={}"
