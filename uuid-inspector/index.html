@@ -1,0 +1,752 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
+  <meta name="theme-color" content="#000000">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src *">
+  <title>UUID Inspector</title>
+  <link rel="manifest" href="manifest.json">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body {
+      min-height: 100%;
+      background: #0a0a0a;
+      color: #ccc;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Courier New", monospace;
+      touch-action: manipulation;
+      -webkit-tap-highlight-color: transparent;
+      overflow-y: auto;
+    }
+    .container {
+      max-width: 480px;
+      margin: 0 auto;
+      padding: 12px;
+    }
+    header {
+      margin-bottom: 14px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid #111;
+    }
+    h1 {
+      font-size: 0.75rem;
+      font-weight: 400;
+      color: #555;
+      text-transform: uppercase;
+      letter-spacing: 0.2em;
+    }
+    .accent { color: #0ff; }
+    .subtitle {
+      font-size: 0.45rem;
+      color: #333;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      margin-top: 3px;
+    }
+
+    /* Mode buttons */
+    .mode-row {
+      display: flex;
+      gap: 6px;
+      margin-bottom: 10px;
+    }
+    .btn {
+      padding: 0 10px;
+      height: 44px;
+      min-width: 64px;
+      background: transparent;
+      border: 1px solid #1a1a1a;
+      color: #444;
+      font-family: inherit;
+      font-size: 0.55rem;
+      cursor: pointer;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .btn:active { border-color: #555; color: #888; }
+    .btn.active { border-color: #0ff; color: #0ff; }
+
+    /* Inputs */
+    #uuid-input, #bulk-input {
+      width: 100%;
+      background: #111;
+      border: 1px solid #222;
+      color: #aaa;
+      padding: 10px 8px;
+      font-family: inherit;
+      outline: none;
+      resize: none;
+    }
+    #uuid-input { font-size: 0.75rem; height: 44px; }
+    #uuid-input:focus, #bulk-input:focus { border-color: #555; }
+    #bulk-input { font-size: 0.6rem; height: 160px; }
+
+    /* Result panel */
+    .panel {
+      border: 1px solid #1a1a1a;
+      padding: 0 8px;
+      margin-bottom: 10px;
+    }
+    .panel-title {
+      font-size: 0.45rem;
+      color: #2a2a2a;
+      text-transform: uppercase;
+      letter-spacing: 0.2em;
+      padding: 5px 0 3px;
+      border-bottom: 1px solid #111;
+    }
+    .row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 5px 0;
+      border-bottom: 1px solid #111;
+      min-height: 36px;
+    }
+    .row:last-child { border-bottom: none; }
+    .row-label {
+      font-size: 0.5rem;
+      color: #444;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      min-width: 90px;
+      flex-shrink: 0;
+    }
+    .row-value {
+      font-size: 0.7rem;
+      color: #888;
+      flex: 1;
+      word-break: break-all;
+    }
+    .row-value.hi { color: #0ff; }
+
+    /* Badges */
+    .badge {
+      display: inline-block;
+      padding: 1px 5px;
+      font-size: 0.45rem;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      border: 1px solid;
+      vertical-align: middle;
+    }
+    .b-ok  { border-color: #3fb950; color: #3fb950; }
+    .b-err { border-color: #f85149; color: #f85149; }
+    .b-ver { border-color: #0ff;    color: #0ff; }
+    .b-wrn { border-color: #d29922; color: #d29922; }
+    .b-inf { border-color: #58a6ff; color: #58a6ff; }
+    .b-ns  { border-color: #f0f;    color: #f0f; }
+
+    /* Copy button (per row) */
+    .copy-btn {
+      width: 44px;
+      height: 44px;
+      background: transparent;
+      border: 1px solid #1a1a1a;
+      color: #2a2a2a;
+      font-family: inherit;
+      font-size: 0.45rem;
+      cursor: pointer;
+      flex-shrink: 0;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .copy-btn:active { border-color: #555; color: #888; }
+
+    /* Section label */
+    .section-lbl {
+      font-size: 0.45rem;
+      color: #2a2a2a;
+      text-transform: uppercase;
+      letter-spacing: 0.2em;
+      margin: 14px 0 6px;
+    }
+
+    /* Generator */
+    .gen-row {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+      margin-bottom: 10px;
+    }
+    .gen-btn {
+      height: 44px;
+      padding: 0 14px;
+      background: transparent;
+      border: 1px solid #1a1a1a;
+      color: #444;
+      font-family: inherit;
+      font-size: 0.55rem;
+      cursor: pointer;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+    }
+    .gen-btn:active { border-color: #0ff; color: #0ff; }
+
+    /* Bulk table */
+    .bulk-wrap { overflow-x: auto; }
+    .bulk-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.55rem;
+    }
+    .bulk-table th {
+      text-align: left;
+      color: #333;
+      font-size: 0.43rem;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      padding: 4px 6px;
+      border-bottom: 1px solid #1a1a1a;
+    }
+    .bulk-table td {
+      padding: 4px 6px;
+      border-bottom: 1px solid #0d0d0d;
+      color: #777;
+      word-break: break-all;
+    }
+    .bulk-table .uuid-col { color: #444; font-size: 0.5rem; }
+
+    .hidden { display: none; }
+    .empty-hint {
+      font-size: 0.55rem;
+      color: #2a2a2a;
+      text-align: center;
+      padding: 24px 0;
+    }
+    .input-area { margin-bottom: 10px; }
+
+    /* Structure bar */
+    .struct-bar {
+      font-size: 0.6rem;
+      letter-spacing: 0.04em;
+      word-break: break-all;
+      padding: 3px 0;
+    }
+    .f-tl  { color: #0ff; }
+    .f-tm  { color: #58a6ff; }
+    .f-th  { color: #3fb950; }
+    .f-cs  { color: #d29922; }
+    .f-nd  { color: #f0f; }
+    .f-rnd { color: #888; }
+    .f-ms  { color: #0ff; }
+    .f-ra  { color: #3fb950; }
+    .f-sep { color: #333; }
+    .f-ver { color: #f85149; }   /* version nibble — red */
+    .f-var { color: #d29922; }   /* variant nibble — amber */
+  </style>
+</head>
+<body>
+<div class="container">
+  <header>
+    <h1>UUID <span class="accent">Inspector</span></h1>
+    <div class="subtitle">version detection · timestamp decode · bulk mode · generator</div>
+  </header>
+
+  <div class="mode-row">
+    <button class="btn active" id="single-mode">Single</button>
+    <button class="btn" id="bulk-mode">Bulk</button>
+  </div>
+
+  <!-- Single mode -->
+  <div id="single-area">
+    <div class="input-area">
+      <input type="text" id="uuid-input" placeholder="Paste any UUID…" spellcheck="false" autocomplete="off" autocorrect="off" autocapitalize="off">
+    </div>
+    <div id="result">
+      <div class="empty-hint">Paste a UUID above to inspect it</div>
+    </div>
+  </div>
+
+  <!-- Bulk mode -->
+  <div id="bulk-area" class="hidden">
+    <div class="input-area">
+      <textarea id="bulk-input" placeholder="One UUID per line…" spellcheck="false" autocomplete="off" autocorrect="off"></textarea>
+    </div>
+    <div id="bulk-result"></div>
+  </div>
+
+  <!-- Generator -->
+  <div class="section-lbl">Generate</div>
+  <div class="gen-row">
+    <button class="gen-btn" id="gen-v1">Gen v1</button>
+    <button class="gen-btn" id="gen-v4">Gen v4</button>
+    <button class="gen-btn" id="gen-v7">Gen v7</button>
+  </div>
+</div>
+
+<script>
+'use strict';
+(function () {
+  // ── Constants ──────────────────────────────────────────────────────────────
+  var GREGORIAN_OFFSET = 122192928000000000n; // 100-ns intervals 1582-10-15 → 1970-01-01
+
+  // Well-known namespace UUIDs (RFC 4122 Appendix C)
+  var NS = {
+    '6ba7b810-9dad-11d1-80b4-00c04fd430c8': 'DNS',
+    '6ba7b811-9dad-11d1-80b4-00c04fd430c8': 'URL',
+    '6ba7b812-9dad-11d1-80b4-00c04fd430c8': 'OID',
+    '6ba7b814-9dad-11d1-80b4-00c04fd430c8': 'X.500 DN'
+  };
+
+  var UUID_RE = new RegExp('^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$', 'i');
+
+  // Version meta
+  var V_INFO = {
+    1: 'time-based (Gregorian)',
+    2: 'DCE Security',
+    3: 'name-based MD5',
+    4: 'random',
+    5: 'name-based SHA-1',
+    6: 'time-based (reordered)',
+    7: 'time-based (Unix ms)',
+    8: 'custom'
+  };
+
+  // ── DOM refs (cached at init) ──────────────────────────────────────────────
+  var elInput, elBulkInput, elResult, elBulkResult;
+  var elSingleArea, elBulkArea;
+  var elSingleMode, elBulkMode;
+  var elGenV1, elGenV4, elGenV7;
+
+  var currentUUID = null; // for copy delegation
+
+  // ── Helpers ───────────────────────────────────────────────────────────────
+  function esc(s) {
+    return String(s)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;');
+  }
+
+  function fmtDate(d) {
+    return d.toISOString().replace('T', ' ').replace('Z', ' UTC');
+  }
+
+  function relTime(ms) {
+    var diff = Date.now() - ms;
+    var abs = Math.abs(diff);
+    var future = diff < 0;
+    var s = abs / 1000;
+    var str;
+    if (s < 60)             str = Math.round(s) + 's';
+    else if (s < 3600)      str = Math.round(s / 60) + 'm';
+    else if (s < 86400)     str = Math.round(s / 3600) + 'h';
+    else if (s < 86400*365) str = Math.round(s / 86400) + 'd';
+    else                    str = (s / (86400 * 365.25)).toFixed(1) + 'y';
+    return future ? 'in ' + str : str + ' ago';
+  }
+
+  function hex2(n) { return ('00' + n.toString(16)).slice(-2); }
+
+  function formatBytes(b) {
+    var h = Array.from(b).map(hex2).join('');
+    return h.slice(0,8)+'-'+h.slice(8,12)+'-'+h.slice(12,16)+'-'+h.slice(16,20)+'-'+h.slice(20);
+  }
+
+  // ── Parser ────────────────────────────────────────────────────────────────
+  function parseUUID(uuid) {
+    var s = uuid.trim().toLowerCase();
+    if (!UUID_RE.test(s)) return { valid: false, uuid: esc(s.slice(0, 80)) };
+    var raw = s.replace(/-/g, '');
+
+    var version  = parseInt(raw[12], 16);
+    var varNib   = parseInt(raw[16], 16);
+    var variant;
+    if      (varNib < 8)  variant = 'NCS backward-compatible';
+    else if (varNib < 12) variant = 'RFC 4122';
+    else if (varNib < 14) variant = 'Microsoft COM/DCOM';
+    else                  variant = 'Reserved';
+
+    var res = { valid: true, uuid: s, raw: raw, version: version, variant: variant };
+
+    if (s === '00000000-0000-0000-0000-000000000000') res.special = 'Nil UUID';
+    if (s === 'ffffffff-ffff-ffff-ffff-ffffffffffff') res.special = 'Max UUID (RFC 9562)';
+
+    if (NS[s]) res.nsName = NS[s];
+
+    if (version === 1) decodeV1(raw, res);
+    else if (version === 7) decodeV7(raw, res);
+    else if (version === 3 || version === 5) res.hashBased = true;
+
+    return res;
+  }
+
+  function decodeV1(raw, res) {
+    // 60-bit Gregorian timestamp: time_hi(12 bits) + time_mid(16) + time_low(32)
+    var timeHi  = raw.slice(13, 16); // strip version nibble at raw[12]
+    var timeMid = raw.slice(8, 12);
+    var timeLow = raw.slice(0, 8);
+    var ts60    = BigInt('0x' + timeHi + timeMid + timeLow);
+    var unix100 = ts60 - GREGORIAN_OFFSET;
+    var unixMs  = Number(unix100 / 10000n);
+    res.timestamp    = new Date(unixMs);
+    res.timestamp_ms = unixMs;
+    res.ts_raw       = timeHi + timeMid + timeLow;
+
+    // Node field (bytes 10-15 = last 12 hex chars)
+    var node = raw.slice(20, 32);
+    res.mac       = node.match(/.{2}/g).join(':');
+    res.macRandom = (parseInt(node[0], 16) & 1) === 1;
+
+    // Clock sequence (14 bits, strip variant bits from high nibble)
+    res.clockSeq = parseInt(raw.slice(16, 20), 16) & 0x3fff;
+  }
+
+  function decodeV7(raw, res) {
+    // First 48 bits = Unix millisecond timestamp
+    var tsMs = parseInt(raw.slice(0, 12), 16);
+    res.timestamp    = new Date(tsMs);
+    res.timestamp_ms = tsMs;
+    res.ts_raw       = raw.slice(0, 12);
+    res.rand_a       = raw.slice(13, 16); // 12-bit random (rand_a)
+  }
+
+  // ── Structure bar ─────────────────────────────────────────────────────────
+  function structBar(res) {
+    var r = res.raw;
+    var h = [];
+    if (res.version === 1) {
+      // time_low | time_mid | ver+time_hi | var+clk | node
+      h.push('<span class="f-tl">'  + r.slice(0,8)   + '</span>');
+      h.push('<span class="f-sep">-</span>');
+      h.push('<span class="f-tm">'  + r.slice(8,12)  + '</span>');
+      h.push('<span class="f-sep">-</span>');
+      h.push('<span class="f-ver">' + r[12]          + '</span>');
+      h.push('<span class="f-th">'  + r.slice(13,16) + '</span>');
+      h.push('<span class="f-sep">-</span>');
+      h.push('<span class="f-var">' + r[16]          + '</span>');
+      h.push('<span class="f-cs">'  + r.slice(17,20) + '</span>');
+      h.push('<span class="f-sep">-</span>');
+      h.push('<span class="f-nd">'  + r.slice(20,32) + '</span>');
+    } else if (res.version === 7) {
+      // unix_ms | unix_ms_cont | ver+rand_a | var+rand_b
+      h.push('<span class="f-ms">'  + r.slice(0,8)   + '</span>');
+      h.push('<span class="f-sep">-</span>');
+      h.push('<span class="f-ms">'  + r.slice(8,12)  + '</span>');
+      h.push('<span class="f-sep">-</span>');
+      h.push('<span class="f-ver">' + r[12]          + '</span>');
+      h.push('<span class="f-ra">'  + r.slice(13,16) + '</span>');
+      h.push('<span class="f-sep">-</span>');
+      h.push('<span class="f-var">' + r[16]          + '</span>');
+      h.push('<span class="f-rnd">' + r.slice(17,20) + '</span>');
+      h.push('<span class="f-sep">-</span>');
+      h.push('<span class="f-rnd">' + r.slice(20,32) + '</span>');
+    } else {
+      // generic: show version nibble highlighted, rest normal
+      h.push('<span class="f-rnd">' + r.slice(0,8)   + '</span>');
+      h.push('<span class="f-sep">-</span>');
+      h.push('<span class="f-rnd">' + r.slice(8,12)  + '</span>');
+      h.push('<span class="f-sep">-</span>');
+      h.push('<span class="f-ver">' + r[12]          + '</span>');
+      h.push('<span class="f-rnd">' + r.slice(13,16) + '</span>');
+      h.push('<span class="f-sep">-</span>');
+      h.push('<span class="f-var">' + r[16]          + '</span>');
+      h.push('<span class="f-rnd">' + r.slice(17,20) + '</span>');
+      h.push('<span class="f-sep">-</span>');
+      h.push('<span class="f-rnd">' + r.slice(20,32) + '</span>');
+    }
+    var legend = '';
+    if (res.version === 1) {
+      legend = '<div style="font-size:0.42rem;color:#333;padding:2px 0 4px;display:flex;gap:8px;flex-wrap:wrap">' +
+        '<span><span class="f-tl">■</span> time_low</span>' +
+        '<span><span class="f-tm">■</span> time_mid</span>' +
+        '<span><span class="f-th">■</span> time_hi</span>' +
+        '<span><span class="f-ver">■</span> version</span>' +
+        '<span><span class="f-var">■</span> variant</span>' +
+        '<span><span class="f-cs">■</span> clock_seq</span>' +
+        '<span><span class="f-nd">■</span> node/MAC</span>' +
+        '</div>';
+    } else if (res.version === 7) {
+      legend = '<div style="font-size:0.42rem;color:#333;padding:2px 0 4px;display:flex;gap:8px;flex-wrap:wrap">' +
+        '<span><span class="f-ms">■</span> unix_ms (48 bits)</span>' +
+        '<span><span class="f-ver">■</span> version</span>' +
+        '<span><span class="f-var">■</span> variant</span>' +
+        '<span><span class="f-ra">■</span> rand_a</span>' +
+        '<span><span class="f-rnd">■</span> rand_b</span>' +
+        '</div>';
+    }
+    return '<div style="border-bottom:1px solid #111;padding-bottom:2px">' +
+      '<div class="struct-bar" style="font-size:0.65rem;padding:6px 0 3px">' + h.join('') + '</div>' +
+      legend +
+    '</div>';
+  }
+
+  // ── Render ────────────────────────────────────────────────────────────────
+  function mkRow(label, valHtml) {
+    return '<div class="row"><span class="row-label">' + label + '</span>' +
+           '<span class="row-value">' + valHtml + '</span></div>';
+  }
+
+  function renderResult(info) {
+    if (!info.valid) {
+      currentUUID = null;
+      elResult.innerHTML =
+        '<div class="panel">' +
+          mkRow('Format', '<span class="badge b-err">Invalid UUID</span>') +
+        '</div>';
+      return;
+    }
+    currentUUID = info.uuid;
+
+    var rows = [];
+    rows.push(mkRow('Format',
+      '<span class="badge b-ok">Valid</span>' +
+      (info.special ? ' <span class="badge b-wrn">' + esc(info.special) + '</span>' : '')));
+
+    rows.push(mkRow('Version',
+      '<span class="badge b-ver">v' + info.version + '</span> <span style="color:#555">' +
+      esc(V_INFO[info.version] || 'unknown') + '</span>'));
+
+    rows.push(mkRow('Variant', '<span style="color:#555">' + esc(info.variant) + '</span>'));
+
+    if (info.nsName) {
+      rows.push(mkRow('Namespace ID',
+        '<span class="badge b-ns">' + esc(info.nsName) + '</span>' +
+        '<span style="color:#444;font-size:0.5rem"> predefined namespace constant</span>'));
+    }
+
+    if (info.timestamp) {
+      rows.push(mkRow('Timestamp', '<span class="hi">' + esc(fmtDate(info.timestamp)) + '</span>'));
+      rows.push(mkRow('Relative',  '<span class="hi">' + esc(relTime(info.timestamp_ms)) + '</span>'));
+      rows.push(mkRow('Unix ms',   '<span style="color:#666">' + esc(String(info.timestamp_ms)) + '</span>'));
+    }
+
+    if (info.mac !== undefined) {
+      rows.push(mkRow('Node (MAC)',
+        esc(info.mac) +
+        ' <span class="badge ' + (info.macRandom ? 'b-wrn' : 'b-inf') + '">' +
+        (info.macRandom ? 'Random / Privacy' : 'Assigned') + '</span>'));
+      rows.push(mkRow('Clock Seq',
+        '<span style="color:#666">' + esc(String(info.clockSeq)) + '</span>'));
+    }
+
+    if (info.rand_a) {
+      rows.push(mkRow('rand_a',
+        '<span style="color:#666">' + esc(info.rand_a) + '</span>' +
+        '<span style="color:#333;font-size:0.5rem"> (12-bit random)</span>'));
+    }
+
+    if (info.hashBased) {
+      var algo = info.version === 3 ? 'MD5' : 'SHA-1';
+      rows.push(mkRow('Hash algo',
+        '<span style="color:#555">' + algo + ' · namespace + name are NOT recoverable</span>'));
+    }
+
+    rows.push(mkRow('Raw hex',
+      '<span style="color:#333;font-size:0.6rem;word-break:break-all">' + esc(info.raw) + '</span>'));
+
+    elResult.innerHTML =
+      '<div class="panel">' +
+        '<div class="panel-title">analysis</div>' +
+        structBar(info) +
+        rows.join('') +
+        '<div class="row">' +
+          '<span class="row-label"></span>' +
+          '<button class="copy-btn" id="copy-uuid-btn">Copy</button>' +
+          '<button class="copy-btn" id="share-uuid-btn" style="margin-left:4px">Share</button>' +
+        '</div>' +
+      '</div>';
+  }
+
+  // ── Bulk ──────────────────────────────────────────────────────────────────
+  function renderBulk() {
+    var lines = elBulkInput.value.split('\n');
+    var uuids = [];
+    for (var i = 0; i < lines.length; i++) {
+      var t = lines[i].trim();
+      if (t) uuids.push(t);
+    }
+    if (uuids.length === 0) { elBulkResult.innerHTML = ''; return; }
+    uuids = uuids.slice(0, 500); // cap at 500
+
+    var tbody = '';
+    for (var j = 0; j < uuids.length; j++) {
+      var info = parseUUID(uuids[j]);
+      var vBadge = info.valid
+        ? '<span class="badge b-ver" style="font-size:0.42rem">v' + info.version + '</span>'
+        : '<span class="badge b-err" style="font-size:0.42rem">inv</span>';
+      var ts   = info.timestamp ? fmtDate(info.timestamp) : '';
+      var notes = [];
+      if (info.mac)      notes.push('MAC: ' + info.mac + (info.macRandom ? ' (rand)' : ''));
+      if (info.hashBased) notes.push(info.version === 3 ? 'MD5' : 'SHA-1');
+      if (info.special)  notes.push(info.special);
+      if (info.nsName)   notes.push('NS: ' + info.nsName);
+
+      tbody +=
+        '<tr>' +
+          '<td class="uuid-col">' + esc(info.uuid) + '</td>' +
+          '<td>' + vBadge + '</td>' +
+          '<td style="color:#555;font-size:0.48rem;white-space:nowrap">' + esc(ts) + '</td>' +
+          '<td style="color:#444;font-size:0.45rem">' + esc(notes.join(' · ')) + '</td>' +
+        '</tr>';
+    }
+
+    elBulkResult.innerHTML =
+      '<div class="panel" style="padding:0 8px">' +
+        '<div class="panel-title">' + uuids.length + ' uuid' + (uuids.length > 1 ? 's' : '') + '</div>' +
+        '<div class="bulk-wrap">' +
+          '<table class="bulk-table">' +
+            '<thead><tr>' +
+              '<th>UUID</th><th>Ver</th><th>Timestamp</th><th>Notes</th>' +
+            '</tr></thead>' +
+            '<tbody>' + tbody + '</tbody>' +
+          '</table>' +
+        '</div>' +
+      '</div>';
+  }
+
+  // ── Generators ────────────────────────────────────────────────────────────
+  function genV4() {
+    if (crypto && crypto.randomUUID) return crypto.randomUUID();
+    var b = new Uint8Array(16);
+    crypto.getRandomValues(b);
+    b[6] = (b[6] & 0x0f) | 0x40;
+    b[8] = (b[8] & 0x3f) | 0x80;
+    return formatBytes(b);
+  }
+
+  function genV7() {
+    var b = new Uint8Array(16);
+    crypto.getRandomValues(b);
+    var ms = BigInt(Date.now());
+    b[0] = Number((ms >> 40n) & 0xffn);
+    b[1] = Number((ms >> 32n) & 0xffn);
+    b[2] = Number((ms >> 24n) & 0xffn);
+    b[3] = Number((ms >> 16n) & 0xffn);
+    b[4] = Number((ms >>  8n) & 0xffn);
+    b[5] = Number( ms        & 0xffn);
+    b[6] = (b[6] & 0x0f) | 0x70; // version 7
+    b[8] = (b[8] & 0x3f) | 0x80; // RFC 4122 variant
+    return formatBytes(b);
+  }
+
+  function genV1() {
+    var ms     = BigInt(Date.now());
+    var ts100n = ms * 10000n + GREGORIAN_OFFSET;
+    var tLow   = ts100n         & 0xffffffffn;
+    var tMid   = (ts100n >> 32n) & 0xffffn;
+    var tHi    = (ts100n >> 48n) & 0x0fffn;
+
+    var b = new Uint8Array(16);
+    crypto.getRandomValues(b);
+    b[0]  = Number((tLow >> 24n) & 0xffn);
+    b[1]  = Number((tLow >> 16n) & 0xffn);
+    b[2]  = Number((tLow >>  8n) & 0xffn);
+    b[3]  = Number( tLow         & 0xffn);
+    b[4]  = Number((tMid >>  8n) & 0xffn);
+    b[5]  = Number( tMid         & 0xffn);
+    b[6]  = Number((tHi  >>  8n) & 0x0fn) | 0x10; // version 1
+    b[7]  = Number( tHi          & 0xffn);
+    b[8]  = (b[8] & 0x3f) | 0x80;  // RFC 4122 variant
+    b[10] = b[10] | 0x01;           // multicast bit = synthetic node
+    return formatBytes(b);
+  }
+
+  // ── Load UUID into single inspector ───────────────────────────────────────
+  function loadUUID(uuid) {
+    elSingleArea.classList.remove('hidden');
+    elBulkArea.classList.add('hidden');
+    elSingleMode.classList.add('active');
+    elBulkMode.classList.remove('active');
+    elInput.value = uuid;
+    renderResult(parseUUID(uuid));
+  }
+
+  // ── Init ──────────────────────────────────────────────────────────────────
+  function init() {
+    elInput      = document.getElementById('uuid-input');
+    elBulkInput  = document.getElementById('bulk-input');
+    elResult     = document.getElementById('result');
+    elBulkResult = document.getElementById('bulk-result');
+    elSingleArea = document.getElementById('single-area');
+    elBulkArea   = document.getElementById('bulk-area');
+    elSingleMode = document.getElementById('single-mode');
+    elBulkMode   = document.getElementById('bulk-mode');
+    elGenV1      = document.getElementById('gen-v1');
+    elGenV4      = document.getElementById('gen-v4');
+    elGenV7      = document.getElementById('gen-v7');
+
+    // Single input
+    elInput.addEventListener('input', function () {
+      var val = elInput.value.trim();
+      if (!val) {
+        currentUUID = null;
+        elResult.innerHTML = '<div class="empty-hint">Paste a UUID above to inspect it</div>';
+        return;
+      }
+      renderResult(parseUUID(val));
+    });
+
+    // Bulk input
+    elBulkInput.addEventListener('input', renderBulk);
+
+    // Mode toggle
+    elSingleMode.addEventListener('click', function () {
+      elSingleArea.classList.remove('hidden');
+      elBulkArea.classList.add('hidden');
+      elSingleMode.classList.add('active');
+      elBulkMode.classList.remove('active');
+    });
+    elBulkMode.addEventListener('click', function () {
+      elBulkArea.classList.remove('hidden');
+      elSingleArea.classList.add('hidden');
+      elBulkMode.classList.add('active');
+      elSingleMode.classList.remove('active');
+    });
+
+    // Copy + Share (delegated on result container)
+    var copyTid = null;
+    var shareTid = null;
+    elResult.addEventListener('click', function (e) {
+      var btn = e.target;
+      if (!btn || !currentUUID) return;
+      if (btn.id === 'copy-uuid-btn') {
+        navigator.clipboard.writeText(currentUUID).then(function () {
+          btn.textContent = 'OK';
+          if (copyTid !== null) clearTimeout(copyTid);
+          copyTid = setTimeout(function () { btn.textContent = 'Copy'; copyTid = null; }, 1500);
+        });
+      } else if (btn.id === 'share-uuid-btn') {
+        location.hash = encodeURIComponent(currentUUID);
+        navigator.clipboard.writeText(location.href).then(function () {
+          btn.textContent = 'OK';
+          if (shareTid !== null) clearTimeout(shareTid);
+          shareTid = setTimeout(function () { btn.textContent = 'Share'; shareTid = null; }, 1500);
+        });
+      }
+    });
+
+    // Generators
+    elGenV1.addEventListener('click', function () { loadUUID(genV1()); });
+    elGenV4.addEventListener('click', function () { loadUUID(genV4()); });
+    elGenV7.addEventListener('click', function () { loadUUID(genV7()); });
+
+    // URL hash pre-load (shareable links)
+    if (location.hash && location.hash.length > 1) {
+      var hval = '';
+      try { hval = decodeURIComponent(location.hash.slice(1)); } catch (e) { hval = ''; }
+      if (UUID_RE.test(hval)) {
+        elInput.value = hval;
+        renderResult(parseUUID(hval));
+      }
+    }
+  }
+
+  document.addEventListener('DOMContentLoaded', init);
+}());
+</script>
+<script>
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', function () {
+      navigator.serviceWorker.register('./sw.js');
+    });
+  }
+</script>
+</body>
+</html>
