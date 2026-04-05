@@ -1,0 +1,898 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="theme-color" content="#000000">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src *">
+<title>Unix TS</title>
+<link rel="manifest" href="manifest.json">
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body {
+  height: 100%;
+  background: #0a0a0a;
+  color: #ccc;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Courier New", monospace;
+  overflow-y: auto;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+:root {
+  --accent: #0ff;
+  --bg-surface: #111;
+  --bg-elevated: #1a1a1a;
+  --border-default: #1a1a1a;
+  --border-active: #444;
+  --border-focus: #555;
+  --text-primary: #fff;
+  --text-body: #ccc;
+  --text-secondary: #aaa;
+  --text-tertiary: #555;
+  --text-label: #444;
+  --color-success: #3fb950;
+  --color-warning: #d29922;
+  --color-error: #f85149;
+  --color-info: #58a6ff;
+}
+
+.container {
+  max-width: 480px;
+  margin: 0 auto;
+  padding: 12px;
+}
+
+/* HEADER */
+.header {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+.header h1 {
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.2em;
+  color: var(--text-primary);
+}
+.header .subtitle {
+  font-size: 0.5rem;
+  color: var(--text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
+}
+
+/* TABS */
+.tabs {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 12px;
+}
+.tab-btn {
+  flex: 1;
+  padding: 6px 0;
+  background: transparent;
+  border: 1px solid var(--border-default);
+  color: var(--text-label);
+  font-family: inherit;
+  font-size: 0.55rem;
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
+  cursor: pointer;
+  transition: none;
+}
+.tab-btn.active {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+/* PANELS */
+.tab-panel { display: none; }
+.tab-panel.active { display: block; }
+
+/* INPUT AREA */
+.input-wrap {
+  position: relative;
+  margin-bottom: 8px;
+}
+.ts-input {
+  width: 100%;
+  background: var(--bg-surface);
+  border: 1px solid #222;
+  color: var(--text-primary);
+  padding: 10px 8px;
+  font-family: inherit;
+  font-size: 1rem;
+  outline: none;
+  letter-spacing: 0.05em;
+  -webkit-appearance: none;
+}
+.ts-input:focus { border-color: var(--border-focus); }
+.ts-input::placeholder { color: #333; font-size: 0.75rem; }
+
+.detect-badge {
+  display: inline-block;
+  font-size: 0.45rem;
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
+  padding: 2px 6px;
+  border: 1px solid transparent;
+  margin-bottom: 8px;
+  min-height: 18px;
+}
+.detect-badge.sec  { border-color: #3fb950; color: #3fb950; }
+.detect-badge.ms   { border-color: var(--color-info); color: var(--color-info); }
+.detect-badge.err  { border-color: var(--color-error); color: var(--color-error); }
+.detect-badge.idle { color: #333; border-color: #1a1a1a; }
+
+/* RESULTS */
+.results {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.result-row {
+  display: flex;
+  align-items: stretch;
+  border: 1px solid var(--border-default);
+  min-height: 44px;
+}
+.result-row:hover { border-color: #2a2a2a; }
+
+.result-label {
+  width: 80px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  padding: 6px 8px;
+  font-size: 0.45rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--text-label);
+  border-right: 1px solid var(--border-default);
+}
+
+.result-value {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  padding: 6px 8px;
+  font-size: 0.7rem;
+  color: var(--text-primary);
+  word-break: break-all;
+  min-width: 0;
+}
+.result-value.empty { color: #333; }
+
+.copy-btn {
+  width: 44px;
+  flex-shrink: 0;
+  background: transparent;
+  border: none;
+  border-left: 1px solid var(--border-default);
+  color: var(--text-label);
+  font-family: inherit;
+  font-size: 0.45rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: 0;
+}
+.copy-btn:active { color: var(--accent); border-left-color: var(--border-active); }
+.copy-btn.copied { color: var(--color-success); }
+
+/* RELATIVE ROW special */
+.relative-value {
+  color: var(--accent);
+  font-size: 0.65rem;
+}
+
+/* QUICK PRESETS */
+.presets {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+  margin-top: 8px;
+}
+.preset-btn {
+  padding: 4px 8px;
+  background: transparent;
+  border: 1px solid var(--border-default);
+  color: var(--text-label);
+  font-family: inherit;
+  font-size: 0.45rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  cursor: pointer;
+  min-height: 36px;
+}
+.preset-btn:active { border-color: var(--border-active); color: var(--text-secondary); }
+
+/* REVERSE TAB */
+.rev-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.rev-label {
+  font-size: 0.45rem;
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
+  color: var(--text-label);
+  margin-bottom: 4px;
+}
+.datetime-input {
+  width: 100%;
+  background: var(--bg-surface);
+  border: 1px solid #222;
+  color: var(--text-primary);
+  padding: 10px 8px;
+  font-family: inherit;
+  font-size: 0.75rem;
+  outline: none;
+  -webkit-appearance: none;
+  color-scheme: dark;
+}
+.datetime-input:focus { border-color: var(--border-focus); }
+
+.rev-tz-row {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+.tz-btn {
+  flex: 1;
+  padding: 6px 4px;
+  background: transparent;
+  border: 1px solid var(--border-default);
+  color: var(--text-label);
+  font-family: inherit;
+  font-size: 0.45rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  cursor: pointer;
+  min-height: 36px;
+  text-align: center;
+}
+.tz-btn.active { border-color: var(--accent); color: var(--accent); }
+
+.epoch-out {
+  border: 1px solid var(--border-default);
+}
+.epoch-row {
+  display: flex;
+  align-items: stretch;
+  min-height: 44px;
+  border-bottom: 1px solid var(--border-default);
+}
+.epoch-row:last-child { border-bottom: none; }
+.epoch-lbl {
+  width: 60px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  padding: 6px 8px;
+  font-size: 0.45rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--text-label);
+  border-right: 1px solid var(--border-default);
+}
+.epoch-val {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  padding: 6px 8px;
+  font-size: 0.85rem;
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+}
+.epoch-val.empty { color: #333; font-size: 0.65rem; }
+.epoch-copy {
+  width: 44px;
+  flex-shrink: 0;
+  background: transparent;
+  border: none;
+  border-left: 1px solid var(--border-default);
+  color: var(--text-label);
+  font-family: inherit;
+  font-size: 0.45rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: 0;
+}
+.epoch-copy:active { color: var(--accent); }
+.epoch-copy.copied { color: var(--color-success); }
+
+/* NOW button */
+.now-btn {
+  width: 100%;
+  padding: 8px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-default);
+  color: var(--text-secondary);
+  font-family: inherit;
+  font-size: 0.55rem;
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
+  cursor: pointer;
+  min-height: 36px;
+}
+.now-btn:active { border-color: var(--border-active); color: var(--accent); }
+
+/* TOAST */
+.toast {
+  position: fixed;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%) translateY(60px);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-active);
+  color: var(--text-secondary);
+  font-size: 0.5rem;
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
+  padding: 6px 14px;
+  pointer-events: none;
+  opacity: 0;
+  transition: transform 0.15s ease, opacity 0.15s ease;
+  border-radius: 2px;
+  z-index: 100;
+}
+.toast.show {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
+/* Separator line */
+.sep {
+  border: none;
+  border-top: 1px solid var(--border-default);
+  margin: 10px 0;
+}
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="header">
+    <h1>Unix TS</h1>
+    <span class="subtitle">Timestamp Debugger</span>
+  </div>
+
+  <div class="tabs">
+    <button class="tab-btn active" id="tab-fwd" onclick="switchTab('fwd')">Forward</button>
+    <button class="tab-btn" id="tab-rev" onclick="switchTab('rev')">Reverse</button>
+  </div>
+
+  <!-- FORWARD TAB -->
+  <div class="tab-panel active" id="panel-fwd">
+    <div class="input-wrap">
+      <input class="ts-input" id="ts-input" type="text"
+             placeholder="Paste timestamp: 1712345678 or 1712345678000"
+             autocomplete="off" autocorrect="off" spellcheck="false"
+             oninput="onTsInput()" onkeydown="onTsKey(event)">
+    </div>
+    <div class="detect-badge idle" id="detect-badge">— paste a timestamp —</div>
+
+    <div class="results" id="results">
+      <div class="result-row" id="row-iso">
+        <div class="result-label">ISO 8601</div>
+        <div class="result-value empty" id="val-iso">—</div>
+        <button class="copy-btn" id="copy-iso" onclick="copyRow('iso')" aria-label="Copy">⎘</button>
+      </div>
+      <div class="result-row" id="row-utc">
+        <div class="result-label">UTC</div>
+        <div class="result-value empty" id="val-utc">—</div>
+        <button class="copy-btn" id="copy-utc" onclick="copyRow('utc')" aria-label="Copy">⎘</button>
+      </div>
+      <div class="result-row" id="row-local">
+        <div class="result-label">Local</div>
+        <div class="result-value empty" id="val-local">—</div>
+        <button class="copy-btn" id="copy-local" onclick="copyRow('local')" aria-label="Copy">⎘</button>
+      </div>
+      <div class="result-row" id="row-rfc">
+        <div class="result-label">RFC 2822</div>
+        <div class="result-value empty" id="val-rfc">—</div>
+        <button class="copy-btn" id="copy-rfc" onclick="copyRow('rfc')" aria-label="Copy">⎘</button>
+      </div>
+      <div class="result-row" id="row-sql">
+        <div class="result-label">SQL</div>
+        <div class="result-value empty" id="val-sql">—</div>
+        <button class="copy-btn" id="copy-sql" onclick="copyRow('sql')" aria-label="Copy">⎘</button>
+      </div>
+      <div class="result-row" id="row-rel">
+        <div class="result-label">Relative</div>
+        <div class="result-value empty relative-value" id="val-rel">—</div>
+        <button class="copy-btn" id="copy-rel" onclick="copyRow('rel')" aria-label="Copy">⎘</button>
+      </div>
+      <div class="result-row" id="row-epoch">
+        <div class="result-label">Epoch (s)</div>
+        <div class="result-value empty" id="val-epoch">—</div>
+        <button class="copy-btn" id="copy-epoch" onclick="copyRow('epoch')" aria-label="Copy">⎘</button>
+      </div>
+      <div class="result-row" id="row-epochms">
+        <div class="result-label">Epoch (ms)</div>
+        <div class="result-value empty" id="val-epochms">—</div>
+        <button class="copy-btn" id="copy-epochms" onclick="copyRow('epochms')" aria-label="Copy">⎘</button>
+      </div>
+    </div>
+
+    <hr class="sep">
+    <div class="presets">
+      <button class="preset-btn" onclick="loadPreset('now')">Now</button>
+      <button class="preset-btn" onclick="loadPreset('y2k')">Y2K</button>
+      <button class="preset-btn" onclick="loadPreset('unix0')">Epoch 0</button>
+      <button class="preset-btn" onclick="loadPreset('y2038')">Y2038</button>
+      <button class="preset-btn" onclick="loadPreset('now-ms')">Now (ms)</button>
+    </div>
+  </div>
+
+  <!-- REVERSE TAB -->
+  <div class="tab-panel" id="panel-rev">
+    <div class="rev-section">
+      <div>
+        <div class="rev-label">Date &amp; Time</div>
+        <input class="datetime-input" id="dt-input" type="datetime-local"
+               oninput="onDtInput()" step="1">
+      </div>
+
+      <div>
+        <div class="rev-label">Interpret as</div>
+        <div class="rev-tz-row">
+          <button class="tz-btn active" id="tz-utc" onclick="setTzMode('utc')">UTC</button>
+          <button class="tz-btn" id="tz-local" onclick="setTzMode('local')">Local</button>
+        </div>
+      </div>
+
+      <button class="now-btn" onclick="setRevNow()">Set to Now</button>
+
+      <div class="epoch-out" id="epoch-out">
+        <div class="epoch-row">
+          <div class="epoch-lbl">Seconds</div>
+          <div class="epoch-val empty" id="rev-sec">—</div>
+          <button class="epoch-copy" id="revcopy-sec" onclick="copyEpoch('sec')" aria-label="Copy">⎘</button>
+        </div>
+        <div class="epoch-row">
+          <div class="epoch-lbl">Millisec</div>
+          <div class="epoch-val empty" id="rev-ms">—</div>
+          <button class="epoch-copy" id="revcopy-ms" onclick="copyEpoch('ms')" aria-label="Copy">⎘</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast">Copied</div>
+
+<script>
+// ── State ──────────────────────────────────────────────────────────────────
+var elTsInput     = null;
+var elDetectBadge = null;
+var elValIso      = null;
+var elValUtc      = null;
+var elValLocal    = null;
+var elValRfc      = null;
+var elValSql      = null;
+var elValRel      = null;
+var elValEpoch    = null;
+var elValEpochms  = null;
+var elDtInput     = null;
+var elRevSec      = null;
+var elRevMs       = null;
+var elTzUtcBtn    = null;
+var elTzLocalBtn  = null;
+var elToast       = null;
+var elTabFwd      = null;
+var elTabRev      = null;
+var elPanelFwd    = null;
+var elPanelRev    = null;
+
+// Cached map: key → value element (for setValue/clearValue/copyRow)
+var valElMap = {};
+
+var currentMs      = null;  // parsed epoch ms, null if invalid
+var revTzMode      = 'utc'; // 'utc' | 'local'
+var relTimerId     = null;
+var copyTimers     = {};     // key → timeout ID
+
+// ── Init ───────────────────────────────────────────────────────────────────
+function init() {
+  elTsInput     = document.getElementById('ts-input');
+  elDetectBadge = document.getElementById('detect-badge');
+  elValIso      = document.getElementById('val-iso');
+  elValUtc      = document.getElementById('val-utc');
+  elValLocal    = document.getElementById('val-local');
+  elValRfc      = document.getElementById('val-rfc');
+  elValSql      = document.getElementById('val-sql');
+  elValRel      = document.getElementById('val-rel');
+  elValEpoch    = document.getElementById('val-epoch');
+  elValEpochms  = document.getElementById('val-epochms');
+  elDtInput     = document.getElementById('dt-input');
+  elRevSec      = document.getElementById('rev-sec');
+  elRevMs       = document.getElementById('rev-ms');
+  elTzUtcBtn    = document.getElementById('tz-utc');
+  elTzLocalBtn  = document.getElementById('tz-local');
+  elToast       = document.getElementById('toast');
+  elTabFwd      = document.getElementById('tab-fwd');
+  elTabRev      = document.getElementById('tab-rev');
+  elPanelFwd    = document.getElementById('panel-fwd');
+  elPanelRev    = document.getElementById('panel-rev');
+
+  // Build val element cache — avoids getElementById in render/copy paths
+  var valKeys = ['iso','utc','local','rfc','sql','rel','epoch','epochms'];
+  for (var i = 0; i < valKeys.length; i++) {
+    valElMap[valKeys[i]] = document.getElementById('val-' + valKeys[i]);
+  }
+  // Cache copy button elements
+  for (var j = 0; j < valKeys.length; j++) {
+    valElMap['copy-' + valKeys[j]] = document.getElementById('copy-' + valKeys[j]);
+  }
+  valElMap['revcopy-sec'] = document.getElementById('revcopy-sec');
+  valElMap['revcopy-ms']  = document.getElementById('revcopy-ms');
+
+  // Pre-seed reverse tab with "now"
+  setRevNow();
+
+  // Start relative-time ticker (clear any prior interval)
+  if (relTimerId !== null) clearInterval(relTimerId);
+  relTimerId = setInterval(tickRelative, 1000);
+}
+
+// ── Tab switching ──────────────────────────────────────────────────────────
+function switchTab(tab) {
+  if (tab === 'fwd') {
+    elTabFwd.classList.add('active');
+    elTabRev.classList.remove('active');
+    elPanelFwd.classList.add('active');
+    elPanelRev.classList.remove('active');
+  } else {
+    elTabRev.classList.add('active');
+    elTabFwd.classList.remove('active');
+    elPanelRev.classList.add('active');
+    elPanelFwd.classList.remove('active');
+  }
+}
+
+// ── FORWARD: parse input ───────────────────────────────────────────────────
+function onTsInput() {
+  var raw = elTsInput.value.trim();
+  if (raw === '') {
+    clearForward();
+    return;
+  }
+  parseAndDisplay(raw);
+}
+
+function onTsKey(e) {
+  if (e.key === 'Enter') {
+    onTsInput();
+    elTsInput.blur();
+  }
+  // Allow only digits, minus, whitespace, backspace, delete, arrows
+}
+
+function parseAndDisplay(raw) {
+  // Strip commas and spaces (e.g. "1,712,345,678")
+  var cleaned = raw.replace(/[,\s]/g, '');
+  var n = Number(cleaned);
+
+  if (!cleaned || isNaN(n) || !isFinite(n)) {
+    setDetectBadge('err', 'Invalid timestamp');
+    clearForwardValues();
+    currentMs = null;
+    return;
+  }
+
+  // Auto-detect: if > 1e12 treat as milliseconds
+  var isMs = Math.abs(n) > 1e12;
+  var epochMs = isMs ? n : n * 1000;
+
+  var d = new Date(epochMs);
+  if (isNaN(d.getTime())) {
+    setDetectBadge('err', 'Out of range');
+    clearForwardValues();
+    currentMs = null;
+    return;
+  }
+
+  currentMs = epochMs;
+
+  if (isMs) {
+    setDetectBadge('ms', 'Detected: milliseconds');
+  } else {
+    setDetectBadge('sec', 'Detected: seconds');
+  }
+
+  renderForward(d, epochMs);
+}
+
+function renderForward(d, epochMs) {
+  var epochS = Math.floor(epochMs / 1000);
+
+  // ISO 8601
+  setValue('iso', d.toISOString());
+
+  // UTC full string
+  setValue('utc', formatUTC(d));
+
+  // Local
+  setValue('local', formatLocal(d));
+
+  // RFC 2822
+  setValue('rfc', d.toUTCString());
+
+  // SQL DATETIME (UTC)
+  setValue('sql', formatSQL(d));
+
+  // Relative
+  setValue('rel', relativeTime(epochMs));
+  elValRel.classList.remove('empty');
+  elValRel.classList.add('relative-value');
+
+  // Epoch seconds
+  setValue('epoch', String(epochS));
+
+  // Epoch ms
+  setValue('epochms', String(epochMs));
+}
+
+function tickRelative() {
+  if (currentMs === null) return;
+  elValRel.textContent = relativeTime(currentMs);
+}
+
+function clearForward() {
+  setDetectBadge('idle', '— paste a timestamp —');
+  clearForwardValues();
+  currentMs = null;
+}
+
+function clearForwardValues() {
+  var keys = ['iso','utc','local','rfc','sql','rel','epoch','epochms'];
+  for (var i = 0; i < keys.length; i++) {
+    clearValue(keys[i]);
+  }
+}
+
+function setValue(key, text) {
+  var el = valElMap[key];
+  if (!el) return;
+  el.textContent = text;
+  el.classList.remove('empty');
+}
+
+function clearValue(key) {
+  var el = valElMap[key];
+  if (!el) return;
+  el.textContent = '—';
+  el.classList.add('empty');
+}
+
+// ── Formatting helpers ─────────────────────────────────────────────────────
+function pad2(n) { return n < 10 ? '0' + n : String(n); }
+function pad3(n) { return n < 100 ? (n < 10 ? '00' + n : '0' + n) : String(n); }
+
+function formatUTC(d) {
+  return d.getUTCFullYear() + '-' + pad2(d.getUTCMonth() + 1) + '-' + pad2(d.getUTCDate())
+       + ' ' + pad2(d.getUTCHours()) + ':' + pad2(d.getUTCMinutes()) + ':' + pad2(d.getUTCSeconds())
+       + ' UTC';
+}
+
+function formatLocal(d) {
+  var tzName = '';
+  try {
+    tzName = Intl.DateTimeFormat().resolvedOptions().timeZone || '';
+  } catch(e) { tzName = ''; }
+  var suffix = tzName ? ' (' + tzName + ')' : ' (local)';
+  return d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate())
+       + ' ' + pad2(d.getHours()) + ':' + pad2(d.getMinutes()) + ':' + pad2(d.getSeconds())
+       + suffix;
+}
+
+function formatSQL(d) {
+  return d.getUTCFullYear() + '-' + pad2(d.getUTCMonth() + 1) + '-' + pad2(d.getUTCDate())
+       + ' ' + pad2(d.getUTCHours()) + ':' + pad2(d.getUTCMinutes()) + ':' + pad2(d.getUTCSeconds());
+}
+
+function relativeTime(epochMs) {
+  var diff = Date.now() - epochMs;
+  var abs  = Math.abs(diff);
+  var future = diff < 0;
+  var s = Math.floor(abs / 1000);
+  var m = Math.floor(s / 60);
+  var h = Math.floor(m / 60);
+  var day = Math.floor(h / 24);
+  var yr  = Math.floor(day / 365);
+  var mo  = Math.floor(day / 30);
+
+  var str;
+  if (s < 5)       str = 'just now';
+  else if (s < 60) str = s + ' sec';
+  else if (m < 60) str = m + ' min';
+  else if (h < 24) str = h + ' hr' + (h === 1 ? '' : 's');
+  else if (day < 30)  str = day + ' day' + (day === 1 ? '' : 's');
+  else if (day < 365) str = mo  + ' mo'  + (mo  === 1 ? '' : 's');
+  else                str = yr  + ' yr'  + (yr  === 1 ? '' : 's');
+
+  if (str === 'just now') return str;
+  return future ? 'in ' + str : str + ' ago';
+}
+
+// ── Detect badge ───────────────────────────────────────────────────────────
+function setDetectBadge(type, text) {
+  elDetectBadge.classList.remove('sec', 'ms', 'err', 'idle');
+  elDetectBadge.classList.add(type);
+  elDetectBadge.textContent = text;
+}
+
+// ── Copy buttons ───────────────────────────────────────────────────────────
+function copyRow(key) {
+  var el = valElMap[key];
+  if (!el || el.classList.contains('empty')) return;
+  doCopy(el.textContent, 'copy-' + key);
+}
+
+function doCopy(text, btnId) {
+  if (!navigator.clipboard) {
+    legacyCopy(text);
+  } else {
+    navigator.clipboard.writeText(text).catch(function() { legacyCopy(text); });
+  }
+  flashCopyBtn(btnId);
+  showToast('Copied');
+}
+
+function legacyCopy(text) {
+  var ta = document.createElement('textarea');
+  ta.value = text;
+  ta.style.position = 'fixed';
+  ta.style.opacity = '0';
+  document.body.appendChild(ta);
+  ta.select();
+  document.execCommand('copy');
+  document.body.removeChild(ta);
+}
+
+function flashCopyBtn(btnId) {
+  var btn = valElMap[btnId];
+  if (!btn) return;
+  btn.classList.add('copied');
+  btn.textContent = '✓';
+  if (copyTimers[btnId] !== undefined) clearTimeout(copyTimers[btnId]);
+  copyTimers[btnId] = setTimeout(function() {
+    btn.classList.remove('copied');
+    btn.textContent = '⎘';
+    copyTimers[btnId] = undefined;
+  }, 1500);
+}
+
+var toastTimer = null;
+function showToast(msg) {
+  elToast.textContent = msg;
+  elToast.classList.add('show');
+  if (toastTimer !== null) clearTimeout(toastTimer);
+  toastTimer = setTimeout(function() {
+    elToast.classList.remove('show');
+    toastTimer = null;
+  }, 1400);
+}
+
+// ── Presets ────────────────────────────────────────────────────────────────
+function loadPreset(name) {
+  var ts;
+  if (name === 'now') {
+    ts = String(Math.floor(Date.now() / 1000));
+  } else if (name === 'now-ms') {
+    ts = String(Date.now());
+  } else if (name === 'y2k') {
+    ts = '946684800';
+  } else if (name === 'unix0') {
+    ts = '0';
+  } else if (name === 'y2038') {
+    ts = '2147483647';
+  } else {
+    return;
+  }
+  elTsInput.value = ts;
+  parseAndDisplay(ts);
+}
+
+// ── REVERSE TAB ───────────────────────────────────────────────────────────
+function setTzMode(mode) {
+  revTzMode = mode;
+  if (mode === 'utc') {
+    elTzUtcBtn.classList.add('active');
+    elTzLocalBtn.classList.remove('active');
+  } else {
+    elTzLocalBtn.classList.add('active');
+    elTzUtcBtn.classList.remove('active');
+  }
+  onDtInput();
+}
+
+function setRevNow() {
+  var now = new Date();
+  elDtInput.value = localDatetimeValue(now);
+  onDtInput();
+}
+
+function localDatetimeValue(d) {
+  // Returns a string suitable for datetime-local input (local time)
+  return d.getFullYear() + '-'
+    + pad2(d.getMonth() + 1) + '-'
+    + pad2(d.getDate()) + 'T'
+    + pad2(d.getHours()) + ':'
+    + pad2(d.getMinutes()) + ':'
+    + pad2(d.getSeconds());
+}
+
+function onDtInput() {
+  var val = elDtInput.value;
+  if (!val) {
+    elRevSec.textContent = '—';
+    elRevSec.classList.add('empty');
+    elRevMs.textContent = '—';
+    elRevMs.classList.add('empty');
+    return;
+  }
+
+  var epochMs;
+  if (revTzMode === 'utc') {
+    // datetime-local yields "YYYY-MM-DDTHH:MM" or "YYYY-MM-DDTHH:MM:SS" (with step=1)
+    var tIdx = val.indexOf('T');
+    var timePart = tIdx >= 0 ? val.slice(tIdx + 1) : '';
+    var colonCount = (timePart.match(/:/g) || []).length;
+    if (colonCount < 2) {
+      // No seconds — append :00Z
+      epochMs = Date.parse(val + ':00Z');
+    } else {
+      // Already has seconds — just append Z
+      epochMs = Date.parse(val + 'Z');
+    }
+  } else {
+    // Parse as local time
+    epochMs = new Date(val).getTime();
+  }
+
+  if (isNaN(epochMs)) {
+    elRevSec.textContent = 'Invalid date';
+    elRevSec.classList.add('empty');
+    elRevMs.textContent = '—';
+    elRevMs.classList.add('empty');
+    return;
+  }
+
+  var epochS = Math.floor(epochMs / 1000);
+  elRevSec.textContent = String(epochS);
+  elRevSec.classList.remove('empty');
+  elRevMs.textContent = String(epochMs);
+  elRevMs.classList.remove('empty');
+}
+
+function copyEpoch(which) {
+  var el = which === 'sec' ? elRevSec : elRevMs;
+  var btnId = 'revcopy-' + which;
+  if (!el || el.classList.contains('empty') || el.textContent === '—') return;
+  doCopy(el.textContent, btnId);
+}
+
+// ── Service Worker ─────────────────────────────────────────────────────────
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('./sw.js').catch(function() {});
+}
+
+// ── Kick off ───────────────────────────────────────────────────────────────
+init();
+</script>
+</body>
+</html>
