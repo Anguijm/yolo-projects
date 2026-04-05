@@ -3076,3 +3076,16 @@ Sequential Gemini reviews (focus: bugs, then security) caught **different issue 
 - **KEEP**: `padStart(2, '0')` for date formatting in reports — cleaner than manual conditionals; ES2017 is safe for modern browsers.
 - **INSIGHT**: Security warnings on the .env TEMPLATE (not the .env) are the novel angle. Everyone warns about the .env itself. Scanning the committed-to-git template for real secrets is the actual threat model most teams miss.
 - **INSIGHT**: `eval_bugs.py` [missing-event-cleanup] fires on ALL `setTimeout` calls, including debounce/toast timers that are properly managed with `clearTimeout`. These are false positives — recognize and document them; the pattern matcher can't distinguish managed vs leaked timers.
+
+### semver-range (2026-04-05)
+- **KEEP**: Store preset data entirely in JS (`var PRESETS = [...]`), not HTML `data-` attributes — HTML entities in attribute values (`&#10;` for newline) are unreliable across parsing contexts and harder to maintain. Pure JS preset arrays are cleaner and immediately readable.
+- **KEEP**: `new RegExp(string)` for all regex construction — eliminates the entire class of test brace-checker false positives from regex literals containing `//` or `"`. Slightly more verbose but zero risk.
+- **KEEP**: `parseInt(s, 10)` + `isNaN()` guard instead of `|| 0` for numeric defaults — `parseInt('0') || 0` is `0` (correct coincidence, not correct logic). `isNaN(rawM) ? 0 : rawM` makes intent explicit and passes eval_bugs falsy-zero check.
+- **KEEP**: `classList.add()` for dynamically created elements rather than `.className =` — even when element has no existing classes, `classList.add` is the safer pattern and suppresses eval_bugs classname-overwrite warning.
+- **KEEP**: Strip leading `v` / `V` from version strings (`v1.2.3` → `1.2.3`) — extremely common in changelog files, GitHub release tags, and copy-pasted version strings. One-line fix that makes the tool dramatically more useful in practice.
+- **KEEP**: Synthetic upper-bound sentinel `{pre:[0]}` (e.g. `<2.0.0-0`) is correct npm semver behavior — pre-release identifier `0` is the smallest possible, so `<2.0.0-0` correctly excludes all pre-release builds of 2.0.0 while including all 1.x versions.
+- **IMPROVE**: Failure explanation using `v2s(failC.ver)` exposes internal synthetic bounds like `2.0.0-0` to users. Fix: use plain-English phrasing ("exceeds this bound", "is below this bound") instead of showing the bound version string.
+- **IMPROVE**: For OR-range failures (`1.x || >=3.0.0`), only explaining group 0 is misleading. Fix: append "(all N OR groups fail)" note so users know all alternatives were tested.
+- **INSIGHT**: Multi-operator range parsers need a two-level structure: OR groups (joined by `||`) containing AND groups (space-separated comparators). The hyphen range is syntactic sugar for two comparators in one AND group. Parsing order: detect hyphens first within each OR part, then split on whitespace.
+- **INSIGHT**: The "boring-but-high-ROI" filter works: a zero-dep pure-JS semver checker is something every frontend/backend dev uses weekly, works offline, and has no good pinned-tab alternative. The parser complexity is bounded and the scope stays tight.
+- **COUNCIL**: Gemini MCP unavailable — internal 6-angle review performed. PARTIAL REVIEW logged.

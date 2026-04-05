@@ -1,0 +1,621 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="theme-color" content="#000000">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src *">
+<title>Semver Range</title>
+<style>
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+html, body {
+  min-height: 100%;
+  background: #0a0a0a;
+  color: #ccc;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Courier New", monospace;
+  font-size: 13px;
+  overflow-y: auto;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+.wrap {
+  max-width: 600px;
+  margin: 0 auto;
+  padding: 12px;
+  padding-bottom: 32px;
+}
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+.title {
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: #fff;
+}
+.local-badge {
+  font-size: 0.45rem;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: #0ff;
+  border: 1px solid rgba(0,255,255,0.35);
+  padding: 2px 6px;
+}
+.lbl {
+  font-size: 0.48rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: #444;
+  margin-bottom: 4px;
+}
+.range-input {
+  width: 100%;
+  background: #111;
+  border: 1px solid #222;
+  color: #fff;
+  padding: 8px 10px;
+  font-family: inherit;
+  font-size: 0.88rem;
+  outline: none;
+  margin-bottom: 4px;
+  transition: border-color 0.1s;
+}
+.range-input:focus { border-color: #555; }
+.range-input.err-border { border-color: #f85149; }
+.parse-err {
+  font-size: 0.52rem;
+  color: #f85149;
+  min-height: 16px;
+  margin-bottom: 6px;
+  letter-spacing: 0.03em;
+}
+.presets-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-bottom: 10px;
+}
+.preset-btn {
+  padding: 3px 9px;
+  background: transparent;
+  border: 1px solid #1a1a1a;
+  color: #555;
+  font-family: inherit;
+  font-size: 0.55rem;
+  cursor: pointer;
+  letter-spacing: 0.03em;
+  min-height: 26px;
+  transition: border-color 0.1s, color 0.1s;
+}
+.preset-btn:hover { border-color: #333; color: #888; }
+.preset-btn:active { border-color: #555; color: #aaa; }
+.versions-area {
+  width: 100%;
+  background: #111;
+  border: 1px solid #222;
+  color: #aaa;
+  padding: 8px 10px;
+  font-family: inherit;
+  font-size: 0.8rem;
+  outline: none;
+  resize: vertical;
+  min-height: 108px;
+  margin-bottom: 8px;
+  line-height: 1.65;
+  transition: border-color 0.1s;
+}
+.versions-area:focus { border-color: #555; }
+.stats {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+  margin-bottom: 8px;
+  font-size: 0.5rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  font-variant-numeric: tabular-nums;
+}
+.st-pass  { color: #3fb950; }
+.st-fail  { color: #f85149; }
+.st-total { color: #555; }
+.results-panel {
+  border: 1px solid #1a1a1a;
+  margin-bottom: 10px;
+}
+.result-row {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 5px 8px;
+  border-bottom: 1px solid #0f0f0f;
+}
+.result-row:last-child { border-bottom: none; }
+.r-ver {
+  font-size: 0.78rem;
+  color: #e0e0e0;
+  min-width: 100px;
+  flex-shrink: 0;
+}
+.r-badge {
+  font-size: 0.42rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  padding: 1px 5px;
+  border: 1px solid;
+  flex-shrink: 0;
+  line-height: 1.9;
+}
+.r-pass    { color: #3fb950; border-color: #3fb950; }
+.r-fail    { color: #f85149; border-color: #f85149; }
+.r-invalid { color: #444;    border-color: #333; }
+.r-explain {
+  font-size: 0.6rem;
+  color: #3a3a3a;
+  flex: 1;
+  word-break: break-word;
+  line-height: 1.4;
+}
+.r-explain.pass-txt { color: #235a2c; }
+.empty-msg {
+  padding: 24px;
+  text-align: center;
+  font-size: 0.55rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #222;
+}
+.breakdown {
+  border: 1px solid #1a1a1a;
+  padding: 8px 10px;
+}
+.bd-title {
+  font-size: 0.45rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: #333;
+  margin-bottom: 6px;
+}
+.bd-group {
+  font-size: 0.52rem;
+  color: #3a3a3a;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  margin: 4px 0 2px;
+}
+.bd-comp {
+  font-size: 0.65rem;
+  color: #555;
+  padding-left: 10px;
+  margin-bottom: 1px;
+}
+.bd-comp span { color: #0ff; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="header">
+    <span class="title">Semver Range</span>
+    <span class="local-badge">Local Only</span>
+  </div>
+
+  <div class="lbl">Range Expression</div>
+  <input id="range-input" class="range-input" type="text"
+         spellcheck="false" autocomplete="off" autocorrect="off"
+         autocapitalize="off" placeholder="^1.2.3">
+  <div id="parse-err" class="parse-err"></div>
+
+  <div id="presets-row" class="presets-row"></div>
+
+  <div class="lbl">Versions &mdash; one per line</div>
+  <textarea id="versions-area" class="versions-area"
+            placeholder="1.0.0" spellcheck="false"></textarea>
+
+  <div class="stats">
+    <span id="st-pass"  class="st-pass">0 pass</span>
+    <span id="st-fail"  class="st-fail">0 fail</span>
+    <span id="st-total" class="st-total">0 total</span>
+  </div>
+
+  <div id="results" class="results-panel">
+    <div class="empty-msg">Enter a range and versions to begin</div>
+  </div>
+
+  <div class="breakdown" style="margin-top:10px">
+    <div class="bd-title">Range Breakdown</div>
+    <div id="bd-body" style="color:#333;font-size:0.6rem">&mdash;</div>
+  </div>
+</div>
+
+<script>
+(function() {
+  'use strict';
+
+  // ── Constants ──────────────────────────────────────────────────────────────
+  var NUM_RE    = new RegExp('^[0-9]+$');
+  var COMP_RE   = new RegExp('^(>=|<=|>|<|=)\\s*');
+  var HYPHEN_RE = new RegExp('^(.+?)\\s+-\\s+(.+)$');
+
+  // ── Version parsing ────────────────────────────────────────────────────────
+
+  function parseVersion(s) {
+    s = String(s || '').trim();
+    if (s[0] === 'v' || s[0] === 'V') s = s.slice(1);
+    var bi = s.indexOf('+');
+    if (bi >= 0) s = s.slice(0, bi);
+    var di = s.indexOf('-');
+    var main   = di >= 0 ? s.slice(0, di) : s;
+    var preStr = di >= 0 ? s.slice(di + 1) : '';
+    var pts = main.split('.');
+    if (pts.length !== 3) return null;
+    var M = parseInt(pts[0], 10);
+    var m = parseInt(pts[1], 10);
+    var p = parseInt(pts[2], 10);
+    if (isNaN(M) || isNaN(m) || isNaN(p)) return null;
+    if (String(M) !== pts[0] || String(m) !== pts[1] || String(p) !== pts[2]) return null;
+    return { major: M, minor: m, patch: p, pre: preStr ? preStr.split('.') : [] };
+  }
+
+  function v2s(v) {
+    var s = v.major + '.' + v.minor + '.' + v.patch;
+    if (v.pre.length) s += '-' + v.pre.join('.');
+    return s;
+  }
+
+  function cmpPre(a, b) {
+    if (!a.length && !b.length) return 0;
+    if (!a.length) return 1;
+    if (!b.length) return -1;
+    var len = Math.min(a.length, b.length);
+    for (var i = 0; i < len; i++) {
+      if (a[i] === b[i]) continue;
+      var an = NUM_RE.test(a[i]), bn = NUM_RE.test(b[i]);
+      if (an && bn) return parseInt(a[i], 10) < parseInt(b[i], 10) ? -1 : 1;
+      if (an) return -1;
+      if (bn) return 1;
+      return a[i] < b[i] ? -1 : 1;
+    }
+    return a.length < b.length ? -1 : a.length > b.length ? 1 : 0;
+  }
+
+  function cmpVer(a, b) {
+    if (a.major !== b.major) return a.major < b.major ? -1 : 1;
+    if (a.minor !== b.minor) return a.minor < b.minor ? -1 : 1;
+    if (a.patch !== b.patch) return a.patch < b.patch ? -1 : 1;
+    return cmpPre(a.pre, b.pre);
+  }
+
+  // ── Range expansion ────────────────────────────────────────────────────────
+
+  function isWild(s) { return !s || s === 'x' || s === 'X' || s === '*'; }
+
+  function mkC(op, M, m, p, pre, str) {
+    return { op: op, ver: { major: M, minor: m, patch: p, pre: pre }, str: str };
+  }
+
+  function expandTilde(t) {
+    var di = t.indexOf('-');
+    var main   = di >= 0 ? t.slice(0, di) : t;
+    var preStr = di >= 0 ? t.slice(di + 1) : '';
+    var pts = main.split('.');
+    var rawMT = parseInt(pts[0], 10);
+    var M = isNaN(rawMT) ? 0 : rawMT;
+    var m = pts.length > 1 && !isWild(pts[1]) ? parseInt(pts[1], 10) : null;
+    var p = pts.length > 2 && !isWild(pts[2]) ? parseInt(pts[2], 10) : null;
+    var pre = preStr ? preStr.split('.') : [];
+    if (m === null) {
+      return [mkC('>=', M, 0, 0, [], '>=' + M + '.0.0'),
+              mkC('<', M + 1, 0, 0, [0], '<' + (M + 1) + '.0.0-0')];
+    }
+    if (p === null) {
+      return [mkC('>=', M, m, 0, [], '>=' + M + '.' + m + '.0'),
+              mkC('<', M, m + 1, 0, [0], '<' + M + '.' + (m + 1) + '.0-0')];
+    }
+    var ls = '>=' + M + '.' + m + '.' + p + (pre.length ? '-' + pre.join('.') : '');
+    return [mkC('>=', M, m, p, pre, ls),
+            mkC('<', M, m + 1, 0, [0], '<' + M + '.' + (m + 1) + '.0-0')];
+  }
+
+  function expandCaret(t) {
+    var di = t.indexOf('-');
+    var main   = di >= 0 ? t.slice(0, di) : t;
+    var preStr = di >= 0 ? t.slice(di + 1) : '';
+    var pts = main.split('.');
+    var rawMC = parseInt(pts[0], 10);
+    var M = isWild(pts[0]) ? 0 : (isNaN(rawMC) ? 0 : rawMC);
+    var m = pts.length < 2 || isWild(pts[1]) ? null : parseInt(pts[1], 10);
+    var p = pts.length < 3 || isWild(pts[2]) ? null : parseInt(pts[2], 10);
+    var pre = preStr ? preStr.split('.') : [];
+    var lm = m !== null ? m : 0;
+    var lp = p !== null ? p : 0;
+    var ls = '>=' + M + '.' + lm + '.' + lp + (pre.length ? '-' + pre.join('.') : '');
+    var lv = mkC('>=', M, lm, lp, pre, ls);
+    var uv;
+    if (M > 0) {
+      uv = mkC('<', M + 1, 0, 0, [0], '<' + (M + 1) + '.0.0-0');
+    } else if (m !== null && m > 0) {
+      uv = mkC('<', 0, m + 1, 0, [0], '<0.' + (m + 1) + '.0-0');
+    } else if (m === null) {
+      uv = mkC('<', 1, 0, 0, [0], '<1.0.0-0');
+    } else if (p !== null && p > 0) {
+      uv = mkC('<', 0, 0, p + 1, [0], '<0.0.' + (p + 1) + '-0');
+    } else {
+      uv = mkC('<', 0, 1, 0, [0], '<0.1.0-0');
+    }
+    return [lv, uv];
+  }
+
+  function expandWild(pts) {
+    var M = isWild(pts[0]) ? null : parseInt(pts[0], 10);
+    var m = pts.length < 2 || isWild(pts[1]) ? null : parseInt(pts[1], 10);
+    if (M === null) return [mkC('>=', 0, 0, 0, [], '>=0.0.0')];
+    if (m === null) {
+      return [mkC('>=', M, 0, 0, [], '>=' + M + '.0.0-0'),
+              mkC('<', M + 1, 0, 0, [0], '<' + (M + 1) + '.0.0-0')];
+    }
+    return [mkC('>=', M, m, 0, [], '>=' + M + '.' + m + '.0-0'),
+            mkC('<', M, m + 1, 0, [0], '<' + M + '.' + (m + 1) + '.0-0')];
+  }
+
+  function expandToken(tok) {
+    tok = tok.trim();
+    if (!tok || tok === '*' || tok === 'x' || tok === 'X') {
+      return [mkC('>=', 0, 0, 0, [], '>=0.0.0')];
+    }
+    if (tok[0] === '~') return expandTilde(tok.slice(1).trim());
+    if (tok[0] === '^') return expandCaret(tok.slice(1).trim());
+    var mr = tok.match(COMP_RE);
+    var op = '=', rest = tok;
+    if (mr) { op = mr[1]; rest = tok.slice(mr[0].length); }
+    var pts = rest.split('.');
+    if (op === '=' && pts.some(isWild)) return expandWild(pts);
+    var v = parseVersion(rest);
+    if (!v) return [];
+    return [{ op: op, ver: v, str: (op === '=' ? '' : op) + rest }];
+  }
+
+  function parseRange(rangeStr) {
+    rangeStr = String(rangeStr || '').trim();
+    if (!rangeStr || rangeStr === '*') {
+      return [[mkC('>=', 0, 0, 0, [], '>=0.0.0')]];
+    }
+    var orParts  = rangeStr.split('||');
+    var orGroups = [];
+    for (var oi = 0; oi < orParts.length; oi++) {
+      var part = orParts[oi].trim();
+      if (!part) continue;
+      var group = [];
+      var hm = part.match(HYPHEN_RE);
+      if (hm) {
+        var vL = parseVersion(hm[1].trim());
+        var vH = parseVersion(hm[2].trim());
+        if (vL) group.push({ op: '>=', ver: vL, str: '>=' + hm[1].trim() });
+        if (vH) group.push({ op: '<=', ver: vH, str: '<=' + hm[2].trim() });
+      } else {
+        var toks = part.split(/\s+/).filter(function(t) { return t.length > 0; });
+        for (var ti = 0; ti < toks.length; ti++) {
+          var exp = expandToken(toks[ti]);
+          for (var ei = 0; ei < exp.length; ei++) group.push(exp[ei]);
+        }
+      }
+      if (group.length > 0) orGroups.push(group);
+    }
+    return orGroups.length > 0 ? orGroups : [[mkC('>=', 0, 0, 0, [], '>=0.0.0')]];
+  }
+
+  // ── Matching ───────────────────────────────────────────────────────────────
+
+  function matchComp(ver, c) {
+    var r = cmpVer(ver, c.ver);
+    if (c.op === '>=') return r >= 0;
+    if (c.op === '>')  return r > 0;
+    if (c.op === '<=') return r <= 0;
+    if (c.op === '<')  return r < 0;
+    if (c.op === '=')  return r === 0;
+    return false;
+  }
+
+  function testRange(ver, orGroups) {
+    for (var gi = 0; gi < orGroups.length; gi++) {
+      var grp = orGroups[gi];
+      var allOk = true;
+      for (var ci = 0; ci < grp.length; ci++) {
+        if (!matchComp(ver, grp[ci])) { allOk = false; break; }
+      }
+      if (allOk) {
+        var strs = [];
+        for (var si = 0; si < grp.length; si++) strs.push(grp[si].str);
+        return { pass: true, explain: 'satisfies ' + strs.join(' AND ') };
+      }
+    }
+    // Explain best failure from first OR group
+    var best = orGroups[0];
+    var failC = null;
+    for (var bi = 0; bi < best.length; bi++) {
+      if (!matchComp(ver, best[bi])) { failC = best[bi]; break; }
+    }
+    if (!failC) return { pass: false, explain: 'no match' };
+    var vs = v2s(ver);
+    var why;
+    if (failC.op === '>=' || failC.op === '>') {
+      why = vs + ' is below this bound';
+    } else if (failC.op === '<=' || failC.op === '<') {
+      why = vs + ' exceeds this bound';
+    } else {
+      why = vs + ' does not match exactly';
+    }
+    var orNote = orGroups.length > 1 ? ' (all ' + orGroups.length + ' OR groups fail)' : '';
+    return { pass: false, explain: 'fails ' + failC.str + ' \u2014 ' + why + orNote };
+  }
+
+  // ── Presets ────────────────────────────────────────────────────────────────
+
+  var PRESETS = [
+    { label: '^1.2.3',
+      range: '^1.2.3',
+      vers:  '0.9.0\n1.2.2\n1.2.3\n1.2.4\n1.5.0\n1.9.9\n2.0.0-rc.1\n2.0.0' },
+    { label: '~2.4.1',
+      range: '~2.4.1',
+      vers:  '2.3.9\n2.4.0\n2.4.1\n2.4.9\n2.5.0\n3.0.0' },
+    { label: '>=1.0.0 <2.0.0',
+      range: '>=1.0.0 <2.0.0',
+      vers:  '0.9.9\n1.0.0\n1.5.3\n1.9.9\n2.0.0-rc.1\n2.0.0' },
+    { label: '1.x || >=3.0.0',
+      range: '1.x || >=3.0.0',
+      vers:  '0.9.0\n1.0.0\n1.5.3\n2.0.0\n3.0.0\n3.1.5' },
+    { label: '2.0.0 - 3.0.0',
+      range: '2.0.0 - 3.0.0',
+      vers:  '1.9.9\n2.0.0\n2.5.0\n3.0.0\n3.0.1\n2.0.0-beta' },
+    { label: '^0.2.3',
+      range: '^0.2.3',
+      vers:  '0.2.2\n0.2.3\n0.2.9\n0.3.0\n0.1.9\n1.0.0' }
+  ];
+
+  // ── DOM refs ───────────────────────────────────────────────────────────────
+
+  var elRange  = document.getElementById('range-input');
+  var elVers   = document.getElementById('versions-area');
+  var elRes    = document.getElementById('results');
+  var elErrMsg = document.getElementById('parse-err');
+  var elSP     = document.getElementById('st-pass');
+  var elSF     = document.getElementById('st-fail');
+  var elST     = document.getElementById('st-total');
+  var elBD     = document.getElementById('bd-body');
+  var elPRow   = document.getElementById('presets-row');
+
+  // ── Helpers ────────────────────────────────────────────────────────────────
+
+  function esc(s) {
+    return String(s)
+      .split('&').join('&amp;')
+      .split('<').join('&lt;')
+      .split('>').join('&gt;');
+  }
+
+  // ── Main render ────────────────────────────────────────────────────────────
+
+  function updateUI() {
+    var rangeStr = (elRange.value || '').trim();
+    elErrMsg.textContent = '';
+    elRange.classList.remove('err-border');
+
+    if (!rangeStr) {
+      elRes.innerHTML = '<div class="empty-msg">Enter a range expression above</div>';
+      elSP.textContent = '0 pass';
+      elSF.textContent = '0 fail';
+      elST.textContent = '0 total';
+      elBD.innerHTML = '&mdash;';
+      return;
+    }
+
+    var orGroups;
+    try {
+      orGroups = parseRange(rangeStr);
+    } catch (ex) {
+      elRange.classList.add('err-border');
+      elErrMsg.textContent = 'Parse error: ' + ex.message;
+      return;
+    }
+
+    // Build breakdown HTML
+    var bdHtml = '';
+    for (var gi = 0; gi < orGroups.length; gi++) {
+      var grp = orGroups[gi];
+      if (orGroups.length > 1) {
+        var glbl = (gi > 0 ? 'or ' : '') + 'group ' + (gi + 1);
+        bdHtml += '<div class="bd-group">' + esc(glbl) + '</div>';
+      }
+      for (var ci = 0; ci < grp.length; ci++) {
+        bdHtml += '<div class="bd-comp"><span>' + esc(grp[ci].str) + '</span></div>';
+      }
+    }
+    elBD.innerHTML = bdHtml || '&mdash;';
+
+    // Parse and test each version line
+    var lines  = (elVers.value || '').split('\n');
+    var rows   = [];
+    var nPass  = 0;
+    var nFail  = 0;
+
+    for (var li = 0; li < lines.length; li++) {
+      var line = lines[li].trim();
+      if (!line) continue;
+      var ver = parseVersion(line);
+      if (!ver) {
+        rows.push({ raw: line, invalid: true });
+        continue;
+      }
+      var res = testRange(ver, orGroups);
+      if (res.pass) { nPass++; } else { nFail++; }
+      rows.push({ raw: line, res: res });
+    }
+
+    elSP.textContent = nPass + ' pass';
+    elSF.textContent = nFail + ' fail';
+    elST.textContent = (nPass + nFail) + ' total';
+
+    if (rows.length === 0) {
+      elRes.innerHTML = '<div class="empty-msg">Enter versions above (one per line)</div>';
+      return;
+    }
+
+    var html = '';
+    for (var ri = 0; ri < rows.length; ri++) {
+      var row = rows[ri];
+      if (row.invalid) {
+        html += '<div class="result-row">';
+        html += '<span class="r-ver" style="color:#3a3a3a">' + esc(row.raw) + '</span>';
+        html += '<span class="r-badge r-invalid">INVALID</span>';
+        html += '<span class="r-explain">not valid semver</span>';
+        html += '</div>';
+      } else {
+        var pass = row.res.pass;
+        var bcls = pass ? 'r-pass' : 'r-fail';
+        var blbl = pass ? 'PASS'   : 'FAIL';
+        var ecls = pass ? 'r-explain pass-txt' : 'r-explain';
+        html += '<div class="result-row">';
+        html += '<span class="r-ver">' + esc(row.raw) + '</span>';
+        html += '<span class="r-badge ' + bcls + '">' + blbl + '</span>';
+        html += '<span class="' + ecls + '">' + esc(row.res.explain) + '</span>';
+        html += '</div>';
+      }
+    }
+    elRes.innerHTML = html;
+  }
+
+  // ── Build preset buttons ───────────────────────────────────────────────────
+
+  for (var pi = 0; pi < PRESETS.length; pi++) {
+    (function(preset) {
+      var btn = document.createElement('button');
+      btn.classList.add('preset-btn');
+      btn.textContent = preset.label;
+      btn.addEventListener('click', function() {
+        elRange.value = preset.range;
+        elVers.value  = preset.vers;
+        updateUI();
+      });
+      elPRow.appendChild(btn);
+    })(PRESETS[pi]);
+  }
+
+  // ── Wire events ────────────────────────────────────────────────────────────
+
+  elRange.addEventListener('input', updateUI);
+  elVers.addEventListener('input', updateUI);
+
+  // ── Init ───────────────────────────────────────────────────────────────────
+
+  elRange.value = '^1.2.3';
+  elVers.value  = '0.9.0\n1.2.2\n1.2.3\n1.2.4\n1.5.0\n1.9.9\n2.0.0-rc.1\n2.0.0';
+  updateUI();
+
+})();
+</script>
+</body>
+</html>
