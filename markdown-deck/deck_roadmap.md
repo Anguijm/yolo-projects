@@ -83,6 +83,8 @@ Markdown Deck is a graduated YOLO project operating under Flagship rules: multi-
 
 - **Laser pointer & annotation mode** — During fullscreen presentation: L = glowing laser dot (cursor/touch), A = freehand annotation drawing on slide canvas, S = spotlight (radial dim + lit circle around cursor), C = clear, Esc = exit. Pure overlay, no markdown/PPTX impact. Highest-value presenter feature missing from current build.
 - **Per-slide talk time budget** — Presenter sets total duration (e.g. 20 min); budget = total ÷ slides. Supports `<!-- time: 2m -->` per-slide overrides. Presenter view shows slide time-used / budget with color ring (green→amber→red) and an overall progress bar. Optional opt-in chime at budget exhaustion via AudioContext.
+- **Deck Statistics Panel** — Toolbar button opens a modal showing: total slides, words per slide (bar chart), total word count, estimated talk time at 120/150/200 WPM (selectable), slide breakdown by H1 section, and counts of code blocks/diagrams/math blocks/images. Pure string analysis of existing markdown, zero deps, all offline. Useful for speaker prep and deck health checks.
+- **Named Snapshots (Version History)** — Ctrl+Shift+S saves a named checkpoint of the deck text to localStorage (up to 20 snapshots, auto-pruned). A "History" panel (toolbar button) lists snapshots with timestamp + name label; click any to preview (word count delta shown) and restore. Protects against accidental deletion, enables experiment-and-rollback authoring. localStorage-only, zero deps.
 
 ## Approved (Next Tock)
 
@@ -161,3 +163,4 @@ These are features complex enough to prototype as standalone YOLO single-session
 | 2026-04-03 | Tock | Brainstormed 2 features (pending approval): Find & Replace (Ctrl+H), Kiosk/Auto-Advance Mode |
 | 2026-04-03 | Tock | All 4 approved features: Standalone HTML Export, Slide Outline Panel, Find & Replace (Ctrl+H), Kiosk Auto-Advance |
 | 2026-04-04 | Tock | Brainstormed 2 features (pending approval): Laser pointer & annotation mode, Per-slide talk time budget |
+| 2026-04-05 | Tock | Brainstormed 2 features (pending approval): Deck Statistics Panel, Named Snapshots (Version History) |
