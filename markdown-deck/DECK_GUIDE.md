@@ -524,6 +524,27 @@ Click the **Presenter** button to open a dual-window presentation setup:
 
 ---
 
+## Laser Pointer & Annotation Mode
+
+While in fullscreen presentation mode (**Present** or **Presenter**), three overlay tools are available via keyboard shortcuts:
+
+| Key | Mode | Behavior |
+|-----|------|----------|
+| `L` | **Laser** | Red glowing dot follows your cursor. Nothing is drawn — pointer disappears when you stop moving. Press `L` again to exit. |
+| `A` | **Draw** | Yellow freehand strokes. Click-drag to annotate the slide. Strokes persist until cleared. Press `A` again to exit draw mode. |
+| `S` | **Spotlight** | Darkens the slide with a circular cutout around your cursor, focusing audience attention. Press `S` again to exit. |
+| `C` | **Clear** | Clears all drawn annotations from the canvas. |
+
+### Notes
+- A mode indicator pill appears at the top center of the screen showing the active mode and how to exit it.
+- All annotation modes are cleared automatically when you exit the presentation (ESC).
+- Arrow key navigation still works while any annotation mode is active.
+- Draw strokes are yellow (`rgba(255,230,0,0.9)`) for maximum visibility on dark and light slides.
+- The annotation canvas sits above the slide but has `pointer-events: none` — slide content is never blocked.
+- The canvas resets on window resize (annotations lost — this is intentional to avoid misaligned strokes).
+
+---
+
 ## Templates
 
 Click **Templates** to open the template library. Each template loads a complete deck with slides, formatting, and theme overrides — ready to customize.

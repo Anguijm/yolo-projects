@@ -382,10 +382,12 @@ These are speaker notes. They won't appear in the presentation but are preserved
   </div>
 </div>
 
-<div class="present-mode" id="present">
+<div class="present-mode" id="present" onpointermove="annotPointerMove(event)" onpointerdown="annotPointerDown(event)" onpointerup="annotPointerUp(event)" onpointerleave="annotPointerLeave()">
   <div class="present-slide" id="present-slide"></div>
   <div class="present-counter" id="present-counter"></div>
-  <div class="present-help">ESC to exit &middot; Arrow keys to navigate</div>
+  <div class="present-help">ESC exit &middot; &#8592;&#8594; nav &middot; L laser &middot; A draw &middot; S spotlight &middot; C clear</div>
+  <canvas id="annot-canvas" style="display:none;position:fixed;top:0;left:0;z-index:1002;pointer-events:none"></canvas>
+  <div id="annot-indicator" style="display:none;position:fixed;top:0.8rem;left:50%;transform:translateX(-50%);font-size:0.55rem;color:#fff;background:rgba(0,0,0,0.65);padding:3px 14px;border-radius:12px;z-index:1003;letter-spacing:0.15em;text-transform:uppercase;font-family:'SF Mono','Fira Code',monospace;border:1px solid rgba(255,255,255,0.15)"></div>
 </div>
 
 <div id="template-panel" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:800;overflow-y:auto;padding:2rem">
@@ -1387,7 +1389,137 @@ function stopPresent() {
   presentSlideEl.style.transition = '';
   presentSlideEl.style.opacity = '1';
   if (document.fullscreenElement) document.exitFullscreen?.();
+  setAnnotMode(null);
 }
+
+// ============ ANNOTATION / LASER MODE ============
+var annotMode = null; // null | 'laser' | 'draw' | 'spotlight'
+var annotCanvas = null;
+var annotCtx = null;
+var annotDrawing = false;
+var _laserClearTimer = null;
+
+function initAnnotCanvas() {
+  if (annotCanvas) return;
+  annotCanvas = document.getElementById('annot-canvas');
+  annotCtx = annotCanvas.getContext('2d');
+  window.addEventListener('resize', function() {
+    if (!annotCanvas) return;
+    annotCanvas.width = window.innerWidth;
+    annotCanvas.height = window.innerHeight;
+    // canvas cleared on resize — draw mode annotations lost, acceptable trade-off
+  });
+}
+
+function resizeAnnotCanvas() {
+  if (!annotCanvas) return;
+  annotCanvas.width = window.innerWidth;
+  annotCanvas.height = window.innerHeight;
+}
+
+function showAnnotIndicator(text) {
+  var el = document.getElementById('annot-indicator');
+  if (text) { el.textContent = text; el.style.display = 'block'; }
+  else { el.style.display = 'none'; }
+}
+
+function setAnnotMode(mode) {
+  if (annotMode === mode) mode = null; // toggle off
+  annotMode = mode;
+  initAnnotCanvas();
+  resizeAnnotCanvas();
+  var pm = document.getElementById('present');
+  if (!mode) {
+    if (annotCanvas) annotCanvas.style.display = 'none';
+    if (annotCtx) annotCtx.clearRect(0, 0, annotCanvas.width, annotCanvas.height);
+    pm.style.cursor = '';
+    showAnnotIndicator(null);
+    return;
+  }
+  annotCanvas.style.display = 'block';
+  if (mode === 'laser') {
+    pm.style.cursor = 'none';
+    showAnnotIndicator('LASER — move to aim  [L to exit]');
+    annotCtx.clearRect(0, 0, annotCanvas.width, annotCanvas.height);
+  } else if (mode === 'draw') {
+    pm.style.cursor = 'crosshair';
+    showAnnotIndicator('DRAW — drag to annotate  [C clear  A exit]');
+  } else if (mode === 'spotlight') {
+    pm.style.cursor = 'none';
+    showAnnotIndicator('SPOTLIGHT — move to highlight  [S to exit]');
+    annotCtx.clearRect(0, 0, annotCanvas.width, annotCanvas.height);
+  }
+}
+
+window.clearAnnotations = function() {
+  if (!annotCtx) return;
+  annotCtx.clearRect(0, 0, annotCanvas.width, annotCanvas.height);
+};
+
+window.annotPointerMove = function(e) {
+  if (!annotMode || !presenting) return;
+  var x = e.clientX, y = e.clientY;
+  if (annotMode === 'laser') {
+    if (_laserClearTimer) { clearTimeout(_laserClearTimer); _laserClearTimer = null; }
+    annotCtx.clearRect(0, 0, annotCanvas.width, annotCanvas.height);
+    var grad = annotCtx.createRadialGradient(x, y, 0, x, y, 30);
+    grad.addColorStop(0, 'rgba(255,40,40,0.95)');
+    grad.addColorStop(0.25, 'rgba(255,40,40,0.5)');
+    grad.addColorStop(1, 'rgba(255,40,40,0)');
+    annotCtx.beginPath();
+    annotCtx.arc(x, y, 30, 0, Math.PI * 2);
+    annotCtx.fillStyle = grad;
+    annotCtx.fill();
+    annotCtx.beginPath();
+    annotCtx.arc(x, y, 5, 0, Math.PI * 2);
+    annotCtx.fillStyle = 'rgba(255,255,255,0.95)';
+    annotCtx.fill();
+    _laserClearTimer = setTimeout(function() {
+      if (annotCtx) annotCtx.clearRect(0, 0, annotCanvas.width, annotCanvas.height);
+    }, 80);
+  } else if (annotMode === 'draw' && annotDrawing) {
+    annotCtx.lineTo(x, y);
+    annotCtx.stroke();
+  } else if (annotMode === 'spotlight') {
+    annotCtx.clearRect(0, 0, annotCanvas.width, annotCanvas.height);
+    annotCtx.globalCompositeOperation = 'source-over';
+    annotCtx.fillStyle = 'rgba(0,0,0,0.8)';
+    annotCtx.fillRect(0, 0, annotCanvas.width, annotCanvas.height);
+    annotCtx.globalCompositeOperation = 'destination-out';
+    var sGrad = annotCtx.createRadialGradient(x, y, 70, x, y, 200);
+    sGrad.addColorStop(0, 'rgba(0,0,0,1)');
+    sGrad.addColorStop(1, 'rgba(0,0,0,0)');
+    annotCtx.beginPath();
+    annotCtx.arc(x, y, 200, 0, Math.PI * 2);
+    annotCtx.fillStyle = sGrad;
+    annotCtx.fill();
+    annotCtx.globalCompositeOperation = 'source-over';
+  }
+};
+
+window.annotPointerDown = function(e) {
+  if (!annotMode || !presenting) return;
+  if (annotMode === 'draw') {
+    annotDrawing = true;
+    annotCtx.beginPath();
+    annotCtx.moveTo(e.clientX, e.clientY);
+    annotCtx.strokeStyle = 'rgba(255,230,0,0.9)';
+    annotCtx.lineWidth = 3;
+    annotCtx.lineCap = 'round';
+    annotCtx.lineJoin = 'round';
+  }
+};
+
+window.annotPointerUp = function() {
+  if (annotMode === 'draw') { annotDrawing = false; }
+};
+
+window.annotPointerLeave = function() {
+  if (annotMode === 'laser' || annotMode === 'spotlight') {
+    if (annotCtx) annotCtx.clearRect(0, 0, annotCanvas.width, annotCanvas.height);
+  }
+  if (annotMode === 'draw') { annotDrawing = false; }
+};
 
 document.addEventListener('keydown', e => {
   if (e.key === 'Escape') {
@@ -1397,6 +1529,13 @@ document.addEventListener('keydown', e => {
     if (document.getElementById('kiosk-modal').classList.contains('open')) { closeKioskModal(); return; }
     if (_kioskTimer) { stopKiosk(); stopPresent(); return; }
     stopPresent(); return;
+  }
+  if (presenting) {
+    var k = e.key.toLowerCase();
+    if (k === 'l') { e.preventDefault(); setAnnotMode('laser'); return; }
+    if (k === 'a') { e.preventDefault(); setAnnotMode('draw'); return; }
+    if (k === 's') { e.preventDefault(); setAnnotMode('spotlight'); return; }
+    if (k === 'c') { e.preventDefault(); clearAnnotations(); return; }
   }
   if ((e.ctrlKey || e.metaKey) && e.key === 'f' && !presenting) { e.preventDefault(); openSearch(); return; }
   if ((e.ctrlKey || e.metaKey) && e.key === 'h' && !presenting) { e.preventDefault(); openFindReplace(); return; }
