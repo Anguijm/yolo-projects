@@ -25,7 +25,12 @@ Naval Scribe is a graduated YOLO project operating under Flagship rules alongsid
 
 ## Approved (Next Tock)
 
-_(queue empty — brainstorm 2 new items next Tock)_
+_(queue empty — pending human approval)_
+
+## Pending Approval
+
+- [ ] **Endorsement Chaining** — Load any saved draft, then layer 1st/2nd/Nth endorsements on top of it. The UI shows the chain: Original + each endorsement in order. Export as a single .docx with proper OOXML endorsement headers ("FIRST ENDORSEMENT ON [ORIGINATOR] [SSIC] OF [DATE]"). Rationale: the most common naval routing workflow; existing Endorsement type only creates standalone endorsements, not a chained document.
+- [ ] **Distribution / Copy-To Block** — Add a multi-entry "Copy to:" section (same pattern as Via/Ref/Encl) that renders at the bottom of the letter body in preview and .docx. Include a "Distribution" checkbox for wide distribution per SECNAVINST 5216.5D. Rationale: every real naval letter has a distribution list; currently missing from the form and export.
 
 ## Recently Completed
 
@@ -68,3 +73,4 @@ _(queue empty — brainstorm 2 new items next Tock)_
 | 2026-04-03 | Tock | Implemented Classification Marking Toggle (UNCLASSIFIED/CUI/FOUO/SECRET/TOP SECRET, preview banner + DOCX header/footer) and Letterhead Presets (up to 5 named presets, fill From field) |
 | 2026-04-04 | Tock | No approved items; brainstormed 2 PENDING features: Second-Page Header Continuation, Boilerplate Paragraph Library |
 | 2026-04-04 | Tock | Implemented both approved features: Second-Page Header (preview indicator + DOCX titlePg/dual-header) and Boilerplate Library (13 templates, 4 categories, cursor-insert) |
+| 2026-04-05 | Tock | No approved items; brainstormed 2 PENDING features: Endorsement Chaining, Distribution/Copy-To Block |
