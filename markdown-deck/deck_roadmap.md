@@ -81,16 +81,17 @@ Markdown Deck is a graduated YOLO project operating under Flagship rules: multi-
 
 ## Proposed Features (Pending Approval)
 
-- **Laser pointer & annotation mode** — During fullscreen presentation: L = glowing laser dot (cursor/touch), A = freehand annotation drawing on slide canvas, S = spotlight (radial dim + lit circle around cursor), C = clear, Esc = exit. Pure overlay, no markdown/PPTX impact. Highest-value presenter feature missing from current build.
-- **Per-slide talk time budget** — Presenter sets total duration (e.g. 20 min); budget = total ÷ slides. Supports `<!-- time: 2m -->` per-slide overrides. Presenter view shows slide time-used / budget with color ring (green→amber→red) and an overall progress bar. Optional opt-in chime at budget exhaustion via AudioContext.
-- **Deck Statistics Panel** — Toolbar button opens a modal showing: total slides, words per slide (bar chart), total word count, estimated talk time at 120/150/200 WPM (selectable), slide breakdown by H1 section, and counts of code blocks/diagrams/math blocks/images. Pure string analysis of existing markdown, zero deps, all offline. Useful for speaker prep and deck health checks.
-- **Named Snapshots (Version History)** — Ctrl+Shift+S saves a named checkpoint of the deck text to localStorage (up to 20 snapshots, auto-pruned). A "History" panel (toolbar button) lists snapshots with timestamp + name label; click any to preview (word count delta shown) and restore. Protects against accidental deletion, enables experiment-and-rollback authoring. localStorage-only, zero deps.
-- **Inline Chart Blocks** — Fenced ` ```chart bar ` / `line` / `pie` blocks with CSV-style `label,value` rows render as pure inline SVG in slides (bar rects, line polylines, pie arc paths with a legend). Optional title row (`# My Chart`). PPTX export falls back to a formatted text table. Zero deps — all pure SVG math in ~200 lines JS. Differentiates Deck from text-only tools for data-driven presentations.
-- **Slide Sorter View** — `Shift+V` (or toolbar button) toggles a full-screen 4-column grid of all slide thumbnails with slide numbers; click any to jump to that slide in the editor; drag to reorder (reuses existing drag-reorder logic). Solves the thumbnail-strip limitation for large decks (30+ slides). Pure layout mode — no markdown/PPTX impact.
-- **Keyboard Shortcut Reference** — `?` key (or toolbar `?` button) opens a searchable modal listing every keyboard shortcut organized by category: Editing, Presentation, Navigation, Export. Filter by typing; Esc to close. Deck now has 25+ shortcuts with zero in-app discoverability — this closes the gap entirely. Pure HTML/CSS modal, zero deps, ~30 min scope. Makes the power-user feature set self-documenting.
-- **Handout Print Mode** — "Print Handout" option in the export menu renders slides in a printable grid (2 or 4 per page, user-selectable), with optional speaker notes below each mini-slide thumbnail. Uses @media print CSS + window.print(), the same approach as the existing PDF export button. Zero deps, no canvas, no new infrastructure. Useful for distributing physical or printed handouts after a talk.
 
-## Approved (Next Tock)
+## Approved (Next Tock — one per tock cycle)
+
+- [ ] Laser pointer & annotation mode — L for laser, A for draw, S for spotlight, C for clear
+- [ ] Per-slide talk time budget — total ÷ slides, color ring, per-slide overrides, optional chime
+- [ ] Deck Statistics Panel — word counts, estimated talk time, slide breakdown, code/image counts
+- [ ] Named Snapshots / Version History — Ctrl+Shift+S, 20 checkpoints, preview + restore
+- [ ] Inline Chart Blocks — ```chart bar/line/pie with CSV data, pure SVG rendering
+- [ ] Slide Sorter View — Shift+V, 4-column grid, click to jump, drag to reorder
+- [ ] Keyboard Shortcut Reference — ? key, searchable modal, all shortcuts organized by category
+- [ ] Handout Print Mode — 2 or 4 slides per page with speaker notes, @media print CSS
 
 
 ## Parking Lot
