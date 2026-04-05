@@ -85,6 +85,8 @@ Markdown Deck is a graduated YOLO project operating under Flagship rules: multi-
 - **Per-slide talk time budget** — Presenter sets total duration (e.g. 20 min); budget = total ÷ slides. Supports `<!-- time: 2m -->` per-slide overrides. Presenter view shows slide time-used / budget with color ring (green→amber→red) and an overall progress bar. Optional opt-in chime at budget exhaustion via AudioContext.
 - **Deck Statistics Panel** — Toolbar button opens a modal showing: total slides, words per slide (bar chart), total word count, estimated talk time at 120/150/200 WPM (selectable), slide breakdown by H1 section, and counts of code blocks/diagrams/math blocks/images. Pure string analysis of existing markdown, zero deps, all offline. Useful for speaker prep and deck health checks.
 - **Named Snapshots (Version History)** — Ctrl+Shift+S saves a named checkpoint of the deck text to localStorage (up to 20 snapshots, auto-pruned). A "History" panel (toolbar button) lists snapshots with timestamp + name label; click any to preview (word count delta shown) and restore. Protects against accidental deletion, enables experiment-and-rollback authoring. localStorage-only, zero deps.
+- **Inline Chart Blocks** — Fenced ` ```chart bar ` / `line` / `pie` blocks with CSV-style `label,value` rows render as pure inline SVG in slides (bar rects, line polylines, pie arc paths with a legend). Optional title row (`# My Chart`). PPTX export falls back to a formatted text table. Zero deps — all pure SVG math in ~200 lines JS. Differentiates Deck from text-only tools for data-driven presentations.
+- **Slide Sorter View** — `Shift+V` (or toolbar button) toggles a full-screen 4-column grid of all slide thumbnails with slide numbers; click any to jump to that slide in the editor; drag to reorder (reuses existing drag-reorder logic). Solves the thumbnail-strip limitation for large decks (30+ slides). Pure layout mode — no markdown/PPTX impact.
 
 ## Approved (Next Tock)
 
@@ -164,3 +166,4 @@ These are features complex enough to prototype as standalone YOLO single-session
 | 2026-04-03 | Tock | All 4 approved features: Standalone HTML Export, Slide Outline Panel, Find & Replace (Ctrl+H), Kiosk Auto-Advance |
 | 2026-04-04 | Tock | Brainstormed 2 features (pending approval): Laser pointer & annotation mode, Per-slide talk time budget |
 | 2026-04-05 | Tock | Brainstormed 2 features (pending approval): Deck Statistics Panel, Named Snapshots (Version History) |
+| 2026-04-05 | Tock | Brainstormed 2 features (pending approval): Inline Chart Blocks, Slide Sorter View |
