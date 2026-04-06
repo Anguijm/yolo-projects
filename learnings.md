@@ -3155,3 +3155,14 @@ Sequential Gemini reviews (focus: bugs, then security) caught **different issue 
 - **KEEP**: Inverted range check: `parts[0] > parts[1]` returns null — `"5-3"` was silently accepted but produced zero matches
 - **KEEP**: Dynamic window label: `cr.defs.length === 6 ? '~14-hour' : '~35-day'` — MAX=50000 iterations means ~14h for second-resolution 6-field crons, not 35 days
 - **INSIGHT**: Always test edge cases of field parsers: negative values, inverted ranges, out-of-bounds values, mixed types in comma lists. These are invisible failures — no error shown, no runs found, wrong behavior.
+
+### [naval-scribe: Endorsement Chaining] (2026-04-06)
+- **KEEP**: `dataFromState(s)` helper that converts a full localStorage state object → data object without touching DOM — essential for rendering saved states without side effects
+- **KEEP**: Parameterized `dx*` DOCX helpers (dxSsicDate, dxFromTo, etc.) that take `(d, body)` — enables reuse across both single-doc and chain export without closing over DOM variables
+- **KEEP**: `buildDocxBodyFromData(d)` abstraction — centralizes the type→XML switch/case so chain and future features can call it cleanly
+- **KEEP**: Page break via `<w:p><w:r><w:br w:type="page"/></w:r></w:p>` between chain documents in DOCX — standard OOXML pattern, works reliably in Word and LibreOffice
+- **KEEP**: Auto-fill "To" from base state when adding a new endorsement — saves the most repetitive field entry (the final addressee is the same throughout the chain)
+- **KEEP**: Ordinal auto-numbering with `renumberEndorseItems()` on add/delete — ordinals (FIRST/SECOND/...) always stay correct without user effort
+- **IMPROVE**: Chain preview uses dashed border separator (`border-top: 3px dashed #999`) to visually distinguish documents without physical page breaks in HTML preview
+- **INSIGHT**: Tock feature approach: write `dataFromState()` first to unlock the rest. Once you can hydrate any saved state to a data object, preview + export follow naturally from existing render/docx helpers
+- **INSIGHT**: For multi-document exports, a minimal DOCX (no classification headers, no continuation headers) is cleaner — the chain export doesn't need the per-page header complexity that single-doc export has

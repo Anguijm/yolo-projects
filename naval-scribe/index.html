@@ -237,6 +237,31 @@ html, body {
   padding: 4px 6px; border: 1px solid #3a2e1e; background: #1f1a0d;
 }
 
+/* Chain drawer */
+#chain-drawer {
+  display: none; position: fixed; top: 32px; left: 0; width: 420px; bottom: 0;
+  z-index: 200; background: var(--bg-surface); border-right: 1px solid #333;
+  overflow-y: auto; padding: 12px;
+}
+#chain-drawer.open { display: block; }
+@media (max-width: 768px) { #chain-drawer { width: 100%; } }
+.chain-endorse-item { border: 1px solid var(--border-default); margin-bottom: 5px; }
+.chain-endorse-hdr {
+  display: flex; align-items: center; justify-content: space-between; gap: 6px;
+  padding: 5px 8px; cursor: pointer; background: var(--bg-elevated);
+  font-size: 0.48rem; color: var(--text-secondary);
+  text-transform: uppercase; letter-spacing: 0.1em; user-select: none;
+}
+.chain-endorse-hdr:hover { background: #1f1f1f; }
+.chain-endorse-body { display: none; padding: 8px; }
+.chain-endorse-body.open { display: block; }
+.chain-base-box {
+  font-size: 0.5rem; color: #555; padding: 5px 6px;
+  border: 1px solid var(--border-default); margin-bottom: 6px;
+  background: var(--bg-elevated); min-height: 20px; line-height: 1.5;
+}
+.chain-base-box.set { color: var(--text-secondary); }
+
 /* Print */
 @media print {
   #top-bar, #form-panel, #drafts-drawer { display: none !important; }
@@ -273,6 +298,7 @@ html, body {
       </select>
       <button class="btn" id="new-btn">new</button>
       <button class="btn" id="import-btn">import</button>
+      <button class="btn" id="chain-btn">chain</button>
       <button class="btn" id="print-btn">print pdf</button>
       <button class="btn" id="drafts-btn">drafts</button>
       <button class="btn" id="save-draft-btn">save draft</button>
@@ -299,6 +325,26 @@ html, body {
     <textarea id="import-ta" rows="18" style="width:100%;background:#1a1a1a;border:1px solid #222;color:#ccc;font-family:inherit;font-size:0.6rem;padding:6px 8px;outline:none;resize:vertical;margin-bottom:6px;display:block" placeholder="Paste letter text here...&#10;&#10;Detects: type · SSIC · date · From/To/Via · Subj · Ref/Encl · body · signature · Copy to"></textarea>
     <button class="btn btn-primary" id="import-parse-btn" style="width:100%;padding:5px 0">parse &amp; fill form</button>
     <div id="import-result"></div>
+  </div>
+  <div id="chain-drawer">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+      <div class="section-header" style="margin:0;border:none">Endorsement Chain</div>
+      <button class="add-btn" id="chain-close">close ×</button>
+    </div>
+    <div class="section-header">Base Document</div>
+    <div id="chain-base-box" class="chain-base-box">No base set.</div>
+    <div style="display:flex;gap:4px;margin-bottom:12px">
+      <button class="add-btn" id="chain-use-current" style="flex:1;text-align:center">use current form</button>
+      <button class="add-btn" id="chain-load-draft" style="flex:1;text-align:center">load from draft</button>
+    </div>
+    <div class="section-header">Endorsements</div>
+    <div id="chain-endorse-list"></div>
+    <button class="add-btn" id="chain-add-endorse" style="width:100%;text-align:center;margin:6px 0 0">+ add endorsement</button>
+    <div style="display:flex;gap:6px;margin-top:14px">
+      <button class="btn" id="chain-preview-btn" style="flex:1;text-align:center;padding:5px 0">preview chain</button>
+      <button class="btn btn-primary" id="chain-export-btn" style="flex:1;text-align:center;padding:5px 0">export .docx</button>
+    </div>
+    <div style="font-size:0.4rem;color:#555;margin-top:8px;line-height:1.6">Set base → add endorsements → preview or export as single .docx.</div>
   </div>
   <div id="form-panel">
     <div class="field" data-types="letter,memo,endorsement,business,instruction,sop">
@@ -2544,8 +2590,460 @@ html, body {
     }, 2200);
   });
 
+  /* ── Data from state (converts localStorage state → data object for rendering) ── */
+  function dataFromState(s) {
+    var f = s.fields || {};
+    var type = s.type || 'letter';
+    var bText = type === 'pointpaper' ? (f.bodyBullets || '') :
+                type === 'actionmemo' ? (f.bodyAction || '') :
+                type === 'moa' ? (f.bodyMoa || '') :
+                type === 'instruction' ? (f.bodyInstr || '') :
+                type === 'sop' ? (f.bodySop || '') : (f.body || '');
+    return {
+      type: type, classification: s.classification || '',
+      ssic: (f.ssic || '').trim(), date: (f.date || '').trim(),
+      endorseNum: ((f.endorseNum || '').trim().toUpperCase()) || 'FIRST',
+      from: (f.from || '').trim(), to: (f.to || '').trim(),
+      via: s.via || [], subj: (f.subj || '').trim().toUpperCase(),
+      refs: s.refs || [], encls: s.encls || [],
+      body: parseBodyParagraphs(bText),
+      bullets: (type === 'pointpaper' || type === 'actionmemo') ?
+        bText.split('\n').filter(function(l) { return l.trim(); }).map(function(l) { return l.trim(); }) : [],
+      bluf: (f.bluf || '').trim(), recommendation: (f.recommendation || '').trim(),
+      parties: s.parties || [],
+      effectiveDate: (f.effectiveDate || '').trim(), duration: (f.duration || '').trim(),
+      instrNumber: (f.instrNumber || '').trim(), cancelDate: (f.cancelDate || '').trim(),
+      sopNumber: (f.sopNumber || '').trim(), sopEffective: (f.sopEffective || '').trim(),
+      sopReview: (f.sopReview || '').trim(),
+      sigName: (f.sigName || '').trim(), sigRank: (f.sigRank || '').trim(),
+      sigTitle: (f.sigTitle || '').trim(),
+      copyTo: (f.copyTo || '').trim().split('\n').filter(function(l) { return l.trim(); }),
+      byDirection: false
+    };
+  }
+
+  /* ── Parameterized DOCX body helpers (used by chain export) ── */
+  function dxSsicDate(d, body) {
+    if (d.ssic) body += makeParagraph(d.ssic, { align: 'right' });
+    if (d.date) body += makeParagraph(d.date, { align: 'right', spaceAfter: '240' });
+    return body;
+  }
+  function dxFromTo(d, body) {
+    if (d.from) body += makeParagraph([{ text: 'From:  ' }, { text: d.from }]);
+    if (d.to) body += makeParagraph([{ text: 'To:    ' }, { text: d.to }]);
+    return body;
+  }
+  function dxVia(d, body) {
+    for (var vi = 0; vi < d.via.length; vi++) {
+      var vL = vi === 0 ? 'Via:   ' : '       ';
+      body += makeParagraph([{ text: vL }, { text: '(' + (vi + 1) + ') ' + d.via[vi] }]);
+    }
+    return body;
+  }
+  function dxSubj(d, body) {
+    body += emptyParagraph();
+    if (d.subj) body += makeParagraph([{ text: 'Subj:  ' }, { text: d.subj, caps: true }]);
+    body += emptyParagraph();
+    return body;
+  }
+  function dxRefEncl(d, body) {
+    var ALPHA2 = 'abcdefghijklmnopqrstuvwxyz';
+    if (d.refs.length) {
+      for (var ri = 0; ri < d.refs.length; ri++) {
+        var rL = ri === 0 ? 'Ref:   ' : '       ';
+        body += makeParagraph([{ text: rL }, { text: '(' + ALPHA2[ri % 26] + ') ' + d.refs[ri] }]);
+      }
+      body += emptyParagraph();
+    }
+    if (d.encls.length) {
+      for (var ei2 = 0; ei2 < d.encls.length; ei2++) {
+        var eL = ei2 === 0 ? 'Encl:  ' : '       ';
+        body += makeParagraph([{ text: eL }, { text: '(' + (ei2 + 1) + ') ' + d.encls[ei2] }]);
+      }
+      body += emptyParagraph();
+    }
+    return body;
+  }
+  function dxBodyParas(d, body) {
+    var INDENT_TWIPS2 = [0, 540, 1080, 1620];
+    for (var bi = 0; bi < d.body.length; bi++) {
+      var para = d.body[bi];
+      if (para.type === 'table') { body += makeDocxTable(para); continue; }
+      body += makeParagraph((para.number ? para.number + '  ' : '') + para.text,
+        { indent: INDENT_TWIPS2[para.level], spaceAfter: '240' });
+    }
+    return body;
+  }
+  function dxSig(d, body) {
+    body += emptyParagraph(4);
+    if (d.sigName) body += makeParagraph(d.sigName, { align: 'center' });
+    if (d.sigRank) body += makeParagraph(d.sigRank, { align: 'center' });
+    if (d.sigTitle) body += makeParagraph(d.sigTitle, { align: 'center' });
+    if (d.byDirection) body += makeParagraph('By direction', { align: 'center' });
+    return body;
+  }
+  function dxCopyTo(d, body) {
+    if (d.copyTo.length) {
+      body += emptyParagraph(2);
+      for (var ci2 = 0; ci2 < d.copyTo.length; ci2++) {
+        var cL = ci2 === 0 ? 'Copy to:  ' : '          ';
+        body += makeParagraph(cL + d.copyTo[ci2]);
+      }
+    }
+    return body;
+  }
+  function buildDocxBodyFromData(d) {
+    var body = '';
+    switch (d.type) {
+      case 'letter':
+        body = dxSsicDate(d, body); body = dxFromTo(d, body); body = dxVia(d, body);
+        body = dxSubj(d, body); body = dxRefEncl(d, body); body = dxBodyParas(d, body);
+        body = dxSig(d, body); body = dxCopyTo(d, body); break;
+      case 'memo':
+        body = dxSsicDate(d, body);
+        body += makeParagraph('MEMORANDUM', { align: 'center', bold: true, spaceAfter: '240' });
+        body = dxFromTo(d, body); body = dxVia(d, body); body = dxSubj(d, body);
+        body = dxBodyParas(d, body); body = dxSig(d, body); body = dxCopyTo(d, body); break;
+      case 'endorsement':
+        body = dxSsicDate(d, body);
+        body += makeParagraph(d.endorseNum + ' ENDORSEMENT', { align: 'center', bold: true, spaceAfter: '240' });
+        body = dxFromTo(d, body); body = dxVia(d, body); body = dxSubj(d, body);
+        body = dxRefEncl(d, body); body = dxBodyParas(d, body); body = dxSig(d, body);
+        body = dxCopyTo(d, body); break;
+      default:
+        body = dxSsicDate(d, body); body = dxFromTo(d, body); body = dxSubj(d, body);
+        body = dxBodyParas(d, body); body = dxSig(d, body); break;
+    }
+    return body;
+  }
+
+  /* ── Render a saved state as preview HTML ── */
+  function renderStateAsHtml(state) {
+    var d = dataFromState(state);
+    var html = '';
+    switch (d.type) {
+      case 'letter':
+        html = renderStandardHeader(d, html); html = renderFromTo(d, html);
+        html = renderVia(d, html); html = renderSubj(d, html);
+        html = renderRefEncl(d, html); html = renderBody(d, html);
+        html = renderSig(d, html); html = renderCopyTo(d, html); break;
+      case 'memo':
+        html = renderStandardHeader(d, html);
+        html += '<div style="text-align:center;margin-bottom:24px;font-weight:bold;">MEMORANDUM</div>';
+        html = renderFromTo(d, html); html = renderVia(d, html); html = renderSubj(d, html);
+        html = renderBody(d, html); html = renderSig(d, html); html = renderCopyTo(d, html); break;
+      case 'endorsement':
+        html = renderStandardHeader(d, html);
+        html += '<div style="text-align:center;margin-bottom:24px;font-weight:bold;">' + esc(d.endorseNum) + ' ENDORSEMENT</div>';
+        html = renderFromTo(d, html); html = renderVia(d, html); html = renderSubj(d, html);
+        html = renderRefEncl(d, html); html = renderBody(d, html);
+        html = renderSig(d, html); html = renderCopyTo(d, html); break;
+      default:
+        html = renderStandardHeader(d, html); html = renderFromTo(d, html);
+        html = renderSubj(d, html); html = renderBody(d, html); html = renderSig(d, html); break;
+    }
+    return html;
+  }
+
+  /* ── Endorsement Chain ── */
+  var CHAIN_KEY = 'naval-scribe-chain';
+  var ORDINALS = ['FIRST','SECOND','THIRD','FOURTH','FIFTH','SIXTH','SEVENTH','EIGHTH','NINTH','TENTH'];
+  var chainState = { base: null, endorsements: [] };
+  try {
+    var _cr = localStorage.getItem(CHAIN_KEY);
+    if (_cr) chainState = JSON.parse(_cr);
+  } catch(e) {}
+
+  function saveChainState() {
+    try { localStorage.setItem(CHAIN_KEY, JSON.stringify(chainState)); } catch(e) {}
+  }
+
+  var chainBtn = document.getElementById('chain-btn');
+  var chainDrawer = document.getElementById('chain-drawer');
+  var chainClose = document.getElementById('chain-close');
+  var chainBaseBox = document.getElementById('chain-base-box');
+  var chainUseCurrent = document.getElementById('chain-use-current');
+  var chainLoadDraft = document.getElementById('chain-load-draft');
+  var chainEndorseList = document.getElementById('chain-endorse-list');
+  var chainAddEndorse = document.getElementById('chain-add-endorse');
+  var chainPreviewBtn = document.getElementById('chain-preview-btn');
+  var chainExportBtn = document.getElementById('chain-export-btn');
+  var chainEndorseItems = [];
+
+  function updateChainBaseBox() {
+    if (!chainState.base) {
+      chainBaseBox.textContent = 'No base set.';
+      chainBaseBox.className = 'chain-base-box';
+    } else {
+      var f2 = chainState.base.fields || {};
+      var parts = [chainState.base.type || 'letter'];
+      if (f2.from) parts.push(f2.from.slice(0, 28) + (f2.from.length > 28 ? '\u2026' : ''));
+      if (f2.subj) parts.push(f2.subj.slice(0, 28) + (f2.subj.length > 28 ? '\u2026' : ''));
+      chainBaseBox.textContent = parts.join(' \u00b7 ');
+      chainBaseBox.className = 'chain-base-box set';
+    }
+  }
+
+  chainUseCurrent.addEventListener('click', function() {
+    chainState.base = getFullState();
+    saveChainState();
+    updateChainBaseBox();
+    var orig = chainUseCurrent.textContent;
+    chainUseCurrent.textContent = 'set!';
+    setTimeout(function() { chainUseCurrent.textContent = orig; }, 1000);
+  });
+
+  chainLoadDraft.addEventListener('click', function() {
+    var drafts = getDrafts();
+    if (!drafts.length) { alert('No saved drafts.'); return; }
+    var lines = [];
+    for (var di = 0; di < drafts.length; di++) {
+      lines.push(di + ': ' + drafts[di].name + ' (' + (drafts[di].type || '') + ')');
+    }
+    var idx = prompt('Select draft number:\n\n' + lines.join('\n'));
+    if (idx === null) return;
+    var n = parseInt(idx, 10);
+    if (isNaN(n) || n < 0 || n >= drafts.length) { alert('Invalid selection.'); return; }
+    chainState.base = drafts[n].state;
+    saveChainState();
+    updateChainBaseBox();
+  });
+
+  function renumberEndorseItems() {
+    for (var rni = 0; rni < chainEndorseItems.length; rni++) {
+      var ordinal = ORDINALS[Math.min(rni, ORDINALS.length - 1)];
+      chainEndorseItems[rni].hdrSpan.textContent = ordinal + ' ENDORSEMENT';
+    }
+  }
+
+  function saveChainItemsToState() {
+    chainState.endorsements = chainEndorseItems.map(function(x) {
+      return {
+        date: x.ins.date.value.trim(), from: x.ins.from.value.trim(),
+        to: x.ins.to.value.trim(), body: x.ins.body.value.trim(),
+        sigName: x.ins.sigName.value.trim(), sigRank: x.ins.sigRank.value.trim(),
+        sigTitle: x.ins.sigTitle.value.trim()
+      };
+    });
+    saveChainState();
+  }
+
+  function addEndorseItem(data) {
+    data = data || {};
+    var IS = 'width:100%;background:#1a1a1a;border:1px solid #222;color:#ccc;font-family:inherit;font-size:0.65rem;padding:4px 6px;outline:none;box-sizing:border-box;display:block';
+    var LS = 'font-size:0.38rem;text-transform:uppercase;letter-spacing:0.12em;color:#444;display:block;margin-top:5px';
+    var item = document.createElement('div');
+    item.className = 'chain-endorse-item';
+    item.innerHTML =
+      '<div class="chain-endorse-hdr"><span></span><button class="add-btn" style="font-size:0.4rem;flex-shrink:0">\u00d7</button></div>' +
+      '<div class="chain-endorse-body open">' +
+      '<label style="' + LS + '">Date</label><input type="text" class="ce-date" style="' + IS + '">' +
+      '<label style="' + LS + '">From</label><input type="text" class="ce-from" style="' + IS + '">' +
+      '<label style="' + LS + '">To</label><input type="text" class="ce-to" style="' + IS + '">' +
+      '<label style="' + LS + '">Body</label><textarea class="ce-body" rows="4" style="' + IS + ';resize:vertical;min-height:48px"></textarea>' +
+      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;margin-top:5px">' +
+      '<div><label style="' + LS + ';margin-top:0">Name</label><input type="text" class="ce-signame" style="' + IS + '"></div>' +
+      '<div><label style="' + LS + ';margin-top:0">Rank</label><input type="text" class="ce-sigrank" style="' + IS + '"></div>' +
+      '</div>' +
+      '<label style="' + LS + '">Title</label><input type="text" class="ce-sigtitle" style="' + IS + '">' +
+      '</div>';
+    var hdrEl = item.querySelector('.chain-endorse-hdr');
+    var hdrSpan = hdrEl.querySelector('span');
+    var bodyEl = item.querySelector('.chain-endorse-body');
+    var ins = {
+      date: item.querySelector('.ce-date'), from: item.querySelector('.ce-from'),
+      to: item.querySelector('.ce-to'), body: item.querySelector('.ce-body'),
+      sigName: item.querySelector('.ce-signame'), sigRank: item.querySelector('.ce-sigrank'),
+      sigTitle: item.querySelector('.ce-sigtitle')
+    };
+    ins.date.value = data.date || todayNaval();
+    ins.from.value = data.from || '';
+    ins.to.value = data.to || '';
+    ins.body.value = data.body || '';
+    ins.sigName.value = data.sigName || '';
+    ins.sigRank.value = data.sigRank || '';
+    ins.sigTitle.value = data.sigTitle || '';
+    chainEndorseList.appendChild(item);
+    var entry = { el: item, hdrSpan: hdrSpan, ins: ins };
+    chainEndorseItems.push(entry);
+    renumberEndorseItems();
+    hdrSpan.addEventListener('click', function() { bodyEl.classList.toggle('open'); });
+    hdrEl.querySelector('button').addEventListener('click', function(e) {
+      e.stopPropagation();
+      chainEndorseList.removeChild(item);
+      for (var fi = 0; fi < chainEndorseItems.length; fi++) {
+        if (chainEndorseItems[fi].el === item) { chainEndorseItems.splice(fi, 1); break; }
+      }
+      renumberEndorseItems();
+      saveChainItemsToState();
+    });
+    var allIns = [ins.date, ins.from, ins.to, ins.body, ins.sigName, ins.sigRank, ins.sigTitle];
+    for (var ai = 0; ai < allIns.length; ai++) {
+      allIns[ai].addEventListener('input', saveChainItemsToState);
+    }
+  }
+
+  chainAddEndorse.addEventListener('click', function() {
+    var toVal = chainState.base ? ((chainState.base.fields || {}).to || '') : '';
+    addEndorseItem({ to: toVal });
+    saveChainItemsToState();
+  });
+
+  chainBtn.addEventListener('click', function() {
+    if (chainDrawer.classList.contains('open')) {
+      chainDrawer.classList.remove('open');
+    } else {
+      draftsDrawer.classList.remove('open');
+      importDrawer.classList.remove('open');
+      updateChainBaseBox();
+      chainDrawer.classList.add('open');
+    }
+  });
+  chainClose.addEventListener('click', function() { chainDrawer.classList.remove('open'); });
+  draftsBtn.addEventListener('click', function() { chainDrawer.classList.remove('open'); }, true);
+  importBtn.addEventListener('click', function() { chainDrawer.classList.remove('open'); }, true);
+
+  /* Preview chain */
+  chainPreviewBtn.addEventListener('click', function() {
+    if (!chainState.base && chainEndorseItems.length === 0) {
+      alert('Set a base document or add endorsements first.');
+      return;
+    }
+    var baseState = chainState.base || getFullState();
+    var html = renderStateAsHtml(baseState);
+    var baseSubj = ((baseState.fields || {}).subj || '').toUpperCase();
+    for (var cei = 0; cei < chainEndorseItems.length; cei++) {
+      var ins2 = chainEndorseItems[cei].ins;
+      var ordinal2 = ORDINALS[Math.min(cei, ORDINALS.length - 1)];
+      var ed = {
+        date: ins2.date.value.trim(), from: ins2.from.value.trim(),
+        to: ins2.to.value.trim(), body: ins2.body.value.trim(),
+        sigName: ins2.sigName.value.trim(), sigRank: ins2.sigRank.value.trim(),
+        sigTitle: ins2.sigTitle.value.trim()
+      };
+      html += '<div style="margin-top:48px;padding-top:16px;border-top:3px dashed #999">';
+      html += '<div style="text-align:center;font-weight:bold;margin-bottom:24px">' + esc(ordinal2) + ' ENDORSEMENT</div>';
+      if (ed.date) html += '<div style="text-align:right;margin-bottom:24px">' + esc(ed.date) + '</div>';
+      if (ed.from) html += '<div class="hdr-line"><span class="hdr-label">From:</span> ' + esc(ed.from) + '</div>';
+      if (ed.to) html += '<div class="hdr-line"><span class="hdr-label">To:</span> ' + esc(ed.to) + '</div>';
+      if (baseSubj) {
+        html += '<div class="hdr-gap"></div>';
+        html += '<div class="hdr-line subj-line"><span class="hdr-label">Subj:</span> ' + esc(baseSubj) + '</div>';
+        html += '<div class="hdr-gap"></div>';
+      }
+      if (ed.body) {
+        var bp2 = parseBodyParagraphs(ed.body);
+        html = renderBody({ body: bp2 }, html);
+      }
+      if (ed.sigName || ed.sigRank) {
+        html += '<div class="sig-block">';
+        if (ed.sigName) html += '<div class="sig-name">' + esc(ed.sigName) + '</div>';
+        if (ed.sigRank) html += '<div>' + esc(ed.sigRank) + '</div>';
+        if (ed.sigTitle) html += '<div>' + esc(ed.sigTitle) + '</div>';
+        html += '</div>';
+      }
+      html += '</div>';
+    }
+    previewPage.innerHTML = html;
+    chainDrawer.classList.remove('open');
+  });
+
+  /* Export chain .docx */
+  chainExportBtn.addEventListener('click', function() {
+    if (!chainState.base && chainEndorseItems.length === 0) {
+      alert('Set a base document or add endorsements first.');
+      return;
+    }
+    var baseState2 = chainState.base || getFullState();
+    var baseD = dataFromState(baseState2);
+    var baseSubj2 = baseD.subj;
+    var fullBody = buildDocxBodyFromData(baseD);
+    var INDENT_TWIPS3 = [0, 540, 1080, 1620];
+    for (var xei = 0; xei < chainEndorseItems.length; xei++) {
+      var xins = chainEndorseItems[xei].ins;
+      var xordinal = ORDINALS[Math.min(xei, ORDINALS.length - 1)];
+      var xDate = xins.date.value.trim();
+      var xFrom = xins.from.value.trim();
+      var xTo = xins.to.value.trim();
+      var xBody = xins.body.value.trim();
+      var xSigName = xins.sigName.value.trim();
+      var xSigRank = xins.sigRank.value.trim();
+      var xSigTitle = xins.sigTitle.value.trim();
+      fullBody += '<w:p><w:r><w:br w:type="page"/></w:r></w:p>';
+      if (xDate) fullBody += makeParagraph(xDate, { align: 'right', spaceAfter: '240' });
+      fullBody += makeParagraph(xordinal + ' ENDORSEMENT', { align: 'center', bold: true, spaceAfter: '240' });
+      if (xFrom) fullBody += makeParagraph([{ text: 'From:  ' }, { text: xFrom }]);
+      if (xTo) fullBody += makeParagraph([{ text: 'To:    ' }, { text: xTo }]);
+      if (baseSubj2) {
+        fullBody += emptyParagraph();
+        fullBody += makeParagraph([{ text: 'Subj:  ' }, { text: baseSubj2, caps: true }]);
+        fullBody += emptyParagraph();
+      }
+      if (xBody) {
+        var xbp = parseBodyParagraphs(xBody);
+        for (var xbi = 0; xbi < xbp.length; xbi++) {
+          var xpara = xbp[xbi];
+          if (xpara.type === 'table') { fullBody += makeDocxTable(xpara); continue; }
+          fullBody += makeParagraph((xpara.number ? xpara.number + '  ' : '') + xpara.text,
+            { indent: INDENT_TWIPS3[xpara.level], spaceAfter: '240' });
+        }
+      }
+      fullBody += emptyParagraph(4);
+      if (xSigName) fullBody += makeParagraph(xSigName, { align: 'center' });
+      if (xSigRank) fullBody += makeParagraph(xSigRank, { align: 'center' });
+      if (xSigTitle) fullBody += makeParagraph(xSigTitle, { align: 'center' });
+    }
+    var chainStyles = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+      '<w:styles ' + OOXML_NS + '><w:docDefaults><w:rPrDefault><w:rPr>' +
+      '<w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman" w:cs="Times New Roman"/>' +
+      '<w:sz w:val="' + HALF_POINTS_12 + '"/><w:szCs w:val="' + HALF_POINTS_12 + '"/>' +
+      '</w:rPr></w:rPrDefault></w:docDefaults></w:styles>';
+    var chainDocXml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+      '<w:document ' + OOXML_NS + ' ' + REL_NS + '><w:body>' + fullBody +
+      '<w:sectPr><w:pgSz w:w="12240" w:h="15840"/>' +
+      '<w:pgMar w:top="' + TWIPS_PER_INCH + '" w:right="' + TWIPS_PER_INCH + '" w:bottom="' + TWIPS_PER_INCH + '" w:left="' + TWIPS_PER_INCH + '" w:header="720" w:footer="720" w:gutter="0"/>' +
+      '</w:sectPr></w:body></w:document>';
+    var chainCT = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+      '<Types xmlns="http:/' + '/schemas.openxmlformats.org/package/2006/content-types">' +
+      '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>' +
+      '<Default Extension="xml" ContentType="application/xml"/>' +
+      '<Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>' +
+      '<Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/>' +
+      '</Types>';
+    var chainRootRels = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+      '<Relationships xmlns="http:/' + '/schemas.openxmlformats.org/package/2006/relationships">' +
+      '<Relationship Id="rId1" Type="http:/' + '/schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>' +
+      '</Relationships>';
+    var chainREL_PKG = 'http:/' + '/schemas.openxmlformats.org/officeDocument/2006/relationships';
+    var chainWordRels = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+      '<Relationships xmlns="http:/' + '/schemas.openxmlformats.org/package/2006/relationships">' +
+      '<Relationship Id="rId1" Type="' + chainREL_PKG + '/styles" Target="styles.xml"/>' +
+      '</Relationships>';
+    var zipBytes2 = createZip([
+      { name: '[Content_Types].xml', data: chainCT },
+      { name: '_rels/.rels', data: chainRootRels },
+      { name: 'word/document.xml', data: chainDocXml },
+      { name: 'word/_rels/document.xml.rels', data: chainWordRels },
+      { name: 'word/styles.xml', data: chainStyles }
+    ]);
+    var blob2 = new Blob([zipBytes2], { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
+    var url2 = URL.createObjectURL(blob2);
+    var a2 = document.createElement('a');
+    a2.href = url2; a2.download = 'endorsement_chain.docx';
+    document.body.appendChild(a2); a2.click(); document.body.removeChild(a2);
+    setTimeout(function() { URL.revokeObjectURL(url2); }, 1000);
+  });
+
+  /* Restore saved endorsements from localStorage */
+  if (chainState.endorsements && chainState.endorsements.length) {
+    for (var _ci = 0; _ci < chainState.endorsements.length; _ci++) {
+      addEndorseItem(chainState.endorsements[_ci]);
+    }
+  }
+
   /* ── Init ── */
   loadSaved();
+
   renderPresets();
   updateFieldVisibility();
   renderPreview();

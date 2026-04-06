@@ -32,7 +32,7 @@ Naval Scribe is a graduated YOLO project operating under Flagship rules alongsid
 
 ## Approved (Remaining — one per tock)
 
-- [ ] Endorsement Chaining — layer endorsements on saved drafts, export as single .docx
+- [x] Endorsement Chaining — layer endorsements on saved drafts, export as single .docx
 - [ ] Distribution / Copy-To Block — multi-entry copy-to section with Distribution checkbox
 - [ ] Command Address Book — localStorage directory of commands, one-click fill To/From/Via
 - [ ] Reply Draft Auto-Fill — one click generates reply with swapped From/To, boilerplate
@@ -86,3 +86,4 @@ Naval Scribe is a graduated YOLO project operating under Flagship rules alongsid
 | 2026-04-05 | Tock | No approved items; brainstormed 2 PENDING features: Reply Draft Auto-Fill, Letter Status Tracker |
 | 2026-04-05 | Tock | No approved items; brainstormed 2 PENDING features: Template Letter Library, Routing Slip Generator |
 | 2026-04-06 | Tock | Auto-Format Import: "import" button opens drawer with paste area; state-machine parser detects type, SSIC, date, From/To/Via, Subj, Ref/Encl, body (with numbering-strip), all-caps signature + rank-line lookahead, Copy-to; all tests pass |
+| 2026-04-06 | Tock | Endorsement Chaining: "chain" button opens drawer; set base from current form or saved draft; add N endorsements (FIRST/SECOND/...) each with date/from/to/body/sig; preview chain inline in preview panel; export full chain as endorsement_chain.docx with page breaks between docs |
