@@ -3166,3 +3166,13 @@ Sequential Gemini reviews (focus: bugs, then security) caught **different issue 
 - **IMPROVE**: Chain preview uses dashed border separator (`border-top: 3px dashed #999`) to visually distinguish documents without physical page breaks in HTML preview
 - **INSIGHT**: Tock feature approach: write `dataFromState()` first to unlock the rest. Once you can hydrate any saved state to a data object, preview + export follow naturally from existing render/docx helpers
 - **INSIGHT**: For multi-document exports, a minimal DOCX (no classification headers, no continuation headers) is cleaner — the chain export doesn't need the per-page header complexity that single-doc export has
+
+### [unicode-char] (2026-04-06)
+- **KEEP**: `String.fromCodePoint(cp)` + `ch.length` advance for surrogate-pair-safe iteration — handles all Unicode planes correctly without manual surrogate pair math.
+- **KEEP**: Sticky first column (`position: sticky; left: 0; background: var(--bg-page)`) is essential for horizontally scrollable data tables on mobile — makes rows identifiable while scrolling right.
+- **KEEP**: `document.createDocumentFragment()` for batch DOM appends in paginated tables — avoids reflow on each row.
+- **KEEP**: Two copy buttons per row — "U+" copies the codepoint string, "ch" copies the raw character. Different use cases, both useful.
+- **IMPROVE**: `htmlEntity(cp)` condition — `(cp < 33 || cp > 126)` misses HTML_NAMED chars like `&` (38), `<` (60) that are in the printable ASCII range. Fix: just check `entity !== null`.
+- **INSIGHT**: Homoglyph detection is the high-value security angle for text analysis tools. Cyrillic а/е/о/р/с/х vs Latin equivalents are the most common phishing vectors. BIDI U+202E (RTL Override) is "Trojan Source" — label it explicitly.
+- **INSIGHT**: For large lookup tables in single-file tools, cover: (1) ASCII programmatically, (2) Latin-1 explicitly, (3) important specials explicitly, (4) block-range fallback. Skip intermediate ranges to keep file size under 50KB.
+- **COUNCIL**: Severity legend ("critical = active security threat, high = homoglyph/invisible/BIDI") needed for users unfamiliar with Unicode attack categories.
