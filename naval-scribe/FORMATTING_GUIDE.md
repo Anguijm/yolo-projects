@@ -263,6 +263,133 @@ N3 Operations Officer
 - Recommendation statement at end
 - Concise — should fit on one page
 
+## Naval Instruction
+
+```
+COMNAVREGMIDLANTINST 5400.1A
+
+From: Commander, Navy Region Mid-Atlantic
+To:   Distribution List
+
+Subj: PIER 12 BERTHING ASSIGNMENT PROCEDURES
+
+Ref:  (a) OPNAVINST 11010.20G
+      (b) SECNAVINST 5216.5E
+
+Encl: (1) Pier 12 Berthing Request Form
+      (2) Port Operations Center Contact List
+
+1.  Purpose. To establish standard procedures for Pier 12 berthing assignments at Navy Region Mid-Atlantic installations.
+
+2.  Cancellation. COMNAVREGMIDLANTINST 5400.1 of 15 Jun 2023 is hereby cancelled.
+
+3.  Applicability. This instruction applies to all tenant commands requiring berthing at Pier 12.
+
+4.  Background. Pier 12 serves three surface combatant berths with a 40% demand surplus during deployment surge periods.
+
+5.  Action.
+
+    a.  Tenant commands shall submit berthing requests per enclosure (1) no less than 72 hours in advance.
+
+    b.  Port Operations Center shall maintain the master schedule per reference (a).
+
+6.  Responsibilities.
+
+    a.  Commanding Officers shall ensure compliance with this instruction.
+
+    b.  Port Operations Center shall:
+
+        (1) Process all berthing requests within 24 hours.
+
+        (2) Publish the weekly schedule every Friday.
+
+7.  Reports. Quarterly utilization reports shall be submitted to this headquarters per reference (b).
+
+8.  Review. This instruction shall be reviewed annually by the Port Operations Officer.
+
+R. B. JONES
+Rear Admiral, U.S. Navy
+Commander, Navy Region Mid-Atlantic
+
+Distribution:
+All Navy Region Mid-Atlantic Tenant Commands
+```
+
+**Key rules for Naval Instructions:**
+- Instruction number appears at the very top, centered (e.g., `COMNAVREGMIDLANTINST 5400.1A`) — format is `[ISSUING COMMAND]INST [SSIC].[SERIAL][REV]`
+- `SERIAL` is a sequential number within the SSIC; revision letter (`A`, `B`, …) increments on each substantive change
+- Required sections in order: Purpose, Cancellation (if revising), Applicability, Background (optional), Action, Responsibilities, Reports (if applicable), Review
+- Cancellation line cites the prior instruction this one supersedes, or states "None" for new instructions
+- References use the same `(a) (b) (c)` lettering as letters
+- Signature block includes full title of issuing authority
+- Distribution list replaces "Copy to:" — lists the recipient categories or command list
+- Follows SECNAV M-5216.5 (Correspondence Manual) formatting rules
+
+## Standard Operating Procedure
+
+```
+SOP: PORTOPS-2026-001
+
+Effective Date: 1 May 2026
+Review Cycle: Annual (next review 1 May 2027)
+
+STANDARD OPERATING PROCEDURE
+PIER 12 BERTHING REQUEST PROCESSING
+
+1.  Purpose. To provide step-by-step procedures for processing pier berthing requests.
+
+2.  Scope. Applies to all Port Operations Center watchstanders processing tenant command berthing requests for Pier 12.
+
+3.  Responsibilities.
+
+    a.  Port Operations Officer is responsible for SOP currency and annual review.
+
+    b.  Port Operations Watchstanders shall execute these procedures for all inbound requests.
+
+4.  Procedure.
+
+    a.  Receive request via enclosure (1) form from requesting command.
+
+    b.  Verify request data:
+
+        (1) Command name and UIC
+        (2) Requested date/time range
+        (3) Ship length and draft
+        (4) Services required (shore power, water, sewage)
+
+    c.  Check master schedule for conflicts.
+
+    d.  If no conflict: approve and publish to schedule within 4 hours.
+
+    e.  If conflict: notify both commands within 2 hours and coordinate resolution per reference (a).
+
+5.  Records. All requests and dispositions shall be logged in the Port Operations Log.
+
+6.  Review. This SOP shall be reviewed annually on the anniversary of its effective date.
+
+7.  Point of Contact. Port Operations Officer, (757) 555-0123.
+
+Prepared by:
+J. A. SMITH
+Lieutenant, U.S. Navy
+Port Operations Officer
+
+Approved by:
+M. R. DAVIS
+Captain, U.S. Navy
+Commanding Officer
+```
+
+**Key rules for SOPs:**
+- SOP number appears first (format: `SOP: [DEPT]-[YEAR]-[SERIAL]`)
+- Effective Date and Review Cycle appear immediately below, before the title block
+- Title block is centered, `STANDARD OPERATING PROCEDURE` on one line, subject on the next
+- Required sections: Purpose, Scope, Responsibilities, Procedure, Records, Review, Point of Contact
+- Procedure section uses lettered sub-paragraphs for each step
+- Two signature blocks: "Prepared by" (author) and "Approved by" (approving authority)
+- SOPs are working documents — less formal than instructions, but same indent/numbering rules apply
+- Review cycle must be stated explicitly (annual, biennial, as-needed)
+
 ## Classification Markings
 
 If the document requires classification, add the marking as the first line:
@@ -322,3 +449,5 @@ Pattern: `[Originator] [type] [SSIC] Ser [office/serial] of [date]`
 11. **Enclosure CONTENT goes AFTER the signature block** — not inline in the body. The body REFERENCES enclosures (e.g., "per enclosure (1)"), the actual enclosure content appears below the signature.
 12. **Never renumber enclosure content** — if an enclosure has its own numbered list (1, 2, 3), preserve those numbers exactly. The auto-numbering system only applies to the letter body, not to enclosures.
 13. **Document order**: Header → Body → Signature Block → Enclosures → Copy To
+14. **Naval Instructions** start with the instruction number centered at the top (e.g., `COMNAVREGMIDLANTINST 5400.1A`), require Purpose + Cancellation + Applicability + Action + Responsibilities + Review sections, and end with a Distribution list instead of Copy To
+15. **SOPs** start with `SOP: [DEPT]-[YEAR]-[SERIAL]` followed by Effective Date and Review Cycle, then the centered title block, and require dual signature blocks (Prepared by / Approved by)
