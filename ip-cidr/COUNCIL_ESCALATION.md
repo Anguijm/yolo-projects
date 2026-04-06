@@ -1,37 +1,37 @@
 # Council Escalation — ip-cidr
 
 **Gate:** implementation
-**Reason:** LESSONS VETO — Horizontally scrollable tables lack sticky first column headers, violating an essential mobile usability pattern documented in prior learnings.
-**Timestamp:** 2026-04-06T21:33:32.195947+00:00
+**Reason:** Unresolved objections after 2 attempts
+**Timestamp:** 2026-04-06T22:23:50.314142+00:00
 
 ## Angle positions
 
-### BUGS — APPROVE (low)
-- **Reason:** The code demonstrates excellent attention to detail regarding correctness, including robust input parsing, comprehensive handling of edge cases for IP/CIDR calculations (e.g., /0, /31, /32 prefixes), proper use of unsigned bitwise operations, and safeguards against excessive computation in bulk operations.
+### BUGS — OBJECT (high)
+- **Reason:** The bulk annotator's overlap detection logic is incorrect and fails to identify all true overlaps between CIDR ranges.
+- **Required fix:** Change the overlap detection condition in `analyzeBulk` from `((b.net32 & a.mask32) >>> 0) === a.net32 || ((a.net32 & b.mask32) >>> 0) === b.net32` to `(a.net32 <= b.broadcast32) && (b.net32 <= a.broadcast32)` to correctly detect any range overlap.
+- **Evidence:** `file:ip-cidr/index.html:466`
 
-### SECURITY — OBJECT (medium)
-- **Reason:** The Content Security Policy (CSP) uses 'unsafe-inline' for both script-src and style-src, which weakens protections against potential Cross-Site Scripting (XSS) vulnerabilities, even though current code uses textContent for output.
-- **Required fix:** Remove 'unsafe-inline' from script-src and style-src directives in the CSP. This will require either externalizing scripts and styles or implementing nonces/hashes for all inline script and style blocks.
-- **Evidence:** `<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'none'; connect-src 'none'; frame-src 'none'; base-uri 'none'; form-action 'none">`
+### SECURITY — OBJECT (high)
+- **Reason:** The Content Security Policy (CSP) allows 'unsafe-inline' for scripts, which bypasses a fundamental XSS protection and creates a significant attack surface for script injection.
+- **Required fix:** Remove 'unsafe-inline' from the script-src directive in the CSP. All inline scripts and event handlers must be refactored into external JavaScript files or use CSP nonces/hashes.
+- **Evidence:** `<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'none'; connect-src 'none'; frame-src 'none'; base-uri 'none'; form-action 'none'">`
 
 ### UI — APPROVE (low)
-- **Reason:** The application provides clear flows, good affordances, fast feedback, and comprehensive accessibility features, making it highly usable for first-time users.
+- **Reason:** The application provides clear flows, good affordances, fast feedback, and excellent keyboard navigation, making it highly usable for first-time users.
 
 ### GUIDE — APPROVE (low)
-- **Reason:** The tool is exceptionally well-documented and discoverable, providing clear instructions, examples, in-app help, and actionable error messages for both human users and AI agents.
+- **Reason:** The tool provides excellent discoverability through clear headings, descriptive subtitles, example inputs, in-app help texts, tooltips, and a comprehensive keyboard shortcut legend.
 
 ### USEFULNESS — APPROVE (low)
-- **Reason:** This project offers a highly practical suite of network calculation tools, especially the bulk annotator for overlap detection, which addresses a significant real-world pain point for network professionals.
-- **Evidence:** `Network engineers, system administrators, and DevOps professionals frequently need to dissect, check, split, and compare CIDR blocks. Tools like `ipcalc` or online calculators exist, but this project consolidates multiple critical functions (especially bulk overlap detection) into a single, offline-`
+- **Reason:** This project offers a comprehensive set of IP/CIDR tools that address real, recurring needs for network engineers and system administrators, particularly the bulk annotator for overlap detection.
+- **Evidence:** `Network planning, troubleshooting, and inventory management frequently require these calculations and analyses. The bulk overlap detection is a significant time-saver over manual checks or using disparate tools.`
 
-### COOL — APPROVE ()
-- **Reason:** The 'Bulk Annotator' with its clear visual overlap detection and thoughtful error hints (like suggesting /32 for bare IPs) is a strong signature move, addressing a common pain point for network professionals not typically found in simple web IP calculators.
-- **Evidence:** `subnet-calculator.com, cidr.xyz`
+### COOL — APPROVE (low)
+- **Reason:** The live-updating, multi-tool interface with a powerful bulk annotator that detects and highlights overlapping CIDRs offers a distinct and highly useful signature move.
+- **Evidence:** `subnet-calculator.com`
 
-### LESSONS — OBJECT (critical) 🚫 VETO
-- **Reason:** Horizontally scrollable tables lack sticky first column headers, violating an essential mobile usability pattern documented in prior learnings.
-- **Required fix:** Add `left: 0;` to the `th` CSS rule to ensure the first column remains sticky when tables are horizontally scrolled, making rows identifiable on mobile.
-- **Evidence:** `KEEP: Sticky first column (`position: sticky; left: 0; background: var(--bg-page)`) is essential for horizontally scrollable data tables on mobile — makes rows identifiable while scrolling right. (from unicode-char entry in learnings.md)`
+### LESSONS — APPROVE (low)
+- **Reason:** No documented lessons were violated by the deliverable.
 
 ## Resolution
 
