@@ -39,6 +39,22 @@ J. A. SMITH
 Captain, U.S. Navy
 Commanding Officer
 
+Enclosure (1)
+
+PROPOSED DEPLOYMENT SCHEDULE
+
+[Content of enclosure 1 here — maintains its own internal numbering if any]
+
+Enclosure (2)
+
+MAINTENANCE STATUS REPORT
+
+1.  Hull and mechanical systems: FMC
+2.  Combat systems: PMC — radar calibration scheduled for 10 Apr
+3.  Communications: FMC
+
+[Enclosures maintain their original numbering — do not renumber]
+
 Copy to:
 COMDESRON FIFTEEN
 USS EXAMPLE (DDG 00) Operations Department
@@ -54,6 +70,14 @@ USS EXAMPLE (DDG 00) Operations Department
 - **Subj**: ALL CAPS. Brief description of the letter's purpose.
 - **Ref**: Lettered sequentially `(a)`, `(b)`, etc. Include originator, SSIC, serial, and date.
 - **Encl**: Numbered sequentially `(1)`, `(2)`, etc.
+
+### Enclosures
+- Listed in the header as `Encl: (1) Title, (2) Title`
+- **Enclosure content goes BELOW the signature block**, before Copy To
+- Each enclosure starts with `Enclosure (N)` on its own line, followed by the title in ALL CAPS
+- Enclosures are NOT numbered by the auto-numbering system — they maintain their own internal structure
+- If an enclosure has its own numbered paragraphs, **preserve those numbers exactly as provided** — do not renumber them
+- Order: Body → Signature Block → Enclosures → Copy To
 
 ### Body Paragraphs
 Numbered hierarchically:
@@ -295,3 +319,6 @@ Pattern: `[Originator] [type] [SSIC] Ser [office/serial] of [date]`
 8. **Names in signature blocks are ALL CAPS**: `J. A. SMITH`
 9. **Rank uses full title**: `Captain, U.S. Navy` not `CAPT, USN`
 10. **One blank line** between header sections (From→To→Via, then gap, Subj, then gap, Ref, then gap, Encl, then gap, Body)
+11. **Enclosure CONTENT goes AFTER the signature block** — not inline in the body. The body REFERENCES enclosures (e.g., "per enclosure (1)"), the actual enclosure content appears below the signature.
+12. **Never renumber enclosure content** — if an enclosure has its own numbered list (1, 2, 3), preserve those numbers exactly. The auto-numbering system only applies to the letter body, not to enclosures.
+13. **Document order**: Header → Body → Signature Block → Enclosures → Copy To
