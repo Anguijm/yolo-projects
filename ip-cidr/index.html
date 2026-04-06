@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'none'; connect-src 'none'; frame-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-2VGPB1dcaJVSnDz9xxFWynguy1QOr6JlfyEHsjLlK7c='; style-src 'self' 'unsafe-inline'; img-src 'none'; connect-src 'none'; frame-src 'none'; base-uri 'none'; form-action 'none'">
 <title>ip-cidr — IP/CIDR Calculator & Subnet Analyzer</title>
 <style>
 :root {
@@ -205,7 +205,6 @@ tr.overlap-row td { color: var(--amber); }
   <div class="section-body">
     <div class="input-row">
       <input type="text" id="cidr-input" placeholder="e.g. 192.168.1.0/24" value="10.0.0.0/8" style="flex:1;min-width:180px" autocomplete="off" spellcheck="false" aria-label="CIDR block input">
-      <button class="btn btn-primary" id="cidr-btn">Analyze</button>
     </div>
     <div class="help-text">Format: ipv4/prefix, prefix 0–32 (e.g. 10.0.0.0/8, 192.168.0.0/16)</div>
     <div class="inline-err" id="cidr-err" style="display:none"></div>
@@ -298,7 +297,7 @@ tr.overlap-row td { color: var(--amber); }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
-function render(el, text) {
+function setText(el, text) {
   el.textContent = text;
 }
 
@@ -306,12 +305,12 @@ function show(el) { el.style.display = ''; }
 function hide(el) { el.style.display = 'none'; }
 
 function showErr(el, msg) {
-  render(el, msg);
+  setText(el, msg);
   show(el);
 }
 function hideErr(el) {
   hide(el);
-  render(el, '');
+  setText(el, '');
 }
 
 // ── Bit math ─────────────────────────────────────────────────────────────────
@@ -379,7 +378,7 @@ function fmtNum(n) {
 
 var els = {};
 [
-  'cidr-input','cidr-btn','cidr-err','cidr-results','cidr-grid','bin-display','bin-label',
+  'cidr-input','cidr-err','cidr-results','cidr-grid','bin-display','bin-label',
   'range-input','range-btn','range-err','range-result-box',
   'split-prefix','split-btn','split-err','split-results',
   'bulk-input','bulk-btn','bulk-err','bulk-results',
@@ -405,14 +404,14 @@ function buildBinDisplay(parsed) {
     // insert separator at octet boundaries
     if (i > 0 && i % 8 === 0) {
       var sep = document.createElement('span');
-      sep.className = 'bit-sep';
+      sep.classList.add('bit-sep');
       sep.textContent = '.';
       container.appendChild(sep);
     }
     // insert pipe at prefix boundary
     if (i === prefix) {
       var pipe = document.createElement('span');
-      pipe.className = 'bit-pipe';
+      pipe.classList.add('bit-pipe');
       pipe.setAttribute('data-tip', 'Prefix boundary — bits to the left identify the network');
       pipe.textContent = '|';
       container.appendChild(pipe);
@@ -420,17 +419,25 @@ function buildBinDisplay(parsed) {
 
     var sp = document.createElement('span');
     if (i < prefix) {
-      sp.className = 'bit-net';
+      sp.classList.add('bit-net');
       sp.setAttribute('data-tip', 'Network bit (prefix)');
     } else {
-      sp.className = 'bit-host';
+      sp.classList.add('bit-host');
       sp.setAttribute('data-tip', 'Host bit');
     }
     sp.textContent = bin[i];
     // Ctrl+click to copy
     sp.addEventListener('click', function(e) {
       if (e.ctrlKey || e.metaKey) {
-        try { navigator.clipboard.writeText(bin); } catch(ex) {}
+        if (navigator.clipboard && window.isSecureContext) {
+          navigator.clipboard.writeText(bin).then(function() {}).catch(function() {});
+        } else {
+          try {
+            var ta = document.createElement('textarea');
+            ta.value = bin; document.body.appendChild(ta); ta.select();
+            document.execCommand('copy'); document.body.removeChild(ta);
+          } catch(ex) {}
+        }
       }
     });
     container.appendChild(sp);
@@ -438,7 +445,7 @@ function buildBinDisplay(parsed) {
   // handle prefix === 0 (pipe goes at start)
   if (prefix === 0) {
     var p0 = document.createElement('span');
-    p0.className = 'bit-pipe';
+    p0.classList.add('bit-pipe');
     p0.setAttribute('data-tip', 'Prefix boundary — bits to the left identify the network');
     p0.textContent = '|';
     container.insertBefore(p0, container.firstChild);
@@ -446,7 +453,7 @@ function buildBinDisplay(parsed) {
   // handle prefix === 32 (pipe goes at end)
   if (prefix === 32) {
     var p32 = document.createElement('span');
-    p32.className = 'bit-pipe';
+    p32.classList.add('bit-pipe');
     p32.setAttribute('data-tip', 'Prefix boundary — all 32 bits identify the host');
     p32.textContent = '|';
     container.appendChild(p32);
@@ -463,7 +470,7 @@ function analyzeCIDR() {
     els['cidr-input'].classList.add('err-input');
     hide(els['cidr-results']);
     currentCIDR = null;
-    updateSplitSelect(null);
+    populateSplitSelect(null);
     return;
   }
   hideErr(els['cidr-err']);
@@ -499,11 +506,11 @@ function analyzeCIDR() {
   while (grid.firstChild) grid.removeChild(grid.firstChild);
   rows.forEach(function(r) {
     var k = document.createElement('span');
-    k.className = 'rk';
-    render(k, r[0] + ':');
+    k.classList.add('rk');
+    setText(k, r[0] + ':');
     var v = document.createElement('span');
-    v.className = 'rv';
-    render(v, r[1]);
+    v.classList.add('rv');
+    setText(v, r[1]);
     grid.appendChild(k);
     grid.appendChild(v);
   });
@@ -513,7 +520,7 @@ function analyzeCIDR() {
 
   // cascade to range + split
   analyzeInRange();
-  updateSplitSelect(parsed);
+  populateSplitSelect(parsed);
   analyzeSplit();
 }
 
@@ -536,7 +543,8 @@ function analyzeInRange() {
 
   var inside = (parsed.ip32 & currentCIDR.mask32) >>> 0 === currentCIDR.net32;
   var box = document.createElement('div');
-  box.className = 'range-result ' + (inside ? 'range-inside' : 'range-outside');
+  box.classList.add('range-result');
+  box.classList.add(inside ? 'range-inside' : 'range-outside');
 
   if (inside) {
     var idx = (parsed.ip32 - currentCIDR.net32) >>> 0;
@@ -552,7 +560,7 @@ function analyzeInRange() {
 
 // ── SPLITTER ──────────────────────────────────────────────────────────────────
 
-function updateSplitSelect(parsed) {
+function populateSplitSelect(parsed) {
   var sel = els['split-prefix'];
   while (sel.firstChild) sel.removeChild(sel.firstChild);
   var base = parsed ? parsed.prefix : 0;
@@ -572,18 +580,18 @@ function buildBinSwatch(net32, prefix) {
   for (var i = 0; i < 32; i++) {
     if (i > 0 && i % 8 === 0) {
       var dot = document.createElement('span');
-      dot.className = 'bit-sep';
+      dot.classList.add('bit-sep');
       dot.textContent = '.';
       frag.appendChild(dot);
     }
     if (i === prefix) {
       var pipe = document.createElement('span');
-      pipe.className = 'bit-pipe';
+      pipe.classList.add('bit-pipe');
       pipe.textContent = '|';
       frag.appendChild(pipe);
     }
     var sp = document.createElement('span');
-    sp.className = i < prefix ? 'bit-net' : 'bit-host';
+    sp.classList.add(i < prefix ? 'bit-net' : 'bit-host');
     sp.textContent = bin[i];
     frag.appendChild(sp);
   }
@@ -616,7 +624,7 @@ function analyzeSplit() {
   while (sr.firstChild) sr.removeChild(sr.firstChild);
 
   var wrap = document.createElement('div');
-  wrap.className = 'tbl-wrap';
+  wrap.classList.add('tbl-wrap');
   var tbl = document.createElement('table');
 
   // header
@@ -651,7 +659,7 @@ function analyzeSplit() {
     tr.appendChild(td2);
 
     var td3 = document.createElement('td');
-    td3.className = 'bin-swatch';
+    td3.classList.add('bin-swatch');
     td3.appendChild(buildBinSwatch(subNet32, newPrefix));
     tr.appendChild(td3);
 
@@ -667,7 +675,7 @@ function analyzeSplit() {
 
   if (capped) {
     var notice = document.createElement('div');
-    notice.className = 'cap-notice';
+    notice.classList.add('cap-notice');
     notice.textContent = 'Showing first 1,024 of ' + fmtNum(count) + ' subnets — capped to prevent browser freeze.';
     sr.appendChild(notice);
   }
@@ -715,10 +723,9 @@ function analyzeBulk() {
   for (var i = 0; i < valid.length; i++) {
     for (var j = i + 1; j < valid.length; j++) {
       var a = valid[i].parsed, b = valid[j].parsed;
-      // A contains B's network or B contains A's network
-      var aContainsB = ((b.net32 & a.mask32) >>> 0) === a.net32;
-      var bContainsA = ((a.net32 & b.mask32) >>> 0) === b.net32;
-      if (aContainsB || bContainsA) {
+      // Range overlap: two ranges overlap iff neither ends before the other starts
+      var overlaps = (a.net32 <= b.broadcast32) && (b.net32 <= a.broadcast32);
+      if (overlaps) {
         overlapSet[valid[i].line] = true;
         overlapSet[valid[j].line] = true;
       }
@@ -729,7 +736,7 @@ function analyzeBulk() {
   while (br.firstChild) br.removeChild(br.firstChild);
 
   var wrap = document.createElement('div');
-  wrap.className = 'tbl-wrap';
+  wrap.classList.add('tbl-wrap');
   wrap.style.marginTop = '10px';
 
   var tbl = document.createElement('table');
@@ -746,7 +753,7 @@ function analyzeBulk() {
   var tbody = document.createElement('tbody');
   parsed_list.forEach(function(r) {
     var tr = document.createElement('tr');
-    if (overlapSet[r.line]) tr.className = 'overlap-row';
+    if (overlapSet[r.line]) tr.classList.add('overlap-row');
 
     var td0 = document.createElement('td'); td0.textContent = r.line; tr.appendChild(td0);
     var td1 = document.createElement('td'); td1.textContent = r.raw; tr.appendChild(td1);
@@ -777,7 +784,7 @@ function analyzeBulk() {
 
   if (Object.keys(overlapSet).length) {
     var note = document.createElement('div');
-    note.className = 'cap-notice';
+    note.classList.add('cap-notice');
     note.textContent = 'Amber rows overlap with at least one other CIDR in the list.';
     br.appendChild(note);
   }
@@ -785,7 +792,7 @@ function analyzeBulk() {
 
 // ── Collapse behavior ────────────────────────────────────────────────────────
 
-function initCollapse() {
+function setupCollapse() {
   document.querySelectorAll('.collapse-btn').forEach(function(btn) {
     var secId = btn.getAttribute('data-sec');
     // restore state
@@ -837,7 +844,6 @@ document.addEventListener('keydown', function(e) {
 // ── Enter key actions ─────────────────────────────────────────────────────────
 
 els['cidr-input'].addEventListener('keydown', function(e) { if (e.key === 'Enter') analyzeCIDR(); });
-els['cidr-btn'].addEventListener('click', analyzeCIDR);
 els['range-input'].addEventListener('keydown', function(e) { if (e.key === 'Enter') analyzeInRange(); });
 els['range-btn'].addEventListener('click', analyzeInRange);
 els['split-btn'].addEventListener('click', analyzeSplit);
@@ -893,7 +899,7 @@ function runAssertions() {
 
   if (failed.length) {
     var banner = els['assert-banner'];
-    render(banner, 'ASSERTION FAILURES: ' + failed.join('; '));
+    setText(banner, 'ASSERTION FAILURES: ' + failed.join('; '));
     banner.style.display = 'block';
     failed.forEach(function(m) { console.error('[ip-cidr] ASSERT FAIL:', m); });
   }
@@ -920,7 +926,7 @@ document.addEventListener('DOMContentLoaded', function() {
   var ok = runAssertions();
   if (ok) console.log('[ip-cidr] All assertions passed.');
 
-  initCollapse();
+  setupCollapse();
   prefillBulk();
   analyzeCIDR();
   analyzeBulk();
