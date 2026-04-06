@@ -1,5 +1,5 @@
 # Hot Cache — Active Context
-*Auto-updated 2026-04-06 01:45 UTC. Read this FIRST.*
+*Auto-updated 2026-04-06 01:47 UTC. Read this FIRST.*
 
 ## Current State
 - Portfolio: 212 total, 91 active
@@ -15,7 +15,7 @@
 - [approved] port-ref: Well-Known Port Quick-Reference — type a port or service nam
 
 ## Recent Builds (last 5)
-- uuid-inspector: UUID inspector — paste any UUID, get version detection (v1-v
+- uuid-inspector: UUID inspector — version detection (v1-v8), timestamp decode
 - unix-ts: Unix timestamp debugger — paste any timestamp (auto-detects 
 - semver-range: Semver range calculator — paste any npm range expression and
 - env-inspector: .env file linter + .env.example generator + markdown docs ta

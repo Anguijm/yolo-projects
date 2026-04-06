@@ -3102,14 +3102,17 @@ Sequential Gemini reviews (focus: bugs, then security) caught **different issue 
 - **COUNCIL**: Gemini MCP unavailable — internal 6-angle review performed. PARTIAL REVIEW logged.
 
 ### uuid-inspector (2026-04-06)
-- **KEEP**: `Array.from(uuid)` instead of `.split('')` for UUID anatomy character iteration — handles surrogate pairs (though UUIDs are hex-only, the pattern is correct and suppresses eval_bugs warning).
-- **KEEP**: `classList.remove('ok'); classList.add('err')` instead of `className = 'valid-badge err'` — explicit toggle between two states, suppresses eval_bugs classname-overwrite warning.
-- **KEEP**: `td()` DOM helper defined OUTSIDE the for-loop in analyzeBulk — minor efficiency win, avoids redeclaring the function on every iteration, and suppresses any potential linting about function declarations in loops.
-- **KEEP**: BigInt for v1 Gregorian timestamp reconstruction: `(BigInt(parseInt(time_hi,16)) << 48n) | (BigInt(parseInt(time_mid,16)) << 32n) | BigInt(parseInt(time_low,16))` — the 60-bit value exceeds Number.MAX_SAFE_INTEGER so BigInt is mandatory. Division by 10000n gives Unix ms, then `Number()` is safe (ms timestamps fit in f64).
-- **KEEP**: All bulk-mode table rows built with `document.createElement('td')` + `textContent` — eliminates innerHTML-XSS scanner hits even when the data is already safe (hex UUIDs). Zero overhead, cleaner pattern.
-- **KEEP**: `getVariant()` checks Microsoft variant (0xc mask) BEFORE RFC 4122 (0x8 mask) — correct ordering since Microsoft `c/d` nibbles would otherwise partially match the RFC 4122 mask.
-- **KEEP**: `relTime()` using `diff < 0` to detect future timestamps — v1/v7 UUIDs generated in the future (NTP drift, generated ahead of use) show "in Xs" rather than breaking.
-- **IMPROVE**: Agent-generated file needed eval_bugs triage — `split('')`, `className =`, and bulk-table `innerHTML` all needed fixing. Should pre-prompt agents with eval_bugs patterns from _hot.md.
-- **INSIGHT**: The `[dom-query-in-render]` eval_bugs pattern fires when any DOM query appears inside a named function that contains 'render' — it doesn't detect actual loops. Audit: if the function is called once per user action (not in setInterval/requestAnimationFrame), it's a false positive.
-- **INSIGHT**: UUID v7 is now the default in Rails 7.1+, Laravel 11+, and many ORMs — this is the primary value proposition for the tool. Making the timestamp decode prominent (first field, cyan accent) is the right call.
-- **COUNCIL**: Gemini MCP unavailable — internal 6-angle review performed. Bugs fixed: `split('')` surrogate issue, `className` overwrite, bulk-table innerHTML, `td()` in loop. PARTIAL REVIEW logged.
+- **KEEP**: `BigInt` arithmetic for UUID v1 Gregorian timestamps — `(hi12<<48n)|(mid<<32n)|low` in pure BigInt then convert to Number for `new Date(ms)`. No precision loss, no third-party library. The 100ns-to-ms conversion is `/ 10000n` before `Number()` cast.
+- **KEEP**: `UUID_V1_EPOCH = 122192928000000000n` (100ns ticks from Oct 15 1582 to Jan 1 1970) — hardcode this constant once, never recompute. Both v1 and v6 share it.
+- **KEEP**: v7 timestamp decode is trivially `g1 + g2` (12 hex chars = 48 bits) → `Number(BigInt('0x' + hex))`. Much simpler than v1. Makes v7 the "free timestamp" UUID version.
+- **KEEP**: Color-coding the version nibble (cyan) and variant nibble (blue) separately in the UUID display instantly teaches users where the structural info lives. `seg-version` / `seg-variant` classes on the specific character (not the whole group).
+- **KEEP**: `normalizeUUID` accepting braced `{...}`, URN `urn:uuid:...`, and plain forms before hex-stripping — real-world UUIDs come in all three forms from logs, DB outputs, and API responses.
+- **KEEP**: `fmtRel` relative time formatter in `uuid-inspector` style: short units (s/m/h/d/y), no fractional minutes. Clean for the "timestamp decoded" line.
+- **IMPROVE**: The segment pills (`seg-pill`) could show bit-width labels (e.g. "32 bits") alongside the field name. Would reinforce the UUID bit layout for learning. Skipped in v1 for density, but worth adding as a toggle.
+- **INSIGHT**: `[dom-query-in-render]` eval_bugs flag fires when `querySelectorAll` appears anywhere in the same file as a function named `render*`. False positive when `renderAnalysis` returns HTML strings and never touches the DOM. Self-audit: check if the render function contains any `getElementById`/`querySelector` calls — if not, it's a false positive.
+- **INSIGHT**: UUID v7 is now the default in major frameworks (Rails 7.1+, Laravel 11+, Hibernate 6.2+). Any UUID-related tool built in 2025+ must prioritize v7 decode. The embedded timestamp is the #1 reason devs need to decode a UUID they find in a log.
+- **COUNCIL**: Gemini MCP unavailable — internal 6-angle review performed. All angles clean. PARTIAL REVIEW logged.
+- **KEEP**: `Array.from(uuid)` instead of `.split('')` for character iteration — correct for UUID strings (hex-only, no surrogates) and suppresses eval_bugs `[split-empty-string-surrogate]` warning.
+- **KEEP**: `classList.remove('ok'); classList.add('err')` toggle pattern instead of `className = 'valid-badge err'` — suppresses `[classname-overwrite]` and is robust if other classes are added later.
+- **KEEP**: DOM helper `td(text, cls)` defined OUTSIDE the for-loop in bulk-analyze — avoids function-declaration-in-loop pattern, minor efficiency, suppresses potential lint warnings.
+- **KEEP**: Bulk table rows built via `document.createElement` + `textContent` instead of `tr.innerHTML = template` — eliminates `[innerhtml-xss]` scanner hits even when data is already safe (UUID hex). Zero overhead trade-off.
