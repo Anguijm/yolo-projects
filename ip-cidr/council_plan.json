@@ -1,0 +1,110 @@
+{
+  "gate": "plan",
+  "project": "ip-cidr",
+  "timestamp": "2026-04-06T20:29:33.014739+00:00",
+  "verdicts": [
+    {
+      "angle": "bugs",
+      "verdict": "OBJECT",
+      "severity": "critical",
+      "reason": "Host count calculation for /0 prefix will overflow or produce Infinity; usable host formula (2^(32-prefix) - 2) is mathematically undefined for /0 and /31; no validation that split prefix > current prefix before calculation; binary display will fail or produce wrong output for edge cases like /0.",
+      "required_fix": "Add explicit guards: if (prefix === 0) { hostCount = Math.pow(2, 32); usableHosts = 'N/A (entire IPv4)'; } else if (prefix === 31) { usableHosts = 2; } else if (prefix === 32) { usableHosts = 1; } else { usableHosts = Math.pow(2, 32 - prefix) - 2; }. Validate split prefix in analyzeSplit() with if (newPrefix <= currentPrefix) { showError('Split prefix must be greater than current'); return; }. Test toBin32(0) and toBin32(4294967295) round-trip.",
+      "evidence": "plan.md line 'Usable host count (2^(32-prefix) \u2212 2, handles /31 = 2, /32 = 1)' \u2014 /0 case not mentioned; Math.pow(2, 32) = 4294967296 which exceeds MAX_SAFE_INTEGER (2^53-1) in JavaScript, risking precision loss or Infinity. Also 'Subnet Splitter \u2014 choose new prefix (must be > current via validated select)' \u2014 validation mentioned but not shown in code; if user somehow bypasses, split will produce invalid/duplicate subnets.",
+      "veto": false
+    },
+    {
+      "angle": "security",
+      "verdict": "OBJECT",
+      "severity": "high",
+      "reason": "Plan lacks explicit XSS mitigation for bulk paste handler and binary display rendering; no Content Security Policy or input sanitization strategy documented for untrusted paste data.",
+      "required_fix": "Explicitly document: (1) bulk paste handler uses textContent-only insertion, never innerHTML; (2) binary display rendering escapes or uses textContent for all user-derived strings; (3) add inline CSP meta tag forbidding inline scripts and eval; (4) validate regex match before any DOM insertion; (5) test XSS payloads in bulk paste (e.g., '<img src=x onerror=alert(1)>', '\" onload=\"alert(1)') to confirm no execution.",
+      "evidence": "plan.md line 'All output inserted via textContent / safe DOM APIs \u2014 no innerHTML with user input' is stated but not enforced in code; bulk paste handler implementation not shown; no CSP or integrity checks mentioned; binary swatch rendering in splitter table not detailed.",
+      "veto": false
+    },
+    {
+      "angle": "ui",
+      "verdict": "OBJECT",
+      "severity": "high",
+      "reason": "Empty state and section discoverability problems: collapsed sections hide core features on first visit, and no visual cue signals they exist or how to expand them.",
+      "required_fix": "1) Remove 'collapsed by default' for In-Range, Splitter, Bulk sections \u2014 show all three expanded on load so a first-time user sees the full feature set without hunting for chevrons. 2) Add a one-line section header that is always visible and clickable (e.g., 'In-Range Checker \u2014 Enter an IP' with a clear chevron icon that visually indicates expand/collapse state). 3) Consider a brief 3-line hero text above the CIDR input explaining the three tools available ('Dissect a subnet \u2192 Check if an IP is inside \u2192 Split into smaller subnets \u2192 Compare multiple CIDRs').",
+      "evidence": "Plan states 'Three sub-sections (In-Range, Splitter, Bulk) start collapsed; expand via chevron buttons \u2014 reduces overwhelm on first visit' \u2014 this violates first-use experience: a stranger landing on the page will see only the CIDR dissector and the default 10.0.0.0/8 example. The In-Range, Splitter, and Bulk features are invisible until the user discovers and clicks a chevron. No affordance signals these sections exist. A user expecting a 'bulk comparison' tool (stated in goal) will not find it without exploration.",
+      "veto": false
+    },
+    {
+      "angle": "guide",
+      "verdict": "OBJECT",
+      "severity": "high",
+      "reason": "Plan describes features but does not specify how users discover them in the UI without reading docs\u2014no mention of visible labels, help text, example buttons, or keyboard shortcut hints.",
+      "required_fix": "Add to plan.md: (1) explicit list of all visible UI labels and their placement (e.g., 'CIDR Dissector' header, 'Enter an IP to check' inline guide under In-Range section); (2) whether collapsible sections show a hint like '[+] In-Range Checker \u2014 check if an IP is in this subnet' before expand; (3) whether there is a '?' help icon or keyboard shortcut legend visible on first load; (4) whether the binary display has a tooltip explaining what cyan vs. dim means; (5) whether error messages are specific (e.g., 'Prefix must be 0\u201332, got 33' vs. 'Invalid input').",
+      "evidence": "plan.md lines 17\u201322 describe UX but do not specify discoverable affordances: 'Three sub-sections start collapsed; expand via chevron buttons' \u2014 does the chevron have a label? Does the header text hint at the feature? 'A subtle inline guide line under each section header' \u2014 is this visible enough for a first-time user to notice without reading the plan? No mention of help modal, keyboard shortcut list, or sample data button.",
+      "veto": false
+    },
+    {
+      "angle": "usefulness",
+      "verdict": "APPROVE",
+      "severity": "low",
+      "reason": "Recurring, high-frequency tool for a real professional audience (network/devops engineers) solving a genuine workflow gap.",
+      "required_fix": "",
+      "evidence": "Network engineers use subnet calculators daily (ipcalc, sipcalc, online tools like subnet-calculator.com get millions of visits). This tool's live binary visualization and bulk overlap detection are features absent from most free alternatives, creating genuine utility beyond 'nice to have.' The in-range checker and subnet splitter are standard features in professional tools. Second user exists: any devops/sysadmin/network engineer. Bookmarkable: yes\u2014engineers pin these tabs. Real work: subnetting is not toy data; /8, /24, /31, /32 edge cases are daily reality. 6-month regret: zero\u2014this is a portfolio-worthy utility, not a toy.",
+      "veto": false
+    },
+    {
+      "angle": "cool",
+      "verdict": "APPROVE",
+      "severity": "low",
+      "reason": "Live animated binary bitmask with cyan prefix boundary is a genuine signature move no other subnet tool implements; visual overlap detection in bulk mode adds memorable depth.",
+      "required_fix": "",
+      "evidence": "",
+      "veto": false
+    },
+    {
+      "angle": "lessons",
+      "verdict": "APPROVE",
+      "severity": "low",
+      "reason": "Plan adheres to all documented lessons: zero deps, single-file HTML, textContent-only output, strict input validation, DOM cache pattern, and modular function design.",
+      "required_fix": "",
+      "evidence": "Plan specifies: (1) 'All output inserted via textContent / safe DOM APIs \u2014 no innerHTML with user input' (matches cron-explain XSS lesson); (2) 'All bitwise ops follow with >>> 0' (matches unicode-char signed-integer lesson); (3) 'parseCIDR(s) \u2192 { ip32, net32, mask32, prefix, broadcast32 }' + separate analyzeInRange/analyzeSplit/analyzeBulk functions (matches cron-explain modular arithmetic + DOM cache pattern); (4) 'Bulk paste hard-capped at 256 lines to prevent DoS' (matches defensive input handling from recent learnings); (5) Pre-filled default state avoids blank-state UX (matches naval-scribe dataFromState pattern of hydrating state cleanly).",
+      "veto": false
+    }
+  ],
+  "all_approved": false,
+  "objections": [
+    {
+      "angle": "bugs",
+      "verdict": "OBJECT",
+      "severity": "critical",
+      "reason": "Host count calculation for /0 prefix will overflow or produce Infinity; usable host formula (2^(32-prefix) - 2) is mathematically undefined for /0 and /31; no validation that split prefix > current prefix before calculation; binary display will fail or produce wrong output for edge cases like /0.",
+      "required_fix": "Add explicit guards: if (prefix === 0) { hostCount = Math.pow(2, 32); usableHosts = 'N/A (entire IPv4)'; } else if (prefix === 31) { usableHosts = 2; } else if (prefix === 32) { usableHosts = 1; } else { usableHosts = Math.pow(2, 32 - prefix) - 2; }. Validate split prefix in analyzeSplit() with if (newPrefix <= currentPrefix) { showError('Split prefix must be greater than current'); return; }. Test toBin32(0) and toBin32(4294967295) round-trip.",
+      "evidence": "plan.md line 'Usable host count (2^(32-prefix) \u2212 2, handles /31 = 2, /32 = 1)' \u2014 /0 case not mentioned; Math.pow(2, 32) = 4294967296 which exceeds MAX_SAFE_INTEGER (2^53-1) in JavaScript, risking precision loss or Infinity. Also 'Subnet Splitter \u2014 choose new prefix (must be > current via validated select)' \u2014 validation mentioned but not shown in code; if user somehow bypasses, split will produce invalid/duplicate subnets.",
+      "veto": false
+    },
+    {
+      "angle": "security",
+      "verdict": "OBJECT",
+      "severity": "high",
+      "reason": "Plan lacks explicit XSS mitigation for bulk paste handler and binary display rendering; no Content Security Policy or input sanitization strategy documented for untrusted paste data.",
+      "required_fix": "Explicitly document: (1) bulk paste handler uses textContent-only insertion, never innerHTML; (2) binary display rendering escapes or uses textContent for all user-derived strings; (3) add inline CSP meta tag forbidding inline scripts and eval; (4) validate regex match before any DOM insertion; (5) test XSS payloads in bulk paste (e.g., '<img src=x onerror=alert(1)>', '\" onload=\"alert(1)') to confirm no execution.",
+      "evidence": "plan.md line 'All output inserted via textContent / safe DOM APIs \u2014 no innerHTML with user input' is stated but not enforced in code; bulk paste handler implementation not shown; no CSP or integrity checks mentioned; binary swatch rendering in splitter table not detailed.",
+      "veto": false
+    },
+    {
+      "angle": "ui",
+      "verdict": "OBJECT",
+      "severity": "high",
+      "reason": "Empty state and section discoverability problems: collapsed sections hide core features on first visit, and no visual cue signals they exist or how to expand them.",
+      "required_fix": "1) Remove 'collapsed by default' for In-Range, Splitter, Bulk sections \u2014 show all three expanded on load so a first-time user sees the full feature set without hunting for chevrons. 2) Add a one-line section header that is always visible and clickable (e.g., 'In-Range Checker \u2014 Enter an IP' with a clear chevron icon that visually indicates expand/collapse state). 3) Consider a brief 3-line hero text above the CIDR input explaining the three tools available ('Dissect a subnet \u2192 Check if an IP is inside \u2192 Split into smaller subnets \u2192 Compare multiple CIDRs').",
+      "evidence": "Plan states 'Three sub-sections (In-Range, Splitter, Bulk) start collapsed; expand via chevron buttons \u2014 reduces overwhelm on first visit' \u2014 this violates first-use experience: a stranger landing on the page will see only the CIDR dissector and the default 10.0.0.0/8 example. The In-Range, Splitter, and Bulk features are invisible until the user discovers and clicks a chevron. No affordance signals these sections exist. A user expecting a 'bulk comparison' tool (stated in goal) will not find it without exploration.",
+      "veto": false
+    },
+    {
+      "angle": "guide",
+      "verdict": "OBJECT",
+      "severity": "high",
+      "reason": "Plan describes features but does not specify how users discover them in the UI without reading docs\u2014no mention of visible labels, help text, example buttons, or keyboard shortcut hints.",
+      "required_fix": "Add to plan.md: (1) explicit list of all visible UI labels and their placement (e.g., 'CIDR Dissector' header, 'Enter an IP to check' inline guide under In-Range section); (2) whether collapsible sections show a hint like '[+] In-Range Checker \u2014 check if an IP is in this subnet' before expand; (3) whether there is a '?' help icon or keyboard shortcut legend visible on first load; (4) whether the binary display has a tooltip explaining what cyan vs. dim means; (5) whether error messages are specific (e.g., 'Prefix must be 0\u201332, got 33' vs. 'Invalid input').",
+      "evidence": "plan.md lines 17\u201322 describe UX but do not specify discoverable affordances: 'Three sub-sections start collapsed; expand via chevron buttons' \u2014 does the chevron have a label? Does the header text hint at the feature? 'A subtle inline guide line under each section header' \u2014 is this visible enough for a first-time user to notice without reading the plan? No mention of help modal, keyboard shortcut list, or sample data button.",
+      "veto": false
+    }
+  ],
+  "vetoed": false
+}

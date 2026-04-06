@@ -33,14 +33,23 @@ from typing import Any
 try:
     import google.generativeai as genai
 except ImportError:
-    print("ERROR: google-generativeai not installed. Run: pip install google-generativeai", file=sys.stderr)
-    sys.exit(2)
+    genai = None  # type: ignore[assignment]
+
+try:
+    import anthropic as anthropic_sdk
+except ImportError:
+    anthropic_sdk = None  # type: ignore[assignment]
 
 REPO_ROOT = Path(__file__).resolve().parent
 ANGLES_DIR = REPO_ROOT / "council" / "angles"
 ANGLES = ["bugs", "security", "ui", "guide", "usefulness", "cool", "lessons"]
 GATES = ["plan", "implementation", "tests", "outcome"]
 MODEL_NAME = "gemini-2.5-flash"  # fast, cheap enough to run 7 per gate × 4 gates
+CLAUDE_MODEL = "claude-haiku-4-5-20251001"  # fast fallback when Gemini unavailable
+
+# Backend selected at startup
+_BACKEND: str = "gemini"  # or "claude"
+_ANTHROPIC_CLIENT: Any = None
 
 
 @dataclass
@@ -137,14 +146,24 @@ def build_user_message(gate: str, project: str, goal: str, context_path: str | N
 
 def call_angle(angle: str, user_message: str) -> Verdict:
     system_prompt = load_angle_prompt(angle)
-    model = genai.GenerativeModel(
-        model_name=MODEL_NAME,
-        system_instruction=system_prompt,
-        generation_config={"temperature": 0.4, "response_mime_type": "application/json"},
-    )
     try:
-        response = model.generate_content(user_message)
-        raw = response.text if hasattr(response, "text") else str(response)
+        if _BACKEND == "claude":
+            response = _ANTHROPIC_CLIENT.messages.create(
+                model=CLAUDE_MODEL,
+                max_tokens=1024,
+                temperature=0.4,
+                system=system_prompt + "\n\nReturn ONLY valid JSON. No prose, no markdown fences.",
+                messages=[{"role": "user", "content": user_message}],
+            )
+            raw = response.content[0].text
+        else:
+            model = genai.GenerativeModel(
+                model_name=MODEL_NAME,
+                system_instruction=system_prompt,
+                generation_config={"temperature": 0.4, "response_mime_type": "application/json"},
+            )
+            response = model.generate_content(user_message)
+            raw = response.text if hasattr(response, "text") else str(response)
     except Exception as e:
         return Verdict(
             angle=angle,
@@ -255,11 +274,26 @@ def main() -> int:
     ap.add_argument("--attempt", type=int, default=1, help="Attempt number (escalate after 2 failed tries)")
     args = ap.parse_args()
 
+    global _BACKEND, _ANTHROPIC_CLIENT
     api_key = os.environ.get("GEMINI_API_KEY")
-    if not api_key:
-        print("ERROR: GEMINI_API_KEY not set", file=sys.stderr)
-        return 2
-    genai.configure(api_key=api_key)
+    if api_key:
+        if genai is None:
+            print("ERROR: google-generativeai not installed. Run: pip install google-generativeai", file=sys.stderr)
+            return 2
+        genai.configure(api_key=api_key)
+        _BACKEND = "gemini"
+        print("[council] Backend: Gemini")
+    else:
+        anthropic_key = os.environ.get("ANTHROPIC_API_KEY")
+        if not anthropic_key:
+            print("ERROR: Neither GEMINI_API_KEY nor ANTHROPIC_API_KEY is set", file=sys.stderr)
+            return 2
+        if anthropic_sdk is None:
+            print("ERROR: anthropic package not installed. Run: pip install anthropic", file=sys.stderr)
+            return 2
+        _ANTHROPIC_CLIENT = anthropic_sdk.Anthropic(api_key=anthropic_key)
+        _BACKEND = "claude"
+        print(f"[council] Backend: Claude ({CLAUDE_MODEL}) — GEMINI_API_KEY not set, using fallback")
 
     print(f"[council] Gate: {args.gate} | Project: {args.project} | Attempt: {args.attempt}")
     verdicts = run_gate(args.gate, args.project, args.goal, args.context, args.inline)
