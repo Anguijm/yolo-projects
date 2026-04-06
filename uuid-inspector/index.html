@@ -1,0 +1,838 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="theme-color" content="#000000">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src *">
+<link rel="manifest" href="manifest.json">
+<title>UUID Inspector</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body {
+  height: 100%;
+  background: #0a0a0a;
+  color: #ccc;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Courier New", monospace;
+  overflow-y: auto;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+:root {
+  --accent: #0ff;
+  --bg-surface: #111;
+  --bg-elevated: #1a1a1a;
+  --border-default: #1a1a1a;
+  --border-active: #444;
+  --border-focus: #555;
+  --text-primary: #fff;
+  --text-body: #ccc;
+  --text-secondary: #aaa;
+  --text-label: #444;
+  --color-success: #3fb950;
+  --color-warning: #d29922;
+  --color-error: #f85149;
+  --color-info: #58a6ff;
+}
+
+.container {
+  max-width: 620px;
+  margin: 0 auto;
+  padding: 12px;
+}
+
+header {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #1a1a1a;
+}
+.title {
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: #fff;
+}
+.subtitle {
+  font-size: 0.5rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #444;
+}
+
+.tabs {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 12px;
+}
+.tab {
+  padding: 4px 10px;
+  background: transparent;
+  border: 1px solid #1a1a1a;
+  color: #444;
+  font-family: inherit;
+  font-size: 0.55rem;
+  cursor: pointer;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+.tab.active { border-color: var(--accent); color: var(--accent); }
+.tab:active { border-color: #555; color: #888; }
+
+.tab-panel { display: none; }
+.tab-panel.active { display: block; }
+
+textarea, input[type="text"] {
+  width: 100%;
+  background: #111;
+  border: 1px solid #222;
+  color: #aaa;
+  padding: 8px;
+  font-family: inherit;
+  font-size: 0.7rem;
+  outline: none;
+  resize: vertical;
+}
+textarea:focus, input[type="text"]:focus { border-color: #555; }
+
+.input-row {
+  display: flex;
+  gap: 4px;
+  align-items: flex-start;
+  margin-bottom: 10px;
+}
+.input-row textarea { flex: 1; min-height: 52px; }
+
+.btn {
+  padding: 4px 10px;
+  background: transparent;
+  border: 1px solid #1a1a1a;
+  color: #444;
+  font-family: inherit;
+  font-size: 0.55rem;
+  cursor: pointer;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.btn:active { border-color: #555; color: #888; }
+.btn.active { border-color: var(--accent); color: var(--accent); }
+
+/* UUID segmented display */
+.uuid-display {
+  font-size: 0.68rem;
+  color: #ccc;
+  word-break: break-all;
+  margin-bottom: 6px;
+  padding: 7px 8px;
+  background: #111;
+  border: 1px solid #1a1a1a;
+  cursor: pointer;
+  user-select: all;
+}
+.uuid-display:active { border-color: #555; }
+.uuid-display .seg-plain { color: #777; }
+.uuid-display .seg-version { color: var(--accent); font-weight: 700; }
+.uuid-display .seg-variant { color: var(--color-info); font-weight: 700; }
+.uuid-display .seg-time { color: #d29922; }
+.uuid-display .seg-node { color: var(--color-success); }
+.uuid-display .sep { color: #333; }
+
+/* Segment breakdown pills */
+.seg-row {
+  display: flex;
+  gap: 3px;
+  margin-bottom: 8px;
+  flex-wrap: wrap;
+}
+.seg-pill {
+  flex: 1;
+  min-width: 60px;
+  padding: 3px 4px;
+  background: #1a1a1a;
+  border: 1px solid #222;
+  text-align: center;
+}
+.seg-pill .pv {
+  font-size: 0.6rem;
+  color: #666;
+  display: block;
+  word-break: break-all;
+}
+.seg-pill .pl {
+  font-size: 0.38rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #2a2a2a;
+  display: block;
+  margin-top: 2px;
+}
+.seg-pill.sp-time .pv { color: #d29922; }
+.seg-pill.sp-ver .pv  { color: var(--accent); }
+.seg-pill.sp-var .pv  { color: var(--color-info); }
+.seg-pill.sp-node .pv { color: var(--color-success); }
+
+/* Result panel */
+.result-panel {
+  border: 1px solid #1a1a1a;
+  padding: 6px 8px;
+}
+.field {
+  display: flex;
+  gap: 6px;
+  padding: 3px 0;
+  border-bottom: 1px solid #0f0f0f;
+  font-size: 0.63rem;
+  align-items: baseline;
+}
+.field:last-child { border-bottom: none; }
+.field-label {
+  color: #444;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  min-width: 120px;
+  font-size: 0.48rem;
+  padding-top: 1px;
+  flex-shrink: 0;
+}
+.field-value {
+  color: #aaa;
+  word-break: break-all;
+  flex: 1;
+}
+.field-value.v-accent   { color: var(--accent); }
+.field-value.v-success  { color: var(--color-success); }
+.field-value.v-warning  { color: var(--color-warning); }
+.field-value.v-error    { color: var(--color-error); }
+.field-value.v-info     { color: var(--color-info); }
+.field-value.v-dim      { color: #555; }
+
+.sec-head {
+  font-size: 0.43rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: #2a2a2a;
+  padding: 5px 0 2px;
+  border-bottom: 1px solid #141414;
+  margin-bottom: 1px;
+}
+
+.placeholder {
+  color: #2a2a2a;
+  font-size: 0.6rem;
+  padding: 18px;
+  text-align: center;
+  border: 1px solid #141414;
+}
+
+/* Bulk */
+.bulk-stats {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 8px;
+  font-size: 0.52rem;
+  color: #444;
+  flex-wrap: wrap;
+}
+.bulk-stats em { font-style: normal; color: #aaa; }
+
+.bulk-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.54rem;
+}
+.bulk-table th {
+  text-align: left;
+  color: #2a2a2a;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  font-size: 0.42rem;
+  padding: 4px 5px;
+  border-bottom: 1px solid #1a1a1a;
+}
+.bulk-table td {
+  padding: 3px 5px;
+  border-bottom: 1px solid #0f0f0f;
+  color: #555;
+}
+.bulk-table td.td-uuid { color: #888; font-size: 0.5rem; }
+.bulk-table td.td-ver  { color: var(--accent); }
+.bulk-table td.td-ts   { color: #666; }
+.bulk-table td.td-err  { color: var(--color-error); }
+.bulk-table td.td-note { color: #444; }
+
+/* Generate */
+.gen-version-row {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+.gen-output {
+  background: #111;
+  border: 1px solid #1a1a1a;
+  padding: 9px 8px;
+  font-size: 0.72rem;
+  color: var(--accent);
+  word-break: break-all;
+  margin-bottom: 4px;
+  min-height: 38px;
+  cursor: pointer;
+  user-select: all;
+}
+.gen-output:active { border-color: #444; }
+.gen-meta {
+  font-size: 0.5rem;
+  color: #444;
+  margin-bottom: 8px;
+  min-height: 14px;
+}
+.gen-actions {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+/* Toast */
+.copy-toast {
+  position: fixed;
+  bottom: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #1a1a1a;
+  border: 1px solid #444;
+  color: #aaa;
+  padding: 5px 14px;
+  font-size: 0.52rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.15s;
+  border-radius: 4px;
+  white-space: nowrap;
+}
+.copy-toast.show { opacity: 1; }
+</style>
+</head>
+<body>
+<div class="container">
+  <header>
+    <span class="title">UUID Inspector</span>
+    <span class="subtitle">decode · analyze · generate</span>
+  </header>
+
+  <div class="tabs">
+    <button class="tab active" id="tab-inspect" onclick="switchTab('inspect')">Inspect</button>
+    <button class="tab" id="tab-bulk" onclick="switchTab('bulk')">Bulk</button>
+    <button class="tab" id="tab-generate" onclick="switchTab('generate')">Generate</button>
+  </div>
+
+  <!-- INSPECT -->
+  <div class="tab-panel active" id="panel-inspect">
+    <div class="input-row">
+      <textarea id="uuid-input" placeholder="Paste a UUID here…" rows="2"
+        oninput="onInspectInput()" autocomplete="off" autocorrect="off" spellcheck="false"></textarea>
+      <button class="btn" onclick="clearInspect()">CLR</button>
+    </div>
+    <div id="inspect-out">
+      <div class="placeholder">Paste any UUID to decode it.</div>
+    </div>
+  </div>
+
+  <!-- BULK -->
+  <div class="tab-panel" id="panel-bulk">
+    <textarea id="bulk-input" placeholder="Paste UUIDs here — one per line…" rows="7"
+      oninput="onBulkInput()" autocomplete="off" autocorrect="off" spellcheck="false"></textarea>
+    <div id="bulk-out" style="margin-top:10px;">
+      <div class="placeholder">Paste UUIDs above (one per line).</div>
+    </div>
+  </div>
+
+  <!-- GENERATE -->
+  <div class="tab-panel" id="panel-generate">
+    <div class="gen-version-row">
+      <button class="btn active" id="gvbtn-4" onclick="selectGenVer(4)">v4 Random</button>
+      <button class="btn" id="gvbtn-7" onclick="selectGenVer(7)">v7 Time-Ordered</button>
+      <button class="btn" id="gvbtn-1" onclick="selectGenVer(1)">v1 Mock</button>
+    </div>
+    <div class="gen-output" id="gen-output" onclick="copyGen()">—</div>
+    <div class="gen-meta" id="gen-meta"></div>
+    <div class="gen-actions">
+      <button class="btn" onclick="doGenerate()">GENERATE</button>
+      <button class="btn" onclick="copyGen()">COPY</button>
+      <button class="btn" onclick="inspectGen()">INSPECT →</button>
+    </div>
+  </div>
+</div>
+
+<div class="copy-toast" id="copy-toast">Copied</div>
+
+<script>
+// ── Constants ─────────────────────────────────────────────────────
+const UUID_V1_EPOCH = 122192928000000000n; // 100ns ticks Oct 15 1582 → Jan 1 1970
+const NIL_UUID  = '00000000-0000-0000-0000-000000000000';
+const MAX_UUID  = 'ffffffff-ffff-ffff-ffff-ffffffffffff';
+
+const KNOWN_NS = {
+  '6ba7b810-9dad-11d1-80b4-00c04fd430c8': 'DNS',
+  '6ba7b811-9dad-11d1-80b4-00c04fd430c8': 'URL',
+  '6ba7b812-9dad-11d1-80b4-00c04fd430c8': 'OID',
+  '6ba7b814-9dad-11d1-80b4-00c04fd430c8': 'X.500',
+};
+
+// ── Parse & normalize ─────────────────────────────────────────────
+function normalizeUUID(s) {
+  if (typeof s !== 'string') return null;
+  let t = s.trim().toLowerCase();
+  t = t.replace(/^\{(.+)\}$/, '$1');       // braced
+  t = t.replace(/^urn:uuid:/i, '');         // URN
+  const clean = t.replace(/-/g, '');
+  if (!/^[0-9a-f]{32}$/.test(clean)) return null;
+  return clean.slice(0,8)+'-'+clean.slice(8,12)+'-'+clean.slice(12,16)+'-'+clean.slice(16,20)+'-'+clean.slice(20);
+}
+
+// ── Variant ───────────────────────────────────────────────────────
+function getVariant(g4) {
+  const b = parseInt(g4.slice(0,2), 16);
+  if ((b & 0x80) === 0x00) return { name: 'NCS backward compatible', code: 'ncs' };
+  if ((b & 0xc0) === 0x80) return { name: 'RFC 4122 / RFC 9562', code: 'rfc' };
+  if ((b & 0xe0) === 0xc0) return { name: 'Microsoft backward compatible', code: 'ms' };
+  return { name: 'Reserved (future)', code: 'future' };
+}
+
+// ── Timestamp helpers ─────────────────────────────────────────────
+function decodeV1Ts(g1, g2, g3) {
+  // 60-bit = (time_hi_12 << 48) | (time_mid_16 << 32) | time_low_32
+  const hi12 = g3.slice(1); // strip version nibble
+  const ts = (BigInt('0x' + hi12) << 48n) | (BigInt('0x' + g2) << 32n) | BigInt('0x' + g1);
+  const unix100ns = ts - UUID_V1_EPOCH;
+  if (unix100ns < 0n) return null;
+  return new Date(Number(unix100ns / 10000n));
+}
+
+function decodeV6Ts(g1, g2, g3) {
+  // v6 bit layout: g1=time[59:28], g2=time[27:12], g3=ver+time[11:0]
+  const ts = (BigInt('0x' + g1) << 28n) | (BigInt('0x' + g2) << 12n) | BigInt('0x' + g3.slice(1));
+  const unix100ns = ts - UUID_V1_EPOCH;
+  if (unix100ns < 0n) return null;
+  return new Date(Number(unix100ns / 10000n));
+}
+
+function decodeV7Ts(g1, g2) {
+  // First 48 bits = Unix ms
+  const ms = Number(BigInt('0x' + g1 + g2));
+  return new Date(ms);
+}
+
+function fmtDate(d) {
+  if (!d || isNaN(d.getTime())) return null;
+  return d.toISOString().replace('T', ' ').replace('Z', ' UTC');
+}
+
+function fmtRel(d) {
+  if (!d || isNaN(d.getTime())) return '';
+  const diff = Date.now() - d.getTime();
+  const future = diff < 0;
+  const abs = Math.abs(diff) / 1000;
+  let str;
+  if      (abs < 60)       str = Math.round(abs) + 's';
+  else if (abs < 3600)     str = Math.round(abs/60) + 'm';
+  else if (abs < 86400)    str = Math.round(abs/3600) + 'h';
+  else if (abs < 31557600) str = Math.round(abs/86400) + 'd';
+  else                     str = (abs/31557600).toFixed(1) + 'y';
+  return future ? 'in ' + str : str + ' ago';
+}
+
+function fmtMac(hex6) {
+  return hex6.match(/../g).join(':').toUpperCase();
+}
+
+function macFlags(hex6) {
+  const b = parseInt(hex6.slice(0,2), 16);
+  return {
+    multicast: !!(b & 0x01),
+    localAdmin: !!(b & 0x02),
+    oui: hex6.match(/../g).slice(0,3).map(x=>x.toUpperCase()).join(':'),
+  };
+}
+
+// ── Core analysis ─────────────────────────────────────────────────
+function analyzeUUID(raw) {
+  const norm = normalizeUUID(raw);
+  if (!norm) return { valid: false, error: 'Not a valid UUID — expected 32 hex digits in xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx form.' };
+
+  const r = { valid: true, normalized: norm };
+  const [g1, g2, g3, g4, g5] = norm.split('-');
+  r.hex = norm.replace(/-/g,'').toUpperCase();
+  r.groups = [g1, g2, g3, g4, g5];
+
+  if (norm === NIL_UUID) { r.special = 'Nil UUID'; r.version = 0; r.variant = { name:'N/A', code:'nil' }; return r; }
+  if (norm === MAX_UUID) { r.special = 'Max UUID (RFC 9562)'; r.version = 15; r.variant = { name:'N/A', code:'max' }; return r; }
+
+  r.version = parseInt(g3[0], 16);
+  r.variant = getVariant(g4);
+
+  switch (r.version) {
+    case 1: {
+      r.versionLabel = 'v1 — Gregorian Time';
+      const ts = decodeV1Ts(g1, g2, g3);
+      r.timestamp = ts;
+      r.timestampStr = fmtDate(ts);
+      r.timestampRel = fmtRel(ts);
+      const cshi = parseInt(g4.slice(0,2), 16) & 0x3f;
+      const cslo = parseInt(g4.slice(2,4), 16);
+      r.clockSeq = ((cshi << 8) | cslo).toString();
+      const mf = macFlags(g5);
+      r.mac = fmtMac(g5);
+      r.macOUI = mf.oui;
+      r.macMulticast = mf.multicast;
+      r.macLocalAdmin = mf.localAdmin;
+      if (mf.multicast) r.macNote = 'Multicast bit set — randomly generated node (RFC 4122 §4.5)';
+      break;
+    }
+    case 2:
+      r.versionLabel = 'v2 — DCE Security';
+      r.note = 'DCE 1.1 security UUIDs. Domain and local identifier embedded.';
+      break;
+    case 3:
+      r.versionLabel = 'v3 — MD5 Name-Based';
+      r.note = 'Deterministic hash(namespace + name) via MD5. Input cannot be recovered.';
+      break;
+    case 4:
+      r.versionLabel = 'v4 — Random';
+      r.note = '122 bits of cryptographic randomness. No embedded data.';
+      break;
+    case 5:
+      r.versionLabel = 'v5 — SHA-1 Name-Based';
+      r.note = 'Deterministic hash(namespace + name) via SHA-1. Input cannot be recovered.';
+      break;
+    case 6: {
+      r.versionLabel = 'v6 — Reordered Gregorian (RFC 9562)';
+      const ts6 = decodeV6Ts(g1, g2, g3);
+      r.timestamp = ts6;
+      r.timestampStr = fmtDate(ts6);
+      r.timestampRel = fmtRel(ts6);
+      r.mac = fmtMac(g5);
+      r.note = 'Field-compatible replacement for v1 with better sort order.';
+      break;
+    }
+    case 7: {
+      r.versionLabel = 'v7 — Unix Time-Ordered (RFC 9562)';
+      const ts7 = decodeV7Ts(g1, g2);
+      r.timestamp = ts7;
+      r.timestampStr = fmtDate(ts7);
+      r.timestampRel = fmtRel(ts7);
+      r.note = 'Time-ordered, DB-friendly. Default in Rails 7.1+, Laravel 11+.';
+      break;
+    }
+    case 8:
+      r.versionLabel = 'v8 — Custom (RFC 9562)';
+      r.note = 'Vendor/implementation-defined layout. Bits 4 and 6-7 are fixed.';
+      break;
+    default:
+      r.versionLabel = 'v' + r.version + ' — Unknown/Reserved';
+      r.note = 'Non-standard or reserved version number.';
+  }
+
+  return r;
+}
+
+// ── Rendering helpers ─────────────────────────────────────────────
+function esc(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function row(label, value, cls) {
+  const vcls = cls ? ' ' + cls : '';
+  return '<div class="field"><span class="field-label">'+esc(label)+'</span><span class="field-value'+vcls+'">'+esc(value)+'</span></div>';
+}
+
+function secHead(title) {
+  return '<div class="sec-head">'+esc(title)+'</div>';
+}
+
+function segmentedDisplay(a) {
+  const [g1,g2,g3,g4,g5] = a.groups;
+  const isTime = [1,6,7].includes(a.version);
+  const isNode = a.version === 1;
+  const tc = isTime ? 'seg-time' : 'seg-plain';
+  const nc = isNode ? 'seg-node' : 'seg-plain';
+  return `<span class="${tc}">${g1}</span><span class="sep">-</span>`
+       + `<span class="${tc}">${g2}</span><span class="sep">-</span>`
+       + `<span class="seg-version">${g3[0]}</span><span class="seg-plain">${g3.slice(1)}</span><span class="sep">-</span>`
+       + `<span class="seg-variant">${g4[0]}</span><span class="seg-plain">${g4.slice(1)}</span><span class="sep">-</span>`
+       + `<span class="${nc}">${g5}</span>`;
+}
+
+function segPillRow(a) {
+  const [g1,g2,g3,g4,g5] = a.groups;
+  const isTime = [1,6,7].includes(a.version);
+  const isNode = a.version === 1;
+  const tc = isTime ? 'sp-time' : '';
+  const nc = isNode ? 'sp-node' : '';
+
+  const labels = {
+    1: ['time_low','time_mid','ver+time_hi','var+seq','node(mac)'],
+    6: ['time_high','time_mid','ver+time_lo','var+seq','node(mac)'],
+    7: ['unix_ms[47:16]','unix_ms[15:0]','ver+rand','var+rand','random'],
+  };
+  const L = labels[a.version] || ['data','data','ver+data','var+data','data'];
+
+  return `<div class="seg-row">
+    <div class="seg-pill ${tc}"><span class="pv">${g1}</span><span class="pl">${L[0]}</span></div>
+    <div class="seg-pill ${tc}"><span class="pv">${g2}</span><span class="pl">${L[1]}</span></div>
+    <div class="seg-pill sp-ver"><span class="pv">${g3}</span><span class="pl">${L[2]}</span></div>
+    <div class="seg-pill sp-var"><span class="pv">${g4}</span><span class="pl">${L[3]}</span></div>
+    <div class="seg-pill ${nc}"><span class="pv">${g5}</span><span class="pl">${L[4]}</span></div>
+  </div>`;
+}
+
+function renderAnalysis(a) {
+  if (!a.valid) {
+    return '<div class="result-panel">' + row('Error', a.error, 'v-error') + '</div>';
+  }
+
+  let html = '';
+
+  // Clickable UUID display
+  html += `<div class="uuid-display" onclick="copyText('${esc(a.normalized)}','UUID')">${segmentedDisplay(a)}</div>`;
+  html += segPillRow(a);
+  html += '<div class="result-panel">';
+
+  if (a.special) {
+    html += row('Special', a.special, 'v-warning');
+    html += row('Format', 'Valid UUID', 'v-success');
+    html += row('Raw Hex', a.hex, 'v-dim');
+    html += '</div>';
+    return html;
+  }
+
+  html += secHead('Identity');
+  html += row('Version', a.versionLabel || 'v'+a.version, 'v-accent');
+  const varCls = a.variant.code === 'rfc' ? 'v-success' : 'v-warning';
+  html += row('Variant', a.variant.name, varCls);
+  html += row('Format', 'Valid UUID', 'v-success');
+
+  if (a.timestampStr) {
+    html += secHead('Timestamp');
+    html += row('Decoded', a.timestampStr, 'v-info');
+    if (a.timestampRel) html += row('Relative', a.timestampRel, 'v-dim');
+    if (a.version === 7) {
+      const ms = Number(BigInt('0x' + a.groups[0] + a.groups[1]));
+      html += row('Unix ms', ms.toString(), 'v-dim');
+    }
+    if (a.version === 1) {
+      const g3 = a.groups[2];
+      const hi12 = g3.slice(1);
+      const ts60 = (BigInt('0x'+hi12)<<48n)|(BigInt('0x'+a.groups[1])<<32n)|BigInt('0x'+a.groups[0]);
+      html += row('100ns ticks', ts60.toString(), 'v-dim');
+    }
+  }
+
+  if (a.mac) {
+    html += secHead('Node (MAC Address)');
+    html += row('Address', a.mac, 'v-success');
+    if (a.macOUI) html += row('OUI (prefix)', a.macOUI, 'v-dim');
+    if (a.macMulticast !== undefined) {
+      html += row('Type', a.macMulticast ? 'Multicast / Random' : 'Unicast', a.macMulticast ? 'v-warning' : '');
+      if (a.macLocalAdmin !== undefined)
+        html += row('Administered', a.macLocalAdmin ? 'Locally administered' : 'Globally unique (OUI enforced)', a.macLocalAdmin ? 'v-warning' : 'v-dim');
+    }
+    if (a.macNote) html += row('Note', a.macNote, 'v-warning');
+  }
+
+  if (a.clockSeq !== undefined) {
+    html += secHead('Clock Sequence');
+    html += row('Value', a.clockSeq, 'v-dim');
+  }
+
+  if (a.note) {
+    html += secHead('Notes');
+    html += row('', a.note, '');
+  }
+
+  html += secHead('Raw');
+  html += row('Hex', a.hex, 'v-dim');
+  html += row('URN', 'urn:uuid:' + a.normalized, 'v-dim');
+
+  html += '</div>';
+  return html;
+}
+
+// ── Inspect tab ───────────────────────────────────────────────────
+function onInspectInput() {
+  const val = document.getElementById('uuid-input').value.trim();
+  const out = document.getElementById('inspect-out');
+  if (!val) { out.innerHTML = '<div class="placeholder">Paste any UUID to decode it.</div>'; return; }
+  out.innerHTML = renderAnalysis(analyzeUUID(val));
+}
+
+function clearInspect() {
+  document.getElementById('uuid-input').value = '';
+  document.getElementById('inspect-out').innerHTML = '<div class="placeholder">Paste any UUID to decode it.</div>';
+}
+
+// ── Bulk tab ──────────────────────────────────────────────────────
+function onBulkInput() {
+  const lines = document.getElementById('bulk-input').value
+    .split('\n').map(l => l.trim()).filter(Boolean);
+  const out = document.getElementById('bulk-out');
+  if (!lines.length) {
+    out.innerHTML = '<div class="placeholder">Paste UUIDs above (one per line).</div>';
+    return;
+  }
+
+  const results = lines.map(l => ({ raw: l, a: analyzeUUID(l) }));
+  const valid   = results.filter(r => r.a.valid).length;
+  const invalid = results.length - valid;
+
+  const vDist = {};
+  for (const r of results) {
+    if (r.a.valid && !r.a.special) {
+      const k = 'v' + r.a.version;
+      vDist[k] = (vDist[k] || 0) + 1;
+    }
+  }
+  const distStr = Object.entries(vDist).sort().map(([k,v]) => k+': '+v).join(' · ') || '—';
+
+  let html = `<div class="bulk-stats">
+    <div>total <em>${results.length}</em></div>
+    <div>valid <em style="color:#3fb950">${valid}</em></div>
+    ${invalid ? `<div>invalid <em style="color:#f85149">${invalid}</em></div>` : ''}
+    <div>versions <em>${esc(distStr)}</em></div>
+  </div>`;
+
+  html += '<table class="bulk-table"><thead><tr>'
+        + '<th>#</th><th>UUID</th><th>Ver</th><th>Timestamp</th><th>Note</th>'
+        + '</tr></thead><tbody>';
+
+  for (let i = 0; i < results.length; i++) {
+    const { raw, a } = results[i];
+    if (!a.valid) {
+      html += `<tr><td>${i+1}</td><td class="td-err" colspan="4">${esc(raw.slice(0,50))}</td></tr>`;
+      continue;
+    }
+    const ver   = a.special ? 'NIL/MAX' : 'v' + a.version;
+    const ts    = a.timestampStr ? a.timestampStr.slice(0,19) : '—';
+    const note  = (a.special || a.note || '').slice(0,40);
+    html += `<tr>
+      <td>${i+1}</td>
+      <td class="td-uuid">${esc(a.normalized)}</td>
+      <td class="td-ver">${esc(ver)}</td>
+      <td class="td-ts">${esc(ts)}</td>
+      <td class="td-note">${esc(note)}</td>
+    </tr>`;
+  }
+
+  html += '</tbody></table>';
+  out.innerHTML = html;
+}
+
+// ── Generate tab ──────────────────────────────────────────────────
+let genVer = 4;
+let lastGen = '';
+
+function selectGenVer(v) {
+  genVer = v;
+  document.querySelectorAll('[id^="gvbtn-"]').forEach(b => b.classList.remove('active'));
+  const el = document.getElementById('gvbtn-' + v);
+  if (el) el.classList.add('active');
+  doGenerate();
+}
+
+function genV4() {
+  if (typeof crypto.randomUUID === 'function') return crypto.randomUUID();
+  const b = crypto.getRandomValues(new Uint8Array(16));
+  b[6] = (b[6] & 0x0f) | 0x40;
+  b[8] = (b[8] & 0x3f) | 0x80;
+  const h = Array.from(b, x => x.toString(16).padStart(2,'0')).join('');
+  return h.slice(0,8)+'-'+h.slice(8,12)+'-'+h.slice(12,16)+'-'+h.slice(16,20)+'-'+h.slice(20);
+}
+
+function genV7() {
+  const msHex = Date.now().toString(16).padStart(12, '0'); // 48-bit unix ms
+  const rand  = crypto.getRandomValues(new Uint8Array(10));
+  rand[0] = (rand[0] & 0x0f) | 0x70; // version nibble
+  rand[2] = (rand[2] & 0x3f) | 0x80; // variant bits
+  const rh = Array.from(rand, x => x.toString(16).padStart(2,'0')).join('');
+  const full = msHex + rh; // 12 + 20 = 32 hex chars
+  return full.slice(0,8)+'-'+full.slice(8,12)+'-'+full.slice(12,16)+'-'+full.slice(16,20)+'-'+full.slice(20);
+}
+
+function genV1Mock() {
+  const ts = BigInt(Date.now()) * 10000n + UUID_V1_EPOCH;
+  const tLow  = (ts & 0xffffffffn).toString(16).padStart(8,'0');
+  const tMid  = ((ts >> 32n) & 0xffffn).toString(16).padStart(4,'0');
+  const tHiV  = (0x1000n | ((ts >> 48n) & 0x0fffn)).toString(16).padStart(4,'0');
+  const rb    = crypto.getRandomValues(new Uint8Array(8));
+  rb[0] = (rb[0] & 0x3f) | 0x80; // variant
+  rb[2] |= 0x01;                  // set multicast bit (random node marker)
+  const rh = Array.from(rb, x => x.toString(16).padStart(2,'0')).join('');
+  return tLow+'-'+tMid+'-'+tHiV+'-'+rh.slice(0,4)+'-'+rh.slice(4);
+}
+
+function doGenerate() {
+  let uuid, meta;
+  if (genVer === 4) {
+    uuid = genV4();
+    meta = '122 bits random · no embedded data';
+  } else if (genVer === 7) {
+    uuid = genV7();
+    const [g1,g2] = uuid.split('-');
+    const ts = decodeV7Ts(g1, g2);
+    meta = 'timestamp: ' + (fmtDate(ts) || '?');
+  } else {
+    uuid = genV1Mock();
+    const parts = uuid.split('-');
+    const ts = decodeV1Ts(parts[0], parts[1], parts[2]);
+    meta = 'mock v1 · timestamp: ' + (fmtDate(ts) || '?') + ' · random node';
+  }
+  lastGen = uuid;
+  document.getElementById('gen-output').textContent = uuid;
+  document.getElementById('gen-meta').textContent = meta;
+}
+
+function copyGen() {
+  if (lastGen) copyText(lastGen, 'UUID');
+}
+
+function inspectGen() {
+  if (!lastGen) return;
+  document.getElementById('uuid-input').value = lastGen;
+  switchTab('inspect');
+  onInspectInput();
+}
+
+// ── Tabs ──────────────────────────────────────────────────────────
+function switchTab(name) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  document.getElementById('tab-' + name).classList.add('active');
+  document.getElementById('panel-' + name).classList.add('active');
+}
+
+// ── Copy utility ──────────────────────────────────────────────────
+function copyText(text, label) {
+  navigator.clipboard.writeText(text).then(() => showToast((label || 'Text') + ' copied'));
+}
+
+let toastTimer = null;
+function showToast(msg) {
+  const el = document.getElementById('copy-toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  if (toastTimer) clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { el.classList.remove('show'); toastTimer = null; }, 1600);
+}
+
+// ── Init ──────────────────────────────────────────────────────────
+doGenerate();
+</script>
+</body>
+</html>

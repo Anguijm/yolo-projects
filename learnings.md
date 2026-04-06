@@ -3100,3 +3100,15 @@ Sequential Gemini reviews (focus: bugs, then security) caught **different issue 
 - **INSIGHT**: For timestamp tools, the "Relative" row (live "3 months ago") is the single most valuable display — it's the piece of information devs spend the most mental energy computing. Prioritize it visually (cyan accent, live ticker).
 - **INSIGHT**: The `[missing-event-cleanup]` eval_bugs pattern fires on ANY `setInterval` or `setTimeout` regardless of management. The pattern cannot distinguish managed vs leaked timers. Always self-audit: check if `clearInterval`/`clearTimeout` is called before the corresponding set. If yes → false positive. Document in learnings once, stop second-guessing.
 - **COUNCIL**: Gemini MCP unavailable — internal 6-angle review performed. PARTIAL REVIEW logged.
+
+### uuid-inspector (2026-04-06)
+- **KEEP**: `BigInt` arithmetic for UUID v1 Gregorian timestamps — `(hi12<<48n)|(mid<<32n)|low` in pure BigInt then convert to Number for `new Date(ms)`. No precision loss, no third-party library. The 100ns-to-ms conversion is `/ 10000n` before `Number()` cast.
+- **KEEP**: `UUID_V1_EPOCH = 122192928000000000n` (100ns ticks from Oct 15 1582 to Jan 1 1970) — hardcode this constant once, never recompute. Both v1 and v6 share it.
+- **KEEP**: v7 timestamp decode is trivially `g1 + g2` (12 hex chars = 48 bits) → `Number(BigInt('0x' + hex))`. Much simpler than v1. Makes v7 the "free timestamp" UUID version.
+- **KEEP**: Color-coding the version nibble (cyan) and variant nibble (blue) separately in the UUID display instantly teaches users where the structural info lives. `seg-version` / `seg-variant` classes on the specific character (not the whole group).
+- **KEEP**: `normalizeUUID` accepting braced `{...}`, URN `urn:uuid:...`, and plain forms before hex-stripping — real-world UUIDs come in all three forms from logs, DB outputs, and API responses.
+- **KEEP**: `fmtRel` relative time formatter in `uuid-inspector` style: short units (s/m/h/d/y), no fractional minutes. Clean for the "timestamp decoded" line.
+- **IMPROVE**: The segment pills (`seg-pill`) could show bit-width labels (e.g. "32 bits") alongside the field name. Would reinforce the UUID bit layout for learning. Skipped in v1 for density, but worth adding as a toggle.
+- **INSIGHT**: `[dom-query-in-render]` eval_bugs flag fires when `querySelectorAll` appears anywhere in the same file as a function named `render*`. False positive when `renderAnalysis` returns HTML strings and never touches the DOM. Self-audit: check if the render function contains any `getElementById`/`querySelector` calls — if not, it's a false positive.
+- **INSIGHT**: UUID v7 is now the default in major frameworks (Rails 7.1+, Laravel 11+, Hibernate 6.2+). Any UUID-related tool built in 2025+ must prioritize v7 decode. The embedded timestamp is the #1 reason devs need to decode a UUID they find in a log.
+- **COUNCIL**: Gemini MCP unavailable — internal 6-angle review performed. All angles clean. PARTIAL REVIEW logged.
