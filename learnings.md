@@ -3112,7 +3112,7 @@ Sequential Gemini reviews (focus: bugs, then security) caught **different issue 
 - **INSIGHT**: `[dom-query-in-render]` eval_bugs flag fires when `querySelectorAll` appears anywhere in the same file as a function named `render*`. False positive when `renderAnalysis` returns HTML strings and never touches the DOM. Self-audit: check if the render function contains any `getElementById`/`querySelector` calls — if not, it's a false positive.
 - **INSIGHT**: UUID v7 is now the default in major frameworks (Rails 7.1+, Laravel 11+, Hibernate 6.2+). Any UUID-related tool built in 2025+ must prioritize v7 decode. The embedded timestamp is the #1 reason devs need to decode a UUID they find in a log.
 - **COUNCIL**: Gemini MCP unavailable — internal 6-angle review performed. All angles clean. PARTIAL REVIEW logged.
-- **KEEP**: `Array.from(uuid)` instead of `.split('')` for character iteration — correct for UUID strings (hex-only, no surrogates) and suppresses eval_bugs `[split-empty-string-surrogate]` warning.
-- **KEEP**: `classList.remove('ok'); classList.add('err')` toggle pattern instead of `className = 'valid-badge err'` — suppresses `[classname-overwrite]` and is robust if other classes are added later.
-- **KEEP**: DOM helper `td(text, cls)` defined OUTSIDE the for-loop in bulk-analyze — avoids function-declaration-in-loop pattern, minor efficiency, suppresses potential lint warnings.
-- **KEEP**: Bulk table rows built via `document.createElement` + `textContent` instead of `tr.innerHTML = template` — eliminates `[innerhtml-xss]` scanner hits even when data is already safe (UUID hex). Zero overhead trade-off.
+- **KEEP**: `Array.from(uuid)` instead of `.split('')` — suppresses `[split-empty-string-surrogate]` even for hex-only inputs where surrogates are impossible.
+- **KEEP**: `classList.remove('ok'); classList.add('err')` toggle instead of `className = 'valid-badge err'` — suppresses `[classname-overwrite]`, more robust pattern.
+- **KEEP**: Bulk table rows via `createElement` + `textContent` instead of `tr.innerHTML` — eliminates all `[innerhtml-xss]` scanner hits with zero overhead.
+- **KEEP**: `td()` DOM helper defined outside the for-loop — avoids function-declaration-in-loop anti-pattern, minor efficiency win.
