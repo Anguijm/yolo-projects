@@ -1,0 +1,903 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
+  <meta name="theme-color" content="#000000">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src *">
+  <title>URL Dissect</title>
+  <link rel="manifest" href="manifest.json">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body {
+      height: 100%;
+      background: #0a0a0a;
+      color: #ccc;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Courier New", monospace;
+      overflow: hidden;
+      touch-action: manipulation;
+      -webkit-tap-highlight-color: transparent;
+    }
+    :root {
+      --accent: #0ff;
+      --bg-surface: #111;
+      --color-success: #3fb950;
+      --color-warning: #d29922;
+      --color-error: #f85149;
+      --color-info: #58a6ff;
+    }
+    #app {
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+      max-width: 620px;
+      margin: 0 auto;
+      padding: 0 12px;
+    }
+
+    /* ── Header ── */
+    header {
+      padding: 10px 0 0;
+      border-bottom: 1px solid #1a1a1a;
+      flex-shrink: 0;
+    }
+    .h-row { display: flex; align-items: baseline; gap: 8px; }
+    .title {
+      font-size: 0.75rem;
+      font-weight: 700;
+      letter-spacing: 0.25em;
+      text-transform: uppercase;
+      color: var(--accent);
+    }
+    .subtitle { font-size: 0.45rem; color: #2a2a2a; letter-spacing: 0.1em; }
+    .tabs {
+      display: flex;
+      margin-top: 8px;
+    }
+    .tab-btn {
+      padding: 5px 14px;
+      background: transparent;
+      border: none;
+      border-bottom: 2px solid transparent;
+      color: #444;
+      font-family: inherit;
+      font-size: 0.55rem;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      cursor: pointer;
+      margin-bottom: -1px;
+    }
+    .tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+    /* ── Tab Content ── */
+    .tab-content {
+      display: none;
+      flex: 1;
+      overflow-y: auto;
+      padding: 10px 0 24px;
+      gap: 8px;
+      flex-direction: column;
+    }
+    .tab-content.active { display: flex; }
+
+    /* ── URL Input ── */
+    .url-input-wrap { position: relative; }
+    .url-input {
+      width: 100%;
+      background: #111;
+      border: 1px solid #222;
+      color: #aaa;
+      padding: 8px 70px 8px 8px;
+      font-family: inherit;
+      font-size: 0.7rem;
+      outline: none;
+    }
+    .url-input:focus { border-color: #555; }
+    .url-input::placeholder { color: #2a2a2a; }
+    .inline-btn {
+      position: absolute;
+      right: 4px;
+      top: 50%;
+      transform: translateY(-50%);
+      padding: 3px 8px;
+      background: transparent;
+      border: 1px solid #333;
+      color: #555;
+      font-family: inherit;
+      font-size: 0.5rem;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      cursor: pointer;
+    }
+    .inline-btn:active { border-color: var(--accent); color: var(--accent); }
+
+    /* ── Error ── */
+    .error-msg { font-size: 0.6rem; color: var(--color-error); padding: 2px 0; }
+
+    /* ── Component Table ── */
+    .comp-table { border: 1px solid #1a1a1a; display: flex; flex-direction: column; }
+    .comp-row {
+      display: grid;
+      grid-template-columns: 84px 1fr auto;
+      border-bottom: 1px solid #111;
+      min-height: 28px;
+    }
+    .comp-row:last-child { border-bottom: none; }
+    .comp-row.dim .comp-label,
+    .comp-row.dim .comp-value { opacity: 0.3; }
+    .comp-label {
+      font-size: 0.42rem;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: #444;
+      padding: 5px 8px;
+      border-right: 1px solid #111;
+      display: flex;
+      align-items: center;
+      flex-shrink: 0;
+    }
+    .comp-value {
+      font-size: 0.65rem;
+      color: #aaa;
+      padding: 5px 8px;
+      word-break: break-all;
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 4px;
+    }
+    .comp-value.hi { color: #fff; }
+    .comp-value.ac { color: var(--accent); }
+    .comp-copy {
+      padding: 0 8px;
+      background: transparent;
+      border: none;
+      border-left: 1px solid #111;
+      color: #2a2a2a;
+      font-family: inherit;
+      font-size: 0.5rem;
+      cursor: pointer;
+      align-self: stretch;
+      display: flex;
+      align-items: center;
+      flex-shrink: 0;
+    }
+    .comp-copy:active { color: var(--accent); }
+
+    /* full-width row variant */
+    .comp-wide {
+      border-bottom: 1px solid #111;
+      padding: 0;
+    }
+    .comp-wide:last-child { border-bottom: none; }
+
+    /* ── Segments ── */
+    .seg-list { display: flex; flex-wrap: wrap; align-items: center; gap: 3px; }
+    .seg {
+      font-size: 0.55rem;
+      color: #888;
+      padding: 1px 5px;
+      border: 1px solid #1e1e1e;
+      background: #111;
+    }
+    .seg-sep { color: #444; font-size: 0.55rem; }
+
+    /* ── Param Table ── */
+    .param-hdr, .param-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      border-bottom: 1px solid #0d0d0d;
+    }
+    .param-hdr { border-bottom: 1px solid #1a1a1a; }
+    .param-row:last-child { border-bottom: none; }
+    .pcell {
+      font-size: 0.6rem;
+      padding: 4px 8px;
+      word-break: break-all;
+      border-right: 1px solid #0d0d0d;
+    }
+    .pcell:last-child { border-right: none; }
+    .pcell.lbl { font-size: 0.38rem; letter-spacing: 0.1em; text-transform: uppercase; color: #444; }
+    .pcell.key { color: var(--color-info); }
+    .pcell.val { color: #aaa; }
+    .pcell.flags { display: flex; flex-wrap: wrap; gap: 3px; align-items: center; }
+
+    /* ── Badges ── */
+    .badge {
+      font-size: 0.38rem;
+      padding: 1px 4px;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      border-radius: 2px;
+      white-space: nowrap;
+    }
+    .badge.warn { background: #1e1600; color: var(--color-warning); border: 1px solid #2e2200; }
+    .badge.ok   { background: #0a1a0a; color: var(--color-success); border: 1px solid #102010; }
+    .badge.info { background: #0a1420; color: var(--color-info);    border: 1px solid #0f1e30; }
+    .badge.err  { background: #1e0a0a; color: var(--color-error);   border: 1px solid #2e1010; }
+
+    /* ── Port note ── */
+    .port-note { font-size: 0.42rem; color: #444; margin-left: 4px; }
+
+    /* ── Rebuild ── */
+    .rebuild-wrap {
+      border: 1px solid #1a1a1a;
+      padding: 8px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .section-lbl {
+      font-size: 0.42rem;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: #444;
+    }
+    .rebuild-grid {
+      display: grid;
+      grid-template-columns: 68px 1fr;
+      gap: 4px;
+      align-items: center;
+    }
+    .rb-lbl { font-size: 0.42rem; letter-spacing: 0.1em; text-transform: uppercase; color: #444; }
+    .rb-inp {
+      background: #0d0d0d;
+      border: 1px solid #1e1e1e;
+      color: #888;
+      padding: 4px 6px;
+      font-family: inherit;
+      font-size: 0.6rem;
+      outline: none;
+      width: 100%;
+    }
+    .rb-inp:focus { border-color: #444; color: #aaa; }
+    .rb-out {
+      padding: 6px 8px;
+      background: #0d0d0d;
+      border: 1px solid #1a1a1a;
+      font-size: 0.65rem;
+      color: var(--accent);
+      word-break: break-all;
+      min-height: 32px;
+      cursor: pointer;
+    }
+    .rb-out:active { opacity: 0.7; }
+
+    /* ── Resolve ── */
+    .field-group { display: flex; flex-direction: column; gap: 4px; }
+    .resolve-out {
+      padding: 8px;
+      background: #111;
+      border: 1px solid #1a1a1a;
+      font-size: 0.7rem;
+      color: var(--accent);
+      word-break: break-all;
+      min-height: 38px;
+      cursor: pointer;
+    }
+    .resolve-out:active { opacity: 0.7; }
+
+    /* ── Bulk ── */
+    .bulk-ta {
+      width: 100%;
+      min-height: 110px;
+      background: #111;
+      border: 1px solid #222;
+      color: #888;
+      padding: 8px;
+      font-family: inherit;
+      font-size: 0.6rem;
+      resize: vertical;
+      outline: none;
+    }
+    .bulk-ta:focus { border-color: #555; }
+    .bulk-ta::placeholder { color: #222; }
+    .bulk-count { font-size: 0.45rem; color: #444; letter-spacing: 0.1em; }
+    .bulk-list { display: flex; flex-direction: column; gap: 3px; }
+    .bulk-row {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 5px 8px;
+      border: 1px solid #1a1a1a;
+    }
+    .bulk-url {
+      flex: 1;
+      font-size: 0.6rem;
+      color: #666;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .bulk-row:active .bulk-url { color: var(--accent); }
+    .btn-ghost {
+      flex-shrink: 0;
+      padding: 3px 8px;
+      background: transparent;
+      border: 1px solid #222;
+      color: #444;
+      font-family: inherit;
+      font-size: 0.48rem;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      cursor: pointer;
+    }
+    .btn-ghost:active { border-color: var(--accent); color: var(--accent); }
+
+    /* ── Empty / Toast ── */
+    .empty { font-size: 0.6rem; color: #2a2a2a; padding: 20px 0; text-align: center; }
+    .toast {
+      position: fixed;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: #1a1a1a;
+      border: 1px solid #444;
+      color: #aaa;
+      padding: 5px 16px;
+      font-size: 0.55rem;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.2s;
+      border-radius: 3px;
+      z-index: 100;
+    }
+    .toast.show { opacity: 1; }
+  </style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <div class="h-row">
+      <span class="title">URL Dissect</span>
+      <span class="subtitle">Anatomy · Resolve · Bulk Extract</span>
+    </div>
+    <div class="tabs">
+      <button class="tab-btn active" data-tab="dissect">Dissect</button>
+      <button class="tab-btn" data-tab="resolve">Resolve</button>
+      <button class="tab-btn" data-tab="bulk">Bulk</button>
+    </div>
+  </header>
+
+  <!-- ── DISSECT ──────────────────────────────────────────── -->
+  <div class="tab-content active" id="tab-dissect">
+    <div class="url-input-wrap">
+      <input type="text" class="url-input" id="url-input"
+        placeholder="https://user:pass@api.example.com:8080/v1/search?q=hello%20world&page=2#results"
+        autocomplete="off" autocorrect="off" spellcheck="false">
+      <button class="inline-btn" id="parse-btn">Parse</button>
+    </div>
+    <div class="error-msg" id="d-error" style="display:none"></div>
+    <div id="dissect-result" style="display:none">
+      <div class="comp-table" id="comp-table"></div>
+      <div class="rebuild-wrap" id="rebuild-wrap">
+        <div class="section-lbl">Live Rebuild</div>
+        <div class="rebuild-grid" id="rebuild-grid"></div>
+        <div class="rb-out" id="rb-out" title="Click to copy">—</div>
+      </div>
+    </div>
+    <div class="empty" id="d-empty">Paste any URL to dissect it</div>
+  </div>
+
+  <!-- ── RESOLVE ──────────────────────────────────────────── -->
+  <div class="tab-content" id="tab-resolve">
+    <div class="field-group">
+      <div class="section-lbl">Base URL</div>
+      <input type="text" class="url-input" id="r-base"
+        placeholder="https://example.com/api/v1/users/123"
+        autocomplete="off" spellcheck="false">
+    </div>
+    <div class="field-group">
+      <div class="section-lbl">Relative URL</div>
+      <input type="text" class="url-input" id="r-rel"
+        placeholder="../posts?tag=news#top"
+        autocomplete="off" spellcheck="false">
+    </div>
+    <div class="field-group">
+      <div class="section-lbl">Resolved</div>
+      <div class="resolve-out" id="r-out" title="Click to copy">—</div>
+    </div>
+    <div class="error-msg" id="r-error" style="display:none"></div>
+  </div>
+
+  <!-- ── BULK ─────────────────────────────────────────────── -->
+  <div class="tab-content" id="tab-bulk">
+    <div class="field-group">
+      <div class="section-lbl">Paste any text containing URLs</div>
+      <textarea class="bulk-ta" id="bulk-ta"
+        placeholder="Paste a log file, HTML snippet, markdown, config, or any text…"></textarea>
+    </div>
+    <div class="bulk-count" id="bulk-count" style="display:none"></div>
+    <div class="bulk-list" id="bulk-list"></div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+'use strict';
+
+// ── Constants ────────────────────────────────────────────────────────────────
+const DEFAULT_PORTS = {
+  'http:':80,'https:':443,'ftp:':21,'ftps:':990,
+  'ws:':80,'wss:':443,'smtp:':25,'smtps:':465,
+  'pop3:':110,'pop3s:':995,'imap:':143,'imaps:':993,
+  'ldap:':389,'ldaps:':636,'mysql:':3306,'postgres:':5432,
+  'mongodb:':27017,'redis:':6379,'ssh:':22,'telnet:':23,
+  'rdp:':3389,'vnc:':5900,'sftp:':22,'nfs:':2049,
+  'kafka:':9092,'amqp:':5672,'mqtt:':1883
+};
+const IP_RE = new RegExp('^\\d+(\\.\\d+){3}$');
+
+// ── Toast ────────────────────────────────────────────────────────────────────
+let toastTmr = null;
+function toast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(toastTmr);
+  toastTmr = setTimeout(() => t.classList.remove('show'), 1400);
+}
+function copyText(s) {
+  if (!s) return;
+  function fallback() {
+    const ta = document.createElement('textarea');
+    ta.value = s;
+    ta.style.position = 'fixed';
+    ta.style.left = '-9999px';
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand('copy');
+    document.body.removeChild(ta);
+    toast('Copied');
+  }
+  if (navigator.clipboard && window.isSecureContext) {
+    navigator.clipboard.writeText(s).then(() => toast('Copied')).catch(fallback);
+  } else {
+    fallback();
+  }
+}
+
+// ── Tabs ─────────────────────────────────────────────────────────────────────
+document.querySelectorAll('.tab-btn').forEach(btn => {
+  btn.addEventListener('pointerdown', () => {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
+  });
+});
+
+// ── Helpers ──────────────────────────────────────────────────────────────────
+function mk(tag, cls, text) {
+  const e = document.createElement(tag);
+  if (cls) e.className = cls;
+  if (text !== undefined) e.textContent = text;
+  return e;
+}
+function bdg(type, label) {
+  const b = mk('span', 'badge ' + type, label);
+  return b;
+}
+
+// ── Raw Param Parsing ────────────────────────────────────────────────────────
+function parseRawParams(search) {
+  if (!search || search === '?') return [];
+  const str = search.startsWith('?') ? search.slice(1) : search;
+  return str.split('&').map(pair => {
+    const eq = pair.indexOf('=');
+    const rawKey = eq === -1 ? pair : pair.slice(0, eq);
+    const rawVal = eq === -1 ? '' : pair.slice(eq + 1);
+
+    let key = rawKey;
+    try { key = decodeURIComponent(rawKey.replace(/\+/g, ' ')); } catch {}
+
+    const issues = [];
+    let decoded = rawVal;
+
+    // Attempt decode — treat + as space (form encoding) only if no %2B
+    const useFormDecode = rawVal.includes('+') && !rawVal.includes('%2B');
+    const toTry = useFormDecode ? rawVal.replace(/\+/g, ' ') : rawVal;
+
+    try {
+      decoded = decodeURIComponent(toTry);
+    } catch {
+      issues.push({ type: 'err', label: 'Malformed %enc' });
+      decoded = rawVal;
+    }
+
+    if (useFormDecode && rawVal.includes('+')) {
+      issues.push({ type: 'info', label: '+ as space' });
+    }
+
+    // Double-encoded: decoded value still has %XX sequences
+    if (new RegExp('%[0-9A-Fa-f]{2}').test(decoded)) {
+      issues.push({ type: 'warn', label: 'Double-encoded' });
+    }
+
+    return { key, rawKey, rawVal, decoded, issues };
+  });
+}
+
+// ── URL Parser ───────────────────────────────────────────────────────────────
+function parseURL(raw) {
+  raw = raw.trim();
+  if (!raw) return null;
+
+  let u;
+  let autoScheme = false;
+
+  try {
+    u = new URL(raw);
+  } catch {
+    try {
+      u = new URL('https:' + '/' + '/' + raw);
+      autoScheme = true;
+    } catch (e2) {
+      throw new Error('Cannot parse URL: ' + e2.message.replace(new RegExp('.*Failed to construct .URL.: ', 'i'), ''));
+    }
+  }
+
+  const scheme = u.protocol;
+  const portStr = u.port;
+  const defPort = DEFAULT_PORTS[scheme] || null;
+  const portNum = portStr ? parseInt(portStr, 10) : defPort;
+  const isDefaultPort = !portStr && defPort !== null;
+  const isNonStd = portStr && defPort !== null && parseInt(portStr, 10) !== defPort;
+
+  const pathSegs = u.pathname.split('/').filter(Boolean);
+  const rawParams = parseRawParams(u.search);
+
+  return {
+    original: raw, href: u.href, autoScheme,
+    scheme: scheme.slice(0, -1),
+    username: u.username, password: u.password,
+    hostname: u.hostname, port: portStr,
+    portNum, defPort, isDefaultPort, isNonStd,
+    pathname: u.pathname, pathSegs,
+    search: u.search, rawParams,
+    hash: u.hash ? u.hash.slice(1) : '',
+    origin: u.origin
+  };
+}
+
+// ── Render Component Table ───────────────────────────────────────────────────
+function makeRow(label, fillFn, copyVal) {
+  const row = mk('div', 'comp-row');
+  const lbl = mk('div', 'comp-label', label);
+  const val = mk('div', 'comp-value');
+  const cpb = mk('button', 'comp-copy', '⎘');
+  cpb.title = 'Copy';
+  cpb.addEventListener('pointerdown', e => { e.stopPropagation(); copyText(copyVal); });
+  fillFn(val);
+  row.appendChild(lbl);
+  row.appendChild(val);
+  row.appendChild(cpb);
+  return row;
+}
+
+function buildDissect(p) {
+  const tbl = document.getElementById('comp-table');
+  tbl.innerHTML = '';
+
+  // SCHEME
+  tbl.appendChild(makeRow('Scheme', val => {
+    const sp = mk('span', 'comp-value ac');
+    sp.style.padding = '0';
+    sp.textContent = p.scheme;
+    val.appendChild(sp);
+    if (p.autoScheme) { val.appendChild(document.createTextNode(' ')); val.appendChild(bdg('warn', 'Auto-detected')); }
+  }, p.scheme));
+
+  // USERINFO
+  if (p.username) {
+    tbl.appendChild(makeRow('User', val => { val.textContent = p.username; val.classList.add('hi'); }, p.username));
+  }
+  if (p.password) {
+    tbl.appendChild(makeRow('Password', val => {
+      val.textContent = '•'.repeat(Math.min(p.password.length, 10));
+      val.classList.add('hi');
+    }, p.password));
+  }
+
+  // HOST
+  tbl.appendChild(makeRow('Host', val => {
+    val.textContent = p.hostname;
+    val.classList.add('hi');
+    const parts = p.hostname.split('.');
+    if (parts.length >= 2 && !IP_RE.test(p.hostname) && !p.hostname.includes('[')) {
+      val.appendChild(document.createTextNode(' '));
+      val.appendChild(bdg('info', '.' + parts[parts.length - 1]));
+    }
+  }, p.hostname));
+
+  // PORT
+  tbl.appendChild(makeRow('Port', val => {
+    if (p.port) {
+      const sp = mk('span', '', p.port);
+      sp.style.color = '#fff';
+      val.appendChild(sp);
+      if (p.isNonStd) { val.appendChild(document.createTextNode(' ')); val.appendChild(bdg('warn', 'Non-standard')); }
+      if (p.defPort) {
+        val.appendChild(mk('span', 'port-note', `(${p.scheme} default: ${p.defPort})`));
+      }
+    } else if (p.defPort) {
+      const sp = mk('span', '', String(p.defPort));
+      sp.style.color = '#555';
+      val.appendChild(sp);
+      val.appendChild(document.createTextNode(' '));
+      val.appendChild(bdg('ok', 'default'));
+    } else {
+      const sp = mk('span', '', '—');
+      sp.style.color = '#333';
+      val.appendChild(sp);
+    }
+  }, p.port || String(p.defPort || '')));
+
+  // ORIGIN
+  tbl.appendChild(makeRow('Origin', val => { val.textContent = p.origin; val.style.color = '#888'; }, p.origin));
+
+  // PATH
+  tbl.appendChild(makeRow('Path', val => { val.textContent = p.pathname; val.classList.add('hi'); }, p.pathname));
+
+  // PATH SEGMENTS
+  if (p.pathSegs.length > 0) {
+    tbl.appendChild(makeRow('Segments', val => {
+      const list = mk('div', 'seg-list');
+      p.pathSegs.forEach((seg, i) => {
+        if (i > 0) list.appendChild(mk('span', 'seg-sep', '/'));
+        const s = mk('span', 'seg');
+        let dec = seg;
+        try { dec = decodeURIComponent(seg); } catch {}
+        s.textContent = dec;
+        if (dec !== seg) s.title = 'Raw: ' + seg;
+        list.appendChild(s);
+      });
+      val.appendChild(list);
+    }, p.pathSegs.map(s => { try { return decodeURIComponent(s); } catch { return s; } }).join('/')));
+  }
+
+  // QUERY PARAMS
+  if (p.rawParams.length > 0) {
+    // Summary row
+    tbl.appendChild(makeRow('Query', val => {
+      val.textContent = p.rawParams.length + ' param' + (p.rawParams.length !== 1 ? 's' : '');
+      val.style.color = '#888';
+    }, p.search));
+
+    // Full-width param sub-table
+    const wide = mk('div', 'comp-wide');
+    const ptbl = mk('div');
+
+    const hdr = mk('div', 'param-hdr');
+    hdr.appendChild(mk('div', 'pcell lbl', 'Key'));
+    hdr.appendChild(mk('div', 'pcell lbl', 'Value / Decoded'));
+    hdr.appendChild(mk('div', 'pcell lbl', 'Flags'));
+    ptbl.appendChild(hdr);
+
+    p.rawParams.forEach(param => {
+      const row = mk('div', 'param-row');
+
+      const kc = mk('div', 'pcell key', param.key);
+
+      const vc = mk('div', 'pcell val');
+      if (param.decoded !== param.rawVal && param.rawVal !== '') {
+        const raw = mk('span', '', param.rawVal);
+        raw.style.color = '#444';
+        raw.style.textDecoration = 'line-through';
+        raw.style.fontSize = '0.52rem';
+        vc.appendChild(raw);
+        vc.appendChild(document.createTextNode(' '));
+        vc.appendChild(mk('span', '', param.decoded));
+      } else {
+        vc.textContent = param.decoded || (param.rawVal === '' ? '(empty)' : param.rawVal);
+        if (param.rawVal === '') vc.style.color = '#444';
+      }
+
+      const fc = mk('div', 'pcell flags');
+      if (param.issues.length === 0) {
+        fc.appendChild(bdg('ok', '✓ clean'));
+      } else {
+        param.issues.forEach(iss => { fc.appendChild(bdg(iss.type, iss.label)); });
+      }
+
+      row.appendChild(kc); row.appendChild(vc); row.appendChild(fc);
+      ptbl.appendChild(row);
+    });
+
+    wide.appendChild(ptbl);
+    tbl.appendChild(wide);
+  } else {
+    const row = makeRow('Query', val => { val.textContent = '—'; val.style.color = '#2a2a2a'; }, '');
+    row.classList.add('dim');
+    tbl.appendChild(row);
+  }
+
+  // FRAGMENT
+  if (p.hash) {
+    tbl.appendChild(makeRow('Fragment', val => { val.textContent = '#' + p.hash; val.classList.add('hi'); }, p.hash));
+  } else {
+    const row = makeRow('Fragment', val => { val.textContent = '—'; val.style.color = '#2a2a2a'; }, '');
+    row.classList.add('dim');
+    tbl.appendChild(row);
+  }
+
+  // ── Rebuild widget ──────────────────────────────────────────────────────────
+  const grid = document.getElementById('rebuild-grid');
+  grid.innerHTML = '';
+
+  const fields = [
+    { id: 'rb-scheme',   lbl: 'Scheme',   val: p.scheme },
+    { id: 'rb-userinfo', lbl: 'Userinfo', val: p.username ? (p.username + (p.password ? ':' + p.password : '')) : '' },
+    { id: 'rb-host',     lbl: 'Host',     val: p.hostname },
+    { id: 'rb-port',     lbl: 'Port',     val: p.port },
+    { id: 'rb-path',     lbl: 'Path',     val: p.pathname },
+    { id: 'rb-query',    lbl: 'Query',    val: p.search.slice(1) },
+    { id: 'rb-hash',     lbl: 'Fragment', val: p.hash },
+  ];
+
+  fields.forEach(f => {
+    grid.appendChild(mk('div', 'rb-lbl', f.lbl));
+    const inp = mk('input', 'rb-inp');
+    inp.type = 'text';
+    inp.id = f.id;
+    inp.value = f.val;
+    inp.autocomplete = 'off';
+    inp.spellcheck = false;
+    inp.addEventListener('input', syncRebuild);
+    grid.appendChild(inp);
+  });
+
+  syncRebuild();
+}
+
+function syncRebuild() {
+  const get = id => (document.getElementById(id) || {value: ''}).value;
+  const scheme   = get('rb-scheme')   || 'https';
+  const userinfo = get('rb-userinfo');
+  const host     = get('rb-host');
+  const port     = get('rb-port');
+  const path     = get('rb-path');
+  const query    = get('rb-query');
+  const hash     = get('rb-hash');
+
+  const out = document.getElementById('rb-out');
+  if (!host) { out.textContent = '—'; return; }
+
+  let url = scheme + ':' + '/' + '/';
+  if (userinfo) url += userinfo + '@';
+  url += host;
+  if (port) url += ':' + port;
+  if (path) url += path.startsWith('/') ? path : '/' + path;
+  else url += '/';
+  if (query) url += '?' + query;
+  if (hash) url += '#' + hash;
+
+  out.textContent = url;
+}
+
+document.getElementById('rb-out').addEventListener('pointerdown', () => {
+  const txt = document.getElementById('rb-out').textContent;
+  if (txt && txt !== '—') copyText(txt);
+});
+
+// ── Parse Handler ────────────────────────────────────────────────────────────
+function doParse(inputVal) {
+  const raw = inputVal !== undefined ? inputVal : document.getElementById('url-input').value;
+  const errEl  = document.getElementById('d-error');
+  const resEl  = document.getElementById('dissect-result');
+  const empEl  = document.getElementById('d-empty');
+
+  if (!raw.trim()) {
+    errEl.style.display = 'none';
+    resEl.style.display = 'none';
+    empEl.style.display = 'block';
+    return;
+  }
+
+  try {
+    const p = parseURL(raw);
+    errEl.style.display = 'none';
+    resEl.style.display = 'block';
+    empEl.style.display = 'none';
+    buildDissect(p);
+  } catch (e) {
+    errEl.textContent = e.message;
+    errEl.style.display = 'block';
+    resEl.style.display = 'none';
+    empEl.style.display = 'none';
+  }
+}
+
+document.getElementById('parse-btn').addEventListener('pointerdown', () => doParse());
+document.getElementById('url-input').addEventListener('keydown', e => { if (e.key === 'Enter') doParse(); });
+document.getElementById('url-input').addEventListener('paste', () => setTimeout(() => doParse(), 0));
+
+// ── Resolve ──────────────────────────────────────────────────────────────────
+let resolveVal = '—';
+function doResolve() {
+  const base = document.getElementById('r-base').value.trim();
+  const rel  = document.getElementById('r-rel').value.trim();
+  const out  = document.getElementById('r-out');
+  const err  = document.getElementById('r-error');
+
+  if (!base && !rel) { out.textContent = '—'; resolveVal = ''; err.style.display = 'none'; return; }
+
+  try {
+    const resolved = new URL(rel, base || undefined);
+    resolveVal = resolved.href;
+    out.textContent = resolved.href;
+    err.style.display = 'none';
+  } catch (e) {
+    resolveVal = '';
+    out.textContent = '—';
+    err.textContent = e.message.replace(/.*Failed to construct 'URL': /i, '');
+    err.style.display = 'block';
+  }
+}
+
+document.getElementById('r-base').addEventListener('input', doResolve);
+document.getElementById('r-rel').addEventListener('input', doResolve);
+document.getElementById('r-out').addEventListener('pointerdown', () => { if (resolveVal) copyText(resolveVal); });
+
+// ── Bulk ─────────────────────────────────────────────────────────────────────
+const URL_RE = new RegExp('https?:\\/\\/[^\\s<>]+', 'g');
+
+function doBulk() {
+  const text = document.getElementById('bulk-ta').value;
+  const list = document.getElementById('bulk-list');
+  const cnt  = document.getElementById('bulk-count');
+  list.innerHTML = '';
+
+  if (!text.trim()) { cnt.style.display = 'none'; return; }
+
+  const matches = [...new Set((text.match(URL_RE) || []).map(u => {
+    u = u.replace(/[.,;:!?]+$/, '');
+    // Trim trailing closing brackets by char code: paren=41, bracket=93, brace=125
+    let lc = u.charCodeAt(u.length - 1);
+    while (u.length > 0 && (lc === 41 || lc === 93 || lc === 125)) { u = u.slice(0, -1); lc = u.charCodeAt(u.length - 1); }
+    return u;
+  }))];
+
+  if (matches.length === 0) {
+    cnt.style.display = 'block';
+    cnt.textContent = 'No URLs found';
+    return;
+  }
+
+  cnt.style.display = 'block';
+  cnt.textContent = matches.length + ' URL' + (matches.length !== 1 ? 's' : '') + ' found — click row to copy, or Dissect';
+
+  matches.forEach(url => {
+    const row = mk('div', 'bulk-row');
+    const txt = mk('div', 'bulk-url', url);
+    const btn = mk('button', 'btn-ghost', 'Dissect');
+    btn.addEventListener('pointerdown', e => {
+      e.stopPropagation();
+      document.getElementById('url-input').value = url;
+      document.querySelector('[data-tab="dissect"]').dispatchEvent(new Event('pointerdown'));
+      doParse(url);
+    });
+    row.appendChild(txt);
+    row.appendChild(btn);
+    row.addEventListener('pointerdown', () => copyText(url));
+    list.appendChild(row);
+  });
+}
+
+document.getElementById('bulk-ta').addEventListener('input', doBulk);
+document.getElementById('bulk-ta').addEventListener('paste', () => setTimeout(doBulk, 0));
+
+// ── Service Worker ────────────────────────────────────────────────────────────
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('sw.js').catch(() => {});
+}
+// Prevent stuck pointer state on OS interruptions
+document.addEventListener('pointercancel', function onPointerCancel() {});
+</script>
+</body>
+</html>
