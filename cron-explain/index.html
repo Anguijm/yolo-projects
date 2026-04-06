@@ -287,27 +287,35 @@ function parseField(val, min, max) {
     if (range.includes('-')) {
       const parts = range.split('-').map(Number);
       if (parts.length !== 2 || parts.some(isNaN)) return null;
+      if (parts[0] > parts[1] || parts[0] < min || parts[1] > max) return null;
       return { type: 'step', start: parts[0], end: parts[1], step };
     }
     const start = parseInt(range);
-    if (isNaN(start)) return null;
+    if (isNaN(start) || start < min || start > max) return null;
     return { type: 'step', start, end: max, step };
   }
 
   if (val.includes(',')) {
-    const values = val.split(',').map(v => parseInt(v.trim()));
+    // Each token must be a plain integer — reject mixed items like "1-3,5"
+    const values = val.split(',').map(v => {
+      const t = v.trim();
+      return /^\d+$/.test(t) ? parseInt(t) : NaN;
+    });
     if (values.some(isNaN)) return null;
+    if (values.some(v => v < min || v > max)) return null;
     return { type: 'list', values };
   }
 
   if (val.includes('-')) {
     const parts = val.split('-').map(Number);
     if (parts.length !== 2 || parts.some(isNaN)) return null;
+    if (parts[0] > parts[1]) return null; // inverted range is invalid
+    if (parts[0] < min || parts[1] > max) return null;
     return { type: 'range', start: parts[0], end: parts[1] };
   }
 
   const n = parseInt(val);
-  if (isNaN(n)) return null;
+  if (isNaN(n) || n < min || n > max) return null;
   return { type: 'exact', value: n };
 }
 
@@ -330,7 +338,8 @@ function parseCron(expr) {
 function matchField(p, val) {
   if (p.type === 'any') return true;
   if (p.type === 'exact') return val === p.value || (p.value === 7 && val === 0);
-  if (p.type === 'range') return val >= p.start && val <= p.end;
+  // DOW: treat 7 as Sunday (0). Range "1-7" should include Sunday.
+  if (p.type === 'range') return (val >= p.start && val <= p.end) || (val === 0 && p.end === 7);
   if (p.type === 'list') {
     return p.values.includes(val) || (val === 0 && p.values.includes(7));
   }
@@ -684,7 +693,8 @@ function renderRuns(cr) {
   const now = new Date();
   const runs = nextRuns(cr, 10, now);
   if (runs.length === 0) {
-    DOM.runsEl.appendChild(makeEl('div', 'runs-note', 'No runs found in next 35-day window.'));
+    const windowLabel = cr.defs.length === 6 ? '~14-hour' : '~35-day';
+    DOM.runsEl.appendChild(makeEl('div', 'runs-note', 'No runs found in next ' + windowLabel + ' window.'));
     return;
   }
   const hasSec = cr.defs.length === 6;
