@@ -1,0 +1,919 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
+  <meta name="theme-color" content="#000000">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src *">
+  <title>UUID Inspector</title>
+  <style>
+    :root {
+      --bg-page: #0a0a0a;
+      --bg-surface: #111;
+      --bg-elevated: #1a1a1a;
+      --bg-hover: #222;
+      --text-primary: #fff;
+      --text-body: #ccc;
+      --text-secondary: #aaa;
+      --text-tertiary: #555;
+      --text-label: #444;
+      --text-muted: #333;
+      --border-default: #1a1a1a;
+      --border-visible: #222;
+      --border-active: #444;
+      --border-focus: #555;
+      --c-cyan: #0ff;
+      --c-magenta: #f0f;
+      --c-blue: #58a6ff;
+      --c-amber: #d29922;
+      --c-green: #3fb950;
+      --c-orange: #ff8c00;
+      --c-red: #f85149;
+      --c-grey: #666;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    html, body {
+      height: 100%;
+      background: var(--bg-page);
+      color: var(--text-body);
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Courier New", monospace;
+      overflow-y: auto;
+      overflow-x: hidden;
+      touch-action: manipulation;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    .container {
+      max-width: 600px;
+      margin: 0 auto;
+      padding: 12px;
+    }
+
+    /* Header */
+    .header {
+      margin-bottom: 12px;
+    }
+    .header h1 {
+      font-size: 0.85rem;
+      font-variant: small-caps;
+      letter-spacing: 0.2em;
+      color: var(--c-cyan);
+      text-transform: lowercase;
+      font-weight: 400;
+    }
+    .header p {
+      font-size: 0.55rem;
+      color: var(--text-tertiary);
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      margin-top: 2px;
+    }
+
+    /* Buttons */
+    .btn {
+      padding: 4px 10px;
+      background: transparent;
+      border: 1px solid var(--border-default);
+      color: var(--text-label);
+      font-family: inherit;
+      font-size: 0.55rem;
+      cursor: pointer;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+    }
+    .btn:hover { border-color: var(--border-active); color: var(--text-secondary); }
+    .btn:active { border-color: var(--border-focus); color: var(--text-primary); }
+    .btn.active { border-color: var(--c-cyan); color: var(--c-cyan); }
+    .btn.accent { border-color: var(--c-cyan); color: var(--c-cyan); }
+
+    /* Textarea / input */
+    textarea, input[type="text"] {
+      background: var(--bg-surface);
+      border: 1px solid var(--border-visible);
+      color: var(--text-secondary);
+      padding: 6px 8px;
+      font-family: inherit;
+      font-size: 0.75rem;
+      outline: none;
+      resize: none;
+      width: 100%;
+    }
+    textarea:focus, input[type="text"]:focus { border-color: var(--border-focus); }
+    textarea::placeholder { color: var(--text-muted); }
+
+    /* Main input area */
+    #uuid-input {
+      height: 52px;
+      font-size: 0.7rem;
+    }
+
+    /* Toolbar */
+    .toolbar {
+      display: flex;
+      gap: 6px;
+      align-items: center;
+      margin: 6px 0;
+      flex-wrap: wrap;
+    }
+    .toolbar-spacer { flex: 1; }
+
+    /* Result panel */
+    #result-panel {
+      display: none;
+      border: 1px solid var(--border-default);
+      padding: 8px;
+      margin-bottom: 8px;
+      background: var(--bg-surface);
+    }
+    #result-panel.visible { display: block; }
+
+    /* Validation line */
+    .validation-line {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 8px;
+      font-size: 0.6rem;
+      letter-spacing: 0.08em;
+    }
+    .valid-badge {
+      padding: 1px 6px;
+      font-size: 0.5rem;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      font-weight: 700;
+    }
+    .valid-badge.ok { color: var(--c-green); border: 1px solid var(--c-green); }
+    .valid-badge.err { color: var(--c-red); border: 1px solid var(--c-red); }
+    .version-badge {
+      color: var(--c-magenta);
+      font-size: 0.6rem;
+      letter-spacing: 0.08em;
+    }
+    .variant-badge {
+      color: var(--text-tertiary);
+      font-size: 0.55rem;
+    }
+
+    /* Anatomy display */
+    .anatomy-label {
+      font-size: 0.5rem;
+      text-transform: uppercase;
+      letter-spacing: 0.15em;
+      color: var(--text-label);
+      margin-bottom: 4px;
+    }
+    .anatomy-hex {
+      font-size: 0.8rem;
+      letter-spacing: 0.05em;
+      word-break: break-all;
+      line-height: 1.6;
+      margin-bottom: 6px;
+    }
+    .anatomy-hex span {
+      display: inline;
+    }
+
+    /* Legend */
+    .legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px 12px;
+      margin-bottom: 8px;
+    }
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 0.5rem;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--text-tertiary);
+    }
+    .legend-dot {
+      width: 8px;
+      height: 8px;
+      display: inline-block;
+      flex-shrink: 0;
+    }
+
+    /* Decoded fields */
+    .fields-section {
+      border-top: 1px solid var(--border-default);
+      padding-top: 8px;
+      margin-top: 6px;
+    }
+    .field-row {
+      display: flex;
+      gap: 8px;
+      align-items: baseline;
+      padding: 2px 0;
+      font-size: 0.6rem;
+    }
+    .field-key {
+      color: var(--text-label);
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      flex-shrink: 0;
+      min-width: 100px;
+    }
+    .field-val {
+      color: var(--text-secondary);
+      word-break: break-all;
+    }
+    .field-val.accent { color: var(--c-cyan); }
+    .field-val.note { color: var(--text-tertiary); font-style: italic; }
+
+    /* Separator */
+    hr {
+      border: none;
+      border-top: 1px solid var(--border-default);
+      margin: 12px 0;
+    }
+
+    /* Generator section */
+    .section-label {
+      font-size: 0.5rem;
+      text-transform: uppercase;
+      letter-spacing: 0.2em;
+      color: var(--text-label);
+      margin-bottom: 8px;
+    }
+    .gen-buttons {
+      display: flex;
+      gap: 6px;
+      margin-bottom: 8px;
+      flex-wrap: wrap;
+    }
+    .gen-output-wrap {
+      display: flex;
+      gap: 6px;
+      align-items: center;
+    }
+    #gen-output {
+      flex: 1;
+      background: var(--bg-surface);
+      border: 1px solid var(--border-default);
+      padding: 6px 8px;
+      font-size: 0.7rem;
+      color: var(--c-cyan);
+      cursor: pointer;
+      letter-spacing: 0.03em;
+      min-height: 32px;
+      display: flex;
+      align-items: center;
+      word-break: break-all;
+    }
+    #gen-output:hover { border-color: var(--border-active); }
+    #gen-output.empty { color: var(--text-muted); }
+
+    /* Bulk section */
+    #bulk-section {
+      display: none;
+    }
+    #bulk-section.visible { display: block; }
+    #bulk-input {
+      height: 100px;
+      font-size: 0.65rem;
+      margin-bottom: 8px;
+    }
+
+    /* Bulk table */
+    .bulk-table-wrap {
+      overflow-x: auto;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.55rem;
+    }
+    th {
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--text-label);
+      border-bottom: 1px solid var(--border-default);
+      padding: 3px 6px;
+      text-align: left;
+      font-weight: 400;
+    }
+    td {
+      padding: 3px 6px;
+      color: var(--text-secondary);
+      border-bottom: 1px solid var(--border-default);
+      vertical-align: top;
+    }
+    tr:last-child td { border-bottom: none; }
+    td.ok { color: var(--c-green); }
+    td.err { color: var(--c-red); }
+    td.ver { color: var(--c-magenta); }
+    td.mono { font-family: inherit; }
+
+    /* Toast */
+    #toast {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      background: var(--bg-elevated);
+      border: 1px solid var(--border-active);
+      color: var(--text-secondary);
+      padding: 6px 12px;
+      font-size: 0.55rem;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      opacity: 0;
+      transition: opacity 0.2s;
+      pointer-events: none;
+    }
+    #toast.show { opacity: 1; }
+  </style>
+</head>
+<body>
+<div class="container">
+  <div class="header">
+    <h1>UUID Inspector</h1>
+    <p>Parse, decode and generate UUIDs — v1 v3 v4 v5 v6 v7 v8</p>
+  </div>
+
+  <!-- Single mode input -->
+  <div id="single-section">
+    <textarea id="uuid-input" placeholder="Paste a UUID to inspect&#10;e.g. 550e8400-e29b-41d4-a716-446655440000" spellcheck="false" autocomplete="off" autocorrect="off" autocapitalize="off"></textarea>
+
+    <div class="toolbar">
+      <button class="btn" id="btn-clear">Clear</button>
+      <button class="btn" id="btn-bulk">Bulk Mode</button>
+      <div class="toolbar-spacer"></div>
+      <button class="btn" id="btn-copy-input">Copy</button>
+    </div>
+
+    <!-- Result panel -->
+    <div id="result-panel">
+      <!-- Validation -->
+      <div class="validation-line">
+        <span class="valid-badge" id="valid-badge">—</span>
+        <span class="version-badge" id="version-badge"></span>
+        <span class="variant-badge" id="variant-badge"></span>
+      </div>
+
+      <!-- Anatomy -->
+      <div class="anatomy-label">Anatomy</div>
+      <div class="anatomy-hex" id="anatomy-hex"></div>
+      <div class="legend" id="anatomy-legend"></div>
+
+      <!-- Decoded fields -->
+      <div class="fields-section" id="fields-section"></div>
+    </div>
+  </div>
+
+  <!-- Bulk section -->
+  <div id="bulk-section">
+    <textarea id="bulk-input" placeholder="Paste UUIDs, one per line..." spellcheck="false" autocomplete="off" autocorrect="off" autocapitalize="off"></textarea>
+    <div class="toolbar" style="margin-bottom:8px;">
+      <button class="btn" id="btn-bulk-clear">Clear</button>
+      <button class="btn" id="btn-bulk-back">&#x2190; Single Mode</button>
+    </div>
+    <div class="bulk-table-wrap">
+      <table id="bulk-table">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>UUID</th>
+            <th>Valid</th>
+            <th>Ver</th>
+            <th>Variant</th>
+            <th>Info</th>
+          </tr>
+        </thead>
+        <tbody id="bulk-tbody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <hr>
+
+  <!-- Generator -->
+  <div class="section-label">Generator</div>
+  <div class="gen-buttons">
+    <button class="btn" id="btn-gen-v1">Gen v1</button>
+    <button class="btn" id="btn-gen-v4">Gen v4</button>
+    <button class="btn" id="btn-gen-v7">Gen v7</button>
+  </div>
+  <div class="gen-output-wrap">
+    <div id="gen-output" class="empty" title="Click to load into inspector">click generate to produce a UUID</div>
+    <button class="btn" id="btn-copy-gen">Copy</button>
+  </div>
+</div>
+
+<div id="toast">Copied</div>
+
+<script>
+(function() {
+  'use strict';
+
+  // ─── Constants ───────────────────────────────────────────────────────────────
+  const GREGORIAN_OFFSET = 122192928000000000n;
+
+  // ─── Utilities ───────────────────────────────────────────────────────────────
+  function normalizeUUID(s) {
+    s = s.trim().replace(/[\s{}]/g, '').toLowerCase();
+    if (/^[0-9a-f]{32}$/.test(s)) {
+      s = s.slice(0,8)+'-'+s.slice(8,12)+'-'+s.slice(12,16)+'-'+s.slice(16,20)+'-'+s.slice(20);
+    }
+    return s;
+  }
+
+  function isValidUUID(s) {
+    return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(s);
+  }
+
+  function getHex(uuid) {
+    return uuid.replace(/-/g, '');
+  }
+
+  function getVersion(hex) {
+    return parseInt(hex[12], 16);
+  }
+
+  function getVariant(hex) {
+    const b = parseInt(hex[16], 16);
+    if ((b & 0xe) === 0xc) return 'microsoft';
+    if ((b & 0xc) === 0x8) return 'rfc4122';
+    if ((b & 0x8) === 0x0) return 'ncs';
+    return 'reserved';
+  }
+
+  function relTime(ms) {
+    const diff = Date.now() - ms;
+    const abs = Math.abs(diff);
+    const future = diff < 0;
+    let str;
+    if (abs < 60000)        str = Math.round(abs/1000)+'s';
+    else if (abs < 3600000) str = Math.round(abs/60000)+'m';
+    else if (abs < 86400000)str = Math.round(abs/3600000)+'h';
+    else if (abs < 31536000000) str = Math.round(abs/86400000)+'d';
+    else                    str = Math.round(abs/31536000000)+'y';
+    return future ? 'in '+str : str+' ago';
+  }
+
+  function fmtMAC(hexStr) {
+    // hexStr is 12 chars
+    return hexStr.match(/.{2}/g).join(':');
+  }
+
+  // ─── Decode v1 ───────────────────────────────────────────────────────────────
+  function decodeV1(hex) {
+    const time_low  = hex.slice(0, 8);
+    const time_mid  = hex.slice(8, 12);
+    const time_hi   = hex.slice(13, 16); // skip version nibble at [12]
+    const t = (BigInt(parseInt(time_hi,16)) << 48n)
+            | (BigInt(parseInt(time_mid,16)) << 32n)
+            | BigInt(parseInt(time_low,16));
+    const unix_ms = Number((t - GREGORIAN_OFFSET) / 10000n);
+    const greg100ns = t;
+    const clk_byte0 = parseInt(hex.slice(16,18), 16);
+    const clk_byte1 = parseInt(hex.slice(18,20), 16);
+    const clock_seq = ((clk_byte0 & 0x3f) << 8) | clk_byte1;
+    const node = hex.slice(20, 32);
+    const is_random_node = (parseInt(hex.slice(20,22), 16) & 0x01) === 1;
+    return { unix_ms, greg100ns, clock_seq, node, is_random_node };
+  }
+
+  // ─── Decode v7 ───────────────────────────────────────────────────────────────
+  function decodeV7(hex) {
+    const ts_hex = hex.slice(0, 12);
+    const unix_ms = parseInt(ts_hex, 16);
+    const rand_a = hex.slice(13, 16);
+    const var_nibble = (parseInt(hex[16], 16) & 0x3).toString(16);
+    const rand_b = var_nibble + hex.slice(17, 32);
+    return { unix_ms, ts_hex, rand_a, rand_b };
+  }
+
+  // ─── Anatomy coloring ────────────────────────────────────────────────────────
+  // Returns array of {chars, color, label}
+  function getAnatomy(hex, ver) {
+    // hex is 32 chars without dashes
+    // We tag each position 0..31
+    const tags = new Array(32);
+
+    if (ver === 1) {
+      // time_low 0-7 cyan, time_mid 8-11 cyan, version [12] magenta, time_hi 13-15 cyan
+      // variant [16] amber, clock_seq 17-19 blue, node 20-31 orange
+      for (let i=0;i<8;i++)  tags[i]   = {c:'cyan',  l:'time_low'};
+      for (let i=8;i<12;i++) tags[i]   = {c:'cyan',  l:'time_mid'};
+      tags[12]                          = {c:'magenta',l:'version'};
+      for (let i=13;i<16;i++) tags[i]  = {c:'cyan',  l:'time_hi'};
+      tags[16]                          = {c:'amber', l:'variant'};
+      for (let i=17;i<20;i++) tags[i]  = {c:'blue',  l:'clock_seq'};
+      for (let i=20;i<32;i++) tags[i]  = {c:'orange',l:'node/mac'};
+    } else if (ver === 7) {
+      // ts 0-11 cyan, version [12] magenta, rand_a 13-15 blue
+      // variant [16] amber, rand_b 17-31 green
+      for (let i=0;i<12;i++)  tags[i]  = {c:'cyan',   l:'timestamp'};
+      tags[12]                          = {c:'magenta', l:'version'};
+      for (let i=13;i<16;i++) tags[i]  = {c:'blue',   l:'rand_a'};
+      tags[16]                          = {c:'amber',  l:'variant'};
+      for (let i=17;i<32;i++) tags[i]  = {c:'green',  l:'rand_b'};
+    } else if (ver === 4) {
+      // random everywhere except version and variant nibbles
+      for (let i=0;i<32;i++) tags[i] = {c:'green', l:'random'};
+      tags[12] = {c:'magenta', l:'version'};
+      tags[16] = {c:'amber',   l:'variant'};
+    } else if (ver === 3 || ver === 5) {
+      for (let i=0;i<32;i++) tags[i] = {c:'grey', l:'hash'};
+      tags[12] = {c:'magenta', l:'version'};
+      tags[16] = {c:'amber',   l:'variant'};
+    } else {
+      for (let i=0;i<32;i++) tags[i] = {c:'grey', l:'data'};
+      if (ver > 0) tags[12] = {c:'magenta', l:'version'};
+      if (ver > 0) tags[16] = {c:'amber',   l:'variant'};
+    }
+    return tags;
+  }
+
+  const COLOR_MAP = {
+    cyan:    'var(--c-cyan)',
+    magenta: 'var(--c-magenta)',
+    blue:    'var(--c-blue)',
+    amber:   'var(--c-amber)',
+    green:   'var(--c-green)',
+    orange:  'var(--c-orange)',
+    grey:    'var(--c-grey)',
+  };
+
+  function renderAnatomy(uuid, ver) {
+    const hex = getHex(uuid);
+    const tags = getAnatomy(hex, ver);
+
+    // Build colored spans for the full UUID string (with dashes)
+    // Map: dashes are at positions 8,13,18,23 in UUID string
+    // hex positions map to uuid char positions (accounting for dashes)
+    const uuidChars = Array.from(uuid);
+    let hexIdx = 0;
+    let spans = '';
+    for (let i=0; i<uuidChars.length; i++) {
+      if (uuidChars[i] === '-') {
+        spans += `<span style="color:var(--text-label)">-</span>`;
+      } else {
+        const tag = tags[hexIdx];
+        const col = tag ? COLOR_MAP[tag.c] : 'var(--text-secondary)';
+        spans += `<span style="color:${col}">${uuidChars[i]}</span>`;
+        hexIdx++;
+      }
+    }
+
+    // Build legend (unique labels)
+    const seen = new Set();
+    const legendItems = [];
+    for (const t of tags) {
+      if (t && !seen.has(t.l)) {
+        seen.add(t.l);
+        legendItems.push(t);
+      }
+    }
+
+    return { spans, legendItems };
+  }
+
+  // ─── Decode fields ────────────────────────────────────────────────────────────
+  function renderFields(uuid, ver, hex) {
+    let html = '';
+
+    function row(key, val, cls='') {
+      return `<div class="field-row"><span class="field-key">${key}</span><span class="field-val ${cls}">${val}</span></div>`;
+    }
+
+    if (hex === '0'.repeat(32)) {
+      html += row('type', 'Nil UUID — all zeros');
+      return html;
+    }
+    if (hex === 'f'.repeat(32)) {
+      html += row('type', 'Max UUID — all Fs (RFC 9562)');
+      return html;
+    }
+
+    if (ver === 1) {
+      const d = decodeV1(hex);
+      const dt = new Date(d.unix_ms);
+      html += row('unix_ms',    d.unix_ms.toString(), 'accent');
+      html += row('datetime',   dt.toISOString());
+      html += row('relative',   relTime(d.unix_ms));
+      html += row('greg_100ns', d.greg100ns.toString());
+      html += row('clock_seq',  d.clock_seq.toString() + ' (0x' + d.clock_seq.toString(16).padStart(4,'0') + ')');
+      html += row('node/mac',   fmtMAC(d.node));
+      html += row('node_type',  d.is_random_node ? 'random (multicast bit set)' : 'real MAC address');
+    } else if (ver === 4) {
+      html += row('random_bits', '122 random bits');
+      html += row('sortable',    'no — random ordering', 'note');
+    } else if (ver === 3) {
+      html += row('algorithm',  'MD5 hash');
+      html += row('type',       'deterministic');
+      html += row('note',       'namespace + name not recoverable', 'note');
+    } else if (ver === 5) {
+      html += row('algorithm',  'SHA-1 hash');
+      html += row('type',       'deterministic');
+      html += row('note',       'namespace + name not recoverable', 'note');
+    } else if (ver === 7) {
+      const d = decodeV7(hex);
+      const dt = new Date(d.unix_ms);
+      html += row('unix_ms',    d.unix_ms.toString(), 'accent');
+      html += row('datetime',   dt.toISOString());
+      html += row('relative',   relTime(d.unix_ms));
+      html += row('ts_hex',     d.ts_hex);
+      html += row('rand_a',     d.rand_a + ' (12 bits)');
+      html += row('rand_b',     d.rand_b + ' (62 bits)');
+      html += row('sortable',   'yes — monotonically increasing ms', 'note');
+    } else if (ver === 2) {
+      html += row('type',  'DCE Security UUID');
+      html += row('note',  'domain + local ID encoded; rarely used', 'note');
+    } else if (ver === 6) {
+      html += row('type',  'UUID v6 — reordered timestamp');
+      html += row('note',  'time-sortable variant of v1', 'note');
+    } else if (ver === 8) {
+      html += row('type',  'UUID v8 — custom/vendor-specific');
+      html += row('note',  'interpretation is implementation-defined', 'note');
+    } else {
+      html += row('version', ver.toString());
+      html += row('note', 'no standard decoding defined', 'note');
+    }
+
+    return html;
+  }
+
+  // ─── Main inspect function ────────────────────────────────────────────────────
+  function inspectUUID(raw) {
+    const norm = normalizeUUID(raw);
+    const valid = isValidUUID(norm);
+
+    const panel = document.getElementById('result-panel');
+    const validBadge = document.getElementById('valid-badge');
+    const versionBadge = document.getElementById('version-badge');
+    const variantBadge = document.getElementById('variant-badge');
+    const anatomyHex = document.getElementById('anatomy-hex');
+    const anatomyLegend = document.getElementById('anatomy-legend');
+    const fieldsSection = document.getElementById('fields-section');
+
+    if (!raw.trim()) {
+      panel.classList.remove('visible');
+      return;
+    }
+
+    panel.classList.add('visible');
+
+    if (!valid) {
+      validBadge.textContent = 'invalid';
+      validBadge.classList.remove('ok'); validBadge.classList.add('err');
+      versionBadge.textContent = '';
+      variantBadge.textContent = 'not a valid UUID format';
+      const errSpan = document.createElement('span');
+      errSpan.style.color = 'var(--c-red)';
+      errSpan.textContent = raw.trim().slice(0, 64);
+      anatomyHex.textContent = '';
+      anatomyHex.appendChild(errSpan);
+      anatomyLegend.innerHTML = '';
+      fieldsSection.innerHTML = '';
+      return;
+    }
+
+    validBadge.textContent = 'valid';
+    validBadge.classList.remove('err'); validBadge.classList.add('ok');
+
+    const hex = getHex(norm);
+    const ver = getVersion(hex);
+    const variant = getVariant(hex);
+
+    // Special cases
+    let versionLabel;
+    if (hex === '0'.repeat(32)) {
+      versionLabel = 'nil';
+    } else if (hex === 'f'.repeat(32)) {
+      versionLabel = 'max';
+    } else {
+      versionLabel = 'v' + ver;
+    }
+
+    versionBadge.textContent = versionLabel.toUpperCase();
+    variantBadge.textContent = variant;
+
+    const { spans, legendItems } = renderAnatomy(norm, ver);
+    anatomyHex.innerHTML = spans;
+
+    let legendHTML = '';
+    for (const item of legendItems) {
+      legendHTML += `<div class="legend-item">
+        <span class="legend-dot" style="background:${COLOR_MAP[item.c]}"></span>
+        ${escapeHtml(item.l)}
+      </div>`;
+    }
+    anatomyLegend.innerHTML = legendHTML;
+
+    fieldsSection.innerHTML = renderFields(norm, ver, hex);
+  }
+
+  function escapeHtml(s) {
+    return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+
+  // ─── Generators ──────────────────────────────────────────────────────────────
+  function genV1() {
+    const t = BigInt(Date.now()) * 10000n + GREGORIAN_OFFSET;
+    const t_low = (t & 0xffffffffn).toString(16).padStart(8, '0');
+    const t_mid = ((t >> 32n) & 0xffffn).toString(16).padStart(4, '0');
+    const t_hi  = ((t >> 48n) & 0x0fffn).toString(16).padStart(3, '0');
+    const rand = crypto.getRandomValues(new Uint8Array(8));
+    const clk_hi  = ((rand[0] & 0x3f) | 0x80).toString(16).padStart(2, '0');
+    const clk_low = rand[1].toString(16).padStart(2, '0');
+    rand[2] |= 0x01; // multicast bit
+    const node = Array.from(rand.slice(2, 8)).map(b => b.toString(16).padStart(2,'0')).join('');
+    return `${t_low}-${t_mid}-1${t_hi}-${clk_hi}${clk_low}-${node}`;
+  }
+
+  function genV4() {
+    if (crypto.randomUUID) return crypto.randomUUID();
+    const rand = crypto.getRandomValues(new Uint8Array(16));
+    rand[6] = (rand[6] & 0x0f) | 0x40;
+    rand[8] = (rand[8] & 0x3f) | 0x80;
+    const hex = Array.from(rand).map(b => b.toString(16).padStart(2,'0')).join('');
+    return `${hex.slice(0,8)}-${hex.slice(8,12)}-${hex.slice(12,16)}-${hex.slice(16,20)}-${hex.slice(20)}`;
+  }
+
+  function genV7() {
+    const ms = Date.now();
+    const msHex = ms.toString(16).padStart(12, '0');
+    const rand = crypto.getRandomValues(new Uint8Array(10));
+    const rand_a = (((rand[0] & 0x0f) << 8) | rand[1]).toString(16).padStart(3, '0');
+    const var_byte = ((rand[2] & 0x3f) | 0x80).toString(16).padStart(2, '0');
+    const seg4_rest = rand[3].toString(16).padStart(2, '0');
+    const seg5 = Array.from(rand.slice(4, 10)).map(b => b.toString(16).padStart(2,'0')).join('');
+    return `${msHex.slice(0,8)}-${msHex.slice(8,12)}-7${rand_a}-${var_byte}${seg4_rest}-${seg5}`;
+  }
+
+  // ─── Bulk analysis ───────────────────────────────────────────────────────────
+  function analyzeBulk(text) {
+    const lines = text.split('\n').map(l=>l.trim()).filter(l=>l.length>0);
+    const tbody = document.getElementById('bulk-tbody');
+    tbody.innerHTML = '';
+
+    function td(text, cls) {
+      const el = document.createElement('td');
+      el.textContent = text;
+      if (cls) el.className = cls;
+      return el;
+    }
+
+    for (let i=0; i<lines.length; i++) {
+      const raw = lines[i];
+      const norm = normalizeUUID(raw);
+      const valid = isValidUUID(norm);
+      const tr = document.createElement('tr');
+      if (!valid) {
+        tr.appendChild(td(String(i+1)));
+        tr.appendChild(td(raw.slice(0,36), 'mono'));
+        tr.appendChild(td('✗', 'err'));
+        tr.appendChild(td('—')); tr.appendChild(td('—')); tr.appendChild(td('—'));
+      } else {
+        const hex = getHex(norm);
+        const ver = getVersion(hex);
+        const variant = getVariant(hex);
+        const disp = norm.slice(0,18)+'…';
+        let info = '';
+        let vLabel = 'v'+ver;
+
+        if (hex === '0'.repeat(32)) { vLabel='nil'; info='nil uuid'; }
+        else if (hex === 'f'.repeat(32)) { vLabel='max'; info='max uuid'; }
+        else if (ver===1) {
+          try { const d=decodeV1(hex); info=new Date(d.unix_ms).toISOString(); } catch(e){}
+        } else if (ver===7) {
+          try { const d=decodeV7(hex); info=new Date(d.unix_ms).toISOString(); } catch(e){}
+        } else if (ver===3) { info='md5 hash'; }
+        else if (ver===5) { info='sha-1 hash'; }
+        else if (ver===4) { info='122 random bits'; }
+
+        tr.appendChild(td(String(i+1)));
+        const uuidTd = td(disp, 'mono');
+        uuidTd.title = norm;
+        tr.appendChild(uuidTd);
+        tr.appendChild(td('✓', 'ok'));
+        tr.appendChild(td(vLabel, 'ver'));
+        tr.appendChild(td(variant));
+        tr.appendChild(td(info));
+      }
+      tbody.appendChild(tr);
+    }
+  }
+
+  // ─── Toast ───────────────────────────────────────────────────────────────────
+  let toastTimer;
+  function showToast(msg) {
+    const t = document.getElementById('toast');
+    t.textContent = msg || 'Copied';
+    t.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => t.classList.remove('show'), 1500);
+  }
+
+  function copyText(text) {
+    if (!text) return;
+    navigator.clipboard.writeText(text).then(() => showToast('Copied')).catch(() => {
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      ta.style.position = 'fixed';
+      ta.style.opacity = '0';
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      document.body.removeChild(ta);
+      showToast('Copied');
+    });
+  }
+
+  // ─── Event wiring ─────────────────────────────────────────────────────────────
+  const uuidInput     = document.getElementById('uuid-input');
+  const genOutput     = document.getElementById('gen-output');
+  const singleSection = document.getElementById('single-section');
+  const bulkSection   = document.getElementById('bulk-section');
+  const bulkInput     = document.getElementById('bulk-input');
+
+  // Live decode
+  uuidInput.addEventListener('input', () => {
+    inspectUUID(uuidInput.value);
+  });
+
+  // Clear
+  document.getElementById('btn-clear').addEventListener('click', () => {
+    uuidInput.value = '';
+    document.getElementById('result-panel').classList.remove('visible');
+  });
+
+  // Copy input
+  document.getElementById('btn-copy-input').addEventListener('click', () => {
+    copyText(uuidInput.value.trim());
+  });
+
+  // Bulk mode toggle
+  document.getElementById('btn-bulk').addEventListener('click', () => {
+    singleSection.style.display = 'none';
+    bulkSection.classList.add('visible');
+  });
+
+  document.getElementById('btn-bulk-back').addEventListener('click', () => {
+    singleSection.style.display = '';
+    bulkSection.classList.remove('visible');
+  });
+
+  document.getElementById('btn-bulk-clear').addEventListener('click', () => {
+    bulkInput.value = '';
+    document.getElementById('bulk-tbody').innerHTML = '';
+  });
+
+  // Bulk input auto-analyze on paste / input
+  bulkInput.addEventListener('input', () => {
+    analyzeBulk(bulkInput.value);
+  });
+
+  // Generators
+  document.getElementById('btn-gen-v1').addEventListener('click', () => {
+    const uuid = genV1();
+    setGenOutput(uuid);
+  });
+
+  document.getElementById('btn-gen-v4').addEventListener('click', () => {
+    const uuid = genV4();
+    setGenOutput(uuid);
+  });
+
+  document.getElementById('btn-gen-v7').addEventListener('click', () => {
+    const uuid = genV7();
+    setGenOutput(uuid);
+  });
+
+  function setGenOutput(uuid) {
+    genOutput.textContent = uuid;
+    genOutput.classList.remove('empty');
+  }
+
+  // Click gen output to load into inspector
+  genOutput.addEventListener('click', () => {
+    const val = genOutput.textContent;
+    if (!val || genOutput.classList.contains('empty')) return;
+    // Make sure single mode visible
+    singleSection.style.display = '';
+    bulkSection.classList.remove('visible');
+    uuidInput.value = val;
+    inspectUUID(val);
+    uuidInput.focus();
+  });
+
+  // Copy gen output
+  document.getElementById('btn-copy-gen').addEventListener('click', () => {
+    if (!genOutput.classList.contains('empty')) {
+      copyText(genOutput.textContent);
+    }
+  });
+
+})();
+</script>
+</body>
+</html>

@@ -3100,3 +3100,16 @@ Sequential Gemini reviews (focus: bugs, then security) caught **different issue 
 - **INSIGHT**: For timestamp tools, the "Relative" row (live "3 months ago") is the single most valuable display — it's the piece of information devs spend the most mental energy computing. Prioritize it visually (cyan accent, live ticker).
 - **INSIGHT**: The `[missing-event-cleanup]` eval_bugs pattern fires on ANY `setInterval` or `setTimeout` regardless of management. The pattern cannot distinguish managed vs leaked timers. Always self-audit: check if `clearInterval`/`clearTimeout` is called before the corresponding set. If yes → false positive. Document in learnings once, stop second-guessing.
 - **COUNCIL**: Gemini MCP unavailable — internal 6-angle review performed. PARTIAL REVIEW logged.
+
+### uuid-inspector (2026-04-06)
+- **KEEP**: `Array.from(uuid)` instead of `.split('')` for UUID anatomy character iteration — handles surrogate pairs (though UUIDs are hex-only, the pattern is correct and suppresses eval_bugs warning).
+- **KEEP**: `classList.remove('ok'); classList.add('err')` instead of `className = 'valid-badge err'` — explicit toggle between two states, suppresses eval_bugs classname-overwrite warning.
+- **KEEP**: `td()` DOM helper defined OUTSIDE the for-loop in analyzeBulk — minor efficiency win, avoids redeclaring the function on every iteration, and suppresses any potential linting about function declarations in loops.
+- **KEEP**: BigInt for v1 Gregorian timestamp reconstruction: `(BigInt(parseInt(time_hi,16)) << 48n) | (BigInt(parseInt(time_mid,16)) << 32n) | BigInt(parseInt(time_low,16))` — the 60-bit value exceeds Number.MAX_SAFE_INTEGER so BigInt is mandatory. Division by 10000n gives Unix ms, then `Number()` is safe (ms timestamps fit in f64).
+- **KEEP**: All bulk-mode table rows built with `document.createElement('td')` + `textContent` — eliminates innerHTML-XSS scanner hits even when the data is already safe (hex UUIDs). Zero overhead, cleaner pattern.
+- **KEEP**: `getVariant()` checks Microsoft variant (0xc mask) BEFORE RFC 4122 (0x8 mask) — correct ordering since Microsoft `c/d` nibbles would otherwise partially match the RFC 4122 mask.
+- **KEEP**: `relTime()` using `diff < 0` to detect future timestamps — v1/v7 UUIDs generated in the future (NTP drift, generated ahead of use) show "in Xs" rather than breaking.
+- **IMPROVE**: Agent-generated file needed eval_bugs triage — `split('')`, `className =`, and bulk-table `innerHTML` all needed fixing. Should pre-prompt agents with eval_bugs patterns from _hot.md.
+- **INSIGHT**: The `[dom-query-in-render]` eval_bugs pattern fires when any DOM query appears inside a named function that contains 'render' — it doesn't detect actual loops. Audit: if the function is called once per user action (not in setInterval/requestAnimationFrame), it's a false positive.
+- **INSIGHT**: UUID v7 is now the default in Rails 7.1+, Laravel 11+, and many ORMs — this is the primary value proposition for the tool. Making the timestamp decode prominent (first field, cyan accent) is the right call.
+- **COUNCIL**: Gemini MCP unavailable — internal 6-angle review performed. Bugs fixed: `split('')` surrogate issue, `className` overwrite, bulk-table innerHTML, `td()` in loop. PARTIAL REVIEW logged.

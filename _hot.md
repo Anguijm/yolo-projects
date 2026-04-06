@@ -1,25 +1,25 @@
 # Hot Cache — Active Context
-*Auto-updated 2026-04-05 22:07 UTC. Read this FIRST.*
+*Auto-updated 2026-04-06 01:45 UTC. Read this FIRST.*
 
 ## Current State
-- Portfolio: 211 total, 90 active
-- Tick queue: 6 approved, 0 pending
-- Phase 4: 50 experiments, 11 backlog
-- Next: tick
+- Portfolio: 212 total, 91 active
+- Tick queue: 5 approved, 0 pending
+- Phase 4: 50 experiments, 7 backlog
+- Next: tock
 
 ## Tick Queue
-- [approved] uuid-inspector: UUID inspector — paste any UUID, get version detection (v1/v
 - [approved] url-dissect: URL Dissector & Analyzer — paste any URL, get instant compon
 - [approved] cron-explain: Cron expression explainer — paste any 5-field or 6-field cro
 - [approved] unicode-char: Unicode Character Inspector — paste any text, get character-
 - [approved] ip-cidr: IP/CIDR Calculator & Subnet Analyzer — network address, broa
+- [approved] port-ref: Well-Known Port Quick-Reference — type a port or service nam
 
 ## Recent Builds (last 5)
+- uuid-inspector: UUID inspector — paste any UUID, get version detection (v1-v
 - unix-ts: Unix timestamp debugger — paste any timestamp (auto-detects 
 - semver-range: Semver range calculator — paste any npm range expression and
 - env-inspector: .env file linter + .env.example generator + markdown docs ta
 - env-scout: .env file auditor — finds missing keys, extra undocumented v
-- jwt-inspector: Privacy-first offline JWT decoder — decode, inspect, and ver
 
 ## Key Patterns (from recent learnings)
 - [INSIGHT] `eval_bugs.py` [missing-event-cleanup] fires on ALL `setTimeout` calls, includin
