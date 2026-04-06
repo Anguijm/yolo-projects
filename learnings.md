@@ -3135,3 +3135,15 @@ Sequential Gemini reviews (focus: bugs, then security) caught **different issue 
 - **INSIGHT**: Per-slide directive parsing via the existing `<!-- key: value -->` override system is free — `parseSlideOverrides` already strips these comments from rendered content. Just parse `ov.time` or use a separate lightweight regex on the raw slide string before rendering.
 - **INSIGHT**: Hooking timer start inside `_applyPresentContent()` (called for every slide change across all transition types) is cleaner than adding it to each of fade/slide/zoom branches separately. One hook point covers all cases.
 - **COUNCIL**: Gemini MCP unavailable — PARTIAL REVIEW logged. Internal 6-angle review passed. Zero deps, clean integration, localStorage persistence, T key toggle.
+
+### [cron-explain] (2026-04-06)
+- **KEEP**: Smart skip iterator for nextRuns — jump to next month/day/hour rather than minute-by-minute; finds 10 runs for even @yearly in <1000 iterations instead of 500k
+- **KEEP**: Modular arithmetic for step matching — `(val - start) % step === 0` is O(1) vs an O(N) loop; critical for large ranges like `0-86400/1`
+- **KEEP**: `const DOM = {}` at top of script (before functions) — DOM cache pattern, caches all element refs once so no getElementById inside render paths
+- **KEEP**: `makeEl(tag, classes, text)` helper — keeps renderFields/renderRuns free of innerHTML, all output via textContent (zero XSS risk)
+- **KEEP**: Store builder input refs in `bldInputs` object rather than getElementById — avoids orphan-ID test failures for dynamically created elements
+- **IMPROVE**: Initial attempt used innerHTML for field chips — eval_bugs.py [innerhtml-xss] caught it; refactored to makeEl() with textContent throughout
+- **IMPROVE**: Initial DOM queries inside render() — eval_bugs.py [dom-query-in-render] caught it; moved entire cache to top-level `const DOM = {}` before all functions
+- **INSIGHT**: For interactive builders that create/destroy input elements dynamically, store element references in a module-level object (bldInputs) rather than querying by ID — avoids test tool false positives AND is faster
+- **INSIGHT**: `click` is better than `pointerdown` for simple button elements — avoids pointercancel warnings, handles keyboard activation, better accessibility
+- **COUNCIL**: Security angle confirmed all output is XSS-safe (textContent everywhere); noted CSP connect-src * is overly permissive for a no-network app

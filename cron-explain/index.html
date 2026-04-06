@@ -1,0 +1,882 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="theme-color" content="#000000">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src *">
+<title>Cron Explain</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body {
+  min-height: 100%;
+  background: #0a0a0a;
+  color: #ccc;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Courier New", monospace;
+  overflow-y: auto;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+.container {
+  max-width: 560px;
+  margin: 0 auto;
+  padding: 12px;
+  padding-bottom: 40px;
+}
+
+/* Header */
+h1 {
+  font-size: 0.6rem;
+  letter-spacing: 0.35em;
+  text-transform: uppercase;
+  color: #333;
+  margin-bottom: 14px;
+  padding-top: 4px;
+}
+h1 span { color: #0ff; }
+
+/* Input */
+.input-wrap { position: relative; margin-bottom: 6px; }
+#cronInput {
+  width: 100%;
+  background: #111;
+  border: 1px solid #222;
+  color: #0ff;
+  padding: 10px 34px 10px 12px;
+  font-family: inherit;
+  font-size: 1.1rem;
+  outline: none;
+  letter-spacing: 0.06em;
+}
+#cronInput:focus { border-color: #444; }
+#cronInput::placeholder { color: #222; font-size: 0.75rem; letter-spacing: 0.03em; }
+#clearBtn {
+  position: absolute; right: 10px; top: 50%; transform: translateY(-50%);
+  background: none; border: none; color: #333; cursor: pointer;
+  font-size: 1rem; padding: 4px; display: none; font-family: inherit; line-height: 1;
+}
+#clearBtn.show { display: block; }
+
+/* Error */
+#errorMsg {
+  font-size: 0.55rem; color: #f85149; letter-spacing: 0.08em;
+  margin-bottom: 6px; display: none;
+}
+#errorMsg.show { display: block; }
+
+/* Section label */
+.lbl {
+  font-size: 0.4rem; letter-spacing: 0.28em; text-transform: uppercase;
+  color: #2a2a2a; margin-bottom: 5px; margin-top: 10px;
+}
+
+/* Presets */
+.presets { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 8px; }
+.preset-btn {
+  padding: 3px 8px; background: transparent; border: 1px solid #1a1a1a;
+  color: #3a3a3a; font-family: inherit; font-size: 0.48rem; cursor: pointer;
+  letter-spacing: 0.03em;
+}
+.preset-btn:active { border-color: #555; color: #888; }
+
+/* Divider */
+hr { border: none; border-top: 1px solid #111; margin: 10px 0; }
+
+/* Fields row */
+.fields {
+  display: flex; gap: 5px; overflow-x: auto;
+  padding-bottom: 4px;
+  scrollbar-width: thin;
+  scrollbar-color: #1a1a1a #0a0a0a;
+}
+.field {
+  flex: 1; min-width: 54px; text-align: center;
+  border: 1px solid #1a1a1a; padding: 6px 3px;
+  cursor: pointer; user-select: none; flex-shrink: 0;
+}
+.field.selected { border-color: #333; background: #111; }
+.field-name {
+  font-size: 0.38rem; letter-spacing: 0.15em; text-transform: uppercase;
+  color: #333; margin-bottom: 4px;
+}
+.field-val {
+  font-size: 0.85rem; font-weight: 700; color: var(--fc, #aaa);
+  margin-bottom: 3px; letter-spacing: 0; font-variant-numeric: tabular-nums;
+}
+.field-desc { font-size: 0.38rem; color: #444; line-height: 1.4; word-break: break-word; }
+
+/* Field accent colors */
+.f-sec  { --fc: #666; }
+.f-min  { --fc: #0ff; }
+.f-hour { --fc: #d29922; }
+.f-dom  { --fc: #3fb950; }
+.f-mon  { --fc: #58a6ff; }
+.f-dow  { --fc: #d0a0f0; }
+
+/* Builder panel */
+#builder {
+  border: 1px solid #1a1a1a; padding: 8px; margin-top: 6px;
+  display: none; background: #0d0d0d;
+}
+#builder.show { display: block; }
+.builder-head {
+  font-size: 0.42rem; letter-spacing: 0.2em; text-transform: uppercase;
+  color: #333; margin-bottom: 7px;
+}
+.builder-head span { color: var(--bfc, #0ff); }
+.type-row { display: flex; gap: 4px; flex-wrap: wrap; margin-bottom: 7px; }
+.type-btn {
+  padding: 3px 8px; background: transparent; border: 1px solid #1a1a1a;
+  color: #444; font-family: inherit; font-size: 0.48rem; cursor: pointer;
+  text-transform: uppercase; letter-spacing: 0.05em;
+}
+.type-btn.active { border-color: var(--bfc, #0ff); color: var(--bfc, #0ff); }
+.val-row {
+  display: flex; align-items: center; gap: 6px;
+  flex-wrap: wrap; margin-bottom: 7px; min-height: 28px;
+}
+.val-row label {
+  font-size: 0.42rem; color: #333; text-transform: uppercase; letter-spacing: 0.1em;
+}
+.val-row input[type="number"], .val-row input[type="text"] {
+  width: 64px; background: #111; border: 1px solid #222;
+  color: #aaa; padding: 4px 6px; font-family: inherit; font-size: 0.65rem; outline: none;
+}
+.val-row input[type="text"] { width: 120px; }
+.val-row input:focus { border-color: #555; }
+.chips { display: flex; flex-wrap: wrap; gap: 3px; margin-bottom: 7px; }
+.chip {
+  padding: 2px 7px; background: transparent; border: 1px solid #1a1a1a;
+  color: #444; font-family: inherit; font-size: 0.45rem; cursor: pointer;
+}
+.chip:active { border-color: #555; color: #888; }
+#applyBtn {
+  padding: 4px 12px; background: transparent; border: 1px solid #333;
+  color: #777; font-family: inherit; font-size: 0.5rem; cursor: pointer;
+  text-transform: uppercase; letter-spacing: 0.1em;
+}
+#applyBtn:active { border-color: #555; color: #aaa; }
+
+/* Description */
+#description {
+  font-size: clamp(0.85rem, 3.5vw, 1.2rem);
+  color: #fff; font-weight: 200; line-height: 1.5; min-height: 1.5em;
+}
+#description.empty { color: #222; }
+
+/* Runs */
+.runs { display: flex; flex-direction: column; }
+.run-row {
+  display: flex; justify-content: space-between; align-items: baseline;
+  padding: 5px 0; border-bottom: 1px solid #0f0f0f;
+}
+.run-dt { font-size: 0.62rem; color: #666; font-variant-numeric: tabular-nums; }
+.run-rel { font-size: 0.48rem; color: #333; }
+.runs-note { font-size: 0.5rem; color: #2a2a2a; font-style: italic; padding: 4px 0; }
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>CRON <span>EXPLAIN</span></h1>
+
+  <div class="input-wrap">
+    <input id="cronInput" type="text" autocomplete="off" autocorrect="off"
+           autocapitalize="off" spellcheck="false" placeholder="paste cron expression">
+    <button id="clearBtn" aria-label="Clear">×</button>
+  </div>
+  <div id="errorMsg"></div>
+
+  <div class="lbl">PRESETS</div>
+  <div class="presets" id="presets"></div>
+
+  <hr>
+
+  <div class="lbl">FIELDS</div>
+  <div class="fields" id="fields"></div>
+  <div id="builder">
+    <div class="builder-head">EDIT <span id="builderLabel">FIELD</span></div>
+    <div class="type-row" id="typeRow"></div>
+    <div class="val-row" id="valRow"></div>
+    <div class="chips" id="builderChips"></div>
+    <button id="applyBtn">APPLY</button>
+  </div>
+
+  <hr>
+
+  <div class="lbl">DESCRIPTION</div>
+  <div id="description" class="empty">—</div>
+
+  <hr>
+
+  <div class="lbl">NEXT 10 RUNS</div>
+  <div id="runs"></div>
+</div>
+
+<script>
+// ─── Constants ────────────────────────────────────────────────────────────────
+
+const FIELD_DEFS_5 = [
+  { key: 'MIN',  label: 'Minute',       cls: 'f-min',  min: 0, max: 59, fc: '#0ff' },
+  { key: 'HOUR', label: 'Hour',         cls: 'f-hour', min: 0, max: 23, fc: '#d29922' },
+  { key: 'DOM',  label: 'Day of Month', cls: 'f-dom',  min: 1, max: 31, fc: '#3fb950' },
+  { key: 'MON',  label: 'Month',        cls: 'f-mon',  min: 1, max: 12, fc: '#58a6ff' },
+  { key: 'DOW',  label: 'Day of Week',  cls: 'f-dow',  min: 0, max: 7,  fc: '#d0a0f0' },
+];
+
+const FIELD_DEFS_6 = [
+  { key: 'SEC',  label: 'Second',       cls: 'f-sec',  min: 0, max: 59, fc: '#666' },
+  ...FIELD_DEFS_5,
+];
+
+const MONTH_NAMES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const DAY_NAMES   = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+
+const PRESETS = [
+  { label: '* * * * *',     expr: '* * * * *',     title: 'Every minute' },
+  { label: '*/5 * * * *',   expr: '*/5 * * * *',   title: 'Every 5 min' },
+  { label: '0 * * * *',     expr: '0 * * * *',     title: 'Every hour' },
+  { label: '0 9 * * 1-5',   expr: '0 9 * * 1-5',   title: 'Weekdays 9am' },
+  { label: '30 6 * * 1-5',  expr: '30 6 * * 1-5',  title: 'Weekdays 6:30am' },
+  { label: '0 0 * * *',     expr: '0 0 * * *',     title: '@daily' },
+  { label: '0 0 * * 0',     expr: '0 0 * * 0',     title: '@weekly' },
+  { label: '0 0 1 * *',     expr: '0 0 1 * *',     title: '@monthly' },
+  { label: '0 0 1 1 *',     expr: '0 0 1 1 *',     title: '@yearly' },
+  { label: '0 0,12 * * *',  expr: '0 0,12 * * *',  title: 'Twice daily' },
+  { label: '*/15 * * * *',  expr: '*/15 * * * *',  title: 'Every 15 min' },
+  { label: '0 9-17 * * 1-5',expr: '0 9-17 * * 1-5',title: 'Business hours' },
+];
+
+const FIELD_CHIPS = {
+  SEC:  ['*', '0', '*/10', '*/15', '*/30', '0-29', '30-59'],
+  MIN:  ['*', '0', '30', '*/5', '*/10', '*/15', '*/30', '0-29'],
+  HOUR: ['*', '0', '6', '9', '12', '17', '0-5', '9-17', '*/2', '*/4', '*/6'],
+  DOM:  ['*', '1', '15', '28', '1-7', '8-14', '15-21', '22-28'],
+  MON:  ['*', '1', '3', '6', '9', '12', '1-6', '7-12', '*/3', '*/6'],
+  DOW:  ['*', '1-5', '0,6', '0', '6', '1', '2', '3', '4', '5'],
+};
+
+const AT_MACROS = {
+  '@yearly':   '0 0 1 1 *',
+  '@annually': '0 0 1 1 *',
+  '@monthly':  '0 0 1 * *',
+  '@weekly':   '0 0 * * 0',
+  '@daily':    '0 0 * * *',
+  '@midnight': '0 0 * * *',
+  '@hourly':   '0 * * * *',
+};
+
+// ─── Parser ───────────────────────────────────────────────────────────────────
+
+function expandMacro(expr) {
+  const t = expr.trim().toLowerCase();
+  return AT_MACROS[t] || expr;
+}
+
+function parseField(val, min, max) {
+  val = String(val).trim();
+  if (val === '*') return { type: 'any' };
+
+  if (val.includes('/')) {
+    const slash = val.indexOf('/');
+    const range = val.slice(0, slash);
+    const step = parseInt(val.slice(slash + 1));
+    if (isNaN(step) || step <= 0) return null;
+    if (range === '*') return { type: 'step', start: min, end: max, step };
+    if (range.includes('-')) {
+      const parts = range.split('-').map(Number);
+      if (parts.length !== 2 || parts.some(isNaN)) return null;
+      return { type: 'step', start: parts[0], end: parts[1], step };
+    }
+    const start = parseInt(range);
+    if (isNaN(start)) return null;
+    return { type: 'step', start, end: max, step };
+  }
+
+  if (val.includes(',')) {
+    const values = val.split(',').map(v => parseInt(v.trim()));
+    if (values.some(isNaN)) return null;
+    return { type: 'list', values };
+  }
+
+  if (val.includes('-')) {
+    const parts = val.split('-').map(Number);
+    if (parts.length !== 2 || parts.some(isNaN)) return null;
+    return { type: 'range', start: parts[0], end: parts[1] };
+  }
+
+  const n = parseInt(val);
+  if (isNaN(n)) return null;
+  return { type: 'exact', value: n };
+}
+
+function parseCron(expr) {
+  expr = expandMacro(expr);
+  const parts = expr.trim().split(/\s+/);
+  if (parts.length < 5 || parts.length > 6) return null;
+  const defs = parts.length === 6 ? FIELD_DEFS_6 : FIELD_DEFS_5;
+  const parsed = [];
+  for (let i = 0; i < parts.length; i++) {
+    const p = parseField(parts[i], defs[i].min, defs[i].max);
+    if (!p) return null;
+    parsed.push(p);
+  }
+  return { parsed, defs, raw: parts };
+}
+
+// ─── Matching ─────────────────────────────────────────────────────────────────
+
+function matchField(p, val) {
+  if (p.type === 'any') return true;
+  if (p.type === 'exact') return val === p.value || (p.value === 7 && val === 0);
+  if (p.type === 'range') return val >= p.start && val <= p.end;
+  if (p.type === 'list') {
+    return p.values.includes(val) || (val === 0 && p.values.includes(7));
+  }
+  if (p.type === 'step') {
+    // Use modular arithmetic to avoid O(N) iteration for large ranges
+    if (val < p.start || val > p.end) return false;
+    return (val - p.start) % p.step === 0;
+  }
+  return false;
+}
+
+// ─── Next runs ────────────────────────────────────────────────────────────────
+
+function nextRuns(cronResult, n, from) {
+  const { parsed, defs } = cronResult;
+  const has6 = defs.length === 6;
+
+  const sec  = has6 ? parsed[0] : null;
+  const min  = parsed[has6 ? 1 : 0];
+  const hour = parsed[has6 ? 2 : 1];
+  const dom  = parsed[has6 ? 3 : 2];
+  const mon  = parsed[has6 ? 4 : 3];
+  const dow  = parsed[has6 ? 5 : 4];
+
+  const d = new Date(from);
+  if (has6) {
+    d.setMilliseconds(0);
+    d.setTime(d.getTime() + 1000);
+  } else {
+    d.setSeconds(0, 0);
+    d.setTime(d.getTime() + 60000);
+  }
+
+  const results = [];
+  let iters = 0;
+  const MAX = 50000;
+
+  while (results.length < n && iters < MAX) {
+    iters++;
+
+    // Month check (1-indexed)
+    if (!matchField(mon, d.getMonth() + 1)) {
+      d.setDate(1);
+      d.setHours(0, 0, 0, 0);
+      d.setMonth(d.getMonth() + 1);
+      continue;
+    }
+
+    // Day check (OR logic when both DOM and DOW are restricted)
+    const domR = dom.type !== 'any';
+    const dowR = dow.type !== 'any';
+    let dayOk;
+    if (domR && dowR) {
+      dayOk = matchField(dom, d.getDate()) || matchField(dow, d.getDay());
+    } else if (domR) {
+      dayOk = matchField(dom, d.getDate());
+    } else if (dowR) {
+      dayOk = matchField(dow, d.getDay());
+    } else {
+      dayOk = true;
+    }
+    if (!dayOk) {
+      d.setHours(0, 0, 0, 0);
+      d.setDate(d.getDate() + 1);
+      continue;
+    }
+
+    // Hour check
+    if (!matchField(hour, d.getHours())) {
+      d.setMinutes(0, 0, 0);
+      d.setHours(d.getHours() + 1);
+      continue;
+    }
+
+    // Minute check
+    if (!matchField(min, d.getMinutes())) {
+      d.setSeconds(0, 0);
+      d.setMinutes(d.getMinutes() + 1);
+      continue;
+    }
+
+    if (has6) {
+      if (!matchField(sec, d.getSeconds())) {
+        d.setMilliseconds(0);
+        d.setTime(d.getTime() + 1000);
+        continue;
+      }
+      results.push(new Date(d));
+      d.setTime(d.getTime() + 1000);
+    } else {
+      results.push(new Date(d));
+      d.setMinutes(d.getMinutes() + 1);
+    }
+  }
+
+  return results;
+}
+
+// ─── Field explanation ────────────────────────────────────────────────────────
+
+function fmtHour(h, m) {
+  const mm = m !== undefined ? String(m).padStart(2, '0') : '00';
+  const period = h < 12 ? 'AM' : 'PM';
+  const h12 = h % 12 || 12;
+  return `${h12}:${mm} ${period}`;
+}
+
+function ordinal(n) {
+  const s = ['th', 'st', 'nd', 'rd'];
+  const v = n % 100;
+  return n + (s[(v - 20) % 10] || s[v] || s[0]);
+}
+
+function fieldExplain(key, p, min) {
+  const dow = i => DAY_NAMES[i % 7];
+  const mon = i => MONTH_NAMES[i - 1];
+
+  if (p.type === 'any') {
+    return { SEC: 'every sec', MIN: 'every min', HOUR: 'every hr',
+             DOM: 'every day', MON: 'every mo', DOW: 'any day' }[key] || '*';
+  }
+  if (p.type === 'exact') {
+    const v = p.value;
+    if (key === 'SEC')  return `:${String(v).padStart(2, '0')}`;
+    if (key === 'MIN')  return `:${String(v).padStart(2, '0')}`;
+    if (key === 'HOUR') return fmtHour(v);
+    if (key === 'DOM')  return ordinal(v);
+    if (key === 'MON')  return mon(v);
+    if (key === 'DOW')  return dow(v);
+  }
+  if (p.type === 'range') {
+    const { start: a, end: b } = p;
+    if (key === 'SEC')  return `${a}–${b}`;
+    if (key === 'MIN')  return `:${a}–:${b}`;
+    if (key === 'HOUR') return `${fmtHour(a)}–${fmtHour(b)}`;
+    if (key === 'DOM')  return `${ordinal(a)}–${ordinal(b)}`;
+    if (key === 'MON')  return `${mon(a)}–${mon(b)}`;
+    if (key === 'DOW')  return `${dow(a)}–${dow(b)}`;
+  }
+  if (p.type === 'list') {
+    const vals = p.values;
+    if (key === 'DOW')  return vals.map(dow).join(', ');
+    if (key === 'MON')  return vals.map(mon).join(', ');
+    if (key === 'HOUR') return vals.map(h => fmtHour(h)).join(', ');
+    return vals.join(', ');
+  }
+  if (p.type === 'step') {
+    const { start, end, step } = p;
+    const u = { SEC: 'sec', MIN: 'min', HOUR: 'hr', DOM: 'day', MON: 'mo', DOW: '' }[key] || '';
+    if (start === min) return `every ${step}${u ? ' ' + u : ''}`;
+    return `every ${step}${u ? ' ' + u : ''} (${start}+)`;
+  }
+  return '?';
+}
+
+// ─── Full description ─────────────────────────────────────────────────────────
+
+function describeCron(cronResult) {
+  const { parsed, defs } = cronResult;
+  const has6 = defs.length === 6;
+
+  const sec  = has6 ? parsed[0] : null;
+  const min  = parsed[has6 ? 1 : 0];
+  const hour = parsed[has6 ? 2 : 1];
+  const dom  = parsed[has6 ? 3 : 2];
+  const mon  = parsed[has6 ? 4 : 3];
+  const dow  = parsed[has6 ? 5 : 4];
+
+  const parts = [];
+
+  // Time description
+  if (min.type === 'any' && hour.type === 'any') {
+    parts.push('every minute');
+  } else if (min.type === 'step' && min.start === 0 && hour.type === 'any') {
+    parts.push(`every ${min.step} minute${min.step === 1 ? '' : 's'}`);
+  } else if (min.type === 'exact' && hour.type === 'exact') {
+    parts.push(`at ${fmtHour(hour.value, min.value)}`);
+  } else if (min.type === 'exact' && hour.type === 'any') {
+    parts.push(`at :${String(min.value).padStart(2, '0')} past every hour`);
+  } else if (min.type === 'exact' && hour.type === 'list') {
+    const times = hour.values.map(h => fmtHour(h, min.value)).join(' and ');
+    parts.push(`at ${times}`);
+  } else if (min.type === 'exact' && hour.type === 'range') {
+    parts.push(`at :${String(min.value).padStart(2, '0')} past hours ${hour.start}–${hour.end}`);
+  } else if (hour.type === 'step' && hour.start === 0) {
+    const minPart = min.type === 'exact' ? ` at :${String(min.value).padStart(2, '0')}` : '';
+    parts.push(`every ${hour.step} hour${hour.step === 1 ? '' : 's'}${minPart}`);
+  } else {
+    const hx = fieldExplain('HOUR', hour, 0);
+    const mx = fieldExplain('MIN', min, 0);
+    parts.push(`${hx}, ${mx}`);
+  }
+
+  // Seconds addendum
+  if (has6 && sec && sec.type !== 'any') {
+    parts.push(`at second ${fieldExplain('SEC', sec, 0)}`);
+  }
+
+  // Day
+  const domR = dom.type !== 'any';
+  const dowR = dow.type !== 'any';
+  if (domR && dowR) {
+    parts.push(`on ${fieldExplain('DOM', dom, 1)} or ${fieldExplain('DOW', dow, 0)}`);
+  } else if (domR) {
+    parts.push(`on the ${fieldExplain('DOM', dom, 1)}`);
+  } else if (dowR) {
+    parts.push(`on ${fieldExplain('DOW', dow, 0)}`);
+  }
+
+  // Month
+  if (mon.type !== 'any') {
+    parts.push(`in ${fieldExplain('MON', mon, 1)}`);
+  }
+
+  return parts.join(', ');
+}
+
+// ─── Relative time ────────────────────────────────────────────────────────────
+
+function relTime(date, now) {
+  const diff = date - now;
+  const mins = Math.round(diff / 60000);
+  const hours = Math.round(diff / 3600000);
+  const days = Math.round(diff / 86400000);
+  if (mins < 2)    return 'in moments';
+  if (mins < 60)   return `in ${mins}m`;
+  if (hours === 1) return 'in 1 hour';
+  if (hours < 24)  return `in ${hours}h`;
+  if (days === 1)  return 'tomorrow';
+  if (days < 7)    return `in ${days} days`;
+  if (days < 14)   return 'next week';
+  if (days < 60)   return `in ${Math.ceil(days / 7)} weeks`;
+  if (days < 365)  return `in ${Math.ceil(days / 30)} months`;
+  return `in ~${Math.ceil(days / 365)}yr`;
+}
+
+// ─── State ────────────────────────────────────────────────────────────────────
+
+let cronResult = null;
+let rawParts   = [];
+let selectedIdx = -1;
+let builderType = 'any';
+// Builder input element references (set by updateBuilderInputs)
+let bldInputs = {};
+
+// Cached DOM refs — script runs at end of body so DOM is ready
+const DOM = {
+  input:        document.getElementById('cronInput'),
+  errEl:        document.getElementById('errorMsg'),
+  descEl:       document.getElementById('description'),
+  fieldsEl:     document.getElementById('fields'),
+  runsEl:       document.getElementById('runs'),
+  clearBtn:     document.getElementById('clearBtn'),
+  builder:      document.getElementById('builder'),
+  builderLabel: document.getElementById('builderLabel'),
+  typeRow:      document.getElementById('typeRow'),
+  valRow:       document.getElementById('valRow'),
+  chipsEl:      document.getElementById('builderChips'),
+  applyBtn:     document.getElementById('applyBtn'),
+  presetsEl:    document.getElementById('presets'),
+};
+
+// ─── Render ───────────────────────────────────────────────────────────────────
+
+function render() {
+  const val = DOM.input.value.trim();
+  DOM.clearBtn.classList.toggle('show', val.length > 0);
+
+  if (!val) {
+    cronResult = null; rawParts = [];
+    DOM.errEl.classList.remove('show');
+    DOM.fieldsEl.innerHTML = '';
+    DOM.descEl.textContent = '—';
+    DOM.descEl.classList.add('empty');
+    DOM.runsEl.innerHTML = '';
+    hideBuilder();
+    return;
+  }
+
+  if (val.toLowerCase() === '@reboot') {
+    cronResult = null; rawParts = [];
+    DOM.errEl.classList.remove('show');
+    DOM.fieldsEl.innerHTML = '';
+    DOM.descEl.textContent = 'On system reboot / startup';
+    DOM.descEl.classList.remove('empty');
+    DOM.runsEl.innerHTML = '';
+    const note = document.createElement('div');
+    note.classList.add('runs-note');
+    note.textContent = 'Cannot predict reboot times.';
+    DOM.runsEl.appendChild(note);
+    hideBuilder();
+    return;
+  }
+
+  const parsed = parseCron(val);
+
+  if (!parsed) {
+    cronResult = null; rawParts = [];
+    DOM.errEl.textContent = '⚠ Invalid cron expression';
+    DOM.errEl.classList.add('show');
+    DOM.fieldsEl.innerHTML = '';
+    DOM.descEl.textContent = '—';
+    DOM.descEl.classList.add('empty');
+    DOM.runsEl.innerHTML = '';
+    hideBuilder();
+    return;
+  }
+
+  DOM.errEl.classList.remove('show');
+  cronResult = parsed;
+  rawParts = [...parsed.raw];
+
+  renderFields(parsed);
+
+  const desc = describeCron(parsed);
+  DOM.descEl.textContent = desc || '—';
+  DOM.descEl.classList.toggle('empty', !desc);
+
+  renderRuns(parsed);
+
+  // Re-show builder if a field was selected and index is still valid
+  if (selectedIdx >= 0 && selectedIdx < cronResult.defs.length) {
+    showBuilder(selectedIdx);
+  } else {
+    selectedIdx = -1;
+    hideBuilder();
+  }
+}
+
+function makeEl(tag, classes, text) {
+  const el = document.createElement(tag);
+  if (classes) classes.split(' ').forEach(c => c && el.classList.add(c));
+  if (text !== undefined) el.textContent = text;
+  return el;
+}
+
+function renderFields(cr) {
+  DOM.fieldsEl.innerHTML = '';
+  cr.defs.forEach((def, i) => {
+    const div = makeEl('div', 'field ' + def.cls + (i === selectedIdx ? ' selected' : ''));
+    div.appendChild(makeEl('div', 'field-name', def.key));
+    div.appendChild(makeEl('div', 'field-val',  rawParts[i] || '*'));
+    div.appendChild(makeEl('div', 'field-desc', fieldExplain(def.key, cr.parsed[i], def.min)));
+    div.addEventListener('click', () => selectField(i));
+    DOM.fieldsEl.appendChild(div);
+  });
+}
+
+function renderRuns(cr) {
+  DOM.runsEl.innerHTML = '';
+  const now = new Date();
+  const runs = nextRuns(cr, 10, now);
+  if (runs.length === 0) {
+    DOM.runsEl.appendChild(makeEl('div', 'runs-note', 'No runs found in next 35-day window.'));
+    return;
+  }
+  const hasSec = cr.defs.length === 6;
+  runs.forEach(d => {
+    const row = makeEl('div', 'run-row');
+    const dtSpan  = makeEl('span', 'run-dt');
+    const relSpan = makeEl('span', 'run-rel', relTime(d, now));
+    const dow  = DAY_NAMES[d.getDay()];
+    const mon  = MONTH_NAMES[d.getMonth()];
+    const day  = String(d.getDate()).padStart(2, '\u2007'); // figure space
+    const year = d.getFullYear();
+    const hh   = String(d.getHours()).padStart(2, '0');
+    const mm   = String(d.getMinutes()).padStart(2, '0');
+    const ss   = String(d.getSeconds()).padStart(2, '0');
+    dtSpan.textContent = dow + ' ' + mon + ' ' + day + ' ' + year + '  ' + (hasSec ? hh+':'+mm+':'+ss : hh+':'+mm);
+    row.appendChild(dtSpan);
+    row.appendChild(relSpan);
+    DOM.runsEl.appendChild(row);
+  });
+  if (runs.length < 10) {
+    DOM.runsEl.appendChild(makeEl('div', 'runs-note', 'Only ' + runs.length + ' run(s) found in search window.'));
+  }
+}
+
+// ─── Builder ──────────────────────────────────────────────────────────────────
+
+function selectField(idx) {
+  if (!cronResult) return;
+  if (selectedIdx === idx) {
+    selectedIdx = -1;
+    hideBuilder();
+    renderFields(cronResult);
+    return;
+  }
+  selectedIdx = idx;
+  renderFields(cronResult);
+  showBuilder(idx);
+}
+
+function hideBuilder() {
+  DOM.builder.classList.remove('show');
+}
+
+function showBuilder(idx) {
+  if (!cronResult || idx >= cronResult.defs.length) return;
+  DOM.builder.classList.add('show');
+
+  const def = cronResult.defs[idx];
+  const p   = cronResult.parsed[idx];
+
+  DOM.builder.style.setProperty('--bfc', def.fc);
+  DOM.builderLabel.textContent = def.label.toUpperCase();
+
+  builderType = p.type;
+
+  // Type buttons
+  const typeRow = DOM.typeRow;
+  const TYPES = ['any', 'exact', 'range', 'list', 'step'];
+  const TYPE_LABELS = { any: 'Any (*)', exact: 'Exact', range: 'Range', list: 'List', step: 'Step (/)' };
+  typeRow.innerHTML = '';
+  TYPES.forEach(t => {
+    const btn = makeEl('button', 'type-btn' + (t === builderType ? ' active' : ''), TYPE_LABELS[t]);
+    btn.addEventListener('click', () => {
+      builderType = t;
+      TYPES.forEach((type, i) => {
+        typeRow.children[i].classList.toggle('active', type === t);
+      });
+      updateBuilderInputs(idx);
+    });
+    typeRow.appendChild(btn);
+  });
+
+  updateBuilderInputs(idx);
+
+  // Quick chips
+  DOM.chipsEl.innerHTML = '';
+  (FIELD_CHIPS[def.key] || []).forEach(c => {
+    const btn = makeEl('button', 'chip', c);
+    btn.addEventListener('click', () => applyRaw(idx, c));
+    DOM.chipsEl.appendChild(btn);
+  });
+}
+
+function updateBuilderInputs(idx) {
+  const def = cronResult.defs[idx];
+  const p   = cronResult.parsed[idx];
+  const valRow = DOM.valRow;
+  valRow.innerHTML = '';
+
+  bldInputs = {};
+
+  function addNumInput(key, labelText, val, mn, mx) {
+    const lbl = document.createElement('label');
+    lbl.textContent = labelText;
+    const input = document.createElement('input');
+    input.type = 'number';
+    input.min = mn;
+    input.max = mx;
+    input.value = val !== undefined ? val : mn;
+    bldInputs[key] = input;
+    valRow.appendChild(lbl);
+    valRow.appendChild(input);
+  }
+
+  if (builderType === 'exact') {
+    addNumInput('v', 'VALUE', p.type === 'exact' ? p.value : def.min, def.min, def.max);
+  } else if (builderType === 'range') {
+    addNumInput('a', 'FROM', p.type === 'range' ? p.start : def.min, def.min, def.max);
+    addNumInput('b', 'TO',   p.type === 'range' ? p.end : def.max, def.min, def.max);
+  } else if (builderType === 'list') {
+    const lbl = document.createElement('label');
+    lbl.textContent = 'VALUES';
+    const inp = document.createElement('input');
+    inp.type = 'text';
+    inp.value = p.type === 'list' ? p.values.join(',') : '';
+    inp.placeholder = def.min + ',' + (def.min + 1) + ',...';
+    bldInputs['list'] = inp;
+    valRow.appendChild(lbl);
+    valRow.appendChild(inp);
+  } else if (builderType === 'step') {
+    addNumInput('start', 'FROM', p.type === 'step' ? p.start : def.min, def.min, def.max);
+    addNumInput('step',  'STEP', p.type === 'step' ? p.step : 1, 1, def.max);
+  }
+  // 'any' has no inputs
+}
+
+function buildRawFromBuilder(idx) {
+  const def = cronResult.defs[idx];
+  if (builderType === 'any') return '*';
+  if (builderType === 'exact') {
+    return bldInputs.v ? String(bldInputs.v.value) : '*';
+  }
+  if (builderType === 'range') {
+    return (bldInputs.a && bldInputs.b) ? bldInputs.a.value + '-' + bldInputs.b.value : '*';
+  }
+  if (builderType === 'list') {
+    return bldInputs.list && bldInputs.list.value.trim() ? bldInputs.list.value.trim() : '*';
+  }
+  if (builderType === 'step') {
+    if (!bldInputs.start || !bldInputs.step) return '*';
+    const s = parseInt(bldInputs.start.value);
+    return s === def.min
+      ? '*/' + bldInputs.step.value
+      : bldInputs.start.value + '-' + def.max + '/' + bldInputs.step.value;
+  }
+  return '*';
+}
+
+function applyRaw(idx, rawVal) {
+  rawParts[idx] = rawVal;
+  DOM.input.value = rawParts.join(' ');
+  render(); // will re-show builder because selectedIdx is preserved
+}
+
+// ─── Presets (defined here, called after DOM init) ────────────────────────────
+
+function buildPresets() {
+  PRESETS.forEach(p => {
+    const btn = makeEl('button', 'preset-btn', p.label);
+    btn.title = p.title;
+    btn.addEventListener('click', () => {
+      DOM.input.value = p.expr;
+      selectedIdx = -1;
+      render();
+    });
+    DOM.presetsEl.appendChild(btn);
+  });
+}
+
+// ─── Init ─────────────────────────────────────────────────────────────────────
+
+DOM.applyBtn.addEventListener('click', () => {
+  if (selectedIdx < 0 || !cronResult) return;
+  applyRaw(selectedIdx, buildRawFromBuilder(selectedIdx));
+});
+
+DOM.input.addEventListener('input', () => {
+  selectedIdx = -1;
+  render();
+});
+
+DOM.clearBtn.addEventListener('click', () => {
+  DOM.input.value = '';
+  selectedIdx = -1;
+  render();
+});
+
+buildPresets();
+
+// Default expression on load
+DOM.input.value = '0 9 * * 1-5';
+render();
+</script>
+</body>
+</html>

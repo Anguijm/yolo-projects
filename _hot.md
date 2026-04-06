@@ -1,24 +1,23 @@
 # Hot Cache — Active Context
-*Auto-updated 2026-04-06 04:26 UTC. Read this FIRST.*
+*Auto-updated 2026-04-06 05:34 UTC. Read this FIRST.*
 
 ## Current State
-- Portfolio: 215 total, 92 active
-- Tick queue: 4 approved, 0 pending
+- Portfolio: 216 total, 93 active
+- Tick queue: 3 approved, 0 pending
 - Phase 4: 50 experiments, 7 backlog
-- Next: tick
+- Next: tock
 
 ## Tick Queue
-- [approved] cron-explain: Cron expression explainer — paste any 5-field or 6-field cro
 - [approved] unicode-char: Unicode Character Inspector — paste any text, get character-
 - [approved] ip-cidr: IP/CIDR Calculator & Subnet Analyzer — network address, broa
 - [approved] port-ref: Well-Known Port Quick-Reference — type a port or service nam
 
 ## Recent Builds (last 5)
+- cron-explain: Cron expression explainer — paste any 5/6-field cron express
 - url-dissect: URL Dissector & Analyzer — component breakdown with encoding
 - uuid-inspector: UUID inspector — version detection (v1-v8), timestamp decode
 - unix-ts: Unix timestamp debugger — paste any timestamp (auto-detects 
 - semver-range: Semver range calculator — paste any npm range expression and
-- env-inspector: .env file linter + .env.example generator + markdown docs ta
 
 ## Key Patterns (from recent learnings)
 - [INSIGHT] `eval_bugs.py` [missing-event-cleanup] fires on ALL `setTimeout` calls, includin
