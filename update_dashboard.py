@@ -121,7 +121,8 @@ TEMPLATE = r'''<!DOCTYPE html>
   <div class="pill-group" id="vote-pills"></div>
   <div class="pill-group" id="range-pills"></div>
   <select class="sort-select" id="sort-select">
-    <option value="newest">Sort: Newest</option>
+    <option value="recent-used">Sort: Recently Used</option>
+    <option value="newest">Sort: Newest Build</option>
     <option value="date">Sort: By Category</option>
     <option value="opens">Sort: Most Opened</option>
     <option value="liked">Sort: Liked First</option>
@@ -176,7 +177,7 @@ const CATEGORIES = {
   },
   'Productivity': {
     icon: '\u2705',
-    match: ['bookmark-dash','flash-cards','habit-grid','interval-timer','kanban-board','markdown-deck','naval-scribe','one-line','pomodoro-flow','readme-forge','secure-note']
+    match: ['bookmark-dash','flash-cards','habit-grid','interval-timer','kanban-board','one-line','pomodoro-flow','readme-forge','secure-note']
   },
   'Games': {
     icon: '\uD83C\uDFAE',
@@ -204,10 +205,10 @@ LOG_DATA.forEach(e => { e.category = getCategory(e.project); });
 let activeCategory = 'all';
 let activeStatus = 'all';
 let activeVote = 'all';
-let activeRange = 10; // show last N (0 = all)
+let activeRange = 0; // show last N (0 = all). Default to all so recent-used sort isn't capped.
 let searchQuery = '';
 let viewMode = 'grid';
-let sortMode = 'newest';
+let sortMode = 'recent-used'; // default: most recently opened first, then unopened by build date
 
 function render() {
   const metrics = loadMetrics();
@@ -221,9 +222,17 @@ function render() {
     e._vote = m.vote;
   });
 
-  // Filter
+  // Filter — search runs FIRST (and globally), then category/status/vote, then range cap.
+  // Range cap is bypassed when a search query is active so search is always global.
   let filtered = data;
-  if (activeRange > 0) filtered = filtered.slice(0, activeRange);
+  if (searchQuery) {
+    const q = searchQuery.toLowerCase();
+    filtered = filtered.filter(e =>
+      (e.project || '').toLowerCase().includes(q) ||
+      (e.idea || '').toLowerCase().includes(q) ||
+      (e.takeaway || '').toLowerCase().includes(q)
+    );
+  }
   if (activeCategory !== 'all') filtered = filtered.filter(e => e.category === activeCategory);
   if (activeStatus === 'refined') filtered = filtered.filter(e => e.refined);
   else if (activeStatus === 'unrefined') filtered = filtered.filter(e => e.status === 'working' && !e.refined);
@@ -231,20 +240,24 @@ function render() {
   if (activeVote === 'up') filtered = filtered.filter(e => e._vote === 'up');
   if (activeVote === 'down') filtered = filtered.filter(e => e._vote === 'down');
   if (activeVote === 'unrated') filtered = filtered.filter(e => !e._vote);
-  if (searchQuery) {
-    const q = searchQuery.toLowerCase();
-    filtered = filtered.filter(e =>
-      e.project.toLowerCase().includes(q) ||
-      e.idea.toLowerCase().includes(q) ||
-      e.takeaway.toLowerCase().includes(q)
-    );
-  }
 
-  // Sort
-  if (sortMode === 'opens') filtered.sort((a, b) => b._opens - a._opens);
+  // Sort (run before range cap so the cap takes the top N by sort order, not by raw position)
+  if (sortMode === 'recent-used') {
+    // Most recently opened first; items that have never been opened sink to the bottom
+    // in their original (newest-build-first) order.
+    filtered.sort((a, b) => {
+      const aT = a._lastOpened ? Date.parse(a._lastOpened) : 0;
+      const bT = b._lastOpened ? Date.parse(b._lastOpened) : 0;
+      if (aT !== bT) return bT - aT;
+      return 0; // stable fallback — preserves reverse-chronological order
+    });
+  } else if (sortMode === 'opens') filtered.sort((a, b) => b._opens - a._opens);
   else if (sortMode === 'liked') filtered.sort((a, b) => (b._vote === 'up' ? 1 : 0) - (a._vote === 'up' ? 1 : 0));
   else if (sortMode === 'name') filtered.sort((a, b) => a.project.localeCompare(b.project));
-  // 'newest' and 'date' are already reverse-chronological
+  // 'newest' and 'date' are already reverse-chronological (data was pre-reversed)
+
+  // Range cap (bypass when searching so results are never hidden behind the cap)
+  if (activeRange > 0 && !searchQuery) filtered = filtered.slice(0, activeRange);
 
   // Stats
   const total = data.length;
@@ -453,6 +466,9 @@ render();
 </html>'''
 
 
+FLAGSHIPS = {'markdown-deck', 'naval-scribe'}  # flagships have their own pages, excluded from tool grid
+
+
 def get_refined_projects():
     """Scan learnings.md for refined project names."""
     learnings = ROOT / "learnings.md"
@@ -468,14 +484,15 @@ def get_refined_projects():
 def update():
     log = json.loads(LOG_FILE.read_text()) if LOG_FILE.exists() else []
     refined = get_refined_projects()
-    # Filter out culled projects entirely
-    survivors = [e for e in log if e.get('status') not in ('failed', 'culled')]
+    # Filter out culled/failed AND flagships (flagships have dedicated pages, not in the tool grid)
+    survivors = [e for e in log if e.get('status') not in ('failed', 'culled') and e.get('project') not in FLAGSHIPS]
     for entry in survivors:
         entry['refined'] = entry['project'] in refined
     html = TEMPLATE.replace('__LOG_DATA__', json.dumps(survivors))
     DASHBOARD.write_text(html)
     refined_count = sum(1 for e in survivors if e.get('refined'))
-    print(f"Dashboard updated with {len(survivors)} entries ({refined_count} refined, {len(log) - len(survivors)} culled hidden).")
+    hidden = len(log) - len(survivors)
+    print(f"Dashboard updated with {len(survivors)} entries ({refined_count} refined, {hidden} hidden [culled/failed/flagships]).")
 
 
 if __name__ == "__main__":
