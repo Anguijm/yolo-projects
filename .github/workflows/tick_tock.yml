@@ -1,0 +1,78 @@
+name: Tick-Tock Builder (Hourly)
+
+on:
+  schedule:
+    # Every hour on the hour (UTC)
+    - cron: '0 * * * *'
+  workflow_dispatch: # Manual trigger for testing
+
+concurrency:
+  group: tick-tock
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install Python dependencies
+        run: pip install anthropic requests
+
+      - name: Install Claude Code CLI
+        run: npm install -g @anthropic-ai/claude-code
+
+      - name: Configure git
+        run: |
+          git config user.name "tick-tock-bot"
+          git config user.email "tick-tock-bot@users.noreply.github.com"
+
+      - name: Pre-flight halt check
+        id: halt
+        run: |
+          if [ -f .harness_halt ]; then
+            echo "HALTED — .harness_halt present:"
+            cat .harness_halt
+            echo "halted=true" >> $GITHUB_OUTPUT
+          else
+            echo "halted=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Run tick-tock agent
+        if: steps.halt.outputs.halted != 'true'
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          claude -p "$(cat .github/workflows/tick_tock_prompt.md)" \
+            --dangerously-skip-permissions \
+            --allowed-tools "Bash,Read,Write,Edit,Glob,Grep"
+
+      - name: Safety-net commit (if agent didn't push)
+        if: steps.halt.outputs.halted != 'true'
+        run: |
+          if [ -n "$(git status --porcelain)" ]; then
+            echo "Agent left uncommitted changes — committing as safety net"
+            git add -A
+            git commit -m "cron(tick-tock): safety-net commit (agent did not push)"
+            git pull --rebase origin main || true
+            git push origin main || true
+          else
+            echo "Working tree clean — agent either pushed or made no changes"
+          fi
