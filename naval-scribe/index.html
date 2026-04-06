@@ -219,6 +219,24 @@ html, body {
   text-transform: uppercase; letter-spacing: 0.1em;
 }
 
+/* Import drawer */
+#import-drawer {
+  display: none; position: fixed; top: 32px; left: 0; width: 420px; bottom: 0;
+  z-index: 200; background: var(--bg-surface); border-right: 1px solid #333;
+  overflow-y: auto; padding: 12px;
+}
+#import-drawer.open { display: block; }
+@media (max-width: 768px) { #import-drawer { width: 100%; } }
+.import-result {
+  font-size: 0.5rem; color: var(--color-success); margin-top: 6px;
+  padding: 4px 6px; border: 1px solid #1e3a1e; background: #0d1f0d;
+  letter-spacing: 0.05em;
+}
+.import-warn {
+  font-size: 0.5rem; color: #e3b341; margin-top: 6px;
+  padding: 4px 6px; border: 1px solid #3a2e1e; background: #1f1a0d;
+}
+
 /* Print */
 @media print {
   #top-bar, #form-panel, #drafts-drawer { display: none !important; }
@@ -254,6 +272,7 @@ html, body {
         <option value="sop">standard operating procedure</option>
       </select>
       <button class="btn" id="new-btn">new</button>
+      <button class="btn" id="import-btn">import</button>
       <button class="btn" id="print-btn">print pdf</button>
       <button class="btn" id="drafts-btn">drafts</button>
       <button class="btn" id="save-draft-btn">save draft</button>
@@ -267,6 +286,19 @@ html, body {
     </div>
     <div id="drafts-list"></div>
     <div id="drafts-empty" style="font-size:0.55rem;color:#444;padding:12px 0">No saved drafts yet.</div>
+  </div>
+  <div id="import-drawer">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+      <div class="section-header" style="margin:0;border:none">Import Letter</div>
+      <button class="add-btn" id="import-close-btn">close ×</button>
+    </div>
+    <div style="font-size:0.42rem;color:var(--text-tertiary);margin-bottom:8px;line-height:1.7">
+      Paste raw text from any naval letter or memo.<br>
+      Parser fills all fields it can detect — review &amp; edit after import.
+    </div>
+    <textarea id="import-ta" rows="18" style="width:100%;background:#1a1a1a;border:1px solid #222;color:#ccc;font-family:inherit;font-size:0.6rem;padding:6px 8px;outline:none;resize:vertical;margin-bottom:6px;display:block" placeholder="Paste letter text here...&#10;&#10;Detects: type · SSIC · date · From/To/Via · Subj · Ref/Encl · body · signature · Copy to"></textarea>
+    <button class="btn btn-primary" id="import-parse-btn" style="width:100%;padding:5px 0">parse &amp; fill form</button>
+    <div id="import-result"></div>
   </div>
   <div id="form-panel">
     <div class="field" data-types="letter,memo,endorsement,business,instruction,sop">
@@ -2248,6 +2280,268 @@ html, body {
       bpBodyEl.classList.remove('open');
       bpToggleBtn.textContent = String.fromCharCode(9660) + ' boilerplate library';
     }
+  });
+
+  /* ── Auto-Format Import ── */
+
+  function stripParaNum(line) {
+    /* strip leading naval paragraph numbering, preserve indentation */
+    var s = line;
+    s = s.replace(/^(\s*)\d+\.\s{1,4}/, '$1');
+    s = s.replace(/^(\s*)[a-z]\.\s{1,4}/, '$1');
+    var CP2 = String.fromCharCode(40);
+    var RP2 = String.fromCharCode(41);
+    /* (n)  — parenthesized digit */
+    s = s.replace(new RegExp('^(\\s*)' + CP2 + '\\d+' + RP2 + '\\s{1,4}'), '$1');
+    /* (a)  — parenthesized letter */
+    s = s.replace(new RegExp('^(\\s*)' + CP2 + '[a-zA-Z]' + RP2 + '\\s{1,4}'), '$1');
+    return s;
+  }
+
+  function isSigCandidate(s) {
+    if (!s || s.length < 3 || s.length > 50) return false;
+    var words = s.split(/\s+/);
+    if (words.length < 2 || words.length > 6) return false;
+    return words.every(function(w) {
+      return w.length > 0 && /^[A-Z][A-Z.\-]*$/.test(w);
+    });
+  }
+
+  function isRankLine(s) {
+    if (!s || s.length < 3) return false;
+    return /\b(Navy|Marine|Coast Guard|Army|Air Force|Admiral|Captain|Commander|Lieutenant|Major|Colonel|General|Ensign|Sergeant|Petty Officer|Chief|Brigadier|Vice|Rear|Master|GS-|SES)\b/i.test(s);
+  }
+
+  function parseNavalLetter(raw) {
+    var lines = raw.split('\n');
+    var out = {
+      type: 'letter', ssic: '', date: '', from: '', to: '',
+      via: [], subj: '', refs: [], encls: [],
+      bodyText: '', sigName: '', sigRank: '', sigTitle: '', copyTo: []
+    };
+
+    /* detect type from first 40 lines */
+    var MON_RE = /^(\d{1,2})\s+(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+(\d{4})$/i;
+    for (var ti = 0; ti < Math.min(40, lines.length); ti++) {
+      var tl = lines[ti].trim().toUpperCase();
+      if (tl === 'MEMORANDUM') { out.type = 'memo'; break; }
+      if (tl.indexOf('MEMORANDUM OF AGREEMENT') >= 0) { out.type = 'moa'; break; }
+      if (/\bENDORSEMENT$/.test(tl)) { out.type = 'endorsement'; break; }
+      if (tl === 'ACTION MEMO') { out.type = 'actionmemo'; break; }
+    }
+
+    var inHeader = true;
+    var lastLabel = '';
+    var bodyLines = [];
+    var sigLines = [];
+    var inSig = false;
+    var inCopy = false;
+
+    for (var i = 0; i < lines.length; i++) {
+      var line = lines[i];
+      var trimmed = line.trim();
+
+      /* ── Copy-to state ── */
+      if (inCopy) {
+        if (trimmed) out.copyTo.push(trimmed);
+        continue;
+      }
+
+      /* ── Signature state ── */
+      if (inSig) {
+        if (/^Copy\s+to:/i.test(trimmed)) { inCopy = true; continue; }
+        if (trimmed) sigLines.push(trimmed);
+        continue;
+      }
+
+      /* ── Header state ── */
+      if (inHeader) {
+        /* SSIC: 4-5 digit number, possibly with sub-decimal */
+        if (!out.ssic && /^\d{4,5}(\.\d+)?[A-Z]?$/.test(trimmed)) {
+          out.ssic = trimmed; continue;
+        }
+        /* Date: DD Mon YYYY */
+        if (!out.date && MON_RE.test(trimmed)) {
+          out.date = trimmed; continue;
+        }
+        /* Labeled header fields */
+        if (/^From:/i.test(trimmed)) {
+          out.from = trimmed.replace(/^From:\s*/i, '').trim();
+          lastLabel = 'from'; continue;
+        }
+        if (/^To:/i.test(trimmed)) {
+          out.to = trimmed.replace(/^To:\s*/i, '').trim();
+          lastLabel = 'to'; continue;
+        }
+        if (/^Via:/i.test(trimmed)) {
+          var v0 = trimmed.replace(/^Via:\s*/i, '').replace(/^\(\d+\)\s*/, '').trim();
+          if (v0) out.via.push(v0);
+          lastLabel = 'via'; continue;
+        }
+        if (/^Subj:/i.test(trimmed)) {
+          out.subj = trimmed.replace(/^Subj:\s*/i, '').trim();
+          lastLabel = 'subj'; continue;
+        }
+        if (/^Ref:/i.test(trimmed)) {
+          var CP3 = String.fromCharCode(40);
+          var r0 = trimmed.replace(/^Ref:\s*/i, '').replace(new RegExp('^' + CP3 + '[a-z]' + String.fromCharCode(41) + '\\s*', 'i'), '').trim();
+          if (r0) out.refs.push(r0);
+          lastLabel = 'ref'; continue;
+        }
+        if (/^Encl:/i.test(trimmed)) {
+          var e0 = trimmed.replace(/^Encl:\s*/i, '').replace(/^\(\d+\)\s*/, '').trim();
+          if (e0) out.encls.push(e0);
+          lastLabel = 'encl'; continue;
+        }
+        /* Indented continuation lines */
+        if (trimmed && (line.charAt(0) === ' ' || line.charAt(0) === '\t') && lastLabel) {
+          var CP4 = String.fromCharCode(40);
+          var RP4 = String.fromCharCode(41);
+          if (lastLabel === 'via') {
+            var vc = trimmed.replace(/^\(\d+\)\s*/, '');
+            if (vc) out.via.push(vc); continue;
+          }
+          if (lastLabel === 'ref') {
+            var rc = trimmed.replace(new RegExp('^' + CP4 + '[a-z]' + RP4 + '\\s*', 'i'), '');
+            if (rc) out.refs.push(rc); continue;
+          }
+          if (lastLabel === 'encl') {
+            var ec = trimmed.replace(/^\(\d+\)\s*/, '');
+            if (ec) out.encls.push(ec); continue;
+          }
+          if (lastLabel === 'to') { out.to += ' ' + trimmed; continue; }
+          if (lastLabel === 'from') { out.from += ' ' + trimmed; continue; }
+          if (lastLabel === 'subj') { out.subj += ' ' + trimmed; continue; }
+        }
+        /* Blank line after we have enough context → body */
+        if (!trimmed && (out.subj || out.from)) {
+          inHeader = false; lastLabel = ''; continue;
+        }
+        /* Numbered paragraph forces body transition */
+        if (/^\d+\.\s+/.test(trimmed) && (out.subj || out.from)) {
+          inHeader = false; lastLabel = '';
+          bodyLines.push(line); continue;
+        }
+        /* Skip all other header-section lines (type titles, blank lines before From, etc.) */
+        continue;
+      }
+
+      /* ── Body state ── */
+      if (/^Copy\s+to:/i.test(trimmed)) {
+        var ct0 = trimmed.replace(/^Copy\s+to:\s*/i, '').trim();
+        if (ct0) out.copyTo.push(ct0);
+        inCopy = true; continue;
+      }
+      /* Signature detection: all-caps name + rank-line lookahead */
+      if (!inSig && isSigCandidate(trimmed) && bodyLines.some(function(bl) { return bl.trim(); })) {
+        var lookahead = '';
+        for (var ni = i + 1; ni < Math.min(i + 5, lines.length); ni++) {
+          if (lines[ni].trim()) { lookahead = lines[ni].trim(); break; }
+        }
+        if (isRankLine(lookahead)) {
+          inSig = true;
+          sigLines.push(trimmed); continue;
+        }
+      }
+      bodyLines.push(line);
+    }
+
+    /* clean body: strip paragraph numbering, collapse excess blanks */
+    out.bodyText = bodyLines.map(stripParaNum).join('\n')
+      .replace(/\n{3,}/g, '\n\n').trim();
+
+    /* signature */
+    if (sigLines.length >= 1) out.sigName = sigLines[0];
+    if (sigLines.length >= 2) out.sigRank = sigLines[1];
+    if (sigLines.length >= 3) out.sigTitle = sigLines.slice(2).join(', ');
+
+    return out;
+  }
+
+  /* ── Import UI ── */
+  var importBtn = document.getElementById('import-btn');
+  var importDrawer = document.getElementById('import-drawer');
+  var importCloseBtn = document.getElementById('import-close-btn');
+  var importTA = document.getElementById('import-ta');
+  var importParseBtn = document.getElementById('import-parse-btn');
+  var importResultEl = document.getElementById('import-result');
+
+  importBtn.addEventListener('click', function() {
+    if (importDrawer.classList.contains('open')) {
+      importDrawer.classList.remove('open');
+    } else {
+      draftsDrawer.classList.remove('open');
+      importTA.value = '';
+      importResultEl.textContent = '';
+      importResultEl.className = '';
+      importDrawer.classList.add('open');
+      importTA.focus();
+    }
+  });
+
+  importCloseBtn.addEventListener('click', function() {
+    importDrawer.classList.remove('open');
+  });
+
+  /* close import when drafts opens */
+  draftsBtn.addEventListener('click', function() {
+    importDrawer.classList.remove('open');
+  }, true);
+
+  importParseBtn.addEventListener('click', function() {
+    var raw = importTA.value.trim();
+    if (!raw) {
+      importResultEl.className = 'import-warn';
+      importResultEl.textContent = 'Paste letter text first.';
+      return;
+    }
+
+    var p = parseNavalLetter(raw);
+
+    /* fill type selector first so getActiveBodyTA() picks right textarea */
+    typeSelect.value = p.type;
+    updateFieldVisibility();
+
+    if (p.ssic) F.ssic.value = p.ssic;
+    if (p.date) F.date.value = p.date;
+    if (p.from) F.from.value = p.from;
+    if (p.to) F.to.value = p.to;
+    if (p.via.length) viaFields.setValues(p.via);
+    if (p.subj) F.subj.value = p.subj;
+    if (p.refs.length) refFields.setValues(p.refs);
+    if (p.encls.length) enclFields.setValues(p.encls);
+    if (p.bodyText) {
+      var ta = getActiveBodyTA();
+      ta.value = p.bodyText;
+    }
+    if (p.sigName) F.sigName.value = p.sigName;
+    if (p.sigRank) F.sigRank.value = p.sigRank;
+    if (p.sigTitle) F.sigTitle.value = p.sigTitle;
+    if (p.copyTo.length) F.copyTo.value = p.copyTo.join('\n');
+
+    updatePreview();
+
+    /* build summary */
+    var detected = [];
+    detected.push(p.type);
+    if (p.ssic) detected.push('ssic');
+    if (p.date) detected.push('date');
+    if (p.from) detected.push('from');
+    if (p.to) detected.push('to');
+    if (p.via.length) detected.push(p.via.length + ' via');
+    if (p.subj) detected.push('subj');
+    if (p.refs.length) detected.push(p.refs.length + ' ref' + (p.refs.length > 1 ? 's' : ''));
+    if (p.encls.length) detected.push(p.encls.length + ' encl' + (p.encls.length > 1 ? 's' : ''));
+    if (p.bodyText) detected.push('body');
+    if (p.sigName) detected.push('sig');
+    if (p.copyTo.length) detected.push('copy to');
+
+    importResultEl.className = 'import-result';
+    importResultEl.textContent = 'Detected: ' + detected.join(' \u00b7 ');
+
+    setTimeout(function() {
+      importDrawer.classList.remove('open');
+    }, 2200);
   });
 
   /* ── Init ── */

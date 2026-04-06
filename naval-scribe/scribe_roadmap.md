@@ -28,7 +28,7 @@ Naval Scribe is a graduated YOLO project operating under Flagship rules alongsid
 - [x] **Naval Instruction format** — selectable type with instruction number, cancellation date, structured sections
 - [x] **Standard Operating Procedure format** — selectable type with SOP number, effective date, review cycle
 - [x] **Enclosure footers** — each enclosure page shows "Enclosure (N) to [originator] ltr [SSIC] of [date]"
-- [ ] **Auto-Format Import (Paste Existing Letter)** — Paste raw text of any naval letter; regex parser fills form
+- [x] **Auto-Format Import (Paste Existing Letter)** — Paste raw text of any naval letter; regex parser fills form
 
 ## Approved (Remaining — one per tock)
 
@@ -85,3 +85,4 @@ Naval Scribe is a graduated YOLO project operating under Flagship rules alongsid
 | 2026-04-05 | Tock | No approved items; brainstormed 2 PENDING features: Auto-Format Import, Command Address Book |
 | 2026-04-05 | Tock | No approved items; brainstormed 2 PENDING features: Reply Draft Auto-Fill, Letter Status Tracker |
 | 2026-04-05 | Tock | No approved items; brainstormed 2 PENDING features: Template Letter Library, Routing Slip Generator |
+| 2026-04-06 | Tock | Auto-Format Import: "import" button opens drawer with paste area; state-machine parser detects type, SSIC, date, From/To/Via, Subj, Ref/Encl, body (with numbering-strip), all-caps signature + rank-line lookahead, Copy-to; all tests pass |
