@@ -1,0 +1,928 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'none'; connect-src 'none'; frame-src 'none'; base-uri 'none'; form-action 'none'">
+<title>ip-cidr — IP/CIDR Calculator & Subnet Analyzer</title>
+<style>
+:root {
+  --bg: #0d0d0d;
+  --bg2: #141414;
+  --bg3: #1a1a1a;
+  --border: #2a2a2a;
+  --text: #c8c8c8;
+  --dim: #555;
+  --accent: #0ff;
+  --amber: #ffb300;
+  --red: #ff4444;
+  --green: #44ff88;
+  --font: 'Courier New', Courier, monospace;
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { font-size: 14px; }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font);
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 16px 16px 80px;
+  line-height: 1.5;
+}
+h1 { font-size: 1.2rem; color: var(--accent); letter-spacing: .04em; }
+.hero { margin-bottom: 24px; border-bottom: 1px solid var(--border); padding-bottom: 14px; }
+.hero p { color: var(--dim); font-size: .85rem; margin-top: 4px; }
+
+/* Sections */
+.section { background: var(--bg2); border: 1px solid var(--border); border-radius: 6px; margin-bottom: 16px; overflow: hidden; }
+.section-hdr {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 10px 14px; background: var(--bg3); cursor: default;
+  border-bottom: 1px solid var(--border);
+}
+.section-title { font-size: .95rem; color: var(--accent); }
+.section-sub { font-size: .78rem; color: var(--dim); margin-top: 2px; }
+.collapse-btn {
+  background: none; border: 1px solid var(--border); color: var(--dim);
+  font-family: var(--font); font-size: .75rem; padding: 2px 8px; cursor: pointer;
+  border-radius: 3px; transition: color .15s;
+  outline: none;
+}
+.collapse-btn:focus { outline: 2px solid var(--accent); outline-offset: 2px; }
+.collapse-btn:hover { color: var(--text); border-color: var(--text); }
+.section-body { padding: 14px; }
+.section.collapsed .section-body { display: none; }
+
+/* Inputs */
+.input-row { display: flex; gap: 8px; align-items: flex-start; flex-wrap: wrap; }
+input[type=text], textarea, select {
+  background: var(--bg); border: 1px solid var(--border); color: var(--text);
+  font-family: var(--font); font-size: .9rem; padding: 7px 10px; border-radius: 4px;
+  outline: none; transition: border-color .15s;
+}
+input[type=text]:focus, textarea:focus, select:focus {
+  border-color: var(--accent);
+  outline: 2px solid var(--accent); outline-offset: 2px;
+}
+input[type=text].err-input { border-color: var(--red); }
+textarea { resize: vertical; width: 100%; min-height: 90px; }
+.help-text { font-size: .75rem; color: var(--dim); margin-top: 4px; }
+.inline-err { font-size: .78rem; color: var(--amber); margin-top: 4px; }
+
+/* Buttons */
+.btn {
+  background: none; border: 1px solid var(--border); color: var(--text);
+  font-family: var(--font); font-size: .85rem; padding: 7px 14px; cursor: pointer;
+  border-radius: 4px; transition: border-color .15s, color .15s;
+  outline: none;
+}
+.btn:focus { outline: 2px solid var(--accent); outline-offset: 2px; }
+.btn:hover { border-color: var(--text); }
+.btn-primary {
+  background: var(--accent); color: #000; border-color: var(--accent); font-weight: bold;
+}
+.btn-primary:hover { background: #00dddd; border-color: #00dddd; }
+.btn-primary:focus { outline: 2px solid #fff; outline-offset: 2px; }
+
+/* Binary display */
+.bin-display {
+  font-size: .85rem; letter-spacing: .04em; margin-top: 10px; padding: 8px 10px;
+  background: var(--bg3); border-radius: 4px; border: 1px solid var(--border);
+  word-break: break-all; line-height: 1.8;
+}
+.bit-net { color: var(--accent); }
+.bit-host { color: var(--dim); }
+.bit-sep { color: #555; margin: 0 1px; }
+.bit-pipe { color: #555; font-weight: bold; margin: 0 2px; }
+.bin-label { font-size: .7rem; color: var(--dim); margin-top: 4px; }
+
+/* Results table */
+.result-grid {
+  display: grid; grid-template-columns: max-content 1fr;
+  gap: 4px 14px; margin-top: 10px; font-size: .88rem;
+}
+.rk { color: var(--dim); white-space: nowrap; }
+.rv { color: var(--text); word-break: break-all; }
+.rv.hi { color: var(--accent); }
+
+/* Range result */
+.range-result {
+  display: inline-block; margin-top: 10px; padding: 6px 14px;
+  border-radius: 4px; font-size: .95rem; font-weight: bold;
+}
+.range-inside { background: #003322; color: var(--green); border: 1px solid var(--green); }
+.range-outside { background: #220000; color: var(--red); border: 1px solid var(--red); }
+
+/* Tables */
+.tbl-wrap { overflow-x: auto; margin-top: 10px; max-height: 320px; overflow-y: auto; }
+table { border-collapse: collapse; width: 100%; font-size: .82rem; }
+th { background: var(--bg3); color: var(--dim); text-align: left; padding: 5px 8px; border-bottom: 1px solid var(--border); position: sticky; top: 0; }
+td { padding: 4px 8px; border-bottom: 1px solid var(--border); color: var(--text); vertical-align: middle; }
+tr:last-child td { border-bottom: none; }
+tr.overlap-row td { color: var(--amber); }
+.cap-notice { font-size: .78rem; color: var(--amber); margin-top: 6px; }
+
+/* Binary swatch (in table) */
+.bin-swatch { font-size: .72rem; letter-spacing: .01em; white-space: nowrap; }
+
+/* Assertion banner */
+#assert-banner {
+  display: none; background: #330000; border: 1px solid var(--red);
+  color: var(--red); padding: 8px 12px; border-radius: 4px; margin-bottom: 14px; font-size: .85rem;
+}
+
+/* Shortcut badge */
+#shortcut-badge {
+  position: fixed; bottom: 16px; right: 16px;
+  background: var(--bg3); border: 1px solid var(--border); color: var(--dim);
+  font-family: var(--font); font-size: .75rem; padding: 5px 10px; cursor: pointer;
+  border-radius: 4px; z-index: 100;
+  outline: none;
+}
+#shortcut-badge:focus { outline: 2px solid var(--accent); outline-offset: 2px; }
+#shortcut-badge:hover { color: var(--text); border-color: var(--text); }
+
+/* Modal */
+#modal-overlay {
+  display: none; position: fixed; inset: 0; background: rgba(0,0,0,.7);
+  z-index: 200; align-items: center; justify-content: center;
+}
+#modal-overlay.open { display: flex; }
+#modal-box {
+  background: var(--bg2); border: 1px solid var(--border); border-radius: 8px;
+  padding: 20px 24px; max-width: 360px; width: 90%;
+}
+#modal-box h2 { color: var(--accent); font-size: 1rem; margin-bottom: 12px; }
+.shortcut-row { display: flex; justify-content: space-between; gap: 12px; margin-bottom: 6px; font-size: .85rem; }
+.sk { color: var(--accent); }
+.sd { color: var(--text); }
+#modal-close { margin-top: 14px; width: 100%; }
+
+/* Tooltip */
+[data-tip] { position: relative; cursor: help; }
+[data-tip]::after {
+  content: attr(data-tip);
+  position: absolute; bottom: 120%; left: 50%; transform: translateX(-50%);
+  background: #222; color: var(--text); font-size: .72rem; padding: 3px 7px;
+  border-radius: 3px; white-space: nowrap; pointer-events: none;
+  opacity: 0; transition: opacity .15s; z-index: 50;
+  border: 1px solid var(--border);
+}
+[data-tip]:hover::after { opacity: 1; }
+
+/* Responsive */
+@media (max-width: 600px) {
+  .input-row { flex-direction: column; }
+  .input-row input[type=text] { width: 100%; }
+  .result-grid { grid-template-columns: 1fr; }
+  .rk { color: var(--dim); font-size: .78rem; margin-top: 6px; }
+  th, td { padding: 4px 5px; }
+}
+</style>
+</head>
+<body>
+
+<div id="assert-banner"></div>
+
+<header class="hero">
+  <h1>ip-cidr — IP/CIDR Calculator &amp; Subnet Analyzer</h1>
+  <p>Dissect a subnet &rarr; Check if an IP is inside &rarr; Split into smaller subnets &rarr; Compare multiple CIDRs</p>
+  <p>All four tools are visible below. Edit the CIDR to see everything update live.</p>
+</header>
+
+<!-- SECTION 1: DISSECTOR -->
+<div class="section" id="sec-dissect">
+  <div class="section-hdr">
+    <div>
+      <div class="section-title">Dissector</div>
+      <div class="section-sub">enter a CIDR block to see its components</div>
+    </div>
+    <button class="collapse-btn" data-sec="sec-dissect" aria-label="Collapse Dissector">[&minus;]</button>
+  </div>
+  <div class="section-body">
+    <div class="input-row">
+      <input type="text" id="cidr-input" placeholder="e.g. 192.168.1.0/24" value="10.0.0.0/8" style="flex:1;min-width:180px" autocomplete="off" spellcheck="false" aria-label="CIDR block input">
+      <button class="btn btn-primary" id="cidr-btn">Analyze</button>
+    </div>
+    <div class="help-text">Format: ipv4/prefix, prefix 0–32 (e.g. 10.0.0.0/8, 192.168.0.0/16)</div>
+    <div class="inline-err" id="cidr-err" style="display:none"></div>
+
+    <div id="cidr-results" style="display:none">
+      <div class="result-grid" id="cidr-grid"></div>
+      <div class="bin-display" id="bin-display"></div>
+      <div class="bin-label" id="bin-label">
+        <span data-tip="Cyan bits = network prefix; dim bits = host space; | marks the boundary">Hover any bit for tooltip. Cyan = network prefix, dim = host bits, | = boundary</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- SECTION 2: IN-RANGE -->
+<div class="section" id="sec-range">
+  <div class="section-hdr">
+    <div>
+      <div class="section-title">In-Range Checker</div>
+      <div class="section-sub">is an IP inside this subnet?</div>
+    </div>
+    <button class="collapse-btn" data-sec="sec-range" aria-label="Collapse In-Range Checker">[&minus;]</button>
+  </div>
+  <div class="section-body">
+    <div class="input-row">
+      <input type="text" id="range-input" placeholder="e.g. 10.0.5.100" value="10.0.0.1" style="flex:1;min-width:180px" autocomplete="off" spellcheck="false" aria-label="IP address to check">
+      <button class="btn" id="range-btn">Check</button>
+    </div>
+    <div class="help-text">Checks whether this IP falls inside the CIDR above</div>
+    <div class="inline-err" id="range-err" style="display:none"></div>
+    <div id="range-result-box"></div>
+  </div>
+</div>
+
+<!-- SECTION 3: SPLITTER -->
+<div class="section" id="sec-split">
+  <div class="section-hdr">
+    <div>
+      <div class="section-title">Subnet Splitter</div>
+      <div class="section-sub">divide this subnet into smaller ones</div>
+    </div>
+    <button class="collapse-btn" data-sec="sec-split" aria-label="Collapse Subnet Splitter">[&minus;]</button>
+  </div>
+  <div class="section-body">
+    <div class="input-row" style="align-items:center">
+      <label for="split-prefix" style="color:var(--dim);font-size:.88rem;white-space:nowrap">Split into /<select id="split-prefix" style="width:70px;padding:6px 4px"></select></label>
+      <button class="btn" id="split-btn">Split</button>
+    </div>
+    <div class="help-text">Must be a strictly larger prefix than the current CIDR (smaller subnets)</div>
+    <div class="inline-err" id="split-err" style="display:none"></div>
+    <div id="split-results"></div>
+  </div>
+</div>
+
+<!-- SECTION 4: BULK -->
+<div class="section" id="sec-bulk">
+  <div class="section-hdr">
+    <div>
+      <div class="section-title">Bulk Annotator</div>
+      <div class="section-sub">paste a list of CIDRs, get overlap detection</div>
+    </div>
+    <button class="collapse-btn" data-sec="sec-bulk" aria-label="Collapse Bulk Annotator">[&minus;]</button>
+  </div>
+  <div class="section-body">
+    <textarea id="bulk-input" placeholder="10.0.0.0/8&#10;172.16.0.0/12&#10;192.168.0.0/16" spellcheck="false" aria-label="Bulk CIDR input"></textarea>
+    <div class="help-text">One CIDR per line. Max 256 lines. Overlapping pairs highlighted in amber.</div>
+    <div class="inline-err" id="bulk-err" style="display:none"></div>
+    <button class="btn" id="bulk-btn" style="margin-top:8px">Annotate</button>
+    <div id="bulk-results"></div>
+  </div>
+</div>
+
+<!-- Shortcut badge -->
+<button id="shortcut-badge" aria-label="Keyboard shortcuts">[?]  shortcuts</button>
+
+<!-- Shortcut modal -->
+<div id="modal-overlay" role="dialog" aria-modal="true" aria-label="Keyboard shortcuts">
+  <div id="modal-box">
+    <h2>Keyboard Shortcuts</h2>
+    <div class="shortcut-row"><span class="sk">Enter</span><span class="sd">Analyze / Check / Split focused section</span></div>
+    <div class="shortcut-row"><span class="sk">?</span><span class="sd">Toggle this legend</span></div>
+    <div class="shortcut-row"><span class="sk">Esc</span><span class="sd">Close this modal</span></div>
+    <div class="shortcut-row"><span class="sk">Ctrl+Click bit</span><span class="sd">Copy binary string to clipboard</span></div>
+    <button class="btn btn-primary" id="modal-close">Close (Esc)</button>
+  </div>
+</div>
+
+<script>
+'use strict';
+
+// ── Helpers ──────────────────────────────────────────────────────────────────
+
+function render(el, text) {
+  el.textContent = text;
+}
+
+function show(el) { el.style.display = ''; }
+function hide(el) { el.style.display = 'none'; }
+
+function showErr(el, msg) {
+  render(el, msg);
+  show(el);
+}
+function hideErr(el) {
+  hide(el);
+  render(el, '');
+}
+
+// ── Bit math ─────────────────────────────────────────────────────────────────
+
+function toBin32(n) {
+  return (n >>> 0).toString(2).padStart(32, '0');
+}
+
+function ip32ToString(n) {
+  n = n >>> 0;
+  return [
+    (n >>> 24) & 0xff,
+    (n >>> 16) & 0xff,
+    (n >>> 8)  & 0xff,
+     n         & 0xff
+  ].join('.');
+}
+
+// ── usableHostCount ───────────────────────────────────────────────────────────
+
+function usableHostCount(prefix) {
+  if (prefix === 0)  return { total: 'N/A (entire IPv4 space)', usable: 'N/A' };
+  if (prefix === 31) return { total: 2,  usable: 2  }; // RFC 3021
+  if (prefix === 32) return { total: 1,  usable: 1  };
+  var total = Math.pow(2, 32 - prefix);
+  return { total: total, usable: total - 2 };
+}
+
+// ── parseCIDR ─────────────────────────────────────────────────────────────────
+
+function parseCIDR(s) {
+  s = s.trim();
+  var m = s.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})\/(\d{1,2})$/);
+  if (!m) return { err: 'Invalid CIDR format — expected a.b.c.d/prefix (e.g. 192.168.1.0/24)' };
+  var octets = [+m[1], +m[2], +m[3], +m[4]];
+  for (var i = 0; i < 4; i++) {
+    if (octets[i] > 255) return { err: 'Invalid CIDR: octet out of range 0–255, got ' + octets[i] + ' in octet ' + (i+1) };
+  }
+  var prefix = +m[5];
+  if (prefix > 32) return { err: 'Invalid CIDR: prefix must be 0–32, got ' + prefix };
+  var ip32 = ((octets[0] << 24) | (octets[1] << 16) | (octets[2] << 8) | octets[3]) >>> 0;
+  var mask32 = prefix === 0 ? 0 : (0xFFFFFFFF << (32 - prefix)) >>> 0;
+  var net32  = (ip32 & mask32) >>> 0;
+  var broadcast32 = (net32 | (~mask32)) >>> 0;
+  return { ip32: ip32, net32: net32, mask32: mask32, broadcast32: broadcast32, prefix: prefix };
+}
+
+function parseIP(s) {
+  s = s.trim();
+  var m = s.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
+  if (!m) return { err: 'Invalid IP address — expected a.b.c.d (e.g. 10.0.0.1)' };
+  var octets = [+m[1], +m[2], +m[3], +m[4]];
+  for (var i = 0; i < 4; i++) {
+    if (octets[i] > 255) return { err: 'Invalid IP: octet out of range 0–255, got ' + octets[i] + ' in octet ' + (i+1) };
+  }
+  return { ip32: (((octets[0] << 24) | (octets[1] << 16) | (octets[2] << 8) | octets[3]) >>> 0) };
+}
+
+function fmtNum(n) {
+  if (typeof n !== 'number') return String(n);
+  return n.toLocaleString('en-US');
+}
+
+// ── DOM refs ──────────────────────────────────────────────────────────────────
+
+var els = {};
+[
+  'cidr-input','cidr-btn','cidr-err','cidr-results','cidr-grid','bin-display','bin-label',
+  'range-input','range-btn','range-err','range-result-box',
+  'split-prefix','split-btn','split-err','split-results',
+  'bulk-input','bulk-btn','bulk-err','bulk-results',
+  'assert-banner','modal-overlay','modal-close','shortcut-badge'
+].forEach(function(id) {
+  els[id] = document.getElementById(id);
+});
+
+// ── State ─────────────────────────────────────────────────────────────────────
+
+var currentCIDR = null; // last successful parseCIDR result
+
+// ── Binary display ────────────────────────────────────────────────────────────
+
+function buildBinDisplay(parsed) {
+  var bin = toBin32(parsed.net32);
+  var prefix = parsed.prefix;
+  var container = els['bin-display'];
+  // clear
+  while (container.firstChild) container.removeChild(container.firstChild);
+
+  for (var i = 0; i < 32; i++) {
+    // insert separator at octet boundaries
+    if (i > 0 && i % 8 === 0) {
+      var sep = document.createElement('span');
+      sep.className = 'bit-sep';
+      sep.textContent = '.';
+      container.appendChild(sep);
+    }
+    // insert pipe at prefix boundary
+    if (i === prefix) {
+      var pipe = document.createElement('span');
+      pipe.className = 'bit-pipe';
+      pipe.setAttribute('data-tip', 'Prefix boundary — bits to the left identify the network');
+      pipe.textContent = '|';
+      container.appendChild(pipe);
+    }
+
+    var sp = document.createElement('span');
+    if (i < prefix) {
+      sp.className = 'bit-net';
+      sp.setAttribute('data-tip', 'Network bit (prefix)');
+    } else {
+      sp.className = 'bit-host';
+      sp.setAttribute('data-tip', 'Host bit');
+    }
+    sp.textContent = bin[i];
+    // Ctrl+click to copy
+    sp.addEventListener('click', function(e) {
+      if (e.ctrlKey || e.metaKey) {
+        try { navigator.clipboard.writeText(bin); } catch(ex) {}
+      }
+    });
+    container.appendChild(sp);
+  }
+  // handle prefix === 0 (pipe goes at start)
+  if (prefix === 0) {
+    var p0 = document.createElement('span');
+    p0.className = 'bit-pipe';
+    p0.setAttribute('data-tip', 'Prefix boundary — bits to the left identify the network');
+    p0.textContent = '|';
+    container.insertBefore(p0, container.firstChild);
+  }
+  // handle prefix === 32 (pipe goes at end)
+  if (prefix === 32) {
+    var p32 = document.createElement('span');
+    p32.className = 'bit-pipe';
+    p32.setAttribute('data-tip', 'Prefix boundary — all 32 bits identify the host');
+    p32.textContent = '|';
+    container.appendChild(p32);
+  }
+}
+
+// ── DISSECTOR ─────────────────────────────────────────────────────────────────
+
+function analyzeCIDR() {
+  var s = els['cidr-input'].value;
+  var parsed = parseCIDR(s);
+  if (parsed.err) {
+    showErr(els['cidr-err'], parsed.err);
+    els['cidr-input'].classList.add('err-input');
+    hide(els['cidr-results']);
+    currentCIDR = null;
+    updateSplitSelect(null);
+    return;
+  }
+  hideErr(els['cidr-err']);
+  els['cidr-input'].classList.remove('err-input');
+  currentCIDR = parsed;
+
+  var hc = usableHostCount(parsed.prefix);
+  var wildcard32 = (~parsed.mask32) >>> 0;
+
+  var firstUsable, lastUsable;
+  if (parsed.prefix === 0 || parsed.prefix === 31 || parsed.prefix === 32) {
+    firstUsable = 'N/A';
+    lastUsable  = 'N/A';
+  } else {
+    firstUsable = ip32ToString(parsed.net32 + 1);
+    lastUsable  = ip32ToString(parsed.broadcast32 - 1);
+  }
+
+  var rows = [
+    ['Network address',  ip32ToString(parsed.net32)],
+    ['Broadcast address', ip32ToString(parsed.broadcast32)],
+    ['Subnet mask',      ip32ToString(parsed.mask32)],
+    ['Wildcard mask',    ip32ToString(wildcard32)],
+    ['Prefix length',    '/' + parsed.prefix],
+    ['Total host addresses', String(hc.total)],
+    ['Usable host count', hc.usable === 'N/A' ? 'N/A' :
+      (hc.usable <= 0 ? '0' : fmtNum(hc.usable))],
+    ['First usable host', firstUsable],
+    ['Last usable host',  lastUsable],
+  ];
+
+  var grid = els['cidr-grid'];
+  while (grid.firstChild) grid.removeChild(grid.firstChild);
+  rows.forEach(function(r) {
+    var k = document.createElement('span');
+    k.className = 'rk';
+    render(k, r[0] + ':');
+    var v = document.createElement('span');
+    v.className = 'rv';
+    render(v, r[1]);
+    grid.appendChild(k);
+    grid.appendChild(v);
+  });
+
+  buildBinDisplay(parsed);
+  show(els['cidr-results']);
+
+  // cascade to range + split
+  analyzeInRange();
+  updateSplitSelect(parsed);
+  analyzeSplit();
+}
+
+// ── IN-RANGE ──────────────────────────────────────────────────────────────────
+
+function analyzeInRange() {
+  if (!currentCIDR) { els['range-result-box'].innerHTML = ''; return; }
+  var s = els['range-input'].value;
+  if (!s.trim()) { els['range-result-box'].innerHTML = ''; return; }
+
+  var parsed = parseIP(s);
+  if (parsed.err) {
+    showErr(els['range-err'], parsed.err);
+    els['range-input'].classList.add('err-input');
+    els['range-result-box'].innerHTML = '';
+    return;
+  }
+  hideErr(els['range-err']);
+  els['range-input'].classList.remove('err-input');
+
+  var inside = (parsed.ip32 & currentCIDR.mask32) >>> 0 === currentCIDR.net32;
+  var box = document.createElement('div');
+  box.className = 'range-result ' + (inside ? 'range-inside' : 'range-outside');
+
+  if (inside) {
+    var idx = (parsed.ip32 - currentCIDR.net32) >>> 0;
+    box.textContent = 'INSIDE — host index ' + fmtNum(idx) + ' of /' + currentCIDR.prefix;
+  } else {
+    box.textContent = 'OUTSIDE — ' + s.trim() + ' is not in ' + ip32ToString(currentCIDR.net32) + '/' + currentCIDR.prefix;
+  }
+
+  var rb = els['range-result-box'];
+  while (rb.firstChild) rb.removeChild(rb.firstChild);
+  rb.appendChild(box);
+}
+
+// ── SPLITTER ──────────────────────────────────────────────────────────────────
+
+function updateSplitSelect(parsed) {
+  var sel = els['split-prefix'];
+  while (sel.firstChild) sel.removeChild(sel.firstChild);
+  var base = parsed ? parsed.prefix : 0;
+  var defVal = Math.min(base + 1, 32);
+  for (var p = base + 1; p <= 32; p++) {
+    var opt = document.createElement('option');
+    opt.value = p;
+    opt.textContent = p;
+    if (p === defVal) opt.selected = true;
+    sel.appendChild(opt);
+  }
+}
+
+function buildBinSwatch(net32, prefix) {
+  var bin = toBin32(net32);
+  var frag = document.createDocumentFragment();
+  for (var i = 0; i < 32; i++) {
+    if (i > 0 && i % 8 === 0) {
+      var dot = document.createElement('span');
+      dot.className = 'bit-sep';
+      dot.textContent = '.';
+      frag.appendChild(dot);
+    }
+    if (i === prefix) {
+      var pipe = document.createElement('span');
+      pipe.className = 'bit-pipe';
+      pipe.textContent = '|';
+      frag.appendChild(pipe);
+    }
+    var sp = document.createElement('span');
+    sp.className = i < prefix ? 'bit-net' : 'bit-host';
+    sp.textContent = bin[i];
+    frag.appendChild(sp);
+  }
+  return frag;
+}
+
+function analyzeSplit() {
+  if (!currentCIDR) return;
+  var newPrefix = parseInt(els['split-prefix'].value, 10);
+  var cur = currentCIDR;
+
+  if (isNaN(newPrefix) || newPrefix <= cur.prefix) {
+    showErr(els['split-err'], 'Split prefix /' + newPrefix + ' must be greater than current /' + cur.prefix);
+    els['split-results'].innerHTML = '';
+    return;
+  }
+  if (newPrefix > 32) {
+    showErr(els['split-err'], 'Invalid split prefix: must be ≤ 32, got ' + newPrefix);
+    return;
+  }
+  hideErr(els['split-err']);
+
+  var count = Math.pow(2, newPrefix - cur.prefix);
+  var capped = count > 1024;
+  var displayCount = capped ? 1024 : count;
+  var subnetSize = Math.pow(2, 32 - newPrefix);
+  var newMask32 = newPrefix === 0 ? 0 : (0xFFFFFFFF << (32 - newPrefix)) >>> 0;
+
+  var sr = els['split-results'];
+  while (sr.firstChild) sr.removeChild(sr.firstChild);
+
+  var wrap = document.createElement('div');
+  wrap.className = 'tbl-wrap';
+  var tbl = document.createElement('table');
+
+  // header
+  var thead = document.createElement('thead');
+  var hrow = document.createElement('tr');
+  ['#', 'Network', 'Broadcast', 'Binary swatch', 'Usable hosts'].forEach(function(h) {
+    var th = document.createElement('th');
+    th.textContent = h;
+    hrow.appendChild(th);
+  });
+  thead.appendChild(hrow);
+  tbl.appendChild(thead);
+
+  var tbody = document.createElement('tbody');
+  for (var i = 0; i < displayCount; i++) {
+    var subNet32 = (cur.net32 + i * subnetSize) >>> 0;
+    var subBcast32 = (subNet32 | (~newMask32)) >>> 0;
+    var hc = usableHostCount(newPrefix);
+
+    var tr = document.createElement('tr');
+
+    var td0 = document.createElement('td');
+    td0.textContent = i + 1;
+    tr.appendChild(td0);
+
+    var td1 = document.createElement('td');
+    td1.textContent = ip32ToString(subNet32) + '/' + newPrefix;
+    tr.appendChild(td1);
+
+    var td2 = document.createElement('td');
+    td2.textContent = ip32ToString(subBcast32);
+    tr.appendChild(td2);
+
+    var td3 = document.createElement('td');
+    td3.className = 'bin-swatch';
+    td3.appendChild(buildBinSwatch(subNet32, newPrefix));
+    tr.appendChild(td3);
+
+    var td4 = document.createElement('td');
+    td4.textContent = hc.usable === 'N/A' ? 'N/A' : fmtNum(hc.usable);
+    tr.appendChild(td4);
+
+    tbody.appendChild(tr);
+  }
+  tbl.appendChild(tbody);
+  wrap.appendChild(tbl);
+  sr.appendChild(wrap);
+
+  if (capped) {
+    var notice = document.createElement('div');
+    notice.className = 'cap-notice';
+    notice.textContent = 'Showing first 1,024 of ' + fmtNum(count) + ' subnets — capped to prevent browser freeze.';
+    sr.appendChild(notice);
+  }
+}
+
+// ── BULK ANNOTATOR ────────────────────────────────────────────────────────────
+
+function analyzeBulk() {
+  var raw = els['bulk-input'].value;
+  var lines = raw.split('\n');
+  if (lines.length > 256) {
+    showErr(els['bulk-err'], 'Bulk input too large: ' + lines.length + ' lines (max 256) — please split');
+    els['bulk-results'].innerHTML = '';
+    return;
+  }
+  hideErr(els['bulk-err']);
+
+  var parsed_list = [];
+  lines.forEach(function(line, idx) {
+    var trimmed = line.trim();
+    if (!trimmed) return;
+    if (trimmed.length > 1024) {
+      parsed_list.push({ line: idx + 1, raw: trimmed.slice(0, 60) + '…', err: 'Line too long (max 1024 chars)' });
+      return;
+    }
+    var p = parseCIDR(trimmed);
+    if (p.err) {
+      // give actionable hint for bare IPs
+      var barIP = trimmed.match(/^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/);
+      var hint = barIP ? ' — did you mean /' + trimmed + '/32?' : '';
+      parsed_list.push({ line: idx + 1, raw: trimmed, err: 'Bulk line ' + (idx + 1) + ': ' + p.err + hint });
+    } else {
+      parsed_list.push({ line: idx + 1, raw: trimmed, parsed: p });
+    }
+  });
+
+  if (!parsed_list.length) {
+    els['bulk-results'].innerHTML = '';
+    return;
+  }
+
+  // detect overlaps: O(n²) for ≤256 items is fine
+  var overlapSet = {};
+  var valid = parsed_list.filter(function(r) { return r.parsed; });
+  for (var i = 0; i < valid.length; i++) {
+    for (var j = i + 1; j < valid.length; j++) {
+      var a = valid[i].parsed, b = valid[j].parsed;
+      // A contains B's network or B contains A's network
+      var aContainsB = ((b.net32 & a.mask32) >>> 0) === a.net32;
+      var bContainsA = ((a.net32 & b.mask32) >>> 0) === b.net32;
+      if (aContainsB || bContainsA) {
+        overlapSet[valid[i].line] = true;
+        overlapSet[valid[j].line] = true;
+      }
+    }
+  }
+
+  var br = els['bulk-results'];
+  while (br.firstChild) br.removeChild(br.firstChild);
+
+  var wrap = document.createElement('div');
+  wrap.className = 'tbl-wrap';
+  wrap.style.marginTop = '10px';
+
+  var tbl = document.createElement('table');
+  var thead = document.createElement('thead');
+  var hrow = document.createElement('tr');
+  ['#', 'CIDR', 'Network', 'Broadcast', 'Usable hosts', 'Note'].forEach(function(h) {
+    var th = document.createElement('th');
+    th.textContent = h;
+    hrow.appendChild(th);
+  });
+  thead.appendChild(hrow);
+  tbl.appendChild(thead);
+
+  var tbody = document.createElement('tbody');
+  parsed_list.forEach(function(r) {
+    var tr = document.createElement('tr');
+    if (overlapSet[r.line]) tr.className = 'overlap-row';
+
+    var td0 = document.createElement('td'); td0.textContent = r.line; tr.appendChild(td0);
+    var td1 = document.createElement('td'); td1.textContent = r.raw; tr.appendChild(td1);
+
+    if (r.err) {
+      var tderr = document.createElement('td');
+      tderr.colSpan = 4;
+      tderr.style.color = 'var(--amber)';
+      tderr.textContent = r.err;
+      tr.appendChild(tderr);
+    } else {
+      var p = r.parsed;
+      var hc = usableHostCount(p.prefix);
+      var td2 = document.createElement('td'); td2.textContent = ip32ToString(p.net32); tr.appendChild(td2);
+      var td3 = document.createElement('td'); td3.textContent = ip32ToString(p.broadcast32); tr.appendChild(td3);
+      var td4 = document.createElement('td'); td4.textContent = hc.usable === 'N/A' ? 'N/A' : fmtNum(hc.usable); tr.appendChild(td4);
+      var td5 = document.createElement('td');
+      td5.textContent = overlapSet[r.line] ? '⚠ overlaps' : '';
+      if (overlapSet[r.line]) td5.style.color = 'var(--amber)';
+      tr.appendChild(td5);
+    }
+    tbody.appendChild(tr);
+  });
+
+  tbl.appendChild(tbody);
+  wrap.appendChild(tbl);
+  br.appendChild(wrap);
+
+  if (Object.keys(overlapSet).length) {
+    var note = document.createElement('div');
+    note.className = 'cap-notice';
+    note.textContent = 'Amber rows overlap with at least one other CIDR in the list.';
+    br.appendChild(note);
+  }
+}
+
+// ── Collapse behavior ────────────────────────────────────────────────────────
+
+function initCollapse() {
+  document.querySelectorAll('.collapse-btn').forEach(function(btn) {
+    var secId = btn.getAttribute('data-sec');
+    // restore state
+    try {
+      if (localStorage.getItem('ip-cidr:' + secId) === 'collapsed') {
+        document.getElementById(secId).classList.add('collapsed');
+        btn.textContent = '[+]';
+      }
+    } catch(e) {}
+
+    btn.addEventListener('click', function() {
+      var sec = document.getElementById(secId);
+      var isNowCollapsed = sec.classList.toggle('collapsed');
+      btn.textContent = isNowCollapsed ? '[+]' : '[−]';
+      try { localStorage.setItem('ip-cidr:' + secId, isNowCollapsed ? 'collapsed' : 'open'); } catch(e) {}
+    });
+  });
+}
+
+// ── Shortcut modal ────────────────────────────────────────────────────────────
+
+function openModal() {
+  els['modal-overlay'].classList.add('open');
+  els['modal-close'].focus();
+}
+function closeModal() {
+  els['modal-overlay'].classList.remove('open');
+  els['shortcut-badge'].focus();
+}
+
+els['shortcut-badge'].addEventListener('click', function() {
+  els['modal-overlay'].classList.contains('open') ? closeModal() : openModal();
+});
+els['modal-close'].addEventListener('click', closeModal);
+els['modal-overlay'].addEventListener('click', function(e) {
+  if (e.target === els['modal-overlay']) closeModal();
+});
+
+document.addEventListener('keydown', function(e) {
+  if (e.key === '?' && !['INPUT','TEXTAREA','SELECT'].includes(document.activeElement.tagName)) {
+    e.preventDefault();
+    els['modal-overlay'].classList.contains('open') ? closeModal() : openModal();
+  }
+  if (e.key === 'Escape') {
+    if (els['modal-overlay'].classList.contains('open')) closeModal();
+  }
+});
+
+// ── Enter key actions ─────────────────────────────────────────────────────────
+
+els['cidr-input'].addEventListener('keydown', function(e) { if (e.key === 'Enter') analyzeCIDR(); });
+els['cidr-btn'].addEventListener('click', analyzeCIDR);
+els['range-input'].addEventListener('keydown', function(e) { if (e.key === 'Enter') analyzeInRange(); });
+els['range-btn'].addEventListener('click', analyzeInRange);
+els['split-btn'].addEventListener('click', analyzeSplit);
+els['split-prefix'].addEventListener('change', analyzeSplit);
+els['bulk-btn'].addEventListener('click', analyzeBulk);
+els['bulk-input'].addEventListener('keydown', function(e) {
+  if (e.key === 'Enter' && e.ctrlKey) { e.preventDefault(); analyzeBulk(); }
+});
+
+// Live update on CIDR input
+els['cidr-input'].addEventListener('input', analyzeCIDR);
+els['range-input'].addEventListener('input', analyzeInRange);
+
+// ── Console assertions ────────────────────────────────────────────────────────
+
+function runAssertions() {
+  var failed = [];
+
+  function assert(cond, msg) {
+    if (!cond) failed.push(msg);
+  }
+
+  assert(usableHostCount(0).total === 'N/A (entire IPv4 space)', 'usableHostCount(0).total');
+  assert(usableHostCount(31).total === 2, 'usableHostCount(31).total === 2');
+  assert(usableHostCount(32).total === 1, 'usableHostCount(32).total === 1');
+  assert(usableHostCount(24).usable === 254, 'usableHostCount(24).usable === 254');
+  assert(toBin32(4294967295).length === 32, 'toBin32(max).length === 32');
+  assert(toBin32(4294967295) === '11111111111111111111111111111111', 'toBin32(max) all 1s');
+  assert(toBin32(0) === '00000000000000000000000000000000', 'toBin32(0) all 0s');
+  assert(toBin32(2147483648) === '10000000000000000000000000000000', 'toBin32(2^31)');
+
+  // Round-trip test
+  var vals = [0, 1, 4294967295, 2147483648, 167772160]; // 10.0.0.0 = 0x0A000000
+  vals.forEach(function(v) {
+    assert(toBin32(v).length === 32, 'toBin32 roundtrip length ' + v);
+  });
+
+  // parseCIDR edge cases
+  var r1 = parseCIDR('10.0.0.0/8');
+  assert(!r1.err, 'parseCIDR valid');
+  assert(r1.prefix === 8, 'parseCIDR prefix');
+  assert(ip32ToString(r1.net32) === '10.0.0.0', 'parseCIDR net32');
+  assert(ip32ToString(r1.broadcast32) === '10.255.255.255', 'parseCIDR broadcast');
+
+  var r2 = parseCIDR('0.0.0.0/0');
+  assert(!r2.err, 'parseCIDR /0 valid');
+
+  var r3 = parseCIDR('10.0.0.1/33');
+  assert(r3.err, 'parseCIDR /33 should error');
+
+  var r4 = parseCIDR('999.0.0.0/24');
+  assert(r4.err, 'parseCIDR octet 999 should error');
+
+  if (failed.length) {
+    var banner = els['assert-banner'];
+    render(banner, 'ASSERTION FAILURES: ' + failed.join('; '));
+    banner.style.display = 'block';
+    failed.forEach(function(m) { console.error('[ip-cidr] ASSERT FAIL:', m); });
+  }
+
+  return failed.length === 0;
+}
+
+// ── Prefill bulk textarea ─────────────────────────────────────────────────────
+
+function prefillBulk() {
+  var bulkTA = els['bulk-input'];
+  if (!bulkTA.value.trim()) {
+    bulkTA.value = '10.0.0.0/8\n10.0.5.0/24\n192.168.0.0/16';
+  }
+}
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+
+document.addEventListener('DOMContentLoaded', function() {
+  console.log('ip-cidr v1 — IP/CIDR Calculator');
+  console.log('Try: 10.0.0.0/8, 192.168.1.0/24');
+  console.log('Shortcuts: Enter → analyze, ? → legend, Ctrl+Click bit → copy binary');
+
+  var ok = runAssertions();
+  if (ok) console.log('[ip-cidr] All assertions passed.');
+
+  initCollapse();
+  prefillBulk();
+  analyzeCIDR();
+  analyzeBulk();
+});
+</script>
+</body>
+</html>
