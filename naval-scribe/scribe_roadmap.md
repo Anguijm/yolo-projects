@@ -25,8 +25,10 @@ Naval Scribe is a graduated YOLO project operating under Flagship rules alongsid
 
 ## Approved (Next Tock — priority order)
 
-- [ ] **Naval Instruction format** — Add "Naval Instruction" as a selectable correspondence type. Structured format per SECNAVINST 5215.1: instruction number (SSIC + serial), subject, references, enclosures, numbered sections with purpose/scope/policy/action, cancellation/review date, signature block. Preview + .docx export.
-- [ ] **Auto-Format Import (Paste Existing Letter)** — Paste raw text of any naval letter; regex parser extracts From/To/Via/Subj/SSIC/Date/References/Body and pre-fills the form.
+- [x] **Naval Instruction format** — selectable type with instruction number, cancellation date, structured sections
+- [x] **Standard Operating Procedure format** — selectable type with SOP number, effective date, review cycle
+- [x] **Enclosure footers** — each enclosure page shows "Enclosure (N) to [originator] ltr [SSIC] of [date]"
+- [ ] **Auto-Format Import (Paste Existing Letter)** — Paste raw text of any naval letter; regex parser fills form
 
 ## Approved (Remaining — one per tock)
 
