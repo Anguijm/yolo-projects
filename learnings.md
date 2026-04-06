@@ -3147,3 +3147,11 @@ Sequential Gemini reviews (focus: bugs, then security) caught **different issue 
 - **INSIGHT**: For interactive builders that create/destroy input elements dynamically, store element references in a module-level object (bldInputs) rather than querying by ID — avoids test tool false positives AND is faster
 - **INSIGHT**: `click` is better than `pointerdown` for simple button elements — avoids pointercancel warnings, handles keyboard activation, better accessibility
 - **COUNCIL**: Security angle confirmed all output is XSS-safe (textContent everywhere); noted CSP connect-src * is overly permissive for a no-network app
+
+### [cron-explain] COUNCIL FIXES (2026-04-06)
+- **KEEP**: DOW range Sunday alias: `(val === 0 && p.end === 7)` — range `1-7` must include Sunday (getDay()=0); only needed in the `range` branch since exact/list already handled it
+- **KEEP**: Bounds check in parseField: `n < min || n > max` — silently accepted `99` as a valid HOUR; now returns null and shows error
+- **KEEP**: List token regex `/^\d+$/.test(t)` before parseInt — prevents `"1-3,5"` from silently truncating the range portion (parseInt("1-3")=1, range dropped)
+- **KEEP**: Inverted range check: `parts[0] > parts[1]` returns null — `"5-3"` was silently accepted but produced zero matches
+- **KEEP**: Dynamic window label: `cr.defs.length === 6 ? '~14-hour' : '~35-day'` — MAX=50000 iterations means ~14h for second-resolution 6-field crons, not 35 days
+- **INSIGHT**: Always test edge cases of field parsers: negative values, inverted ranges, out-of-bounds values, mixed types in comma lists. These are invisible failures — no error shown, no runs found, wrong behavior.
