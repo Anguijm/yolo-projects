@@ -3176,3 +3176,14 @@ Sequential Gemini reviews (focus: bugs, then security) caught **different issue 
 - **INSIGHT**: Homoglyph detection is the high-value security angle for text analysis tools. Cyrillic а/е/о/р/с/х vs Latin equivalents are the most common phishing vectors. BIDI U+202E (RTL Override) is "Trojan Source" — label it explicitly.
 - **INSIGHT**: For large lookup tables in single-file tools, cover: (1) ASCII programmatically, (2) Latin-1 explicitly, (3) important specials explicitly, (4) block-range fallback. Skip intermediate ranges to keep file size under 50KB.
 - **COUNCIL**: Severity legend ("critical = active security threat, high = homoglyph/invisible/BIDI") needed for users unfamiliar with Unicode attack categories.
+
+### [markdown-deck: Deck Statistics Panel] (2026-04-06)
+- **KEEP**: Word count pipeline order: split speaker notes first → strip code fences → strip HTML comments → strip [@ directives] → strip -- reveal separators → strip table separator rows → strip MD formatting chars → strip URLs → split on whitespace. Each step must precede formatting-char stripping or patterns like `\|[-|: ]+\|` won't match.
+- **KEEP**: `Math.floor(codeMatches.length / 2)` for code block counting — fence pairs, not individual ``` occurrences. Subtract diagram count from codeBlocks since diagrams are a distinct category.
+- **KEEP**: `repeat(auto-fill, minmax(140px, 1fr))` for stat card grids — reflows cleanly to 2-col or 1-col on mobile, better than fixed `repeat(4, 1fr)`.
+- **KEEP**: Show WPM assumption directly in the card sub-line (`@ 130 wpm`) — users may confuse talk time with reading time if the rate is not surfaced.
+- **KEEP**: Modal width as `width: 680px; max-width: calc(100vw - 2rem)` — 680px on desktop, fills viewport on mobile with consistent 1rem edge padding.
+- **IMPROVE**: Council review description (pseudocode for prompt) must exactly match actual regex strings — council caught false bugs from an inaccurate description of the regex I wrote.
+- **INSIGHT**: Per-slide element badges (code×N, img×N, table, diagram×N) give visual density check — helps identify overloaded or empty slides before rehearsal.
+- **INSIGHT**: Talk time at 130 WPM (standard rehearsed speaking rate) with per-slide MM:SS breakdown directly answers "will this fit in my timeslot" — the most common presentation prep question. This is the core usefulness of the feature.
+- **COUNCIL**: Stats panel most useful alongside cumulative-time column (future improvement) — showing "at slide 12 you should be at 18:30" would make it rehearsal-grade, not just informational.

@@ -206,6 +206,29 @@ textarea:focus { outline: none; }
 #budget-modal h3 { font-size: 0.55rem; color: #555; letter-spacing: 0.2em; margin-bottom: 1rem; text-transform: uppercase; }
 #budget-modal .bm-hint { font-size: 0.5rem; color: #444; margin-bottom: 0.75rem; line-height: 1.5; }
 #budget-modal code { color: #58a6ff; background: #0a0a0a; padding: 1px 4px; border-radius: 2px; font-size: 0.45rem; }
+/* Deck Statistics Modal */
+#stats-modal { display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%,-50%); background: #0d0d0d; border: 1px solid #333; z-index: 3000; width: 680px; max-width: calc(100vw - 2rem); max-height: 82vh; flex-direction: column; }
+#stats-modal.open { display: flex; }
+#stats-modal .sm-header { padding: 0.55rem 1rem; border-bottom: 1px solid #1a1a1a; display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; }
+#stats-modal .sm-header h3 { font-size: 0.5rem; color: #555; letter-spacing: 0.2em; text-transform: uppercase; }
+#stats-modal .sm-body { overflow-y: auto; flex: 1; padding: 0.75rem 1rem; }
+.sm-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 0.5rem; margin-bottom: 0.75rem; }
+.sm-card { background: #111; border: 1px solid #1a1a1a; padding: 0.45rem 0.6rem; border-radius: 3px; }
+.sm-card-label { font-size: 0.42rem; color: #555; text-transform: uppercase; letter-spacing: 0.12em; margin-bottom: 0.15rem; }
+.sm-card-value { font-size: 0.95rem; color: #ccc; font-variant-numeric: tabular-nums; }
+.sm-card-sub { font-size: 0.42rem; color: #444; margin-top: 0.1rem; }
+.sm-card.sm-accent { border-color: #166534; }
+.sm-card.sm-accent .sm-card-value { color: #4ade80; }
+.sm-section-title { font-size: 0.45rem; color: #444; text-transform: uppercase; letter-spacing: 0.15em; margin: 0.65rem 0 0.35rem; border-top: 1px solid #111; padding-top: 0.5rem; }
+.sm-table { width: 100%; border-collapse: collapse; font-size: 0.58rem; }
+.sm-table th { text-align: left; color: #444; font-weight: 400; border-bottom: 1px solid #1a1a1a; padding: 3px 6px; letter-spacing: 0.08em; text-transform: uppercase; font-size: 0.42rem; }
+.sm-table td { padding: 3px 6px; color: #777; border-bottom: 1px solid #0f0f0f; vertical-align: middle; }
+.sm-table tr:last-child td { border-bottom: none; }
+.sm-table td.sm-num { color: #444; width: 2rem; text-align: right; }
+.sm-table td.sm-title { color: #bbb; max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sm-table td.sm-hi { color: #4ade80; }
+.sm-table td.sm-badge { font-size: 0.4rem; }
+.sm-badge-pill { display: inline-block; background: #1a1a1a; border: 1px solid #222; border-radius: 2px; padding: 1px 4px; margin: 0 1px; color: #666; font-size: 0.38rem; letter-spacing: 0.05em; }
 </style>
 </head>
 <body>
@@ -380,6 +403,7 @@ These are speaker notes. They won't appear in the presentation but are preserved
       <button onclick="openSearch()" title="Search slides (Ctrl+F)">Search</button>
       <button onclick="openFindReplace()" title="Find and replace in markdown (Ctrl+H)">Find/Replace</button>
       <button onclick="toggleOutline()" title="Toggle slide outline panel (O)">Outline</button>
+      <button onclick="openStatsPanel()" title="Deck statistics (word count, talk time, breakdown)">Stats</button>
       <button onclick="openBudgetModal()" title="Per-slide talk time budget">Timer</button>
       <button onclick="openKioskConfig()" title="Kiosk auto-advance mode">Kiosk</button>
       <button onclick="saveDeck()">Save</button>
@@ -554,6 +578,31 @@ border-radius: 8px</textarea>
     <button class="fnr-btn" onclick="setBudget()">Set</button>
     <button class="fnr-btn" onclick="clearBudget()">Disable</button>
     <button class="fnr-btn" onclick="closeBudgetModal()">Cancel</button>
+  </div>
+</div>
+
+<!-- Deck Statistics Modal -->
+<div id="stats-modal">
+  <div class="sm-header">
+    <h3>Deck Statistics</h3>
+    <button onclick="closeStatsPanel()" style="background:none;border:none;color:#555;cursor:pointer;font-size:1rem;padding:0 2px;line-height:1">&times;</button>
+  </div>
+  <div class="sm-body">
+    <div class="sm-grid" id="sm-overview"></div>
+    <div class="sm-section-title">Per-Slide Breakdown</div>
+    <table class="sm-table">
+      <thead>
+        <tr>
+          <th style="text-align:right">#</th>
+          <th>Title</th>
+          <th style="text-align:right">Words</th>
+          <th style="text-align:right">Est.</th>
+          <th>Elements</th>
+          <th style="text-align:center">Notes</th>
+        </tr>
+      </thead>
+      <tbody id="sm-rows"></tbody>
+    </table>
   </div>
 </div>
 
@@ -3526,6 +3575,154 @@ try {
 
 parseSlides();
 renderPreview();
+
+// ============ DECK STATISTICS ============
+(function() {
+  var WPM = 130; // average speaking rate
+
+  // Strip a slide's text down to speakable words only
+  function slideWords(raw) {
+    // Remove speaker notes
+    var body = raw.split(/\n\?\?\?/)[0];
+    // Remove code fences (content between ``` markers)
+    body = body.replace(/```[\s\S]*?```/g, '');
+    // Remove HTML comments (directives)
+    body = body.replace(/<!--[\s\S]*?-->/g, '');
+    // Remove positioning directives [@ ...]
+    body = body.replace(/\[@[^\]]*\]/g, '');
+    // Remove -- reveal separators
+    body = body.replace(/^--$/gm, '');
+    // Remove ??? line itself if any
+    body = body.replace(/^\?\?\?.*$/gm, '');
+    // Remove markdown table pipes and dashes rows
+    body = body.replace(/^\|[-|: ]+\|.*$/gm, '');
+    // Remove markdown formatting characters (keep word content)
+    body = body.replace(/[#*_~`\[\]!|>\\]/g, ' ');
+    // Remove URLs
+    body = body.replace(/https?:\/\/\S+/g, '');
+    // Collapse whitespace and count
+    var words = body.trim().split(/\s+/).filter(function(w) { return w.length > 0; });
+    return words.length;
+  }
+
+  function slideTitle(raw) {
+    var body = raw.split(/\n\?\?\?/)[0];
+    var lines = body.split('\n');
+    for (var i = 0; i < lines.length; i++) {
+      var m = lines[i].match(/^#{1,4}\s+(.+)/);
+      if (m) return m[1].replace(/[*_`~]/g, '').trim();
+    }
+    // fallback: first non-empty non-directive line
+    for (var j = 0; j < lines.length; j++) {
+      var l = lines[j].trim();
+      if (l && !l.startsWith('<!--') && !l.startsWith('[@')) return l.replace(/[*_`~#]/g, '').substring(0, 40).trim();
+    }
+    return '';
+  }
+
+  function slideElements(raw) {
+    var body = raw.split(/\n\?\?\?/)[0];
+    // Code blocks: count opening ``` lines (pairs)
+    var codeMatches = body.match(/^```/gm) || [];
+    var codeBlocks = Math.floor(codeMatches.length / 2);
+    // Images: count ![
+    var imgMatches = body.match(/!\[/g) || [];
+    var images = imgMatches.length;
+    // Tables: detect any row with |---|
+    var hasTables = /^\|[-|: ]+\|/m.test(body) ? 1 : 0;
+    // Diagrams: ```diagram blocks
+    var diagrams = (body.match(/^```diagram/gmi) || []).length;
+    return { codeBlocks: codeBlocks - diagrams, images: images, tables: hasTables, diagrams: diagrams };
+  }
+
+  function hasNotes(raw) {
+    return /\n\?\?\?/.test(raw);
+  }
+
+  function fmtTime(secs) {
+    var m = Math.floor(secs / 60);
+    var s = secs % 60;
+    return m + ':' + (s < 10 ? '0' : '') + s;
+  }
+
+  function computeStats() {
+    var totalWords = 0, totalCode = 0, totalImages = 0, totalTables = 0, totalDiagrams = 0, notesSlides = 0;
+    var rows = [];
+    for (var i = 0; i < slides.length; i++) {
+      var raw = slides[i];
+      var w = slideWords(raw);
+      var elems = slideElements(raw);
+      var notes = hasNotes(raw);
+      totalWords += w;
+      totalCode += elems.codeBlocks;
+      totalImages += elems.images;
+      totalTables += elems.tables;
+      totalDiagrams += elems.diagrams;
+      if (notes) notesSlides++;
+      rows.push({ idx: i + 1, title: slideTitle(raw), words: w, elems: elems, notes: notes });
+    }
+    var totalSecs = Math.round(totalWords / WPM * 60);
+    return { slides: slides.length, words: totalWords, totalSecs: totalSecs, codeBlocks: totalCode, images: totalImages, tables: totalTables, diagrams: totalDiagrams, notesSlides: notesSlides, rows: rows };
+  }
+
+  function renderOverview(stats) {
+    var el = document.getElementById('sm-overview');
+    var talkTime = stats.totalSecs > 0 ? fmtTime(stats.totalSecs) : '0:00';
+    el.innerHTML =
+      '<div class="sm-card sm-accent"><div class="sm-card-label">Slides</div><div class="sm-card-value">' + stats.slides + '</div></div>' +
+      '<div class="sm-card sm-accent"><div class="sm-card-label">Words</div><div class="sm-card-value">' + stats.words.toLocaleString() + '</div></div>' +
+      '<div class="sm-card sm-accent"><div class="sm-card-label">Talk Time</div><div class="sm-card-value">' + talkTime + '</div><div class="sm-card-sub">@ ' + WPM + ' wpm</div></div>' +
+      '<div class="sm-card"><div class="sm-card-label">With Notes</div><div class="sm-card-value">' + stats.notesSlides + '</div><div class="sm-card-sub">slides</div></div>' +
+      '<div class="sm-card"><div class="sm-card-label">Code Blocks</div><div class="sm-card-value">' + stats.codeBlocks + '</div></div>' +
+      '<div class="sm-card"><div class="sm-card-label">Images</div><div class="sm-card-value">' + stats.images + '</div></div>' +
+      '<div class="sm-card"><div class="sm-card-label">Tables</div><div class="sm-card-value">' + stats.tables + '</div></div>' +
+      '<div class="sm-card"><div class="sm-card-label">Diagrams</div><div class="sm-card-value">' + stats.diagrams + '</div></div>';
+  }
+
+  function renderRows(stats) {
+    var tbody = document.getElementById('sm-rows');
+    if (stats.rows.length === 0) { tbody.innerHTML = '<tr><td colspan="6" style="color:#444;text-align:center;padding:1rem">No slides</td></tr>'; return; }
+    var html = '';
+    for (var i = 0; i < stats.rows.length; i++) {
+      var r = stats.rows[i];
+      var secs = Math.round(r.words / WPM * 60);
+      var t = secs > 0 ? fmtTime(secs) : '—';
+      var badges = '';
+      if (r.elems.codeBlocks > 0) badges += '<span class="sm-badge-pill">code\u00d7' + r.elems.codeBlocks + '</span>';
+      if (r.elems.images > 0) badges += '<span class="sm-badge-pill">img\u00d7' + r.elems.images + '</span>';
+      if (r.elems.tables > 0) badges += '<span class="sm-badge-pill">table</span>';
+      if (r.elems.diagrams > 0) badges += '<span class="sm-badge-pill">diagram\u00d7' + r.elems.diagrams + '</span>';
+      html +=
+        '<tr>' +
+        '<td class="sm-num">' + r.idx + '</td>' +
+        '<td class="sm-title">' + (r.title ? esc(r.title.substring(0, 35)) : '<span style="color:#444">—</span>') + '</td>' +
+        '<td style="text-align:right;color:#888">' + r.words + '</td>' +
+        '<td style="text-align:right;color:#888">' + t + '</td>' +
+        '<td class="sm-badge">' + (badges || '<span style="color:#333">—</span>') + '</td>' +
+        '<td style="text-align:center">' + (r.notes ? '<span style="color:#4ade80;font-size:0.5rem">\u2713</span>' : '<span style="color:#222">\u2013</span>') + '</td>' +
+        '</tr>';
+    }
+    tbody.innerHTML = html;
+  }
+
+  window.openStatsPanel = function() {
+    var stats = computeStats();
+    renderOverview(stats);
+    renderRows(stats);
+    document.getElementById('stats-modal').classList.add('open');
+  };
+
+  window.closeStatsPanel = function() {
+    document.getElementById('stats-modal').classList.remove('open');
+  };
+
+  // Close on Escape
+  document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape' && document.getElementById('stats-modal').classList.contains('open')) {
+      closeStatsPanel();
+    }
+  });
+})();
 </script>
 </body>
 </html>
