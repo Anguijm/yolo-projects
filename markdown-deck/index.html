@@ -195,6 +195,17 @@ textarea:focus { outline: none; }
 .design-panel textarea { flex: 1; background: #0a0a0a; border: none; color: #a78bfa; padding: 0.75rem; font-family: 'SF Mono', 'Fira Code', monospace; font-size: 0.7rem; resize: none; line-height: 1.5; }
 .design-panel textarea:focus { outline: none; }
 .design-help { padding: 0.5rem 0.75rem; font-size: 0.55rem; color: #444; border-top: 1px solid #1a1a1a; line-height: 1.4; }
+
+/* Talk Time Budget */
+#timer-ring { display: none; position: fixed; bottom: 1.5rem; left: 1.5rem; z-index: 1002; cursor: default; }
+#timer-ring svg { display: block; }
+#timer-arc { transition: stroke-dashoffset 0.9s linear, stroke 0.3s; }
+/* Budget config modal (reuses kiosk-row styles) */
+#budget-modal { display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%,-50%); background: #111; border: 1px solid #333; z-index: 3000; padding: 1.5rem; min-width: 260px; }
+#budget-modal.open { display: block; }
+#budget-modal h3 { font-size: 0.55rem; color: #555; letter-spacing: 0.2em; margin-bottom: 1rem; text-transform: uppercase; }
+#budget-modal .bm-hint { font-size: 0.5rem; color: #444; margin-bottom: 0.75rem; line-height: 1.5; }
+#budget-modal code { color: #58a6ff; background: #0a0a0a; padding: 1px 4px; border-radius: 2px; font-size: 0.45rem; }
 </style>
 </head>
 <body>
@@ -369,6 +380,7 @@ These are speaker notes. They won't appear in the presentation but are preserved
       <button onclick="openSearch()" title="Search slides (Ctrl+F)">Search</button>
       <button onclick="openFindReplace()" title="Find and replace in markdown (Ctrl+H)">Find/Replace</button>
       <button onclick="toggleOutline()" title="Toggle slide outline panel (O)">Outline</button>
+      <button onclick="openBudgetModal()" title="Per-slide talk time budget">Timer</button>
       <button onclick="openKioskConfig()" title="Kiosk auto-advance mode">Kiosk</button>
       <button onclick="saveDeck()">Save</button>
       <button onclick="document.getElementById('file-open').click()">Open</button>
@@ -385,7 +397,17 @@ These are speaker notes. They won't appear in the presentation but are preserved
 <div class="present-mode" id="present" onpointermove="annotPointerMove(event)" onpointerdown="annotPointerDown(event)" onpointerup="annotPointerUp(event)" onpointerleave="annotPointerLeave()">
   <div class="present-slide" id="present-slide"></div>
   <div class="present-counter" id="present-counter"></div>
-  <div class="present-help">ESC exit &middot; &#8592;&#8594; nav &middot; L laser &middot; A draw &middot; S spotlight &middot; C clear</div>
+  <div class="present-help">ESC exit &middot; &#8592;&#8594; nav &middot; L laser &middot; A draw &middot; S spotlight &middot; C clear &middot; T timer</div>
+  <div id="timer-ring" title="Talk time budget (T to toggle)">
+    <svg width="52" height="52" viewBox="0 0 52 52" style="overflow:visible">
+      <circle cx="26" cy="26" r="22" fill="none" stroke="#1a1a1a" stroke-width="4"/>
+      <circle id="timer-arc" cx="26" cy="26" r="22" fill="none" stroke="#4ade80" stroke-width="4"
+        stroke-dasharray="138.23" stroke-dashoffset="0"
+        stroke-linecap="round" transform="rotate(-90 26 26)"/>
+      <text id="timer-text" x="26" y="29" text-anchor="middle" font-size="8" fill="#888"
+        font-family="SF Mono,Fira Code,monospace" dominant-baseline="middle"></text>
+    </svg>
+  </div>
   <canvas id="annot-canvas" style="display:none;position:fixed;top:0;left:0;z-index:1002;pointer-events:none"></canvas>
   <div id="annot-indicator" style="display:none;position:fixed;top:0.8rem;left:50%;transform:translateX(-50%);font-size:0.55rem;color:#fff;background:rgba(0,0,0,0.65);padding:3px 14px;border-radius:12px;z-index:1003;letter-spacing:0.15em;text-transform:uppercase;font-family:'SF Mono','Fira Code',monospace;border:1px solid rgba(255,255,255,0.15)"></div>
 </div>
@@ -511,6 +533,29 @@ border-radius: 8px</textarea>
   </div>
 </div>
 <div id="kiosk-indicator"></div>
+
+<!-- Talk Time Budget Modal -->
+<div id="budget-modal">
+  <h3>Talk Time Budget</h3>
+  <div class="kiosk-row">
+    <label for="budget-total">Total time</label>
+    <input id="budget-total" type="number" min="1" max="480" value="20" style="width:60px;background:#1a1a1a;border:1px solid #333;color:#ccc;padding:4px 6px;font-family:inherit;font-size:0.65rem;text-align:right">
+    <span>minutes</span>
+  </div>
+  <div class="kiosk-row">
+    <input id="budget-chime" type="checkbox" checked style="accent-color:#4ade80;cursor:pointer">
+    <label for="budget-chime" style="cursor:pointer">Chime when overtime</label>
+  </div>
+  <div class="bm-hint">
+    Default: total ÷ slides per slide.<br>
+    Per-slide override: add <code>&lt;!-- time: 45s --&gt;</code> (or <code>2m</code>) to a slide.
+  </div>
+  <div style="display:flex;gap:6px;margin-top:0.75rem">
+    <button class="fnr-btn" onclick="setBudget()">Set</button>
+    <button class="fnr-btn" onclick="clearBudget()">Disable</button>
+    <button class="fnr-btn" onclick="closeBudgetModal()">Cancel</button>
+  </div>
+</div>
 
 <script>
 const inputEl = document.getElementById('input');
@@ -1233,6 +1278,7 @@ function _applyPresentContent() {
     presentSlideEl.classList.remove('has-positioned');
   }
   document.getElementById('present-counter').textContent = (currentSlide + 1) + ' / ' + slides.length;
+  startSlideTimer();
 }
 
 function renderPresent(direction) {
@@ -1390,6 +1436,7 @@ function stopPresent() {
   presentSlideEl.style.opacity = '1';
   if (document.fullscreenElement) document.exitFullscreen?.();
   setAnnotMode(null);
+  stopSlideTimer();
 }
 
 // ============ ANNOTATION / LASER MODE ============
@@ -1527,6 +1574,7 @@ document.addEventListener('keydown', e => {
     if (document.getElementById('fnr-overlay').classList.contains('open')) { closeFindReplace(); return; }
     if (document.getElementById('outline-panel').classList.contains('open')) { closeOutline(); return; }
     if (document.getElementById('kiosk-modal').classList.contains('open')) { closeKioskModal(); return; }
+    if (document.getElementById('budget-modal').classList.contains('open')) { closeBudgetModal(); return; }
     if (_kioskTimer) { stopKiosk(); stopPresent(); return; }
     stopPresent(); return;
   }
@@ -1536,6 +1584,7 @@ document.addEventListener('keydown', e => {
     if (k === 'a') { e.preventDefault(); setAnnotMode('draw'); return; }
     if (k === 's') { e.preventDefault(); setAnnotMode('spotlight'); return; }
     if (k === 'c') { e.preventDefault(); clearAnnotations(); return; }
+    if (k === 't') { e.preventDefault(); toggleTimerRing(); return; }
   }
   if ((e.ctrlKey || e.metaKey) && e.key === 'f' && !presenting) { e.preventDefault(); openSearch(); return; }
   if ((e.ctrlKey || e.metaKey) && e.key === 'h' && !presenting) { e.preventDefault(); openFindReplace(); return; }
@@ -3106,6 +3155,185 @@ window.stopKiosk = function() {
   if (_kioskCountdownTimer) { clearInterval(_kioskCountdownTimer); _kioskCountdownTimer = null; }
   _updateKioskIndicator();
 };
+
+// ============ TALK TIME BUDGET ============
+var _talkBudget = { totalSecs: 0, chime: true }; // totalSecs=0 means disabled
+var _slideTimerInterval = null;
+var _slideElapsed = 0;
+var _slideBudgetSecs = 0;
+var _timerRingVisible = true;
+var _chimeFired = false;
+var _audioCtx = null;
+
+function _getAudioCtx() {
+  if (!_audioCtx) {
+    try { _audioCtx = new (window.AudioContext || window.webkitAudioContext)(); } catch(e) {}
+  }
+  return _audioCtx;
+}
+
+function _playChime() {
+  var ctx = _getAudioCtx();
+  if (!ctx) return;
+  // Two-tone gentle ding: 880Hz then 660Hz
+  function tone(freq, startAt, dur) {
+    var osc = ctx.createOscillator();
+    var gain = ctx.createGain();
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.type = 'sine';
+    osc.frequency.value = freq;
+    gain.gain.setValueAtTime(0, ctx.currentTime + startAt);
+    gain.gain.linearRampToValueAtTime(0.18, ctx.currentTime + startAt + 0.01);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + startAt + dur);
+    osc.start(ctx.currentTime + startAt);
+    osc.stop(ctx.currentTime + startAt + dur);
+  }
+  tone(880, 0, 0.35);
+  tone(660, 0.2, 0.45);
+}
+
+function parseSlideTimeSecs(rawSlide) {
+  // Match <!-- time: 45s --> or <!-- time: 2m --> anywhere in slide
+  var m = rawSlide.match(/<!--[^>]*\btime:\s*(\d+(?:\.\d+)?)\s*(m(?:in)?|s(?:ec)?)?/i);
+  if (!m) return 0;
+  var val = parseFloat(m[1]);
+  var unit = (m[2] || 's').toLowerCase();
+  return (unit.charAt(0) === 'm') ? Math.round(val * 60) : Math.round(val);
+}
+
+function _getSlideBudget(idx) {
+  if (_talkBudget.totalSecs <= 0) return 0;
+  var raw = slides[idx] || '';
+  var perSlide = parseSlideTimeSecs(raw);
+  if (perSlide > 0) return perSlide;
+  return Math.round(_talkBudget.totalSecs / Math.max(1, slides.length));
+}
+
+var CIRC = 138.23; // 2 * Math.PI * 22
+
+function _updateTimerRing() {
+  var ringEl = document.getElementById('timer-ring');
+  var arcEl = document.getElementById('timer-arc');
+  var textEl = document.getElementById('timer-text');
+  if (!ringEl || !arcEl || !textEl) return;
+
+  if (!presenting || _talkBudget.totalSecs <= 0 || !_timerRingVisible) {
+    ringEl.style.display = 'none';
+    return;
+  }
+  ringEl.style.display = 'block';
+
+  var budget = _slideBudgetSecs;
+  var elapsed = _slideElapsed;
+  var remaining = budget - elapsed;
+  var overtime = remaining < 0;
+
+  // Arc: drain as time elapses
+  var fraction = budget > 0 ? Math.min(elapsed / budget, 1) : 1;
+  arcEl.style.strokeDashoffset = (CIRC * fraction).toFixed(2);
+
+  // Color
+  var color;
+  if (overtime || fraction >= 1) color = '#ef4444'; // red
+  else if (fraction >= 0.75) color = '#fbbf24'; // amber
+  else color = '#4ade80'; // green
+  arcEl.setAttribute('stroke', color);
+
+  // Text: show remaining (OT when overtime)
+  if (overtime) {
+    var ot = Math.abs(remaining);
+    textEl.textContent = '+' + _fmtSecs(ot);
+    textEl.setAttribute('fill', '#ef4444');
+  } else {
+    textEl.textContent = _fmtSecs(remaining);
+    textEl.setAttribute('fill', fraction >= 0.75 ? color : '#888');
+  }
+}
+
+function _fmtSecs(s) {
+  s = Math.round(Math.abs(s));
+  var m = Math.floor(s / 60);
+  var sec = s % 60;
+  if (m > 0) return m + ':' + String(sec).padStart(2, '0');
+  return String(sec) + 's';
+}
+
+function startSlideTimer() {
+  stopSlideTimer();
+  if (!presenting || _talkBudget.totalSecs <= 0) {
+    _updateTimerRing();
+    return;
+  }
+  _slideBudgetSecs = _getSlideBudget(currentSlide);
+  _slideElapsed = 0;
+  _chimeFired = false;
+  _updateTimerRing();
+  _slideTimerInterval = setInterval(function() {
+    _slideElapsed++;
+    // Fire chime once when budget exceeded
+    if (_talkBudget.chime && !_chimeFired && _slideElapsed > _slideBudgetSecs && _slideBudgetSecs > 0) {
+      _chimeFired = true;
+      _playChime();
+    }
+    _updateTimerRing();
+  }, 1000);
+}
+
+function stopSlideTimer() {
+  if (_slideTimerInterval) { clearInterval(_slideTimerInterval); _slideTimerInterval = null; }
+  var ringEl = document.getElementById('timer-ring');
+  if (ringEl) ringEl.style.display = 'none';
+}
+
+function toggleTimerRing() {
+  _timerRingVisible = !_timerRingVisible;
+  _updateTimerRing();
+}
+
+window.openBudgetModal = function() {
+  // Pre-fill with existing setting
+  var mins = _talkBudget.totalSecs > 0 ? Math.round(_talkBudget.totalSecs / 60) : 20;
+  document.getElementById('budget-total').value = mins;
+  document.getElementById('budget-chime').checked = _talkBudget.chime;
+  document.getElementById('budget-modal').classList.add('open');
+};
+
+window.closeBudgetModal = function() {
+  document.getElementById('budget-modal').classList.remove('open');
+};
+
+window.setBudget = function() {
+  var mins = parseFloat(document.getElementById('budget-total').value) || 20;
+  _talkBudget.totalSecs = Math.round(mins * 60);
+  _talkBudget.chime = document.getElementById('budget-chime').checked;
+  _timerRingVisible = true;
+  try { localStorage.setItem('md-deck-budget', JSON.stringify(_talkBudget)); } catch(e) {}
+  closeBudgetModal();
+  // Restart timer if already presenting
+  if (presenting) startSlideTimer();
+};
+
+window.clearBudget = function() {
+  _talkBudget.totalSecs = 0;
+  try { localStorage.removeItem('md-deck-budget'); } catch(e) {}
+  closeBudgetModal();
+  stopSlideTimer();
+};
+
+// Restore budget from localStorage on load
+(function() {
+  try {
+    var saved = localStorage.getItem('md-deck-budget');
+    if (saved) {
+      var b = JSON.parse(saved);
+      if (b && b.totalSecs > 0) {
+        _talkBudget.totalSecs = b.totalSecs;
+        _talkBudget.chime = b.chime !== false;
+      }
+    }
+  } catch(e) {}
+})();
 
 // ============ STANDALONE HTML EXPORT ============
 window.exportStandaloneHTML = function() {
