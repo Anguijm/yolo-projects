@@ -89,7 +89,37 @@ Same exit codes. If `0`, proceed to commit & push.
 If `tick_queue_approved` has items: pop the first, build it through all 4 gates.
 If empty: brainstorm 1 idea, add to `tick_queue_pending`, do NOT build.
 
-If the project directory already exists with an `index.html` > 100 bytes, that item was already built — pop it from the queue, commit the session_state update, and exit. Do not rebuild.
+**Check the queue item's `type` field:**
+
+### `type: yolo` (default — when field is missing, treat as yolo)
+- Build a single-file HTML tool in a new project directory (`<name>/index.html`)
+- All 4 council gates apply to that project's `plan.md` and `index.html`
+- If `<name>/index.html` already exists with size > 100 bytes, the item was already built — pop from queue, commit the session_state update, and exit. Do not rebuild.
+
+### `type: infrastructure`
+Infrastructure ticks modify EXISTING repo files (not single-file HTML tools). They formalize, extend, or refactor the build pipeline itself. Treat them differently:
+
+1. **Read the queue item's `deliverable_paths`** — these are the files this tick is allowed to create or modify. Stay strictly within them. Do NOT create a `<name>/index.html`.
+2. **Read the queue item's `plan_summary`** — that's the starting point. You may write a more detailed `experiments/<name>/plan.md` that elaborates the summary into specific changes per file.
+3. **Read the queue item's `council_focus`** — this tells each gate what to look for. Pass it as inline context to the council via `--inline "council_focus: <text>"`.
+
+**Gate sequence for infrastructure ticks:**
+
+- **PLAN gate**: write `experiments/<name>/plan.md` (detailed plan), then run `python3 council.py --gate plan --project experiments/<name> --goal "<idea>" --context experiments/<name>/plan.md --inline "<council_focus>"`. Same exit codes apply.
+
+- **IMPLEMENTATION gate**: make the actual changes to files in `deliverable_paths`. Write a brief `experiments/<name>/changes.md` listing what was modified (file:line summary). Run council with `--context experiments/<name>/changes.md` and ALSO include the actual modified file content via `--inline` (truncate to ~30K chars per file).
+
+- **PRE-FILTER for infrastructure**: instead of `test_project.py`, run any relevant existing tests AND `python3 -c "import ast; ast.parse(open(p).read())"` on each modified Python file. Run `bash -n` on shell scripts. Run `python3 -m json.tool < f.json` on JSON. All must pass.
+
+- **TESTS gate**: run council on the pre-filter results plus a freshly composed test plan. Infrastructure tests are weaker than YOLO tests (no browser load) but the council can still review whether the change is safe.
+
+- **OUTCOME gate**: verify the changes are present, no regression in existing tests across the repo. `python3 test_project.py <project>` for any project that touches the modified infrastructure (e.g., if you changed test_project.py itself, run it on a known-good project to verify it still passes).
+
+**On success:** commit message format `cron(tick): <name> — infrastructure adoption — N gates passed`.
+
+**On any escalation:** same as YOLO ticks — `ESCALATION: ...` commit, halt, do not bypass the workflow guard.
+
+**No project directory:** infrastructure ticks NEVER create a `<name>/` directory at the repo root. The only directory they may create is `experiments/<name>/` for plan/changes/council artifacts.
 
 ## TOCK
 
