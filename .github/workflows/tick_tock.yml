@@ -55,8 +55,46 @@ jobs:
             echo "halted=false" >> $GITHUB_OUTPUT
           fi
 
-      - name: Run tick-tock agent
+      # WORKFLOW-LEVEL ESCALATION GUARD
+      # The agent prompt also checks this, but the agent has tool access
+      # to session_state.json and was bypassing the halt by clearing
+      # escalations between runs. This guard runs OUTSIDE the agent and
+      # cannot be bypassed — claude-code is never invoked when an
+      # unresolved escalation is present. Humans must edit
+      # session_state.json (clear council_escalations) to resume.
+      - name: Council escalation guard
         if: steps.halt.outputs.halted != 'true'
+        id: escalation
+        run: |
+          set -e
+          COUNT=$(python3 -c "import json; s=json.load(open('session_state.json')); print(len(s.get('council_escalations', [])))")
+          if [ "$COUNT" -gt 0 ]; then
+            echo "::warning::Council escalation pending — agent will NOT run"
+            echo ""
+            echo "===== Pending escalations ($COUNT) ====="
+            python3 -c "
+          import json
+          s = json.load(open('session_state.json'))
+          for e in s.get('council_escalations', []):
+              print(f\"  PROJECT: {e.get('project','?')}\")
+              print(f\"  GATE:    {e.get('gate','?')}\")
+              print(f\"  WHEN:    {e.get('timestamp','?')}\")
+              print(f\"  REASON:  {e.get('reason','?')}\")
+              print(f\"  PATH:    {e.get('path','?')}\")
+              print()
+          "
+            echo "===== End escalations ====="
+            echo ""
+            echo "To resume: edit session_state.json and clear council_escalations to []"
+            echo "Then re-run this workflow manually, or wait for the next hourly schedule."
+            echo "skipped=true" >> $GITHUB_OUTPUT
+          else
+            echo "No pending escalations — agent will run"
+            echo "skipped=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Run tick-tock agent
+        if: steps.halt.outputs.halted != 'true' && steps.escalation.outputs.skipped != 'true'
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
@@ -66,7 +104,7 @@ jobs:
             --allowed-tools "Bash,Read,Write,Edit,Glob,Grep"
 
       - name: Safety-net commit (if agent didn't push)
-        if: steps.halt.outputs.halted != 'true'
+        if: steps.halt.outputs.halted != 'true' && steps.escalation.outputs.skipped != 'true'
         run: |
           if [ -n "$(git status --porcelain)" ]; then
             echo "Agent left uncommitted changes — committing as safety net"
