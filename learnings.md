@@ -4,6 +4,21 @@ Persistent knowledge base. Read this before every build.
 
 ---
 
+## ⚠️ Lessons-Angle Reviewer Protocol (read this first)
+
+The `lessons` council angle has VETO power and reads this file. To prevent false-positive vetoes, every reviewer MUST follow these rules before raising an OBJECT verdict on a learning:
+
+1. **Check the learning's preconditions before applying it.** Many KEEP rules are tagged `**KEEP** (conditional)` and state explicit preconditions in bold. Verify the precondition is met by reading the actual deliverable (use `grep`, `wc -l`, etc.) — do NOT pattern-match on keywords alone.
+2. **For unconditional rules, infer the implicit scope from the originating context.** A rule extracted from a 1000-row table tool may not apply to a 5-item form. When in doubt, raise the verdict at LOWER severity (warning, not veto) and note the uncertainty.
+3. **"I cannot see the full file" is uncertainty, NOT a verdict.** If the deliverable is truncated and you cannot verify a concern, raise it at LOW severity with "uncertain — context truncated" — never at HIGH or VETO.
+4. **A KEEP rule is a recommendation, not a law.** Only flag it as a violation if the deliverable's context clearly matches the rule's scope AND the absence of the pattern would cause real harm.
+
+False positives erode trust in the lessons angle and waste human attention. The bar for VETO is "this would definitely cause a regression in this specific deliverable", not "this rule appears in learnings.md and the deliverable doesn't follow it."
+
+History: 2 false-positive vetoes recorded 2026-04-07 (CSP-hash on a project with no CSP, createDocumentFragment on a 0–10 item list). Both prompted retroactive precondition statements on the underlying rules. See `feedback_lessons_preconditions.md` in memory.
+
+---
+
 ## Accumulated Principles
 
 ### Test Brace Balancer Pitfalls (token-count, env-vault, snap-mock, jwt-debug, sql-explain)
@@ -3169,8 +3184,8 @@ Sequential Gemini reviews (focus: bugs, then security) caught **different issue 
 
 ### [unicode-char] (2026-04-06)
 - **KEEP**: `String.fromCodePoint(cp)` + `ch.length` advance for surrogate-pair-safe iteration — handles all Unicode planes correctly without manual surrogate pair math.
-- **KEEP**: Sticky first column (`position: sticky; left: 0; background: var(--bg-page)`) is essential for horizontally scrollable data tables on mobile — makes rows identifiable while scrolling right.
-- **KEEP**: `document.createDocumentFragment()` for batch DOM appends in paginated tables — avoids reflow on each row.
+- **KEEP** (conditional): Sticky first column (`position: sticky; left: 0; background: var(--bg-page)`) is essential for horizontally scrollable data tables on mobile — makes rows identifiable while scrolling right. **Precondition: applies ONLY to `<table>` elements (or table-like grids) whose CONTENT is wider than the viewport on mobile (i.e., parent has `overflow-x: auto` AND the table can horizontally scroll).** Lessons-angle reviewers should `grep` for `overflow-x` near a `<table>` before raising this objection. Does NOT apply to short flex/grid lists, multi-input fields, or tables that fit on one screen.
+- **KEEP** (conditional): `document.createDocumentFragment()` for batch DOM appends — avoids per-element reflow when populating large lists. **Precondition: applies ONLY when the loop is expected to append more than ~50 elements in a single batch (e.g., paginated tables, search results, log viewers).** For short lists (0–20 items typical, e.g., via/ref/encl multi-fields, settings forms, modal lists) the reflow cost is negligible and the fragment indirection adds noise. Lessons-angle reviewers should check the realistic upper bound of the loop before raising this objection. Rule of thumb: if you can't name a use case that produces >50 items, the precondition is not met.
 - **KEEP**: Two copy buttons per row — "U+" copies the codepoint string, "ch" copies the raw character. Different use cases, both useful.
 - **IMPROVE**: `htmlEntity(cp)` condition — `(cp < 33 || cp > 126)` misses HTML_NAMED chars like `&` (38), `<` (60) that are in the printable ASCII range. Fix: just check `entity !== null`.
 - **INSIGHT**: Homoglyph detection is the high-value security angle for text analysis tools. Cyrillic а/е/о/р/с/х vs Latin equivalents are the most common phishing vectors. BIDI U+202E (RTL Override) is "Trojan Source" — label it explicitly.

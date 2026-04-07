@@ -2,8 +2,10 @@ name: Daily YouTube Research (Phase 4)
 
 on:
   schedule:
-    # 06:15 JST = 21:15 UTC
-    - cron: '15 21 * * *'
+    # Primary run: 06:37 JST = 21:37 UTC (off-peak, :37 to avoid hour-boundary delays)
+    - cron: '37 21 * * *'
+    # Backup run: 10:37 JST = 01:37 UTC (4 hours later — catches a missed primary)
+    - cron: '37 1 * * *'
   workflow_dispatch: # Manual trigger for testing
 
 jobs:
@@ -21,18 +23,53 @@ jobs:
         with:
           python-version: '3.12'
 
+      # Skip if a successful run already happened in the last 12 hours.
+      # The two scheduled triggers (21:37 UTC + 01:37 UTC) are 4 hours apart;
+      # if the primary fired, the backup will see a fresh phase4_run.json and exit.
+      # workflow_dispatch always runs (manual override).
+      - name: Skip if recent run exists
+        if: github.event_name == 'schedule'
+        id: skip
+        run: |
+          if [ -f phase4_run.json ]; then
+            python3 -c "
+          import json, sys
+          from datetime import datetime, timezone, timedelta
+          try:
+              run = json.load(open('phase4_run.json'))
+              last = datetime.fromisoformat(run['last_run_utc'].replace('Z', '+00:00'))
+              age = datetime.now(timezone.utc) - last
+              if age < timedelta(hours=12):
+                  print(f'Last run was {age.total_seconds()/3600:.1f}h ago — skipping (de-dup window: 12h)')
+                  open('/tmp/skip_run', 'w').write('yes')
+              else:
+                  print(f'Last run was {age.total_seconds()/3600:.1f}h ago — proceeding')
+          except Exception as e:
+              print(f'Could not read phase4_run.json: {e} — proceeding')
+          "
+          fi
+          if [ -f /tmp/skip_run ]; then
+            echo "skip=true" >> $GITHUB_OUTPUT
+          else
+            echo "skip=false" >> $GITHUB_OUTPUT
+          fi
+
       - name: Install dependencies
+        if: steps.skip.outputs.skip != 'true'
         run: pip install anthropic
 
       - name: Fetch YouTube RSS feeds
+        if: steps.skip.outputs.skip != 'true'
         run: python3 fetch_youtube_rss.py --since $(date -d '3 days ago' +%Y-%m-%d) > /tmp/rss_scan.json
 
       - name: Generate experiment cards
+        if: steps.skip.outputs.skip != 'true'
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         run: python3 scripts/process_experiments.py /tmp/rss_scan.json
 
       - name: Write run report
+        if: steps.skip.outputs.skip != 'true'
         run: |
           python3 -c "
           import json
@@ -59,6 +96,7 @@ jobs:
           "
 
       - name: Commit and push
+        if: steps.skip.outputs.skip != 'true'
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
           commit_message: "cron(phase4): daily scan - automated via GitHub Actions"
