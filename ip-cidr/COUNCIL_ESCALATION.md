@@ -1,32 +1,31 @@
 # Council Escalation — ip-cidr
 
-**Gate:** tests
+**Gate:** outcome
 **Reason:** Unresolved objections after 2 attempts
-**Timestamp:** 2026-04-06T23:31:58.733609+00:00
+**Timestamp:** 2026-04-07T01:12:00.757392+00:00
 
 ## Angle positions
 
 ### BUGS — APPROVE (low)
-- **Reason:** The code demonstrates excellent attention to detail regarding IP/CIDR parsing, bitwise operations, edge cases (prefix 0, 31, 32), and error handling. Assertions are included, and large number calculations are handled correctly with unsigned 32-bit integers.
+- **Reason:** The core IP/CIDR calculation logic, including bitwise operations, unsigned integer handling, and edge cases (e.g., /0, /31, /32 prefixes), appears robust and correct.
 
 ### SECURITY — APPROVE (low)
-- **Reason:** The application demonstrates strong security practices, including strict input validation, consistent use of textContent for output, and a robust Content Security Policy. No direct attack surfaces or data exposure vulnerabilities were identified.
+- **Reason:** The application is a purely client-side tool with a strong Content Security Policy, and all dynamic content is safely inserted using textContent or by creating DOM elements, preventing XSS and other injection attacks. No external dependencies or sensitive data exposure were identified.
 
-### UI — OBJECT (medium)
-- **Reason:** The method for copying the binary string ('Ctrl+Click bit') is not discoverable, relying on a non-standard interaction without a clear visual affordance.
-- **Required fix:** Add a visible 'Copy' button or icon next to the binary display for the user to easily copy the string.
-- **Evidence:** `ip-cidr/index.html:184 (binary display), ip-cidr/index.html:200 (shortcut modal description)`
+### UI — OBJECT (low)
+- **Reason:** The 'In-Range Checker' has a redundant 'Check' button as the input updates live, and the binary string copy feature (Ctrl+Click) is not discoverable from the UI itself.
+- **Required fix:** Remove the 'Check' button from the In-Range Checker section, and add a hint about 'Ctrl+Click bit to copy' to the binary display label.
+- **Evidence:** `ip-cidr/index.html:236 (range-btn) and ip-cidr/index.html:565 (range-input event listener); ip-cidr/index.html:150 (bin-label) and ip-cidr/index.html:402 (Ctrl+Click implementation)`
 
 ### GUIDE — APPROVE (low)
-- **Reason:** The tool is exceptionally well-documented for discoverability, with clear features, examples, help text, and actionable error messages.
+- **Reason:** The tool is highly discoverable with clear section titles, help text, example inputs, actionable error messages, and a dedicated shortcut legend.
 
 ### USEFULNESS — APPROVE (low)
-- **Reason:** This project provides a highly practical suite of network utilities that address common, recurring tasks for network professionals, offering a fast, integrated, and offline-capable solution.
-- **Evidence:** `The 'Bulk Annotator' with overlap detection is particularly valuable for network auditing and security, a problem not trivially solved by a quick search. The integrated dissector, range checker, and splitter also serve frequent needs for network planning and troubleshooting.`
+- **Reason:** This tool provides a consolidated, fast, and ad-free solution for common IP/CIDR calculations and analysis, addressing a recurring need for network professionals.
+- **Evidence:** `Network administrators, DevOps engineers, and IT support frequently perform these calculations, and the bulk annotator with overlap detection is particularly useful for managing firewall rules or VPC subnets.`
 
 ### COOL — APPROVE (low)
-- **Reason:** The 'Bulk Annotator' with overlap detection and the interactive binary displays (with Ctrl+Click to copy) provide a signature move and useful differentiation from standard IP calculators.
-- **Evidence:** `subnet-calculator.com, ipcalc.org`
+- **Reason:** The bulk annotator with overlap detection and live, integrated updates across all tools provides a genuinely unique and 'oh, nice' experience for a common network task.
 
 ### LESSONS — APPROVE (low)
 - **Reason:** 

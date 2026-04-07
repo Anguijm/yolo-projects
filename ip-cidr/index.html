@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-2VGPB1dcaJVSnDz9xxFWynguy1QOr6JlfyEHsjLlK7c='; style-src 'self' 'unsafe-inline'; img-src 'none'; connect-src 'none'; frame-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-m46AP3WV0Veyy8SOs7GV1qqujsfynD2et/fB2+1Yvqk='; style-src 'self' 'unsafe-inline'; img-src 'none'; connect-src 'none'; frame-src 'none'; base-uri 'none'; form-action 'none'">
 <title>ip-cidr — IP/CIDR Calculator & Subnet Analyzer</title>
 <style>
 :root {
@@ -12,7 +12,7 @@
   --bg3: #1a1a1a;
   --border: #2a2a2a;
   --text: #c8c8c8;
-  --dim: #555;
+  --dim: #828282;
   --accent: #0ff;
   --amber: #ffb300;
   --red: #ff4444;
@@ -212,6 +212,7 @@ tr.overlap-row td { color: var(--amber); }
     <div id="cidr-results" style="display:none">
       <div class="result-grid" id="cidr-grid"></div>
       <div class="bin-display" id="bin-display"></div>
+      <button class="btn" id="bin-copy" style="font-size:.75rem;padding:3px 8px;margin-top:6px" title="Copy binary string to clipboard">copy bin</button>
       <div class="bin-label" id="bin-label">
         <span data-tip="Cyan bits = network prefix; dim bits = host space; | marks the boundary">Hover any bit for tooltip. Cyan = network prefix, dim = host bits, | = boundary</span>
       </div>
@@ -378,7 +379,7 @@ function fmtNum(n) {
 
 var els = {};
 [
-  'cidr-input','cidr-err','cidr-results','cidr-grid','bin-display','bin-label',
+  'cidr-input','cidr-err','cidr-results','cidr-grid','bin-display','bin-copy','bin-label',
   'range-input','range-btn','range-err','range-result-box',
   'split-prefix','split-btn','split-err','split-results',
   'bulk-input','bulk-btn','bulk-err','bulk-results',
@@ -390,11 +391,13 @@ var els = {};
 // ── State ─────────────────────────────────────────────────────────────────────
 
 var currentCIDR = null; // last successful parseCIDR result
+var lastBin = ''; // last built binary string (for copy button)
 
 // ── Binary display ────────────────────────────────────────────────────────────
 
 function buildBinDisplay(parsed) {
   var bin = toBin32(parsed.net32);
+  lastBin = bin;
   var prefix = parsed.prefix;
   var container = els['bin-display'];
   // clear
@@ -481,9 +484,16 @@ function analyzeCIDR() {
   var wildcard32 = (~parsed.mask32) >>> 0;
 
   var firstUsable, lastUsable;
-  if (parsed.prefix === 0 || parsed.prefix === 31 || parsed.prefix === 32) {
+  if (parsed.prefix === 0) {
     firstUsable = 'N/A';
     lastUsable  = 'N/A';
+  } else if (parsed.prefix === 31) {
+    // RFC 3021: both addresses usable on point-to-point links
+    firstUsable = ip32ToString(parsed.net32);
+    lastUsable  = ip32ToString(parsed.broadcast32);
+  } else if (parsed.prefix === 32) {
+    firstUsable = ip32ToString(parsed.net32);
+    lastUsable  = ip32ToString(parsed.net32);
   } else {
     firstUsable = ip32ToString(parsed.net32 + 1);
     lastUsable  = ip32ToString(parsed.broadcast32 - 1);
@@ -851,6 +861,20 @@ els['split-prefix'].addEventListener('change', analyzeSplit);
 els['bulk-btn'].addEventListener('click', analyzeBulk);
 els['bulk-input'].addEventListener('keydown', function(e) {
   if (e.key === 'Enter' && e.ctrlKey) { e.preventDefault(); analyzeBulk(); }
+});
+
+// Copy binary button
+els['bin-copy'].addEventListener('click', function() {
+  if (!lastBin) return;
+  if (navigator.clipboard && window.isSecureContext) {
+    navigator.clipboard.writeText(lastBin).then(function() {}).catch(function() {});
+  } else {
+    try {
+      var ta = document.createElement('textarea');
+      ta.value = lastBin; document.body.appendChild(ta); ta.select();
+      document.execCommand('copy'); document.body.removeChild(ta);
+    } catch(ex) {}
+  }
 });
 
 // Live update on CIDR input
