@@ -48,7 +48,22 @@ Convert the single-line "Copy To" textarea into a multi-entry list with a "Distr
 12. **Import parser**: also detect "Distribution:" heading (in addition to "Copy to:") as a trigger for `inCopy = true; distCheck.checked = true`
 13. **Chain DOCX getFormDataForChain()**: `copyTo: f.copyTo || [], distribution: !!(f.distribution)`
 
-### Security note
+### `makeMultiField` — existing function (lines 633–676)
+This function already exists in the codebase and is used for via/ref/encl fields. Implementation details:
+- **State**: maintains an `items` array of `<input>` DOM elements
+- **`addItem(val)`**: creates a `.multi-field` div with an `<input>` and an `x` remove button; appends to container; pushes input into `items`; triggers `updatePreview()`
+- **Remove button**: splices the input out of `items[]`, removes the DOM row, calls `updatePreview()`
+- **`getValues()`**: returns `items.filter(i => i.value.trim()).map(i => i.value.trim())` — filters blanks
+- **`setValues(vals)`**: clears all existing rows, resets `items = []`, then calls `addItem` for each value
+- **Edge cases handled**: empty values filtered; no max; all DOM operations are direct (no innerHTML). `copyToFields` is a fourth call to this proven utility.
+
+### Security note — CSP meta tag
+Add a `<meta http-equiv="Content-Security-Policy">` tag in `<head>` as the **first** change. Since naval-scribe uses only inline JS and CSS (no external scripts, no external styles, no eval), the policy can be:
+```
+default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src blob: data:; font-src 'none'; connect-src 'none'; object-src 'none'; base-uri 'self'; form-action 'none'
+```
+This prevents loading any external resource while permitting the inline code that already exists. `blob:` in `img-src` is needed for DOCX download creation. No SHA-256 hash is needed — the policy uses `'unsafe-inline'` for script/style rather than hash-based CSP; this is acceptable for a local/offline tool and avoids the hash-recompute maintenance burden flagged in past lessons.
+
 All copyTo values rendered to DOM pass through the existing `esc()` function. Values written to DOCX XML pass through `makeParagraph()` which uses text node construction. `makeMultiField` inserts values via `input.value` (safe). No new XSS or XML injection surface is introduced.
 
 ### Migration compatibility

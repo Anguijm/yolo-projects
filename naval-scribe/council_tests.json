@@ -1,0 +1,92 @@
+{
+  "gate": "tests",
+  "project": "naval-scribe",
+  "timestamp": "2026-04-07T10:53:31.278000+00:00",
+  "verdicts": [
+    {
+      "angle": "bugs",
+      "verdict": "APPROVE",
+      "severity": "low",
+      "reason": "The implementation correctly handles multi-entry lists, distribution mode toggle, and includes robust parsing/migration for persistence and import, with proper HTML escaping.",
+      "required_fix": "",
+      "evidence": "",
+      "veto": false
+    },
+    {
+      "angle": "security",
+      "verdict": "OBJECT",
+      "severity": "high",
+      "reason": "The `renderPreview` function is truncated, specifically for the 'moa' document type, where user-controlled data from 'Parties to Agreement' (obtained via `getParties()`) would be rendered; without the full code, it cannot be confirmed that all user input is properly HTML-escaped before being inserted into `previewPage.innerHTML`, leading to a potential Cross-Site Scripting (XSS) vulnerability, which is critical given the `script-src 'unsafe-inline'` CSP.",
+      "required_fix": "Ensure all user-controlled data from `d.parties` (org, serial, name, rank, title) is passed through the `esc()` function before being inserted into `previewPage.innerHTML` for MOA type documents.",
+      "evidence": "file:index.html (truncated `renderPreview` function, specifically `case 'moa'`) and `getData()` function which includes `parties: getParties()`",
+      "veto": false
+    },
+    {
+      "angle": "ui",
+      "verdict": "APPROVE",
+      "severity": "low",
+      "reason": "The multi-entry list and distribution mode toggle are clearly designed with good affordances and immediate preview feedback.",
+      "required_fix": "",
+      "evidence": "",
+      "veto": false
+    },
+    {
+      "angle": "guide",
+      "verdict": "APPROVE",
+      "severity": "low",
+      "reason": "The tool provides excellent in-app help, clear naming, and detailed instructions for both human users and AI agents.",
+      "required_fix": "",
+      "evidence": "",
+      "veto": false
+    },
+    {
+      "angle": "usefulness",
+      "verdict": "APPROVE",
+      "severity": "low",
+      "reason": "The multi-entry list and distribution mode toggle directly address common formatting requirements for naval correspondence, streamlining a frequent and necessary task for the target user base.",
+      "required_fix": "",
+      "evidence": "Naval correspondence standards (e.g., SECNAV M-5216.5) mandate specific formatting for 'Copy to' and 'Distribution' blocks, making this a core utility for anyone drafting official documents.",
+      "veto": false
+    },
+    {
+      "angle": "cool",
+      "verdict": "APPROVE",
+      "severity": "low",
+      "reason": "The 'Distribution mode' toggle is a niche, specific detail that reinforces the tool's deep understanding of naval correspondence, contributing to its overall unique value proposition.",
+      "required_fix": "",
+      "evidence": "",
+      "veto": false
+    },
+    {
+      "angle": "lessons",
+      "verdict": "OBJECT",
+      "severity": "high",
+      "reason": "The `setValues` method for multi-field lists performs batch DOM manipulations without using `document.createDocumentFragment()`, violating a documented lesson to avoid reflows.",
+      "required_fix": "Modify the `setValues` function within `makeMultiField` (and similar batch update logic for `partyItems` if applicable) to utilize `document.createDocumentFragment()` for appending multiple elements, thereby reducing DOM reflows.",
+      "evidence": "KEEP: `document.createDocumentFragment()` for batch DOM appends in paginated tables \u2014 avoids reflow on each row. (from [unicode-char] learnings.md)",
+      "veto": true
+    }
+  ],
+  "all_approved": false,
+  "objections": [
+    {
+      "angle": "security",
+      "verdict": "OBJECT",
+      "severity": "high",
+      "reason": "The `renderPreview` function is truncated, specifically for the 'moa' document type, where user-controlled data from 'Parties to Agreement' (obtained via `getParties()`) would be rendered; without the full code, it cannot be confirmed that all user input is properly HTML-escaped before being inserted into `previewPage.innerHTML`, leading to a potential Cross-Site Scripting (XSS) vulnerability, which is critical given the `script-src 'unsafe-inline'` CSP.",
+      "required_fix": "Ensure all user-controlled data from `d.parties` (org, serial, name, rank, title) is passed through the `esc()` function before being inserted into `previewPage.innerHTML` for MOA type documents.",
+      "evidence": "file:index.html (truncated `renderPreview` function, specifically `case 'moa'`) and `getData()` function which includes `parties: getParties()`",
+      "veto": false
+    },
+    {
+      "angle": "lessons",
+      "verdict": "OBJECT",
+      "severity": "high",
+      "reason": "The `setValues` method for multi-field lists performs batch DOM manipulations without using `document.createDocumentFragment()`, violating a documented lesson to avoid reflows.",
+      "required_fix": "Modify the `setValues` function within `makeMultiField` (and similar batch update logic for `partyItems` if applicable) to utilize `document.createDocumentFragment()` for appending multiple elements, thereby reducing DOM reflows.",
+      "evidence": "KEEP: `document.createDocumentFragment()` for batch DOM appends in paginated tables \u2014 avoids reflow on each row. (from [unicode-char] learnings.md)",
+      "veto": true
+    }
+  ],
+  "vetoed": true
+}

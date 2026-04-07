@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src blob: data:; connect-src 'none'; object-src 'none'; base-uri 'self'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
@@ -261,6 +262,18 @@ html, body {
   background: var(--bg-elevated); min-height: 20px; line-height: 1.5;
 }
 .chain-base-box.set { color: var(--text-secondary); }
+
+/* Distribution toggle */
+.dist-toggle {
+  display: flex; align-items: flex-start; gap: 6px; cursor: pointer;
+  font-size: 0.5rem; color: var(--text-tertiary); letter-spacing: 0.1em;
+  text-transform: uppercase; margin-bottom: 5px;
+}
+.dist-toggle input[type="checkbox"] { accent-color: var(--accent); margin-top: 2px; flex-shrink: 0; }
+.dist-hint { font-size: 0.38rem; color: var(--text-label); display: block; margin-top: 1px; text-transform: none; letter-spacing: 0; }
+.copy-to-dist { margin-top: 48px; }
+.copy-to-dist .dist-label { font-weight: bold; margin-bottom: 6px; }
+.copy-to-dist .dist-entry { padding-left: 20px; }
 
 /* Print */
 @media print {
@@ -560,8 +573,10 @@ html, body {
       <div class="field-hint">Fills Rank/Rate field; "By direction" adds line to signature block</div>
     </div>
     <div class="field" data-types="letter,memo,endorsement,business,instruction,sop">
-      <div class="field-label">Copy To</div>
-      <textarea id="f-copyto" rows="3" placeholder="One recipient per line"></textarea>
+      <div class="field-label">Copy To / Distribution</div>
+      <label class="dist-toggle"><input type="checkbox" id="f-dist-check" aria-describedby="dist-hint"> distribution mode<span class="dist-hint" id="dist-hint">For Naval Instructions — replaces Copy to: with Distribution: block</span></label>
+      <div id="copyto-list"></div>
+      <button class="add-btn" id="add-copyto">+ add recipient</button>
     </div>
   </div>
   <div id="preview-panel">
@@ -602,8 +617,7 @@ html, body {
     recommendation: document.getElementById('f-recommendation'),
     sigName: document.getElementById('f-sig-name'),
     sigRank: document.getElementById('f-sig-rank'),
-    sigTitle: document.getElementById('f-sig-title'),
-    copyTo: document.getElementById('f-copyto')
+    sigTitle: document.getElementById('f-sig-title')
   };
 
   /* ── Field visibility by type ── */
@@ -678,6 +692,9 @@ html, body {
   var viaFields = makeMultiField('via-list', 'add-via', 'via');
   var refFields = makeMultiField('ref-list', 'add-ref', 'ref');
   var enclFields = makeMultiField('encl-list', 'add-encl', 'encl');
+  var copyToFields = makeMultiField('copyto-list', 'add-copyto', 'copyto');
+  var distCheck = document.getElementById('f-dist-check');
+  distCheck.addEventListener('change', updatePreview);
 
   /* ── Paste-to-parse references ── */
   var pasteRefsBtn = document.getElementById('paste-refs-btn');
@@ -939,7 +956,8 @@ html, body {
       sigName: F.sigName.value.trim(),
       sigRank: F.sigRank.value.trim(),
       sigTitle: F.sigTitle.value.trim(),
-      copyTo: F.copyTo.value.trim().split('\n').filter(function(l) { return l.trim(); }),
+      copyTo: copyToFields.getValues(),
+      distribution: distCheck.checked,
       byDirection: document.getElementById('f-by-direction') ? document.getElementById('f-by-direction').checked : false
     };
   }
@@ -1056,12 +1074,21 @@ html, body {
 
   function renderCopyTo(d, html) {
     if (d.copyTo.length) {
-      html += '<div class="copy-to">';
-      for (var c = 0; c < d.copyTo.length; c++) {
-        var ctLabel = c === 0 ? 'Copy to:' : '';
-        html += '<div><span class="hdr-label" style="width:70px">' + ctLabel + '</span> ' + esc(d.copyTo[c]) + '</div>';
+      if (d.distribution) {
+        html += '<div class="copy-to-dist">';
+        html += '<div class="dist-label">Distribution:</div>';
+        for (var c = 0; c < d.copyTo.length; c++) {
+          html += '<div class="dist-entry">' + esc(d.copyTo[c]) + '</div>';
+        }
+        html += '</div>';
+      } else {
+        html += '<div class="copy-to">';
+        for (var c = 0; c < d.copyTo.length; c++) {
+          var ctLabel = c === 0 ? 'Copy to:' : '';
+          html += '<div><span class="hdr-label" style="width:70px">' + ctLabel + '</span> ' + esc(d.copyTo[c]) + '</div>';
+        }
+        html += '</div>';
       }
-      html += '</div>';
     }
     return html;
   }
@@ -1244,7 +1271,8 @@ html, body {
     /* Classification banners */
     var cl = d.classification;
     var banner = cl ? '<div class="class-banner" data-class="' + esc(cl) + '">' + esc(cl) + '</div>' : '';
-    previewPage.innerHTML = banner + html + banner;
+    var finalHtml = banner + html + banner;
+    previewPage.innerHTML = finalHtml;
   }
 
   /* localStorage auto-save */
@@ -1271,7 +1299,10 @@ html, body {
         if (state.sigName) F.sigName.value = state.sigName;
         if (state.sigRank) F.sigRank.value = state.sigRank;
         if (state.sigTitle) F.sigTitle.value = state.sigTitle;
-        if (state.copyTo) F.copyTo.value = state.copyTo;
+        if (state.copyTo) copyToFields.setValues(
+          typeof state.copyTo === 'string' ? state.copyTo.split('\n').filter(Boolean) :
+          (Array.isArray(state.copyTo) ? state.copyTo : [])
+        );
         if (state.type) typeSelect.value = state.type;
       } else {
         restoreFullState(state);
@@ -1563,9 +1594,16 @@ html, body {
     function dCopyTo(body) {
       if (d.copyTo.length) {
         body += emptyParagraph(2);
-        for (var c = 0; c < d.copyTo.length; c++) {
-          var cL = c === 0 ? 'Copy to:  ' : '          ';
-          body += makeParagraph(cL + d.copyTo[c]);
+        if (d.distribution) {
+          body += makeParagraph('Distribution:', { bold: true });
+          for (var c = 0; c < d.copyTo.length; c++) {
+            body += makeParagraph('    ' + d.copyTo[c]);
+          }
+        } else {
+          for (var c = 0; c < d.copyTo.length; c++) {
+            var cL = c === 0 ? 'Copy to:  ' : '          ';
+            body += makeParagraph(cL + d.copyTo[c]);
+          }
         }
       }
       return body;
@@ -1884,12 +1922,14 @@ html, body {
   newBtn.addEventListener('click', function() {
     if (!confirm('Clear all fields and start a new draft?')) return;
     var keys = ['ssic','date','from','to','subj','body','bodyBullets','bodyAction','bodyMoa',
-      'effectiveDate','duration','bluf','recommendation','sigName','sigRank','sigTitle','copyTo','endorseNum'];
+      'effectiveDate','duration','bluf','recommendation','sigName','sigRank','sigTitle','endorseNum'];
     for (var ki = 0; ki < keys.length; ki++) F[keys[ki]].value = '';
     F.date.value = todayNaval();
     viaFields.setValues([]);
     refFields.setValues([]);
     enclFields.setValues([]);
+    copyToFields.setValues([]);
+    distCheck.checked = false;
     restoreParties([]);
     typeSelect.value = 'letter';
     classSel.value = '';
@@ -2101,8 +2141,10 @@ html, body {
         effectiveDate: F.effectiveDate.value, duration: F.duration.value,
         bluf: F.bluf.value, recommendation: F.recommendation.value,
         sigName: F.sigName.value, sigRank: F.sigRank.value,
-        sigTitle: F.sigTitle.value, copyTo: F.copyTo.value
+        sigTitle: F.sigTitle.value
       },
+      copyTo: copyToFields.getValues(),
+      distribution: distCheck.checked,
       via: viaFields.getValues(),
       refs: refFields.getValues(),
       encls: enclFields.getValues(),
@@ -2139,9 +2181,15 @@ html, body {
       subj: F.subj, body: F.body, bodyBullets: F.bodyBullets, bodyAction: F.bodyAction,
       bodyMoa: F.bodyMoa, effectiveDate: F.effectiveDate, duration: F.duration,
       bluf: F.bluf, recommendation: F.recommendation, sigName: F.sigName,
-      sigRank: F.sigRank, sigTitle: F.sigTitle, copyTo: F.copyTo
+      sigRank: F.sigRank, sigTitle: F.sigTitle
     };
     for (var k in FM) { if (f[k] !== undefined) FM[k].value = f[k]; }
+    /* restore copyTo — supports both legacy string (f.copyTo) and new array (s.copyTo) */
+    var ctArr = Array.isArray(s.copyTo) ? s.copyTo :
+                (typeof f.copyTo === 'string' ? f.copyTo.split('\n').filter(Boolean) :
+                (Array.isArray(f.copyTo) ? f.copyTo : []));
+    copyToFields.setValues(ctArr);
+    distCheck.checked = !!(s.distribution || f.distribution);
     viaFields.setValues(s.via || []);
     refFields.setValues(s.refs || []);
     enclFields.setValues(s.encls || []);
@@ -2396,7 +2444,7 @@ html, body {
     var out = {
       type: 'letter', ssic: '', date: '', from: '', to: '',
       via: [], subj: '', refs: [], encls: [],
-      bodyText: '', sigName: '', sigRank: '', sigTitle: '', copyTo: []
+      bodyText: '', sigName: '', sigRank: '', sigTitle: '', copyTo: [], distribution: false
     };
 
     /* detect type from first 40 lines */
@@ -2429,6 +2477,7 @@ html, body {
       /* ── Signature state ── */
       if (inSig) {
         if (/^Copy\s+to:/i.test(trimmed)) { inCopy = true; continue; }
+        if (/^Distribution:/i.test(trimmed)) { inCopy = true; out.distribution = true; continue; }
         if (trimmed) sigLines.push(trimmed);
         continue;
       }
@@ -2510,6 +2559,11 @@ html, body {
         var ct0 = trimmed.replace(/^Copy\s+to:\s*/i, '').trim();
         if (ct0) out.copyTo.push(ct0);
         inCopy = true; continue;
+      }
+      if (/^Distribution:/i.test(trimmed)) {
+        var ct0d = trimmed.replace(/^Distribution:\s*/i, '').trim();
+        if (ct0d) out.copyTo.push(ct0d);
+        inCopy = true; out.distribution = true; continue;
       }
       /* Signature detection: all-caps name + rank-line lookahead */
       if (!inSig && isSigCandidate(trimmed) && bodyLines.some(function(bl) { return bl.trim(); })) {
@@ -2596,7 +2650,11 @@ html, body {
     if (p.sigName) F.sigName.value = p.sigName;
     if (p.sigRank) F.sigRank.value = p.sigRank;
     if (p.sigTitle) F.sigTitle.value = p.sigTitle;
-    if (p.copyTo.length) F.copyTo.value = p.copyTo.join('\n');
+    copyToFields.setValues(
+      typeof p.copyTo === 'string' ? p.copyTo.split('\n').filter(Boolean) :
+      (Array.isArray(p.copyTo) ? p.copyTo : [])
+    );
+    distCheck.checked = !!(p.distribution);
 
     updatePreview();
 
@@ -2650,7 +2708,10 @@ html, body {
       sopReview: (f.sopReview || '').trim(),
       sigName: (f.sigName || '').trim(), sigRank: (f.sigRank || '').trim(),
       sigTitle: (f.sigTitle || '').trim(),
-      copyTo: (f.copyTo || '').trim().split('\n').filter(function(l) { return l.trim(); }),
+      copyTo: Array.isArray(s.copyTo) ? s.copyTo :
+              (typeof f.copyTo === 'string' ? f.copyTo.split('\n').filter(function(l) { return l.trim(); }) :
+              (Array.isArray(f.copyTo) ? f.copyTo : [])),
+      distribution: !!(s.distribution || f.distribution),
       byDirection: false
     };
   }
@@ -2718,9 +2779,16 @@ html, body {
   function dxCopyTo(d, body) {
     if (d.copyTo.length) {
       body += emptyParagraph(2);
-      for (var ci2 = 0; ci2 < d.copyTo.length; ci2++) {
-        var cL = ci2 === 0 ? 'Copy to:  ' : '          ';
-        body += makeParagraph(cL + d.copyTo[ci2]);
+      if (d.distribution) {
+        body += makeParagraph('Distribution:', { bold: true });
+        for (var ci2 = 0; ci2 < d.copyTo.length; ci2++) {
+          body += makeParagraph('    ' + d.copyTo[ci2]);
+        }
+      } else {
+        for (var ci2 = 0; ci2 < d.copyTo.length; ci2++) {
+          var cL = ci2 === 0 ? 'Copy to:  ' : '          ';
+          body += makeParagraph(cL + d.copyTo[ci2]);
+        }
       }
     }
     return body;
