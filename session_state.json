@@ -4,51 +4,11 @@
   "tick_tock": {
     "last_session_type": "tick",
     "last_tock_flagship": "deck",
-    "last_session_work": "tick: ip-cidr — IP/CIDR Calculator & Subnet Analyzer: network address, broadcast, mask, wildcard, host count, binary bitmask; Is-IP-in-range checker; subnet splitter; bulk comparison with overlap detection. Resolved escalation: removed redundant Check button from In-Range Checker (input already live-updates).",
+    "last_session_work": "tick: ip-cidr \u2014 IP/CIDR Calculator & Subnet Analyzer: network address, broadcast, mask, wildcard, host count, binary bitmask; Is-IP-in-range checker; subnet splitter; bulk comparison with overlap detection. Resolved escalation: removed redundant Check button from In-Range Checker (input already live-updates).",
     "last_session_date": "2026-04-07",
     "next_session_type": "tock",
-    "next_action": "Tick — pop first item from tick_queue_approved: infra-guardrails (Formalize structural guardrails as machine-checkable build constraints). This is an INFRASTRUCTURE tick (type=infrastructure) — see prompt for handling.",
+    "next_action": "Tick \u2014 pop first item from tick_queue_approved: infra-guardrails (Formalize structural guardrails as machine-checkable build constraints). This is an INFRASTRUCTURE tick (type=infrastructure) \u2014 see prompt for handling.",
     "tick_queue_approved": [
-      {
-        "name": "infra-guardrails",
-        "type": "infrastructure",
-        "idea": "Formalize structural guardrails as machine-checkable build constraints",
-        "rationale": "Adopted from Phase 4 experiment nb-2026-04-03-agent-guardrails-leak. We already enforce 3-attempts-then-escalate via the council protocol, but cost caps, output validation, and rollback triggers exist only as tribal knowledge in the prompt. This tick captures them as explicit constraints in program.md and (if appropriate) as enforcement code.",
-        "deliverable_paths": [
-          "program.md"
-        ],
-        "plan_summary": "Add a `## Build Constraints` section to program.md listing: (1) max files modified per build (default 50), (2) max lines added per build (default 2000), (3) test_project + eval_bugs + security_scan must all pass before council, (4) any council OBJECT halts the build for fix-and-retry, (5) lessons VETO is a hard halt with no override, (6) max 3 fix attempts per gate before escalation, (7) git commit must include 'cron' or 'tick' or 'tock' prefix for traceability. Each constraint becomes a checklist item the agent must reference. No new code yet — capture-then-encode pattern.",
-        "council_focus": "PLAN gate: are these the RIGHT constraints, or are we missing something? IMPLEMENTATION gate: are constraints unambiguous and machine-checkable? TESTS gate: pick 3 historical builds and verify constraints would have caught (or not caught) the issues. OUTCOME gate: program.md updated, no regression."
-      },
-      {
-        "name": "infra-yolo-evals",
-        "type": "infrastructure",
-        "idea": "YOLO-specific evaluation lenses beyond syntax/security",
-        "rationale": "Adopted from Phase 4 experiment mlops-2026-04-03-beyond-swebench-evals. Current pre-filter gates check syntax (test_project.py), known bug patterns (eval_bugs.py), and security (security_scan.py). These are necessary but not sufficient — they catch broken code, not bad UX. This tick adds YOLO-specific lenses that catch bad single-file HTML tools BEFORE the council sees them.",
-        "deliverable_paths": [
-          "ux_completeness.py",
-          "mobile_usability.py",
-          "cult_status.py"
-        ],
-        "plan_summary": "Three new Python lens scripts, each 100-200 lines, called from the tick prompt's pre-filter gate before council. (1) ux_completeness.py: greps for empty-state handling, loading states, error states, focus rings, primary CTA; flags any missing. (2) mobile_usability.py: greps for viewport meta tag, @media queries, tap-target sizing, sticky-first-column on horizontally scrollable tables (catches the recent ip-cidr regression); flags missing. (3) cult_status.py: heuristic check for signature move presence (animation, custom interaction, novel data viz, voice/tone differentiator); subjective but valuable. All three are advisory at first (warnings, not hard fails) — promoted to hard fails after 5 builds of tuning.",
-        "council_focus": "PLAN gate: are these the right lenses? what are we missing? IMPLEMENTATION gate: do the regex patterns actually catch what we want without massive false positives? TESTS gate: run all 3 against the existing portfolio and report hit rates. OUTCOME gate: scripts wired into pre-filter, no regression."
-      },
-      {
-        "name": "infra-memory-feedback",
-        "type": "infrastructure",
-        "idea": "Memory recall feedback loop — measure which learnings actually pay off",
-        "rationale": "Adopted from Phase 4 experiment mlops-2026-04-03-self-learning-agent-memory. We have build_memory.py with 1916 learnings from 263 projects, and the lessons council angle reads them. But we don't measure which learnings are actually preventing regressions — we just trust that capturing them helps. This tick adds a feedback loop so we can rank learnings by real-world impact and prune stale ones.",
-        "deliverable_paths": [
-          "build_memory.py"
-        ],
-        "plan_summary": "Extend build_memory.py with a `recall_outcome` table tracking: (project, learning_id, gate, outcome) where outcome is one of: 'prevented_bug' (lessons angle vetoed → human confirmed real issue), 'false_positive' (vetoed → human overrode), 'irrelevant' (cited but not load-bearing). New CLI subcommand: `python3 build_memory.py recall-stats` shows top-N learnings by prevented_bug count and bottom-N by false_positive count. Initial population: backfill from learnings.md COUNCIL entries where the gate notes which learning was cited. Add a `--mark-veto` and `--mark-fp` interactive flag for future escalations.",
-        "council_focus": "PLAN gate: is the schema right? is 'prevented_bug' the right metric, or do we need finer grain? IMPLEMENTATION gate: SQL migration is non-destructive? TESTS gate: backfill works on current learnings.md? OUTCOME gate: stats subcommand returns sensible output."
-      },
-      {
-        "name": "port-ref",
-        "idea": "Well-Known Port Quick-Reference — type a port or service name, get IANA service, protocol, privilege boundary warning (<1024), security flag; bulk annotation from docker-compose / k8s manifests",
-        "rationale": "DevOps engineers consult port numbers constantly. Pure JS static lookup, PWA, tight scope."
-      },
       {
         "name": "adopt-planning-mode",
         "type": "infrastructure",
@@ -60,6 +20,46 @@
         ],
         "plan_summary": "Modify the '## Council: 4 gates \u00d7 7 angles' section of tick_tock_prompt.md so the PLAN gate instruction tells the agent to produce the experiments/<name>/plan.md using Claude Code's planning mode (structured hierarchical breakdown with sub-tasks, file targets, and sequencing) rather than free-form prose. Add a note that the planning-mode output should still end with the same review-ready sections (Goal, Scope, Approach, \u00a7Security, \u00a7UI, \u00a7Guide, \u00a7Edge Cases, Test Strategy) so council review works unchanged. Explicitly state: 'the plan must enumerate each file that will be touched and each function that will be added/modified before any code is written.'",
         "council_focus": "PLAN: is the instruction clear enough the agent will actually invoke planning mode? Are the required output sections unambiguous? IMPLEMENTATION: does the modified prompt produce measurably better plans on a known historical case (pick naval-scribe v3 plan as the comparison)? TESTS: agent must produce a plan for a synthetic task and the plan must have every required section. OUTCOME: tick_tock_prompt.md has the planning-mode instruction, no regression in existing gate flow."
+      },
+      {
+        "name": "infra-guardrails",
+        "type": "infrastructure",
+        "idea": "Formalize structural guardrails as machine-checkable build constraints",
+        "rationale": "Adopted from Phase 4 experiment nb-2026-04-03-agent-guardrails-leak. We already enforce 3-attempts-then-escalate via the council protocol, but cost caps, output validation, and rollback triggers exist only as tribal knowledge in the prompt. This tick captures them as explicit constraints in program.md and (if appropriate) as enforcement code.",
+        "deliverable_paths": [
+          "program.md"
+        ],
+        "plan_summary": "Add a `## Build Constraints` section to program.md listing: (1) max files modified per build (default 50), (2) max lines added per build (default 2000), (3) test_project + eval_bugs + security_scan must all pass before council, (4) any council OBJECT halts the build for fix-and-retry, (5) lessons VETO is a hard halt with no override, (6) max 3 fix attempts per gate before escalation, (7) git commit must include 'cron' or 'tick' or 'tock' prefix for traceability. Each constraint becomes a checklist item the agent must reference. No new code yet \u2014 capture-then-encode pattern.",
+        "council_focus": "PLAN gate: are these the RIGHT constraints, or are we missing something? IMPLEMENTATION gate: are constraints unambiguous and machine-checkable? TESTS gate: pick 3 historical builds and verify constraints would have caught (or not caught) the issues. OUTCOME gate: program.md updated, no regression."
+      },
+      {
+        "name": "infra-yolo-evals",
+        "type": "infrastructure",
+        "idea": "YOLO-specific evaluation lenses beyond syntax/security",
+        "rationale": "Adopted from Phase 4 experiment mlops-2026-04-03-beyond-swebench-evals. Current pre-filter gates check syntax (test_project.py), known bug patterns (eval_bugs.py), and security (security_scan.py). These are necessary but not sufficient \u2014 they catch broken code, not bad UX. This tick adds YOLO-specific lenses that catch bad single-file HTML tools BEFORE the council sees them.",
+        "deliverable_paths": [
+          "ux_completeness.py",
+          "mobile_usability.py",
+          "cult_status.py"
+        ],
+        "plan_summary": "Three new Python lens scripts, each 100-200 lines, called from the tick prompt's pre-filter gate before council. (1) ux_completeness.py: greps for empty-state handling, loading states, error states, focus rings, primary CTA; flags any missing. (2) mobile_usability.py: greps for viewport meta tag, @media queries, tap-target sizing, sticky-first-column on horizontally scrollable tables (catches the recent ip-cidr regression); flags missing. (3) cult_status.py: heuristic check for signature move presence (animation, custom interaction, novel data viz, voice/tone differentiator); subjective but valuable. All three are advisory at first (warnings, not hard fails) \u2014 promoted to hard fails after 5 builds of tuning.",
+        "council_focus": "PLAN gate: are these the right lenses? what are we missing? IMPLEMENTATION gate: do the regex patterns actually catch what we want without massive false positives? TESTS gate: run all 3 against the existing portfolio and report hit rates. OUTCOME gate: scripts wired into pre-filter, no regression."
+      },
+      {
+        "name": "infra-memory-feedback",
+        "type": "infrastructure",
+        "idea": "Memory recall feedback loop \u2014 measure which learnings actually pay off",
+        "rationale": "Adopted from Phase 4 experiment mlops-2026-04-03-self-learning-agent-memory. We have build_memory.py with 1916 learnings from 263 projects, and the lessons council angle reads them. But we don't measure which learnings are actually preventing regressions \u2014 we just trust that capturing them helps. This tick adds a feedback loop so we can rank learnings by real-world impact and prune stale ones.",
+        "deliverable_paths": [
+          "build_memory.py"
+        ],
+        "plan_summary": "Extend build_memory.py with a `recall_outcome` table tracking: (project, learning_id, gate, outcome) where outcome is one of: 'prevented_bug' (lessons angle vetoed \u2192 human confirmed real issue), 'false_positive' (vetoed \u2192 human overrode), 'irrelevant' (cited but not load-bearing). New CLI subcommand: `python3 build_memory.py recall-stats` shows top-N learnings by prevented_bug count and bottom-N by false_positive count. Initial population: backfill from learnings.md COUNCIL entries where the gate notes which learning was cited. Add a `--mark-veto` and `--mark-fp` interactive flag for future escalations.",
+        "council_focus": "PLAN gate: is the schema right? is 'prevented_bug' the right metric, or do we need finer grain? IMPLEMENTATION gate: SQL migration is non-destructive? TESTS gate: backfill works on current learnings.md? OUTCOME gate: stats subcommand returns sensible output."
+      },
+      {
+        "name": "port-ref",
+        "idea": "Well-Known Port Quick-Reference \u2014 type a port or service name, get IANA service, protocol, privilege boundary warning (<1024), security flag; bulk annotation from docker-compose / k8s manifests",
+        "rationale": "DevOps engineers consult port numbers constantly. Pure JS static lookup, PWA, tight scope."
       },
       {
         "name": "adopt-stack-audit",
@@ -92,15 +92,15 @@
   },
   "markdown_deck": {
     "pending_items": [
-      "Markdown editor improvements: line numbers, tab indentation — deprioritized",
-      "Animation within slides — deprioritized",
+      "Markdown editor improvements: line numbers, tab indentation \u2014 deprioritized",
+      "Animation within slides \u2014 deprioritized",
       "Collaborative editing (WebRTC or shared localStorage)",
-      "Import from .pptx (parse OOXML back to markdown) — rejected (violates zero-dep)",
-      "Named Snapshots / Version History — Ctrl+Shift+S, 20 checkpoints, preview + restore",
-      "Inline Chart Blocks — ```chart bar/line/pie with CSV data, pure SVG rendering",
-      "Slide Sorter View — Shift+V, 4-column grid, click to jump, drag to reorder",
-      "Keyboard Shortcut Reference — ? key, searchable modal, all shortcuts organized by category",
-      "Handout Print Mode — 2 or 4 slides per page with speaker notes, @media print CSS"
+      "Import from .pptx (parse OOXML back to markdown) \u2014 rejected (violates zero-dep)",
+      "Named Snapshots / Version History \u2014 Ctrl+Shift+S, 20 checkpoints, preview + restore",
+      "Inline Chart Blocks \u2014 ```chart bar/line/pie with CSV data, pure SVG rendering",
+      "Slide Sorter View \u2014 Shift+V, 4-column grid, click to jump, drag to reorder",
+      "Keyboard Shortcut Reference \u2014 ? key, searchable modal, all shortcuts organized by category",
+      "Handout Print Mode \u2014 2 or 4 slides per page with speaker notes, @media print CSS"
     ]
   },
   "phase4": {
@@ -136,9 +136,9 @@
       "project": "naval-scribe",
       "gate": "tests",
       "timestamp": "2026-04-07T18:45:38.620732+00:00",
-      "reason": "LESSONS VETO — The paste block functionality for references violates the createDocumentFragment lesson by performing per-element DOM appends in a loop that can exceed 50 items.",
+      "reason": "LESSONS VETO \u2014 The paste block functionality for references violates the createDocumentFragment lesson by performing per-element DOM appends in a loop that can exceed 50 items.",
       "path": "naval-scribe/COUNCIL_ESCALATION.md"
     }
   ],
-  "resume_instructions": "ESCALATED — see council_escalations[] and naval-scribe/COUNCIL_ESCALATION.md. Awaiting human resolution. DO NOT auto-fix."
+  "resume_instructions": "ESCALATED \u2014 see council_escalations[] and naval-scribe/COUNCIL_ESCALATION.md. Awaiting human resolution. DO NOT auto-fix."
 }

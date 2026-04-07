@@ -19,36 +19,37 @@ TEMPLATE = r'''<!DOCTYPE html>
 <title>YOLO Dashboard</title>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
-  body { font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace; background: #0a0a0a; color: #e0e0e0; padding: 1.5rem; max-width: 1200px; margin: 0 auto; }
-  h1 { font-size: 1.8rem; margin-bottom: 0.3rem; color: #fff; }
-  .subtitle { color: #666; margin-bottom: 1.5rem; font-size: 0.85rem; }
+  html { font-size: 17px; }
+  body { font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace; background: #0a0a0a; color: #e0e0e0; padding: 1.5rem; max-width: 1200px; margin: 0 auto; line-height: 1.55; }
+  h1 { font-size: 2rem; margin-bottom: 0.3rem; color: #fff; }
+  .subtitle { color: #888; margin-bottom: 1.5rem; font-size: 0.95rem; }
 
   .stats { display: flex; gap: 1.5rem; margin-bottom: 1.5rem; padding: 0.8rem 1.2rem; background: #111; border-radius: 8px; border: 1px solid #222; flex-wrap: wrap; }
   .stat { text-align: center; min-width: 60px; }
-  .stat-num { font-size: 1.4rem; font-weight: bold; }
-  .stat-label { font-size: 0.65rem; color: #666; text-transform: uppercase; letter-spacing: 0.1em; }
+  .stat-num { font-size: 1.6rem; font-weight: bold; }
+  .stat-label { font-size: 0.8rem; color: #888; text-transform: uppercase; letter-spacing: 0.1em; }
 
   .controls { display: flex; gap: 0.75rem; margin-bottom: 1.2rem; flex-wrap: wrap; align-items: center; }
-  .search-box { flex: 1; min-width: 180px; padding: 0.45rem 0.8rem; background: #111; border: 1px solid #333; border-radius: 6px; color: #e0e0e0; font-family: inherit; font-size: 0.8rem; outline: none; }
+  .search-box { flex: 1; min-width: 180px; padding: 0.55rem 0.9rem; background: #111; border: 1px solid #333; border-radius: 6px; color: #e0e0e0; font-family: inherit; font-size: 0.95rem; outline: none; }
   .search-box:focus { border-color: #58a6ff; }
   .search-box::placeholder { color: #444; }
   .pill-group { display: flex; gap: 0.35rem; flex-wrap: wrap; }
-  .pill { background: #1a1a1a; border: 1px solid #333; color: #888; padding: 0.3rem 0.65rem; border-radius: 20px; cursor: pointer; font-family: inherit; font-size: 0.7rem; transition: all 0.15s; white-space: nowrap; }
+  .pill { background: #1a1a1a; border: 1px solid #333; color: #aaa; padding: 0.4rem 0.8rem; border-radius: 20px; cursor: pointer; font-family: inherit; font-size: 0.85rem; transition: all 0.15s; white-space: nowrap; }
   .pill:hover { border-color: #555; color: #ccc; }
   .pill.active { border-color: #58a6ff; color: #58a6ff; background: #0d1b2e; }
-  .pill .count { font-size: 0.6rem; color: #555; margin-left: 3px; }
+  .pill .count { font-size: 0.75rem; color: #777; margin-left: 4px; }
   .pill.active .count { color: #58a6ff88; }
 
   .view-toggle { display: flex; gap: 2px; background: #111; border-radius: 4px; border: 1px solid #333; overflow: hidden; }
   .view-toggle button { background: transparent; border: none; color: #666; padding: 0.35rem 0.55rem; cursor: pointer; font-size: 0.8rem; font-family: inherit; }
   .view-toggle button.active { background: #222; color: #fff; }
 
-  .sort-select { background: #111; border: 1px solid #333; color: #888; padding: 0.3rem 0.5rem; border-radius: 4px; font-family: inherit; font-size: 0.7rem; }
+  .sort-select { background: #111; border: 1px solid #333; color: #aaa; padding: 0.4rem 0.7rem; border-radius: 4px; font-family: inherit; font-size: 0.85rem; }
 
   .category { margin-bottom: 1.8rem; }
   .category-header { font-size: 0.8rem; color: #58a6ff; text-transform: uppercase; letter-spacing: 0.12em; margin-bottom: 0.6rem; padding-bottom: 0.35rem; border-bottom: 1px solid #1a1a2e; display: flex; align-items: center; gap: 0.5rem; }
   .category-icon { font-size: 1rem; }
-  .category-count { font-size: 0.65rem; color: #444; margin-left: auto; }
+  .category-count { font-size: 0.8rem; color: #666; margin-left: auto; }
 
   .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 0.65rem; }
   .list .entry { display: flex; gap: 1rem; align-items: flex-start; }
@@ -59,25 +60,25 @@ TEMPLATE = r'''<!DOCTYPE html>
   .entry.thumbs-up { border-left: 3px solid #4ade80; }
   .entry.thumbs-down { border-left: 3px solid #f87171; opacity: 0.6; }
   .entry.refined { border-top: 2px solid #58a6ff; }
-  .refined-badge { font-size: 0.55rem; padding: 0.1rem 0.4rem; border-radius: 3px; background: #0d1b2e; color: #58a6ff; border: 1px solid #1a3a5e; margin-left: 6px; vertical-align: middle; }
+  .refined-badge { font-size: 0.7rem; padding: 0.15rem 0.45rem; border-radius: 3px; background: #0d1b2e; color: #58a6ff; border: 1px solid #1a3a5e; margin-left: 6px; vertical-align: middle; }
   .section-divider { font-size: 0.9rem; color: #58a6ff; padding: 0.8rem 0 0.4rem; margin-top: 1rem; border-bottom: 1px solid #1a1a2e; margin-bottom: 0.8rem; display: flex; align-items: center; gap: 0.5rem; }
-  .section-divider .count { font-size: 0.7rem; color: #444; margin-left: auto; }
+  .section-divider .count { font-size: 0.85rem; color: #666; margin-left: auto; }
   .unrefined-section { opacity: 0.75; }
   .unrefined-section .entry { border-left: 2px solid #333; }
   .entry-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.4rem; gap: 0.5rem; }
-  .entry-name { font-weight: bold; font-size: 0.95rem; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .entry-date { color: #444; font-size: 0.65rem; white-space: nowrap; }
-  .entry-idea { color: #aaa; font-size: 0.8rem; margin-bottom: 0.4rem; line-height: 1.4; }
-  .entry-takeaway { color: #666; font-size: 0.72rem; font-style: italic; line-height: 1.3; }
+  .entry-name { font-weight: bold; font-size: 1.1rem; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .entry-date { color: #666; font-size: 0.8rem; white-space: nowrap; }
+  .entry-description { color: #d0d0d0; font-size: 0.95rem; margin-bottom: 0.5rem; line-height: 1.55; }
+  .entry-takeaway { color: #888; font-size: 0.85rem; font-style: italic; line-height: 1.4; }
   .entry-footer { display: flex; justify-content: space-between; align-items: center; margin-top: 0.5rem; }
-  .entry-folder { color: #333; font-size: 0.65rem; }
-  .launch-link { font-size: 0.68rem; padding: 0.2rem 0.55rem; border-radius: 4px; text-decoration: none; border: 1px solid #166534; color: #4ade80; background: #0a1a0a; transition: all 0.2s; cursor: pointer; }
+  .entry-folder { color: #555; font-size: 0.8rem; }
+  .launch-link { font-size: 0.85rem; padding: 0.3rem 0.7rem; border-radius: 4px; text-decoration: none; border: 1px solid #166534; color: #4ade80; background: #0a1a0a; transition: all 0.2s; cursor: pointer; }
   .launch-link:hover { background: #0a2a0a; border-color: #4ade80; }
   .launch-link.script { border-color: #854d0e; color: #fbbf24; background: #1a1500; }
   .launch-link.script:hover { background: #2a2000; border-color: #fbbf24; }
 
   /* Metrics row */
-  .entry-metrics { display: flex; align-items: center; gap: 8px; margin-top: 6px; font-size: 0.65rem; color: #444; }
+  .entry-metrics { display: flex; align-items: center; gap: 10px; margin-top: 8px; font-size: 0.8rem; color: #666; }
   .metric { display: flex; align-items: center; gap: 2px; }
   .metric-icon { font-size: 0.75rem; }
 
@@ -92,12 +93,12 @@ TEMPLATE = r'''<!DOCTYPE html>
 
   /* Leaderboard */
   .leaderboard { margin-bottom: 1.5rem; padding: 1rem; background: #111; border: 1px solid #222; border-radius: 8px; }
-  .leaderboard h3 { font-size: 0.75rem; color: #58a6ff; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 8px; }
-  .lb-row { display: flex; align-items: center; gap: 8px; padding: 4px 0; font-size: 0.75rem; border-bottom: 1px solid #1a1a1a; }
+  .leaderboard h3 { font-size: 0.9rem; color: #58a6ff; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 10px; }
+  .lb-row { display: flex; align-items: center; gap: 8px; padding: 6px 0; font-size: 0.9rem; border-bottom: 1px solid #1a1a1a; }
   .lb-row:last-child { border-bottom: none; }
   .lb-rank { color: #555; width: 20px; text-align: right; }
   .lb-name { color: #fff; flex: 1; }
-  .lb-stat { color: #888; font-size: 0.65rem; min-width: 50px; text-align: right; }
+  .lb-stat { color: #aaa; font-size: 0.8rem; min-width: 60px; text-align: right; }
   .lb-bar { height: 4px; background: #58a6ff33; border-radius: 2px; flex: 1; max-width: 80px; overflow: hidden; }
   .lb-bar-fill { height: 100%; background: #58a6ff; border-radius: 2px; }
 </style>
@@ -408,8 +409,7 @@ function renderEntry(e) {
         <span class="entry-name">${e.project}${e.refined ? '<span class="refined-badge">refined</span>' : ''}</span>
         <span class="entry-date">${e.date}</span>
       </div>
-      <div class="entry-idea">${e.idea}</div>
-      <div class="entry-takeaway">${e.takeaway}</div>
+      <div class="entry-description">${e.description || e.idea || ''}</div>
       <div class="entry-metrics">
         <span class="metric"><span class="metric-icon">\uD83D\uDC41</span> ${e._opens}</span>
         <span class="metric">last: ${lastOpen}</span>
@@ -481,6 +481,70 @@ def get_refined_projects():
                 refined.add(m.group(1))
     return refined
 
+
+def get_plain_description(project: str) -> str:
+    """Extract a plain-language description from the project's README.md.
+
+    Returns the first non-empty paragraph after the leading `# title` line,
+    with markdown emphasis stripped for readability. Falls back to empty
+    string if README is missing or unparseable (caller should fall back to
+    the idea field).
+    """
+    import re
+    readme = ROOT / project / "README.md"
+    if not readme.exists():
+        return ""
+    try:
+        text = readme.read_text()
+    except Exception:
+        return ""
+
+    # Strip leading # title line and any blank lines after it
+    lines = text.split('\n')
+    i = 0
+    # Skip leading blank lines
+    while i < len(lines) and not lines[i].strip():
+        i += 1
+    # Skip the # title line (and any immediate subtitle/rule)
+    if i < len(lines) and lines[i].startswith('#'):
+        i += 1
+    # Skip blank lines and any horizontal rules
+    while i < len(lines) and (not lines[i].strip() or set(lines[i].strip()) <= {'-', '='}):
+        i += 1
+
+    # Collect the next paragraph (consecutive non-blank lines that don't start with #, -, *, `)
+    paragraph_lines = []
+    while i < len(lines):
+        line = lines[i].rstrip()
+        if not line.strip():
+            if paragraph_lines:
+                break
+            i += 1
+            continue
+        # Skip headings, list items, code fences, HTML comments, and blockquotes
+        stripped = line.lstrip()
+        if stripped.startswith(('#', '- ', '* ', '```', '<!--', '> ', '|')):
+            if paragraph_lines:
+                break
+            i += 1
+            continue
+        paragraph_lines.append(line)
+        i += 1
+
+    if not paragraph_lines:
+        return ""
+    paragraph = ' '.join(paragraph_lines).strip()
+    # Strip markdown emphasis (**bold**, *italic*, `code`, [link](url))
+    paragraph = re.sub(r'\[([^\]]+)\]\([^)]+\)', r'\1', paragraph)  # links → just label
+    paragraph = re.sub(r'\*\*([^*]+)\*\*', r'\1', paragraph)         # bold
+    paragraph = re.sub(r'(?<!\*)\*([^*]+)\*(?!\*)', r'\1', paragraph) # italic
+    paragraph = re.sub(r'`([^`]+)`', r'\1', paragraph)               # code
+    # Truncate very long descriptions
+    if len(paragraph) > 280:
+        paragraph = paragraph[:277].rsplit(' ', 1)[0] + '…'
+    return paragraph
+
+
 def update():
     log = json.loads(LOG_FILE.read_text()) if LOG_FILE.exists() else []
     refined = get_refined_projects()
@@ -488,11 +552,16 @@ def update():
     survivors = [e for e in log if e.get('status') not in ('failed', 'culled') and e.get('project') not in FLAGSHIPS]
     for entry in survivors:
         entry['refined'] = entry['project'] in refined
+        # Plain-language description from README first paragraph
+        # Falls back to the idea field if README is missing or empty
+        plain = get_plain_description(entry.get('project', ''))
+        entry['description'] = plain if plain else entry.get('idea', '')
     html = TEMPLATE.replace('__LOG_DATA__', json.dumps(survivors))
     DASHBOARD.write_text(html)
     refined_count = sum(1 for e in survivors if e.get('refined'))
     hidden = len(log) - len(survivors)
-    print(f"Dashboard updated with {len(survivors)} entries ({refined_count} refined, {hidden} hidden [culled/failed/flagships]).")
+    with_desc = sum(1 for e in survivors if e.get('description') and e['description'] != e.get('idea', ''))
+    print(f"Dashboard updated with {len(survivors)} entries ({refined_count} refined, {hidden} hidden [culled/failed/flagships], {with_desc} with README descriptions).")
 
 
 if __name__ == "__main__":
