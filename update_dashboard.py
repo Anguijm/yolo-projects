@@ -21,6 +21,19 @@ TEMPLATE = r'''<!DOCTYPE html>
   * { margin: 0; padding: 0; box-sizing: border-box; }
   html { font-size: 17px; }
   body { font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace; background: #0a0a0a; color: #e0e0e0; padding: 1.5rem; max-width: 1200px; margin: 0 auto; line-height: 1.55; }
+  /* Flagships section — dedicated row at top */
+  .flagships { margin: 1rem 0 1.5rem; padding: 1rem 1.2rem; background: linear-gradient(135deg, #0d1b2e 0%, #0a0a0a 100%); border: 1px solid #1a3a5e; border-radius: 8px; }
+  .flagships-header { font-size: 1rem; color: #58a6ff; text-transform: uppercase; letter-spacing: 0.12em; margin-bottom: 0.8rem; font-weight: 600; }
+  .flagships-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 0.8rem; }
+  .flagship { background: #0a0a0a; border: 1px solid #233; border-radius: 6px; padding: 0.9rem 1rem; transition: all 0.15s; display: flex; flex-direction: column; gap: 0.4rem; }
+  .flagship:hover { border-color: #58a6ff; box-shadow: 0 0 0 1px #1a3a5e inset; }
+  .flagship-name { font-size: 1.15rem; font-weight: bold; color: #fff; display: flex; align-items: center; gap: 0.5rem; }
+  .flagship-icon { font-size: 1.2rem; }
+  .flagship-desc { font-size: 0.95rem; color: #c0c0c0; line-height: 1.5; flex: 1; }
+  .flagship-actions { display: flex; gap: 0.6rem; margin-top: 0.4rem; }
+  .flagship-launch { font-size: 0.9rem; padding: 0.4rem 0.9rem; border-radius: 4px; text-decoration: none; border: 1px solid #166534; color: #4ade80; background: #0a1a0a; transition: all 0.15s; }
+  .flagship-launch:hover { background: #0d2410; border-color: #4ade80; }
+  .flagship-meta { font-size: 0.8rem; color: #888; }
   h1 { font-size: 2rem; margin-bottom: 0.3rem; color: #fff; }
   .subtitle { color: #888; margin-bottom: 1.5rem; font-size: 0.95rem; }
 
@@ -108,6 +121,11 @@ TEMPLATE = r'''<!DOCTYPE html>
 <h1>YOLO Dashboard</h1>
 <p class="subtitle">overnight builds &mdash; shipped and ugly over planned and pretty</p>
 
+<div class="flagships">
+  <h2 class="flagships-header">⭐ Flagships</h2>
+  <div class="flagships-grid" id="flagships-grid"></div>
+</div>
+
 <div class="stats" id="stats"></div>
 
 <div id="leaderboard" class="leaderboard" style="display:none">
@@ -139,6 +157,23 @@ TEMPLATE = r'''<!DOCTYPE html>
 
 <script>
 const LOG_DATA = __LOG_DATA__;
+const FLAGSHIPS = __FLAGSHIPS_DATA__;
+
+// Render flagships section once on load
+(function renderFlagships() {
+  const grid = document.getElementById('flagships-grid');
+  if (!grid) return;
+  grid.innerHTML = FLAGSHIPS.map(f => `
+    <div class="flagship">
+      <div class="flagship-name"><span class="flagship-icon">${f.icon}</span> ${f.name}</div>
+      <div class="flagship-desc">${f.description}</div>
+      <div class="flagship-meta">${f.features_count} features shipped${f.last_update ? ' · last ' + f.last_update : ''}</div>
+      <div class="flagship-actions">
+        <a class="flagship-launch" href="${f.path}/index.html" target="_blank">▶ Open ${f.name}</a>
+      </div>
+    </div>
+  `).join('');
+})();
 
 // ---- Usage tracking (localStorage) ----
 const STORAGE_KEY = 'yolo_dash_metrics';
@@ -545,6 +580,40 @@ def get_plain_description(project: str) -> str:
     return paragraph
 
 
+FLAGSHIP_META = {
+    'naval-scribe': {
+        'icon': '⚓',
+        'name': 'Naval Scribe',
+        'path': 'naval-scribe',
+    },
+    'markdown-deck': {
+        'icon': '📑',
+        'name': 'Markdown Deck',
+        'path': 'markdown-deck',
+    },
+}
+
+
+def build_flagships_data(log):
+    """Build the flagship cards data from yolo_log + per-project READMEs."""
+    flagships = []
+    for slug, meta in FLAGSHIP_META.items():
+        # Count entries for this flagship in the log (each tock = one entry)
+        entries = [e for e in log if e.get('project') == slug]
+        last_update = entries[-1].get('date') if entries else None
+        # Plain description from README
+        desc = get_plain_description(slug) or f"{meta['name']} flagship app."
+        flagships.append({
+            'icon': meta['icon'],
+            'name': meta['name'],
+            'path': meta['path'],
+            'description': desc,
+            'features_count': len(entries),
+            'last_update': last_update,
+        })
+    return flagships
+
+
 def update():
     log = json.loads(LOG_FILE.read_text()) if LOG_FILE.exists() else []
     refined = get_refined_projects()
@@ -556,12 +625,14 @@ def update():
         # Falls back to the idea field if README is missing or empty
         plain = get_plain_description(entry.get('project', ''))
         entry['description'] = plain if plain else entry.get('idea', '')
+    flagships_data = build_flagships_data(log)
     html = TEMPLATE.replace('__LOG_DATA__', json.dumps(survivors))
+    html = html.replace('__FLAGSHIPS_DATA__', json.dumps(flagships_data))
     DASHBOARD.write_text(html)
     refined_count = sum(1 for e in survivors if e.get('refined'))
     hidden = len(log) - len(survivors)
     with_desc = sum(1 for e in survivors if e.get('description') and e['description'] != e.get('idea', ''))
-    print(f"Dashboard updated with {len(survivors)} entries ({refined_count} refined, {hidden} hidden [culled/failed/flagships], {with_desc} with README descriptions).")
+    print(f"Dashboard updated with {len(survivors)} entries ({refined_count} refined, {hidden} hidden [culled/failed/flagships], {with_desc} with README descriptions, {len(flagships_data)} flagships).")
 
 
 if __name__ == "__main__":
