@@ -48,6 +48,44 @@
         "name": "port-ref",
         "idea": "Well-Known Port Quick-Reference — type a port or service name, get IANA service, protocol, privilege boundary warning (<1024), security flag; bulk annotation from docker-compose / k8s manifests",
         "rationale": "DevOps engineers consult port numbers constantly. Pure JS static lookup, PWA, tight scope."
+      },
+      {
+        "name": "adopt-planning-mode",
+        "type": "infrastructure",
+        "source_experiment": "nh-2026-04-07-claude-code-planning-mode",
+        "idea": "Wire Claude Code planning mode into the PLAN gate",
+        "rationale": "Adopted from Phase 4 experiment nh-2026-04-07-claude-code-planning-mode. The new Claude Code planning mode produces hierarchical task plans with subtasks, file targets, and sequencing before any code is written. Wiring this into the PLAN gate improves plan quality for every subsequent tick, including the infra adoptions still in queue. Smallest of the 3 new adoptions \u2014 one-file prompt change.",
+        "deliverable_paths": [
+          ".github/workflows/tick_tock_prompt.md"
+        ],
+        "plan_summary": "Modify the '## Council: 4 gates \u00d7 7 angles' section of tick_tock_prompt.md so the PLAN gate instruction tells the agent to produce the experiments/<name>/plan.md using Claude Code's planning mode (structured hierarchical breakdown with sub-tasks, file targets, and sequencing) rather than free-form prose. Add a note that the planning-mode output should still end with the same review-ready sections (Goal, Scope, Approach, \u00a7Security, \u00a7UI, \u00a7Guide, \u00a7Edge Cases, Test Strategy) so council review works unchanged. Explicitly state: 'the plan must enumerate each file that will be touched and each function that will be added/modified before any code is written.'",
+        "council_focus": "PLAN: is the instruction clear enough the agent will actually invoke planning mode? Are the required output sections unambiguous? IMPLEMENTATION: does the modified prompt produce measurably better plans on a known historical case (pick naval-scribe v3 plan as the comparison)? TESTS: agent must produce a plan for a synthetic task and the plan must have every required section. OUTCOME: tick_tock_prompt.md has the planning-mode instruction, no regression in existing gate flow."
+      },
+      {
+        "name": "adopt-stack-audit",
+        "type": "infrastructure",
+        "source_experiment": "nb-2026-04-07-ephemeral-layers-stack-audit",
+        "idea": "One-time dependency shelf-life audit",
+        "rationale": "Adopted from Phase 4 experiment nb-2026-04-07-ephemeral-layers-stack-audit. Snapshot each external dependency in the yolo-projects pipeline with an estimated deprecation horizon, the coupling depth, and a replacement plan. NOT ongoing infrastructure \u2014 a one-time document we reference during architectural decisions. Harness-cli audit is a follow-on (different repo, cron cannot access).",
+        "deliverable_paths": [
+          "experiments/adopt-stack-audit/STACK_AUDIT.md"
+        ],
+        "plan_summary": "Create experiments/adopt-stack-audit/STACK_AUDIT.md containing a table of every external dependency surface in yolo-projects: (1) Python SDK deps (anthropic, google-generativeai, requests) from GitHub Actions workflow files, (2) GitHub Actions marketplace actions (actions/checkout@v4, stefanzweifel/git-auto-commit-action@v5, etc.) from .github/workflows/*.yml, (3) claude-code CLI via npm, (4) node/python runtime versions pinned. For each dep: current version, estimated deprecation horizon (3mo / 6mo / 12mo / 24mo / stable), coupling depth (shallow / medium / deep), and replacement plan if it goes away. Include a section 'What we do NOT depend on' celebrating the zero-dep YOLO single-file HTML tool approach as the lowest-coupling pattern in the portfolio. No ongoing maintenance \u2014 this is a dated snapshot.",
+        "council_focus": "PLAN: are we missing any dependency categories (e.g., GitHub itself, Anthropic API, Google Gemini API)? IMPLEMENTATION: does the table accurately represent the current state of the repo (grep-verifiable)? TESTS: each dep cited must be traceable to a specific file line. OUTCOME: STACK_AUDIT.md is a useful reference for future architectural decisions, not a maintenance burden."
+      },
+      {
+        "name": "adopt-bare-agent",
+        "type": "infrastructure",
+        "source_experiment": "do-2026-04-07-minimal-agent-pattern",
+        "idea": "Minimal 50-line agent loop + comparison_plan.md",
+        "rationale": "Adopted from Phase 4 experiment do-2026-04-07-minimal-agent-pattern. Build the smallest possible agent loop (LLM call \u2192 tool dispatch \u2192 result injection \u2192 repeat) using only the raw Anthropic SDK and a dict-based tool registry. Zero framework dependencies. This is the research-spike counter-argument to harness-cli's complexity \u2014 if a 50-line loop can do the same job, we need to justify every feature harness-cli adds. The actual comparison study (run both on roadtripper and measure) is a follow-on manual task.",
+        "deliverable_paths": [
+          "experiments/adopt-bare-agent/bare_agent.py",
+          "experiments/adopt-bare-agent/comparison_plan.md",
+          "experiments/adopt-bare-agent/README.md"
+        ],
+        "plan_summary": "Produce three files in experiments/adopt-bare-agent/. (1) bare_agent.py: a 50\u201380 line Python file implementing the minimal agent loop \u2014 raw Anthropic SDK, dict-based tool registry with 3 default tools (read_file, write_file, run_shell), while-loop that continues until the model sends a final message without a tool_use, structured tool-call handling via the messages API. Zero external frameworks. (2) comparison_plan.md: what to measure when running this against harness-cli on the same task (lines of code, API calls per task, time to completion, quality of output). Not the study results \u2014 the study PROTOCOL that a human runs later. (3) README.md: when to use bare_agent.py (learning, prototyping, justification audits) vs. harness-cli (multi-project tracking, recipes, council). Zero code in bare_agent.py may be copied from harness-cli \u2014 it should be written from scratch as the minimum viable.",
+        "council_focus": "PLAN: is 50\u201380 lines actually feasible or will it balloon? What are we giving up? IMPLEMENTATION: does bare_agent.py actually run end-to-end on a trivial task (e.g., 'read README.md and count its lines')? TESTS: run bare_agent.py with a simple task and verify it completes the loop correctly. OUTCOME: three files exist, bare_agent.py runs, comparison_plan.md is a complete protocol a human could execute."
       }
     ],
     "tick_queue_pending": []
