@@ -1,22 +1,21 @@
 # Hot Cache — Active Context
-*Auto-updated 2026-04-06 19:50 UTC. Read this FIRST.*
+*Auto-updated 2026-04-07 04:24 UTC. Read this FIRST.*
 
 ## Current State
-- Portfolio: 219 total, 94 active
-- Tick queue: 2 approved, 0 pending
+- Portfolio: 220 total, 95 active
+- Tick queue: 1 approved, 0 pending
 - Phase 4: 50 experiments, 7 backlog
-- Next: tick
+- Next: tock
 
 ## Tick Queue
-- [approved] ip-cidr: IP/CIDR Calculator & Subnet Analyzer — network address, broa
 - [approved] port-ref: Well-Known Port Quick-Reference — type a port or service nam
 
 ## Recent Builds (last 5)
+- markdown-deck: Deck Statistics Panel — Stats toolbar button opens modal wit
 - cron-explain: Cron expression explainer — paste any 5/6-field cron express
 - url-dissect: URL Dissector & Analyzer — component breakdown with encoding
 - uuid-inspector: UUID inspector — version detection (v1-v8), timestamp decode
 - unix-ts: Unix timestamp debugger — paste any timestamp (auto-detects 
-- semver-range: Semver range calculator — paste any npm range expression and
 
 ## Key Patterns (from recent learnings)
 - [INSIGHT] `eval_bugs.py` [missing-event-cleanup] fires on ALL `setTimeout` calls, includin

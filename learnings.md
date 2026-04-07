@@ -3187,3 +3187,10 @@ Sequential Gemini reviews (focus: bugs, then security) caught **different issue 
 - **INSIGHT**: Per-slide element badges (code×N, img×N, table, diagram×N) give visual density check — helps identify overloaded or empty slides before rehearsal.
 - **INSIGHT**: Talk time at 130 WPM (standard rehearsed speaking rate) with per-slide MM:SS breakdown directly answers "will this fit in my timeslot" — the most common presentation prep question. This is the core usefulness of the feature.
 - **COUNCIL**: Stats panel most useful alongside cumulative-time column (future improvement) — showing "at slide 12 you should be at 18:30" would make it rehearsal-grade, not just informational.
+
+### [ip-cidr] (2026-04-07)
+- **KEEP**: Redundant action buttons (like "Check") should be removed when an input already live-updates — dead buttons create confusion about whether the action requires a click or is automatic.
+- **KEEP**: For In-Range Checker pattern: wire `input` event → call analyze function directly; no button needed. Cascade from parent CIDR input as well so all sections stay in sync.
+- **KEEP**: CSP `script-src` SHA-256 hash must be recomputed after every script change — even removing one `addEventListener` line changes the hash.
+- **INSIGHT**: Council OUTCOME gate correctly caught a redundant UI control at low severity without blocking the feature — the advocacy model properly escalated rather than silently failing.
+- **COUNCIL**: PLAN(7/7 approve) | IMPLEMENTATION(7/7 approve) | TESTS(7/7 approve) | OUTCOME(7/7 approve after escalation fix: removed redundant Check button)
