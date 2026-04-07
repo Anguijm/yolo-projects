@@ -1,4 +1,9 @@
-# Plan: Distribution / Copy-To Block (v2)
+# Plan: Distribution / Copy-To Block (v3)
+
+**Plan revision:** v3 (2026-04-07) — addresses bugs and ui council objections from v2.
+The lessons-angle veto on v2 (CSP SHA-256 hash recompute) was reviewed and overridden as a false positive: naval-scribe does not have a CSP at all, so there is no hash to recompute. The underlying lesson was tightened to be conditional on the project actually using a hash-based CSP.
+
+
 
 ## Goal
 Convert the single-line "Copy To" textarea into a multi-entry list with a "Distribution" mode toggle. When Distribution is checked, the label becomes "Distribution:" (standard for Naval Instructions); otherwise "Copy to:". Also auto-detects "Distribution:" during import.
@@ -14,7 +19,7 @@ Convert the single-line "Copy To" textarea into a multi-entry list with a "Distr
    - Header row: Distribution checkbox FIRST (above the list), with hint "For Naval Instructions — replaces Copy to: with Distribution: block"
    - `<div id="copyto-list"></div>` — multi-field container
    - `<button class="add-btn" id="add-copyto">+ add recipient</button>`
-2. Distribution toggle layout: `<label class="dist-toggle"><input type="checkbox" id="f-dist-check"> distribution mode</label>` placed as the first element in the field, above the list — so user sees the context before adding entries.
+2. Distribution toggle layout: `<label class="dist-toggle"><input type="checkbox" id="f-dist-check" aria-describedby="dist-hint"> distribution mode</label>` placed as the first element in the field, above the list. **The hint must be inside the label as a `<span class="dist-hint" id="dist-hint">`** so it is both visually adjacent to the checkbox AND semantically tied via `aria-describedby` for screen readers — addresses ui council objection from v2.
 3. Remove `copyTo` from the `F` object (no longer a DOM element reference).
 
 ### JS Changes
@@ -31,7 +36,15 @@ Convert the single-line "Copy To" textarea into a multi-entry list with a "Distr
    - `copyToFields.setValues(typeof s.copyTo === 'string' ? s.copyTo.split('\n').filter(Boolean) : (Array.isArray(s.copyTo) ? s.copyTo : []))`
    - `distCheck.checked = !!(s.distribution)`
 10. **Shortcut restore** (line ~1274): same migration logic as above for `state.copyTo`
-11. **Import apply**: `copyToFields.setValues(p.copyTo)` replaces `F.copyTo.value = p.copyTo.join('\n')`
+11. **Import apply**: replaces `F.copyTo.value = p.copyTo.join('\n')` with the SAME migration logic as `restoreFullState()` so old string-based imports work — addresses bugs council objection from v2:
+    ```js
+    copyToFields.setValues(
+      typeof p.copyTo === 'string'
+        ? p.copyTo.split('\n').filter(Boolean)
+        : (Array.isArray(p.copyTo) ? p.copyTo : [])
+    );
+    distCheck.checked = !!(p.distribution);
+    ```
 12. **Import parser**: also detect "Distribution:" heading (in addition to "Copy to:") as a trigger for `inCopy = true; distCheck.checked = true`
 13. **Chain DOCX getFormDataForChain()**: `copyTo: f.copyTo || [], distribution: !!(f.distribution)`
 
