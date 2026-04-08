@@ -8,6 +8,21 @@
     "last_session_date": "2026-04-07",
     "next_session_type": "tock",
     "next_action": "Tick \u2014 pop first item from tick_queue_approved: infra-guardrails (Formalize structural guardrails as machine-checkable build constraints). This is an INFRASTRUCTURE tick (type=infrastructure) \u2014 see prompt for handling.",
+    "manual_queue": [
+      {
+        "name": "fix-loadcontext-hook-scoping",
+        "type": "manual_interactive",
+        "added": "2026-04-08",
+        "_cron_blocked": "Touches ~/.claude/hooks/LoadContext.hook.ts which is OUTSIDE the yolo_projects repo. Cron cannot reach it. Must be executed in an interactive session.",
+        "idea": "Project-scope the LoadContext session-start banner + recognize multiple done-states",
+        "rationale": "Discovered 2026-04-08: roadtripper PRD bled into yolo_projects session-start banner because (1) getRecentWorkSessions reads ~/.claude/MEMORY/WORK/ globally with no cwd filter, and (2) the parser only recognizes literal 'COMPLETED' status, missing 'phase: complete' and other patterns. Surgical PRD-frontmatter fix already applied to the offending file as a band-aid.",
+        "deliverable_paths": [
+          "~/.claude/hooks/LoadContext.hook.ts"
+        ],
+        "plan_summary": "Two surgical changes to ~/.claude/hooks/LoadContext.hook.ts: (1) In getRecentWorkSessions (~line 210), read a 'project' field from PRD.md frontmatter (regex /^project:\\s*\"?(.+?)\"?\\s*$/m). Determine current project from process.cwd() basename or a project-marker file (e.g., presence of .yolo-project, package.json name, or git root basename). Skip sessions whose 'project' field doesn't match current project; sessions with no project field still show globally (back-compat). (2) Around the existing 'if (status === COMPLETED) continue' check (~line 281), also skip when phase frontmatter is one of: complete, completed, done, shipped, archived. Read 'phase' the same way 'status' is read. Test by running the hook in both yolo_projects and a different cwd and confirming session lists differ correctly. No new dependencies, ~30 lines net.",
+        "council_focus": "PLAN: is project-detection-by-cwd robust across the actual project layouts John uses? IMPLEMENTATION: does the back-compat path (no project field = show globally) prevent breaking older PRDs? TESTS: run hook in yolo_projects cwd then in roadtripper cwd, confirm filtering works both ways. OUTCOME: roadtripper PRDs no longer appear in yolo banners, yolo PRDs still appear in yolo banners, sessions older than 48h still excluded."
+      }
+    ],
     "tick_queue_approved": [
       {
         "name": "adopt-planning-mode",
