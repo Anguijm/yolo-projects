@@ -46,6 +46,8 @@ ANGLES = ["bugs", "security", "ui", "guide", "usefulness", "cool", "lessons"]
 GATES = ["plan", "implementation", "tests", "outcome"]
 MODEL_NAME = "gemini-2.5-flash"  # fast, cheap enough to run 7 per gate × 4 gates
 CLAUDE_MODEL = "claude-haiku-4-5-20251001"  # fast fallback when Gemini unavailable
+DEFAULT_MAX_CONTEXT = 150000  # default deliverable byte budget per call (overridable via --max-context)
+MIN_ELISION = 1000  # files within this margin of the budget pass through unchanged rather than triggering head+tail+marker for trivial overage
 
 # Backend selected at startup
 _BACKEND: str = "gemini"  # or "claude"
@@ -115,7 +117,7 @@ def load_context_for_lessons() -> str:
     return "\n\n".join(parts) if parts else "(no lessons files found)"
 
 
-def build_user_message(gate: str, project: str, goal: str, context_path: str | None, inline_context: str | None, lessons_context: str = "") -> str:
+def build_user_message(gate: str, project: str, goal: str, context_path: str | None, inline_context: str | None, lessons_context: str = "", max_context: int = DEFAULT_MAX_CONTEXT) -> str:
     parts = [
         f"# Gate: {gate.upper()}",
         f"# Project: {project}",
@@ -131,7 +133,22 @@ def build_user_message(gate: str, project: str, goal: str, context_path: str | N
         if p.exists():
             try:
                 content = p.read_text()
-                parts.append(f"## Deliverable ({context_path})\n\n```\n{content[:50000]}\n```")
+                # Files within the limit (or only marginally over by < MIN_ELISION)
+                # pass through unchanged. Larger files use a head+tail split with
+                # middle elision so code appended at the END of the file (the common
+                # case for tock features) is always visible to the council reviewer.
+                if len(content) <= max_context + MIN_ELISION:
+                    shown = content
+                else:
+                    head_size = int(max_context * 0.6)
+                    tail_size = max_context - head_size
+                    elided = len(content) - head_size - tail_size
+                    shown = (
+                        content[:head_size]
+                        + f"\n\n[... {elided} bytes elided from middle of {len(content)}-byte file — head {head_size}B + tail {tail_size}B shown ...]\n\n"
+                        + content[-tail_size:]
+                    )
+                parts.append(f"## Deliverable ({context_path})\n\n```\n{shown}\n```")
             except Exception as e:
                 parts.append(f"## Deliverable ({context_path})\n\n[READ ERROR: {e}]")
         else:
@@ -177,11 +194,11 @@ def call_angle(angle: str, user_message: str) -> Verdict:
     return Verdict.from_raw(angle, raw)
 
 
-def run_gate(gate: str, project: str, goal: str, context_path: str | None, inline_context: str | None) -> list[Verdict]:
+def run_gate(gate: str, project: str, goal: str, context_path: str | None, inline_context: str | None, max_context: int = DEFAULT_MAX_CONTEXT) -> list[Verdict]:
     """Run all 7 angles in parallel for a single gate."""
     lessons_ctx = load_context_for_lessons()
-    user_msg_base = build_user_message(gate, project, goal, context_path, inline_context, lessons_context="")
-    user_msg_lessons = build_user_message(gate, project, goal, context_path, inline_context, lessons_context=lessons_ctx)
+    user_msg_base = build_user_message(gate, project, goal, context_path, inline_context, lessons_context="", max_context=max_context)
+    user_msg_lessons = build_user_message(gate, project, goal, context_path, inline_context, lessons_context=lessons_ctx, max_context=max_context)
 
     verdicts: list[Verdict] = []
     with concurrent.futures.ThreadPoolExecutor(max_workers=len(ANGLES)) as pool:
@@ -272,6 +289,7 @@ def main() -> int:
     ap.add_argument("--context", default=None, help="Path to the deliverable to review")
     ap.add_argument("--inline", default=None, help="Inline context text (instead of --context)")
     ap.add_argument("--attempt", type=int, default=1, help="Attempt number (escalate after 2 failed tries)")
+    ap.add_argument("--max-context", type=int, default=DEFAULT_MAX_CONTEXT, help=f"Max context bytes from the deliverable file. Files larger than this are split head+tail with middle elision so end-of-file code remains visible. Default {DEFAULT_MAX_CONTEXT}.")
     args = ap.parse_args()
 
     global _BACKEND, _ANTHROPIC_CLIENT
@@ -295,8 +313,8 @@ def main() -> int:
         _BACKEND = "claude"
         print(f"[council] Backend: Claude ({CLAUDE_MODEL}) — GEMINI_API_KEY not set, using fallback")
 
-    print(f"[council] Gate: {args.gate} | Project: {args.project} | Attempt: {args.attempt}")
-    verdicts = run_gate(args.gate, args.project, args.goal, args.context, args.inline)
+    print(f"[council] Gate: {args.gate} | Project: {args.project} | Attempt: {args.attempt} | max_context: {args.max_context}")
+    verdicts = run_gate(args.gate, args.project, args.goal, args.context, args.inline, max_context=args.max_context)
     out_path = write_gate_result(args.project, args.gate, verdicts)
 
     objections = [v for v in verdicts if v.verdict == "OBJECT"]
