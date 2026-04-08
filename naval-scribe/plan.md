@@ -1,84 +1,75 @@
-# Plan: Distribution / Copy-To Block (v3)
-
-**Plan revision:** v3 (2026-04-07) — addresses bugs and ui council objections from v2.
-The lessons-angle veto on v2 (CSP SHA-256 hash recompute) was reviewed and overridden as a false positive: naval-scribe does not have a CSP at all, so there is no hash to recompute. The underlying lesson was tightened to be conditional on the project actually using a hash-based CSP.
-
-
+# Plan — Command Address Book (Naval Scribe Tock, 2026-04-08)
 
 ## Goal
-Convert the single-line "Copy To" textarea into a multi-entry list with a "Distribution" mode toggle. When Distribution is checked, the label becomes "Distribution:" (standard for Naval Instructions); otherwise "Copy to:". Also auto-detects "Distribution:" during import.
+Add a localStorage-backed directory of naval commands/organizations. Each entry stores a short label and a full official name. One-click buttons fill To, From, or append to Via in the form. Eliminates re-typing frequently-used command names.
 
 ## Scope
-- naval-scribe/index.html only
+- `naval-scribe/index.html` — only file modified
 - No new files
 
 ## Approach
 
 ### HTML Changes
-1. Replace `<textarea id="f-copyto" rows="3">` with:
-   - Header row: Distribution checkbox FIRST (above the list), with hint "For Naval Instructions — replaces Copy to: with Distribution: block"
-   - `<div id="copyto-list"></div>` — multi-field container
-   - `<button class="add-btn" id="add-copyto">+ add recipient</button>`
-2. Distribution toggle layout: `<label class="dist-toggle"><input type="checkbox" id="f-dist-check" aria-describedby="dist-hint"> distribution mode</label>` placed as the first element in the field, above the list. **The hint must be inside the label as a `<span class="dist-hint" id="dist-hint">`** so it is both visually adjacent to the checkbox AND semantically tied via `aria-describedby` for screen readers — addresses ui council objection from v2.
-3. Remove `copyTo` from the `F` object (no longer a DOM element reference).
+1. Add `<button class="btn" id="addr-btn">addr book</button>` in `#top-bar` after `chain-btn`
+2. Add `<div id="addr-drawer">` block (after `#chain-drawer`, before `#form-panel`)
+   - Header row: "Command Address Book" title + close button
+   - `<div id="addr-list"></div>` — rendered entries
+   - Empty-state `<div id="addr-empty">` — "No entries yet — add a command below."
+   - Add-entry form at bottom: two text inputs (label + name) + save button + inline error span
 
-### JS Changes
+### CSS Changes
+1. `#addr-drawer` — same pattern as `#chain-drawer`: fixed left panel, z-index 200, 420px wide, mobile 100%
+2. `.addr-entry` — flex row: label (accent color) + name (secondary text) + three mini buttons [→ From] [→ To] [+ Via]
+3. `#addr-add-form` — flex row, label input (80px), name input (flex:1), save btn
+4. `#addr-add-err` — inline error text, small, amber
 
-1. **New multi-field**: `var copyToFields = makeMultiField('copyto-list', 'add-copyto', 'copyto')` after enclFields
-2. **Dist checkbox**: `var distCheck = document.getElementById('f-dist-check')` + `distCheck.addEventListener('change', updatePreview)`
-3. **getFormData()**: replace textarea read with `copyTo: copyToFields.getValues(), distribution: distCheck.checked`
-4. **renderCopyTo()** (preview): label = `d.distribution ? 'Distribution:' : 'Copy to:'`. All values go through existing `esc()` — no new XSS surface.
-5. **dCopyTo()** (main DOCX builder): same label logic; existing XML escaping via `makeParagraph()` handles injection.
-6. **dxCopyTo()** (chain DOCX builder): same label logic.
-7. **newBtn handler**: remove 'copyTo' from the F-keys array; add `copyToFields.setValues([]); distCheck.checked = false;`
-8. **autoSave()**: change `copyTo: F.copyTo.value` → `copyTo: copyToFields.getValues(), distribution: distCheck.checked`
-9. **restoreFullState()**: remove copyTo from the FM map; add explicit calls:
-   - `copyToFields.setValues(typeof s.copyTo === 'string' ? s.copyTo.split('\n').filter(Boolean) : (Array.isArray(s.copyTo) ? s.copyTo : []))`
-   - `distCheck.checked = !!(s.distribution)`
-10. **Shortcut restore** (line ~1274): same migration logic as above for `state.copyTo`
-11. **Import apply**: replaces `F.copyTo.value = p.copyTo.join('\n')` with the SAME migration logic as `restoreFullState()` so old string-based imports work — addresses bugs council objection from v2:
-    ```js
-    copyToFields.setValues(
-      typeof p.copyTo === 'string'
-        ? p.copyTo.split('\n').filter(Boolean)
-        : (Array.isArray(p.copyTo) ? p.copyTo : [])
-    );
-    distCheck.checked = !!(p.distribution);
-    ```
-12. **Import parser**: also detect "Distribution:" heading (in addition to "Copy to:") as a trigger for `inCopy = true; distCheck.checked = true`
-13. **Chain DOCX getFormDataForChain()**: `copyTo: f.copyTo || [], distribution: !!(f.distribution)`
+### JS Changes (new block `/* ── Command Address Book ── */`)
+1. `ADDR_KEY = 'naval-scribe-addr-book'`
+2. `getAddr()` / `saveAddr(arr)` — localStorage get/set with try/catch
+3. `renderAddr()` — rebuilds `#addr-list` from stored data; shows/hides empty state
+   - Each entry: label span (accent), name span, three buttons: fill-from, fill-to, add-via
+   - Delete button per entry (×)
+4. Mutual exclusion: `addrBtn` listener closes drafts/import/chain before opening
+5. Close button `#addr-close` removes `.open` class
+6. Fill buttons:
+   - fill-from: `F.from.value = entry.name; updatePreview()`
+   - fill-to: `F.to.value = entry.name; updatePreview()`
+   - add-via: `viaFields.addItem(entry.name)` (already triggers `updatePreview`)
+7. Add-entry save button:
+   - Reads label + name inputs; trims both
+   - Validates: both non-empty; max 50 entries; shows `#addr-add-err` inline (no alert)
+   - On success: push to array, saveAddr, renderAddr, clear inputs
+8. Delete: filter array, saveAddr, renderAddr
+9. Existing mutual-exclusion listeners (`draftsBtn`, `importBtn`, `chainBtn`): add `addrDrawer.classList.remove('open')` to each
 
-### `makeMultiField` — existing function (lines 633–676)
-This function already exists in the codebase and is used for via/ref/encl fields. Implementation details:
-- **State**: maintains an `items` array of `<input>` DOM elements
-- **`addItem(val)`**: creates a `.multi-field` div with an `<input>` and an `x` remove button; appends to container; pushes input into `items`; triggers `updatePreview()`
-- **Remove button**: splices the input out of `items[]`, removes the DOM row, calls `updatePreview()`
-- **`getValues()`**: returns `items.filter(i => i.value.trim()).map(i => i.value.trim())` — filters blanks
-- **`setValues(vals)`**: clears all existing rows, resets `items = []`, then calls `addItem` for each value
-- **Edge cases handled**: empty values filtered; no max; all DOM operations are direct (no innerHTML). `copyToFields` is a fourth call to this proven utility.
+## File: `naval-scribe/index.html`
+- Functions added: `getAddr`, `saveAddr`, `renderAddr`
+- HTML added: `#addr-drawer`, `#addr-btn`
+- CSS added: `#addr-drawer`, `.addr-entry`, `#addr-add-form`, `#addr-add-err`
+- No changes to: `getFullState`, `restoreFullState`, DOCX generation, draft state
 
-### Security note — CSP meta tag
-Add a `<meta http-equiv="Content-Security-Policy">` tag in `<head>` as the **first** change. Since naval-scribe uses only inline JS and CSS (no external scripts, no external styles, no eval), the policy can be:
-```
-default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src blob: data:; font-src 'none'; connect-src 'none'; object-src 'none'; base-uri 'self'; form-action 'none'
-```
-This prevents loading any external resource while permitting the inline code that already exists. `blob:` in `img-src` is needed for DOCX download creation. No SHA-256 hash is needed — the policy uses `'unsafe-inline'` for script/style rather than hash-based CSP; this is acceptable for a local/offline tool and avoids the hash-recompute maintenance burden flagged in past lessons.
+## Security
+- All user-entered label/name values rendered through `esc()` before innerHTML
+- Fill targets are direct `.value` assignments — no eval, no innerHTML injection
 
-All copyTo values rendered to DOM pass through the existing `esc()` function. Values written to DOCX XML pass through `makeParagraph()` which uses text node construction. `makeMultiField` inserts values via `input.value` (safe). No new XSS or XML injection surface is introduced.
+## UI
+- Drawer pattern identical to existing drawers (fixed left, z-index 200, scrollable)
+- Entry: `[LABEL]  full official name  [→ From] [→ To] [+ Via] [×]`
+- Add form: `[label____] [Full Name_____________] [save]`
+- Inline error above inputs (no browser alert)
+- Limit: 50 entries; error shown if over limit
 
-### Migration compatibility
-Old localStorage saves store `copyTo` as a raw string. New restore logic detects `typeof === 'string'` and splits on '\n', preserving all existing data without loss.
-
-### Signature move (COOL fix)
-When switching to Distribution mode, the preview renders the recipients as an indented block under a bold "Distribution:" heading — visually distinct from "Copy to:". This matches actual DON instruction formatting where Distribution is a standalone section, not inline with the rest of the letter.
-
-## File Layout
-- naval-scribe/index.html (all changes in one file)
+## Edge Cases
+- Empty label or empty name → inline error, no save
+- Over 50 entries → inline error, no save
+- Via fill with no drawer open: works fine (viaFields.addItem is standalone)
+- Addr drawer close when drafts/import/chain is open and vice versa
 
 ## Test Strategy
-- `python3 test_project.py naval-scribe` — syntax, ID, event listener checks
-- Verify label switches between "Copy to:" and "Distribution:" in preview
-- Verify multi-entry add/remove works, preview updates live
-- Verify old draft strings migrate without data loss
-- Verify import detects both "Copy to:" and "Distribution:" headings
-- Verify Distribution state saves/restores from localStorage
+- `python3 test_project.py naval-scribe` — HTML loads, key IDs present, JS syntax clean
+- `eval_bugs.py` — check for setTimeout / missing cleanup patterns (addr drawer has none)
+- `security_scan.py` — verify no new external URLs or eval usage
+- Manual: add 3 entries, fill To/From/Via each, verify form fields update
+- Manual: delete an entry, verify list updates
+- Manual: attempt to add >50 entries, verify inline error shown
+- Manual: open addr with drafts open — drafts should close; vice versa
