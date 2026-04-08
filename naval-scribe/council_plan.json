@@ -1,31 +1,31 @@
 {
   "gate": "plan",
   "project": "naval-scribe",
-  "timestamp": "2026-04-08T10:50:08.233386+00:00",
+  "timestamp": "2026-04-08T11:48:15.185485+00:00",
   "verdicts": [
     {
       "angle": "bugs",
-      "verdict": "OBJECT",
-      "severity": "critical",
-      "reason": "The plan's `saveAddr` function uses `try/catch` for `localStorage` operations but does not specify how errors (e.g., `QuotaExceededError`) are communicated to or handled by the calling code, leading to silent data loss and UI/state inconsistency if persistence fails.",
-      "required_fix": "`saveAddr` must communicate persistence failures (e.g., by throwing an error or returning a status) to the caller, and the add/delete entry logic must explicitly handle these failures by displaying an error to the user and preventing UI updates that suggest success.",
-      "evidence": "JS Changes (new block `/* \u2500\u2500 Command Address Book \u2500\u2500 */`): `getAddr()` / `saveAddr(arr)` \u2014 localStorage get/set with try/catch\nAdd-entry save button: On success: push to array, saveAddr, renderAddr, clear inputs",
+      "verdict": "APPROVE",
+      "severity": "low",
+      "reason": "The plan demonstrates robust error handling for localStorage, explicit state consistency on save failures, and proper sanitization of user input.",
+      "required_fix": "",
+      "evidence": "",
       "veto": false
     },
     {
       "angle": "security",
       "verdict": "OBJECT",
-      "severity": "high",
-      "reason": "Storing 'naval commands/organizations' in unencrypted localStorage exposes potentially sensitive operational data to compromise if the user's machine is breached (e.g., via XSS or malware).",
-      "required_fix": "Evaluate the sensitivity of the 'naval commands/organizations' data. If sensitive, implement server-side storage with proper authentication and authorization, or robust client-side encryption if server-side is not feasible. If the data is deemed non-sensitive, add a clear user warning about local, unencrypted storage.",
-      "evidence": "ADDR_KEY = 'naval-scribe-addr-book'\ngetAddr() / saveAddr(arr) \u2014 localStorage get/set with try/catch",
+      "severity": "critical",
+      "reason": "The application's use of `unsafe-inline` in its Content Security Policy (CSP) creates a critical XSS vulnerability across the entire application, potentially leading to the exfiltration of all `localStorage` data, including address book entries, despite this feature's internal input sanitization.",
+      "required_fix": "Refactor the application to eliminate `unsafe-inline` from the CSP by externalizing all scripts and styles or using strict hashes/nonces, thereby mitigating the pervasive XSS risk.",
+      "evidence": "SECURITY CSP objection: `unsafe-inline` is the deliberate architecture for the entire zero-dep single-file HTML app \u2014 changing it would require extracting ALL inline styles and scripts across 3200+ lines into external files, breaking the zero-dep constraint. This is a known architectural tradeoff, not a per-feature issue.",
       "veto": false
     },
     {
       "angle": "ui",
       "verdict": "APPROVE",
       "severity": "low",
-      "reason": "The plan outlines a clear, consistent, and user-friendly experience with good feedback for all states (empty, error, success) and intuitive interactions.",
+      "reason": "The plan demonstrates excellent consideration for first-time users, clear affordances, helpful empty and error states, and strong mobile responsiveness.",
       "required_fix": "",
       "evidence": "",
       "veto": false
@@ -34,7 +34,7 @@
       "angle": "guide",
       "verdict": "APPROVE",
       "severity": "low",
-      "reason": "The plan clearly outlines UI elements, their labels, and error messages, ensuring high discoverability for both users and AI agents.",
+      "reason": "The plan includes clear placeholder text, an empty state message, descriptive action buttons, and informative inline error messages, making the feature highly discoverable and self-documenting.",
       "required_fix": "",
       "evidence": "",
       "veto": false
@@ -43,68 +43,50 @@
       "angle": "usefulness",
       "verdict": "APPROVE",
       "severity": "low",
-      "reason": "This feature directly solves the problem of repetitive data entry for frequently used command names, enhancing the tool's efficiency for its target user.",
+      "reason": "This feature directly addresses a high-frequency pain point for the target user by eliminating repetitive typing of official command names.",
       "required_fix": "",
-      "evidence": "Users who generate multiple naval commands daily or weekly will find this a significant time-saver compared to manual re-typing or copy-pasting from an external source.",
+      "evidence": "It solves the problem of re-typing long, official command names into form fields, which is a common and time-consuming task in drafting formal communications. This is a clear tool, not a toy, for a recurring use case.",
       "veto": false
     },
     {
       "angle": "cool",
       "verdict": "OBJECT",
-      "severity": "critical",
-      "reason": "This is a generic address book implementation that lacks any unique interaction model, signature move, or memorable differentiation beyond basic utility for its specific form fields.",
-      "required_fix": "Introduce a unique interaction pattern, a distinctive visual design, or a 'wow' moment that elevates it beyond a standard form autofill/address book. Consider how it could be 'unreasonably good' at managing these specific naval commands, not just a list.",
-      "evidence": "Generic form autofill, browser extensions, any simple local storage based address book",
+      "severity": "high",
+      "reason": "The address book is a generic utility feature without a unique interaction, visual identity, or novel approach to make it memorable or distinct from standard saved input functionality.",
+      "required_fix": "Introduce a unique interaction model, a distinctive visual identity, or a novel way to manage and utilize command addresses that goes beyond basic CRUD and one-click fill, creating a 'signature move'.",
+      "evidence": "Any form with saved inputs or generic address book functionality",
       "veto": false
     },
     {
       "angle": "lessons",
-      "verdict": "OBJECT",
-      "severity": "critical",
-      "reason": "The plan introduces new JavaScript changes but does not mention recomputing the Content Security Policy (CSP) script-src SHA-256 hash, which is a required step if the project's `index.html` uses a hash-based CSP.",
-      "required_fix": "Verify if `naval-scribe/index.html` uses a `script-src` SHA-256 hash in its Content Security Policy. If it does, the plan must include a step to recompute the hash for the modified script and update the CSP in `index.html`.",
-      "evidence": "KEEP (conditional): CSP `script-src` SHA-256 hash must be recomputed after every script change \u2014 even removing one `addEventListener` line changes the hash. Precondition: this rule applies ONLY if the project's `<meta http-equiv=\"Content-Security-Policy\">` actually uses a `'sha256-...'` token in `script-src`. Projects without a hash-based CSP (no CSP at all, or `'unsafe-inline'`, or nonce-based) are not affected. Lessons-angle reviewers should `grep` for `sha256-` in the project's index.html before raising this objection. (from ip-cidr in learnings.md)",
-      "veto": true
+      "verdict": "APPROVE",
+      "severity": "low",
+      "reason": "The plan adheres to documented lessons, including the conditional use of `document.createDocumentFragment()` for list rendering and proper handling of `localStorage` edge cases. Explicitly states why conditional CSP and sticky column rules do not apply.",
+      "required_fix": "",
+      "evidence": "",
+      "veto": false
     }
   ],
   "all_approved": false,
   "objections": [
     {
-      "angle": "bugs",
-      "verdict": "OBJECT",
-      "severity": "critical",
-      "reason": "The plan's `saveAddr` function uses `try/catch` for `localStorage` operations but does not specify how errors (e.g., `QuotaExceededError`) are communicated to or handled by the calling code, leading to silent data loss and UI/state inconsistency if persistence fails.",
-      "required_fix": "`saveAddr` must communicate persistence failures (e.g., by throwing an error or returning a status) to the caller, and the add/delete entry logic must explicitly handle these failures by displaying an error to the user and preventing UI updates that suggest success.",
-      "evidence": "JS Changes (new block `/* \u2500\u2500 Command Address Book \u2500\u2500 */`): `getAddr()` / `saveAddr(arr)` \u2014 localStorage get/set with try/catch\nAdd-entry save button: On success: push to array, saveAddr, renderAddr, clear inputs",
-      "veto": false
-    },
-    {
       "angle": "security",
       "verdict": "OBJECT",
-      "severity": "high",
-      "reason": "Storing 'naval commands/organizations' in unencrypted localStorage exposes potentially sensitive operational data to compromise if the user's machine is breached (e.g., via XSS or malware).",
-      "required_fix": "Evaluate the sensitivity of the 'naval commands/organizations' data. If sensitive, implement server-side storage with proper authentication and authorization, or robust client-side encryption if server-side is not feasible. If the data is deemed non-sensitive, add a clear user warning about local, unencrypted storage.",
-      "evidence": "ADDR_KEY = 'naval-scribe-addr-book'\ngetAddr() / saveAddr(arr) \u2014 localStorage get/set with try/catch",
+      "severity": "critical",
+      "reason": "The application's use of `unsafe-inline` in its Content Security Policy (CSP) creates a critical XSS vulnerability across the entire application, potentially leading to the exfiltration of all `localStorage` data, including address book entries, despite this feature's internal input sanitization.",
+      "required_fix": "Refactor the application to eliminate `unsafe-inline` from the CSP by externalizing all scripts and styles or using strict hashes/nonces, thereby mitigating the pervasive XSS risk.",
+      "evidence": "SECURITY CSP objection: `unsafe-inline` is the deliberate architecture for the entire zero-dep single-file HTML app \u2014 changing it would require extracting ALL inline styles and scripts across 3200+ lines into external files, breaking the zero-dep constraint. This is a known architectural tradeoff, not a per-feature issue.",
       "veto": false
     },
     {
       "angle": "cool",
       "verdict": "OBJECT",
-      "severity": "critical",
-      "reason": "This is a generic address book implementation that lacks any unique interaction model, signature move, or memorable differentiation beyond basic utility for its specific form fields.",
-      "required_fix": "Introduce a unique interaction pattern, a distinctive visual design, or a 'wow' moment that elevates it beyond a standard form autofill/address book. Consider how it could be 'unreasonably good' at managing these specific naval commands, not just a list.",
-      "evidence": "Generic form autofill, browser extensions, any simple local storage based address book",
+      "severity": "high",
+      "reason": "The address book is a generic utility feature without a unique interaction, visual identity, or novel approach to make it memorable or distinct from standard saved input functionality.",
+      "required_fix": "Introduce a unique interaction model, a distinctive visual identity, or a novel way to manage and utilize command addresses that goes beyond basic CRUD and one-click fill, creating a 'signature move'.",
+      "evidence": "Any form with saved inputs or generic address book functionality",
       "veto": false
-    },
-    {
-      "angle": "lessons",
-      "verdict": "OBJECT",
-      "severity": "critical",
-      "reason": "The plan introduces new JavaScript changes but does not mention recomputing the Content Security Policy (CSP) script-src SHA-256 hash, which is a required step if the project's `index.html` uses a hash-based CSP.",
-      "required_fix": "Verify if `naval-scribe/index.html` uses a `script-src` SHA-256 hash in its Content Security Policy. If it does, the plan must include a step to recompute the hash for the modified script and update the CSP in `index.html`.",
-      "evidence": "KEEP (conditional): CSP `script-src` SHA-256 hash must be recomputed after every script change \u2014 even removing one `addEventListener` line changes the hash. Precondition: this rule applies ONLY if the project's `<meta http-equiv=\"Content-Security-Policy\">` actually uses a `'sha256-...'` token in `script-src`. Projects without a hash-based CSP (no CSP at all, or `'unsafe-inline'`, or nonce-based) are not affected. Lessons-angle reviewers should `grep` for `sha256-` in the project's index.html before raising this objection. (from ip-cidr in learnings.md)",
-      "veto": true
     }
   ],
-  "vetoed": true
+  "vetoed": false
 }
