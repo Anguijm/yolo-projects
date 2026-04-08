@@ -15,7 +15,9 @@ The `lessons` council angle has VETO power and reads this file. To prevent false
 
 False positives erode trust in the lessons angle and waste human attention. The bar for VETO is "this would definitely cause a regression in this specific deliverable", not "this rule appears in learnings.md and the deliverable doesn't follow it."
 
-History: 2 false-positive vetoes recorded 2026-04-07 (CSP-hash on a project with no CSP, createDocumentFragment on a 0–10 item list). Both prompted retroactive precondition statements on the underlying rules. See `feedback_lessons_preconditions.md` in memory.
+History: 3 false-positive vetoes recorded so far. 2026-04-07: CSP-hash on a project with no CSP; createDocumentFragment on a 0–10 item list. 2026-04-08: CSP-hash again on naval-scribe (which uses `'unsafe-inline'`, no sha256 token) — second false positive on the SAME rule despite the precondition being explicitly stated and the rule telling reviewers to grep for `sha256-` first. The rule was correct; the reviewer skipped its own check. See `feedback_lessons_preconditions.md` in memory.
+
+**Enforcement (added 2026-04-08 after 3rd false positive):** Before raising ANY lessons VETO with a stated precondition, the reviewer MUST quote the exact line of source proving the precondition is met. Format: `precondition_evidence: "<file>:<line>: <verbatim line>"`. A VETO with no `precondition_evidence` field is automatically downgraded to a low-severity advisory and CANNOT block the build. Council orchestrators should reject any conditional-rule veto missing this field.
 
 ---
 

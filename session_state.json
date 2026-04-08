@@ -150,16 +150,19 @@
     "failed": 79,
     "last_reconciled": "2026-04-08"
   },
-  "council_escalations": [
+  "council_escalations": [],
+  "council_escalations_resolved": [
     {
       "project": "naval-scribe",
+      "feature": "command-address-book",
       "gate": "plan",
       "timestamp": "2026-04-08T10:50:08.234201+00:00",
-      "reason": "LESSONS VETO \u2014 The plan introduces new JavaScript changes but does not mention recomputing the Content Security Policy (CSP) script-src SHA-256 hash, which is a required step if the project's `index.html` uses a hash-based CSP.",
+      "resolved_at": "2026-04-08T12:00:00+00:00",
+      "resolved_by": "John (manual decision, option A)",
+      "reason": "Multi-issue plan gate split: LESSONS VETO + BUGS critical + SECURITY high + COOL critical. UI/GUIDE/USEFULNESS approved.",
+      "resolution": "OVERRIDE LESSONS VETO + COOL OBJECT. APPLY BUGS FIX + STORAGE WARNING. Specifically: (1) LESSONS VETO is a FALSE POSITIVE \u2014 the rule's own precondition requires the project's CSP to use a 'sha256-...' token, but naval-scribe/index.html:5 uses script-src 'unsafe-inline' with NO sha256 token. Rule should never have fired. This is the second false positive on lessons preconditions (see feedback_lessons_preconditions.md). (2) COOL OBJECT overruled per feedback_utility_focus.md \u2014 'utility is king, no visual toys, build things people bookmark and use.' Address book IS the utility win; signature-move requirement is out of policy for utility-flagship features. (3) BUGS critical objection is legit and small \u2014 plan must wrap saveAddr() in try/catch for QuotaExceededError, surface inline error to user, and NOT update UI on persistence failure. (4) SECURITY high objection partially accepted \u2014 do NOT move to server-side (breaks zero-dep), but DO add an inline note in the address book panel reading 'Stored locally on this device. Not synced. Not encrypted.' so user has informed consent. Cron worker must implement (3) and (4) before passing the plan gate on retry.",
       "path": "naval-scribe/COUNCIL_ESCALATION.md"
-    }
-  ],
-  "council_escalations_resolved": [
+    },
     {
       "project": "naval-scribe",
       "gate": "tests",
@@ -171,5 +174,5 @@
       "path": "naval-scribe/COUNCIL_ESCALATION.md"
     }
   ],
-  "resume_instructions": "ESCALATED — see council_escalations[] and naval-scribe/COUNCIL_ESCALATION.md. Awaiting human resolution. DO NOT auto-fix."
+  "resume_instructions": "Escalation resolved 2026-04-08. Naval-scribe Command Address Book PLAN gate cleared with overrides. Cron worker on next tock retry MUST: (1) implement saveAddr() with try/catch for QuotaExceededError surfacing inline error and not updating UI on failure; (2) add inline storage warning text 'Stored locally on this device. Not synced. Not encrypted.' visible in the address book panel; (3) ignore the lessons CSP-sha256 rule for this project (CSP uses unsafe-inline, no hash); (4) ignore COOL signature-move requirement (utility-flagship policy). Build proceeds on retry."
 }
