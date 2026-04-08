@@ -33,7 +33,7 @@ Naval Scribe is a graduated YOLO project operating under Flagship rules alongsid
 ## Approved (Remaining — one per tock)
 
 - [x] Endorsement Chaining — layer endorsements on saved drafts, export as single .docx
-- [ ] Distribution / Copy-To Block — multi-entry copy-to section with Distribution checkbox
+- [x] Distribution / Copy-To Block — multi-entry copy-to section with Distribution checkbox
 - [ ] Command Address Book — localStorage directory of commands, one-click fill To/From/Via
 - [ ] Reply Draft Auto-Fill — one click generates reply with swapped From/To, boilerplate
 - [ ] Letter Status Tracker — Draft→Signed→Transmitted→Replied per saved draft
@@ -42,6 +42,7 @@ Naval Scribe is a graduated YOLO project operating under Flagship rules alongsid
 
 ## Recently Completed
 
+- [x] **Distribution / Copy-To Block** (2026-04-08) — multi-entry recipient list with "distribution mode" checkbox; Naval Instructions get a `Distribution:` label + indented entries, all other types get standard `Copy to:` label per recipient. Wired in form (`copyto-list`), preview (`renderCopyTo`), DOCX export (`dCopyTo`), and draft restore. Council unanimous approve; lessons veto on adjacent `parseRefsBtn` paste loop resolved by adding `addItems()` batch method using `document.createDocumentFragment()`.
 - [x] Second-Page Header Continuation — visual indicator in preview (dashed break + SSIC/Date/To/Page# section), DOCX uses `<w:titlePg/>` with first-page (class only) and default (continuation) headers/footers
 - [x] Boilerplate Paragraph Library — 13 templates across 4 categories (Opening, Standard, Action, Admin), collapsible panel in form, one-click insert at cursor
 
