@@ -34,7 +34,7 @@ Naval Scribe is a graduated YOLO project operating under Flagship rules alongsid
 
 - [x] Endorsement Chaining — layer endorsements on saved drafts, export as single .docx
 - [x] Distribution / Copy-To Block — multi-entry copy-to section with Distribution checkbox
-- [ ] Command Address Book — localStorage directory of commands, one-click fill To/From/Via
+- [x] Command Address Book — localStorage directory of commands, one-click fill To/From/Via
 - [ ] Reply Draft Auto-Fill — one click generates reply with swapped From/To, boilerplate
 - [ ] Letter Status Tracker — Draft→Signed→Transmitted→Replied per saved draft
 - [ ] Template Letter Library — 12 pre-built templates for common letter situations
@@ -88,3 +88,4 @@ Naval Scribe is a graduated YOLO project operating under Flagship rules alongsid
 | 2026-04-05 | Tock | No approved items; brainstormed 2 PENDING features: Template Letter Library, Routing Slip Generator |
 | 2026-04-06 | Tock | Auto-Format Import: "import" button opens drawer with paste area; state-machine parser detects type, SSIC, date, From/To/Via, Subj, Ref/Encl, body (with numbering-strip), all-caps signature + rank-line lookahead, Copy-to; all tests pass |
 | 2026-04-06 | Tock | Endorsement Chaining: "chain" button opens drawer; set base from current form or saved draft; add N endorsements (FIRST/SECOND/...) each with date/from/to/body/sig; preview chain inline in preview panel; export full chain as endorsement_chain.docx with page breaks between docs |
+| 2026-04-08 | Tock | Command Address Book: "addr book" button opens drawer; add up to 50 entries (label + full name); one-click → From / → To / + Via / × delete per entry; QuotaExceededError handling inline; createDocumentFragment batch render; aria-labels on all 5 action buttons; mutual exclusion with drafts/import/chain drawers. 4 council gates passed (plan attempt 2 after escalation; implementation attempt 2 after John fixed font-size 0.48rem→0.55rem + aria-labels; tests attempt 2; outcome attempt 2). |
