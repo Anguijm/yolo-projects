@@ -34,6 +34,43 @@ The GitHub Actions workflow has a separate guard that prevents this prompt from 
 
 Every build passes through 4 council gates. Each gate runs all 7 angles in parallel via `council.py`. Each angle is an advocate for its lens and returns APPROVE or OBJECT. The `lessons` angle has VETO power — any objection from lessons halts the build immediately.
 
+### MANDATORY context injection for every council.py call
+
+Before invoking `council.py` for ANY gate, you MUST assemble an `--inline` payload that includes ALL of the following (in this order, separated by `\n\n---\n\n`):
+
+1. **Constraints (if applicable):** If the project being built is `naval-scribe`, `markdown-deck`, or any other project with a `<project>/CONSTRAINTS.md` file at its root, read that file and prepend its full contents to the inline payload as a section titled `## STRUCTURAL CONSTRAINTS (mandatory — apply when scoring)`. Council angles MUST honor any constraints declared there.
+
+2. **Resume instructions (if non-default):** Read `session_state.json.resume_instructions`. If it contains anything other than the default empty/cleared message, prepend it as a section titled `## ACTIVE OVERRIDE (resume_instructions from session_state.json)`. This carries forward any human override decisions from prior escalations and prevents the same objection from being raised twice.
+
+3. **Council focus:** The queue item's `council_focus` text, prefixed with `## Council focus`.
+
+4. **Per-gate inline content:** Whatever the specific gate normally passes (pre-filter results, file content excerpts, etc.).
+
+**Why this is mandatory:** Council reviewers do not have access to session_state.json or constraint files unless you inject them. Without this injection, council angles repeat objections that have already been overruled and the build deadlocks.
+
+**Example for a naval-scribe plan gate call:**
+```bash
+INLINE_PAYLOAD="## STRUCTURAL CONSTRAINTS (mandatory — apply when scoring)
+
+$(cat naval-scribe/CONSTRAINTS.md)
+
+---
+
+## ACTIVE OVERRIDE (resume_instructions from session_state.json)
+
+$(python3 -c 'import json; print(json.load(open("session_state.json")).get("resume_instructions",""))')
+
+---
+
+## Council focus
+
+<council_focus text from queue item>"
+
+python3 council.py --gate plan --project naval-scribe --goal "..." --context naval-scribe/plan.md --inline "$INLINE_PAYLOAD" --attempt 1
+```
+
+If a council angle still objects to something explicitly out-of-scope per CONSTRAINTS.md (e.g., SECURITY objects to `unsafe-inline` on naval-scribe), the orchestrator (you) MUST treat that objection as advisory only and not block the build. Log it in `<project>/council_<gate>.json` as normal but proceed to the next gate. The constraint file is the source of truth for what is in-scope for objections.
+
 ### Gate PLAN — before writing any code
 
 Write your plan to `<project>/plan.md` (vertical outline: goal, scope, approach, file layout, test strategy).
