@@ -675,16 +675,48 @@ html, body {
 
     btn.addEventListener('click', function() { addItem(''); });
 
+    // Batch append using DocumentFragment — single reflow for large paste loops.
+    // Lesson: createDocumentFragment() applies when appending >~50 elements.
+    function addItems(vals) {
+      if (!vals || !vals.length) return;
+      var frag = document.createDocumentFragment();
+      for (var k = 0; k < vals.length; k++) {
+        var row = document.createElement('div');
+        row.className = 'multi-field';
+        var input = document.createElement('input');
+        input.type = 'text';
+        input.value = vals[k] || '';
+        input.addEventListener('input', updatePreview);
+        var rm = document.createElement('button');
+        rm.className = 'add-btn';
+        rm.textContent = 'x';
+        (function(rowRef, inputRef) {
+          rm.addEventListener('click', function() {
+            container.removeChild(rowRef);
+            items.splice(items.indexOf(inputRef), 1);
+            updatePreview();
+          });
+        })(row, input);
+        row.appendChild(input);
+        row.appendChild(rm);
+        frag.appendChild(row);
+        items.push(input);
+      }
+      container.appendChild(frag);
+      updatePreview();
+    }
+
     return {
       getValues: function() {
         return items.filter(function(i) { return i.value.trim(); }).map(function(i) { return i.value.trim(); });
       },
       addItem: addItem,
+      addItems: addItems,
       setValues: function(vals) {
         var rows = container.querySelectorAll('.multi-field');
         for (var r = 0; r < rows.length; r++) container.removeChild(rows[r]);
         items = [];
-        if (vals) for (var v = 0; v < vals.length; v++) addItem(vals[v]);
+        if (vals && vals.length) addItems(vals);
       }
     };
   }
@@ -737,15 +769,15 @@ html, body {
 
   parseRefsBtn.addEventListener('click', function() {
     var lines = pasteRefsText.value.split('\n');
-    var added = 0;
+    var cleaned = [];
     for (var i = 0; i < lines.length; i++) {
       var line = lines[i].trim();
       if (!line) continue;
       line = stripRefLabel(line).trim();
-      if (line) { refFields.addItem(line); added++; }
+      if (line) cleaned.push(line);
     }
+    if (cleaned.length) refFields.addItems(cleaned);
     pasteRefsPanel.style.display = 'none';
-    if (added) updatePreview();
   });
 
   /* Party multi-field for MOA (each party = name, rank, title, org) */
