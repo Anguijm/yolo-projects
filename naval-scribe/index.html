@@ -263,6 +263,44 @@ html, body {
 }
 .chain-base-box.set { color: var(--text-secondary); }
 
+/* Address Book drawer */
+#addr-drawer {
+  display: none; position: fixed; top: 32px; left: 0; width: 420px; bottom: 0;
+  z-index: 200; background: var(--bg-surface); border-right: 1px solid #333;
+  overflow-y: auto; padding: 12px;
+}
+#addr-drawer.open { display: block; }
+@media (max-width: 768px) { #addr-drawer { width: 100%; } }
+.addr-entry {
+  display: flex; align-items: center; gap: 6px;
+  padding: 5px 4px; border-bottom: 1px solid var(--border-default);
+}
+.addr-label {
+  color: var(--accent); font-size: 0.55rem; min-width: 60px; flex-shrink: 0;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.addr-name {
+  color: var(--text-secondary); font-size: 0.6rem; flex: 1;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.addr-acts { display: flex; gap: 4px; flex-shrink: 0; }
+.addr-act-btn {
+  padding: 5px 8px; min-height: 32px; background: transparent;
+  border: 1px solid var(--border-default); color: var(--text-tertiary);
+  font-family: inherit; font-size: 0.48rem; cursor: pointer; white-space: nowrap;
+}
+.addr-act-btn:active { border-color: var(--accent); color: var(--accent); }
+#addr-add-form { display: flex; gap: 4px; margin-top: 10px; align-items: flex-start; }
+#addr-label-in { width: 90px; flex-shrink: 0; }
+#addr-name-in { flex: 1; }
+#addr-add-err {
+  display: block; font-size: 0.45rem; color: #e3b341;
+  margin-top: 4px; min-height: 1em;
+}
+#addr-disclaimer {
+  font-size: 0.4rem; color: var(--text-tertiary); margin-bottom: 8px; line-height: 1.5;
+}
+
 /* Distribution toggle */
 .dist-toggle {
   display: flex; align-items: flex-start; gap: 6px; cursor: pointer;
@@ -312,6 +350,7 @@ html, body {
       <button class="btn" id="new-btn">new</button>
       <button class="btn" id="import-btn">import</button>
       <button class="btn" id="chain-btn">chain</button>
+      <button class="btn" id="addr-btn">addr book</button>
       <button class="btn" id="print-btn">print pdf</button>
       <button class="btn" id="drafts-btn">drafts</button>
       <button class="btn" id="ai-prompt-btn" title="Copy the formatting guide as an AI prompt — paste into ChatGPT/Claude to generate a properly-formatted draft">copy ai prompt</button>
@@ -359,6 +398,21 @@ html, body {
       <button class="btn btn-primary" id="chain-export-btn" style="flex:1;text-align:center;padding:5px 0">export .docx</button>
     </div>
     <div style="font-size:0.4rem;color:#555;margin-top:8px;line-height:1.6">Set base → add endorsements → preview or export as single .docx.</div>
+  </div>
+  <div id="addr-drawer">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+      <div class="section-header" style="margin:0;border:none">Command Address Book</div>
+      <button class="add-btn" id="addr-close">close ×</button>
+    </div>
+    <div id="addr-disclaimer">Stored locally on this device. Not synced. Not encrypted.</div>
+    <div id="addr-list"></div>
+    <div id="addr-empty" style="font-size:0.55rem;color:#444;padding:8px 0">No entries yet — add a command below.</div>
+    <div id="addr-add-form">
+      <input type="text" id="addr-label-in" placeholder="e.g. CNO" style="background:#1a1a1a;border:1px solid #222;color:#ccc;font-family:inherit;font-size:0.65rem;padding:5px 7px;outline:none">
+      <input type="text" id="addr-name-in" placeholder="e.g. Chief of Naval Operations, Department of the Navy" style="background:#1a1a1a;border:1px solid #222;color:#ccc;font-family:inherit;font-size:0.65rem;padding:5px 7px;outline:none">
+      <button class="addr-act-btn" id="addr-save-btn">save</button>
+    </div>
+    <span id="addr-add-err"></span>
   </div>
   <div id="form-panel">
     <div class="field" data-types="letter,memo,endorsement,business,instruction,sop">
@@ -3173,6 +3227,114 @@ html, body {
       addEndorseItem(chainState.endorsements[_ci]);
     }
   }
+
+  /* ── Command Address Book ── */
+  var ADDR_KEY = 'naval-scribe-addr-book';
+  var addrBtn = document.getElementById('addr-btn');
+  var addrDrawer = document.getElementById('addr-drawer');
+  var addrClose = document.getElementById('addr-close');
+  var addrList = document.getElementById('addr-list');
+  var addrEmpty = document.getElementById('addr-empty');
+  var addrLabelIn = document.getElementById('addr-label-in');
+  var addrNameIn = document.getElementById('addr-name-in');
+  var addrSaveBtn = document.getElementById('addr-save-btn');
+  var addrAddErr = document.getElementById('addr-add-err');
+
+  function getAddr() {
+    try { return JSON.parse(localStorage.getItem(ADDR_KEY)) || []; } catch(e) { return []; }
+  }
+
+  function saveAddr(arr) {
+    try {
+      localStorage.setItem(ADDR_KEY, JSON.stringify(arr));
+      return true;
+    } catch(e) {
+      if (e.name === 'QuotaExceededError' || e.name === 'NS_ERROR_DOM_QUOTA_REACHED') {
+        addrAddErr.textContent = 'Storage full \u2014 entry not saved.';
+      } else {
+        addrAddErr.textContent = 'Could not save entry.';
+        throw e;
+      }
+      return false;
+    }
+  }
+
+  function renderAddr() {
+    var arr = getAddr();
+    var frag = document.createDocumentFragment();
+    for (var ai = 0; ai < arr.length; ai++) {
+      (function(entry, idx) {
+        var row = document.createElement('div');
+        row.className = 'addr-entry';
+        var lbl = document.createElement('span');
+        lbl.className = 'addr-label';
+        lbl.textContent = entry.label;
+        var nm = document.createElement('span');
+        nm.className = 'addr-name';
+        nm.title = entry.name;
+        nm.textContent = entry.name;
+        var acts = document.createElement('span');
+        acts.className = 'addr-acts';
+        var btnFrom = document.createElement('button');
+        btnFrom.className = 'addr-act-btn'; btnFrom.textContent = '\u2192 From';
+        btnFrom.addEventListener('click', function() { F.from.value = entry.name; updatePreview(); });
+        var btnTo = document.createElement('button');
+        btnTo.className = 'addr-act-btn'; btnTo.textContent = '\u2192 To';
+        btnTo.addEventListener('click', function() { F.to.value = entry.name; updatePreview(); });
+        var btnVia = document.createElement('button');
+        btnVia.className = 'addr-act-btn'; btnVia.textContent = '+ Via';
+        btnVia.addEventListener('click', function() { viaFields.addItem(entry.name); });
+        var btnDel = document.createElement('button');
+        btnDel.className = 'addr-act-btn'; btnDel.textContent = '\u00d7';
+        btnDel.style.color = '#555';
+        btnDel.addEventListener('click', function() {
+          var cur = getAddr();
+          var next = cur.filter(function(_, i) { return i !== idx; });
+          if (saveAddr(next)) renderAddr();
+        });
+        acts.appendChild(btnFrom); acts.appendChild(btnTo);
+        acts.appendChild(btnVia); acts.appendChild(btnDel);
+        row.appendChild(lbl); row.appendChild(nm); row.appendChild(acts);
+        frag.appendChild(row);
+      })(arr[ai], ai);
+    }
+    while (addrList.firstChild) addrList.removeChild(addrList.firstChild);
+    addrList.appendChild(frag);
+    addrEmpty.style.display = arr.length ? 'none' : '';
+  }
+
+  addrBtn.addEventListener('click', function() {
+    if (addrDrawer.classList.contains('open')) {
+      addrDrawer.classList.remove('open');
+    } else {
+      draftsDrawer.classList.remove('open');
+      importDrawer.classList.remove('open');
+      chainDrawer.classList.remove('open');
+      addrDrawer.classList.add('open');
+    }
+  });
+  addrClose.addEventListener('click', function() { addrDrawer.classList.remove('open'); });
+  draftsBtn.addEventListener('click', function() { addrDrawer.classList.remove('open'); }, true);
+  importBtn.addEventListener('click', function() { addrDrawer.classList.remove('open'); }, true);
+  chainBtn.addEventListener('click', function() { addrDrawer.classList.remove('open'); }, true);
+
+  addrSaveBtn.addEventListener('click', function() {
+    addrAddErr.textContent = '';
+    var lbl = addrLabelIn.value.trim();
+    var nm = addrNameIn.value.trim();
+    if (!lbl || !nm) { addrAddErr.textContent = 'Both label and name are required.'; return; }
+    var arr = getAddr();
+    if (arr.length >= 50) { addrAddErr.textContent = 'Maximum 50 entries reached.'; return; }
+    var next = arr.concat([{ label: lbl, name: nm }]);
+    if (saveAddr(next)) {
+      renderAddr();
+      addrLabelIn.value = '';
+      addrNameIn.value = '';
+      addrLabelIn.focus();
+    }
+  });
+
+  renderAddr();
 
   /* ── Init ── */
   loadSaved();
