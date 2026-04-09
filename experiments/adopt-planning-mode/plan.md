@@ -57,6 +57,8 @@ No Python functions. Markdown-only change. Two blocks of prose replaced.
 ## Security
 The plan.md output is a human-readable document reviewed by the council and the human operator. It is NOT parsed or executed programmatically — no automated system consumes the file paths or function names listed in it. The `tick_tock_prompt.md` prompt instructs the agent to write these sections for human review purposes only. No sanitization or validation is needed for the plan artifact itself because it is read by humans, not executed by scripts.
 
+**Trust-boundary note (added after SECURITY objection 2026-04-08):** plan.md is explicitly a human-review artifact; no downstream automated parser consumes it. If that ever changes — i.e., if any script begins reading file paths or function names out of plan.md and acting on them — a sanitization layer must be added at the consumer before that parser ships. Sanitizing the producer ahead of a hypothetical consumer is out of scope for this tick.
+
 ## UI
 N/A — this is a prompt instruction change.
 
