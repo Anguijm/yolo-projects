@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "last_updated": "2026-04-08T21:40:00.000000+00:00",
+  "last_updated": "2026-04-09T00:00:00+00:00",
   "tick_tock": {
     "last_session_type": "tock",
     "last_tock_flagship": "scribe",
@@ -100,6 +100,20 @@
         ],
         "plan_summary": "Produce three files in experiments/adopt-bare-agent/. (1) bare_agent.py: a 50\u201380 line Python file implementing the minimal agent loop \u2014 raw Anthropic SDK, dict-based tool registry with 3 default tools (read_file, write_file, run_shell), while-loop that continues until the model sends a final message without a tool_use, structured tool-call handling via the messages API. Zero external frameworks. (2) comparison_plan.md: what to measure when running this against harness-cli on the same task (lines of code, API calls per task, time to completion, quality of output). Not the study results \u2014 the study PROTOCOL that a human runs later. (3) README.md: when to use bare_agent.py (learning, prototyping, justification audits) vs. harness-cli (multi-project tracking, recipes, council). Zero code in bare_agent.py may be copied from harness-cli \u2014 it should be written from scratch as the minimum viable.",
         "council_focus": "PLAN: is 50\u201380 lines actually feasible or will it balloon? What are we giving up? IMPLEMENTATION: does bare_agent.py actually run end-to-end on a trivial task (e.g., 'read README.md and count its lines')? TESTS: run bare_agent.py with a simple task and verify it completes the loop correctly. OUTCOME: three files exist, bare_agent.py runs, comparison_plan.md is a complete protocol a human could execute."
+      },
+      {
+        "name": "model-eval-backbone",
+        "type": "infrastructure",
+        "source_experiment": "do-2026-04-08-claude-mythos-agentic-eval",
+        "idea": "Backbone model swap benchmark \u2014 latest Claude vs. current backbone on historical YOLO builds",
+        "rationale": "Adopted from Phase 4 experiment do-2026-04-08-claude-mythos-agentic-eval (reframed from unverifiable 'Claude Mythos' marketing name). Low-effort, high-signal: pick N historical YOLO build specs where we have the original prompt + final artifact, replay them through the current backbone and the latest available Claude model, measure clarification requests, council retry count per gate, and end-to-end completion rate. Informs whether to promote the newer model into the tick/tock pipeline backbone.",
+        "deliverable_paths": [
+          "experiments/model-eval-backbone/benchmark.py",
+          "experiments/model-eval-backbone/results.md",
+          "experiments/model-eval-backbone/README.md"
+        ],
+        "plan_summary": "Three files in experiments/model-eval-backbone/. (1) benchmark.py: 100-150 lines. Takes a list of N historical build_spec objects (prompt + expected deliverable shape) from yolo_log.json, invokes each against two model endpoints (current backbone, latest Claude), captures clarification-request count, total API calls, wall time, final output, and a simple pass/fail by re-running test_project.py against the generated artifact. No new framework deps \u2014 plain requests or the anthropic SDK. (2) results.md: markdown table of per-build results + summary stats (mean clarification count, pass rate delta, cost delta). Hand-written conclusions section. (3) README.md: how to run, how to add new build specs to the replay set, what 'pass' means. N=5 for the first run \u2014 just enough to establish a signal without burning a full Phase-4-worth of tokens. Pick from: markdown-deck Tocks, naval-scribe Command Address Book, cron-explain, url-dissect, uuid-inspector (recent, diverse, well-documented).",
+        "council_focus": "PLAN: are 5 builds enough signal or do we need 10+? IMPLEMENTATION: does benchmark.py actually invoke both endpoints and collect comparable metrics? is 'clarification request count' robustly measurable? TESTS: run on 1 historical build end-to-end and verify both model runs complete with a comparable record. OUTCOME: results.md has a real recommendation (promote / keep / mixed) grounded in the 5 runs, not hand-waving."
       }
     ],
     "tick_queue_pending": [],
@@ -149,14 +163,15 @@
       "@echohive",
       "@ShawTalebi"
     ],
-    "experiments_total": 56,
-    "experiments_adopted": 49,
-    "experiments_discarded": 4,
+    "experiments_total": 59,
+    "experiments_adopted": 50,
+    "experiments_discarded": 5,
     "experiments_backlog": 0,
     "experiments_in_progress": 0,
     "queue_unprocessed": 0,
     "unprocessed_videos": [],
-    "experiments_deferred": 3
+    "experiments_deferred": 4,
+    "_resync_note": "Resynced 2026-04-09 after manual triage of 3 backlog items (ingested 2026-04-08). do-2026-04-08-claude-mythos-agentic-eval → adopted (→ tick_queue_approved as model-eval-backbone); nh-2026-04-08-claude-internet-tool-integration → discarded (redundant with existing WebFetch/WebSearch); nb-2026-04-08-analyze-leaked-code-patterns → deferred (reframe to open-source agent audit before requeuing). Counts by status: done=43, adopted=7, deferred=4, discarded=5, backlog=0. experiments_adopted counts done+adopted per historical convention."
   },
   "portfolio": {
     "_note": "Source of truth: yolo_log.json. Reconciled 2026-04-08.",
@@ -173,11 +188,11 @@
       "project": "experiments/adopt-planning-mode",
       "gate": "plan",
       "timestamp": "2026-04-08T22:29:30.632151+00:00",
-      "reason": "Unresolved objections after 2 attempts — SECURITY OBJECT (medium) claiming trust-boundary violation: plan.md is unsanitized AI output that could contain XSS/path-traversal if a future system parses it. 6 of 7 angles APPROVED.",
+      "reason": "Unresolved objections after 2 attempts \u2014 SECURITY OBJECT (medium) claiming trust-boundary violation: plan.md is unsanitized AI output that could contain XSS/path-traversal if a future system parses it. 6 of 7 angles APPROVED.",
       "path": "experiments/adopt-planning-mode/COUNCIL_ESCALATION.md",
       "resolved_at": "2026-04-09T00:00:00+00:00",
       "resolved_by": "John (interactive session, option A)",
-      "resolution": "OVERRIDE SECURITY OBJECT. Rationale: (1) severity=medium, not a veto; (2) 6 of 7 angles approved; (3) objection is a hypothetical-future-system argument — plan.md has no current downstream automated parser, so there is no trust boundary to violate; (4) 'XSS payloads in markdown' has no render surface; 'dangerous path traversals' are descriptions of intent not inputs to open(); (5) pattern-matches the naval-scribe SECURITY escalation (2026-04-08) where 6/7 angles found an architecture-level SECURITY objection invalid. Plan.md Security section amended with a trust-boundary note explicitly stating that sanitization is the consumer's responsibility if a future parser is ever added. Council should resume the build on adopt-planning-mode. FOLLOW-UP: promote this precedent into a structural policy (see manual_queue → broaden-goalpost-moving-rule, and consider a PLAN_ARTIFACT_POLICY.md capturing 'plan artifacts are human-review documents, not machine inputs — SECURITY may not require producer-side sanitization absent a concrete downstream parser')."
+      "resolution": "OVERRIDE SECURITY OBJECT. Rationale: (1) severity=medium, not a veto; (2) 6 of 7 angles approved; (3) objection is a hypothetical-future-system argument \u2014 plan.md has no current downstream automated parser, so there is no trust boundary to violate; (4) 'XSS payloads in markdown' has no render surface; 'dangerous path traversals' are descriptions of intent not inputs to open(); (5) pattern-matches the naval-scribe SECURITY escalation (2026-04-08) where 6/7 angles found an architecture-level SECURITY objection invalid. Plan.md Security section amended with a trust-boundary note explicitly stating that sanitization is the consumer's responsibility if a future parser is ever added. Council should resume the build on adopt-planning-mode. FOLLOW-UP: promote this precedent into a structural policy (see manual_queue \u2192 broaden-goalpost-moving-rule, and consider a PLAN_ARTIFACT_POLICY.md capturing 'plan artifacts are human-review documents, not machine inputs \u2014 SECURITY may not require producer-side sanitization absent a concrete downstream parser')."
     },
     {
       "project": "naval-scribe",
@@ -233,5 +248,5 @@
       "path": "naval-scribe/COUNCIL_ESCALATION.md"
     }
   ],
-  "resume_instructions": "Tick — resume adopt-planning-mode. Plan gate escalation resolved 2026-04-09 via SECURITY override (option A). Council should re-enter the plan gate; plan.md has been amended with a trust-boundary clarification. Next action unchanged from next_action: pop adopt-planning-mode and continue the build."
+  "resume_instructions": "Tick \u2014 resume adopt-planning-mode. Plan gate escalation resolved 2026-04-09 via SECURITY override (option A). Council should re-enter the plan gate; plan.md has been amended with a trust-boundary clarification. Next action unchanged from next_action: pop adopt-planning-mode and continue the build."
 }
