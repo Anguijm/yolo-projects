@@ -1,8 +1,12 @@
 #!/usr/bin/env python3
 """Update session_state.json from current project state.
 
-Reads yolo_log.json, experiments.json, phase4_queue.json, and
-deck_roadmap.md to reconstruct the full session state.
+MERGE-BASED: loads the existing state and updates only the computed
+fields (phase4 counts, portfolio stats, markdown_deck pending items).
+Preserves hand-maintained fields: tick_queue_approved, tick_queue_pending,
+manual_queue, council_escalations, council_escalations_resolved,
+resume_instructions, next_action, last_session_work, and any other
+fields added by interactive sessions or cron workers.
 
 Usage: python3 update_session_state.py
 Run after every commit or at session end.
@@ -19,14 +23,18 @@ STATE_FILE = ROOT / "session_state.json"
 def count_experiments():
     path = ROOT / "experiments.json"
     if not path.exists():
-        return {"total": 0, "adopted": 0, "discarded": 0, "backlog": 0, "in_progress": 0}
+        return {"total": 0, "adopted": 0, "discarded": 0, "backlog": 0,
+                "in_progress": 0, "deferred": 0}
     exps = json.loads(path.read_text())
+    # "adopted" = status in (done, adopted) per historical convention
+    adopted = sum(1 for e in exps if e["status"] in ("done", "adopted"))
     return {
         "total": len(exps),
-        "adopted": sum(1 for e in exps if e.get("verdict") == "adopt"),
-        "discarded": sum(1 for e in exps if e.get("verdict") == "discard"),
+        "adopted": adopted,
+        "discarded": sum(1 for e in exps if e["status"] == "discarded"),
         "backlog": sum(1 for e in exps if e["status"] == "backlog"),
         "in_progress": sum(1 for e in exps if e["status"] == "in_progress"),
+        "deferred": sum(1 for e in exps if e["status"] == "deferred"),
     }
 
 
@@ -35,20 +43,8 @@ def get_unprocessed_queue():
     if not path.exists():
         return []
     q = json.loads(path.read_text())
-    return [f"{item['channel']}: {item['title'][:60]}" for item in q if not item.get("processed")]
-
-
-def get_last_session():
-    path = ROOT / "markdown-deck" / "deck_roadmap.md"
-    if not path.exists():
-        return "unknown", "unknown", "unknown"
-    text = path.read_text()
-    # Find last row in session log table
-    rows = re.findall(r'\| (\d{4}-\d{2}-\d{2}) \| (Tick|Tock) \| (.+?) \|', text)
-    if not rows:
-        return "unknown", "unknown", "unknown"
-    last = rows[-1]
-    return last[1], last[2].strip(), last[0]
+    return [f"{item['channel']}: {item['title'][:60]}"
+            for item in q if not item.get("processed")]
 
 
 def get_portfolio():
@@ -79,50 +75,66 @@ def get_channels():
 
 
 def update():
-    last_type, last_work, last_date = get_last_session()
-    next_type = "tock" if last_type.lower() == "tick" else "tick"
+    # Load existing state — preserve all fields not computed here
+    if STATE_FILE.exists():
+        state = json.loads(STATE_FILE.read_text())
+    else:
+        state = {"version": 1, "tick_tock": {}, "markdown_deck": {},
+                 "phase4": {}, "portfolio": {}}
+
     exp = count_experiments()
     unprocessed = get_unprocessed_queue()
     portfolio = get_portfolio()
     pending_fixes = get_pending_deck_fixes()
     channels = get_channels()
 
-    state = {
-        "version": 1,
-        "last_updated": datetime.now(timezone.utc).isoformat(),
-        "tick_tock": {
-            "last_session_type": last_type.lower(),
-            "last_session_work": last_work,
-            "last_session_date": last_date,
-            "next_session_type": next_type,
-            "next_action": f"{'Build new YOLO project or feeder' if next_type == 'tick' else 'Work on Markdown Deck: ' + (pending_fixes[0] if pending_fixes else 'check roadmap')}",
-        },
-        "markdown_deck": {
-            "pending_items": pending_fixes,
-        },
-        "phase4": {
-            "channels_monitored": len(channels),
-            "channels": channels,
-            "experiments_total": exp["total"],
-            "experiments_adopted": exp["adopted"],
-            "experiments_discarded": exp["discarded"],
-            "experiments_backlog": exp["backlog"],
-            "experiments_in_progress": exp["in_progress"],
-            "queue_unprocessed": len(unprocessed),
-            "unprocessed_videos": unprocessed,
-        },
-        "portfolio": {
-            "total_built": portfolio["total"],
-            "total_culled": portfolio["culled"],
-            "active_projects": portfolio["active"],
-        },
-        "resume_instructions": f"Last session was {last_type} ({last_work}). Next is {next_type}. "
-        + (f"Pending deck fixes: {pending_fixes[0] if pending_fixes else 'none'}. " if next_type == "tock" else "")
-        + f"{len(unprocessed)} unprocessed Phase 4 videos in queue."
-    }
+    state["last_updated"] = datetime.now(timezone.utc).isoformat()
+
+    # --- Phase 4: overwrite computed counts only ---
+    p4 = state.setdefault("phase4", {})
+    p4["channels_monitored"] = len(channels)
+    p4["channels"] = channels
+    p4["experiments_total"] = exp["total"]
+    p4["experiments_adopted"] = exp["adopted"]
+    p4["experiments_discarded"] = exp["discarded"]
+    p4["experiments_backlog"] = exp["backlog"]
+    p4["experiments_in_progress"] = exp["in_progress"]
+    p4["experiments_deferred"] = exp["deferred"]
+    p4["queue_unprocessed"] = len(unprocessed)
+    p4["unprocessed_videos"] = unprocessed
+    # Remove stale _resync_note if present (one-time cleanup)
+    p4.pop("_resync_note", None)
+
+    # --- Portfolio: overwrite computed counts only ---
+    pf = state.setdefault("portfolio", {})
+    pf["total_built"] = portfolio["total"]
+    pf["active_working"] = portfolio["active"]
+    pf["total_culled"] = portfolio["culled"]
+    pf["last_reconciled"] = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+
+    # --- Markdown Deck: overwrite pending items ---
+    md = state.setdefault("markdown_deck", {})
+    md["pending_items"] = pending_fixes
+
+    # --- Preserved (NOT touched): ---
+    # tick_tock.tick_queue_approved
+    # tick_tock.tick_queue_pending
+    # tick_tock.manual_queue
+    # tick_tock.manual_queue_completed
+    # tick_tock.next_action
+    # tick_tock.last_session_work
+    # council_escalations
+    # council_escalations_resolved
+    # resume_instructions
 
     STATE_FILE.write_text(json.dumps(state, indent=2))
-    print(f"Session state updated. Next: {next_type}. {exp['backlog']} experiments in backlog. {len(unprocessed)} videos queued.")
+    print(f"Session state updated (merge mode).")
+    print(f"  Phase 4: {exp['total']} experiments, {exp['backlog']} backlog, "
+          f"{exp['adopted']} adopted, {exp['discarded']} discarded, "
+          f"{exp['deferred']} deferred.")
+    print(f"  Portfolio: {portfolio['total']} built, {portfolio['active']} active.")
+    print(f"  Deck: {len(pending_fixes)} pending items.")
+    print(f"  Videos queued: {len(unprocessed)}.")
 
 
 if __name__ == "__main__":
