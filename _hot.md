@@ -1,18 +1,18 @@
 # Hot Cache — Active Context
-*Auto-updated 2026-04-12 05:51 UTC. Read this FIRST.*
+*Auto-updated 2026-04-12 06:21 UTC. Read this FIRST.*
 
 ## Current State
-- Portfolio: 221 total, 96 active
-- Tick queue: 10 approved, 0 pending
+- Portfolio: 222 total, 96 active
+- Tick queue: 9 approved, 0 pending
 - Phase 4: 71 experiments, 0 backlog
-- Next: tick
+- Next: tock
 
 ## Tick Queue
-- [approved] adopt-planning-mode: Wire Claude Code planning mode into the PLAN gate
 - [approved] infra-guardrails: Formalize structural guardrails as machine-checkable build c
 - [approved] infra-yolo-evals: YOLO-specific evaluation lenses beyond syntax/security
 - [approved] infra-memory-feedback: Memory recall feedback loop — measure which learnings actual
 - [approved] port-ref: Well-Known Port Quick-Reference — type a port or service nam
+- [approved] adopt-stack-audit: One-time dependency shelf-life audit
 
 ## Recent Builds (last 5)
 - markdown-deck: Deck Statistics Panel — Stats toolbar button opens modal wit
