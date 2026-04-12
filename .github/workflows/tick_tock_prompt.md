@@ -73,7 +73,19 @@ If a council angle still objects to something explicitly out-of-scope per CONSTR
 
 ### Gate PLAN — before writing any code
 
-Write your plan to `<project>/plan.md` (vertical outline: goal, scope, approach, file layout, test strategy).
+Write your plan to `<project>/plan.md` using the following structured format. The plan must enumerate each file that will be touched and each function that will be added/modified before any code is written. Decompose the work into named subtasks, note dependencies and sequencing between subtasks, and make the breakdown specific enough that a reviewer can verify completeness without running the code.
+
+**Required sections (all must be present for council review):**
+- `## Goal` — one-liner objective
+- `## Scope` — what's in scope and explicitly what is NOT
+- `## Approach` — narrative; subtasks with sequencing/dependencies noted
+- `## File Layout` — every file touched, with approximate line range if modifying existing
+- `## Function Map` — every function added or modified, grouped by file path; write "N/A — no functions added/modified" for markup-only or config-only changes (required for all builds)
+- `## Security` — threat model, CSP notes, trust boundaries
+- `## UI` — interaction design, empty/loading/error states
+- `## Guide` — user-facing copy, labels, placeholder text
+- `## Edge Cases` — boundary conditions, error states, empty states
+- `## Test Strategy` — how the build will be verified
 
 Run:
 ```bash
@@ -142,7 +154,7 @@ Infrastructure ticks modify EXISTING repo files (not single-file HTML tools). Th
 
 **Gate sequence for infrastructure ticks:**
 
-- **PLAN gate**: write `experiments/<name>/plan.md` (detailed plan), then run `python3 council.py --gate plan --project experiments/<name> --goal "<idea>" --context experiments/<name>/plan.md --inline "<council_focus>"`. Same exit codes apply.
+- **PLAN gate**: write `experiments/<name>/plan.md` using the following structured format. The plan must enumerate each file that will be touched and each function that will be added/modified before any code is written. Required sections: Goal, Scope, Approach (with subtasks and sequencing), File Layout, Function Map, Security, UI, Guide, Edge Cases, Test Strategy. Then run `python3 council.py --gate plan --project experiments/<name> --goal "<idea>" --context experiments/<name>/plan.md --inline "<council_focus>"`. Same exit codes apply.
 
 - **IMPLEMENTATION gate**: make the actual changes to files in `deliverable_paths`. Write a brief `experiments/<name>/changes.md` listing what was modified (file:line summary). Run council with `--context experiments/<name>/changes.md` and ALSO include the actual modified file content via `--inline` (truncate to ~30K chars per file).
 

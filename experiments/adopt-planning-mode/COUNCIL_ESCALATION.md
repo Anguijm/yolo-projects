@@ -32,4 +32,6 @@
 
 ## Resolution
 
-Human decision required. Resume the build after updating session_state.json.
+**RESOLVED 2026-04-10 by John (interactive session).**
+
+GUIDE objection ACCEPTED. Rephrased "Use structured planning mode" to "Write your plan to ... using the following structured format." Applied the implementation directly to tick_tock_prompt.md (both main PLAN gate and infrastructure PLAN gate). Council should proceed to TESTS gate.
