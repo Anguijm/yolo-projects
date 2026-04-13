@@ -1,11 +1,11 @@
 # Hot Cache — Active Context
-*Auto-updated 2026-04-13 18:44 UTC. Read this FIRST.*
+*Auto-updated 2026-04-13 19:00 UTC. Read this FIRST.*
 
 ## Current State
-- Portfolio: 222 total, 96 active
+- Portfolio: 223 total, 97 active
 - Tick queue: 9 approved, 0 pending
 - Phase 4: 75 experiments, 0 backlog
-- Next: tock
+- Next: tick
 
 ## Tick Queue
 - [approved] infra-guardrails: Formalize structural guardrails as machine-checkable build c
@@ -15,11 +15,11 @@
 - [approved] adopt-stack-audit: One-time dependency shelf-life audit
 
 ## Recent Builds (last 5)
+- markdown-deck: Named Snapshots / Version History — Ctrl+Shift+S saves check
 - markdown-deck: Deck Statistics Panel — Stats toolbar button opens modal wit
 - cron-explain: Cron expression explainer — paste any 5/6-field cron express
 - url-dissect: URL Dissector & Analyzer — component breakdown with encoding
 - uuid-inspector: UUID inspector — version detection (v1-v8), timestamp decode
-- unix-ts: Unix timestamp debugger — paste any timestamp (auto-detects 
 
 ## Key Patterns (from recent learnings)
 - [INSIGHT] `eval_bugs.py` [missing-event-cleanup] fires on ALL `setTimeout` calls, includin
