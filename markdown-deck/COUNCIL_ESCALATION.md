@@ -32,4 +32,6 @@
 
 ## Resolution
 
-Human decision required. Resume the build after updating session_state.json.
+**RESOLVED 2026-04-13 by John (interactive session).**
+
+UI OBJECT — ACCEPTED. Bumped `.sn-btn` font-size 0.5→0.55rem, padding 2px 8px→6px 12px, added min-height 28px. Bumped `.sn-meta` and `.sn-count` font-size 0.48→0.55rem, color #444→#888 for better contrast. Council should proceed to TESTS gate.
