@@ -39,4 +39,14 @@ CSP: `unsafe-inline` is the existing architectural baseline.`
 
 ## Resolution
 
-Human decision required. Resume the build after updating session_state.json.
+**RESOLVED 2026-04-12 by John (interactive session).**
+
+**LESSONS veto — ACCEPTED.** `renderSnapshotsList()` updated to use `document.createDocumentFragment()` per naval-scribe KEEP pattern. Plan updated.
+
+**SECURITY OBJECT — OVERRIDDEN.** `innerHTML = md(slideText)` is the app-wide rendering pattern used in the thumb strip (line 118), preview panel (line 1264), and presentation mode (line 1334). No new attack surface introduced. Requesting DOMPurify is a host-architecture objection — the entire rendering pipeline would need to change, not just snapshots. Per "no host-architecture objections in per-feature reviews" policy (learnings.md). Also: markdown-deck is local-only, user authors their own content, no external injection vector.
+
+**UI OBJECT — ACCEPTED.** "Take Snapshot" button removed from modal header. Ctrl+Shift+S is the primary save method; toolbar button opens the management panel. No need for a third trigger inside the modal.
+
+**GUIDE OBJECT — ACCEPTED.** Pencil icon (✎ via CSS `::after`) on hover + `title="Click to rename"` tooltip added to editable snapshot labels for discoverability.
+
+Plan updated with all 3 accepted fixes. Council should retry plan gate.

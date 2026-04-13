@@ -5,7 +5,7 @@ Add Named Snapshots / Version History to Markdown Deck: Ctrl+Shift+S takes a nam
 
 ## Scope
 **In scope:**
-- `takeSnapshot()` triggered by Ctrl+Shift+S (and modal button)
+- `takeSnapshot()` triggered by Ctrl+Shift+S
 - Up to 20 checkpoints stored in localStorage key `mdeck_snapshots`; oldest auto-pruned when limit exceeded
 - Snapshot panel modal: list of checkpoints with thumbnail, label, timestamp, slide count, restore, delete
 - Inline editable label per snapshot (click label text → contenteditable)
@@ -46,9 +46,9 @@ function takeSnapshot(label)
 - ID generation: `Date.now().toString(36) + Math.random().toString(36).slice(2, 8)` — collision-resistant without external libs.
 
 ### Subtask 5: JS — renderSnapshotsList (depends on takeSnapshot structure)
-Builds `innerHTML` for `#sn-list`. Each `.sn-item` contains:
+Builds snapshot list items using `document.createDocumentFragment()` for batch rendering (per naval-scribe KEEP pattern — full re-render of a bounded list uses fragment to avoid unnecessary DOM reflows). Clears `#sn-list` children, then appends the completed fragment. Each `.sn-item` contains:
 - `.sn-thumb` div: renders `md(firstSlideMarkdown)` at `font-size:0.35rem` with overflow hidden (same pattern as thumb strip at line 118 — identical rendering technique used throughout the app for all thumbnails and previews)
-- `.sn-label` span: `contenteditable="true"`, blur handler saves edited label; if label emptied on blur, revert to auto-generated label
+- `.sn-label` span: `contenteditable="true"`, blur handler saves edited label; if label emptied on blur, revert to auto-generated label. **Discoverability: subtle pencil icon (✎ via CSS `::after`) appears on hover, plus `title="Click to rename"` tooltip** (per GUIDE feedback)
 - `.sn-meta` span: timestamp + "N slides"
 - `.sn-actions`: "Restore" and "Del" buttons
 
@@ -97,7 +97,7 @@ All can be written in a single pass.
 - `takeSnapshot(label?)` — creates checkpoint `{id, ts, label, content, design, slideCount}`, prepends, trims to 20, calls `_saveSnaps()`; only updates `_snaps` if persistence succeeds; shows accurate toast
 - `_snFirstSlide(content)` — returns markdown text of first slide (before first `\n---\n`)
 - `_fmtSnapTs(isoStr)` — formats ISO timestamp to "Apr 12, 06:21"
-- `renderSnapshotsList()` — rebuilds `#sn-list` innerHTML from `_snaps` array
+- `renderSnapshotsList()` — rebuilds `#sn-list` using `document.createDocumentFragment()` for batch rendering from `_snaps` array
 - `restoreSnapshot(id)` — confirms, restores content + design, refreshes preview, closes modal
 - `deleteSnapshot(id)` — removes from `_snaps`, saves, re-renders list
 - `openSnapshotsPanel()` — loads from storage, renders, opens modal
@@ -123,7 +123,7 @@ All can be written in a single pass.
 - Modal: centered, **680px wide, max-width: calc(100vw - 2rem)**, max 80vh, dark theme matching existing modals.
 - Each item: 120×68px thumbnail on the left (same rendering as thumb strip), label text on right (click to edit inline), timestamp + slide count below, "Restore" and "Del" action buttons.
 - Empty state: "No snapshots yet — press Ctrl+Shift+S to save your first checkpoint."
-- Header: "SNAPSHOTS" title (small caps, like other modals) + "N / 20" count badge + "Take Snapshot" button + close ×.
+- Header: "SNAPSHOTS" title (small caps, like other modals) + "N / 20" count badge + close ×. (No "Take Snapshot" button in the modal — Ctrl+Shift+S is the primary save method, per UI feedback.)
 - Toast: pill at top-center, visible 1.5s. **"Snapshot saved (N/20)"** on success. **"Storage full — not saved"** on QuotaExceededError.
 - On restore confirm: `confirm("Restore this snapshot? Your current content will be replaced.")`.
 
@@ -133,7 +133,7 @@ All can be written in a single pass.
 - Modal title: "Snapshots"
 - Count badge: "3 / 20"
 - Snapshot default label: auto-generated from `new Date().toLocaleTimeString()` (e.g., "7:21:03 AM")
-- Edit label: click label to edit inline, blur to save; empty string reverts to auto-generated
+- Edit label: click label to edit inline (pencil icon ✎ on hover + tooltip "Click to rename"), blur to save; empty string reverts to auto-generated
 - Restore button: "Restore"
 - Delete button: "Del"
 - Toast (success): "Snapshot saved (N/20)"
