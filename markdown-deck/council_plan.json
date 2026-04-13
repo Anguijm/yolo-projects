@@ -1,110 +1,73 @@
 {
   "gate": "plan",
   "project": "markdown-deck",
-  "timestamp": "2026-04-12T08:00:26.010609+00:00",
+  "timestamp": "2026-04-13T04:49:45.130594+00:00",
   "verdicts": [
     {
       "angle": "bugs",
       "verdict": "APPROVE",
       "severity": "low",
-      "reason": "The plan demonstrates robust error handling for localStorage (quota, corruption) and ensures state consistency between in-memory and persisted data, with no new critical correctness risks identified.",
+      "reason": "The plan thoroughly addresses critical correctness concerns including localStorage error handling, state consistency, data loss prevention, and edge cases.",
       "required_fix": "",
       "evidence": "",
       "veto": false
     },
     {
       "angle": "security",
-      "verdict": "OBJECT",
-      "severity": "high",
-      "reason": "The plan describes rendering user-controlled markdown content (via the `md()` function) directly into `innerHTML` for snapshot previews without explicit mention of robust HTML sanitization, which, combined with an `unsafe-inline` CSP, creates a Cross-Site Scripting (XSS) vulnerability.",
-      "required_fix": "Implement robust HTML sanitization (e.g., using DOMPurify) on the output of the `md()` function before it is assigned to `innerHTML` for any user-controlled content, including snapshot thumbnails and main slide rendering.",
-      "evidence": "Thumbnail: extract text before first \\n---\\n from snapshot.content, pass through `md()`, inject as innerHTML of `.sn-thumb`. This is the identical pattern to the existing thumb strip (which also sets `innerHTML = md(slideText)`).\nCSP: `unsafe-inline` is the existing architectural baseline.",
+      "verdict": "APPROVE",
+      "severity": "low",
+      "reason": "The plan introduces no new attack surfaces or data exposure beyond the existing architectural constraints for markdown-deck, which explicitly allow `unsafe-inline` CSP and `md() + innerHTML` rendering for user-authored content.",
+      "required_fix": "",
+      "evidence": "",
       "veto": false
     },
     {
       "angle": "ui",
-      "verdict": "OBJECT",
-      "severity": "high",
-      "reason": "Placing a 'Take Snapshot' button inside the modal for viewing/managing snapshots creates a confusing flow, as the button affects the main editor content rather than the modal's context.",
-      "required_fix": "Remove the 'Take Snapshot' button from the modal header. The primary method (Ctrl+Shift+S) and the toolbar button to open the modal are sufficient for saving.",
-      "evidence": "UI section: 'Header: ... + \"Take Snapshot\" button + close \u00d7.' and Scope: 'takeSnapshot() triggered by Ctrl+Shift+S (and modal button)'",
+      "verdict": "APPROVE",
+      "severity": "low",
+      "reason": "The plan demonstrates a strong understanding of user experience, including clear feedback, good affordances for inline editing, and graceful handling of edge cases.",
+      "required_fix": "",
+      "evidence": "",
       "veto": false
     },
     {
       "angle": "guide",
-      "verdict": "OBJECT",
-      "severity": "medium",
-      "reason": "The inline editable snapshot label lacks a clear visual cue for discoverability, requiring users to guess or be told they can click to edit.",
-      "required_fix": "Add a visual hint (e.g., a subtle pencil icon on hover, or a tooltip on the label itself) to indicate the snapshot label is editable.",
-      "evidence": "Scope: 'Inline editable label per snapshot (click label text \u2192 contenteditable)'; Guide: 'Edit label: click label to edit inline, blur to save'",
+      "verdict": "APPROVE",
+      "severity": "low",
+      "reason": "The plan provides excellent discoverability for all features, including keyboard shortcuts, inline editing, and clear error/success feedback.",
+      "required_fix": "",
+      "evidence": "",
       "veto": false
     },
     {
       "angle": "usefulness",
       "verdict": "APPROVE",
       "severity": "low",
-      "reason": "This feature provides a critical safety net and enables confident experimentation, solving a common problem of accidental data loss or regret during content creation.",
+      "reason": "Version history is a core utility for any content creation tool, preventing data loss and enabling safe experimentation.",
       "required_fix": "",
-      "evidence": "Similar version history/snapshot features are standard in most serious content creation tools (e.g., Google Docs, Figma, IDEs) because users frequently need to revert changes or track milestones. This directly enhances the utility of markdown-deck as a reliable tool.",
+      "evidence": "Google Docs version history, Figma versioning, any serious text editor's undo/redo history. This addresses a fundamental need for users to manage and recover their work.",
       "veto": false
     },
     {
       "angle": "cool",
       "verdict": "APPROVE",
       "severity": "low",
-      "reason": "The visual thumbnail preview of the first slide for each snapshot, combined with quick Ctrl+Shift+S saving and inline editable labels, provides a signature 'oh, nice' moment for a markdown presentation tool, differentiating it from generic text-based version histories.",
+      "reason": "The combination of visual thumbnails, inline editable labels with discoverability, and robust local-only persistence for snapshots in a single-file tool creates a distinct and memorable user experience.",
       "required_fix": "",
       "evidence": "",
       "veto": false
     },
     {
       "angle": "lessons",
-      "verdict": "OBJECT",
-      "severity": "critical",
-      "reason": "The plan for `renderSnapshotsList` violates a documented KEEP lesson by using `innerHTML` for a full re-render of a list (up to 20 items) instead of `document.createDocumentFragment()` for batch rendering.",
-      "required_fix": "Modify `renderSnapshotsList()` to use `document.createDocumentFragment()` to build the list items, and then append the fragment to `#sn-list` to avoid unnecessary DOM reflows during full re-renders.",
-      "evidence": "KEEP: `document.createDocumentFragment()` for addr-list batch render \u2014 even though typical address book is 0-50 entries (below the >50 threshold), the pattern was used because the full re-render on every add/delete rebuilds the entire list. (from learnings.md under [naval-scribe: Command Address Book])",
-      "veto": true
+      "verdict": "APPROVE",
+      "severity": "low",
+      "reason": "Plan adheres to documented architectural constraints and incorporates prior lessons regarding batch rendering, modal sizing, and state persistence.",
+      "required_fix": "",
+      "evidence": "Plan explicitly uses `document.createDocumentFragment()` (naval-scribe KEEP), `width: 680px; max-width: calc(100vw - 2rem)` for modal (markdown-deck KEEP), checks `_saveSnaps()` return value (naval-scribe KEEP), uses `textContent` for editable labels (naval-scribe KEEP), and acknowledges `md() + innerHTML` as existing architectural pattern (STRUCTURAL CONSTRAINT 2).",
+      "veto": false
     }
   ],
-  "all_approved": false,
-  "objections": [
-    {
-      "angle": "security",
-      "verdict": "OBJECT",
-      "severity": "high",
-      "reason": "The plan describes rendering user-controlled markdown content (via the `md()` function) directly into `innerHTML` for snapshot previews without explicit mention of robust HTML sanitization, which, combined with an `unsafe-inline` CSP, creates a Cross-Site Scripting (XSS) vulnerability.",
-      "required_fix": "Implement robust HTML sanitization (e.g., using DOMPurify) on the output of the `md()` function before it is assigned to `innerHTML` for any user-controlled content, including snapshot thumbnails and main slide rendering.",
-      "evidence": "Thumbnail: extract text before first \\n---\\n from snapshot.content, pass through `md()`, inject as innerHTML of `.sn-thumb`. This is the identical pattern to the existing thumb strip (which also sets `innerHTML = md(slideText)`).\nCSP: `unsafe-inline` is the existing architectural baseline.",
-      "veto": false
-    },
-    {
-      "angle": "ui",
-      "verdict": "OBJECT",
-      "severity": "high",
-      "reason": "Placing a 'Take Snapshot' button inside the modal for viewing/managing snapshots creates a confusing flow, as the button affects the main editor content rather than the modal's context.",
-      "required_fix": "Remove the 'Take Snapshot' button from the modal header. The primary method (Ctrl+Shift+S) and the toolbar button to open the modal are sufficient for saving.",
-      "evidence": "UI section: 'Header: ... + \"Take Snapshot\" button + close \u00d7.' and Scope: 'takeSnapshot() triggered by Ctrl+Shift+S (and modal button)'",
-      "veto": false
-    },
-    {
-      "angle": "guide",
-      "verdict": "OBJECT",
-      "severity": "medium",
-      "reason": "The inline editable snapshot label lacks a clear visual cue for discoverability, requiring users to guess or be told they can click to edit.",
-      "required_fix": "Add a visual hint (e.g., a subtle pencil icon on hover, or a tooltip on the label itself) to indicate the snapshot label is editable.",
-      "evidence": "Scope: 'Inline editable label per snapshot (click label text \u2192 contenteditable)'; Guide: 'Edit label: click label to edit inline, blur to save'",
-      "veto": false
-    },
-    {
-      "angle": "lessons",
-      "verdict": "OBJECT",
-      "severity": "critical",
-      "reason": "The plan for `renderSnapshotsList` violates a documented KEEP lesson by using `innerHTML` for a full re-render of a list (up to 20 items) instead of `document.createDocumentFragment()` for batch rendering.",
-      "required_fix": "Modify `renderSnapshotsList()` to use `document.createDocumentFragment()` to build the list items, and then append the fragment to `#sn-list` to avoid unnecessary DOM reflows during full re-renders.",
-      "evidence": "KEEP: `document.createDocumentFragment()` for addr-list batch render \u2014 even though typical address book is 0-50 entries (below the >50 threshold), the pattern was used because the full re-render on every add/delete rebuilds the entire list. (from learnings.md under [naval-scribe: Command Address Book])",
-      "veto": true
-    }
-  ],
-  "vetoed": true
+  "all_approved": true,
+  "objections": [],
+  "vetoed": false
 }

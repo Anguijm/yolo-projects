@@ -229,6 +229,32 @@ textarea:focus { outline: none; }
 .sm-table td.sm-hi { color: #4ade80; }
 .sm-table td.sm-badge { font-size: 0.4rem; }
 .sm-badge-pill { display: inline-block; background: #1a1a1a; border: 1px solid #222; border-radius: 2px; padding: 1px 4px; margin: 0 1px; color: #666; font-size: 0.38rem; letter-spacing: 0.05em; }
+/* Named Snapshots Modal */
+#snapshots-modal { display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%,-50%); background: #0d0d0d; border: 1px solid #333; z-index: 3000; width: 680px; max-width: calc(100vw - 2rem); max-height: 80vh; flex-direction: column; }
+#snapshots-modal.open { display: flex; }
+.sn-header { padding: 0.55rem 1rem; border-bottom: 1px solid #1a1a1a; display: flex; align-items: center; gap: 0.5rem; flex-shrink: 0; }
+.sn-header h3 { font-size: 0.5rem; color: #555; letter-spacing: 0.2em; text-transform: uppercase; flex: 1; }
+.sn-count { font-size: 0.48rem; color: #444; }
+.sn-close { background: none; border: none; color: #555; cursor: pointer; font-size: 1rem; padding: 0 2px; line-height: 1; }
+.sn-body { overflow-y: auto; flex: 1; padding: 0.75rem 1rem; }
+.sn-empty { color: #444; font-size: 0.6rem; text-align: center; padding: 2rem 0; }
+.sn-list { display: flex; flex-direction: column; gap: 0.5rem; }
+.sn-item { display: flex; gap: 0.75rem; align-items: flex-start; background: #111; border: 1px solid #1a1a1a; padding: 0.5rem; border-radius: 3px; }
+.sn-thumb { width: 120px; height: 68px; flex-shrink: 0; background: #0a0a0a; border: 1px solid #1a1a1a; overflow: hidden; font-size: 0.35rem; line-height: 1.3; color: #bbb; pointer-events: none; }
+.sn-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 0.25rem; }
+.sn-label { font-size: 0.6rem; color: #ccc; cursor: text; word-break: break-word; min-height: 1em; border-radius: 2px; }
+.sn-label:focus { outline: 1px solid #333; background: #0a0a0a; }
+.sn-label::after { content: ' \2712'; color: #333; font-size: 0.5rem; opacity: 0; transition: opacity 0.15s; }
+.sn-item:hover .sn-label::after { opacity: 1; }
+.sn-meta { font-size: 0.48rem; color: #444; }
+.sn-actions { display: flex; gap: 0.4rem; margin-top: 0.25rem; }
+.sn-btn { font-size: 0.5rem; padding: 2px 8px; background: #1a1a1a; border: 1px solid #2a2a2a; color: #888; cursor: pointer; border-radius: 2px; }
+.sn-btn:hover { background: #222; color: #ccc; }
+.sn-btn.sn-btn-restore { border-color: #166534; color: #4ade80; }
+.sn-btn.sn-btn-restore:hover { background: #0d2018; }
+/* Snapshot Toast */
+#snap-toast { display: none; position: fixed; top: 1rem; left: 50%; transform: translateX(-50%); background: #1a1a1a; border: 1px solid #333; color: #ccc; font-size: 0.55rem; padding: 0.35rem 0.85rem; border-radius: 999px; z-index: 4000; white-space: nowrap; }
+#snap-toast.visible { display: block; }
 </style>
 </head>
 <body>
@@ -404,6 +430,7 @@ These are speaker notes. They won't appear in the presentation but are preserved
       <button onclick="openFindReplace()" title="Find and replace in markdown (Ctrl+H)">Find/Replace</button>
       <button onclick="toggleOutline()" title="Toggle slide outline panel (O)">Outline</button>
       <button onclick="openStatsPanel()" title="Deck statistics (word count, talk time, breakdown)">Stats</button>
+      <button onclick="openSnapshotsPanel()" title="Named Snapshots — Ctrl+Shift+S to save checkpoint">Snapshots</button>
       <button onclick="openBudgetModal()" title="Per-slide talk time budget">Timer</button>
       <button onclick="openKioskConfig()" title="Kiosk auto-advance mode">Kiosk</button>
       <button onclick="copyAiPrompt()" title="Copy the slide-formatting guide as an AI prompt — paste into ChatGPT/Claude to generate a deck">AI Prompt</button>
@@ -606,6 +633,19 @@ border-radius: 8px</textarea>
     </table>
   </div>
 </div>
+
+<!-- Named Snapshots Modal -->
+<div id="snapshots-modal">
+  <div class="sn-header">
+    <h3>Snapshots</h3>
+    <span class="sn-count" id="sn-count-badge">0 / 20</span>
+    <button class="sn-close" onclick="closeSnapshotsPanel()">&times;</button>
+  </div>
+  <div class="sn-body">
+    <div id="sn-list"></div>
+  </div>
+</div>
+<div id="snap-toast"></div>
 
 <script>
 const inputEl = document.getElementById('input');
@@ -1625,6 +1665,7 @@ document.addEventListener('keydown', e => {
     if (document.getElementById('outline-panel').classList.contains('open')) { closeOutline(); return; }
     if (document.getElementById('kiosk-modal').classList.contains('open')) { closeKioskModal(); return; }
     if (document.getElementById('budget-modal').classList.contains('open')) { closeBudgetModal(); return; }
+    if (document.getElementById('snapshots-modal').classList.contains('open')) { closeSnapshotsPanel(); return; }
     if (_kioskTimer) { stopKiosk(); stopPresent(); return; }
     stopPresent(); return;
   }
@@ -1636,6 +1677,7 @@ document.addEventListener('keydown', e => {
     if (k === 'c') { e.preventDefault(); clearAnnotations(); return; }
     if (k === 't') { e.preventDefault(); toggleTimerRing(); return; }
   }
+  if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'S') { e.preventDefault(); takeSnapshot(); return; }
   if ((e.ctrlKey || e.metaKey) && e.key === 'f' && !presenting) { e.preventDefault(); openSearch(); return; }
   if ((e.ctrlKey || e.metaKey) && e.key === 'h' && !presenting) { e.preventDefault(); openFindReplace(); return; }
   if (e.key === 'o' && !presenting && document.activeElement !== inputEl) { e.preventDefault(); toggleOutline(); return; }
@@ -3757,6 +3799,173 @@ renderPreview();
     }
   });
 })();
+
+// ============ NAMED SNAPSHOTS ============
+(function() {
+  var SNAP_KEY = 'mdeck_snapshots';
+  var _snaps = [];
+  var _toastTimer = null;
+
+  function _loadSnaps() {
+    try { return JSON.parse(localStorage.getItem(SNAP_KEY) || '[]'); }
+    catch(e) { console.warn('[snapshots] corrupt storage, resetting'); return []; }
+  }
+
+  function _saveSnaps(arr) {
+    try { localStorage.setItem(SNAP_KEY, JSON.stringify(arr)); return true; }
+    catch(e) { return false; }
+  }
+
+  function _snFirstSlide(content) {
+    var sep = content.indexOf('\n---\n');
+    return sep === -1 ? content : content.slice(0, sep);
+  }
+
+  function _fmtSnapTs(isoStr) {
+    var d = new Date(isoStr);
+    var months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    return months[d.getMonth()] + ' ' + d.getDate() + ', ' + d.getHours().toString().padStart(2,'0') + ':' + d.getMinutes().toString().padStart(2,'0');
+  }
+
+  function _showToast(msg) {
+    var t = document.getElementById('snap-toast');
+    t.textContent = msg;
+    t.classList.add('visible');
+    if (_toastTimer) clearTimeout(_toastTimer);
+    _toastTimer = setTimeout(function() { t.classList.remove('visible'); _toastTimer = null; }, 1500);
+  }
+
+  window.takeSnapshot = function(label) {
+    var content = inputEl.value;
+    var di = document.getElementById('design-input');
+    var design = di ? di.value : '';
+    var ts = new Date().toISOString();
+    var autoLabel = new Date().toLocaleTimeString();
+    var snap = {
+      id: Date.now().toString(36) + Math.random().toString(36).slice(2, 8),
+      ts: ts,
+      label: label || autoLabel,
+      content: content,
+      design: design,
+      slideCount: slides.length
+    };
+    var candidate = [snap].concat(_snaps).slice(0, 20);
+    if (!_saveSnaps(candidate)) {
+      _showToast('Storage full \u2014 not saved');
+      return;
+    }
+    _snaps = candidate;
+    _showToast('Snapshot saved (' + _snaps.length + '/20)');
+  };
+
+  function renderSnapshotsList() {
+    var list = document.getElementById('sn-list');
+    var badge = document.getElementById('sn-count-badge');
+    badge.textContent = _snaps.length + ' / 20';
+
+    while (list.firstChild) list.removeChild(list.firstChild);
+
+    if (_snaps.length === 0) {
+      var empty = document.createElement('div');
+      empty.className = 'sn-empty';
+      empty.textContent = 'No snapshots yet. Press Ctrl+Shift+S to save your first checkpoint.';
+      list.appendChild(empty);
+      return;
+    }
+
+    var frag = document.createDocumentFragment();
+    _snaps.forEach(function(sn) {
+      var item = document.createElement('div');
+      item.className = 'sn-item';
+
+      var thumb = document.createElement('div');
+      thumb.className = 'sn-thumb';
+      thumb.innerHTML = md(_snFirstSlide(sn.content));
+
+      var info = document.createElement('div');
+      info.className = 'sn-info';
+
+      var labelEl = document.createElement('span');
+      labelEl.className = 'sn-label';
+      labelEl.contentEditable = 'true';
+      labelEl.title = 'Click to rename';
+      labelEl.textContent = sn.label;
+      (function(snapId, origLabel) {
+        labelEl.addEventListener('blur', function() {
+          var newLabel = labelEl.textContent.trim();
+          if (!newLabel) { newLabel = origLabel; labelEl.textContent = origLabel; }
+          var i = _snaps.findIndex(function(s) { return s.id === snapId; });
+          if (i !== -1 && _snaps[i].label !== newLabel) { _snaps[i].label = newLabel; _saveSnaps(_snaps); }
+        });
+        labelEl.addEventListener('keydown', function(e) {
+          if (e.key === 'Enter') { e.preventDefault(); labelEl.blur(); }
+        });
+      })(sn.id, sn.label);
+
+      var meta = document.createElement('span');
+      meta.className = 'sn-meta';
+      meta.textContent = _fmtSnapTs(sn.ts) + ' \u00b7 ' + sn.slideCount + ' slide' + (sn.slideCount !== 1 ? 's' : '');
+
+      var actions = document.createElement('div');
+      actions.className = 'sn-actions';
+
+      var restoreBtn = document.createElement('button');
+      restoreBtn.className = 'sn-btn sn-btn-restore';
+      restoreBtn.textContent = 'Restore';
+      (function(snap) {
+        restoreBtn.addEventListener('click', function() { _restoreSnapshot(snap); });
+      })(sn);
+
+      var delBtn = document.createElement('button');
+      delBtn.className = 'sn-btn';
+      delBtn.textContent = 'Del';
+      (function(snapId) {
+        delBtn.addEventListener('click', function() { _deleteSnapshot(snapId); });
+      })(sn.id);
+
+      actions.appendChild(restoreBtn);
+      actions.appendChild(delBtn);
+      info.appendChild(labelEl);
+      info.appendChild(meta);
+      info.appendChild(actions);
+      item.appendChild(thumb);
+      item.appendChild(info);
+      frag.appendChild(item);
+    });
+    list.appendChild(frag);
+  }
+
+  function _restoreSnapshot(sn) {
+    if (!confirm('Restore this snapshot? Your current content will be replaced.')) return;
+    inputEl.value = sn.content;
+    var di = document.getElementById('design-input');
+    if (di && sn.design !== undefined) {
+      di.value = sn.design;
+      if (typeof applyDesign === 'function') applyDesign();
+    }
+    parseSlides();
+    renderPreview();
+    autoSave();
+    closeSnapshotsPanel();
+  }
+
+  function _deleteSnapshot(id) {
+    if (!confirm('Delete this snapshot?')) return;
+    _snaps = _snaps.filter(function(s) { return s.id !== id; });
+    _saveSnaps(_snaps);
+    renderSnapshotsList();
+  }
+
+  window.openSnapshotsPanel = function() {
+    _snaps = _loadSnaps();
+    renderSnapshotsList();
+    document.getElementById('snapshots-modal').classList.add('open');
+  };
+
+  window.closeSnapshotsPanel = function() {
+    document.getElementById('snapshots-modal').classList.remove('open');
+  };
+})();
 </script>
 
 <script type="text/plain" id="ai-prompt-content"><!-- GUIDE:START -->
@@ -4370,6 +4579,15 @@ Click **Open** to load a `.md` file from your computer. This replaces the curren
 - Save your `.md` files to version control for history
 - The design.md theme tokens are saved separately in localStorage
 - Opening a new file doesn't change your theme — themes persist independently
+
+### Named Snapshots (Ctrl+Shift+S)
+Press **Ctrl+Shift+S** (Cmd+Shift+S on Mac) at any time to save a named checkpoint of your current deck content. Up to 20 snapshots are stored in localStorage. Click **Snapshots** in the toolbar to open the Snapshots panel, where you can:
+- See a thumbnail preview of each checkpoint's first slide
+- Click a snapshot label to rename it inline
+- Click **Restore** to replace the current editor content with that checkpoint (you'll be asked to confirm)
+- Click **Del** to delete a snapshot (you'll be asked to confirm)
+
+Use snapshots before making large structural changes, when exploring alternate deck structures, or as named milestones in a presentation's development.
 
 ---
 
