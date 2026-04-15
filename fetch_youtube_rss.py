@@ -27,6 +27,7 @@ CHANNELS = {
     "@AIJasonZ": "UCrXSVX9a1mj8l0CMLwKgMVw",
     "@echohive": "UCL7przoMtZTmiQMhc9ifIww",
     "@ShawTalebi": "UCa9gErQ9AE5jT2DZLjXBIdA",
+    "@Mark_Kashef": "UCHkzp52CldSPZqU5T49mOnA",
 }
 
 RSS_URL = "https://www.youtube.com/feeds/videos.xml?channel_id={}"
