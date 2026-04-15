@@ -1,70 +1,98 @@
-# Session Handoff — 2026-04-13
+# Session Handoff — 2026-04-15
 
-Read this first, then `session_state.json`, then `_hot.md`.
+Read this first, then `CLAUDE.md`, then run the `status` procedure live.
+
+## TL;DR
+
+`tick · P4 stale 19.5h · 4 backlog · 1 escalation (drift?) · 3 ahead · PR#3 open`
 
 ## What's in flight
 
-**markdown-deck Named Snapshots** — implementation complete, UI fix applied, waiting for cron to run TESTS + OUTCOME gates. If those pass, the feature ships and cron pops `infra-guardrails` as the next tick.
+**PR Anguijm/yolo-projects#3** — `claude/add-video-phase-4-cron-uXuGU` → `main`.
+Three commits, no review yet:
 
-## What was accomplished this session (12 commits)
+- `f72ef7e` — adds `@Mark_Kashef` (`UCHkzp52CldSPZqU5T49mOnA`) to
+  `fetch_youtube_rss.py` CHANNELS. Roster goes 10 → 11.
+- `0d3a89c` + `d36096e` — introduces `CLAUDE.md` with the repo-wide `status`
+  response spec (council-reviewed, 3 OBJECT revisions folded in, no veto).
 
-1. Resolved `adopt-planning-mode` plan escalation x2 (SECURITY override, BUGS+SECURITY override)
-2. Resolved `adopt-planning-mode` implementation escalation (GUIDE fix accepted, applied directly)
-3. **adopt-planning-mode shipped** — 4 council gates passed, structured planning now live in `tick_tock_prompt.md`
-4. Resolved `markdown-deck` plan escalation (LESSONS veto accepted, SECURITY overridden, UI+GUIDE accepted)
-5. Resolved `markdown-deck` implementation escalation (UI button/font size fix)
-6. Triaged 17 Phase 4 experiments across 3 rounds (backlog: 0)
-7. Broadened goalpost-moving rule to cross-gate (learnings.md)
-8. Added plan-artifact structural policy (learnings.md)
-9. Rewrote `update_session_state.py` (destructive → merge-based)
-10. Merged feature branch to main (unrelated-histories reconciliation)
-11. Generated complete Phase 4 experiments catalog (`phase4_experiments.md` — 1,273 lines, 75 experiments)
-12. Cleared all escalations, all backlog, all manual queue items
+If the PR merges: delete the branch, `_hot.md` needs a refresh, next cron
+will scan 11 channels. If it doesn't: keep working on this branch.
 
-## Current state
+## Open issues to investigate
 
-| Area | Status |
+### 1. Phase 4 cron: 9/10 feeds failed last run
+`phase4_run.json` (22:25 UTC on 2026-04-14): `feeds_successful: 1`,
+`feeds_failed: 9`. Status still recorded as `success` because the workflow
+only checks `feeds_successful > 0` (`.github/workflows/daily_research.yml:92`).
+That threshold is too lenient — one working feed out of ten shouldn't count
+as success. Either tighten the threshold or investigate why 9 feeds broke
+simultaneously (YouTube rate-limit? GitHub Actions IP blocked? User-Agent
+change?).
+
+### 2. Council escalation drift
+`session_state.json.council_escalations` has 1 entry but no
+`COUNCIL_ESCALATION.md` exists on disk. This is the exact bug called out in
+the previous handoff ("Council occasionally leaves a dangling `]` bracket …
+council.py's state writing logic"). Either the escalation was resolved
+without updating `session_state.json`, or the entry is stale. Inspect and
+reconcile before the next tick build, or the escalation guard will halt it.
+
+### 3. `tick_tock.last_session_timestamp` missing
+`session_state.json.tick_tock` returns `?` for the last-session timestamp.
+The CLAUDE.md status spec expects it. Either backfill it from git log of
+the last `cron(tock):` / `cron(tick):` commit, or document it as a known
+`unknown` and carry on.
+
+### 4. Experiment status enum mismatch
+`experiments.json` has `status` values of `adopted`, `deferred`,
+`discarded`, `skipped` in addition to the canonical `backlog` /
+`in_progress` / `done`. Either the CLAUDE.md glossary is incomplete (update
+it to match reality) or `experiments.json` is using non-canonical values
+that `program.md:286-298` doesn't sanction. Reconcile.
+
+## Policy / convention changes made this session
+
+- **`CLAUDE.md` now exists** at repo root. When the user asks for `status`,
+  follow that spec exactly: TL;DR headline, 5 sections, live reads, dual-
+  timezone timestamps, 40-line cap, `unknown` for missing fields.
+- **Council fallback documented**: when neither `GEMINI_API_KEY` nor
+  `ANTHROPIC_API_KEY` is set (e.g. Claude Code remote session), run the 7
+  angles inline by reading `council/angles/*.md` yourself. Label clearly as
+  an inline run, not a real `council.py` invocation.
+
+## Current state (read live — these numbers will drift)
+
+| Area | Last known |
 |---|---|
-| Branch | `main`, clean |
-| Open escalations | 0 |
-| Phase 4 backlog | 0 |
-| Manual queue | 0 |
-| Tick queue | 9 items (infra-guardrails next after tock completes) |
-| Portfolio | 222 built, 143 active |
-| Experiments | 75 total, 54 adopted, 11 discarded, 8 deferred |
-| Next cron action | Tock: markdown-deck Named Snapshots → TESTS gate |
+| Branch | `claude/add-video-phase-4-cron-uXuGU`, clean, 3 ahead of origin/main |
+| Open PR | Anguijm/yolo-projects#3 |
+| Open escalations | 1 in session_state.json (may be drift — see above) |
+| Phase 4 backlog | 4 |
+| Tick queue | 5 approved in `_hot.md` |
+| Portfolio | 223 built, 97 active |
+| Experiments | 79 total: 44 done, 10 adopted, 11 discarded, 8 deferred, 4 backlog, 2 skipped |
+| Verdicts (done) | 34 adopt, 10 discard |
+| Last cron | 2026-04-14 22:25 UTC (19.5h ago — stale) |
+| Cadence | next = `tick`; last = `tock` (timestamp missing) |
 
-## Tick queue (for after current tock)
+## Next-session first moves
 
-1. infra-guardrails — formalize build constraints in program.md
-2. infra-yolo-evals — add ux_completeness.py, mobile_usability.py, cult_status.py
-3. infra-memory-feedback — extend build_memory.py with recall outcome tracking
-4. port-ref — Well-Known Port Quick-Reference PWA (first non-infra build)
-5. adopt-stack-audit — one-time STACK_AUDIT.md dependency snapshot
-6. adopt-bare-agent — 50-line minimal agent loop + comparison plan
-7. model-eval-backbone — benchmark latest Claude + Haiku/Sonnet vs Opus on historical builds
-8. strategic-niche-audit — map YOLO portfolio to 5 defensible AI niches
-9. eval-managed-agents — benchmark Claude /v1/agents API vs manual orchestration
+1. Check if Anguijm/yolo-projects#3 merged. If yes, `git checkout main && git
+   pull && git branch -d claude/add-video-phase-4-cron-uXuGU`.
+2. Run `status` procedure and confirm the numbers match CLAUDE.md shape.
+3. Investigate issue #1 (feed failures) before the next tick — an
+   ingestion pipeline scanning one channel is not earning its cron slot.
+4. Reconcile issue #2 (escalation drift) before any build starts, or the
+   escalation guard will block it.
 
-## Policy changes made this session
+## Key files
 
-All in `learnings.md` near the top:
-
-- **Broadened goalpost-moving rule** — now tracks per (angle, project, feature) across ALL gates, not just within a gate. Keyword overlap > 0.6 → auto-downgrade to advisory.
-- **Plan-artifact policy** — plan.md and similar are human-review documents. SECURITY may not require producer-side sanitization absent a concrete downstream parser.
-- Both policies were exercised this session (adopt-planning-mode SECURITY override x2).
-
-## Known issues for future sessions
-
-- `update_session_state.py` channel regex catches only 6 of 8 channels (cosmetic — experiment counts are correct, channel display list is short). The regex in `get_channels()` doesn't match channels added after the original 6.
-- Council occasionally leaves a dangling `]` bracket when clearing `council_escalations` in session_state.json, causing JSON parse errors. Seen twice this session. Root cause is likely in council.py's state writing logic — it removes array entries but leaves the bracket from the original array structure.
-- The cron sometimes re-escalates on issues already resolved because it committed before seeing the resolution commit (race condition between human push and cron run). The escalation guard in `tick_tock.yml` catches this at the workflow level, but the council still wastes a run generating the duplicate escalation.
-
-## Key files to read
-
-- `session_state.json` — full machine-readable state (tick queue, escalations, resume instructions)
-- `_hot.md` — 33-line hot cache for cron context recovery
-- `learnings.md` — accumulated policies and patterns (top ~30 lines are the most important)
-- `phase4_experiments.md` — complete 75-experiment catalog with cross-channel analysis
-- `program.md` — the master methodology document
-- `skills/00-bootstrap.md` — skill routing logic
+- `CLAUDE.md` — status response spec (new this session)
+- `session_state.json` — tick/tock, escalations, build memory
+- `_hot.md` — 30-line portfolio snapshot (last updated 2026-04-13 19:00 UTC)
+- `phase4_run.json` — last cron report
+- `experiments.json` — experiment ledger
+- `fetch_youtube_rss.py:17-31` — CHANNELS dict
+- `COUNCIL_ESCALATION.md` — present iff a real escalation is open
+- `council/angles/*.md` — 7 advocate prompts (for inline council fallback)
