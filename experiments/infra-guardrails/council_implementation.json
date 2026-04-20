@@ -1,0 +1,110 @@
+{
+  "gate": "implementation",
+  "project": "experiments/infra-guardrails",
+  "timestamp": "2026-04-20T11:12:21.648407+00:00",
+  "verdicts": [
+    {
+      "angle": "bugs",
+      "verdict": "OBJECT",
+      "severity": "critical",
+      "reason": "The `check_constraints.py` verifier incorrectly parses constraint rows from the entire `program.md` file instead of scoping to the 'Build Constraints' section, and it fails to enforce that *only* the specified C1-C10 constraints are present, allowing extraneous constraint IDs to pass silently.",
+      "required_fix": "1. Modify `check_constraints` to extract the content specifically under the '## Build Constraints' section and apply `ROW_RE` only to that scoped content. 2. Add a check to ensure that `found_ids` contains *exactly* the `REQUIRED_IDS` (i.e., no extra C-prefixed IDs are present).",
+      "evidence": "file: experiments/infra-guardrails/check_constraints.py\nlines: 26, 33-38\n```python\n    text = open(path).read()\n    # ... other checks ...\n    found_ids = set()\n    for m in ROW_RE.finditer(text):\n        cid = m.group(1)\n        # ... row field checks ...\n        found_ids.add(cid)\n\n    for cid in REQUIRED_IDS:\n        if cid not in found_ids:\n            failures.append(f\"Missing constraint: {cid}\")\n```",
+      "veto": false
+    },
+    {
+      "angle": "security",
+      "verdict": "OBJECT",
+      "severity": "medium",
+      "reason": "The `check_constraints.py` script reads the content of a file specified by `sys.argv[1]` without validation, which could be exploited by a compromised build agent to read arbitrary files on the system.",
+      "required_fix": "Modify `check_constraints.py` to strictly enforce that the `path` argument must be 'program.md', or remove the ability to specify a custom path via command-line arguments if it is solely intended for 'program.md'.",
+      "evidence": "check_constraints.py:34 (path = sys.argv[1] if len(sys.argv) > 1 else \"program.md\") and check_constraints.py:19 (text = open(path).read())",
+      "veto": false
+    },
+    {
+      "angle": "ui",
+      "verdict": "APPROVE",
+      "severity": "low",
+      "reason": "The new section in program.md is clearly introduced, well-structured with a table, and provides actionable information for users on how to verify and amend the constraints.",
+      "required_fix": "",
+      "evidence": "",
+      "veto": false
+    },
+    {
+      "angle": "guide",
+      "verdict": "APPROVE",
+      "severity": "low",
+      "reason": "The new Build Constraints section in program.md clearly explains its purpose, how to use the associated verification script, and the parsing format for its content.",
+      "required_fix": "",
+      "evidence": "",
+      "veto": false
+    },
+    {
+      "angle": "usefulness",
+      "verdict": "APPROVE",
+      "severity": "low",
+      "reason": "This project establishes critical, machine-checkable guardrails for the system's own operational rules, ensuring consistency and preventing subtle errors in rule definition.",
+      "required_fix": "",
+      "evidence": "The `check_constraints.py` script will be run on every build, acting as a foundational tool to verify the integrity of `program.md`'s Build Constraints section, which defines the system's core operational logic. This is a high-frequency, essential internal utility.",
+      "veto": false
+    },
+    {
+      "angle": "cool",
+      "verdict": "OBJECT",
+      "severity": "critical",
+      "reason": "This is a purely functional internal script with no external-facing differentiation, signature move, or memorability that would make it stand out in a portfolio of 'tools'.",
+      "required_fix": "Transform this into a general-purpose, uniquely angled markdown validation tool, or integrate a novel, shareable mechanism for defining and checking constraints that offers a 'signature move' beyond basic scripting.",
+      "evidence": "Generic markdown linters (e.g., markdownlint, remark-lint) offer similar structural validation capabilities, albeit with less specificity.",
+      "veto": false
+    },
+    {
+      "angle": "lessons",
+      "verdict": "OBJECT",
+      "severity": "critical",
+      "reason": "The description of the regex in changes.md does not exactly match the actual regex string in check_constraints.py, violating a documented lesson on preventing council misinterpretations.",
+      "required_fix": "Update the description of the regex in changes.md to precisely match the actual regex string used in check_constraints.py, including whitespace handling and the exact non-empty field pattern.",
+      "evidence": "IMPROVE: Council review description (pseudocode for prompt) must exactly match actual regex strings \u2014 council caught false bugs from an inaccurate description of the regex I wrote.",
+      "veto": true
+    }
+  ],
+  "all_approved": false,
+  "objections": [
+    {
+      "angle": "bugs",
+      "verdict": "OBJECT",
+      "severity": "critical",
+      "reason": "The `check_constraints.py` verifier incorrectly parses constraint rows from the entire `program.md` file instead of scoping to the 'Build Constraints' section, and it fails to enforce that *only* the specified C1-C10 constraints are present, allowing extraneous constraint IDs to pass silently.",
+      "required_fix": "1. Modify `check_constraints` to extract the content specifically under the '## Build Constraints' section and apply `ROW_RE` only to that scoped content. 2. Add a check to ensure that `found_ids` contains *exactly* the `REQUIRED_IDS` (i.e., no extra C-prefixed IDs are present).",
+      "evidence": "file: experiments/infra-guardrails/check_constraints.py\nlines: 26, 33-38\n```python\n    text = open(path).read()\n    # ... other checks ...\n    found_ids = set()\n    for m in ROW_RE.finditer(text):\n        cid = m.group(1)\n        # ... row field checks ...\n        found_ids.add(cid)\n\n    for cid in REQUIRED_IDS:\n        if cid not in found_ids:\n            failures.append(f\"Missing constraint: {cid}\")\n```",
+      "veto": false
+    },
+    {
+      "angle": "security",
+      "verdict": "OBJECT",
+      "severity": "medium",
+      "reason": "The `check_constraints.py` script reads the content of a file specified by `sys.argv[1]` without validation, which could be exploited by a compromised build agent to read arbitrary files on the system.",
+      "required_fix": "Modify `check_constraints.py` to strictly enforce that the `path` argument must be 'program.md', or remove the ability to specify a custom path via command-line arguments if it is solely intended for 'program.md'.",
+      "evidence": "check_constraints.py:34 (path = sys.argv[1] if len(sys.argv) > 1 else \"program.md\") and check_constraints.py:19 (text = open(path).read())",
+      "veto": false
+    },
+    {
+      "angle": "cool",
+      "verdict": "OBJECT",
+      "severity": "critical",
+      "reason": "This is a purely functional internal script with no external-facing differentiation, signature move, or memorability that would make it stand out in a portfolio of 'tools'.",
+      "required_fix": "Transform this into a general-purpose, uniquely angled markdown validation tool, or integrate a novel, shareable mechanism for defining and checking constraints that offers a 'signature move' beyond basic scripting.",
+      "evidence": "Generic markdown linters (e.g., markdownlint, remark-lint) offer similar structural validation capabilities, albeit with less specificity.",
+      "veto": false
+    },
+    {
+      "angle": "lessons",
+      "verdict": "OBJECT",
+      "severity": "critical",
+      "reason": "The description of the regex in changes.md does not exactly match the actual regex string in check_constraints.py, violating a documented lesson on preventing council misinterpretations.",
+      "required_fix": "Update the description of the regex in changes.md to precisely match the actual regex string used in check_constraints.py, including whitespace handling and the exact non-empty field pattern.",
+      "evidence": "IMPROVE: Council review description (pseudocode for prompt) must exactly match actual regex strings \u2014 council caught false bugs from an inaccurate description of the regex I wrote.",
+      "veto": true
+    }
+  ],
+  "vetoed": true
+}

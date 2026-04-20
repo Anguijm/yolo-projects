@@ -45,6 +45,25 @@ These are non-negotiable. Every single build must follow these without exception
 3. **Learn from every build.** Record what worked, what failed, and what to do differently. Read learnings before starting. The system must get measurably better over time. If you're making the same mistake twice, the process is broken.
 4. **Never mark a project "working" unless it actually works.** If testing reveals bugs, fix them. If you can't fix them, mark it "partial" or "failed" honestly. Lying about status wastes the user's time.
 
+## Build Constraints
+
+Machine-checkable pre-ship gates. Every build must satisfy all 10 before committing or pushing. Run `python3 experiments/infra-guardrails/check_constraints.py` to verify this section is structurally intact. Each row is parsed as `ID | Rule | Pass condition | Fail action`.
+
+| ID | Rule | Pass condition | Fail action |
+|----|------|----------------|-------------|
+| C1 | Max files modified per build | git diff --name-only HEAD shows 50 or fewer files changed | Halt build; log excess file count; do not push |
+| C2 | Max lines added per build | git diff --stat HEAD shows 2000 or fewer lines added | Halt build; log excess line count; do not push |
+| C3 | Pre-filter passes before TESTS gate | test_project.py PASS and eval_bugs.py PASS (if present) and security_scan.py PASS (if present) | Fix all failures before running council TESTS gate |
+| C4 | Council OBJECT triggers fix-and-retry | Every OBJECT verdict is addressed before re-running the gate; no proceeding to next gate with open OBJECTs | Halt current gate; apply fix; rerun same gate |
+| C5 | LESSONS VETO is a hard halt | Exit code 10 from council.py triggers immediate escalation; no auto-fix permitted | Commit escalation state; push; exit 0; await human resolution |
+| C6 | Max 3 fix attempts per gate | Attempt counter stays at 3 or fewer per gate; third failure triggers escalation (exit code 11) | Escalate; do not retry a fourth time |
+| C7 | Commit message must include build prefix | Message starts with cron( or tick: or tock: or ESCALATION: | Rephrase commit message before committing |
+| C8 | council_escalations empty at build start | session_state.json council_escalations array is empty | Stop immediately; do not build; push nothing |
+| C9 | No harness halt at build start | .harness_halt file does not exist in repo root | Read halt file; log reason; stop; exit 0 |
+| C10 | All 4 gates pass before push | Plan and Implementation and Tests and Outcome each return exit code 0 | Any gate failure halts push; no partial builds reach git push |
+
+*This list is versioned. Amendments are added via the tick queue — never edited unilaterally during a build.*
+
 ## Rules
 
 - **Generate the idea yourself.** Base it on past builds, recent conversations, and interests. Pick something that hasn't been tried. Bias toward ideas that sound almost too ambitious.
