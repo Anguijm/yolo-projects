@@ -4,44 +4,53 @@ Read this first, then `CLAUDE.md`, then run the `status` procedure live.
 
 ## TL;DR
 
-`tick · P4 stale ~21h · 17 backlog · 0 escalations · clean, merged`
+`tick · P4 stale ~22h · 17 backlog · 1 escalation (impl, LESSONS VETO) · PR#6 open`
 
-Next session opens with a clean slate: no open escalations, no in-flight
-work, `infra-guardrails` ready to resume at the IMPLEMENTATION gate.
+Fresh escalation: cron attempted `infra-guardrails` IMPLEMENTATION gate
+and took a LESSONS VETO. Build halted. **Next session must triage this
+before any other tick work.**
 
 ## What's in flight
 
-Nothing. Branch `claude/add-status-feature-RKkG1` was merged into `main`
-as PR #5 (`b79dd17`). Local workspace is clean.
+- **PR #6** (`claude/add-status-feature-RKkG1` → `main`) — this handoff
+  refresh. Should be mergeable once you review.
+- **Open escalation:** `experiments/infra-guardrails` implementation gate,
+  timestamp 2026-04-20 11:12 UTC. See
+  `experiments/infra-guardrails/COUNCIL_ESCALATION.md`.
 
 Last commits on main:
 
-- `b79dd17` — merge PR #5 (infra-guardrails plan-gate escalation resolution)
-- `747bee5` — tick: resolve infra-guardrails plan-gate escalation
-- `ce65cd3` — cron(phase4): daily scan (the manual workflow_dispatch run
-  that fixed the 9/11 feed-failure regression — all 11 feeds now healthy)
+- `4f24d57` — ESCALATION: infra-guardrails implementation LESSONS VETO
+  (tick-tock-bot). Already committed program.md Build Constraints table
+  C1–C10 and an initial `check_constraints.py`; flagged changes.md regex
+  description as non-matching the actual regex in check_constraints.py.
+- `b79dd17` — merge PR #5 (plan-gate escalation resolution)
+- `747bee5` — tick: resolve plan-gate escalation
+- `ce65cd3` — cron(phase4): manual workflow_dispatch run that fixed 9/11
+  feed-failure regression (all 11 feeds now healthy)
 
 ## What got done this session
 
 1. **Phase 4 ingestion recovered.** Manual `workflow_dispatch` run produced
    11/11 feeds healthy (previous cron had only 2/11), +15 new videos, +6
    new experiment cards. `phase4_run.json` at 2026-04-19T19:34 UTC.
-2. **infra-guardrails plan-gate escalation resolved.**
-   - **BUGS OBJECT accepted.** Amended `experiments/infra-guardrails/plan.md`
-     so `check_constraints.py` must verify each constraint row parses to
-     `C# | Rule | Pass | Fail` (four non-empty pipe-separated fields), not
-     just that IDs C1–C10 exist. Verifier grows ~30 → ~40 lines.
-   - **SECURITY OBJECT overridden.** Same shape as `adopt-planning-mode`
-     2026-04-09 precedent; broadened goalpost rule applies (program.md is
-     self-authored, human-reviewed at commit time, no concrete downstream
-     parser, no trust boundary). Resolution recorded in
-     `experiments/infra-guardrails/COUNCIL_ESCALATION.md`.
-   - `session_state.json` updated: escalation moved to
-     `council_escalations_resolved`; `resume_instructions` now points at
-     IMPLEMENTATION gate.
-3. **Stale state files refreshed.** `_hot.md` and `session_state.json`
-   phase4 section were showing pre-recovery numbers (75 experiments, 6
-   channels). Bumped to live values (92 experiments / 17 backlog / 11
+2. **infra-guardrails plan-gate escalation resolved** (PR #5 merged).
+   - **BUGS OBJECT accepted.** Amended plan.md so `check_constraints.py`
+     must verify each constraint row parses to `C# | Rule | Pass | Fail`.
+   - **SECURITY OBJECT overridden** per 2026-04-09 precedent and broadened
+     goalpost rule.
+3. **Cron ran IMPLEMENTATION — took a LESSONS VETO** (commit `4f24d57`,
+   main). Cron committed program.md Build Constraints table (C1–C10) and
+   `experiments/infra-guardrails/check_constraints.py`. LESSONS angle
+   vetoed on grounds that `changes.md`'s regex description (pseudocode)
+   doesn't exactly match the actual regex string in `check_constraints.py`
+   — cited learning: "council review descriptions must exactly match actual
+   regex strings to avoid false bugs." Additional (non-veto) objections:
+   BUGS (scope regex to Build Constraints section, enforce exact C1–C10
+   set), SECURITY (path arg validation), COOL (no signature move for
+   internal infra script).
+4. **Stale state files refreshed.** `_hot.md` and `session_state.json`
+   phase4 section bumped to live values (92 experiments / 17 backlog / 11
    channels).
 
 ## Open issues to investigate
@@ -83,9 +92,9 @@ skills, no new council angles.
 
 | Area | Last known (2026-04-20) |
 |---|---|
-| Branch | `claude/add-status-feature-RKkG1` — fully merged to main, 0 unmerged commits |
-| Open PRs | 0 |
-| Open escalations | 0 |
+| Branch | `claude/add-status-feature-RKkG1` — PR #6 open, 1 commit + merge commit ahead |
+| Open PRs | 1 (#6 — this handoff refresh) |
+| Open escalations | 1 (`infra-guardrails` implementation, LESSONS VETO) |
 | Phase 4 backlog | 17 |
 | Tick queue | 9 approved, 0 pending |
 | Portfolio | 223 built, 97 active |
@@ -93,24 +102,32 @@ skills, no new council angles.
 | Verdicts (done) | 34 adopt, 10 discard, 0 iterate |
 | Channels | 11 tracked, 0 failed on last run |
 | Last cron | 2026-04-19 19:34 UTC |
-| Cadence | next = `tick`; last = `tock` on 2026-04-13 |
-| `resume_instructions` | "Resume infra-guardrails build at IMPLEMENTATION gate with amended plan.md" |
+| Cadence | next = `tick` (blocked by escalation); last = `tock` on 2026-04-13 |
+| `resume_instructions` | "ESCALATED — see council_escalations[] … DO NOT auto-fix" |
 
 ## Next-session first moves
 
-1. `git checkout main && git pull` — pick up the merged PR #5.
-2. Delete stale local branch: `git branch -d claude/add-status-feature-RKkG1`
-   (if still present).
-3. Run the `status` procedure live and confirm numbers match this handoff
-   (allow drift for a fresh cron — next scheduled run is 21:37 UTC).
-4. Start the next tick. Per `resume_instructions`, that means resuming
-   `infra-guardrails` at the IMPLEMENTATION gate with the amended
-   `plan.md`: write `check_constraints.py` (~40 lines) that validates
-   both (a) C1–C10 presence and (b) each constraint row parses to the
-   `C# | Rule | Pass | Fail` format, then proceed to TESTS and OUTCOME
-   gates.
-5. Only after `infra-guardrails` closes, pop the next item from
-   `tick_queue_approved` (currently `infra-yolo-evals`).
+1. Merge PR #6 (if not already), `git checkout main && git pull`, delete
+   local `claude/add-status-feature-RKkG1` if present.
+2. Run the `status` procedure live and confirm numbers.
+3. **Triage the open LESSONS VETO.** Read
+   `experiments/infra-guardrails/COUNCIL_ESCALATION.md` and decide:
+   - **Fix option:** Update `experiments/infra-guardrails/changes.md` so
+     the regex description matches the actual regex literal in
+     `check_constraints.py` verbatim (trivial edit). Also consider
+     addressing BUGS's legit scope-to-section + exact-set concerns and
+     SECURITY's path-arg hardening before re-running council.
+     COOL's signature-move objection is weak for internal infra — safe
+     to override with the same rationale used for the plan-gate SECURITY
+     override (utility-flagship exemption).
+   - **Override option:** LESSONS cited a process lesson, not a code bug;
+     the mismatch is cosmetic (description vs. literal). If preferred,
+     treat as advisory and resume. Note though — LESSONS VETO is a hard
+     halt per the very Build Constraints this tick is adding (C5); an
+     override here would be immediately contradicted by the document being
+     shipped. Fix is the consistent path.
+4. After `infra-guardrails` ships, pop `infra-yolo-evals` from
+   `tick_queue_approved`.
 
 ## Key files
 
