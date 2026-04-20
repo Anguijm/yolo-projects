@@ -62,8 +62,10 @@ No other files modified.
 ## Function Map
 
 **`experiments/infra-guardrails/check_constraints.py`**
-- `check_constraints(path)` — reads `program.md`, verifies: (1) `## Build Constraints` section heading exists, (2) all constraint IDs C1–C10 appear, (3) no existing required sections (`## Bedrock Rules`, `## Rules`, `## Testing Protocol`) were removed. Returns list of failures; empty list = pass. ~25 lines.
+- `check_constraints(path)` — reads `program.md`, verifies: (1) `## Build Constraints` section heading exists, (2) all constraint IDs C1–C10 appear, (3) **each constraint row matches the canonical format `C\d+ \| <rule> \| <pass condition> \| <fail action>` with four non-empty pipe-separated fields** (format validation, not just ID presence), (4) no existing required sections (`## Bedrock Rules`, `## Rules`, `## Testing Protocol`) were removed. Returns list of failures; empty list = pass. ~40 lines.
 - `main()` — CLI entry point: calls `check_constraints("program.md")`, prints PASS or failure list, exits 1 on failures. ~8 lines.
+
+Rationale for format check (added 2026-04-19 per escalation resolution): "machine-checkable" means each constraint is parseable into its four fields by a downstream tool, not merely that an ID string appears somewhere in the file. ID-presence alone would pass a program.md where the constraint body was accidentally deleted or reformatted.
 
 **`program.md`** — documentation only, no functions.
 
@@ -99,6 +101,7 @@ The `## Build Constraints` section will use:
 - Verify `program.md` is syntactically valid Markdown (no broken headers, unclosed code blocks) by reading it back
 - Verify the new section heading appears exactly once in the file
 - Verify all 10 constraint IDs (C1–C10) appear in the section
+- Verify every constraint row parses into the canonical `C# | Rule | Pass | Fail` format (4 non-empty pipe-separated fields); malformed rows fail the pre-filter
 - Verify no existing section was accidentally overwritten (check that `## Bedrock Rules`, `## Rules`, and `## Testing Protocol` still exist verbatim)
 
 **Council TESTS gate:**

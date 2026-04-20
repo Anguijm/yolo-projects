@@ -35,4 +35,10 @@
 
 ## Resolution
 
-Human decision required. Resume the build after updating session_state.json.
+**Resolved 2026-04-19 by John (interactive session, via Claude).**
+
+**BUGS OBJECT — ACCEPTED.** Plan amended: `check_constraints.py` now also verifies each constraint row parses into the canonical `C# | Rule | Pass | Fail` format with four non-empty pipe-separated fields (Function Map + Test Strategy updated in `plan.md`). BUGS's concern was legitimate — "machine-checkable" means parseable content, not just ID presence. Estimated verifier size grows from ~30 to ~40 lines.
+
+**SECURITY OBJECT — OVERRIDDEN.** Precedent: `adopt-planning-mode` plan-gate escalation resolved 2026-04-09 ("plan artifacts are human-review documents, not machine inputs — SECURITY may not require producer-side sanitization absent a concrete downstream parser"). The broadened goalpost-moving rule in `learnings.md` (2026-04-09) applies here: same angle, substantively similar "prompt injection on LLM-read document" concern, no new evidence of a concrete production parser. `program.md` is self-authored by the agent, human-reviewed at commit time, committed to the repo, and read by the agent at session start — the agent is both producer and consumer and human review sits between. No trust boundary is crossed.
+
+Build may proceed to IMPLEMENTATION gate with the amended plan.
