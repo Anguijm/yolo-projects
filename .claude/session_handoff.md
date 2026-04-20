@@ -1,98 +1,144 @@
-# Session Handoff — 2026-04-15
+# Session Handoff — 2026-04-20
 
 Read this first, then `CLAUDE.md`, then run the `status` procedure live.
 
 ## TL;DR
 
-`tick · P4 stale 19.5h · 4 backlog · 1 escalation (drift?) · 3 ahead · PR#3 open`
+`tick · P4 stale ~22h · 17 backlog · 1 escalation (impl, LESSONS VETO) · PR#6 open`
+
+Fresh escalation: cron attempted `infra-guardrails` IMPLEMENTATION gate
+and took a LESSONS VETO. Build halted. **Next session must triage this
+before any other tick work.**
 
 ## What's in flight
 
-**PR Anguijm/yolo-projects#3** — `claude/add-video-phase-4-cron-uXuGU` → `main`.
-Three commits, no review yet:
+- **PR #6** (`claude/add-status-feature-RKkG1` → `main`) — this handoff
+  refresh. Should be mergeable once you review.
+- **Open escalation:** `experiments/infra-guardrails` implementation gate,
+  timestamp 2026-04-20 11:12 UTC. See
+  `experiments/infra-guardrails/COUNCIL_ESCALATION.md`.
 
-- `f72ef7e` — adds `@Mark_Kashef` (`UCHkzp52CldSPZqU5T49mOnA`) to
-  `fetch_youtube_rss.py` CHANNELS. Roster goes 10 → 11.
-- `0d3a89c` + `d36096e` — introduces `CLAUDE.md` with the repo-wide `status`
-  response spec (council-reviewed, 3 OBJECT revisions folded in, no veto).
+Last commits on main:
 
-If the PR merges: delete the branch, `_hot.md` needs a refresh, next cron
-will scan 11 channels. If it doesn't: keep working on this branch.
+- `4f24d57` — ESCALATION: infra-guardrails implementation LESSONS VETO
+  (tick-tock-bot). Already committed program.md Build Constraints table
+  C1–C10 and an initial `check_constraints.py`; flagged changes.md regex
+  description as non-matching the actual regex in check_constraints.py.
+- `b79dd17` — merge PR #5 (plan-gate escalation resolution)
+- `747bee5` — tick: resolve plan-gate escalation
+- `ce65cd3` — cron(phase4): manual workflow_dispatch run that fixed 9/11
+  feed-failure regression (all 11 feeds now healthy)
+
+## What got done this session
+
+1. **Phase 4 ingestion recovered.** Manual `workflow_dispatch` run produced
+   11/11 feeds healthy (previous cron had only 2/11), +15 new videos, +6
+   new experiment cards. `phase4_run.json` at 2026-04-19T19:34 UTC.
+2. **infra-guardrails plan-gate escalation resolved** (PR #5 merged).
+   - **BUGS OBJECT accepted.** Amended plan.md so `check_constraints.py`
+     must verify each constraint row parses to `C# | Rule | Pass | Fail`.
+   - **SECURITY OBJECT overridden** per 2026-04-09 precedent and broadened
+     goalpost rule.
+3. **Cron ran IMPLEMENTATION — took a LESSONS VETO** (commit `4f24d57`,
+   main). Cron committed program.md Build Constraints table (C1–C10) and
+   `experiments/infra-guardrails/check_constraints.py`. LESSONS angle
+   vetoed on grounds that `changes.md`'s regex description (pseudocode)
+   doesn't exactly match the actual regex string in `check_constraints.py`
+   — cited learning: "council review descriptions must exactly match actual
+   regex strings to avoid false bugs." Additional (non-veto) objections:
+   BUGS (scope regex to Build Constraints section, enforce exact C1–C10
+   set), SECURITY (path arg validation), COOL (no signature move for
+   internal infra script).
+4. **Stale state files refreshed.** `_hot.md` and `session_state.json`
+   phase4 section bumped to live values (92 experiments / 17 backlog / 11
+   channels).
 
 ## Open issues to investigate
 
-### 1. Phase 4 cron: 9/10 feeds failed last run
-`phase4_run.json` (22:25 UTC on 2026-04-14): `feeds_successful: 1`,
-`feeds_failed: 9`. Status still recorded as `success` because the workflow
-only checks `feeds_successful > 0` (`.github/workflows/daily_research.yml:92`).
-That threshold is too lenient — one working feed out of ten shouldn't count
-as success. Either tighten the threshold or investigate why 9 feeds broke
-simultaneously (YouTube rate-limit? GitHub Actions IP blocked? User-Agent
-change?).
+### 1. Experiment status enum mismatch (carried from prior handoff)
+`experiments.json` still uses `adopted` / `deferred` / `discarded` /
+`skipped` as statuses alongside the canonical `backlog` / `in_progress` /
+`done`. Live breakdown (2026-04-20): done 44, adopted 10, discarded 11,
+deferred 8, skipped 2, backlog 17. Either `CLAUDE.md` glossary /
+`program.md:286-298` need expanding to sanction these, or the ledger
+needs migrating. Not urgent — the status procedure tolerates it — but
+the canonical documentation still doesn't match reality.
 
-### 2. Council escalation drift
-`session_state.json.council_escalations` has 1 entry but no
-`COUNCIL_ESCALATION.md` exists on disk. This is the exact bug called out in
-the previous handoff ("Council occasionally leaves a dangling `]` bracket …
-council.py's state writing logic"). Either the escalation was resolved
-without updating `session_state.json`, or the entry is stale. Inspect and
-reconcile before the next tick build, or the escalation guard will halt it.
+### 2. `tick_tock.last_session_timestamp` still missing
+`session_state.json.tick_tock` has `last_session_date` (2026-04-13) but
+no timestamp. `CLAUDE.md` status spec expects one; it currently renders
+as the date alone. Backfill from the last tock commit or accept as known
+gap.
 
-### 3. `tick_tock.last_session_timestamp` missing
-`session_state.json.tick_tock` returns `?` for the last-session timestamp.
-The CLAUDE.md status spec expects it. Either backfill it from git log of
-the last `cron(tock):` / `cron(tick):` commit, or document it as a known
-`unknown` and carry on.
+### 3. Phase 4 `status: success` threshold is too lenient
+Root cause behind last handoff's "9/10 feeds failed" false-success.
+`.github/workflows/daily_research.yml:92` only requires
+`feeds_successful > 0`. Today's run happened to be 11/11, but the bug is
+still latent — one working feed will still report `success`. Tighten to
+e.g. `feeds_successful >= channels_scanned * 0.8` and surface `partial`
+or `degraded` below that.
 
-### 4. Experiment status enum mismatch
-`experiments.json` has `status` values of `adopted`, `deferred`,
-`discarded`, `skipped` in addition to the canonical `backlog` /
-`in_progress` / `done`. Either the CLAUDE.md glossary is incomplete (update
-it to match reality) or `experiments.json` is using non-canonical values
-that `program.md:286-298` doesn't sanction. Reconcile.
+### 4. Why did feeds regress 2/11 → 11/11 on a manual dispatch?
+Worth an inspection. IP-based rate-limit? GitHub Actions runner pool
+variance? User-Agent / rolling-cache effects? A targeted probe (fire
+the workflow twice in quick succession, compare) would narrow it down.
 
 ## Policy / convention changes made this session
 
-- **`CLAUDE.md` now exists** at repo root. When the user asks for `status`,
-  follow that spec exactly: TL;DR headline, 5 sections, live reads, dual-
-  timezone timestamps, 40-line cap, `unknown` for missing fields.
-- **Council fallback documented**: when neither `GEMINI_API_KEY` nor
-  `ANTHROPIC_API_KEY` is set (e.g. Claude Code remote session), run the 7
-  angles inline by reading `council/angles/*.md` yourself. Label clearly as
-  an inline run, not a real `council.py` invocation.
+None. This session was pure state reconciliation — no new rules, no new
+skills, no new council angles.
 
 ## Current state (read live — these numbers will drift)
 
-| Area | Last known |
+| Area | Last known (2026-04-20) |
 |---|---|
-| Branch | `claude/add-video-phase-4-cron-uXuGU`, clean, 3 ahead of origin/main |
-| Open PR | Anguijm/yolo-projects#3 |
-| Open escalations | 1 in session_state.json (may be drift — see above) |
-| Phase 4 backlog | 4 |
-| Tick queue | 5 approved in `_hot.md` |
+| Branch | `claude/add-status-feature-RKkG1` — PR #6 open, 1 commit + merge commit ahead |
+| Open PRs | 1 (#6 — this handoff refresh) |
+| Open escalations | 1 (`infra-guardrails` implementation, LESSONS VETO) |
+| Phase 4 backlog | 17 |
+| Tick queue | 9 approved, 0 pending |
 | Portfolio | 223 built, 97 active |
-| Experiments | 79 total: 44 done, 10 adopted, 11 discarded, 8 deferred, 4 backlog, 2 skipped |
-| Verdicts (done) | 34 adopt, 10 discard |
-| Last cron | 2026-04-14 22:25 UTC (19.5h ago — stale) |
-| Cadence | next = `tick`; last = `tock` (timestamp missing) |
+| Experiments | 92 total: 44 done, 10 adopted, 11 discarded, 8 deferred, 17 backlog, 2 skipped |
+| Verdicts (done) | 34 adopt, 10 discard, 0 iterate |
+| Channels | 11 tracked, 0 failed on last run |
+| Last cron | 2026-04-19 19:34 UTC |
+| Cadence | next = `tick` (blocked by escalation); last = `tock` on 2026-04-13 |
+| `resume_instructions` | "ESCALATED — see council_escalations[] … DO NOT auto-fix" |
 
 ## Next-session first moves
 
-1. Check if Anguijm/yolo-projects#3 merged. If yes, `git checkout main && git
-   pull && git branch -d claude/add-video-phase-4-cron-uXuGU`.
-2. Run `status` procedure and confirm the numbers match CLAUDE.md shape.
-3. Investigate issue #1 (feed failures) before the next tick — an
-   ingestion pipeline scanning one channel is not earning its cron slot.
-4. Reconcile issue #2 (escalation drift) before any build starts, or the
-   escalation guard will block it.
+1. Merge PR #6 (if not already), `git checkout main && git pull`, delete
+   local `claude/add-status-feature-RKkG1` if present.
+2. Run the `status` procedure live and confirm numbers.
+3. **Triage the open LESSONS VETO.** Read
+   `experiments/infra-guardrails/COUNCIL_ESCALATION.md` and decide:
+   - **Fix option:** Update `experiments/infra-guardrails/changes.md` so
+     the regex description matches the actual regex literal in
+     `check_constraints.py` verbatim (trivial edit). Also consider
+     addressing BUGS's legit scope-to-section + exact-set concerns and
+     SECURITY's path-arg hardening before re-running council.
+     COOL's signature-move objection is weak for internal infra — safe
+     to override with the same rationale used for the plan-gate SECURITY
+     override (utility-flagship exemption).
+   - **Override option:** LESSONS cited a process lesson, not a code bug;
+     the mismatch is cosmetic (description vs. literal). If preferred,
+     treat as advisory and resume. Note though — LESSONS VETO is a hard
+     halt per the very Build Constraints this tick is adding (C5); an
+     override here would be immediately contradicted by the document being
+     shipped. Fix is the consistent path.
+4. After `infra-guardrails` ships, pop `infra-yolo-evals` from
+   `tick_queue_approved`.
 
 ## Key files
 
-- `CLAUDE.md` — status response spec (new this session)
-- `session_state.json` — tick/tock, escalations, build memory
-- `_hot.md` — 30-line portfolio snapshot (last updated 2026-04-13 19:00 UTC)
-- `phase4_run.json` — last cron report
-- `experiments.json` — experiment ledger
-- `fetch_youtube_rss.py:17-31` — CHANNELS dict
-- `COUNCIL_ESCALATION.md` — present iff a real escalation is open
-- `council/angles/*.md` — 7 advocate prompts (for inline council fallback)
+- `CLAUDE.md` — status response spec (unchanged this session)
+- `session_state.json` — tick/tock, escalations (now 0 open), phase4 counts
+- `_hot.md` — 30-line portfolio snapshot (refreshed this session)
+- `phase4_run.json` — last cron report (11/11 healthy, 2026-04-19 19:34 UTC)
+- `experiments.json` — experiment ledger (92 entries)
+- `fetch_youtube_rss.py:17-31` — CHANNELS dict (11 channels, authoritative)
+- `experiments/infra-guardrails/` — next tick's workspace
+  - `plan.md` — approved, format-validation scope added 2026-04-19
+  - `COUNCIL_ESCALATION.md` — resolved, kept for audit trail
+- `council/angles/*.md` — 7 advocate prompts (for inline council fallback
+  when neither `GEMINI_API_KEY` nor `ANTHROPIC_API_KEY` is set)

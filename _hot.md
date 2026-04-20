@@ -1,11 +1,11 @@
 # Hot Cache — Active Context
-*Auto-updated 2026-04-13 19:00 UTC. Read this FIRST.*
+*Auto-updated 2026-04-20 17:20 UTC. Read this FIRST.*
 
 ## Current State
 - Portfolio: 223 total, 97 active
 - Tick queue: 9 approved, 0 pending
-- Phase 4: 75 experiments, 0 backlog
-- Next: tick
+- Phase 4: 92 experiments, 17 backlog
+- Next: ESCALATED — infra-guardrails implementation gate blocked on LESSONS VETO (2026-04-20 11:12 UTC)
 
 ## Tick Queue
 - [approved] infra-guardrails: Formalize structural guardrails as machine-checkable build c
