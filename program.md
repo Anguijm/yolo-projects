@@ -316,6 +316,17 @@ When done, fill in:
 - `outcome`: What actually happened when we tried it.
 - `verdict`: `adopt` (integrate permanently), `discard` (archive), or `iterate` (create follow-up card).
 
+**Terminal shortcuts** (used by the Phase 4 cron when the outcome is obvious and no `in_progress` work is required):
+
+| status | Meaning | Equivalent long-form |
+|--------|---------|----------------------|
+| `adopted` | Card was promoted directly into the tick queue or portfolio without a measurement step | `done` + `verdict: adopt` |
+| `discarded` | Card was rejected on sight (duplicate, out-of-scope, obsoleted by later video) | `done` + `verdict: discard` |
+| `deferred` | Evaluated but not worth the effort this cycle — remains eligible for future re-review | Distinct terminal-ish state; not `backlog` (backlog = unprocessed) |
+| `skipped` | Source video was news/commentary with no actionable experiment; card exists for traceability only | `done` + `verdict: discard` with `notes: "no experiments extracted"` |
+
+These shortcuts are accepted as first-class status values. Tooling reading `experiments.json` must tolerate them. New cards should still prefer the canonical `backlog → in_progress → done` pipeline when an actual experiment is run.
+
 ### Tracker File
 
 All experiment cards live in `~/yolo_projects/experiments.json`. This is the single source of truth.

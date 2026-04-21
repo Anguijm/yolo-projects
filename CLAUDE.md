@@ -89,7 +89,9 @@ Always read these at response time — never recall from prior context:
 - **tock** — Flagship session: multi-session work on Markdown Deck or
   Naval-Scribe; higher quality bar.
 - **Experiment status** (`experiments.json`): `backlog` → `in_progress` →
-  `done`. Canonical definitions in `program.md:286-298`.
+  `done`. Canonical definitions and the four terminal shortcuts
+  (`adopted`, `discarded`, `deferred`, `skipped`) are documented in
+  `program.md` under *Status Lifecycle*.
 - **Experiment verdict** (set when `done`): `adopt` (promote into portfolio),
   `discard` (reject), `iterate` (needs another pass).
 - **Council escalation** — lessons-angle veto or two-attempt deadlock from
