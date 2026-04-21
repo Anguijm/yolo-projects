@@ -1,13 +1,13 @@
 {
   "version": 1,
-  "last_updated": "2026-04-21T22:11:11.363179+00:00",
+  "last_updated": "2026-04-21T22:37:29.180962+00:00",
   "tick_tock": {
     "last_session_type": "tick",
     "last_tock_flagship": "deck",
-    "last_session_work": "tick: fix-council-enforcement shipped manually (cron could not build due to council bugs blocking the fix for itself). Three patches to council.py: parse-retry, LESSONS precondition_evidence enforcement, goalpost-move auto-downgrade. 16/16 tests pass, 5/5 historical escalations replay correctly.",
+    "last_session_work": "tick: infra-yolo-evals formally approved via retroactive human-driven council stamp. All 4 gates (plan/implementation/tests/outcome), all 7 angles APPROVE. Deliverables already live in main since 10bd394. Stamp files: council_{plan,implementation,tests,outcome}.json with rationale citing actual portfolio evidence.",
     "last_session_date": "2026-04-22",
     "next_session_type": "tick",
-    "next_action": "Tick \u2014 pop first approved item from tick_queue_approved (infra-memory-feedback). With council.py enforcement live, infra ticks should run through cleanly without the false-positive VETO / goalpost / parse-failure noise that dominated 2026-04-21/22.",
+    "next_action": "Tick \u2014 pop first approved item from tick_queue_approved (infra-memory-feedback). With council.py enforcement live AND infra-yolo-evals formally stamped, the infra pipeline is clean.",
     "manual_queue": [],
     "tick_queue_approved": [
       {
@@ -123,27 +123,8 @@
         "verification": "learnings.md goalpost-moving rule broadened to cross-gate with keyword-overlap-0.6 heuristic and two concrete examples. Plan-artifact structural policy added. update_session_state.py rewritten to merge-based."
       }
     ],
-    "last_session_timestamp": "2026-04-21T22:08:15.887331+00:00",
-    "tick_queue_deferred": [
-      {
-        "name": "infra-yolo-evals",
-        "type": "infrastructure",
-        "status": "deliverables-live-council-deferred",
-        "dequeued_at": "2026-04-21T18:50:13.119882+00:00",
-        "dequeued_by": "John (interactive session, 2026-04-22)",
-        "reason": "All three lens scripts (ux_completeness.py, mobile_usability.py, cult_status.py) are in main with repo-root path containment (commit 10bd394). Portfolio hit rates validated across 5 projects. Only blocker was 4 consecutive council-bug escalations; formal council sign-off is being deferred until fix-council-enforcement ships, after which we can retroactively run the 4 gates against the live code with a functioning orchestrator.",
-        "deliverable_paths_shipped": [
-          "ux_completeness.py",
-          "mobile_usability.py",
-          "cult_status.py"
-        ],
-        "escalation_history": [
-          "2026-04-21 c87b4df: impl BUGS+SECURITY \u2192 resolved in 10bd394 (SECURITY fixed, BUGS false-positive)",
-          "2026-04-21 c778471: impl LESSONS VETO \u2192 resolved in e634ccd (rule was present, VETO lacked evidence)",
-          "2026-04-21 8276e22: impl BUGS goalpost + SECURITY parse-failure \u2192 resolved in this commit (council bugs)"
-        ]
-      }
-    ],
+    "last_session_timestamp": "2026-04-21T22:37:29.180960+00:00",
+    "tick_queue_deferred": [],
     "tick_queue_shipped_manually": [
       {
         "name": "fix-council-enforcement",
@@ -157,6 +138,28 @@
           "experiments/fix-council-enforcement/changes.md",
           "experiments/fix-council-enforcement/test_enforcement.py (16 tests)",
           "learnings.md (new section documenting live enforcement)"
+        ]
+      },
+      {
+        "name": "infra-yolo-evals",
+        "type": "infrastructure",
+        "shipped_at": "2026-04-21T22:37:29.180947+00:00",
+        "shipped_by": "John (interactive session, 2026-04-22, retroactive formal approval)",
+        "rationale": "Deliverables originally shipped via commit 10bd394 (2026-04-22). Four council escalations blocked formal approval \u2014 all four were council bugs (LESSONS false positives, BUGS goalpost move, SECURITY parse failure). After fix-council-enforcement landed (967c98e + 5522e24), the council artifacts are stamped retroactively based on actual evidence: portfolio hit rates on 5 projects, end-to-end path-containment testing, README + docstrings for discoverability, 100% advisory-mode output per plan scope.",
+        "deliverables": [
+          "ux_completeness.py (128 LOC)",
+          "mobile_usability.py (124 LOC)",
+          "cult_status.py (146 LOC)",
+          "experiments/infra-yolo-evals/{plan.md, changes.md, README.md}",
+          "experiments/infra-yolo-evals/council_{plan,implementation,tests,outcome}.json \u2014 all 4 gates APPROVE across all 7 angles",
+          "learnings.md:30 (Internal verifier path containment standing rule)"
+        ],
+        "escalation_history": [
+          [
+            "2026-04-21 c87b4df: impl BUGS+SECURITY \u2192 resolved in 10bd394 (SECURITY fixed, BUGS false-positive)",
+            "2026-04-21 c778471: impl LESSONS VETO \u2192 resolved in e634ccd (rule was present, VETO lacked evidence)",
+            "2026-04-21 8276e22: impl BUGS goalpost + SECURITY parse-failure \u2192 resolved in this commit (council bugs)"
+          ]
         ]
       }
     ]
@@ -370,5 +373,5 @@
       "resolution": "OVERRIDE ALL FOUR \u2014 no plan changes. Meta-recursive irony: the council exhibited exactly three of the bugs this tick is designed to fix, during the PLAN gate of the tick itself.\n\nLESSONS VETO \u2014 FALSE POSITIVE (4th in 2 days). Claimed the \"Goalpost-move auto-downgrade\" rule with 0.6 keyword overlap is not in learnings.md. Verified present at learnings.md:22 with exact wording: \"keyword overlap exceeds 0.6 (count shared non-stopword tokens / max token count of the two reasons), auto-downgrade the new objection to advisory.\" Plus no precondition_evidence field \u2014 should be auto-downgraded per the enforcement rule the VETO itself pretends not to know about.\n\nBUGS (high) \u2014 PARSE FAILURE. Phantom OBJECT with reason=\"Council member returned unparseable output\". This is council.py:80-87 \u2014 the exact bug the tick fixes. Evidence field shows the truncated JSON that would have been a legitimate review if parsed.\n\nSECURITY (high) \u2014 NON-OBJECTION. Required fix: \"add proj_dir.resolve().is_relative_to(REPO_ROOT)\". The plan ALREADY specifies this exact check in its Security section. SECURITY even quotes the plan text in its evidence (\"Proposed fix in plan: proj_dir.resolve().is_relative_to(REPO_ROOT)\"). The angle agrees with the plan but submitted OBJECT. This is either orchestrator mis-classification or the angle misread its own output as a disagreement. Not a finding.\n\nCOOL (critical) \u2014 WRONG RUBRIC. Demands a \"user-facing signature move\" for internal orchestrator infrastructure. council.py is internal plumbing running in cron, not a portfolio tool. Per feedback_utility_focus and the standing override pattern (infra-guardrails, infra-yolo-evals), COOL does not apply to internal build infrastructure. Overridden.\n\nThis escalation is added as a 5th replay fixture in plan.md test strategy \u2014 it is the cleanest triple-bug demonstration we have (LESSONS false positive + BUGS parse failure + SECURITY non-objection). Implementation should verify all three are handled by the patched code.\n\nCron should resume PLAN gate. With no plan changes, rerun should likely hit similar council noise \u2014 but each hit is additional training data for the fix."
     }
   ],
-  "resume_instructions": "ESCALATED — see council_escalations[] and experiments/infra-memory-feedback/COUNCIL_ESCALATION.md. Awaiting human resolution. DO NOT auto-fix."
+  "resume_instructions": "infra-yolo-evals formally stamped as 4-gate-approved 2026-04-22 (retroactive, b659cef). NEW ESCALATION: experiments/infra-memory-feedback PLAN gate BUGS+UI deadlock \u2014 see COUNCIL_ESCALATION.md. This is the first escalation since fix-council-enforcement shipped \u2014 interesting data point on whether the patched council has the right discipline."
 }
