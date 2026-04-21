@@ -38,4 +38,28 @@ def read_html(path):
 
 ## Resolution
 
-Human decision required. Resume the build after updating session_state.json.
+**RESOLVED 2026-04-22 by John (interactive session).**
+
+### BUGS OBJECT — OVERRIDDEN (false positive)
+The angle claimed the `table-overflow` check in `mobile_usability.py` false-flags valid responsive tables where `overflow-x:auto` is on a parent wrapper instead of the `<table>`. This is factually incorrect. Code at `mobile_usability.py:85-87`:
+```python
+has_table = bool(re.search(r'<table', text, re.IGNORECASE))
+has_overflow_x = bool(re.search(r'overflow-x\s*:\s*auto', text))
+if has_table and not has_overflow_x:
+```
+The `overflow-x:auto` check scans the whole file — a CSS rule on a wrapper selector counts. The portfolio hit-rate table in `changes.md` confirms this works correctly (naval-scribe genuinely has no overflow-x:auto anywhere → correctly caught; markdown-deck has overflow-x on a wrapper → correctly passed). The objection fails the lessons-reviewer protocol precondition check: the code does not match the described defect.
+
+### SECURITY OBJECT — FIXED AT SOURCE
+Rather than override (the precedent from infra-guardrails), the `sys.argv[1]` path input was hardened to repo-root containment in all three lens scripts:
+```python
+REPO_ROOT = os.path.dirname(os.path.realpath(__file__))
+path = os.path.realpath(sys.argv[1])
+if not (path == REPO_ROOT or path.startswith(REPO_ROOT + os.sep)):
+    print(f"ERROR: {path} is outside the repo root ({REPO_ROOT}); refusing to read")
+    sys.exit(1)
+```
+Uses `realpath` (not `abspath`) so symlink escapes resolve. Tested end-to-end: legit `naval-scribe/index.html` works; `/etc/passwd` and `../../etc/passwd` both rejected with clear errors. Hit rates on naval-scribe match the original portfolio table exactly (ux: 1 warning, mobile: 2 warnings, cult: 2 warnings).
+
+The pattern is codified as a standing rule in `learnings.md` ("Internal verifier path containment") so future lens/verifier ticks apply the same check automatically — SECURITY may not re-raise the pattern when the canonical containment check is in place.
+
+All other angles (UI/GUIDE/USEFULNESS/COOL/LESSONS) approved. Cron should rerun IMPLEMENTATION (expected PASS), then advance to TESTS and OUTCOME.

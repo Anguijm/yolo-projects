@@ -27,6 +27,16 @@ History: 3 false-positive vetoes recorded so far. 2026-04-07: CSP-hash on a proj
 
 **Override-blindness fix (added 2026-04-09):** Council orchestrators (the agents that invoke council.py) MUST inject `session_state.json.resume_instructions` into the council `--inline` payload on every call. Without this, council reviewers cannot see prior human override decisions and will re-raise objections that were already resolved. See `tick_tock_prompt.md` "MANDATORY context injection for every council.py call" for the exact protocol.
 
+**Internal verifier path containment (added 2026-04-22):** Any dev-time verifier or lens script at repo root that accepts a file path via `sys.argv` MUST validate that the canonicalized path is contained within the repo root before opening the file. The canonical pattern is:
+```python
+REPO_ROOT = os.path.dirname(os.path.realpath(__file__))
+path = os.path.realpath(sys.argv[1])
+if not (path == REPO_ROOT or path.startswith(REPO_ROOT + os.sep)):
+    print(f"ERROR: {path} is outside the repo root ({REPO_ROOT}); refusing to read")
+    sys.exit(1)
+```
+Use `os.path.realpath` (not `os.path.abspath`) so symlink escapes are resolved. SECURITY may still raise this as an OBJECT if the script lacks this check. SECURITY may NOT re-raise if the canonical pattern is in place — the check bounds file access to the repo, which is the established trust boundary for internal tooling. This rule was codified after infra-yolo-evals (2026-04-21) IMPLEMENTATION escalation, where SECURITY objected to the same `sys.argv[1] + os.path.abspath` pattern previously overridden on infra-guardrails (2026-04-21). Rather than override the same objection on every future lens/verifier tick, the pattern is now fixed at source. Rule applies to: lens scripts, markdown verifiers, memory dumpers, pre-filter gates, and any new tool that reads a file path provided at invocation time.
+
 ---
 
 ## Accumulated Principles

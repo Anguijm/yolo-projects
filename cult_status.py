@@ -18,6 +18,8 @@ import os
 import re
 import sys
 
+REPO_ROOT = os.path.dirname(os.path.realpath(__file__))
+
 HELP = """cult_status.py — Advisory differentiation lens for YOLO HTML builds.
 
 Usage:
@@ -131,7 +133,10 @@ def main():
     if len(sys.argv) < 2:
         print(f"Usage: python3 {sys.argv[0]} <path/to/index.html>  (--help for details)")
         sys.exit(1)
-    path = os.path.abspath(sys.argv[1])
+    path = os.path.realpath(sys.argv[1])
+    if not (path == REPO_ROOT or path.startswith(REPO_ROOT + os.sep)):
+        print(f"ERROR: {path} is outside the repo root ({REPO_ROOT}); refusing to read")
+        sys.exit(1)
     warnings = check_cult_status(path)
     for w in warnings:
         print(f"[WARN] {w}")

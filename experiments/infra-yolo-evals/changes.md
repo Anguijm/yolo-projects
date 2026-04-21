@@ -2,6 +2,8 @@
 
 ## Files created
 
+All three scripts were hardened 2026-04-22 with a repo-root containment check on `sys.argv[1]` (added per the new `learnings.md` "Internal verifier path containment" rule): `os.path.realpath(path)` is checked against `REPO_ROOT = os.path.dirname(os.path.realpath(__file__))`, and paths outside the repo are rejected with an `ERROR: ... outside the repo root` message before any `open()` call.
+
 ### ux_completeness.py (new, 81 lines, repo root)
 - `read_html(path)` — opens with `encoding='utf-8', errors='replace'`; validates `<html` or `<!doctype` in first 500 chars; exits 1 if not valid HTML
 - `check_ux_completeness(path)` — runs 5 UX checks; returns `list[str]` of warning strings:
