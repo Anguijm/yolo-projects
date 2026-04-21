@@ -37,8 +37,11 @@ The verifier enforces these structural rules on `program.md`:
    SECTION_RE: `r"^\s*## Build Constraints\s*$(.*?)(?=^\s*## |\Z)"` (MULTILINE|DOTALL)
 
 4. **Row format**: Each constraint row must match:
-   `r"^\s*\|\s*(C\d+)\s*\|([^|]+)\|([^|]+)\|([^|]+)\|"` (MULTILINE)
-   — leading whitespace before `|` is tolerated; all four fields (ID, Rule, Pass, Fail) must be non-empty.
+   `r"^\s*\|\s*(C\d+)\s*\|([^|]*)\|([^|]*)\|([^|]*)\|"` (MULTILINE)
+   — leading whitespace before `|` is tolerated. The regex allows empty fields so malformed
+   rows still match; the subsequent non-empty check reports them as "Row CN: one or more
+   empty fields" rather than silently skipping (which would produce a misleading
+   "Missing constraint: CN" error).
 
 5. **Exact ID set**: The section must contain exactly C1, C2, C3, C4, C5, C6, C7, C8, C9, C10.
    Missing IDs and extra `C\d+` IDs both fail.

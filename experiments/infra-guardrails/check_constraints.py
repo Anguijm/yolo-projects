@@ -11,14 +11,14 @@ Checks performed:
   1. Required section headings present (## Build Constraints, ## Bedrock Rules, ## Rules, ## Testing Protocol)
   2. ## Build Constraints appears exactly once
   3. Section body (from heading to next ## heading) contains exactly the IDs C1-C10, no more, no fewer
-  4. Each constraint row matches r"^\\s*\\|\\s*(C\\d+)\\s*\\|([^|]+)\\|([^|]+)\\|([^|]+)\\|" with all 4 fields non-empty
+  4. Each constraint row matches r"^\\s*\\|\\s*(C\\d+)\\s*\\|([^|]*)\\|([^|]*)\\|([^|]*)\\|" (empty fields allowed by regex but flagged by the non-empty check below, so malformed rows produce "empty field" errors instead of misleading "missing constraint" errors)
 """
 import re
 import sys
 
 REQUIRED_IDS = {f"C{i}" for i in range(1, 11)}
 REQUIRED_SECTIONS = ["## Build Constraints", "## Bedrock Rules", "## Rules", "## Testing Protocol"]
-ROW_RE = re.compile(r"^\s*\|\s*(C\d+)\s*\|([^|]+)\|([^|]+)\|([^|]+)\|", re.MULTILINE)
+ROW_RE = re.compile(r"^\s*\|\s*(C\d+)\s*\|([^|]*)\|([^|]*)\|([^|]*)\|", re.MULTILINE)
 SECTION_RE = re.compile(r"^\s*## Build Constraints\s*$(.*?)(?=^\s*## |\Z)", re.MULTILINE | re.DOTALL)
 
 

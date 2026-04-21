@@ -33,4 +33,13 @@
 
 ## Resolution
 
-Human decision required. Resume the build after updating session_state.json.
+**RESOLVED 2026-04-21 ~12:20 UTC by John (interactive session, via auto-wake).**
+
+### BUGS OBJECT — ACCEPTED (fix applied)
+`ROW_RE` changed from `([^|]+)` to `([^|]*)` in all three field capture groups (Rule/Pass/Fail). A row like `| C1 | Rule | Pass | |` now matches the regex; the existing `if not all(fields)` check catches the empty field and reports `Row C1: one or more empty fields` instead of silently dropping C1 from `found_ids` (which previously produced the misleading `Missing constraint: C1` error). Verified with three synthetic fixtures: empty-Fail-field on C1 caught, all-empty-row on C5 caught, and the clean 10-row fixture still passes. The real `program.md` still PASSes.
+
+`changes.md` and `README.md` regex documentation both updated to the new `([^|]*)` pattern with an inline note explaining the empty-field-diagnosis rationale.
+
+All other angles (SECURITY/UI/GUIDE/USEFULNESS/COOL/LESSONS) approved on attempt 2 — nothing else to address.
+
+Cron should now rerun OUTCOME and pass cleanly, then pop infra-guardrails from `tick_queue_approved` and advance to the next tick (`infra-yolo-evals`).
