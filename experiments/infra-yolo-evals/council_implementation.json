@@ -1,40 +1,40 @@
 {
   "gate": "implementation",
   "project": "experiments/infra-yolo-evals",
-  "timestamp": "2026-04-21T16:05:00.911860+00:00",
+  "timestamp": "2026-04-21T17:53:59.665810+00:00",
   "verdicts": [
     {
       "angle": "bugs",
       "verdict": "OBJECT",
       "severity": "high",
-      "reason": "The `focus-ring` check in `ux_completeness.py` relies on imprecise file-level regex to determine the absence of `:focus-visible` or `box-shadow` within `:focus` rules, which can lead to false positives due to the inability to accurately parse CSS rule scope and relationships.",
-      "required_fix": "Implement CSS parsing using a dedicated library (e.g., cssutils) to accurately identify and relate `outline` properties with `:focus` and `:focus-visible` rules within their correct scope, rather than relying on potentially ambiguous global regex searches.",
-      "evidence": "ux_completeness.py: focus-ring: flags `outline:none/0` without `:focus-visible` or `box-shadow` in a `:focus` rule",
+      "reason": "The 'table-overflow' check in mobile_usability.py incorrectly assumes that the mere presence of 'overflow-x:auto' anywhere in the HTML file guarantees that tables will not overflow, leading to false negatives where wide tables still break mobile layouts.",
+      "required_fix": "Modify the 'table-overflow' check in mobile_usability.py to ensure that 'overflow-x:auto' is applied to the <table> element or a direct wrapper (e.g., by checking for it within CSS rules targeting 'table' or common wrapper classes like '.table-responsive'), rather than just checking for its global presence in the file.",
+      "evidence": "mobile_usability.py:73-76\n```python\n    has_table = bool(re.search(r'<table', text, re.IGNORECASE))\n    has_overflow_x = bool(re.search(r'overflow-x\\s*:\\s*auto', text))\n    if has_table and not has_overflow_x:\n        warnings.append(\n```",
       "veto": false
     },
     {
       "angle": "security",
-      "verdict": "APPROVE",
-      "severity": "low",
-      "reason": "The critical path traversal vulnerability via sys.argv[1] is explicitly mitigated by a repo-root containment check using os.path.realpath before any file operations.",
-      "required_fix": "",
-      "evidence": "All three scripts were hardened 2026-04-22 with a repo-root containment check on `sys.argv[1]` (added per the new `learnings.md` 'Internal verifier path containment' rule): `os.path.realpath(path)` is checked against `REPO_ROOT = os.path.dirname(os.path.realpath(__file__))`, and paths outside the repo are rejected with an `ERROR: ... outside the repo root` message before any `open()` call.",
+      "verdict": "OBJECT",
+      "severity": "high",
+      "reason": "Council member returned unparseable output",
+      "required_fix": "Re-run this angle with stricter JSON instructions",
+      "evidence": "{\n  \"angle\": \"security\",\n  \"verdict\": \"OBJECT\",\n  \"severity\": \"high\",\n  \"reason\": \"The regex patterns used to parse HTML and CSS content are vulnerable to Regular Expression Denial of Service (ReDoS) attacks, allowing a malicious input file to consume excessive CPU and memory, leading to a denial of service.\",\n  \"required_fix\": \"Replace vulnerable regex patterns with safer, non-backtracking alternatives or use a dedicated HTML/CSS parser library that is not susceptible to ReDoS for parsing user-",
       "veto": false
     },
     {
       "angle": "ui",
-      "verdict": "OBJECT",
-      "severity": "medium",
-      "reason": "The 'cult_status.py' script flags the absence of animations and custom drawing (canvas/SVG) as warnings, but their absence does not inherently cause user confusion, slowness, or friction, and thus are not strict user experience problems.",
-      "required_fix": "Re-evaluate or remove the 'animation' and 'canvas-svg' checks from 'cult_status.py' as they do not align with core UX problems that cause user friction or confusion.",
-      "evidence": "cult_status.py checks 1 and 2",
+      "verdict": "APPROVE",
+      "severity": "low",
+      "reason": "",
+      "required_fix": "",
+      "evidence": "",
       "veto": false
     },
     {
       "angle": "guide",
       "verdict": "APPROVE",
       "severity": "low",
-      "reason": "All prior discoverability concerns have been addressed with comprehensive --help flags and a detailed README.md.",
+      "reason": "The scripts are exceptionally well-documented for both human and AI agents, providing clear usage, check descriptions, and output formats via docstrings and --help flags.",
       "required_fix": "",
       "evidence": "",
       "veto": false
@@ -43,28 +43,28 @@
       "angle": "usefulness",
       "verdict": "APPROVE",
       "severity": "low",
-      "reason": "The scripts provide actionable, recurring feedback on common UX, mobile, and differentiation issues in quickly built web projects, addressing real pain points for developers.",
+      "reason": "The scripts provide lightweight, actionable, and relevant feedback for YOLO project builders, addressing common UX, mobile, and differentiation gaps in a low-friction manner.",
       "required_fix": "",
-      "evidence": "The 'portfolio hit rates' demonstrate that the checks identify actual, common oversights (e.g., focus-ring, responsive, tap-target, table-overflow) in existing YOLO projects, indicating a clear need for such advisory tools.",
+      "evidence": "The scripts offer specific, targeted checks (e.g., focus-ring, tap-target, table-overflow) that are frequently missed in rapid development, as demonstrated by the portfolio hit rates. They serve as a quick, automated checklist for builders to improve project quality and memorability, without duplicating heavy existing tools or requiring complex setup.",
       "veto": false
     },
     {
       "angle": "cool",
       "verdict": "APPROVE",
       "severity": "low",
-      "reason": "The 'cult_status.py' script is a unique meta-tool that explicitly evaluates projects for differentiation, interactivity, and memorability, which aligns perfectly with the 'COOL' council's mandate.",
+      "reason": "The `cult_status.py` script is itself a highly differentiated and memorable tool, uniquely focused on evaluating subjective 'coolness' factors rather than generic correctness. Its name and specific heuristic checks embody the very principles it advocates.",
       "required_fix": "",
       "evidence": "",
       "veto": false
     },
     {
       "angle": "lessons",
-      "verdict": "OBJECT",
-      "severity": "critical",
-      "reason": "The deliverable claims to implement a 'new learnings.md \"Internal verifier path containment\" rule' which is not present in the provided learnings.md content, indicating a critical documentation gap in the system's memory.",
-      "required_fix": "The 'Internal verifier path containment' rule must be formally added to learnings.md, or the claim in changes.md must be removed/corrected to reflect that it is not a documented lesson.",
-      "evidence": "All three scripts were hardened 2026-04-22 with a repo-root containment check on `sys.argv[1]` (added per the new `learnings.md` \"Internal verifier path containment\" rule)",
-      "veto": true
+      "verdict": "APPROVE",
+      "severity": "low",
+      "reason": "The deliverable correctly implements the 'Internal verifier path containment' rule, and no other documented lessons are violated. Previous overridden objections are not re-raised.",
+      "required_fix": "",
+      "evidence": "",
+      "veto": false
     }
   ],
   "all_approved": false,
@@ -73,29 +73,20 @@
       "angle": "bugs",
       "verdict": "OBJECT",
       "severity": "high",
-      "reason": "The `focus-ring` check in `ux_completeness.py` relies on imprecise file-level regex to determine the absence of `:focus-visible` or `box-shadow` within `:focus` rules, which can lead to false positives due to the inability to accurately parse CSS rule scope and relationships.",
-      "required_fix": "Implement CSS parsing using a dedicated library (e.g., cssutils) to accurately identify and relate `outline` properties with `:focus` and `:focus-visible` rules within their correct scope, rather than relying on potentially ambiguous global regex searches.",
-      "evidence": "ux_completeness.py: focus-ring: flags `outline:none/0` without `:focus-visible` or `box-shadow` in a `:focus` rule",
+      "reason": "The 'table-overflow' check in mobile_usability.py incorrectly assumes that the mere presence of 'overflow-x:auto' anywhere in the HTML file guarantees that tables will not overflow, leading to false negatives where wide tables still break mobile layouts.",
+      "required_fix": "Modify the 'table-overflow' check in mobile_usability.py to ensure that 'overflow-x:auto' is applied to the <table> element or a direct wrapper (e.g., by checking for it within CSS rules targeting 'table' or common wrapper classes like '.table-responsive'), rather than just checking for its global presence in the file.",
+      "evidence": "mobile_usability.py:73-76\n```python\n    has_table = bool(re.search(r'<table', text, re.IGNORECASE))\n    has_overflow_x = bool(re.search(r'overflow-x\\s*:\\s*auto', text))\n    if has_table and not has_overflow_x:\n        warnings.append(\n```",
       "veto": false
     },
     {
-      "angle": "ui",
+      "angle": "security",
       "verdict": "OBJECT",
-      "severity": "medium",
-      "reason": "The 'cult_status.py' script flags the absence of animations and custom drawing (canvas/SVG) as warnings, but their absence does not inherently cause user confusion, slowness, or friction, and thus are not strict user experience problems.",
-      "required_fix": "Re-evaluate or remove the 'animation' and 'canvas-svg' checks from 'cult_status.py' as they do not align with core UX problems that cause user friction or confusion.",
-      "evidence": "cult_status.py checks 1 and 2",
+      "severity": "high",
+      "reason": "Council member returned unparseable output",
+      "required_fix": "Re-run this angle with stricter JSON instructions",
+      "evidence": "{\n  \"angle\": \"security\",\n  \"verdict\": \"OBJECT\",\n  \"severity\": \"high\",\n  \"reason\": \"The regex patterns used to parse HTML and CSS content are vulnerable to Regular Expression Denial of Service (ReDoS) attacks, allowing a malicious input file to consume excessive CPU and memory, leading to a denial of service.\",\n  \"required_fix\": \"Replace vulnerable regex patterns with safer, non-backtracking alternatives or use a dedicated HTML/CSS parser library that is not susceptible to ReDoS for parsing user-",
       "veto": false
-    },
-    {
-      "angle": "lessons",
-      "verdict": "OBJECT",
-      "severity": "critical",
-      "reason": "The deliverable claims to implement a 'new learnings.md \"Internal verifier path containment\" rule' which is not present in the provided learnings.md content, indicating a critical documentation gap in the system's memory.",
-      "required_fix": "The 'Internal verifier path containment' rule must be formally added to learnings.md, or the claim in changes.md must be removed/corrected to reflect that it is not a documented lesson.",
-      "evidence": "All three scripts were hardened 2026-04-22 with a repo-root containment check on `sys.argv[1]` (added per the new `learnings.md` \"Internal verifier path containment\" rule)",
-      "veto": true
     }
   ],
-  "vetoed": true
+  "vetoed": false
 }
