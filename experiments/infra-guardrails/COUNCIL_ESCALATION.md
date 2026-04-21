@@ -1,66 +1,36 @@
 # Council Escalation — experiments/infra-guardrails
 
-**Gate:** implementation
-**Reason:** LESSONS VETO — The description of the regex in changes.md does not exactly match the actual regex string in check_constraints.py, violating a documented lesson on preventing council misinterpretations.
-**Timestamp:** 2026-04-20T11:12:21.648846+00:00
+**Gate:** outcome
+**Reason:** Unresolved objections after 2 attempts
+**Timestamp:** 2026-04-21T11:57:53.121895+00:00
 
 ## Angle positions
 
-### BUGS — OBJECT (critical)
-- **Reason:** The `check_constraints.py` verifier incorrectly parses constraint rows from the entire `program.md` file instead of scoping to the 'Build Constraints' section, and it fails to enforce that *only* the specified C1-C10 constraints are present, allowing extraneous constraint IDs to pass silently.
-- **Required fix:** 1. Modify `check_constraints` to extract the content specifically under the '## Build Constraints' section and apply `ROW_RE` only to that scoped content. 2. Add a check to ensure that `found_ids` contains *exactly* the `REQUIRED_IDS` (i.e., no extra C-prefixed IDs are present).
-- **Evidence:** `file: experiments/infra-guardrails/check_constraints.py
-lines: 26, 33-38
-```python
-    text = open(path).read()
-    # ... other checks ...
-    found_ids = set()
-    for m in ROW_RE.finditer(text):
-        cid = m.group(1)
-        # ... row field checks ...
-        found_ids.add(cid)
+### BUGS — OBJECT (high)
+- **Reason:** The `ROW_RE` regex for parsing constraint rows is too strict, causing rows with genuinely empty fields (e.g., `| C1 | Rule | Pass | |`) to be entirely skipped, which leads to misleading 'Missing constraint' errors instead of specific 'empty field' warnings.
+- **Required fix:** Modify `ROW_RE` in `check_constraints.py` to `re.compile(r"^\s*\|\s*(C\d+)\s*\|([^|]*)\|([^|]*)\|([^|]*)\|", re.MULTILINE)` to allow empty fields to be matched, relying on the subsequent `if not all(fields)` check to correctly identify and report them.
+- **Evidence:** `check_constraints.py:ROW_RE and check_constraints.py:L46`
 
-    for cid in `
-
-### SECURITY — OBJECT (medium)
-- **Reason:** The `check_constraints.py` script reads the content of a file specified by `sys.argv[1]` without validation, which could be exploited by a compromised build agent to read arbitrary files on the system.
-- **Required fix:** Modify `check_constraints.py` to strictly enforce that the `path` argument must be 'program.md', or remove the ability to specify a custom path via command-line arguments if it is solely intended for 'program.md'.
-- **Evidence:** `check_constraints.py:34 (path = sys.argv[1] if len(sys.argv) > 1 else "program.md") and check_constraints.py:19 (text = open(path).read())`
+### SECURITY — APPROVE (low)
+- **Reason:** SECURITY OBJECT OVERRIDDEN — sys.argv[1] retained. This is a dev-time verifier with no production trust boundary, as per mandatory override. No other exploitable surfaces identified.
 
 ### UI — APPROVE (low)
-- **Reason:** The new section in program.md is clearly introduced, well-structured with a table, and provides actionable information for users on how to verify and amend the constraints.
+- **Reason:** The CLI tool provides clear usage instructions, robust error checking with actionable messages, and good overall feedback for a technical user. Documentation is thorough.
 
 ### GUIDE — APPROVE (low)
-- **Reason:** The new Build Constraints section in program.md clearly explains its purpose, how to use the associated verification script, and the parsing format for its content.
+- **Reason:** Comprehensive documentation in README and docstring ensures discoverability for both human users and AI agents.
+- **Evidence:** `experiments/infra-guardrails/README.md, check_constraints.py docstring`
 
 ### USEFULNESS — APPROVE (low)
-- **Reason:** This project establishes critical, machine-checkable guardrails for the system's own operational rules, ensuring consistency and preventing subtle errors in rule definition.
-- **Evidence:** `The `check_constraints.py` script will be run on every build, acting as a foundational tool to verify the integrity of `program.md`'s Build Constraints section, which defines the system's core operational logic. This is a high-frequency, essential internal utility.`
+- **Reason:** This tool provides essential structural integrity checks for a critical internal document (program.md), ensuring consistency for both human and automated processing.
+- **Evidence:** `Ensures machine-readable consistency of core system rules, preventing errors in downstream automated processes or human misinterpretation; comparable to linter or schema validation for configuration files.`
 
-### COOL — OBJECT (critical)
-- **Reason:** This is a purely functional internal script with no external-facing differentiation, signature move, or memorability that would make it stand out in a portfolio of 'tools'.
-- **Required fix:** Transform this into a general-purpose, uniquely angled markdown validation tool, or integrate a novel, shareable mechanism for defining and checking constraints that offers a 'signature move' beyond basic scripting.
-- **Evidence:** `Generic markdown linters (e.g., markdownlint, remark-lint) offer similar structural validation capabilities, albeit with less specificity.`
+### COOL — APPROVE (low)
+- **Reason:** COOL OBJECT OVERRIDDEN: internal infrastructure tooling is explicitly exempt from the signature-move bar; this markdown verifier provides high utility for guarding `program.md` integrity.
 
-### LESSONS — OBJECT (critical) 🚫 VETO
-- **Reason:** The description of the regex in changes.md does not exactly match the actual regex string in check_constraints.py, violating a documented lesson on preventing council misinterpretations.
-- **Required fix:** Update the description of the regex in changes.md to precisely match the actual regex string used in check_constraints.py, including whitespace handling and the exact non-empty field pattern.
-- **Evidence:** `IMPROVE: Council review description (pseudocode for prompt) must exactly match actual regex strings — council caught false bugs from an inaccurate description of the regex I wrote.`
+### LESSONS — APPROVE (low)
+- **Reason:** No documented lessons or anti-patterns from _hot.md or learnings.md are violated by the deliverable. Robust error handling and clear documentation of regex patterns align with past 'KEEP' and 'IMPROVE' insights.
 
 ## Resolution
 
-**RESOLVED 2026-04-21 by John (interactive session).**
-
-### LESSONS VETO — ACCEPTED (fix applied)
-`changes.md` rewritten so the regex description quotes the verbatim `r"^\|\s*(C\d+)\s*\|([^|]+)\|([^|]+)\|([^|]+)\|"` string from `check_constraints.py`, including `\s*` padding and the four capture groups. The pseudocode mismatch is gone.
-
-### BUGS OBJECT — ACCEPTED (fix applied)
-`check_constraints.py` now slices out the `## Build Constraints` section body via a new `SECTION_RE = re.compile(r"^## Build Constraints\s*$(.*?)(?=^## |\Z)", re.MULTILINE | re.DOTALL)` and applies `ROW_RE` only to that slice. `REQUIRED_IDS` is now a set and the check asserts `found_ids == REQUIRED_IDS` — missing IDs AND extraneous `C\d+` IDs both fail with distinct error messages. Verified against three synthetic cases: extra C11 inside section (caught), stray C99 outside section (correctly ignored), missing C3 (caught).
-
-### SECURITY OBJECT — OVERRIDDEN
-`sys.argv[1]` retained. This is a dev-time verifier with no production trust boundary and no network surface. Precedent: adopt-planning-mode 2026-04-10 — no producer-side sanitization absent a concrete downstream consumer. The `path` argument is a developer ergonomics affordance for testing the verifier against synthetic fixtures; it does not cross a trust boundary.
-
-### COOL OBJECT — OVERRIDDEN
-Internal build infrastructure is exempt from the "signature move" bar per the utility-focus directive (build tools people bookmark and use, not visual toys). A verifier that guards the integrity of `program.md`'s operational rule set is maximally high-utility by definition — it runs on every build. The COOL angle incorrectly applied the portfolio-differentiation rubric to internal plumbing.
-
-Cron should resume from IMPLEMENTATION gate rerun (expected PASS) → TESTS → OUTCOME.
+Human decision required. Resume the build after updating session_state.json.
