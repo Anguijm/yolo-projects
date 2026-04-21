@@ -94,6 +94,15 @@ class TestParseRetry(unittest.TestCase):
         self.assertEqual(calls["n"], 2, "should stop after the retry")
         self.assertEqual(v.verdict, "OBJECT")
         self.assertEqual(v.reason, PARSE_FAILURE_MARKER)
+        self.assertTrue(v.parse_failed, "parse_failed flag should survive a failed retry")
+
+    def test_parse_failed_flag_set_by_from_raw(self):
+        """Parse failure sets Verdict.parse_failed=True regardless of reason text
+        (BUGS critique from escalation 6: string comparison is brittle, use the flag)."""
+        v = Verdict.from_raw("bugs", "{not even close to json")
+        self.assertTrue(v.parse_failed)
+        v2 = Verdict.from_raw("bugs", '{"angle":"bugs","verdict":"APPROVE","severity":"low","reason":"ok","required_fix":"","evidence":"","veto":false}')
+        self.assertFalse(v2.parse_failed, "valid JSON should not set the parse_failed flag")
 
 
 class TestLessonsPrecondition(unittest.TestCase):

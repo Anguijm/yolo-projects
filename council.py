@@ -75,6 +75,7 @@ class Verdict:
     required_fix: str
     evidence: str
     veto: bool = False
+    parse_failed: bool = False  # set True by from_raw on JSONDecodeError; drives retry in call_angle
 
     @classmethod
     def from_raw(cls, angle: str, raw: str) -> "Verdict":
@@ -87,15 +88,19 @@ class Verdict:
         try:
             data = json.loads(text)
         except json.JSONDecodeError:
-            # Fallback: construct an OBJECT verdict flagging the parse failure
+            # Fallback: construct an OBJECT verdict and mark it with parse_failed=True so
+            # call_angle can reliably detect the transient failure regardless of the
+            # human-readable reason text (critique from fix-council-enforcement PLAN
+            # gate escalation 6, 2026-04-21: string-based detection is brittle).
             return cls(
                 angle=angle,
                 verdict="OBJECT",
                 severity="high",
-                reason=f"Council member returned unparseable output",
+                reason=PARSE_FAILURE_MARKER,
                 required_fix="Re-run this angle with stricter JSON instructions",
                 evidence=raw[:500],
                 veto=False,
+                parse_failed=True,
             )
         return cls(
             angle=data.get("angle", angle),
@@ -204,11 +209,12 @@ def call_angle(angle: str, user_message: str, _retry: bool = False) -> Verdict:
             veto=False,
         )
     verdict = Verdict.from_raw(angle, raw)
-    # Patch 1: parse-failure retry — if JSON didn't parse, the from_raw classmethod
-    # returns a phantom OBJECT with PARSE_FAILURE_MARKER as the reason. Retry once
-    # with stricter instructions before giving up — most parse failures are the
-    # model truncating mid-JSON, not a genuine refusal to produce a verdict.
-    if verdict.reason == PARSE_FAILURE_MARKER and not _retry:
+    # Patch 1: parse-failure retry — if JSON didn't parse, from_raw sets
+    # parse_failed=True. Retry once with stricter instructions before giving up —
+    # most parse failures are the model truncating mid-JSON, not a genuine refusal.
+    # Using the flag (not string comparison against reason) per BUGS critique on
+    # fix-council-enforcement PLAN gate 2026-04-21.
+    if verdict.parse_failed and not _retry:
         stricter = user_message + (
             "\n\nCRITICAL: Your previous response was not valid JSON. "
             "Return ONLY a single JSON object starting with { and ending with }. "

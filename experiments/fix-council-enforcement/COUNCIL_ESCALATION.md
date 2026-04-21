@@ -32,4 +32,13 @@
 
 ## Resolution
 
-Human decision required. Resume the build after updating session_state.json.
+**RESOLVED 2026-04-22 by John (interactive session). BUGS critique accepted and addressed.**
+
+This is the **6th attempt** at fix-council-enforcement PLAN gate. Notable improvement: **6 of 7 angles approved this round**, including LESSONS (no more false-positive VETOs) and COOL (explicitly exempt per standing override). The council's own behavior is trending correctly — just one low-severity issue remaining.
+
+### BUGS OBJECT — ACCEPTED, FIX APPLIED
+Legitimate code-quality critique: "parse-failure retry logic relies on a hardcoded error message string, which could break if the internal message for unparseable output changes in `Verdict.from_raw`."
+
+**Fix**: Added `parse_failed: bool = False` field to `Verdict` dataclass. `Verdict.from_raw` sets it to `True` on `JSONDecodeError`. `call_angle` now checks `verdict.parse_failed` (the flag) instead of `verdict.reason == PARSE_FAILURE_MARKER` (brittle string match). Test `test_parse_failed_flag_set_by_from_raw` added to the suite. 17/17 tests pass.
+
+Shipping as part of the same tick that fix-council-enforcement delivers (one commit). See `changes.md` for the detailed change log.
