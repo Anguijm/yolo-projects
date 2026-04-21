@@ -34,4 +34,38 @@
 
 ## Resolution
 
-Human decision required. Resume the build after updating session_state.json.
+**RESOLVED 2026-04-22 by John (interactive session). Both objections ACCEPTED — plan.md updated.**
+
+This is the first escalation since `fix-council-enforcement` shipped (`967c98e` + `5522e24`) and the first qualitatively different one: 5 of 7 angles approve cleanly, the two surviving OBJECTs are **substantive design critiques**, and both are being addressed by improving the plan rather than overriding the council. This is what the council is supposed to do.
+
+### BUGS OBJECT — ACCEPTED
+Critique: `prevented_bug` classification regex was too broad (`\bACCEPTED\b|\blegitimate\b`), matching general approvals like *"the override was legitimate"* or *"escalation ACCEPTED as overruled"* and misclassifying them as bug preventions.
+
+**Fix (in plan.md, Approach Step 4)**: Tightened to require bug-contextualizing anchor words:
+```
+\bFIX\s+APPLIED\b | \bFIX\s+ACCEPTED\b | \bACCEPTED[,.\s—-]+FIX\b
+| \blegitimate\s+(?:bug|concern|critique|issue|fix|objection|defect|regression)\b
+| \b(?:real|genuine)\s+(?:bug|defect|regression)\b
+```
+
+Also added regex smoke test (Test Strategy step 10) that asserts the tightened pattern does NOT match resolution text from real overridden escalations.
+
+### UI OBJECT — ACCEPTED
+Critique: `mark-veto <id>` and `mark-fp <id>` require a numeric `learning_id` but the plan provided no CLI command to discover those IDs.
+
+**Fix (in plan.md)**: Added `cmd_list_learnings(db, limit=20, project=None)` to in-scope commands. Prints id/project/gate/snippet table. Optional `--project <name>` filter. Documented in Guide section with a worked example:
+
+```
+$ python3 build_memory.py list-learnings 10 --project naval-scribe
+  id   project          gate     snippet
+  42   naval-scribe     outcome  KEEP: createDocumentFragment batch...
+$ python3 build_memory.py mark-fp 42 naval-scribe outcome
+```
+
+Function Map and Test Strategy updated (new tests 5 and 6).
+
+### Other 5 angles (APPROVE) — preserved
+
+SECURITY, GUIDE, USEFULNESS, COOL, LESSONS all approved cleanly on the first attempt. The patched council is behaving well.
+
+Cron may rerun PLAN gate; expected clean pass now that both critiques are incorporated.
