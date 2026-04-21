@@ -1,18 +1,18 @@
 # Hot Cache — Active Context
-*Auto-updated 2026-04-20 17:20 UTC. Read this FIRST.*
+*Auto-updated 2026-04-21 12:56 UTC. Read this FIRST.*
 
 ## Current State
-- Portfolio: 223 total, 97 active
-- Tick queue: 9 approved, 0 pending
-- Phase 4: 92 experiments, 17 backlog
-- Next: ESCALATED — infra-guardrails implementation gate blocked on LESSONS VETO (2026-04-20 11:12 UTC)
+- Portfolio: 224 total, 97 active
+- Tick queue: 8 approved, 0 pending
+- Phase 4: 97 experiments, 22 backlog
+- Next: tick
 
 ## Tick Queue
-- [approved] infra-guardrails: Formalize structural guardrails as machine-checkable build c
 - [approved] infra-yolo-evals: YOLO-specific evaluation lenses beyond syntax/security
 - [approved] infra-memory-feedback: Memory recall feedback loop — measure which learnings actual
 - [approved] port-ref: Well-Known Port Quick-Reference — type a port or service nam
 - [approved] adopt-stack-audit: One-time dependency shelf-life audit
+- [approved] adopt-bare-agent: Minimal 50-line agent loop + comparison_plan.md
 
 ## Recent Builds (last 5)
 - markdown-deck: Named Snapshots / Version History — Ctrl+Shift+S saves check
