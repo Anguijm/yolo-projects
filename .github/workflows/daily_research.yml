@@ -80,16 +80,24 @@ jobs:
           new_added = 0
           if open('/tmp/new_count.txt', 'r'):
               new_added = int(open('/tmp/new_count.txt').read().strip() or '0')
+          successful = scan.get('feeds_successful', 0)
+          scanned = scan.get('channels_scanned', 7)
+          if successful == 0:
+              status = 'empty'
+          elif successful >= scanned * 0.8:
+              status = 'success'
+          else:
+              status = 'degraded'
           run = {
               'last_run_utc': datetime.now(timezone.utc).isoformat(),
-              'channels_scanned': scan.get('channels_scanned', 7),
-              'feeds_successful': scan.get('feeds_successful', 0),
+              'channels_scanned': scanned,
+              'feeds_successful': successful,
               'feeds_failed': scan.get('feeds_failed', 0),
               'new_videos_found': len(scan.get('new_videos', [])),
               'new_experiments_added': new_added,
               'total_experiments': len(exps),
               'backlog_count': backlog,
-              'status': 'success' if scan.get('feeds_successful', 0) > 0 else 'empty'
+              'status': status
           }
           json.dump(run, open('phase4_run.json', 'w'), indent=2)
           print(f'Run report: {new_added} new experiments, {backlog} backlog')
