@@ -45,4 +45,32 @@ Proposed fix in plan: `proj_dir.resolve().is_relative_to(REPO_ROOT)` (from Secur
 
 ## Resolution
 
-Human decision required. Resume the build after updating session_state.json.
+**RESOLVED 2026-04-22 by John (interactive session). Override all four, no plan changes.**
+
+Meta-recursive irony: the council exhibited three of the four bugs this tick is designed to fix, during the PLAN gate of the tick itself.
+
+### LESSONS VETO — FALSE POSITIVE (4th in 2 days)
+Claimed the "Goalpost-move auto-downgrade" rule with 0.6 keyword overlap is not in `learnings.md`. **Verified present at `learnings.md:22`** with exact wording:
+
+> "If keyword overlap exceeds 0.6 (count shared non-stopword tokens / max token count of the two reasons), auto-downgrade the new objection to advisory."
+
+Plus no `precondition_evidence` field per the enforcement rule. This is precisely the symptom the tick fixes.
+
+### BUGS OBJECT — PARSE FAILURE
+Reason: `"Council member returned unparseable output"`. Evidence field shows the truncated JSON that would have been a legitimate review if parsed. This is `council.py:80-87` — the bug the tick fixes. Not a real objection.
+
+### SECURITY OBJECT — NON-OBJECTION
+Required fix: `"Explicitly add proj_dir.resolve().is_relative_to(REPO_ROOT) before any file system operations"`. **The plan already specifies this exact check in its `## Security` section.** SECURITY even quotes the plan text in its own evidence:
+
+> "Proposed fix in plan: `proj_dir.resolve().is_relative_to(REPO_ROOT)` (from Security section)"
+
+The angle agrees with the plan but submitted an OBJECT verdict. Either orchestrator mis-classification or the angle mis-routed its own review as a disagreement. Not a finding.
+
+### COOL OBJECT — WRONG RUBRIC
+Demands a "user-facing signature move" for internal orchestrator infrastructure. `council.py` runs in cron, not a browser. Per the standing override pattern (infra-guardrails, infra-yolo-evals), COOL does not apply to internal build infrastructure.
+
+### Value added from this escalation
+
+Added this episode as the **5th replay fixture** in `plan.md`'s test strategy — it is the cleanest triple-bug demonstration available (LESSONS false positive + BUGS parse failure + SECURITY non-objection in one package). Implementation will verify the patched code correctly handles all three.
+
+Cron may resume PLAN gate. No plan changes.

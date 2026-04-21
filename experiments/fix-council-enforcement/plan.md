@@ -190,12 +190,13 @@ N/A — internal orchestrator code. No browser UI. Output is print() statements 
 - `python3 -m py_compile council.py` — syntax check
 - `python3 experiments/fix-council-enforcement/test_enforcement.py` — runs the 6 unit tests above, exits 0 on success, 1 on any failure
 
-**Council TESTS gate**: Replay the four real escalations from 2026-04-21/22 against the patched code:
+**Council TESTS gate**: Replay the five real escalations from 2026-04-21/22 against the patched code:
 1. infra-guardrails escalation 1 (pseudocode vs regex) — LESSONS had `learnings.md` reference, should *not* be downgraded (legitimate VETO preserved)
 2. infra-yolo-evals escalation 2 (LESSONS claiming rule missing) — no file:line evidence, should auto-downgrade to advisory
 3. infra-yolo-evals escalation 3 (LESSONS claiming rule missing, second time) — should auto-downgrade
 4. infra-yolo-evals escalation 4 (BUGS pivoting false-positive → false-negative) — overlap >0.6 vs prior attempt, should auto-downgrade
+5. **fix-council-enforcement escalation 5** (2026-04-22 PLAN gate, added retroactively as the cleanest triple-bug fixture) — LESSONS false positive + BUGS parse failure + SECURITY non-objection. Patched council should: auto-downgrade LESSONS (no precondition_evidence), retry BUGS angle once (parse failure → valid JSON), and correctly route SECURITY's "agreeing with plan" text as an approval not an objection. If all three are handled correctly, the tick no longer blocks itself.
 
-If the patched council correctly downgrades cases 2-4 without downgrading case 1, the fix works as intended.
+If the patched council correctly downgrades cases 2-5 without downgrading case 1, the fix works as intended.
 
 **OUTCOME gate**: `council.py` runs cleanly on the next infra tick (`infra-memory-feedback`) with zero phantom escalations.
