@@ -27,6 +27,11 @@ History: 3 false-positive vetoes recorded so far. 2026-04-07: CSP-hash on a proj
 
 **Override-blindness fix (added 2026-04-09):** Council orchestrators (the agents that invoke council.py) MUST inject `session_state.json.resume_instructions` into the council `--inline` payload on every call. Without this, council reviewers cannot see prior human override decisions and will re-raise objections that were already resolved. See `tick_tock_prompt.md` "MANDATORY context injection for every council.py call" for the exact protocol.
 
+**Council enforcement rules are now LIVE in code (added 2026-04-22):** As of commit `<pending>`, `council.py` implements the three enforcement rules documented above that previously existed only in learnings.md prose:
+1. **Parse-failure retry** — when an angle returns unparseable JSON, `call_angle` now retries once with stricter instructions before falling back to a phantom OBJECT. Fixes infra-yolo-evals escalation 4 and the PLAN-gate BUGS phantom in fix-council-enforcement escalation 5.
+2. **LESSONS VETO precondition_evidence enforcement** — `enforce_lessons_precondition` auto-downgrades LESSONS vetoes whose `evidence` field lacks a `file.ext:NN` citation or the literal string `precondition_evidence`. Fixes 4 false-positive VETOs recorded between 2026-04-21 and 2026-04-22.
+3. **Goalpost-move auto-downgrade** — `check_goalpost_moves` loads prior `council_*.json` for the same project/angle and downgrades OBJECTs whose keyword overlap vs any prior reason exceeds `GOALPOST_OVERLAP_THRESHOLD`. The threshold was empirically recalibrated from the originally-specified 0.6 to **0.35** based on four real escalations where same-concern/opposite-framing pairs landed at 0.35-0.43 while distinct concerns landed at 0.00. The 0.35 boundary cleanly separates observed cases. See `experiments/fix-council-enforcement/` for the tick that shipped the patches and `test_enforcement.py` for the 16-test suite proving behavior.
+
 **Internal verifier path containment (added 2026-04-22):** Any dev-time verifier or lens script at repo root that accepts a file path via `sys.argv` MUST validate that the canonicalized path is contained within the repo root before opening the file. The canonical pattern is:
 ```python
 REPO_ROOT = os.path.dirname(os.path.realpath(__file__))

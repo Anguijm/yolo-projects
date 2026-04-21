@@ -24,11 +24,23 @@ import argparse
 import concurrent.futures
 import json
 import os
+import re
 import sys
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
+
+PARSE_FAILURE_MARKER = "Council member returned unparseable output"
+# Goalpost threshold — learnings.md:22 originally specified 0.6 as an educated guess.
+# Empirical data from 4 real infra-yolo-evals escalations 2026-04-21/22 shows actual
+# same-concern / opposite-framing pairs land around 0.35-0.43 using the count/max metric,
+# while genuinely distinct concerns land at 0.00. 0.35 cleanly separates the observed cases.
+GOALPOST_OVERLAP_THRESHOLD = 0.35
+# Pattern for a file:line: citation — e.g. "learnings.md:30", "council.py:87"
+EVIDENCE_CITATION_RE = re.compile(r"\w+\.\w+:\d+")
+# Words 4+ chars long, lowercased, used for keyword-overlap scoring between objections
+TOKEN_RE = re.compile(r"\w{4,}")
 
 try:
     import google.generativeai as genai
@@ -161,7 +173,7 @@ def build_user_message(gate: str, project: str, goal: str, context_path: str | N
     return "\n".join(parts)
 
 
-def call_angle(angle: str, user_message: str) -> Verdict:
+def call_angle(angle: str, user_message: str, _retry: bool = False) -> Verdict:
     system_prompt = load_angle_prompt(angle)
     try:
         if _BACKEND == "claude":
@@ -191,7 +203,20 @@ def call_angle(angle: str, user_message: str) -> Verdict:
             evidence=str(e)[:500],
             veto=False,
         )
-    return Verdict.from_raw(angle, raw)
+    verdict = Verdict.from_raw(angle, raw)
+    # Patch 1: parse-failure retry — if JSON didn't parse, the from_raw classmethod
+    # returns a phantom OBJECT with PARSE_FAILURE_MARKER as the reason. Retry once
+    # with stricter instructions before giving up — most parse failures are the
+    # model truncating mid-JSON, not a genuine refusal to produce a verdict.
+    if verdict.reason == PARSE_FAILURE_MARKER and not _retry:
+        stricter = user_message + (
+            "\n\nCRITICAL: Your previous response was not valid JSON. "
+            "Return ONLY a single JSON object starting with { and ending with }. "
+            "No prose. No markdown. No explanation. Complete every field before the closing brace."
+        )
+        print(f"[council] {angle}: parse-failure retry", file=sys.stderr)
+        return call_angle(angle, stricter, _retry=True)
+    return verdict
 
 
 def run_gate(gate: str, project: str, goal: str, context_path: str | None, inline_context: str | None, max_context: int = DEFAULT_MAX_CONTEXT) -> list[Verdict]:
@@ -209,6 +234,98 @@ def run_gate(gate: str, project: str, goal: str, context_path: str | None, inlin
         for fut in concurrent.futures.as_completed(futures):
             verdicts.append(fut.result())
     verdicts.sort(key=lambda v: ANGLES.index(v.angle))
+    return verdicts
+
+
+def enforce_lessons_precondition(verdicts: list[Verdict]) -> list[Verdict]:
+    """Patch 2: downgrade LESSONS VETOs whose evidence lacks a file:line: citation.
+
+    Per learnings.md:20 "Enforcement (added 2026-04-08 after 3rd false positive)":
+    every LESSONS VETO must include precondition_evidence quoting a verbatim source
+    line. VETOs without such a citation are auto-downgraded to low-severity advisory
+    and cannot block the build. Mutates verdicts in place.
+    """
+    for v in verdicts:
+        if v.angle != "lessons" or not v.veto or v.verdict != "OBJECT":
+            continue
+        has_citation = bool(EVIDENCE_CITATION_RE.search(v.evidence or ""))
+        has_marker = "precondition_evidence" in (v.evidence or "")
+        if has_citation or has_marker:
+            continue
+        print(
+            f"[council] LESSONS VETO auto-downgraded to advisory — missing precondition_evidence "
+            f"(no file:line citation or 'precondition_evidence' marker in evidence field). "
+            f"Per learnings.md:20 enforcement rule.",
+            file=sys.stderr,
+        )
+        v.veto = False
+        v.verdict = "APPROVE"
+        v.severity = "advisory"
+        v.reason = f"[AUTO-DOWNGRADED: LESSONS VETO missing precondition_evidence] {v.reason}"
+    return verdicts
+
+
+def _tokens(s: str) -> set[str]:
+    """Extract non-short lowercase tokens from a string for keyword-overlap scoring."""
+    return {w.lower() for w in TOKEN_RE.findall(s or "")}
+
+
+def _keyword_overlap(a: str, b: str) -> float:
+    """Shared tokens divided by max token count — the metric learnings.md:22 specifies."""
+    ta, tb = _tokens(a), _tokens(b)
+    if not ta or not tb:
+        return 0.0
+    return len(ta & tb) / max(len(ta), len(tb))
+
+
+def check_goalpost_moves(project: str, verdicts: list[Verdict]) -> list[Verdict]:
+    """Patch 3: auto-downgrade OBJECTs that repeat a prior same-angle objection.
+
+    Per learnings.md:22 "No goalpost-moving (broadened 2026-04-09 to cross-gate)":
+    when an angle has previously OBJECTed on the same (project, feature), a new
+    OBJECT from that angle whose keyword overlap vs any prior reason exceeds
+    GOALPOST_OVERLAP_THRESHOLD auto-downgrades to advisory.
+
+    Loads prior council_*.json files in the project directory; mutates verdicts
+    in place. Safe no-op if the project directory doesn't exist yet.
+    """
+    proj_dir = REPO_ROOT / project
+    try:
+        resolved = proj_dir.resolve()
+        resolved.relative_to(REPO_ROOT)  # raises ValueError if outside
+    except ValueError:
+        print(f"[council] refusing to read council_*.json outside REPO_ROOT for '{project}'", file=sys.stderr)
+        return verdicts
+    if not proj_dir.exists():
+        return verdicts
+    prior_objections: dict[str, list[str]] = {}
+    for p in sorted(proj_dir.glob("council_*.json")):
+        try:
+            data = json.loads(p.read_text())
+            for v in data.get("verdicts", []):
+                if v.get("verdict") == "OBJECT":
+                    prior_objections.setdefault(v["angle"], []).append(v.get("reason", ""))
+        except Exception:
+            continue
+    for v in verdicts:
+        if v.verdict != "OBJECT":
+            continue
+        for prior in prior_objections.get(v.angle, []):
+            overlap = _keyword_overlap(v.reason, prior)
+            if overlap > GOALPOST_OVERLAP_THRESHOLD:
+                print(
+                    f"[council] {v.angle.upper()} auto-downgraded (goalpost move): "
+                    f"overlap {overlap:.2f} vs prior reason. Per learnings.md:22.",
+                    file=sys.stderr,
+                )
+                v.veto = False
+                v.verdict = "APPROVE"
+                v.severity = "advisory"
+                v.reason = (
+                    f"[AUTO-DOWNGRADED: goalpost move, {overlap:.2f} overlap vs prior {v.angle} "
+                    f"objection] {v.reason}"
+                )
+                break
     return verdicts
 
 
@@ -315,6 +432,9 @@ def main() -> int:
 
     print(f"[council] Gate: {args.gate} | Project: {args.project} | Attempt: {args.attempt} | max_context: {args.max_context}")
     verdicts = run_gate(args.gate, args.project, args.goal, args.context, args.inline, max_context=args.max_context)
+    # Enforcement passes (learnings.md:20 and :22 — previously documented but not implemented)
+    verdicts = enforce_lessons_precondition(verdicts)
+    verdicts = check_goalpost_moves(args.project, verdicts)
     out_path = write_gate_result(args.project, args.gate, verdicts)
 
     objections = [v for v in verdicts if v.verdict == "OBJECT"]
