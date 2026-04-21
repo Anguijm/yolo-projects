@@ -49,4 +49,18 @@ lines: 26, 33-38
 
 ## Resolution
 
-Human decision required. Resume the build after updating session_state.json.
+**RESOLVED 2026-04-21 by John (interactive session).**
+
+### LESSONS VETO — ACCEPTED (fix applied)
+`changes.md` rewritten so the regex description quotes the verbatim `r"^\|\s*(C\d+)\s*\|([^|]+)\|([^|]+)\|([^|]+)\|"` string from `check_constraints.py`, including `\s*` padding and the four capture groups. The pseudocode mismatch is gone.
+
+### BUGS OBJECT — ACCEPTED (fix applied)
+`check_constraints.py` now slices out the `## Build Constraints` section body via a new `SECTION_RE = re.compile(r"^## Build Constraints\s*$(.*?)(?=^## |\Z)", re.MULTILINE | re.DOTALL)` and applies `ROW_RE` only to that slice. `REQUIRED_IDS` is now a set and the check asserts `found_ids == REQUIRED_IDS` — missing IDs AND extraneous `C\d+` IDs both fail with distinct error messages. Verified against three synthetic cases: extra C11 inside section (caught), stray C99 outside section (correctly ignored), missing C3 (caught).
+
+### SECURITY OBJECT — OVERRIDDEN
+`sys.argv[1]` retained. This is a dev-time verifier with no production trust boundary and no network surface. Precedent: adopt-planning-mode 2026-04-10 — no producer-side sanitization absent a concrete downstream consumer. The `path` argument is a developer ergonomics affordance for testing the verifier against synthetic fixtures; it does not cross a trust boundary.
+
+### COOL OBJECT — OVERRIDDEN
+Internal build infrastructure is exempt from the "signature move" bar per the utility-focus directive (build tools people bookmark and use, not visual toys). A verifier that guards the integrity of `program.md`'s operational rule set is maximally high-utility by definition — it runs on every build. The COOL angle incorrectly applied the portfolio-differentiation rubric to internal plumbing.
+
+Cron should resume from IMPLEMENTATION gate rerun (expected PASS) → TESTS → OUTCOME.

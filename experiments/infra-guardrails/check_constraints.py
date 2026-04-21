@@ -3,10 +3,10 @@
 import re
 import sys
 
-REQUIRED_IDS = [f"C{i}" for i in range(1, 11)]
+REQUIRED_IDS = {f"C{i}" for i in range(1, 11)}
 REQUIRED_SECTIONS = ["## Build Constraints", "## Bedrock Rules", "## Rules", "## Testing Protocol"]
-# Matches markdown table data rows: | C# | non-empty | non-empty | non-empty |
 ROW_RE = re.compile(r"^\|\s*(C\d+)\s*\|([^|]+)\|([^|]+)\|([^|]+)\|", re.MULTILINE)
+SECTION_RE = re.compile(r"^## Build Constraints\s*$(.*?)(?=^## |\Z)", re.MULTILINE | re.DOTALL)
 
 
 def check_constraints(path="program.md"):
@@ -20,20 +20,25 @@ def check_constraints(path="program.md"):
         if section not in text:
             failures.append(f"Missing section: {section!r}")
 
-    if "## Build Constraints" not in text:
+    section_match = SECTION_RE.search(text)
+    if not section_match:
         return failures  # can't check rows without the section
+    section_body = section_match.group(1)
 
     found_ids = set()
-    for m in ROW_RE.finditer(text):
+    for m in ROW_RE.finditer(section_body):
         cid = m.group(1)
         fields = [m.group(i).strip() for i in range(1, 5)]
         if not all(fields):
             failures.append(f"Row {cid}: one or more empty fields")
         found_ids.add(cid)
 
-    for cid in REQUIRED_IDS:
-        if cid not in found_ids:
-            failures.append(f"Missing constraint: {cid}")
+    missing = REQUIRED_IDS - found_ids
+    extras = found_ids - REQUIRED_IDS
+    for cid in sorted(missing):
+        failures.append(f"Missing constraint: {cid}")
+    for cid in sorted(extras):
+        failures.append(f"Unexpected constraint ID: {cid} (section must contain exactly C1-C10)")
 
     return failures
 
