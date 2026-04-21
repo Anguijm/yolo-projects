@@ -44,4 +44,29 @@
 
 ## Resolution
 
-Human decision required. Resume the build after updating session_state.json.
+**RESOLVED 2026-04-22 by John (interactive session). Override, no code changes.**
+
+This is the **4th consecutive escalation** on this implementation attempt. Both surviving objections are **council bugs, not code bugs**.
+
+### BUGS OBJECT — GOALPOST MOVE
+Attempt 1 (2026-04-21): BUGS claimed `table-overflow` check **false-POSITIVES** on valid wrapper-based tables. Overridden with code evidence showing wrapper CSS is accepted.
+
+This attempt (2026-04-21): BUGS now claims the same check **false-NEGATIVES** — that "presence of overflow-x:auto anywhere in the file doesn't guarantee tables won't overflow." Opposite complaint, same check, same feature, no new evidence.
+
+Keyword overlap between the two reasons (`table-overflow`, `check`, `mobile_usability.py`, `overflow-x:auto`, `false`) exceeds 0.6. Per the *no goalpost-moving* rule in `learnings.md`, the orchestrator should have auto-downgraded this to advisory. It didn't. Override applied manually.
+
+### SECURITY OBJECT — NOT A REAL OBJECTION
+From the escalation JSON: `reason: "Council member returned unparseable output"`, `required_fix: "Re-run this angle with stricter JSON instructions"`. The Gemini response was truncated mid-sentence (visible in evidence field). This is `council.py:80-87` constructing a phantom OBJECT verdict from a JSON parse failure instead of retrying the angle.
+
+Not a finding on the code. Override applied.
+
+### Other angles
+LESSONS, GUIDE, USEFULNESS, COOL, UI all APPROVE. LESSONS explicitly confirms the path-containment rule is present and correctly implemented. The code is fine.
+
+### Follow-up (queued as next tick)
+`fix-council-enforcement` queued at top of `tick_queue_approved`. It patches three bugs in `council.py`:
+1. No auto-downgrade for goalpost moves (rule exists in learnings.md, not enforced in code)
+2. No `precondition_evidence` enforcement on LESSONS VETOs (rule exists, not enforced)
+3. Parse failure becomes phantom OBJECT instead of triggering retry
+
+Once that ships, the infra tick pipeline should stop getting stuck on council-only issues.

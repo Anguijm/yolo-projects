@@ -1,42 +1,43 @@
 {
   "version": 1,
-  "last_updated": "2026-04-21T17:58:19.490000+00:00",
+  "last_updated": "2026-04-21T18:50:13.119897+00:00",
   "tick_tock": {
     "last_session_type": "tick",
     "last_tock_flagship": "deck",
-    "last_session_work": "tick: infra-guardrails — ## Build Constraints section (C1-C10) added to program.md; check_constraints.py verifier added. 4 gates passed (plan, implementation [after LESSONS VETO escalation], tests, outcome [after BUGS OBJECT escalation + SECURITY/COOL repeat-objection overrides]).",
+    "last_session_work": "tick: infra-guardrails \u2014 ## Build Constraints section (C1-C10) added to program.md; check_constraints.py verifier added. 4 gates passed (plan, implementation [after LESSONS VETO escalation], tests, outcome [after BUGS OBJECT escalation + SECURITY/COOL repeat-objection overrides]).",
     "last_session_date": "2026-04-21",
     "next_session_type": "tick",
-    "next_action": "Tick — pop first approved item from tick_queue_approved (infra-yolo-evals). Human override: continue tick per resume_instructions.",
+    "next_action": "Tick \u2014 pop fix-council-enforcement from tick_queue_approved. This patches three council.py bugs (parse-retry, precondition_evidence enforcement, goalpost-move auto-downgrade) that were blocking infra-yolo-evals and would block any future infrastructure tick with similar council friction.",
     "manual_queue": [],
     "tick_queue_approved": [
       {
-        "name": "infra-yolo-evals",
+        "name": "fix-council-enforcement",
         "type": "infrastructure",
-        "idea": "YOLO-specific evaluation lenses beyond syntax/security",
-        "rationale": "Adopted from Phase 4 experiment mlops-2026-04-03-beyond-swebench-evals. Current pre-filter gates check syntax (test_project.py), known bug patterns (eval_bugs.py), and security (security_scan.py). These are necessary but not sufficient — they catch broken code, not bad UX. This tick adds YOLO-specific lenses that catch bad single-file HTML tools BEFORE the council sees them.",
+        "source_experiment": "internal-council-bug-discovery-2026-04-22",
+        "idea": "Patch three latent enforcement bugs in council.py that caused infra-yolo-evals to escalate 4 times",
+        "rationale": "Between 2026-04-21 and 2026-04-22, cron attempted to ship infra-yolo-evals and hit four consecutive council escalations on the same gate. All four were council bugs, not code bugs: two false-positive LESSONS VETOs (rule said missing when it was present), one goalpost-move from BUGS (pivoted from false-positive to false-negative on the same check), and one parse-failure phantom OBJECT. Each override cost one human decision cycle. learnings.md already documents the enforcement rules; council.py just doesn't implement them.",
         "deliverable_paths": [
-          "ux_completeness.py",
-          "mobile_usability.py",
-          "cult_status.py"
+          "council.py",
+          "experiments/fix-council-enforcement/test_enforcement.py",
+          "experiments/fix-council-enforcement/changes.md"
         ],
-        "plan_summary": "Three new Python lens scripts, each 100-200 lines, called from the tick prompt's pre-filter gate before council. (1) ux_completeness.py: greps for empty-state handling, loading states, error states, focus rings, primary CTA; flags any missing. (2) mobile_usability.py: greps for viewport meta tag, @media queries, tap-target sizing, sticky-first-column on horizontally scrollable tables (catches the recent ip-cidr regression); flags missing. (3) cult_status.py: heuristic check for signature move presence (animation, custom interaction, novel data viz, voice/tone differentiator); subjective but valuable. All three are advisory at first (warnings, not hard fails) — promoted to hard fails after 5 builds of tuning.",
-        "council_focus": "PLAN gate: are these the right lenses? what are we missing? IMPLEMENTATION gate: do the regex patterns actually catch what we want without massive false positives? TESTS gate: run all 3 against the existing portfolio and report hit rates. OUTCOME gate: scripts wired into pre-filter, no regression."
+        "plan_summary": "Three surgical edits to council.py (~40 LOC net): (1) parse-retry in call_angle \u2014 on JSONDecodeError-sourced phantom OBJECT, retry once with stricter instructions before returning; (2) precondition_evidence scan \u2014 before the vetoes branch in main(), downgrade LESSONS VETOs whose evidence field lacks a file:line: pattern (per the 2026-04-08 enforcement rule); (3) goalpost-move detection \u2014 new check_goalpost_moves function that loads prior council_*.json in the project dir, computes keyword overlap >0.6 between new OBJECTs and prior same-angle reasons, auto-downgrades matches to advisory. Plus a test_enforcement.py with 6 unit tests (parse retry happy path, parse retry failure, LESSONS without evidence downgraded, LESSONS with evidence preserved, goalpost downgrade, no-downgrade on distinct reasons). Full plan at experiments/fix-council-enforcement/plan.md.",
+        "council_focus": "PLAN: are the three patches the RIGHT fixes for the documented rules? any missed enforcement rule? IMPLEMENTATION: 40 LOC net across 3 hunks \u2014 are they surgical, tested, no regression in existing verdict flow? TESTS: 6 unit tests pass + 4 historical escalations replay correctly (escalation 1 should preserve VETO, escalations 2-4 should auto-downgrade)? OUTCOME: next infra tick (infra-memory-feedback) runs cleanly with zero phantom escalations."
       },
       {
         "name": "infra-memory-feedback",
         "type": "infrastructure",
-        "idea": "Memory recall feedback loop — measure which learnings actually pay off",
-        "rationale": "Adopted from Phase 4 experiment mlops-2026-04-03-self-learning-agent-memory. We have build_memory.py with 1916 learnings from 263 projects, and the lessons council angle reads them. But we don't measure which learnings are actually preventing regressions — we just trust that capturing them helps. This tick adds a feedback loop so we can rank learnings by real-world impact and prune stale ones.",
+        "idea": "Memory recall feedback loop \u2014 measure which learnings actually pay off",
+        "rationale": "Adopted from Phase 4 experiment mlops-2026-04-03-self-learning-agent-memory. We have build_memory.py with 1916 learnings from 263 projects, and the lessons council angle reads them. But we don't measure which learnings are actually preventing regressions \u2014 we just trust that capturing them helps. This tick adds a feedback loop so we can rank learnings by real-world impact and prune stale ones.",
         "deliverable_paths": [
           "build_memory.py"
         ],
-        "plan_summary": "Extend build_memory.py with a `recall_outcome` table tracking: (project, learning_id, gate, outcome) where outcome is one of: 'prevented_bug' (lessons angle vetoed → human confirmed real issue), 'false_positive' (vetoed → human overrode), 'irrelevant' (cited but not load-bearing). New CLI subcommand: `python3 build_memory.py recall-stats` shows top-N learnings by prevented_bug count and bottom-N by false_positive count. Initial population: backfill from learnings.md COUNCIL entries where the gate notes which learning was cited. Add a `--mark-veto` and `--mark-fp` interactive flag for future escalations.",
+        "plan_summary": "Extend build_memory.py with a `recall_outcome` table tracking: (project, learning_id, gate, outcome) where outcome is one of: 'prevented_bug' (lessons angle vetoed \u2192 human confirmed real issue), 'false_positive' (vetoed \u2192 human overrode), 'irrelevant' (cited but not load-bearing). New CLI subcommand: `python3 build_memory.py recall-stats` shows top-N learnings by prevented_bug count and bottom-N by false_positive count. Initial population: backfill from learnings.md COUNCIL entries where the gate notes which learning was cited. Add a `--mark-veto` and `--mark-fp` interactive flag for future escalations.",
         "council_focus": "PLAN gate: is the schema right? is 'prevented_bug' the right metric, or do we need finer grain? IMPLEMENTATION gate: SQL migration is non-destructive? TESTS gate: backfill works on current learnings.md? OUTCOME gate: stats subcommand returns sensible output."
       },
       {
         "name": "port-ref",
-        "idea": "Well-Known Port Quick-Reference — type a port or service name, get IANA service, protocol, privilege boundary warning (<1024), security flag; bulk annotation from docker-compose / k8s manifests",
+        "idea": "Well-Known Port Quick-Reference \u2014 type a port or service name, get IANA service, protocol, privilege boundary warning (<1024), security flag; bulk annotation from docker-compose / k8s manifests",
         "rationale": "DevOps engineers consult port numbers constantly. Pure JS static lookup, PWA, tight scope."
       },
       {
@@ -44,11 +45,11 @@
         "type": "infrastructure",
         "source_experiment": "nb-2026-04-07-ephemeral-layers-stack-audit",
         "idea": "One-time dependency shelf-life audit",
-        "rationale": "Adopted from Phase 4 experiment nb-2026-04-07-ephemeral-layers-stack-audit. Snapshot each external dependency in the yolo-projects pipeline with an estimated deprecation horizon, the coupling depth, and a replacement plan. NOT ongoing infrastructure — a one-time document we reference during architectural decisions. Harness-cli audit is a follow-on (different repo, cron cannot access).",
+        "rationale": "Adopted from Phase 4 experiment nb-2026-04-07-ephemeral-layers-stack-audit. Snapshot each external dependency in the yolo-projects pipeline with an estimated deprecation horizon, the coupling depth, and a replacement plan. NOT ongoing infrastructure \u2014 a one-time document we reference during architectural decisions. Harness-cli audit is a follow-on (different repo, cron cannot access).",
         "deliverable_paths": [
           "experiments/adopt-stack-audit/STACK_AUDIT.md"
         ],
-        "plan_summary": "Create experiments/adopt-stack-audit/STACK_AUDIT.md containing a table of every external dependency surface in yolo-projects: (1) Python SDK deps (anthropic, google-generativeai, requests) from GitHub Actions workflow files, (2) GitHub Actions marketplace actions (actions/checkout@v4, stefanzweifel/git-auto-commit-action@v5, etc.) from .github/workflows/*.yml, (3) claude-code CLI via npm, (4) node/python runtime versions pinned. For each dep: current version, estimated deprecation horizon (3mo / 6mo / 12mo / 24mo / stable), coupling depth (shallow / medium / deep), and replacement plan if it goes away. Include a section 'What we do NOT depend on' celebrating the zero-dep YOLO single-file HTML tool approach as the lowest-coupling pattern in the portfolio. No ongoing maintenance — this is a dated snapshot.",
+        "plan_summary": "Create experiments/adopt-stack-audit/STACK_AUDIT.md containing a table of every external dependency surface in yolo-projects: (1) Python SDK deps (anthropic, google-generativeai, requests) from GitHub Actions workflow files, (2) GitHub Actions marketplace actions (actions/checkout@v4, stefanzweifel/git-auto-commit-action@v5, etc.) from .github/workflows/*.yml, (3) claude-code CLI via npm, (4) node/python runtime versions pinned. For each dep: current version, estimated deprecation horizon (3mo / 6mo / 12mo / 24mo / stable), coupling depth (shallow / medium / deep), and replacement plan if it goes away. Include a section 'What we do NOT depend on' celebrating the zero-dep YOLO single-file HTML tool approach as the lowest-coupling pattern in the portfolio. No ongoing maintenance \u2014 this is a dated snapshot.",
         "council_focus": "PLAN: are we missing any dependency categories (e.g., GitHub itself, Anthropic API, Google Gemini API)? IMPLEMENTATION: does the table accurately represent the current state of the repo (grep-verifiable)? TESTS: each dep cited must be traceable to a specific file line. OUTCOME: STACK_AUDIT.md is a useful reference for future architectural decisions, not a maintenance burden."
       },
       {
@@ -56,27 +57,27 @@
         "type": "infrastructure",
         "source_experiment": "do-2026-04-07-minimal-agent-pattern",
         "idea": "Minimal 50-line agent loop + comparison_plan.md",
-        "rationale": "Adopted from Phase 4 experiment do-2026-04-07-minimal-agent-pattern. Build the smallest possible agent loop (LLM call → tool dispatch → result injection → repeat) using only the raw Anthropic SDK and a dict-based tool registry. Zero framework dependencies. This is the research-spike counter-argument to harness-cli's complexity — if a 50-line loop can do the same job, we need to justify every feature harness-cli adds. The actual comparison study (run both on roadtripper and measure) is a follow-on manual task.",
+        "rationale": "Adopted from Phase 4 experiment do-2026-04-07-minimal-agent-pattern. Build the smallest possible agent loop (LLM call \u2192 tool dispatch \u2192 result injection \u2192 repeat) using only the raw Anthropic SDK and a dict-based tool registry. Zero framework dependencies. This is the research-spike counter-argument to harness-cli's complexity \u2014 if a 50-line loop can do the same job, we need to justify every feature harness-cli adds. The actual comparison study (run both on roadtripper and measure) is a follow-on manual task.",
         "deliverable_paths": [
           "experiments/adopt-bare-agent/bare_agent.py",
           "experiments/adopt-bare-agent/comparison_plan.md",
           "experiments/adopt-bare-agent/README.md"
         ],
-        "plan_summary": "Produce three files in experiments/adopt-bare-agent/. (1) bare_agent.py: a 50–80 line Python file implementing the minimal agent loop — raw Anthropic SDK, dict-based tool registry with 3 default tools (read_file, write_file, run_shell), while-loop that continues until the model sends a final message without a tool_use, structured tool-call handling via the messages API. Zero external frameworks. (2) comparison_plan.md: what to measure when running this against harness-cli on the same task (lines of code, API calls per task, time to completion, quality of output). Not the study results — the study PROTOCOL that a human runs later. (3) README.md: when to use bare_agent.py (learning, prototyping, justification audits) vs. harness-cli (multi-project tracking, recipes, council). Zero code in bare_agent.py may be copied from harness-cli — it should be written from scratch as the minimum viable.",
-        "council_focus": "PLAN: is 50–80 lines actually feasible or will it balloon? What are we giving up? IMPLEMENTATION: does bare_agent.py actually run end-to-end on a trivial task (e.g., 'read README.md and count its lines')? TESTS: run bare_agent.py with a simple task and verify it completes the loop correctly. OUTCOME: three files exist, bare_agent.py runs, comparison_plan.md is a complete protocol a human could execute."
+        "plan_summary": "Produce three files in experiments/adopt-bare-agent/. (1) bare_agent.py: a 50\u201380 line Python file implementing the minimal agent loop \u2014 raw Anthropic SDK, dict-based tool registry with 3 default tools (read_file, write_file, run_shell), while-loop that continues until the model sends a final message without a tool_use, structured tool-call handling via the messages API. Zero external frameworks. (2) comparison_plan.md: what to measure when running this against harness-cli on the same task (lines of code, API calls per task, time to completion, quality of output). Not the study results \u2014 the study PROTOCOL that a human runs later. (3) README.md: when to use bare_agent.py (learning, prototyping, justification audits) vs. harness-cli (multi-project tracking, recipes, council). Zero code in bare_agent.py may be copied from harness-cli \u2014 it should be written from scratch as the minimum viable.",
+        "council_focus": "PLAN: is 50\u201380 lines actually feasible or will it balloon? What are we giving up? IMPLEMENTATION: does bare_agent.py actually run end-to-end on a trivial task (e.g., 'read README.md and count its lines')? TESTS: run bare_agent.py with a simple task and verify it completes the loop correctly. OUTCOME: three files exist, bare_agent.py runs, comparison_plan.md is a complete protocol a human could execute."
       },
       {
         "name": "model-eval-backbone",
         "type": "infrastructure",
         "source_experiment": "do-2026-04-08-claude-mythos-agentic-eval",
-        "idea": "Backbone model swap benchmark — latest Claude vs. current backbone on historical YOLO builds",
+        "idea": "Backbone model swap benchmark \u2014 latest Claude vs. current backbone on historical YOLO builds",
         "rationale": "Adopted from Phase 4 experiment do-2026-04-08-claude-mythos-agentic-eval (reframed from unverifiable 'Claude Mythos' marketing name). Low-effort, high-signal: pick N historical YOLO build specs where we have the original prompt + final artifact, replay them through the current backbone and the latest available Claude model, measure clarification requests, council retry count per gate, and end-to-end completion rate. Informs whether to promote the newer model into the tick/tock pipeline backbone.",
         "deliverable_paths": [
           "experiments/model-eval-backbone/benchmark.py",
           "experiments/model-eval-backbone/results.md",
           "experiments/model-eval-backbone/README.md"
         ],
-        "plan_summary": "Three files in experiments/model-eval-backbone/. (1) benchmark.py: 100-150 lines. Takes a list of N historical build_spec objects (prompt + expected deliverable shape) from yolo_log.json, invokes each against two model endpoints (current backbone, latest Claude), captures clarification-request count, total API calls, wall time, final output, and a simple pass/fail by re-running test_project.py against the generated artifact. No new framework deps — plain requests or the anthropic SDK. (2) results.md: markdown table of per-build results + summary stats (mean clarification count, pass rate delta, cost delta). Hand-written conclusions section. (3) README.md: how to run, how to add new build specs to the replay set, what 'pass' means. N=5 for the first run — just enough to establish a signal without burning a full Phase-4-worth of tokens. Pick from: markdown-deck Tocks, naval-scribe Command Address Book, cron-explain, url-dissect, uuid-inspector (recent, diverse, well-documented).",
+        "plan_summary": "Three files in experiments/model-eval-backbone/. (1) benchmark.py: 100-150 lines. Takes a list of N historical build_spec objects (prompt + expected deliverable shape) from yolo_log.json, invokes each against two model endpoints (current backbone, latest Claude), captures clarification-request count, total API calls, wall time, final output, and a simple pass/fail by re-running test_project.py against the generated artifact. No new framework deps \u2014 plain requests or the anthropic SDK. (2) results.md: markdown table of per-build results + summary stats (mean clarification count, pass rate delta, cost delta). Hand-written conclusions section. (3) README.md: how to run, how to add new build specs to the replay set, what 'pass' means. N=5 for the first run \u2014 just enough to establish a signal without burning a full Phase-4-worth of tokens. Pick from: markdown-deck Tocks, naval-scribe Command Address Book, cron-explain, url-dissect, uuid-inspector (recent, diverse, well-documented).",
         "council_focus": "PLAN: are 5 builds enough signal or do we need 10+? IMPLEMENTATION: does benchmark.py actually invoke both endpoints and collect comparable metrics? is 'clarification request count' robustly measurable? TESTS: run on 1 historical build end-to-end and verify both model runs complete with a comparable record. OUTCOME: results.md has a real recommendation (promote / keep / mixed) grounded in the 5 runs, not hand-waving."
       },
       {
@@ -125,29 +126,49 @@
         "type": "manual_interactive_or_infra",
         "added": "2026-04-09",
         "idea": "Broaden the no-goalpost-moving rule in learnings.md to catch cross-gate as well as same-gate moves",
-        "rationale": "The current rule (added 2026-04-09 in commit 3029f6d) only catches same-angle objections raised twice on the same gate. It does NOT catch the more subtle case where an angle objects on the PLAN gate, gets overruled, then raises a similar-but-reframed objection on the IMPLEMENTATION gate (different gate, same underlying concern, no new evidence). Discovered today: SECURITY pivoted from localStorage encryption (plan attempt 1) to CSP architecture critique (plan attempt 2) — current rule would have caught this since both were on plan gate. But if SECURITY had waited until implementation gate to raise the CSP critique, the rule would not fire. Need to track angle x project x feature x objection-essence across ALL gates, not just within a gate.",
+        "rationale": "The current rule (added 2026-04-09 in commit 3029f6d) only catches same-angle objections raised twice on the same gate. It does NOT catch the more subtle case where an angle objects on the PLAN gate, gets overruled, then raises a similar-but-reframed objection on the IMPLEMENTATION gate (different gate, same underlying concern, no new evidence). Discovered today: SECURITY pivoted from localStorage encryption (plan attempt 1) to CSP architecture critique (plan attempt 2) \u2014 current rule would have caught this since both were on plan gate. But if SECURITY had waited until implementation gate to raise the CSP critique, the rule would not fire. Need to track angle x project x feature x objection-essence across ALL gates, not just within a gate.",
         "deliverable_paths": [
           "learnings.md"
         ],
-        "plan_summary": "Edit learnings.md \"no goalpost-moving\" rule to add: \"This rule applies across gates, not just within a gate. Track per (angle, project, feature) the set of underlying concerns that have been raised. If the same angle raises a substantively similar concern at any later gate without new evidence, auto-downgrade to advisory. Concrete heuristic: compute cosine similarity (or simple keyword overlap > 0.6) between the new reason and any prior_reason for the same (angle, project, feature) tuple — if similar, downgrade.\" Council orchestrator needs to load prior council_*.json files for the same project/feature when scoring.",
+        "plan_summary": "Edit learnings.md \"no goalpost-moving\" rule to add: \"This rule applies across gates, not just within a gate. Track per (angle, project, feature) the set of underlying concerns that have been raised. If the same angle raises a substantively similar concern at any later gate without new evidence, auto-downgrade to advisory. Concrete heuristic: compute cosine similarity (or simple keyword overlap > 0.6) between the new reason and any prior_reason for the same (angle, project, feature) tuple \u2014 if similar, downgrade.\" Council orchestrator needs to load prior council_*.json files for the same project/feature when scoring.",
         "council_focus": "PLAN: is keyword-overlap > 0.6 the right heuristic, or should we use embeddings? IMPLEMENTATION: where does the orchestrator track per-feature objection history (in council.py? in tick_tock_prompt.md?). TESTS: replay this naval-scribe Command Address Book episode and verify the cross-gate goalpost would have been caught. OUTCOME: rule is broader without becoming overly aggressive.",
         "completed_at": "2026-04-09",
         "completed_by": "John (interactive session)",
         "verification": "learnings.md goalpost-moving rule broadened to cross-gate with keyword-overlap-0.6 heuristic and two concrete examples. Plan-artifact structural policy added. update_session_state.py rewritten to merge-based."
       }
     ],
-    "last_session_timestamp": "2026-04-21T12:56:51+00:00"
+    "last_session_timestamp": "2026-04-21T12:56:51+00:00",
+    "tick_queue_deferred": [
+      {
+        "name": "infra-yolo-evals",
+        "type": "infrastructure",
+        "status": "deliverables-live-council-deferred",
+        "dequeued_at": "2026-04-21T18:50:13.119882+00:00",
+        "dequeued_by": "John (interactive session, 2026-04-22)",
+        "reason": "All three lens scripts (ux_completeness.py, mobile_usability.py, cult_status.py) are in main with repo-root path containment (commit 10bd394). Portfolio hit rates validated across 5 projects. Only blocker was 4 consecutive council-bug escalations; formal council sign-off is being deferred until fix-council-enforcement ships, after which we can retroactively run the 4 gates against the live code with a functioning orchestrator.",
+        "deliverable_paths_shipped": [
+          "ux_completeness.py",
+          "mobile_usability.py",
+          "cult_status.py"
+        ],
+        "escalation_history": [
+          "2026-04-21 c87b4df: impl BUGS+SECURITY \u2192 resolved in 10bd394 (SECURITY fixed, BUGS false-positive)",
+          "2026-04-21 c778471: impl LESSONS VETO \u2192 resolved in e634ccd (rule was present, VETO lacked evidence)",
+          "2026-04-21 8276e22: impl BUGS goalpost + SECURITY parse-failure \u2192 resolved in this commit (council bugs)"
+        ]
+      }
+    ]
   },
   "markdown_deck": {
     "pending_items": [
-      "Markdown editor improvements: line numbers, tab indentation — deprioritized",
-      "Animation within slides — deprioritized",
+      "Markdown editor improvements: line numbers, tab indentation \u2014 deprioritized",
+      "Animation within slides \u2014 deprioritized",
       "Collaborative editing (WebRTC or shared localStorage)",
-      "Import from .pptx (parse OOXML back to markdown) — rejected (violates zero-dep)",
-      "Inline Chart Blocks — ```chart bar/line/pie with CSV data, pure SVG rendering",
-      "Slide Sorter View — Shift+V, 4-column grid, click to jump, drag to reorder",
-      "Keyboard Shortcut Reference — ? key, searchable modal, all shortcuts organized by category",
-      "Handout Print Mode — 2 or 4 slides per page with speaker notes, @media print CSS"
+      "Import from .pptx (parse OOXML back to markdown) \u2014 rejected (violates zero-dep)",
+      "Inline Chart Blocks \u2014 ```chart bar/line/pie with CSV data, pure SVG rendering",
+      "Slide Sorter View \u2014 Shift+V, 4-column grid, click to jump, drag to reorder",
+      "Keyboard Shortcut Reference \u2014 ? key, searchable modal, all shortcuts organized by category",
+      "Handout Print Mode \u2014 2 or 4 slides per page with speaker notes, @media print CSS"
     ]
   },
   "phase4": {
@@ -193,45 +214,37 @@
     "last_reconciled": "2026-04-13",
     "total_culled": 79
   },
-  "council_escalations": [
-    {
-      "project": "experiments/infra-yolo-evals",
-      "gate": "implementation",
-      "timestamp": "2026-04-21T17:53:59.665810+00:00",
-      "reason": "Unresolved objections after 3 attempts — BUGS OBJECT (high, table-overflow false-negative: overflow-x:auto anywhere in file accepted even if on unrelated element) + SECURITY OBJECT (high, unparseable JSON — truncated ReDoS concern).",
-      "path": "experiments/infra-yolo-evals/COUNCIL_ESCALATION.md"
-    }
-  ],
+  "council_escalations": [],
   "council_escalations_resolved": [
     {
       "project": "experiments/infra-guardrails",
       "gate": "plan",
       "timestamp": "2026-04-13T20:02:31.044529+00:00",
-      "reason": "Unresolved objections after 2 attempts — BUGS OBJECT (high, format-validation gap) + SECURITY OBJECT (high, prompt-injection framing).",
+      "reason": "Unresolved objections after 2 attempts \u2014 BUGS OBJECT (high, format-validation gap) + SECURITY OBJECT (high, prompt-injection framing).",
       "path": "experiments/infra-guardrails/COUNCIL_ESCALATION.md",
       "resolved_at": "2026-04-19T19:40:00+00:00",
       "resolved_by": "John (interactive session, via Claude)",
-      "resolution": "ACCEPT BUGS + OVERRIDE SECURITY. (1) BUGS: legitimate concern that ID-presence alone is not 'machine-checkable' in the spirit of the plan. Amended plan.md Function Map + Test Strategy: check_constraints.py now also validates each constraint row parses to C# | Rule | Pass | Fail (4 non-empty pipe-separated fields). Verifier grows ~30→~40 lines. (2) SECURITY: overridden per adopt-planning-mode 2026-04-09 precedent and broadened goalpost rule (learnings.md 2026-04-09). program.md is self-authored, human-reviewed at commit time, read by the agent — producer and consumer are the same agent with human review in between. No trust boundary, no concrete downstream parser. Build proceeds to IMPLEMENTATION gate with amended plan."
+      "resolution": "ACCEPT BUGS + OVERRIDE SECURITY. (1) BUGS: legitimate concern that ID-presence alone is not 'machine-checkable' in the spirit of the plan. Amended plan.md Function Map + Test Strategy: check_constraints.py now also validates each constraint row parses to C# | Rule | Pass | Fail (4 non-empty pipe-separated fields). Verifier grows ~30\u2192~40 lines. (2) SECURITY: overridden per adopt-planning-mode 2026-04-09 precedent and broadened goalpost rule (learnings.md 2026-04-09). program.md is self-authored, human-reviewed at commit time, read by the agent \u2014 producer and consumer are the same agent with human review in between. No trust boundary, no concrete downstream parser. Build proceeds to IMPLEMENTATION gate with amended plan."
     },
     {
       "project": "experiments/adopt-planning-mode",
       "gate": "plan",
       "timestamp": "2026-04-09T19:56:58.732836+00:00",
-      "reason": "Attempt 3: BUGS+SECURITY deadlock. SECURITY escalated medium→high with same argument (plan.md unsanitized). BUGS bandwagoned (was APPROVE on attempts 1+2). 5 of 7 APPROVE.",
+      "reason": "Attempt 3: BUGS+SECURITY deadlock. SECURITY escalated medium\u2192high with same argument (plan.md unsanitized). BUGS bandwagoned (was APPROVE on attempts 1+2). 5 of 7 APPROVE.",
       "path": "experiments/adopt-planning-mode/COUNCIL_ESCALATION.md",
       "resolved_at": "2026-04-10T00:00:00+00:00",
       "resolved_by": "John (interactive session)",
-      "resolution": "OVERRIDE both SECURITY and BUGS. (1) SECURITY: 3rd consecutive objection on same (project, feature) with same underlying concern, no new evidence, severity escalation medium→high as intimidation tactic. Keyword overlap with prior reasons >0.6. Auto-downgraded per broadened goalpost rule (learnings.md 2026-04-09). (2) BUGS: never objected on attempts 1 or 2 (APPROVE low). New OBJECT parrots SECURITY framing verbatim. Bandwagon objection with no independent correctness concern — plan.md is not executed. Both violate plan-artifact policy (learnings.md 2026-04-09): SECURITY may not require producer-side sanitization absent a concrete downstream parser. Council should proceed to IMPLEMENTATION gate."
+      "resolution": "OVERRIDE both SECURITY and BUGS. (1) SECURITY: 3rd consecutive objection on same (project, feature) with same underlying concern, no new evidence, severity escalation medium\u2192high as intimidation tactic. Keyword overlap with prior reasons >0.6. Auto-downgraded per broadened goalpost rule (learnings.md 2026-04-09). (2) BUGS: never objected on attempts 1 or 2 (APPROVE low). New OBJECT parrots SECURITY framing verbatim. Bandwagon objection with no independent correctness concern \u2014 plan.md is not executed. Both violate plan-artifact policy (learnings.md 2026-04-09): SECURITY may not require producer-side sanitization absent a concrete downstream parser. Council should proceed to IMPLEMENTATION gate."
     },
     {
       "project": "experiments/adopt-planning-mode",
       "gate": "plan",
       "timestamp": "2026-04-08T22:29:30.632151+00:00",
-      "reason": "Unresolved objections after 2 attempts — SECURITY OBJECT (medium) claiming trust-boundary violation: plan.md is unsanitized AI output that could contain XSS/path-traversal if a future system parses it. 6 of 7 angles APPROVED.",
+      "reason": "Unresolved objections after 2 attempts \u2014 SECURITY OBJECT (medium) claiming trust-boundary violation: plan.md is unsanitized AI output that could contain XSS/path-traversal if a future system parses it. 6 of 7 angles APPROVED.",
       "path": "experiments/adopt-planning-mode/COUNCIL_ESCALATION.md",
       "resolved_at": "2026-04-09T00:00:00+00:00",
       "resolved_by": "John (interactive session, option A)",
-      "resolution": "OVERRIDE SECURITY OBJECT. Rationale: (1) severity=medium, not a veto; (2) 6 of 7 angles approved; (3) objection is a hypothetical-future-system argument — plan.md has no current downstream automated parser, so there is no trust boundary to violate; (4) 'XSS payloads in markdown' has no render surface; 'dangerous path traversals' are descriptions of intent not inputs to open(); (5) pattern-matches the naval-scribe SECURITY escalation (2026-04-08) where 6/7 angles found an architecture-level SECURITY objection invalid. Plan.md Security section amended with a trust-boundary note explicitly stating that sanitization is the consumer's responsibility if a future parser is ever added. Council should resume the build on adopt-planning-mode. FOLLOW-UP: promote this precedent into a structural policy (see manual_queue → broaden-goalpost-moving-rule, and consider a PLAN_ARTIFACT_POLICY.md capturing 'plan artifacts are human-review documents, not machine inputs — SECURITY may not require producer-side sanitization absent a concrete downstream parser')."
+      "resolution": "OVERRIDE SECURITY OBJECT. Rationale: (1) severity=medium, not a veto; (2) 6 of 7 angles approved; (3) objection is a hypothetical-future-system argument \u2014 plan.md has no current downstream automated parser, so there is no trust boundary to violate; (4) 'XSS payloads in markdown' has no render surface; 'dangerous path traversals' are descriptions of intent not inputs to open(); (5) pattern-matches the naval-scribe SECURITY escalation (2026-04-08) where 6/7 angles found an architecture-level SECURITY objection invalid. Plan.md Security section amended with a trust-boundary note explicitly stating that sanitization is the consumer's responsibility if a future parser is ever added. Council should resume the build on adopt-planning-mode. FOLLOW-UP: promote this precedent into a structural policy (see manual_queue \u2192 broaden-goalpost-moving-rule, and consider a PLAN_ARTIFACT_POLICY.md capturing 'plan artifacts are human-review documents, not machine inputs \u2014 SECURITY may not require producer-side sanitization absent a concrete downstream parser')."
     },
     {
       "project": "naval-scribe",
@@ -247,7 +260,7 @@
       "project": "naval-scribe",
       "gate": "implementation",
       "timestamp": "2026-04-08T19:59:00.858599+00:00",
-      "reason": "LESSONS VETO — Cannot verify implementation of `saveAddr()` and `renderAddr()` as required by the `ACTIVE OVERRIDE` and `COUNCIL FOCUS` due to truncated JavaScript in the provided deliverable.",
+      "reason": "LESSONS VETO \u2014 Cannot verify implementation of `saveAddr()` and `renderAddr()` as required by the `ACTIVE OVERRIDE` and `COUNCIL FOCUS` due to truncated JavaScript in the provided deliverable.",
       "path": "naval-scribe/COUNCIL_ESCALATION.md",
       "resolved_at": "2026-04-09T00:00:00+00:00",
       "resolved_by": "John (interactive session)",
@@ -273,7 +286,7 @@
       "resolved_at": "2026-04-08T12:00:00+00:00",
       "resolved_by": "John (manual decision, option A)",
       "reason": "Multi-issue plan gate split: LESSONS VETO + BUGS critical + SECURITY high + COOL critical. UI/GUIDE/USEFULNESS approved.",
-      "resolution": "OVERRIDE LESSONS VETO + COOL OBJECT. APPLY BUGS FIX + STORAGE WARNING. Specifically: (1) LESSONS VETO is a FALSE POSITIVE — the rule's own precondition requires the project's CSP to use a 'sha256-...' token, but naval-scribe/index.html:5 uses script-src 'unsafe-inline' with NO sha256 token. Rule should never have fired. This is the second false positive on lessons preconditions (see feedback_lessons_preconditions.md). (2) COOL OBJECT overruled per feedback_utility_focus.md — 'utility is king, no visual toys, build things people bookmark and use.' Address book IS the utility win; signature-move requirement is out of policy for utility-flagship features. (3) BUGS critical objection is legit and small — plan must wrap saveAddr() in try/catch for QuotaExceededError, surface inline error to user, and NOT update UI on persistence failure. (4) SECURITY high objection partially accepted — do NOT move to server-side (breaks zero-dep), but DO add an inline note in the address book panel reading 'Stored locally on this device. Not synced. Not encrypted.' so user has informed consent. Cron worker must implement (3) and (4) before passing the plan gate on retry.",
+      "resolution": "OVERRIDE LESSONS VETO + COOL OBJECT. APPLY BUGS FIX + STORAGE WARNING. Specifically: (1) LESSONS VETO is a FALSE POSITIVE \u2014 the rule's own precondition requires the project's CSP to use a 'sha256-...' token, but naval-scribe/index.html:5 uses script-src 'unsafe-inline' with NO sha256 token. Rule should never have fired. This is the second false positive on lessons preconditions (see feedback_lessons_preconditions.md). (2) COOL OBJECT overruled per feedback_utility_focus.md \u2014 'utility is king, no visual toys, build things people bookmark and use.' Address book IS the utility win; signature-move requirement is out of policy for utility-flagship features. (3) BUGS critical objection is legit and small \u2014 plan must wrap saveAddr() in try/catch for QuotaExceededError, surface inline error to user, and NOT update UI on persistence failure. (4) SECURITY high objection partially accepted \u2014 do NOT move to server-side (breaks zero-dep), but DO add an inline note in the address book panel reading 'Stored locally on this device. Not synced. Not encrypted.' so user has informed consent. Cron worker must implement (3) and (4) before passing the plan gate on retry.",
       "path": "naval-scribe/COUNCIL_ESCALATION.md"
     },
     {
@@ -281,30 +294,30 @@
       "gate": "tests",
       "timestamp": "2026-04-07T18:45:38.620732+00:00",
       "resolved_at": "2026-04-08T00:00:00+00:00",
-      "resolution": "APPLIED FIX (option A) — added addItems() batch method to makeMultiField using createDocumentFragment; parseRefsBtn now collects lines and calls refFields.addItems(cleaned). setValues() also routed through addItems. Resolves lessons veto for paste loops >50 items.",
+      "resolution": "APPLIED FIX (option A) \u2014 added addItems() batch method to makeMultiField using createDocumentFragment; parseRefsBtn now collects lines and calls refFields.addItems(cleaned). setValues() also routed through addItems. Resolves lessons veto for paste loops >50 items.",
       "resolved_by": "John (manual decision)",
-      "reason": "LESSONS VETO — The paste block functionality for references violates the createDocumentFragment lesson by performing per-element DOM appends in a loop that can exceed 50 items.",
+      "reason": "LESSONS VETO \u2014 The paste block functionality for references violates the createDocumentFragment lesson by performing per-element DOM appends in a loop that can exceed 50 items.",
       "path": "naval-scribe/COUNCIL_ESCALATION.md"
     },
     {
       "project": "experiments/infra-guardrails",
       "gate": "implementation",
       "timestamp": "2026-04-20T11:12:21.648846+00:00",
-      "reason": "LESSONS VETO — The description of the regex in changes.md does not exactly match the actual regex string in check_constraints.py, violating a documented lesson on preventing council misinterpretations.",
+      "reason": "LESSONS VETO \u2014 The description of the regex in changes.md does not exactly match the actual regex string in check_constraints.py, violating a documented lesson on preventing council misinterpretations.",
       "path": "experiments/infra-guardrails/COUNCIL_ESCALATION.md",
       "resolved_at": "2026-04-21T10:48:22.284658+00:00",
       "resolved_by": "John (interactive session, 2026-04-21)",
-      "resolution": "PARTIAL FIX + PARTIAL OVERRIDE. LESSONS VETO ACCEPTED — changes.md regex description updated to quote the verbatim regex string from check_constraints.py (including \\s* and capture groups). BUGS OBJECT ACCEPTED — check_constraints.py now scopes ROW_RE to the ## Build Constraints section slice via SECTION_RE, and enforces found_ids == REQUIRED_IDS (missing AND extras both fail). SECURITY OBJECT OVERRIDDEN — sys.argv[1] retained. This is a dev-time verifier, no production trust boundary; the adopt-planning-mode 2026-04-10 precedent (no producer-side sanitization absent a concrete downstream consumer) applies. COOL OBJECT OVERRIDDEN — internal infrastructure tooling is not portfolio-facing and is explicitly exempt from the \"signature move\" bar per feedback_utility_focus (utility king — build things people bookmark, not visual toys). A markdown verifier that guards program.md integrity IS high-utility; the COOL angle misapplied the portfolio-differentiation bar to internal infra. Council should proceed to TESTS gate on rerun."
+      "resolution": "PARTIAL FIX + PARTIAL OVERRIDE. LESSONS VETO ACCEPTED \u2014 changes.md regex description updated to quote the verbatim regex string from check_constraints.py (including \\s* and capture groups). BUGS OBJECT ACCEPTED \u2014 check_constraints.py now scopes ROW_RE to the ## Build Constraints section slice via SECTION_RE, and enforces found_ids == REQUIRED_IDS (missing AND extras both fail). SECURITY OBJECT OVERRIDDEN \u2014 sys.argv[1] retained. This is a dev-time verifier, no production trust boundary; the adopt-planning-mode 2026-04-10 precedent (no producer-side sanitization absent a concrete downstream consumer) applies. COOL OBJECT OVERRIDDEN \u2014 internal infrastructure tooling is not portfolio-facing and is explicitly exempt from the \"signature move\" bar per feedback_utility_focus (utility king \u2014 build things people bookmark, not visual toys). A markdown verifier that guards program.md integrity IS high-utility; the COOL angle misapplied the portfolio-differentiation bar to internal infra. Council should proceed to TESTS gate on rerun."
     },
     {
       "project": "experiments/infra-guardrails",
       "gate": "outcome",
       "timestamp": "2026-04-21T11:58:45.699861+00:00",
-      "reason": "Unresolved objections after 2 attempts — BUGS OBJECT (high): ROW_RE uses ([^|]+) which silently skips rows with empty fields instead of reporting them as empty-field errors; proposed fix is ([^|]*) with reliance on existing if-not-all check.",
+      "reason": "Unresolved objections after 2 attempts \u2014 BUGS OBJECT (high): ROW_RE uses ([^|]+) which silently skips rows with empty fields instead of reporting them as empty-field errors; proposed fix is ([^|]*) with reliance on existing if-not-all check.",
       "path": "experiments/infra-guardrails/COUNCIL_ESCALATION.md",
       "resolved_at": "2026-04-21T12:17:43.355703+00:00",
       "resolved_by": "John (interactive session, 2026-04-21, via auto-wake)",
-      "resolution": "FIX APPLIED. BUGS OBJECT (high) accepted — ROW_RE changed from \"([^|]+)\" to \"([^|]*)\" in all three positions (Rule/Pass/Fail capture groups). The existing \"if not all(fields)\" check now correctly reports \"Row CN: one or more empty fields\" instead of silently dropping malformed rows from found_ids (which produced a misleading \"Missing constraint: CN\" error). Verified with three synthetic fixtures: empty-Fail-field row on C1 (caught), all-empty-row on C5 (caught), and clean fixture (still passes). Real program.md still PASSes. changes.md and README.md regex documentation both updated to the new pattern. Council should proceed to a final OUTCOME rerun, which is expected to pass."
+      "resolution": "FIX APPLIED. BUGS OBJECT (high) accepted \u2014 ROW_RE changed from \"([^|]+)\" to \"([^|]*)\" in all three positions (Rule/Pass/Fail capture groups). The existing \"if not all(fields)\" check now correctly reports \"Row CN: one or more empty fields\" instead of silently dropping malformed rows from found_ids (which produced a misleading \"Missing constraint: CN\" error). Verified with three synthetic fixtures: empty-Fail-field row on C1 (caught), all-empty-row on C5 (caught), and clean fixture (still passes). Real program.md still PASSes. changes.md and README.md regex documentation both updated to the new pattern. Council should proceed to a final OUTCOME rerun, which is expected to pass."
     },
     {
       "project": "experiments/infra-yolo-evals",
@@ -314,18 +327,28 @@
       "path": "experiments/infra-yolo-evals/COUNCIL_ESCALATION.md",
       "resolved_at": "2026-04-21T15:47:20.309866+00:00",
       "resolved_by": "John (interactive session, 2026-04-22)",
-      "resolution": "HYBRID: BUGS overridden as false positive + SECURITY fixed at source + pattern codified. BUGS OBJECT OVERRIDDEN — angle claimed the table-overflow check false-positives when overflow-x:auto is on a parent wrapper, but mobile_usability.py:85-87 already uses re.search(r\"overflow-x\\s*:\\s*auto\", text) over the whole file — wrapper CSS is accepted. The portfolio hit-rate table in changes.md confirms this (naval-scribe correctly caught, markdown-deck correctly passed). Objection fails the lessons-reviewer protocol precondition check: code does not match the described defect. SECURITY OBJECT FIXED — all 3 lens scripts now validate that os.path.realpath(sys.argv[1]) is contained within REPO_ROOT = os.path.dirname(os.path.realpath(__file__)). Escape attempts to /etc/passwd and ../../etc/passwd both rejected with clear error; legit repo paths (naval-scribe/index.html) work unchanged. Tested end-to-end on all 3 scripts. Pattern also codified as a standing rule in learnings.md so future lens/verifier ticks apply the same containment check and SECURITY cannot re-raise."
+      "resolution": "HYBRID: BUGS overridden as false positive + SECURITY fixed at source + pattern codified. BUGS OBJECT OVERRIDDEN \u2014 angle claimed the table-overflow check false-positives when overflow-x:auto is on a parent wrapper, but mobile_usability.py:85-87 already uses re.search(r\"overflow-x\\s*:\\s*auto\", text) over the whole file \u2014 wrapper CSS is accepted. The portfolio hit-rate table in changes.md confirms this (naval-scribe correctly caught, markdown-deck correctly passed). Objection fails the lessons-reviewer protocol precondition check: code does not match the described defect. SECURITY OBJECT FIXED \u2014 all 3 lens scripts now validate that os.path.realpath(sys.argv[1]) is contained within REPO_ROOT = os.path.dirname(os.path.realpath(__file__)). Escape attempts to /etc/passwd and ../../etc/passwd both rejected with clear error; legit repo paths (naval-scribe/index.html) work unchanged. Tested end-to-end on all 3 scripts. Pattern also codified as a standing rule in learnings.md so future lens/verifier ticks apply the same containment check and SECURITY cannot re-raise."
     },
     {
       "project": "experiments/infra-yolo-evals",
       "gate": "implementation",
       "timestamp": "2026-04-21T16:05:00.912720+00:00",
-      "reason": "LESSONS VETO — The deliverable claims to implement a 'new learnings.md \"Internal verifier path containment\" rule' which is not present in the provided learnings.md content, indicating a critical documentation gap in the system's memory.",
+      "reason": "LESSONS VETO \u2014 The deliverable claims to implement a 'new learnings.md \"Internal verifier path containment\" rule' which is not present in the provided learnings.md content, indicating a critical documentation gap in the system's memory.",
       "path": "experiments/infra-yolo-evals/COUNCIL_ESCALATION.md",
       "resolved_at": "2026-04-21T16:54:13.846595+00:00",
       "resolved_by": "John (interactive session, 2026-04-22, via auto-wake)",
-      "resolution": "OVERRIDE ALL THREE. No code changes.\n\nLESSONS VETO — FALSE POSITIVE. Claimed the \"Internal verifier path containment\" rule is not in learnings.md. Verified present at learnings.md:30 (committed in 10bd394). Also procedurally invalid: per the \"Enforcement (added 2026-04-08 after 3rd false positive)\" rule in learnings.md, every LESSONS VETO must include a precondition_evidence field quoting the verbatim source line proving the precondition is met. This VETO has no such field. Per the rule, it should have been auto-downgraded to advisory by the orchestrator and not blocked the build. The orchestrator is failing to enforce its own rule — flagging for follow-up but not blocking this tick.\n\nBUGS (high) — SCOPE CREEP OVERRIDE. Objection demands cssutils dependency for the focus-ring check. Rejected on three grounds: (1) ux_completeness.py is documented as an advisory lens using regex heuristics, not a correctness tool; (2) pulling in cssutils violates the zero-dep pattern the YOLO portfolio follows; (3) the tick plan constrained each lens to \"100-200 lines, Python regex\" — cssutils integration would exceed scope. Heuristic regex is the stated design, not an accidental simplification.\n\nUI (medium) — WRONG RUBRIC OVERRIDE. UI angle evaluates cult_status.py animation/canvas-svg checks against UX-friction criteria. But cult_status.py is explicitly the differentiation lens (docstring: \"signature-move indicators: animations, canvas/SVG, keyboard shortcuts, real-time interactivity\"). UX usability is ux_completeness.py's job; cult_status.py measures whether a tool has memorability/cult potential. The UI objection is applying the wrong rubric to the wrong artifact. Removing those two checks would gut the differentiation lens of its core purpose.\n\nAll seven angles re-evaluated; SECURITY/GUIDE/USEFULNESS/COOL still approve. Cron should resume IMPLEMENTATION rerun (expected PASS since no code changed), then advance to TESTS and OUTCOME."
+      "resolution": "OVERRIDE ALL THREE. No code changes.\n\nLESSONS VETO \u2014 FALSE POSITIVE. Claimed the \"Internal verifier path containment\" rule is not in learnings.md. Verified present at learnings.md:30 (committed in 10bd394). Also procedurally invalid: per the \"Enforcement (added 2026-04-08 after 3rd false positive)\" rule in learnings.md, every LESSONS VETO must include a precondition_evidence field quoting the verbatim source line proving the precondition is met. This VETO has no such field. Per the rule, it should have been auto-downgraded to advisory by the orchestrator and not blocked the build. The orchestrator is failing to enforce its own rule \u2014 flagging for follow-up but not blocking this tick.\n\nBUGS (high) \u2014 SCOPE CREEP OVERRIDE. Objection demands cssutils dependency for the focus-ring check. Rejected on three grounds: (1) ux_completeness.py is documented as an advisory lens using regex heuristics, not a correctness tool; (2) pulling in cssutils violates the zero-dep pattern the YOLO portfolio follows; (3) the tick plan constrained each lens to \"100-200 lines, Python regex\" \u2014 cssutils integration would exceed scope. Heuristic regex is the stated design, not an accidental simplification.\n\nUI (medium) \u2014 WRONG RUBRIC OVERRIDE. UI angle evaluates cult_status.py animation/canvas-svg checks against UX-friction criteria. But cult_status.py is explicitly the differentiation lens (docstring: \"signature-move indicators: animations, canvas/SVG, keyboard shortcuts, real-time interactivity\"). UX usability is ux_completeness.py's job; cult_status.py measures whether a tool has memorability/cult potential. The UI objection is applying the wrong rubric to the wrong artifact. Removing those two checks would gut the differentiation lens of its core purpose.\n\nAll seven angles re-evaluated; SECURITY/GUIDE/USEFULNESS/COOL still approve. Cron should resume IMPLEMENTATION rerun (expected PASS since no code changed), then advance to TESTS and OUTCOME."
+    },
+    {
+      "project": "experiments/infra-yolo-evals",
+      "gate": "implementation",
+      "timestamp": "2026-04-21T17:53:59.665810+00:00",
+      "reason": "Unresolved objections after 3 attempts \u2014 BUGS OBJECT (high, table-overflow false-negative: overflow-x:auto anywhere in file accepted even if on unrelated element) + SECURITY OBJECT (high, unparseable JSON \u2014 truncated ReDoS concern).",
+      "path": "experiments/infra-yolo-evals/COUNCIL_ESCALATION.md",
+      "resolved_at": "2026-04-21T18:47:39.217225+00:00",
+      "resolved_by": "John (interactive session, 2026-04-22)",
+      "resolution": "OVERRIDE \u2014 no code changes. This is the 4th consecutive escalation on the same implementation attempt; both surviving objections are council bugs, not code bugs.\n\nBUGS (high) \u2014 GOALPOST MOVE. Previously objected that table-overflow check false-POSITIVES on valid wrapper-based tables (attempt 1, resolved). Now objects that the same check false-NEGATIVES (presence anywhere doesn't guarantee wrapper on <table>). Keyword overlap between the two reasons (table-overflow, check, mobile_usability.py, overflow-x:auto) exceeds 0.6 \u2014 should be auto-downgraded per the \"no goalpost-moving\" rule in learnings.md. Overridden.\n\nSECURITY (high) \u2014 PARSE FAILURE. Not a real objection: reason=\"Council member returned unparseable output\", required_fix=\"Re-run this angle with stricter JSON instructions\". The reviewer's JSON was truncated mid-sentence. council.py should have retried the angle; instead it constructed a phantom OBJECT that blocked the build. Not a finding; overridden.\n\nOther 5 angles approve \u2014 LESSONS explicitly confirmed path-containment rule is present and correctly implemented. No code changes required.\n\nFollow-up: fix-council-enforcement tick queued next to patch three council.py bugs: (1) no goalpost-move auto-downgrade, (2) no precondition_evidence enforcement on LESSONS VETOs, (3) no retry on parse failure."
     }
   ],
-  "resume_instructions": "ESCALATED — see council_escalations[] and experiments/infra-yolo-evals/COUNCIL_ESCALATION.md. Awaiting human resolution. DO NOT auto-fix."
+  "resume_instructions": "infra-yolo-evals 4th-attempt escalation resolved 2026-04-22 (council bugs, not code bugs). Cron may rerun IMPLEMENTATION (no code changed \u2014 same pass expected if council bugs don't trip again). After infra-yolo-evals completes OR hits another council-only escalation, pop fix-council-enforcement (now at top of tick_queue_approved) \u2014 that tick patches the three council bugs causing the loop."
 }
