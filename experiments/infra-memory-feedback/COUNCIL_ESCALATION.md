@@ -2,70 +2,41 @@
 
 **Gate:** plan
 **Reason:** Unresolved objections after 2 attempts
-**Timestamp:** 2026-04-21T22:30:54.711171+00:00
+**Timestamp:** 2026-04-22T01:12:30.620742+00:00
 
 ## Angle positions
 
-### BUGS — OBJECT (high)
-- **Reason:** The regex patterns for classifying 'prevented_bug' outcomes are too broad and risk misclassifying general agreements or non-bug-related resolutions as bug preventions, leading to incorrect metrics and flawed pruning decisions.
-- **Required fix:** Refine the `prevented_bug` regex in `cmd_backfill_recall` to be more specific to actual bug fixes or preventions, avoiding terms like `ACCEPTED` or `legitimate` in isolation, which can refer to non-bug-related resolutions.
-- **Evidence:** `Approach, Step 4: `prevented_bug`: `re.search(r'\bACCEPTED\b|\bFIX\s+APPLIED\b|\bAPPLY\s+FIX\b|\bFIX\s+ACCEPTED\b|\blegitimate\b', resolution, IGNORECASE)``
+### BUGS — OBJECT (critical)
+- **Reason:** The unique constraint `(learning_id, project, gate)` for the `recall_outcomes` table will cause silent data loss during `cmd_backfill_recall` when multiple distinct escalation records from `session_state.json` are classified with the sentinel `learning_id=0` for the same `(project, gate)` combination, as only the first such record will be stored and subsequent distinct records will be ignored.
+- **Required fix:** 1. Add a new column, `escalation_timestamp TEXT`, to the `recall_outcomes` table (assuming `resolved_at` or similar timestamp is available in `session_state.json` escalation entries). 2. Modify the `SCHEMA` to define two partial unique indexes: `UNIQUE (learning_id, project, gate) WHERE escalation_timestamp IS NULL` (for manual markings/linked learnings) and `UNIQUE (project, gate, escalation_timestamp) WHERE learning_id IS 0` (for backfilled escalation records). 3. Adjust `cmd_mark_outcome` to set `escalation_timestamp = NULL` and use `INSERT OR REPLACE` targeting the first partial index. 4. Adjust `cmd_backfill_recall` to set `learning_id = 0` and populate `escalation_timestamp` from the `session_state.json` entry, then use `INSERT OR IGNORE` targeting the second partial index.
+- **Evidence:** `## Approach
+1. **Schema extension** — append `recall_outcomes` table definition to `SCHEMA` constant in `build_memory.py`. `CREATE TABLE IF NOT EXISTS` is non-destructive on existing DBs. Add unique constraint `(learning_id, project, gate)` for idempotent backfill.
+...
+4. **`cmd_backfill_recall(db)``
 
-### SECURITY — APPROVE (low)
-- **Reason:** The plan explicitly addresses SQL injection with parameterized queries and validates critical inputs. The tool is for dev-time use with no network I/O or web UI, significantly reducing attack surface.
+### SECURITY — OBJECT (medium)
+- **Reason:** The `notes` field in `cmd_mark_outcome` accepts arbitrary user input without explicit sanitization or encoding, creating a latent data integrity and injection vulnerability if the stored data is later consumed by a web UI or other system with a trust boundary.
+- **Required fix:** Implement sanitization or encoding for the `notes` field before storing it in the `recall_outcomes` table, or explicitly document the assumption that `notes` content is trusted and future consumers must handle it safely.
+- **Evidence:** `Approach, step 3: `cmd_mark_outcome(db, learning_id, project, gate, outcome, notes)` and Security section: lack of explicit validation/sanitization for `notes`.`
 
-### UI — OBJECT (high)
-- **Reason:** The `mark-veto` and `mark-fp` commands require a `learning_id`, but the plan does not provide a clear, frictionless way for a user to discover this ID for an arbitrary learning.
-- **Required fix:** Add a CLI command (e.g., `list-learnings`) that displays `learning_id` alongside learning content, project, and gate, or modify `mark-veto`/`mark-fp` to accept a more user-friendly identifier like a text snippet.
-- **Evidence:** `Guide section: `python3 build_memory.py mark-veto <id> <proj> <gate>``
+### UI — APPROVE (low)
+- **Reason:** The plan effectively addresses previous UI feedback by adding a clear discovery workflow for learning IDs, and all CLI outputs are well-structured and actionable.
 
 ### GUIDE — APPROVE (low)
-- **Reason:** The plan provides excellent self-documentation for both human users and AI agents, including clear CLI usage, naming, and detailed classification logic.
+- **Reason:** The plan explicitly addresses discoverability by adding `list-learnings` and providing a clear discovery workflow in the documentation.
+- **Evidence:** `plan.md: 'cmd_list_learnings(db, limit=20, project=None) — added per UI critique on PLAN escalation. mark-veto/mark-fp both require a numeric learning_id but the plan originally provided no discovery path.'; plan.md: 'Discovery workflow'`
 
 ### USEFULNESS — APPROVE (low)
-- **Reason:** This project provides a critical feedback loop to maintain the quality and utility of the 'learnings' corpus, preventing it from becoming a source of noise rather than signal.
-- **Evidence:** `The problem of 'learning decay' (learnings becoming outdated, irrelevant, or false positives) is common in knowledge-based systems. This provides a mechanism to combat that, similar to how a bug tracker helps maintain software quality.`
+- **Reason:** This project provides a crucial feedback loop for the 'learnings' corpus, enabling evidence-based refinement and preventing degradation of the automated review system.
+- **Evidence:** `Without a mechanism to distinguish 'prevented bugs' from 'false positives', the value of the learnings would diminish over time, leading to user frustration and reduced trust in the council system. This project directly addresses that need for continuous improvement.`
 
 ### COOL — APPROVE (low)
-- **Reason:** The explicit tracking of 'prevented_bug' vs. 'false_positive' for automated learnings, and the 'recall-stats' command to surface these, creates a unique feedback loop that differentiates this tool from generic metric trackers.
+- **Reason:** The system provides a unique, data-driven feedback loop for evidence-based pruning of the internal learnings corpus, which is a signature move for self-improving knowledge systems.
 
 ### LESSONS — APPROVE (low)
-- **Reason:** 
+- **Reason:** The plan demonstrates adherence to prior council feedback by incorporating specific changes (tightened regex, new CLI command) based on previous critiques, aligning with the principle of not repeating past mistakes.
+- **Evidence:** `infra-memory-feedback PLAN escalation resolved 2026-04-22. Both BUGS+UI critiques ACCEPTED with code-level plan.md edits (tightened prevented_bug regex, added list-learnings CLI). First productive post-fix-council-enforcement escalation — council gave substantive feedback and we improved the plan.`
 
 ## Resolution
 
-**RESOLVED 2026-04-22 by John (interactive session). Both objections ACCEPTED — plan.md updated.**
-
-This is the first escalation since `fix-council-enforcement` shipped (`967c98e` + `5522e24`) and the first qualitatively different one: 5 of 7 angles approve cleanly, the two surviving OBJECTs are **substantive design critiques**, and both are being addressed by improving the plan rather than overriding the council. This is what the council is supposed to do.
-
-### BUGS OBJECT — ACCEPTED
-Critique: `prevented_bug` classification regex was too broad (`\bACCEPTED\b|\blegitimate\b`), matching general approvals like *"the override was legitimate"* or *"escalation ACCEPTED as overruled"* and misclassifying them as bug preventions.
-
-**Fix (in plan.md, Approach Step 4)**: Tightened to require bug-contextualizing anchor words:
-```
-\bFIX\s+APPLIED\b | \bFIX\s+ACCEPTED\b | \bACCEPTED[,.\s—-]+FIX\b
-| \blegitimate\s+(?:bug|concern|critique|issue|fix|objection|defect|regression)\b
-| \b(?:real|genuine)\s+(?:bug|defect|regression)\b
-```
-
-Also added regex smoke test (Test Strategy step 10) that asserts the tightened pattern does NOT match resolution text from real overridden escalations.
-
-### UI OBJECT — ACCEPTED
-Critique: `mark-veto <id>` and `mark-fp <id>` require a numeric `learning_id` but the plan provided no CLI command to discover those IDs.
-
-**Fix (in plan.md)**: Added `cmd_list_learnings(db, limit=20, project=None)` to in-scope commands. Prints id/project/gate/snippet table. Optional `--project <name>` filter. Documented in Guide section with a worked example:
-
-```
-$ python3 build_memory.py list-learnings 10 --project naval-scribe
-  id   project          gate     snippet
-  42   naval-scribe     outcome  KEEP: createDocumentFragment batch...
-$ python3 build_memory.py mark-fp 42 naval-scribe outcome
-```
-
-Function Map and Test Strategy updated (new tests 5 and 6).
-
-### Other 5 angles (APPROVE) — preserved
-
-SECURITY, GUIDE, USEFULNESS, COOL, LESSONS all approved cleanly on the first attempt. The patched council is behaving well.
-
-Cron may rerun PLAN gate; expected clean pass now that both critiques are incorporated.
+Human decision required. Resume the build after updating session_state.json.
