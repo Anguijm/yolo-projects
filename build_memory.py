@@ -663,7 +663,8 @@ def cmd_mark_outcome(db, learning_id, project, gate, outcome, notes=''):
 
     exists = db.execute("SELECT id FROM learnings WHERE id = ?", (learning_id,)).fetchone()
     if not exists:
-        print(f"Warning: learning_id {learning_id} not found in learnings table — inserting anyway")
+        print(f"Error: learning_id {learning_id} not found in learnings table — use 'list-learnings' to find valid IDs")
+        sys.exit(1)
 
     db.execute(
         """INSERT OR REPLACE INTO recall_outcomes
@@ -805,7 +806,7 @@ def main():
                     try:
                         limit = int(args[i])
                     except ValueError:
-                        pass
+                        print(f"Warning: ignoring unrecognized argument {args[i]!r} (expected integer for limit)")
                     i += 1
             cmd_list_learnings(db, limit, project_filter)
 

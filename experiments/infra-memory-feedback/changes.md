@@ -12,6 +12,10 @@
 - `get_db()` now calls `_migrate_recall_outcomes(db)` after `executescript(SCHEMA)` so existing deployments auto-upgrade.
 - Verified: fresh DB → 6 backfilled rows with 6 unique escalation_ids; second `backfill-recall` call → 0 inserted (idempotent); synthetic collision test (same project/gate/resolved_at, different reasons) → distinct ids.
 
+**IMPLEMENTATION gate attempt 2 fixes (2026-04-22)**:
+- `list-learnings` arg parsing: changed `except ValueError: pass` to print a warning ("Warning: ignoring unrecognized argument ...") so invalid limit args are visible instead of silently dropped. (BUGS low, main():805-808)
+- `cmd_mark_outcome`: changed warning-and-insert-anyway for unknown `learning_id > 0` to error-and-exit. Directs user to `list-learnings` to find valid IDs. (UI high, lines 664-666)
+
 **Original IMPLEMENTATION gate work (from commit 2c7c96a, +132 lines):**
 
 **Docstring** (lines 1–28): Added recall feedback commands section listing 5 new CLI commands.
