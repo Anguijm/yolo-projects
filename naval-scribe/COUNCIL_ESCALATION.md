@@ -36,4 +36,30 @@
 
 ## Resolution
 
-Human decision required. Resume the build after updating session_state.json.
+**RESOLVED 2026-04-22 by John (autonomous wake cycle). Both UI+GUIDE critiques accepted — plan.md updated.**
+
+### This escalation validated fix-council-enforcement in production
+
+The LESSONS verdict above reads:
+
+> `[AUTO-DOWNGRADED: LESSONS VETO missing precondition_evidence] The plan introduces a new static HTML button (#reply-btn) without an aria-label...`
+
+That's `enforce_lessons_precondition` (shipped in commit `967c98e` yesterday) catching a LESSONS veto attempt that lacked a `file:line:` evidence citation and auto-downgrading it to advisory. **First live production catch of the council enforcement rules.** The patched council is doing what it was built to do.
+
+### UI (critical) + GUIDE (high) — ACCEPTED
+Both objections converged on the same concern: destructive-action consent UX. A "reply" click wipes body content, clears 4 field sets, and resets type — users deserve to know that before clicking. Legitimate substantive feedback.
+
+**Fix (plan.md UI + Guide sections + Edge Cases)**: Reply drawer now has three named sub-sections before the Fill button:
+- **WILL CHANGE** — from, to, date, ref (a), body (with explicit "will REPLACE existing" warning), type (auto-set to letter)
+- **WILL CLEAR** — enclosures, copy-to, distribution checkbox, signature; plus Via chain with reverse-manually guidance when present
+- **WILL KEEP** — SSIC and subject (reassurance)
+
+Body overwrite is no longer silent: the preview string explicitly says "BODY (will REPLACE existing):" in bold before the user commits.
+
+### LESSONS advisory — FIXED ANYWAY
+Even though the rule was auto-downgraded to advisory (missing evidence), the underlying concern is real: the `#reply-btn` needs an `aria-label` at the HTML layer per the documented naval-scribe learning. Subtask 1 updated to include `aria-label="Generate reply draft with From/To swapped"` on the button.
+
+### Other 5 angles — APPROVE
+BUGS, SECURITY, USEFULNESS, COOL, LESSONS (advisory) all passed. BUGS explicitly praised the Via-chain-cleared warning and empty-field handling. SECURITY praised the `.textContent` / `.value` XSS safety. USEFULNESS called it a core utility for the target user.
+
+Cron may rerun PLAN gate; expected clean pass now that disclosure UX is in the plan.

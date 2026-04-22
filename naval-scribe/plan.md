@@ -26,7 +26,7 @@ One-click generation of a reply draft with From/To swapped, today's date, origin
 ### Subtask 1: HTML additions
 Add `#reply-drawer` div after `#addr-drawer`. Structure mirrors import-drawer: close button, preview section (from/to swap display + ref line), warning div (if From/To are empty), and "Fill Reply Draft" button.
 
-Add `<button class="btn" id="reply-btn">reply</button>` in top-bar controls between `addr-btn` and `print-btn`.
+Add `<button class="btn" id="reply-btn" aria-label="Generate reply draft with From/To swapped">reply</button>` in top-bar controls between `addr-btn` and `print-btn`. The `aria-label` is included at the HTML layer per the naval-scribe learning: static HTML buttons alongside JS-generated siblings must carry aria-labels at the HTML layer (not just via JS). This addresses the auto-downgraded LESSONS advisory on PLAN escalation.
 
 **No sequencing dependency** — HTML can be written in one pass.
 
@@ -98,11 +98,22 @@ When `replyBtn` is clicked, before opening the drawer:
 1. User has a letter form filled (From, To, SSIC, Date, Subj at minimum)
 2. Clicks "reply" button in top bar
 3. Reply drawer opens from left panel, other drawers close
-4. Drawer shows:
-   - "From: [current To]" — clearly labeled swap preview
-   - "To: [current From]" — clearly labeled swap preview
-   - "Ref (a): [From] ltr [SSIC] of [Date]" — generated reference string
-   - "Body opener: Per reference (a), ..." — what the body will start with
+4. Drawer shows (per UI+GUIDE critique on PLAN escalation — full disclosure of what changes):
+   - **Will change** section:
+     - "From: [current To]" — clearly labeled swap preview
+     - "To: [current From]" — clearly labeled swap preview
+     - "Date: [today in DD Mon YYYY]" — auto-set
+     - "Ref (a): [From] ltr [SSIC] of [Date]" — generated reference string
+     - "Body (will REPLACE existing): Per reference (a), " — explicit overwrite warning
+     - "Type: letter (auto-set)" — explicit even if current type is already letter
+   - **Will clear** section — always visible, lists every field that gets emptied:
+     - "Enclosures: cleared"
+     - "Copy To: cleared"
+     - "Distribution checkbox: unchecked"
+     - "Signature: cleared (name, rank, title)"
+     - "Via chain: cleared — reverse manually if routing requires it" (only shown when Via has content; bolded)
+   - **Will keep** section (reassurance):
+     - "SSIC, Subject"
 5. "Fill Reply Draft" button at bottom
 6. User clicks → form is filled, drawer closes, preview updates
 
@@ -121,10 +132,18 @@ When `replyBtn` is clicked, before opening the drawer:
 
 **Drawer title:** "Reply Draft"
 
-**Preview labels:**
-- "FROM →" and "TO →" (uppercase, with arrow indicating direction)
-- "REF (a):" for the reference line
-- "BODY:" for the boilerplate opener preview
+**Preview sections** (reply drawer, from top to bottom):
+- **"WILL CHANGE"** header — items that get new values:
+  - "FROM →" and "TO →" (uppercase, with arrow indicating direction)
+  - "DATE →" (today's date)
+  - "REF (a):" for the reference line
+  - "BODY (replaces existing):" — explicit overwrite warning in bold
+  - "TYPE → letter" (auto-set)
+- **"WILL CLEAR"** header — items that get emptied:
+  - "Enclosures, Copy To, Distribution checkbox, Signature" (always)
+  - "Via chain — reverse manually if needed" (only if Via has content, in warning color)
+- **"WILL KEEP"** header — items preserved:
+  - "SSIC, Subject"
 
 **Warning text (if From/To empty):** "Fill in From and To fields first."
 
@@ -144,7 +163,7 @@ When `replyBtn` is clicked, before opening the drawer:
 | Both missing | Ref line: "From letter" |
 | From and To are the same value | Swap still happens (degenerate case, user adjusts) |
 | Long From/To values | Preview rows use `overflow: hidden; text-overflow: ellipsis` |
-| Body has existing content | Replaced without warning (same as "reply" intent — user chose reply, aware of consequences) |
+| Body has existing content | **Replaced, but drawer preview explicitly shows "BODY (will REPLACE existing):" before user clicks Fill — per UI+GUIDE critique on PLAN escalation.** No silent overwrite; user consent is informed. |
 | Original letter has Via chain | `#reply-via-warn` shown in drawer: "Via chain cleared — reverse the chain manually if required for correct routing." User informed before Fill. |
 | User clicks reply then close (no fill) | No change to form — drawer is preview-only until Fill is clicked |
 | Instruction / SOP type | Reply is set to "letter" regardless; user can change type after |

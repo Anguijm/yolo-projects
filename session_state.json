@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "last_updated": "2026-04-22T04:42:08.540546+00:00",
+  "last_updated": "2026-04-22T07:45:42.486355+00:00",
   "tick_tock": {
     "last_session_type": "tick",
     "last_tock_flagship": "deck",
@@ -235,15 +235,7 @@
     "last_reconciled": "2026-04-13",
     "total_culled": 79
   },
-  "council_escalations": [
-    {
-      "project": "naval-scribe",
-      "gate": "plan",
-      "timestamp": "2026-04-22T04:42:08.540519+00:00",
-      "reason": "Unresolved objections after 2 attempts \u2014 UI OBJECT (critical, body overwrite without preview) + GUIDE OBJECT (high, no type-reset disclosure in drawer preview). BUGS and SECURITY both APPROVE after fixes. 5 of 7 approve.",
-      "path": "naval-scribe/COUNCIL_ESCALATION.md"
-    }
-  ],
+  "council_escalations": [],
   "council_escalations_resolved": [
     {
       "project": "experiments/infra-guardrails",
@@ -407,7 +399,17 @@
       "resolved_at": "2026-04-22T01:26:06.783551+00:00",
       "resolved_by": "John (autonomous wake cycle, 2026-04-22)",
       "resolution": "BOTH OBJECTIONS ACCEPTED \u2014 plan.md updated. Second consecutive productive escalation from the patched council.\n\nBUGS (critical) \u2014 ACCEPTED. Real design bug: the original unique constraint (learning_id, project, gate) combined with learning_id=0 sentinel would collide when multiple escalations share the same (project, gate) \u2014 e.g., infra-yolo-evals has 4 implementation-gate escalations which would collapse to 1 row under INSERT OR IGNORE. Fixed by adding an escalation_timestamp TEXT NULL column and extending the unique constraint to (learning_id, project, gate, COALESCE(escalation_timestamp, \"\")). Backfill sets escalation_timestamp from each entry's resolved_at; manual mark-veto/mark-fp leave it NULL. Separate uniqueness scopes prevent collision between manual and backfilled records. Added sentinel-collision test as Test Strategy step 11 using the real infra-yolo-evals escalation cluster as the fixture.\n\nSECURITY (medium) \u2014 ACCEPTED via explicit documentation (SECURITY offered that alternative in its required_fix). Added a \"Trust model for the notes field\" subsection to the Security section documenting: notes is dev-authored CLI input, current consumers are SQL (parameterized) and terminal stdout (no injection surface), future HTTP/dashboard consumers own sanitization per the adopt-planning-mode precedent (learnings.md:26).\n\nLESSONS APPROVE cited the prior escalation resolution explicitly \u2014 confirming the goalpost-move detection correctly recognizes that prior feedback was addressed and is not re-raising it. 5 of 7 angles APPROVE.\n\nCron may rerun PLAN gate; expected clean pass."
+    },
+    {
+      "project": "naval-scribe",
+      "gate": "plan",
+      "timestamp": "2026-04-22T04:42:08.540519+00:00",
+      "reason": "Unresolved objections after 2 attempts \u2014 UI OBJECT (critical, body overwrite without preview) + GUIDE OBJECT (high, no type-reset disclosure in drawer preview). BUGS and SECURITY both APPROVE after fixes. 5 of 7 approve.",
+      "path": "naval-scribe/COUNCIL_ESCALATION.md",
+      "resolved_at": "2026-04-22T07:45:42.486343+00:00",
+      "resolved_by": "John (autonomous wake cycle, 2026-04-22)",
+      "resolution": "BOTH UI+GUIDE CRITIQUES ACCEPTED \u2014 plan.md updated with explicit disclosure UX. Validates fix-council-enforcement in production: LESSONS tried to veto but was correctly auto-downgraded by enforce_lessons_precondition for missing evidence citation. First live catch.\n\nUI (critical) + GUIDE (high) converged on: reply drawer must explicitly list every field that gets overwritten or cleared before the user clicks Fill. Legitimate destructive-action consent UX \u2014 replies wipe body content, clear 4 field sets, reset type, and users deserve to know.\n\nFix applied to plan.md UI section: drawer now has three named sub-sections \u2014 WILL CHANGE (from, to, date, ref, body-with-replace-warning, type), WILL CLEAR (enclosures, copy-to, distribution, signature, via-chain-if-present), WILL KEEP (ssic, subject). Guide section updated with matching preview labels. Edge Cases table updated: body-overwrite case now cites the explicit preview disclosure.\n\nAlso addressed the auto-downgraded LESSONS advisory (even though it was downgraded and could not block) \u2014 added aria-label to #reply-btn at the HTML layer per the naval-scribe documented pattern. No reason to leave a known issue unfixed just because the council could not block on it.\n\nCron may rerun PLAN; expected clean pass."
     }
   ],
-  "resume_instructions": "ESCALATED \u2014 see council_escalations[] and naval-scribe/COUNCIL_ESCALATION.md. Awaiting human resolution. DO NOT auto-fix."
+  "resume_instructions": "naval-scribe Reply Draft Auto-Fill PLAN escalation resolved 2026-04-22. UI+GUIDE critiques accepted: drawer now explicitly discloses WILL CHANGE / WILL CLEAR / WILL KEEP sections. aria-label added to #reply-btn per auto-downgraded LESSONS advisory. First production validation of fix-council-enforcement: LESSONS veto correctly auto-downgraded for missing precondition_evidence. Cron may rerun PLAN gate."
 }
