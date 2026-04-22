@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "last_updated": "2026-04-22T01:26:06.783566+00:00",
+  "last_updated": "2026-04-22T01:48:14.930784+00:00",
   "tick_tock": {
     "last_session_type": "tick",
     "last_tock_flagship": "deck",
@@ -20,6 +20,21 @@
         ],
         "plan_summary": "Extend build_memory.py with a `recall_outcome` table tracking: (project, learning_id, gate, outcome) where outcome is one of: 'prevented_bug' (lessons angle vetoed \u2192 human confirmed real issue), 'false_positive' (vetoed \u2192 human overrode), 'irrelevant' (cited but not load-bearing). New CLI subcommand: `python3 build_memory.py recall-stats` shows top-N learnings by prevented_bug count and bottom-N by false_positive count. Initial population: backfill from learnings.md COUNCIL entries where the gate notes which learning was cited. Add a `--mark-veto` and `--mark-fp` interactive flag for future escalations.",
         "council_focus": "PLAN gate: is the schema right? is 'prevented_bug' the right metric, or do we need finer grain? IMPLEMENTATION gate: SQL migration is non-destructive? TESTS gate: backfill works on current learnings.md? OUTCOME gate: stats subcommand returns sensible output."
+      },
+      {
+        "name": "eval-opus-47-backbone",
+        "type": "infrastructure",
+        "source_experiment": "do-2026-04-16-claude-code-opus-47-agent",
+        "idea": "Benchmark Opus 4.7 as the council.py backbone against the current Haiku 4.5 fallback and Sonnet cron builder",
+        "rationale": "Adopted from Phase 4 experiment do-2026-04-16-claude-code-opus-47-agent (DavidOndrej, 2026-04-16). The original experiment measured Opus 4.7 in Claude Code CLI on a multi-file refactor. Adapted to the YOLO loop: we don't use Claude Code CLI in the pipeline, but we use council.py (CLAUDE_MODEL=claude-haiku-4-5-20251001 fallback) and cron's Sonnet-class builder. This tick measures whether upgrading either to Opus 4.7 meaningfully changes verdict quality / build quality for the cost delta.",
+        "deliverable_paths": [
+          "experiments/eval-opus-47-backbone/plan.md",
+          "experiments/eval-opus-47-backbone/benchmark.py",
+          "experiments/eval-opus-47-backbone/results.md",
+          "experiments/eval-opus-47-backbone/README.md"
+        ],
+        "plan_summary": "Four files in experiments/eval-opus-47-backbone/. (1) benchmark.py (~120 LOC): picks 3 canonical deliverables from yolo_log.json (one markdown-deck tock, one naval-scribe tock, one small utility like url-dissect), invokes council.py --gate implementation --project <X> once with CLAUDE_MODEL=claude-haiku-4-5-20251001 and once with claude-opus-4-7, captures verdicts + latency + token count per angle. Uses ANTHROPIC_API_KEY only (no Gemini) so both runs use the same backend. (2) results.md: markdown table of per-angle verdict agreement (APPROVE-vs-OBJECT), per-gate latency delta, total token cost delta; hand-written conclusions. (3) README.md: how to run, how to add new fixtures, interpretation guide. (4) plan.md: this tick's plan per the standard template. Sample size N=3 for first run (3 deliverables \u00d7 2 models \u00d7 7 angles = 42 API calls per gate, roughly 168 calls total for plan/impl/tests/outcome; ~\\$0.30 on Opus, ~\\$0.02 on Haiku).",
+        "council_focus": "PLAN: is N=3 deliverables enough signal, or do we need 5+? does the benchmark isolate model quality from prompt/context drift? IMPLEMENTATION: does benchmark.py correctly parameterize CLAUDE_MODEL without side-effects on the live council.py? TESTS: run benchmark.py end-to-end on 1 deliverable and confirm both model runs produce comparable verdict records. OUTCOME: results.md has a concrete recommendation (swap / keep / inconclusive) grounded in the 3-deliverable sample."
       },
       {
         "name": "port-ref",
