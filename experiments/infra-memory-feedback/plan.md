@@ -18,7 +18,15 @@ Extend `build_memory.py` with a `recall_outcomes` table and CLI tools to measure
 ## Approach
 Work order — each step depends on the previous:
 
-1. **Schema extension** — append `recall_outcomes` table definition to `SCHEMA` constant in `build_memory.py`. `CREATE TABLE IF NOT EXISTS` is non-destructive on existing DBs. Schema includes an `escalation_timestamp TEXT` column (nullable) to disambiguate the `learning_id=0` sentinel case. Unique constraint is `(learning_id, project, gate, COALESCE(escalation_timestamp, ''))` — implemented as a composite `UNIQUE` over those four columns with `COALESCE` giving the NULL case a stable empty-string discriminator. **Tightened per BUGS critical critique on PLAN escalation #2**: the original constraint `(learning_id, project, gate)` would have silently dropped multiple escalations from the same `(project, gate)` pair — e.g., infra-yolo-evals had 4 escalations all on the `implementation` gate, which would have collapsed to a single row with `learning_id=0`. The timestamp column preserves each distinct escalation. Manual `mark-veto`/`mark-fp` records (where a learning_id > 0 is known) leave `escalation_timestamp` NULL and get their own uniqueness scope.
+1. **Schema extension** — append `recall_outcomes` table definition to `SCHEMA` constant in `build_memory.py`. `CREATE TABLE IF NOT EXISTS` is non-destructive on existing DBs. Schema includes both `escalation_timestamp TEXT` (nullable, for human-readable reference) and `escalation_id TEXT` (nullable, content hash for uniqueness) columns.
+
+   **Unique constraint** is on `(project, gate, escalation_id)` for backfilled rows (where `escalation_id IS NOT NULL`), plus a separate `(learning_id, project, gate)` constraint for manual rows (where `escalation_timestamp IS NULL`). The two partial unique indexes are:
+   - `uq_recall_manual` — enforces one manual record per (learning, project, gate)
+   - `uq_recall_backfill` — enforces one backfilled record per content-unique escalation
+
+   **`escalation_id` computation** (`_escalation_id(entry)` helper): SHA1 of `project|gate|resolved_at|timestamp|reason[:200]`, truncated to 16 hex chars (2^64 collision space). Same content → same hash (idempotent re-runs). Different content → different hash (even if `(project, gate, resolved_at)` collide, different reasons yield different IDs). Addresses IMPLEMENTATION-gate BUGS critical critique (2026-04-22): plain `resolved_at` as disambiguator is not collision-safe; content hash is.
+
+   **Migration**: `_migrate_recall_outcomes(db)` called from `get_db()` on every connection. Detects schema lacking `escalation_id` column via `PRAGMA table_info`, ALTERs to add it, drops the old `uq_recall_backfill` index, creates the new one, and DELETES pre-migration backfilled rows (they'll be regenerated with correct hashes on the next `backfill-recall` run). Manual rows (`escalation_timestamp IS NULL`) are preserved — they carry content a rebuild cannot reconstruct.
 
 2. **`cmd_recall_stats(db, top_n)`** — query `recall_outcomes` grouped by `learning_id`, counting each outcome type. LEFT JOIN back to `learnings` for text snippet. Print two tables: top-N by `prevented_bug` count, bottom-N by `false_positive` count.
 
@@ -67,6 +75,15 @@ The `notes` string is stored verbatim in SQLite without sanitization. This is de
 3. No HTML, shell, or SQL surface exists where injection could have effect (SQL is parameterized, terminal printing is inherently safe, no web UI)
 
 **Future consumers:** If a dashboard or HTTP surface ever reads `recall_outcomes.notes`, the consumer owns sanitization — do not retroactively impose encoding on the producer. This follows the `adopt-planning-mode` precedent (learnings.md:26): producer-side sanitization is not required absent a concrete downstream parser with a trust boundary.
+
+**Trust model for `session_state.json` → `build_memory.db` derivation** (documented per SECURITY critique on IMPLEMENTATION escalation, 2026-04-22):
+`cmd_backfill_recall` reads `council_escalations_resolved[]` from `session_state.json` and writes derived metadata (project, gate, outcome, timestamp, content-hash) into the local SQLite DB. SECURITY flagged that "storing even derived metadata from potentially sensitive source data could expose it if the DB has broader access." Overridden on precedent:
+1. Both files live in the same repo, under identical access controls (git repo root, local filesystem, no network surface)
+2. `session_state.json` is committed to the public GitHub repo — it is explicitly NOT sensitive by design
+3. `build_memory.db` is also a local dev-time artifact with no broader access than its source
+4. Per `adopt-planning-mode` precedent (learnings.md:26): producer-side redaction is not required absent a concrete downstream consumer with a separate trust boundary
+
+If `session_state.json` ever starts carrying PII or secrets, THAT would need fixing at the source — the solution is not to sanitize downstream derivations but to never let sensitive data enter a public git artifact in the first place.
 
 ## UI
 N/A — CLI output only. All output formatted to fit 80 columns. `recall-stats` renders two fixed-width tables with headers.

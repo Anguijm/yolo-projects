@@ -22,6 +22,7 @@ Usage:
   python3 build_memory.py backfill-recall                          # seed from session_state.json history
 """
 
+import hashlib
 import sqlite3
 import re
 import sys
@@ -72,6 +73,7 @@ CREATE TABLE IF NOT EXISTS recall_outcomes (
     outcome TEXT NOT NULL CHECK(outcome IN ('prevented_bug', 'false_positive', 'irrelevant')),
     notes TEXT NOT NULL DEFAULT '',
     escalation_timestamp TEXT,
+    escalation_id TEXT,
     recorded_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
@@ -80,9 +82,32 @@ CREATE UNIQUE INDEX IF NOT EXISTS uq_recall_manual
     WHERE escalation_timestamp IS NULL;
 
 CREATE UNIQUE INDEX IF NOT EXISTS uq_recall_backfill
-    ON recall_outcomes(project, gate, escalation_timestamp)
-    WHERE escalation_timestamp IS NOT NULL;
+    ON recall_outcomes(project, gate, escalation_id)
+    WHERE escalation_id IS NOT NULL;
 """
+
+
+def _escalation_id(entry: dict) -> str:
+    """Content-hash ID for a resolved escalation entry.
+
+    Addresses IMPLEMENTATION-gate BUGS critique (2026-04-22): prior index
+    on (project, gate, resolved_at) could collide if two cron-committed
+    escalations share an identical timestamp. This hash disambiguates by
+    the full relevant content (project/gate/timestamp/reason head) — same
+    content always produces the same id (preserves idempotency), distinct
+    content always produces distinct ids (prevents silent collisions).
+
+    16-char SHA1 prefix: 2^64 collision space, way beyond any realistic
+    escalation count.
+    """
+    key = "|".join([
+        str(entry.get('project', '')),
+        str(entry.get('gate', '')),
+        str(entry.get('resolved_at', '')),
+        str(entry.get('timestamp', '')),
+        (entry.get('reason', '') or '')[:200],
+    ])
+    return hashlib.sha1(key.encode('utf-8')).hexdigest()[:16]
 
 
 def get_db():
@@ -90,7 +115,35 @@ def get_db():
     db = sqlite3.connect(str(DB_PATH))
     db.row_factory = sqlite3.Row
     db.executescript(SCHEMA)
+    _migrate_recall_outcomes(db)
     return db
+
+
+def _migrate_recall_outcomes(db):
+    """Non-destructive migration: add escalation_id column + swap index if the DB
+    was created before the column existed. The column was added after 2c7c96a
+    to fix a unique-index collision risk on the backfill path.
+
+    Note: pre-migration backfilled rows are DELETED because we can't reconstruct
+    the full content hash from the limited data we stored (reason text isn't in
+    recall_outcomes). Manual mark-veto/mark-fp rows are preserved (they have
+    escalation_timestamp IS NULL). After migration, re-run `backfill-recall` to
+    repopulate with correct hashes. This is safe because pre-migration rows
+    only contained derived aggregates — nothing that can't be rebuilt.
+    """
+    cols = {row[1] for row in db.execute("PRAGMA table_info(recall_outcomes)")}
+    if 'escalation_id' in cols:
+        return  # already migrated
+    db.execute("ALTER TABLE recall_outcomes ADD COLUMN escalation_id TEXT")
+    db.execute("DROP INDEX IF EXISTS uq_recall_backfill")
+    # Delete stale backfilled rows — they'll be regenerated with correct hashes
+    # on the next `backfill-recall` run. Preserve manual rows (escalation_timestamp IS NULL).
+    db.execute("DELETE FROM recall_outcomes WHERE escalation_timestamp IS NOT NULL")
+    db.execute(
+        "CREATE UNIQUE INDEX IF NOT EXISTS uq_recall_backfill "
+        "ON recall_outcomes(project, gate, escalation_id) WHERE escalation_id IS NOT NULL"
+    )
+    db.commit()
 
 
 # ── Parser ──────────────────────────────────────────────────────────────
@@ -673,12 +726,13 @@ def cmd_backfill_recall(db):
             print(f"AMBIGUOUS: project={project} gate={gate} — {resolution[:100]}")
             ambiguous += 1
 
+        eid = _escalation_id(entry)
         try:
             db.execute(
                 """INSERT OR IGNORE INTO recall_outcomes
-                   (learning_id, project, gate, outcome, notes, escalation_timestamp)
-                   VALUES (0, ?, ?, ?, '', ?)""",
-                (project, gate, outcome, timestamp)
+                   (learning_id, project, gate, outcome, notes, escalation_timestamp, escalation_id)
+                   VALUES (0, ?, ?, ?, '', ?, ?)""",
+                (project, gate, outcome, timestamp, eid)
             )
             if db.execute("SELECT changes()").fetchone()[0] > 0:
                 inserted += 1

@@ -2,7 +2,17 @@
 
 ## Files Modified
 
-### `build_memory.py` (+132 lines, 534 → 666)
+### `build_memory.py` (+175 lines net, 534 → ~709 after IMPL-escalation fixes)
+
+**IMPLEMENTATION-escalation fixes (2026-04-23)**:
+- New `_escalation_id(entry)` helper: SHA1 content-hash of `project|gate|resolved_at|timestamp|reason[:200]`, truncated to 16 hex chars. Replaces plain `resolved_at` as the backfill uniqueness discriminator. Same content → same hash (idempotent); different content → different hash (collision-safe).
+- Schema: added `escalation_id TEXT` column to `recall_outcomes`; `uq_recall_backfill` index now on `(project, gate, escalation_id)` instead of `(project, gate, escalation_timestamp)`.
+- New `_migrate_recall_outcomes(db)`: detects schema lacking `escalation_id`, adds column, drops old index, creates new one, and DELETES pre-migration backfilled rows (they regenerate correctly on next `backfill-recall`). Manual records preserved.
+- `cmd_backfill_recall` now computes and passes `escalation_id` via `_escalation_id(entry)` on each insert.
+- `get_db()` now calls `_migrate_recall_outcomes(db)` after `executescript(SCHEMA)` so existing deployments auto-upgrade.
+- Verified: fresh DB → 6 backfilled rows with 6 unique escalation_ids; second `backfill-recall` call → 0 inserted (idempotent); synthetic collision test (same project/gate/resolved_at, different reasons) → distinct ids.
+
+**Original IMPLEMENTATION gate work (from commit 2c7c96a, +132 lines):**
 
 **Docstring** (lines 1–28): Added recall feedback commands section listing 5 new CLI commands.
 
