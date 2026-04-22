@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "last_updated": "2026-04-22T07:45:42.486355+00:00",
+  "last_updated": "2026-04-22T07:54:31.289052+00:00",
   "tick_tock": {
     "last_session_type": "tick",
     "last_tock_flagship": "deck",
@@ -102,6 +102,85 @@
           "experiments/eval-managed-agents/results.md",
           "experiments/eval-managed-agents/README.md"
         ]
+      },
+      {
+        "name": "adopt-session-checkpointing",
+        "type": "infrastructure",
+        "source_experiment": "nh-2026-04-20-claude-session-limit",
+        "idea": "Context compression + session checkpointing for long YOLO sessions",
+        "rationale": "Adopted from Phase 4 experiment nh-2026-04-20-claude-session-limit (NateHerk, 2026-04-20). Yesterday's 22-commit session is evidence this pain is real \u2014 we hit escalation loops that would have benefited from deterministic context resets. Tick adds: (1) a session_state.json checkpointing convention (already partially exists) extended to cover work-in-progress plan.md / changes.md state, (2) a `compress-session` helper that summarizes the last N commits + open escalations into a single resumable context blob.",
+        "deliverable_paths": [
+          "compress_session.py",
+          "experiments/adopt-session-checkpointing/README.md"
+        ],
+        "plan_summary": "Small Python utility (compress_session.py, ~80 LOC) that emits a markdown handoff document: last N commits grouped by ticker prefix, open escalations with resolution hints, top-of-queue tick spec, memory-drift flags. Runs in ~2s. README documents when to invoke (start of session, mid-session when context feels bloated) and how the output plugs into the next session's startup.",
+        "council_focus": "PLAN: is a markdown-first handoff the right shape, or should it produce structured JSON? IMPLEMENTATION: does the commit-grouping logic tolerate merge commits + phase4 cron commits without noise? TESTS: run against today's git history and verify output is readable. OUTCOME: handoff helps a fresh session resume work faster than reading raw session_state.json."
+      },
+      {
+        "name": "adopt-ai-human-gate-spec",
+        "type": "infrastructure",
+        "source_experiment": "mlops-2026-04-20-modern-software-engineer",
+        "idea": "Formal spec of which YOLO loop steps are AI-owned vs human-reviewed",
+        "rationale": "Adopted from Phase 4 experiment mlops-2026-04-20-modern-software-engineer (MLOps, 2026-04-20). Our approval_gate feedback memory already encodes the principle ('cron proposes, John decides') but the specific division of labor isn't documented anywhere readable. This tick produces a single-page markdown spec showing: cron territory, council territory, human territory, and the interfaces between them. Pure documentation \u2014 no code.",
+        "deliverable_paths": [
+          "experiments/adopt-ai-human-gate-spec/GATE_SPEC.md"
+        ],
+        "plan_summary": "One-page GATE_SPEC.md documenting the YOLO loop's AI/human boundary. Structure: table of each loop step (brainstorm, plan, implement, test, review, commit, push), column per actor (cron, council, human), entry shows who owns / who reviews / who can override. Plus a short 'why this division' rationale section citing approval_gate and utility_focus feedback memories. Grep-verifiable \u2014 each claim should map to a commit pattern or a memory entry.",
+        "council_focus": "PLAN: is the table axis (step \u00d7 actor) the right shape, or should it be a flowchart? IMPLEMENTATION: does the content match how we actually work (not aspirational)? TESTS: grep each claim for at least one supporting commit/memory reference. OUTCOME: GATE_SPEC.md becomes the canonical reference when anyone asks 'who decides X'."
+      },
+      {
+        "name": "infra-failure-mode-audit",
+        "type": "infrastructure",
+        "source_experiment": "nb-2026-04-16-agent-failure-mode-audit",
+        "idea": "Structured failure-mode categorization of the 17 resolved escalations",
+        "rationale": "Adopted from Phase 4 experiment nb-2026-04-16-agent-failure-mode-audit (NateBJones, 2026-04-16). We have exceptional raw data: 17 resolved escalations in session_state.council_escalations_resolved[], each with project/gate/reason/resolution. This tick produces a failure-mode taxonomy derived from that data (e.g., 'false-positive LESSONS VETO', 'goalpost move', 'parse failure', 'substantive BUGS', 'substantive SECURITY'), the rule that detected each class, and the ratio of real-signal to noise per class.",
+        "deliverable_paths": [
+          "experiments/infra-failure-mode-audit/audit.py",
+          "experiments/infra-failure-mode-audit/REPORT.md"
+        ],
+        "plan_summary": "audit.py (~100 LOC) reads council_escalations_resolved[], classifies each by reason+resolution keyword patterns (extending the prevented_bug/false_positive regex from infra-memory-feedback), emits a REPORT.md with: per-class count, per-class example entry, rule-that-caught-it column, signal-to-noise ratio, and a recommendations section. Provides empirical grounding for future council enforcement tuning.",
+        "council_focus": "PLAN: are the taxonomy categories right, or is there a better axis (e.g., by gate, by angle)? IMPLEMENTATION: keyword classifier tolerates the escalation resolution text variance? TESTS: categorization on the 17 real escalations matches a manually-annotated subset. OUTCOME: REPORT.md gives a concrete basis for the next council tuning tick."
+      },
+      {
+        "name": "infra-loop-timing",
+        "type": "infrastructure",
+        "source_experiment": "nb-2026-04-16-fix-bottleneck-not-ai-speed",
+        "idea": "Measure wall-clock time per YOLO loop stage to find non-AI bottlenecks",
+        "rationale": "Adopted from Phase 4 experiment nb-2026-04-16-fix-bottleneck-not-ai-speed (NateBJones, 2026-04-16). Yesterday's infra-yolo-evals took 5 escalation rounds over ~6 hours; we don't actually know where the time went. This tick instruments the tick-tock GitHub Actions workflow to emit per-step durations to a timing log, then produces a summary dashboard showing: longest stages, escalation-loop time, review-vs-implement ratio. Reveals whether AI speed is the bottleneck or not.",
+        "deliverable_paths": [
+          "experiments/infra-loop-timing/timing_extract.py",
+          "experiments/infra-loop-timing/REPORT.md"
+        ],
+        "plan_summary": "timing_extract.py (~120 LOC) pulls recent tick-tock GitHub Actions runs via `gh run view --log`, regex-extracts the '[council]' timing marks we already emit + the stage-level timings from the workflow YAML, emits timing_log.json. REPORT.md renders a markdown table grouped by run showing: workflow-total, claude-agent-total, council-gate totals, push-time. Highlights which escalation loops ate hours that could have been ticks. Depends on gh CLI installed (already present in runners).",
+        "council_focus": "PLAN: is GitHub Actions the right data source (vs instrumenting council.py itself)? IMPLEMENTATION: log parsing robust to YAML reformat? TESTS: run against 5 real recent runs. OUTCOME: REPORT.md identifies at least one concrete non-AI bottleneck we can fix."
+      },
+      {
+        "name": "infra-ai-code-audit-lenses",
+        "type": "infrastructure",
+        "source_experiment": "nb-2026-04-13-amazon-ai-code-quality-audit",
+        "idea": "Extend infra-yolo-evals lens scripts with AI-code systemic failure patterns",
+        "rationale": "Adopted from Phase 4 experiment nb-2026-04-13-amazon-ai-code-quality-audit (NateBJones, 2026-04-13). Our existing ux_completeness.py / mobile_usability.py / cult_status.py lens scripts catch UX and differentiation gaps. This tick adds a fourth lens \u2014 ai_antipatterns.py \u2014 that scans generated code for documented AI failure modes: hallucinated imports/dependencies, unused variables from plan drift, TODO comments that were never filled in, orphan function definitions. Runs advisory alongside the existing three.",
+        "deliverable_paths": [
+          "ai_antipatterns.py",
+          "experiments/infra-ai-code-audit-lenses/changes.md",
+          "experiments/infra-ai-code-audit-lenses/README.md"
+        ],
+        "plan_summary": "ai_antipatterns.py (~100 LOC, same pattern as existing lenses): 5 checks \u2014 hallucinated-imports (import statements with no matching npm/pip package), unused-imports, orphan-TODO (TODO/FIXME/XXX without followup), deadcode-function (functions defined but never called in the same file), mismatched-plan (file content claims feature X but plan.md said feature Y \u2014 simple keyword overlap check). Same advisory pattern as the existing lenses: exit 0 always, print [WARN] lines. Portfolio hit-rate validation on 5 projects.",
+        "council_focus": "PLAN: are the 5 checks the right set, or are we missing something more valuable? IMPLEMENTATION: hallucinated-imports check needs a package catalog \u2014 hardcode npm/pypi top-N? TESTS: run on 5 portfolio projects, confirm no regressions on known-good code. OUTCOME: ai_antipatterns.py lives at repo root alongside the other three lenses, path-containment hardened per the standing rule."
+      },
+      {
+        "name": "infra-sweep-mode",
+        "type": "infrastructure",
+        "source_experiment": "nb-2026-04-19-karpathy-700-experiments",
+        "idea": "Parameterized experiment sweeps mode for the tick queue",
+        "rationale": "Adopted from Phase 4 experiment nb-2026-04-19-karpathy-700-experiments (NateBJones, 2026-04-19). Our YOLO loop already does one-experiment-per-tick; a sweep mode would parameterize a single tick spec across N variants (e.g., same build, different model; same lens, different threshold) and run all N in one cron slot. This tick produces a lightweight sweep runner that reads a sweep_spec.yaml, enumerates the grid, and submits N parameterized ticks in sequence.",
+        "deliverable_paths": [
+          "sweep_runner.py",
+          "experiments/infra-sweep-mode/sweep_spec_example.yaml",
+          "experiments/infra-sweep-mode/README.md"
+        ],
+        "plan_summary": "sweep_runner.py (~150 LOC): reads sweep_spec.yaml (structure: base_tick, param_grid, max_runs, budget_cap), enumerates cartesian product of params, writes N tick_queue_approved entries with param_{name}={value} fields appended to the plan_summary. Designed to be invoked from the tick-tock workflow when next_session_type=sweep. Safety: max 10 runs per sweep, $5 budget cap (configurable). sweep_spec_example.yaml shows a realistic example (eval-opus-47-backbone \u00d7 3 deliverables) that would have saved 2 human cycles.",
+        "council_focus": "PLAN: is tick-queue injection the right integration point, or should sweep_runner invoke council.py directly? IMPLEMENTATION: budget cap enforcement robust to partial failures mid-sweep? TESTS: dry-run mode that enumerates the grid without actually running, verify against sweep_spec_example.yaml. OUTCOME: sweep_runner shipped; eval-opus-47-backbone can optionally be promoted to sweep mode in its own plan."
       }
     ],
     "tick_queue_pending": [],
