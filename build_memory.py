@@ -13,6 +13,13 @@ Usage:
   python3 build_memory.py recent [N]                 # last N learnings (default 10)
   python3 build_memory.py add <project> <type> <text>  # add a new learning
   python3 build_memory.py context <project-idea>     # relevant learnings for a new build
+
+  Recall feedback commands:
+  python3 build_memory.py recall-stats [N]                         # top/bottom N by outcome (default 10)
+  python3 build_memory.py list-learnings [N] [--project <name>]    # enumerate recent learnings with id/text snippet
+  python3 build_memory.py mark-veto <id> <proj> <gate>             # record prevented_bug outcome
+  python3 build_memory.py mark-fp   <id> <proj> <gate>             # record false_positive outcome
+  python3 build_memory.py backfill-recall                          # seed from session_state.json history
 """
 
 import sqlite3
@@ -56,6 +63,25 @@ CREATE TRIGGER IF NOT EXISTS learnings_ad AFTER DELETE ON learnings BEGIN
     INSERT INTO learnings_fts(learnings_fts, rowid, project, type, text)
     VALUES ('delete', old.id, old.project, old.type, old.text);
 END;
+
+CREATE TABLE IF NOT EXISTS recall_outcomes (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    learning_id INTEGER NOT NULL,
+    project TEXT NOT NULL,
+    gate TEXT NOT NULL CHECK(gate IN ('plan', 'implementation', 'tests', 'outcome')),
+    outcome TEXT NOT NULL CHECK(outcome IN ('prevented_bug', 'false_positive', 'irrelevant')),
+    notes TEXT NOT NULL DEFAULT '',
+    escalation_timestamp TEXT,
+    recorded_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS uq_recall_manual
+    ON recall_outcomes(learning_id, project, gate)
+    WHERE escalation_timestamp IS NULL;
+
+CREATE UNIQUE INDEX IF NOT EXISTS uq_recall_backfill
+    ON recall_outcomes(project, gate, escalation_timestamp)
+    WHERE escalation_timestamp IS NOT NULL;
 """
 
 
@@ -476,6 +502,193 @@ def cmd_context(db, idea):
             break
 
 
+# ── Recall feedback constants ───────────────────────────────────────────
+
+VALID_GATES = {'plan', 'implementation', 'tests', 'outcome'}
+VALID_OUTCOMES = {'prevented_bug', 'false_positive', 'irrelevant'}
+
+_FP_RE = re.compile(
+    r'false[\s._-]?positive|phantom|override.*veto|veto.*false',
+    re.IGNORECASE
+)
+_PREVENTED_RE = re.compile(
+    r'\bFIX\s+APPLIED\b|\bAPPLIED\s+FIX\b|\bFIX\s+ACCEPTED\b|\bACCEPTED[,.\s—-]+FIX\b'
+    r'|\blegitimate\s+(?:bug|concern|critique|issue|fix|objection|defect|regression)\b'
+    r'|\b(?:real|genuine)\s+(?:bug|defect|regression)\b',
+    re.IGNORECASE
+)
+_LESSONS_VETO_RE = re.compile(r'LESSONS\s+VETO|VETO', re.IGNORECASE)
+
+
+# ── Recall commands ──────────────────────────────────────────────────────
+
+def cmd_recall_stats(db, top_n=10):
+    """Show top-N learnings by prevented_bug count and bottom-N by false_positive count."""
+    rows = db.execute(
+        """SELECT ro.learning_id,
+                  COALESCE(l.text, '(escalation record)') AS snippet,
+                  COUNT(CASE WHEN ro.outcome='prevented_bug'  THEN 1 END) AS prevented,
+                  COUNT(CASE WHEN ro.outcome='false_positive' THEN 1 END) AS false_pos,
+                  COUNT(CASE WHEN ro.outcome='irrelevant'     THEN 1 END) AS irrelevant
+           FROM recall_outcomes ro
+           LEFT JOIN learnings l ON l.id = ro.learning_id AND ro.learning_id != 0
+           GROUP BY ro.learning_id
+           HAVING prevented > 0 OR false_pos > 0
+           ORDER BY prevented DESC, false_pos ASC"""
+    ).fetchall()
+
+    if not rows:
+        print("No recall outcomes recorded yet. Run 'backfill-recall' first.")
+        return
+
+    hdr = f"  {'ID':>5}  {'Prev':>4}  {'FP':>4}  {'Irr':>4}  Snippet"
+    sep = '-' * 80
+
+    print(f"\n=== Top {top_n} by prevented_bug ===")
+    print(hdr); print(sep)
+    for row in rows[:top_n]:
+        snippet = (row['snippet'] or '')[:50]
+        print(f"  {row['learning_id']:>5}  {row['prevented']:>4}  {row['false_pos']:>4}  "
+              f"{row['irrelevant']:>4}  {snippet}")
+
+    fp_rows = sorted(rows, key=lambda r: -r['false_pos'])
+    print(f"\n=== Top {top_n} by false_positive ===")
+    print(hdr); print(sep)
+    for row in fp_rows[:top_n]:
+        snippet = (row['snippet'] or '')[:50]
+        print(f"  {row['learning_id']:>5}  {row['prevented']:>4}  {row['false_pos']:>4}  "
+              f"{row['irrelevant']:>4}  {snippet}")
+
+
+def cmd_list_learnings(db, limit=20, project=None):
+    """Enumerate learnings with id/project/type/snippet for ID discovery."""
+    if project:
+        rows = db.execute(
+            """SELECT id, project, type, text FROM learnings
+               WHERE project LIKE ? ORDER BY id DESC LIMIT ?""",
+            (f'%{project}%', limit)
+        ).fetchall()
+    else:
+        rows = db.execute(
+            """SELECT id, project, type, text FROM learnings
+               ORDER BY id DESC LIMIT ?""",
+            (limit,)
+        ).fetchall()
+
+    if not rows:
+        suffix = f" for project matching '{project}'" if project else ""
+        print(f"No learnings found{suffix}")
+        return
+
+    print(f"  {'id':>5}  {'project':<25}  {'type':<7}  snippet")
+    print('-' * 80)
+    for row in rows:
+        snippet = (row['text'] or '')[:50]
+        print(f"  {row['id']:>5}  {row['project']:<25}  {row['type']:<7}  {snippet}")
+
+
+def cmd_mark_outcome(db, learning_id, project, gate, outcome, notes=''):
+    """Record a manual outcome for a specific learning (escalation_timestamp=NULL)."""
+    try:
+        learning_id = int(learning_id)
+    except (ValueError, TypeError):
+        print(f"Error: learning_id must be an integer, got: {learning_id!r}")
+        sys.exit(1)
+
+    if learning_id <= 0:
+        print("Error: learning_id must be a positive integer for manual marks")
+        sys.exit(1)
+
+    gate = gate.lower()
+    if gate not in VALID_GATES:
+        print(f"Error: gate must be one of {sorted(VALID_GATES)}, got: {gate!r}")
+        sys.exit(1)
+
+    if outcome not in VALID_OUTCOMES:
+        print(f"Error: outcome must be one of {sorted(VALID_OUTCOMES)}, got: {outcome!r}")
+        sys.exit(1)
+
+    exists = db.execute("SELECT id FROM learnings WHERE id = ?", (learning_id,)).fetchone()
+    if not exists:
+        print(f"Warning: learning_id {learning_id} not found in learnings table — inserting anyway")
+
+    db.execute(
+        """INSERT OR REPLACE INTO recall_outcomes
+           (learning_id, project, gate, outcome, notes, escalation_timestamp)
+           VALUES (?, ?, ?, ?, ?, NULL)""",
+        (learning_id, project, gate, outcome, notes)
+    )
+    db.commit()
+    print(f"Recorded {outcome} for learning {learning_id} ({project}/{gate})")
+
+
+def cmd_backfill_recall(db):
+    """Seed recall_outcomes from session_state.json council_escalations_resolved."""
+    import json
+    state_path = Path(__file__).parent / 'session_state.json'
+    if not state_path.exists():
+        print("Error: session_state.json not found")
+        sys.exit(1)
+
+    try:
+        data = json.loads(state_path.read_text(encoding='utf-8'))
+    except json.JSONDecodeError as e:
+        print(f"Error: session_state.json parse failed: {e}")
+        sys.exit(1)
+
+    resolved = (
+        data.get('council_escalations_resolved')
+        or data.get('tick_tock', {}).get('council_escalations_resolved')
+        or []
+    )
+
+    if not resolved:
+        print("0 escalation records to backfill")
+        return
+
+    inserted = 0
+    ambiguous = 0
+    skipped = 0
+
+    for entry in resolved:
+        reason = entry.get('reason', '')
+        resolution = entry.get('resolution', '')
+        project = entry.get('project', 'unknown')
+        gate = entry.get('gate', 'unknown').lower()
+        timestamp = entry.get('resolved_at', '')
+
+        if not _LESSONS_VETO_RE.search(reason):
+            skipped += 1
+            continue
+
+        if gate not in VALID_GATES:
+            gate = 'plan'
+
+        if _FP_RE.search(resolution):
+            outcome = 'false_positive'
+        elif _PREVENTED_RE.search(resolution):
+            outcome = 'prevented_bug'
+        else:
+            outcome = 'irrelevant'
+            print(f"AMBIGUOUS: project={project} gate={gate} — {resolution[:100]}")
+            ambiguous += 1
+
+        try:
+            db.execute(
+                """INSERT OR IGNORE INTO recall_outcomes
+                   (learning_id, project, gate, outcome, notes, escalation_timestamp)
+                   VALUES (0, ?, ?, ?, '', ?)""",
+                (project, gate, outcome, timestamp)
+            )
+            if db.execute("SELECT changes()").fetchone()[0] > 0:
+                inserted += 1
+        except Exception as e:
+            print(f"Warning: failed to insert {project}/{gate}: {e}")
+
+    db.commit()
+    print(f"Backfill complete: {inserted} inserted, {ambiguous} ambiguous, {skipped} non-LESSONS skipped")
+
+
 # ── Main ────────────────────────────────────────────────────────────────
 
 def main():
@@ -520,6 +733,44 @@ def main():
                 print("Usage: python3 build_memory.py context <project-idea>")
                 sys.exit(1)
             cmd_context(db, ' '.join(sys.argv[2:]))
+
+        elif cmd == 'recall-stats':
+            top_n = int(sys.argv[2]) if len(sys.argv) > 2 else 10
+            cmd_recall_stats(db, top_n)
+
+        elif cmd == 'list-learnings':
+            limit = 20
+            project_filter = None
+            args = sys.argv[2:]
+            i = 0
+            while i < len(args):
+                if args[i] == '--project' and i + 1 < len(args):
+                    project_filter = args[i + 1]
+                    i += 2
+                else:
+                    try:
+                        limit = int(args[i])
+                    except ValueError:
+                        pass
+                    i += 1
+            cmd_list_learnings(db, limit, project_filter)
+
+        elif cmd == 'mark-veto':
+            if len(sys.argv) < 5:
+                print("Usage: python3 build_memory.py mark-veto <id> <project> <gate> [notes]")
+                sys.exit(1)
+            notes = ' '.join(sys.argv[5:]) if len(sys.argv) > 5 else ''
+            cmd_mark_outcome(db, sys.argv[2], sys.argv[3], sys.argv[4], 'prevented_bug', notes)
+
+        elif cmd == 'mark-fp':
+            if len(sys.argv) < 5:
+                print("Usage: python3 build_memory.py mark-fp <id> <project> <gate> [notes]")
+                sys.exit(1)
+            notes = ' '.join(sys.argv[5:]) if len(sys.argv) > 5 else ''
+            cmd_mark_outcome(db, sys.argv[2], sys.argv[3], sys.argv[4], 'false_positive', notes)
+
+        elif cmd == 'backfill-recall':
+            cmd_backfill_recall(db)
 
         else:
             print(f"Unknown command: {cmd}")

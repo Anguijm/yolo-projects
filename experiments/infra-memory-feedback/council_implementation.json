@@ -1,0 +1,101 @@
+{
+  "gate": "implementation",
+  "project": "experiments/infra-memory-feedback",
+  "timestamp": "2026-04-22T10:15:23.221513+00:00",
+  "verdicts": [
+    {
+      "angle": "bugs",
+      "verdict": "OBJECT",
+      "severity": "critical",
+      "reason": "The `uq_recall_backfill` unique index, combined with `learning_id=0` for all backfilled records, can cause silent data loss if multiple distinct escalation events from `session_state.json` happen to share the same `project`, `gate`, and `resolved_at` timestamp.",
+      "required_fix": "Modify the `uq_recall_backfill` index to include a truly unique identifier for each backfilled escalation event (e.g., an `escalation_id` from `session_state.json` if available, or a hash of the full escalation details), or remove the unique constraint on `(project, gate, escalation_timestamp)` for backfilled records to allow all distinct events to be recorded.",
+      "evidence": "CREATE UNIQUE INDEX IF NOT EXISTS uq_recall_backfill ON recall_outcomes(project, gate, escalation_timestamp) WHERE escalation_timestamp IS NOT NULL;\n\nIn `cmd_backfill_recall`, `db.execute(\"\"\"INSERT OR IGNORE INTO recall_outcomes ... VALUES (0, ?, ?, ?, '', ?) \"\"\", (project, gate, outcome, timestamp))`",
+      "veto": false,
+      "parse_failed": false
+    },
+    {
+      "angle": "security",
+      "verdict": "OBJECT",
+      "severity": "high",
+      "reason": "The `cmd_backfill_recall` function reads `session_state.json`, which is described as containing `council_escalations_resolved`. If this file contains sensitive information (e.g., details of vulnerabilities, confidential project names), processing and storing even derived metadata (project, gate, outcome, timestamp) into an unencrypted SQLite database could lead to data exposure if the database has broader access than the source file.",
+      "required_fix": "Implement explicit redaction or sanitization of sensitive data within `session_state.json` before processing, or ensure the SQLite database has equivalent or stronger access controls and encryption as the source file. Alternatively, confirm that `session_state.json` is guaranteed not to contain any sensitive data that would be exposed by this process.",
+      "evidence": "build_memory.py:580 (reads session_state.json), build_memory.py:619 (inserts derived data into recall_outcomes)",
+      "veto": false,
+      "parse_failed": false
+    },
+    {
+      "angle": "ui",
+      "verdict": "APPROVE",
+      "severity": "low",
+      "reason": "The new CLI commands provide clear instructions, good validation feedback, and helpful discovery mechanisms for learning IDs, ensuring a smooth user experience for managing recall outcomes.",
+      "required_fix": "",
+      "evidence": "",
+      "veto": false,
+      "parse_failed": false
+    },
+    {
+      "angle": "guide",
+      "verdict": "APPROVE",
+      "severity": "low",
+      "reason": "The CLI tool provides a comprehensive docstring as a usage guide, clear command names, explicit error messages, and examples for all new features.",
+      "required_fix": "",
+      "evidence": "",
+      "veto": false,
+      "parse_failed": false
+    },
+    {
+      "angle": "usefulness",
+      "verdict": "APPROVE",
+      "severity": "low",
+      "reason": "This project establishes a critical feedback loop, allowing the system to learn which 'learnings' are genuinely useful in preventing issues (prevented_bug) versus those that are false positives or irrelevant. This is fundamental for improving the system's real-world utility and turning it into a reliable tool.",
+      "required_fix": "",
+      "evidence": "Any predictive or recommendation system requires a feedback mechanism to validate its output and drive continuous improvement. The `mark-veto`/`mark-fp` commands provide this explicit feedback, `backfill-recall` leverages historical data to bootstrap, and `recall-stats` offers essential monitoring for system efficacy.",
+      "veto": false,
+      "parse_failed": false
+    },
+    {
+      "angle": "cool",
+      "verdict": "APPROVE",
+      "severity": "low",
+      "reason": "The automated backfilling of 'LESSONS VETO' escalations and the 'recall-stats' command quantifying prevented bugs vs. false positives provide a unique, evaluative feedback loop for learnings, moving beyond simple collection.",
+      "required_fix": "",
+      "evidence": "",
+      "veto": false,
+      "parse_failed": false
+    },
+    {
+      "angle": "lessons",
+      "verdict": "APPROVE",
+      "severity": "advisory",
+      "reason": "[AUTO-DOWNGRADED: LESSONS VETO missing precondition_evidence] The `cmd_mark_outcome` function uses `INSERT OR REPLACE` to record manual outcomes without explicitly warning the user *before* overwriting an existing manual record, violating the 'WILL CHANGE / WILL CLEAR / WILL KEEP pattern for destructive actions' lesson.",
+      "required_fix": "Implement a pre-action confirmation prompt in `cmd_mark_outcome` if a manual record for the given `(learning_id, project, gate)` already exists, asking the user to confirm the overwrite.",
+      "evidence": "[INSIGHT \u2014 WILL CHANGE / WILL CLEAR / WILL KEEP pattern for destructive actions]: When a feature overwrites or clears existing user data (body text, field sets), the preview drawer must explicitly list every affected field in three named sections. This is both a UX requirement (informed consent) and a council GUIDE/UI requirement. The pattern generalizes: any action that destructively modifies form state needs this disclosure before the user commits.",
+      "veto": false,
+      "parse_failed": false
+    }
+  ],
+  "all_approved": false,
+  "objections": [
+    {
+      "angle": "bugs",
+      "verdict": "OBJECT",
+      "severity": "critical",
+      "reason": "The `uq_recall_backfill` unique index, combined with `learning_id=0` for all backfilled records, can cause silent data loss if multiple distinct escalation events from `session_state.json` happen to share the same `project`, `gate`, and `resolved_at` timestamp.",
+      "required_fix": "Modify the `uq_recall_backfill` index to include a truly unique identifier for each backfilled escalation event (e.g., an `escalation_id` from `session_state.json` if available, or a hash of the full escalation details), or remove the unique constraint on `(project, gate, escalation_timestamp)` for backfilled records to allow all distinct events to be recorded.",
+      "evidence": "CREATE UNIQUE INDEX IF NOT EXISTS uq_recall_backfill ON recall_outcomes(project, gate, escalation_timestamp) WHERE escalation_timestamp IS NOT NULL;\n\nIn `cmd_backfill_recall`, `db.execute(\"\"\"INSERT OR IGNORE INTO recall_outcomes ... VALUES (0, ?, ?, ?, '', ?) \"\"\", (project, gate, outcome, timestamp))`",
+      "veto": false,
+      "parse_failed": false
+    },
+    {
+      "angle": "security",
+      "verdict": "OBJECT",
+      "severity": "high",
+      "reason": "The `cmd_backfill_recall` function reads `session_state.json`, which is described as containing `council_escalations_resolved`. If this file contains sensitive information (e.g., details of vulnerabilities, confidential project names), processing and storing even derived metadata (project, gate, outcome, timestamp) into an unencrypted SQLite database could lead to data exposure if the database has broader access than the source file.",
+      "required_fix": "Implement explicit redaction or sanitization of sensitive data within `session_state.json` before processing, or ensure the SQLite database has equivalent or stronger access controls and encryption as the source file. Alternatively, confirm that `session_state.json` is guaranteed not to contain any sensitive data that would be exposed by this process.",
+      "evidence": "build_memory.py:580 (reads session_state.json), build_memory.py:619 (inserts derived data into recall_outcomes)",
+      "veto": false,
+      "parse_failed": false
+    }
+  ],
+  "vetoed": false
+}
