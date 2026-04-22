@@ -301,6 +301,32 @@ html, body {
   font-size: 0.4rem; color: var(--text-tertiary); margin-bottom: 8px; line-height: 1.5;
 }
 
+/* Reply drawer */
+#reply-drawer {
+  display: none; position: fixed; top: 32px; left: 0; width: 420px; bottom: 0;
+  z-index: 200; background: var(--bg-surface); border-right: 1px solid #333;
+  overflow-y: auto; padding: 12px;
+}
+#reply-drawer.open { display: block; }
+@media (max-width: 768px) { #reply-drawer { width: 100%; } }
+.reply-section-label {
+  font-size: 0.4rem; text-transform: uppercase; letter-spacing: 0.15em;
+  color: var(--text-label); margin: 10px 0 5px;
+  border-top: 1px solid var(--border-default); padding-top: 8px;
+}
+.reply-row {
+  display: grid; grid-template-columns: 100px 1fr; gap: 4px;
+  padding: 3px 0; align-items: center;
+}
+.reply-row-label { color: var(--text-tertiary); font-size: 0.42rem; letter-spacing: 0.08em; }
+.reply-row-val {
+  color: var(--text-secondary); font-size: 0.55rem;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.reply-row-val.warn-text { color: #e3b341; }
+#reply-warn { font-size: 0.45rem; color: #e3b341; margin: 6px 0; line-height: 1.5; }
+#reply-via-warn { font-size: 0.45rem; color: #e3b341; margin-top: 4px; line-height: 1.5; }
+
 /* Distribution toggle */
 .dist-toggle {
   display: flex; align-items: flex-start; gap: 6px; cursor: pointer;
@@ -351,6 +377,7 @@ html, body {
       <button class="btn" id="import-btn">import</button>
       <button class="btn" id="chain-btn">chain</button>
       <button class="btn" id="addr-btn">addr book</button>
+      <button class="btn" id="reply-btn" aria-label="Generate reply draft with From/To swapped">reply</button>
       <button class="btn" id="print-btn">print pdf</button>
       <button class="btn" id="drafts-btn">drafts</button>
       <button class="btn" id="ai-prompt-btn" title="Copy the formatting guide as an AI prompt — paste into ChatGPT/Claude to generate a properly-formatted draft">copy ai prompt</button>
@@ -413,6 +440,28 @@ html, body {
       <button class="addr-act-btn" id="addr-save-btn" aria-label="Save entry to address book">save</button>
     </div>
     <span id="addr-add-err"></span>
+  </div>
+  <div id="reply-drawer">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+      <div class="section-header" style="margin:0;border:none">Reply Draft</div>
+      <button class="add-btn" id="reply-close">close ×</button>
+    </div>
+    <div id="reply-warn" style="display:none"></div>
+    <div id="reply-preview-content">
+      <div class="reply-section-label" style="border-top:none;margin-top:0;padding-top:0">Will Change</div>
+      <div class="reply-row"><span class="reply-row-label">FROM →</span><span class="reply-row-val" id="reply-from-preview"></span></div>
+      <div class="reply-row"><span class="reply-row-label">TO →</span><span class="reply-row-val" id="reply-to-preview"></span></div>
+      <div class="reply-row"><span class="reply-row-label">DATE →</span><span class="reply-row-val" id="reply-date-preview"></span></div>
+      <div class="reply-row"><span class="reply-row-label">REF (a):</span><span class="reply-row-val" id="reply-ref-preview"></span></div>
+      <div class="reply-row"><span class="reply-row-label">BODY</span><span class="reply-row-val warn-text">will REPLACE existing</span></div>
+      <div class="reply-row"><span class="reply-row-label">TYPE →</span><span class="reply-row-val">letter (auto-set)</span></div>
+      <div class="reply-section-label">Will Clear</div>
+      <div style="font-size:0.5rem;color:var(--text-tertiary);line-height:1.7;padding-left:2px">Enclosures, Copy To, Distribution checkbox, Signature</div>
+      <div id="reply-via-warn" style="display:none"></div>
+      <div class="reply-section-label">Will Keep</div>
+      <div style="font-size:0.5rem;color:var(--text-tertiary);padding-left:2px">SSIC, Subject</div>
+    </div>
+    <button class="btn btn-primary" id="reply-fill-btn" style="width:100%;margin-top:14px;padding:5px 0">fill reply draft</button>
   </div>
   <div id="form-panel">
     <div class="field" data-types="letter,memo,endorsement,business,instruction,sop">
@@ -3340,6 +3389,104 @@ html, body {
 
   renderAddr();
 
+  /* ── Reply Draft Auto-Fill ── */
+  var replyBtn = document.getElementById('reply-btn');
+  var replyDrawer = document.getElementById('reply-drawer');
+  var replyClose = document.getElementById('reply-close');
+  var replyFillBtn = document.getElementById('reply-fill-btn');
+  var replyWarnEl = document.getElementById('reply-warn');
+  var replyFromPreview = document.getElementById('reply-from-preview');
+  var replyToPreview = document.getElementById('reply-to-preview');
+  var replyDatePreview = document.getElementById('reply-date-preview');
+  var replyRefPreview = document.getElementById('reply-ref-preview');
+  var replyViaWarn = document.getElementById('reply-via-warn');
+  var replyPreviewContent = document.getElementById('reply-preview-content');
+
+  function buildRefLine(origFrom, origSsic, origDate) {
+    var parts = [origFrom];
+    if (origSsic || origDate) {
+      parts.push('ltr');
+      if (origSsic) parts.push(origSsic);
+      if (origDate) parts.push('of', origDate);
+    } else {
+      parts.push('letter');
+    }
+    return parts.join(' ');
+  }
+
+  function generateReplyDraft() {
+    var origFrom = F.from.value.trim();
+    var origTo = F.to.value.trim();
+    var origSsic = F.ssic.value.trim();
+    var origDate = F.date.value.trim();
+    var refLine = buildRefLine(origFrom, origSsic, origDate);
+    F.from.value = origTo;
+    F.to.value = origFrom;
+    F.date.value = todayNaval();
+    refFields.setValues(refLine ? [refLine] : []);
+    F.body.value = refLine ? 'Per reference (a), ' : '';
+    viaFields.setValues([]);
+    enclFields.setValues([]);
+    copyToFields.setValues([]);
+    distCheck.checked = false;
+    F.sigName.value = '';
+    F.sigRank.value = '';
+    F.sigTitle.value = '';
+    typeSelect.value = 'letter';
+    updateFieldVisibility();
+    updatePreview();
+  }
+
+  replyBtn.addEventListener('click', function() {
+    if (replyDrawer.classList.contains('open')) {
+      replyDrawer.classList.remove('open');
+    } else {
+      draftsDrawer.classList.remove('open');
+      importDrawer.classList.remove('open');
+      chainDrawer.classList.remove('open');
+      addrDrawer.classList.remove('open');
+      var origFrom = F.from.value.trim();
+      var origTo = F.to.value.trim();
+      if (!origFrom || !origTo) {
+        replyWarnEl.textContent = 'Fill in From and To fields first.';
+        replyWarnEl.style.display = '';
+        replyPreviewContent.style.display = 'none';
+        replyFillBtn.style.display = 'none';
+      } else {
+        replyWarnEl.style.display = 'none';
+        replyPreviewContent.style.display = '';
+        replyFillBtn.style.display = '';
+        replyFromPreview.textContent = origTo;
+        replyToPreview.textContent = origFrom;
+        replyDatePreview.textContent = todayNaval();
+        replyRefPreview.textContent = buildRefLine(origFrom, F.ssic.value.trim(), F.date.value.trim());
+        var via = viaFields.getValues();
+        if (via.length > 0) {
+          replyViaWarn.textContent = 'Via chain cleared — reverse manually if routing requires it.';
+          replyViaWarn.style.display = '';
+        } else {
+          replyViaWarn.style.display = 'none';
+        }
+      }
+      replyDrawer.classList.add('open');
+    }
+  });
+
+  replyClose.addEventListener('click', function() { replyDrawer.classList.remove('open'); });
+
+  replyFillBtn.addEventListener('click', function() {
+    generateReplyDraft();
+    replyDrawer.classList.remove('open');
+    var orig = replyFillBtn.textContent;
+    replyFillBtn.textContent = 'draft filled ✓';
+    setTimeout(function() { replyFillBtn.textContent = orig; }, 1500);
+  });
+
+  draftsBtn.addEventListener('click', function() { replyDrawer.classList.remove('open'); }, true);
+  importBtn.addEventListener('click', function() { replyDrawer.classList.remove('open'); }, true);
+  chainBtn.addEventListener('click', function() { replyDrawer.classList.remove('open'); }, true);
+  addrBtn.addEventListener('click', function() { replyDrawer.classList.remove('open'); }, true);
+
   /* ── Init ── */
   loadSaved();
 
@@ -3804,6 +3951,21 @@ Pattern: `[Originator] [type] [SSIC] Ser [office/serial] of [date]`
 13. **Document order**: Header → Body → Signature Block → Enclosures → Copy To
 14. **Naval Instructions** start with the instruction number centered at the top (e.g., `COMNAVREGMIDLANTINST 5400.1A`), require Purpose + Cancellation + Applicability + Action + Responsibilities + Review sections, and end with a Distribution list instead of Copy To
 15. **SOPs** start with `SOP: [DEPT]-[YEAR]-[SERIAL]` followed by Effective Date and Review Cycle, then the centered title block, and require dual signature blocks (Prepared by / Approved by)
+## Tools and Features
+
+### Reply Draft Auto-Fill
+Click the **reply** button in the top toolbar to generate a reply draft. The drawer shows a preview of every change before you commit:
+
+**Will Change:** From (swapped with To), To (swapped with From), Date (set to today), Ref (a) (auto-generated as `[Original From] ltr [SSIC] of [Original Date]`), Body (replaced with `Per reference (a), `), Type (reset to Letter)
+
+**Will Clear:** Via chain, Enclosures, Copy To, Distribution checkbox, Signature block (name, rank, title)
+
+**Will Keep:** SSIC and Subject
+
+Click "fill reply draft" to apply all changes at once.
+
+**Note:** From and To must both be filled in before the reply drawer shows the preview. If either is empty, a warning is shown instead.
+
 <!-- GUIDE:END --></script>
 </body>
 </html>

@@ -38,7 +38,19 @@ Add `#reply-drawer` style block (identical geometry to `#addr-drawer`). Add `.re
 ### Subtask 3: JS — generateReplyDraft()
 New function `generateReplyDraft()`:
 1. Capture `origFrom`, `origTo`, `origSsic`, `origDate` from current form fields
-2. Build `refLine`: `origFrom + ' ltr ' + origSsic + ' of ' + origDate` (fallback to shorter forms if SSIC or date missing)
+2. Build `refLine` using conditional part assembly (avoids extra spaces or trailing words when parts are absent):
+   ```js
+   let parts = [origFrom];
+   if (origSsic || origDate) {
+     parts.push('ltr');
+     if (origSsic) parts.push(origSsic);
+     if (origDate) parts.push('of', origDate);
+   } else {
+     parts.push('letter');
+   }
+   let refLine = parts.join(' ');
+   ```
+   Degradation: SSIC missing → "From ltr of Date"; Date missing → "From ltr SSIC"; both missing → "From letter".
 3. Apply to form: `F.from.value = origTo`, `F.to.value = origFrom`, `F.date.value = todayNaval()`, keep SSIC + subject
 4. `viaFields.setValues([])`, `enclFields.setValues([])`, `copyToFields.setValues([])`
 5. `distCheck.checked = false`

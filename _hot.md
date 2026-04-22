@@ -1,15 +1,15 @@
 # Hot Cache — Active Context
-*Auto-updated 2026-04-21 12:56 UTC. Read this FIRST.*
+*Auto-updated 2026-04-22 08:30 UTC. Read this FIRST.*
 
 ## Current State
-- Portfolio: 224 total, 97 active
-- Tick queue: 8 approved, 0 pending
-- Phase 4: 97 experiments, 22 backlog
+- Portfolio: 225 total, 97 active
+- Tick queue: 14 approved, 0 pending
+- Phase 4: 99 experiments, 0 backlog
 - Next: tick
 
 ## Tick Queue
-- [approved] infra-yolo-evals: YOLO-specific evaluation lenses beyond syntax/security
 - [approved] infra-memory-feedback: Memory recall feedback loop — measure which learnings actual
+- [approved] eval-opus-47-backbone: Benchmark Opus 4.7 as the council.py backbone against the cu
 - [approved] port-ref: Well-Known Port Quick-Reference — type a port or service nam
 - [approved] adopt-stack-audit: One-time dependency shelf-life audit
 - [approved] adopt-bare-agent: Minimal 50-line agent loop + comparison_plan.md

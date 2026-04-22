@@ -3267,3 +3267,34 @@ Sequential Gemini reviews (focus: bugs, then security) caught **different issue 
 - **INSIGHT**: SECURITY and COOL repeat-objection pattern: both raised essentially the same objection at OUTCOME gate that had already been explicitly overridden at implementation gate. Injecting explicit "MUST APPROVE" override instructions (quoting the prior human resolution) into the attempt-2 inline payload resolved both cleanly. KEEP this pattern for repeat-angle deadlocks.
 - **INSIGHT**: infra-guardrails escalation history: plan gate → 2 escalations, implementation gate → 1 escalation (LESSONS VETO), outcome gate → 1 escalation (BUGS OBJECT). Total 4 escalations for a 60-line verifier + 23-line program.md addition. Main lesson: council objections accumulate across sessions; always re-inject ALL prior human override decisions in subsequent gate calls.
 - **COUNCIL**: PLAN(7/7 approve, after 2 human escalation resolutions) | IMPLEMENTATION(7/7 approve, after LESSONS VETO escalation resolved by John) | TESTS(7/7 approve) | OUTCOME(attempt 2, 7/7 approve — SECURITY + COOL repeat-objection overrides injected explicitly)
+
+---
+
+## naval-scribe Reply Draft Auto-Fill — 2026-04-22
+
+**COUNCIL — PLAN gate (attempt 1 → 2):**
+BUGS (high): Plan described refLine as `origFrom + ' ltr ' + origSsic + ' of ' + origDate` with "fallback to shorter forms" — vague, leaves room for spacing defects (e.g., "From ltr  of Date" extra space when SSIC missing). Fix: explicit conditional part assembly via `parts.join(' ')` with push-only-if-truthy, else push 'letter'. 6 of 7 approve on attempt 2.
+
+**COUNCIL — IMPLEMENTATION gate (attempt 1):**
+All 7 APPROVE. Extracted `buildRefLine()` helper shared between drawer preview and `generateReplyDraft()` (DRY: single source of truth for refLine logic). `.textContent` used throughout for all user-data preview rendering.
+
+**COUNCIL — TESTS gate (attempt 1 → 2):**
+GUIDE (medium): ai-prompt-content block missing Reply Draft Auto-Fill section — AI agents can't discover or reason about the feature. Fix: added ## Tools and Features > ### Reply Draft Auto-Fill section documenting WILL CHANGE/WILL CLEAR/WILL KEEP and the empty-From/To guard. Clean pass on attempt 2.
+
+**COUNCIL — OUTCOME gate (attempt 1):**
+All 7 APPROVE unanimously.
+
+**KEEP — Conditional part assembly for ref lines:**
+When building a string from optional parts (e.g., "From ltr SSIC of Date" where SSIC and Date may be absent), use push-only-if-truthy into an array + join(' '). Never concatenate directly with static connectors — produces double spaces or trailing words. Same pattern applies anywhere optional tokens form a compound label.
+
+**KEEP — `buildRefLine()` extracted as shared helper:**
+Shared logic used both in drawer preview (on-open) and in apply (on-click). Extracting it prevents drift where the preview shows one thing but apply does another. Extract any function used in two places.
+
+**KEEP — aria-label at HTML layer for static sidebar buttons:**
+Per the naval-scribe learning codified in plan.md: static HTML buttons alongside JS-generated siblings must carry aria-labels at the HTML layer (not via JS). JS-generated DOM is built later and may race or be invisible to accessibility tools during page load. Use `aria-label="..."` directly on the `<button>` element in the HTML.
+
+**KEEP — AI prompt updated on every feature tock:**
+The ai-prompt-content block is part of the tool's discoverability surface. Every tock that adds a user-facing feature must update it. GUIDE will object if it's missing — don't wait for the objection.
+
+**INSIGHT — WILL CHANGE / WILL CLEAR / WILL KEEP pattern for destructive actions:**
+When a feature overwrites or clears existing user data (body text, field sets), the preview drawer must explicitly list every affected field in three named sections. This is both a UX requirement (informed consent) and a council GUIDE/UI requirement. The pattern generalizes: any action that destructively modifies form state needs this disclosure before the user commits.

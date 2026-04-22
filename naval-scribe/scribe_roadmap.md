@@ -35,7 +35,7 @@ Naval Scribe is a graduated YOLO project operating under Flagship rules alongsid
 - [x] Endorsement Chaining — layer endorsements on saved drafts, export as single .docx
 - [x] Distribution / Copy-To Block — multi-entry copy-to section with Distribution checkbox
 - [x] Command Address Book — localStorage directory of commands, one-click fill To/From/Via
-- [ ] Reply Draft Auto-Fill — one click generates reply with swapped From/To, boilerplate
+- [x] Reply Draft Auto-Fill — one click generates reply with swapped From/To, boilerplate
 - [ ] Letter Status Tracker — Draft→Signed→Transmitted→Replied per saved draft
 - [ ] Template Letter Library — 12 pre-built templates for common letter situations
 - [ ] Routing Slip Generator — DON routing slip with reviewer chain, .docx export
@@ -89,3 +89,4 @@ Naval Scribe is a graduated YOLO project operating under Flagship rules alongsid
 | 2026-04-06 | Tock | Auto-Format Import: "import" button opens drawer with paste area; state-machine parser detects type, SSIC, date, From/To/Via, Subj, Ref/Encl, body (with numbering-strip), all-caps signature + rank-line lookahead, Copy-to; all tests pass |
 | 2026-04-06 | Tock | Endorsement Chaining: "chain" button opens drawer; set base from current form or saved draft; add N endorsements (FIRST/SECOND/...) each with date/from/to/body/sig; preview chain inline in preview panel; export full chain as endorsement_chain.docx with page breaks between docs |
 | 2026-04-08 | Tock | Command Address Book: "addr book" button opens drawer; add up to 50 entries (label + full name); one-click → From / → To / + Via / × delete per entry; QuotaExceededError handling inline; createDocumentFragment batch render; aria-labels on all 5 action buttons; mutual exclusion with drafts/import/chain drawers. 4 council gates passed (plan attempt 2 after escalation; implementation attempt 2 after John fixed font-size 0.48rem→0.55rem + aria-labels; tests attempt 2; outcome attempt 2). |
+| 2026-04-22 | Tock | Reply Draft Auto-Fill: "reply" button in top bar opens preview drawer with WILL CHANGE / WILL CLEAR / WILL KEEP sections; generateReplyDraft() swaps From/To, sets today's date, builds ref line via conditional part assembly (no spacing defects on missing SSIC/Date), sets body to "Per reference (a), ", clears Via/Encl/CopyTo/distCheck/sig, resets type to letter, preserves SSIC+Subject; mutual exclusion with all 4 existing drawers; aria-label on reply btn; AI prompt updated with feature docs; 4 council gates passed (plan attempt 2: refLine conditional assembly fix; tests attempt 2: AI prompt documentation added). |
