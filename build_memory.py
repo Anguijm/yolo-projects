@@ -97,8 +97,13 @@ def _escalation_id(entry: dict) -> str:
     content always produces the same id (preserves idempotency), distinct
     content always produces distinct ids (prevents silent collisions).
 
-    16-char SHA1 prefix: 2^64 collision space, way beyond any realistic
-    escalation count.
+    Uses SHA-256 (upgraded from SHA1 per SECURITY IMPL-escalation #3,
+    2026-04-23). There is no adversarial input surface on this hash —
+    session_state.json is written only by cron and the repo operator —
+    so crypto strength was never strictly required, but SHA-256 is the
+    modern default and pre-empts recurring SECURITY objections on future
+    verifier ticks. 16-hex-char prefix = 64-bit id space, plenty for
+    <10^6 escalations birthday-bound.
     """
     key = "|".join([
         str(entry.get('project', '')),
@@ -107,7 +112,7 @@ def _escalation_id(entry: dict) -> str:
         str(entry.get('timestamp', '')),
         (entry.get('reason', '') or '')[:200],
     ])
-    return hashlib.sha1(key.encode('utf-8')).hexdigest()[:16]
+    return hashlib.sha256(key.encode('utf-8')).hexdigest()[:16]
 
 
 def get_db():
@@ -119,30 +124,44 @@ def get_db():
     return db
 
 
-def _migrate_recall_outcomes(db):
-    """Non-destructive migration: add escalation_id column + swap index if the DB
-    was created before the column existed. The column was added after 2c7c96a
-    to fix a unique-index collision risk on the backfill path.
+_HASH_ALGO_VERSION = 2  # bump when _escalation_id algorithm changes (v1=SHA1, v2=SHA256)
 
-    Note: pre-migration backfilled rows are DELETED because we can't reconstruct
-    the full content hash from the limited data we stored (reason text isn't in
-    recall_outcomes). Manual mark-veto/mark-fp rows are preserved (they have
-    escalation_timestamp IS NULL). After migration, re-run `backfill-recall` to
-    repopulate with correct hashes. This is safe because pre-migration rows
-    only contained derived aggregates — nothing that can't be rebuilt.
+
+def _migrate_recall_outcomes(db):
+    """Non-destructive migration path for the recall_outcomes table.
+
+    Tracks a hash-algorithm version in the `schema_versions` key-value table.
+    Whenever `_HASH_ALGO_VERSION` changes, all backfilled rows are deleted
+    and regenerated on next `backfill-recall` run — manual mark-veto/mark-fp
+    rows (escalation_timestamp IS NULL) are always preserved.
+
+    History:
+      v1 (2026-04-22): escalation_id added, SHA1-based
+      v2 (2026-04-23): upgraded to SHA256 per SECURITY critique
     """
     cols = {row[1] for row in db.execute("PRAGMA table_info(recall_outcomes)")}
-    if 'escalation_id' in cols:
-        return  # already migrated
-    db.execute("ALTER TABLE recall_outcomes ADD COLUMN escalation_id TEXT")
-    db.execute("DROP INDEX IF EXISTS uq_recall_backfill")
-    # Delete stale backfilled rows — they'll be regenerated with correct hashes
-    # on the next `backfill-recall` run. Preserve manual rows (escalation_timestamp IS NULL).
-    db.execute("DELETE FROM recall_outcomes WHERE escalation_timestamp IS NOT NULL")
-    db.execute(
-        "CREATE UNIQUE INDEX IF NOT EXISTS uq_recall_backfill "
-        "ON recall_outcomes(project, gate, escalation_id) WHERE escalation_id IS NOT NULL"
-    )
+
+    # First-time migration: add escalation_id column if it's missing (pre-2c7c96a DBs)
+    if 'escalation_id' not in cols:
+        db.execute("ALTER TABLE recall_outcomes ADD COLUMN escalation_id TEXT")
+        db.execute("DROP INDEX IF EXISTS uq_recall_backfill")
+        db.execute("DELETE FROM recall_outcomes WHERE escalation_timestamp IS NOT NULL")
+        db.execute(
+            "CREATE UNIQUE INDEX IF NOT EXISTS uq_recall_backfill "
+            "ON recall_outcomes(project, gate, escalation_id) WHERE escalation_id IS NOT NULL"
+        )
+
+    # Track hash-algo version so we can invalidate backfilled rows on algorithm change
+    db.execute("CREATE TABLE IF NOT EXISTS schema_versions (key TEXT PRIMARY KEY, version INTEGER NOT NULL)")
+    row = db.execute("SELECT version FROM schema_versions WHERE key = 'escalation_id_algo'").fetchone()
+    current_version = row['version'] if row else 0
+    if current_version < _HASH_ALGO_VERSION:
+        # Algorithm changed — delete backfilled rows (they'll be regenerated on next backfill-recall)
+        db.execute("DELETE FROM recall_outcomes WHERE escalation_timestamp IS NOT NULL")
+        db.execute(
+            "INSERT OR REPLACE INTO schema_versions (key, version) VALUES ('escalation_id_algo', ?)",
+            (_HASH_ALGO_VERSION,)
+        )
     db.commit()
 
 
