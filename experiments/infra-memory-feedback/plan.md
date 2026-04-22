@@ -18,11 +18,11 @@ Extend `build_memory.py` with a `recall_outcomes` table and CLI tools to measure
 ## Approach
 Work order — each step depends on the previous:
 
-1. **Schema extension** — append `recall_outcomes` table definition to `SCHEMA` constant in `build_memory.py`. `CREATE TABLE IF NOT EXISTS` is non-destructive on existing DBs. Add unique constraint `(learning_id, project, gate)` for idempotent backfill.
+1. **Schema extension** — append `recall_outcomes` table definition to `SCHEMA` constant in `build_memory.py`. `CREATE TABLE IF NOT EXISTS` is non-destructive on existing DBs. Schema includes an `escalation_timestamp TEXT` column (nullable) to disambiguate the `learning_id=0` sentinel case. Unique constraint is `(learning_id, project, gate, COALESCE(escalation_timestamp, ''))` — implemented as a composite `UNIQUE` over those four columns with `COALESCE` giving the NULL case a stable empty-string discriminator. **Tightened per BUGS critical critique on PLAN escalation #2**: the original constraint `(learning_id, project, gate)` would have silently dropped multiple escalations from the same `(project, gate)` pair — e.g., infra-yolo-evals had 4 escalations all on the `implementation` gate, which would have collapsed to a single row with `learning_id=0`. The timestamp column preserves each distinct escalation. Manual `mark-veto`/`mark-fp` records (where a learning_id > 0 is known) leave `escalation_timestamp` NULL and get their own uniqueness scope.
 
 2. **`cmd_recall_stats(db, top_n)`** — query `recall_outcomes` grouped by `learning_id`, counting each outcome type. LEFT JOIN back to `learnings` for text snippet. Print two tables: top-N by `prevented_bug` count, bottom-N by `false_positive` count.
 
-3. **`cmd_mark_outcome(db, learning_id, project, gate, outcome, notes)`** — validate args (learning_id > 0, gate in GATES set, outcome in valid set), `INSERT OR REPLACE INTO recall_outcomes`. Used by both `mark-veto` and `mark-fp` dispatch paths.
+3. **`cmd_mark_outcome(db, learning_id, project, gate, outcome, notes)`** — validate args (learning_id > 0, gate in GATES set, outcome in valid set), `INSERT OR REPLACE INTO recall_outcomes`. Used by both `mark-veto` and `mark-fp` dispatch paths. Sets `escalation_timestamp = NULL` (manual records don't have one). The unique constraint's inclusion of `escalation_timestamp` means manual records never collide with backfilled escalation records for the same `(project, gate)` pair even when `learning_id=0` is used.
 
 4. **`cmd_backfill_recall(db)`** — read `session_state.json`, iterate `council_escalations_resolved`. For each entry where `reason` matches `re.search(r'LESSONS\s+VETO|VETO', reason, re.IGNORECASE)`:
    - Classification uses **priority-ordered regex** (first match wins):
@@ -30,7 +30,8 @@ Work order — each step depends on the previous:
      2. `prevented_bug`: `re.search(r'\bFIX\s+APPLIED\b|\bFIX\s+ACCEPTED\b|\bACCEPTED[,.\s—-]+FIX\b|\blegitimate\s+(?:bug|concern|critique|issue|fix|objection|defect|regression)\b|\b(?:real|genuine)\s+(?:bug|defect|regression)\b', resolution, IGNORECASE)` — **tightened per BUGS critique on PLAN escalation**: bare `ACCEPTED` and bare `legitimate` previously matched too broadly (e.g., "override was legitimate" or "escalation ACCEPTED as overruled" → incorrectly counted as prevented bugs). Now requires bug-contextualizing anchor words.
      3. `irrelevant`: fallback for anything matching neither — these are printed to stdout as "AMBIGUOUS: project=X gate=Y — first 100 chars of resolution" so a human can manually `mark-veto` or `mark-fp` them afterward
    - `learning_id` = 0 (sentinel for escalation-sourced records without a DB-matched learning)
-   - `INSERT OR IGNORE` on unique constraint `(learning_id, project, gate)` for idempotency
+   - `escalation_timestamp` = the `resolved_at` field from the `session_state.json` escalation entry (always present on resolved escalations)
+   - `INSERT OR IGNORE` on unique constraint `(learning_id, project, gate, escalation_timestamp)` for idempotency — repeated backfill runs produce zero duplicate rows because the timestamp is stable across runs
 
 5. **`cmd_list_learnings(db, limit=20, project=None)`** — added per UI critique on PLAN escalation. `mark-veto`/`mark-fp` both require a numeric `learning_id` but the plan originally provided no discovery path. This command prints up to `limit` recent learnings with columns: `id`, `project`, `gate`, and a truncated 80-char snippet of learning text. Optional `--project <name>` filter for scoping. The user pipes to `grep` or scrolls to find the relevant `id` for the next `mark-veto`/`mark-fp` call. Alias: `list-learnings`.
 
@@ -43,11 +44,11 @@ Work order — each step depends on the previous:
 
 ## Function Map
 **`build_memory.py`**
-- Modified: `SCHEMA` (string constant) — append `recall_outcomes` table DDL
+- Modified: `SCHEMA` (string constant) — append `recall_outcomes` table DDL including `escalation_timestamp TEXT NULL` column and composite unique constraint `(learning_id, project, gate, COALESCE(escalation_timestamp, ''))`
 - New: `cmd_recall_stats(db, top_n=10)` — display outcome rankings
 - New: `cmd_list_learnings(db, limit=20, project=None)` — enumerate learnings with id/project/gate/snippet so users can find IDs for mark-veto/mark-fp
-- New: `cmd_mark_outcome(db, learning_id, project, gate, outcome, notes='')` — insert/replace one record
-- New: `cmd_backfill_recall(db)` — classify and bulk-insert from session_state.json escalation history (with tightened prevented_bug regex)
+- New: `cmd_mark_outcome(db, learning_id, project, gate, outcome, notes='')` — insert/replace one record; sets `escalation_timestamp=NULL`
+- New: `cmd_backfill_recall(db)` — classify and bulk-insert from session_state.json escalation history (with tightened prevented_bug regex); sets `escalation_timestamp` from each entry's `resolved_at`
 - Modified: `main()` — add five new elif branches + updated docstring
 
 ## Security
@@ -58,6 +59,14 @@ Work order — each step depends on the previous:
 - `session_state.json` is read-only during backfill; no writes to it
 - No network I/O introduced; no subprocess calls
 - `build_memory.py` is a dev-time tool with no production trust boundary
+
+**Trust model for the `notes` field** (documented per SECURITY critique on PLAN escalation #2):
+The `notes` string is stored verbatim in SQLite without sanitization. This is deliberate:
+1. `notes` is dev-authored content, entered via CLI by the repo operator — no untrusted input surface
+2. The only current consumer is `cmd_recall_stats`, which prints to stdout in a terminal
+3. No HTML, shell, or SQL surface exists where injection could have effect (SQL is parameterized, terminal printing is inherently safe, no web UI)
+
+**Future consumers:** If a dashboard or HTTP surface ever reads `recall_outcomes.notes`, the consumer owns sanitization — do not retroactively impose encoding on the producer. This follows the `adopt-planning-mode` precedent (learnings.md:26): producer-side sanitization is not required absent a concrete downstream parser with a trust boundary.
 
 ## UI
 N/A — CLI output only. All output formatted to fit 80 columns. `recall-stats` renders two fixed-width tables with headers.
@@ -101,4 +110,6 @@ $ python3 build_memory.py mark-fp 41 naval-scribe tests
 7. `python3 build_memory.py mark-veto 1 infra-memory-feedback plan` — inserts row; re-run `recall-stats` shows it
 8. `python3 build_memory.py mark-fp 1 infra-memory-feedback plan` — `INSERT OR REPLACE` updates the row
 9. Run `backfill-recall` twice — idempotency: same count reported, no duplicate rows
-10. **Regex smoke test** (NEW per BUGS critique): `backfill-recall` dry-run mode (or inspection of classifier output) confirms the tightened `prevented_bug` regex does NOT match the resolution text of overridden escalations (e.g., commits 10bd394, e634ccd resolutions contain "override" + "legitimate" but should classify as `false_positive` or `irrelevant`, not `prevented_bug`).
+10. **Regex smoke test** (per BUGS critique on PLAN escalation #1): `backfill-recall` dry-run mode (or inspection of classifier output) confirms the tightened `prevented_bug` regex does NOT match the resolution text of overridden escalations (e.g., commits 10bd394, e634ccd resolutions contain "override" + "legitimate" but should classify as `false_positive` or `irrelevant`, not `prevented_bug`).
+
+11. **Sentinel-collision test** (per BUGS critical critique on PLAN escalation #2): Seed `session_state.json.council_escalations_resolved` with 2+ entries that share the same `(project, gate)` — we already have this condition in the real data (infra-yolo-evals has 4 `implementation`-gate escalations). Run `backfill-recall`. Assert `SELECT COUNT(*) FROM recall_outcomes WHERE project='experiments/infra-yolo-evals' AND gate='implementation' AND learning_id=0` returns ≥ 2, proving the timestamp-disambiguated unique constraint preserves distinct escalations.

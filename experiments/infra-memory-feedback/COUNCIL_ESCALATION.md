@@ -39,4 +39,27 @@
 
 ## Resolution
 
-Human decision required. Resume the build after updating session_state.json.
+**RESOLVED 2026-04-22 by John (autonomous wake cycle). Both objections accepted — plan.md updated.**
+
+Second consecutive productive escalation from the patched council. 5 of 7 APPROVE, including LESSONS which explicitly cited the *prior* escalation resolution as positive signal — confirming the goalpost-detection is working correctly (recognizing addressed feedback, not re-raising it).
+
+### BUGS OBJECT (critical) — ACCEPTED
+Real design bug. The original unique constraint `(learning_id, project, gate)` combined with the `learning_id=0` sentinel would collide when multiple escalations share the same `(project, gate)` pair. We have this condition in real data: infra-yolo-evals has 4 escalations all on the `implementation` gate, which would collapse to a single row under `INSERT OR IGNORE`.
+
+**Fix (plan.md Approach Step 1)**: Added `escalation_timestamp TEXT NULL` column to the `recall_outcomes` schema. Unique constraint becomes `(learning_id, project, gate, COALESCE(escalation_timestamp, ''))` — `COALESCE` stabilizes NULL as empty string so SQLite treats it consistently. Backfill populates `escalation_timestamp` from the `resolved_at` field; manual `mark-veto`/`mark-fp` leave it NULL. Separate uniqueness scopes prevent collision between manual and backfilled records.
+
+**Test added** (Test Strategy step 11): Seeds the real infra-yolo-evals 4-escalation cluster into backfill, asserts `SELECT COUNT(*) WHERE project=... AND gate='implementation' AND learning_id=0` returns ≥ 2.
+
+### SECURITY OBJECT (medium) — ACCEPTED VIA EXPLICIT DOCUMENTATION
+SECURITY's required_fix offered two paths: "implement sanitization OR explicitly document the trust assumption." Chose the latter per the adopt-planning-mode precedent (`learnings.md:26`): internal dev-time tool, no downstream parser with a trust boundary.
+
+**Fix (plan.md Security section)**: Added "Trust model for the `notes` field" subsection documenting:
+1. `notes` is CLI input from the repo operator — no untrusted source
+2. Current consumers: SQL (parameterized) + `cmd_recall_stats` terminal output — no injection surface
+3. Future HTTP/dashboard consumers own sanitization — producer-side encoding not required absent a concrete downstream parser
+
+### Other 5 angles (APPROVE) — preserved
+
+UI, GUIDE, USEFULNESS, COOL, LESSONS all APPROVE. LESSONS notable: "The plan demonstrates adherence to prior council feedback by incorporating specific changes (tightened regex, new CLI command) based on previous critiques."
+
+Cron may rerun PLAN gate; expected clean pass.
