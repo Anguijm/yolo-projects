@@ -87,7 +87,7 @@ Markdown Deck is a graduated YOLO project operating under Flagship rules: multi-
 - [x] Laser pointer & annotation mode — L for laser, A for draw, S for spotlight, C for clear
 - [x] Per-slide talk time budget — total ÷ slides, color ring, per-slide overrides, optional chime
 - [x] Deck Statistics Panel — word counts, estimated talk time, slide breakdown, code/image counts
-- [ ] Named Snapshots / Version History — Ctrl+Shift+S, 20 checkpoints, preview + restore
+- [x] Named Snapshots / Version History — Ctrl+Shift+S, 20 checkpoints, preview + restore (shipped 2026-04-13, commit 2bbcaab)
 - [ ] Inline Chart Blocks — ```chart bar/line/pie with CSV data, pure SVG rendering
 - [ ] Slide Sorter View — Shift+V, 4-column grid, click to jump, drag to reorder
 - [ ] Keyboard Shortcut Reference — ? key, searchable modal, all shortcuts organized by category
