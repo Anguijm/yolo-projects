@@ -1,34 +1,38 @@
 # Council Escalation — naval-scribe
 
-**Gate:** implementation
+**Gate:** plan
 **Reason:** Unresolved objections after 2 attempts
-**Timestamp:** 2026-04-08T20:00:00.912848+00:00
+**Timestamp:** 2026-04-22T04:40:52.392445+00:00
 
 ## Angle positions
 
 ### BUGS — APPROVE (low)
-- **Reason:** The Command Address Book implementation correctly handles storage quota, DOM updates, input validation, and mutual exclusion of drawers as specified.
+- **Reason:** The plan robustly handles critical edge cases like empty From/To fields (by preventing fill), gracefully degrades the reference line, and explicitly warns the user about the Via chain being cleared, preventing silent data loss or misinterpretation.
 
 ### SECURITY — APPROVE (low)
-- **Reason:** The implementation correctly handles local storage, input sanitization, and adheres to structural constraints, with no new attack surfaces identified.
+- **Reason:** The plan explicitly addresses potential XSS vectors by using `.textContent` for preview rendering and assigning values to `.value` properties of form elements, which are safe against HTML injection. No new data exposure or trust boundary violations are introduced.
 
-### UI — OBJECT (high)
-- **Reason:** The action buttons within each address book entry (e.g., '→ From', '→ To', '+ Via', '×') have extremely small font sizes, making them difficult to read and interact with, especially on mobile devices, and lack descriptive ARIA labels for screen reader users.
-- **Required fix:** Increase the font size for the '.addr-act-btn' class to improve readability and tap target accuracy, and add explicit 'aria-label' attributes to these buttons to provide clear context for assistive technologies.
-- **Evidence:** `naval-scribe/index.html: CSS for .addr-act-btn (font-size: 0.48rem); JS for addr-act-btn creation (no aria-label)`
+### UI — OBJECT (critical)
+- **Reason:** The plan proposes overwriting existing body content without any warning or preview, which can lead to data loss and user frustration.
+- **Required fix:** 1. Body Content: The boilerplate 'Per reference (a),' should be prepended to any existing text in the body field, rather than replacing it. If overwriting is strictly necessary, the drawer must include a clear warning in the preview (e.g., 'Existing Body: Will be overwritten'). 2. Other Cleared/Reset Fields: The reply drawer's preview section should explicitly list all fields that will be cleared or reset (e.g., 'Enclosures: Cleared', 'Copy To: Cleared', 'Signature: Cleared', 'Distribution Checkbox: Unchecked', 'Document Type: Letter') to ensure full transparency before the user commits.
+- **Evidence:** `naval-scribe/plan.md under 'Edge Cases' table, row 'Body has existing content', column 'Handling': 'Replaced without warning'. Also, 'Subtask 3: JS — generateReplyDraft()' for `enclFields.setValues([])`, `copyToFields.setValues([])`, `distCheck.checked = false`, `F.sigName.value = F.sigRank.value = `
 
-### GUIDE — APPROVE (low)
-- **Reason:** The Command Address Book feature is highly discoverable with clear naming, helpful placeholders, and actionable error messages.
+### GUIDE — OBJECT (high)
+- **Reason:** The reply drawer preview does not explicitly inform the user that existing body content will be entirely overwritten, nor that the document type will be automatically reset to 'letter'.
+- **Required fix:** Add a clear warning or explicit statement in the reply drawer preview indicating that existing body content will be replaced (e.g., 'Body (will replace existing): ...'), and add a line to the preview stating the document type will be set to 'letter' (e.g., 'Document Type: Letter (auto-set)').
+- **Evidence:** `UI section under 'Drawer shows:' and 'Guide' section under 'Preview labels:' do not mention body replacement or type reset.`
 
 ### USEFULNESS — APPROVE (low)
-- **Reason:** The Command Address Book directly addresses a recurring pain point for users by reducing repetitive typing and ensuring consistency for frequently used command addresses.
-- **Evidence:** `Naval correspondence often involves repeated interaction with the same commands. This feature streamlines a common, tedious task, making the tool more efficient for daily or weekly use. It's a clear productivity tool, not a toy.`
+- **Reason:** This feature provides significant, recurring utility by automating a common, repetitive task in formal correspondence.
+- **Evidence:** `Replying to letters is a fundamental and frequent task for the target user; this feature streamlines multiple manual steps into a single click, saving time and reducing errors.`
 
 ### COOL — APPROVE (low)
-- **Reason:** The Command Address Book enhances the core utility of naval-scribe by streamlining common input, reinforcing its identity as an efficient, reliable tool for naval correspondence.
+- **Reason:** This feature directly reinforces Naval Scribe's identity as a fast, reliable, and protocol-compliant utility by automating a common, domain-specific correspondence task, aligning with the utility-flagship exemption.
 
-### LESSONS — APPROVE (low)
-- **Reason:** All specific council focus points for the IMPLEMENTATION gate are met, and no documented lessons or structural constraints are violated.
+### LESSONS — APPROVE (advisory)
+- **Reason:** [AUTO-DOWNGRADED: LESSONS VETO missing precondition_evidence] The plan introduces a new static HTML button (`#reply-btn`) without an `aria-label`, repeating a past mistake identified as an 'IMPROVE' lesson for naval-scribe.
+- **Required fix:** Add an `aria-label` attribute to the `<button class="btn" id="reply-btn">reply</button>` element in `naval-scribe/index.html`.
+- **Evidence:** `IMPROVE: Static HTML buttons that have matching JS-generated siblings should get aria-labels at the HTML layer (not just the JS layer) — #addr-save-btn was initially missing its aria-label until TESTS gate caught it. Always audit HTML-layer buttons alongside JS-generated ones. (from [naval-scribe: C`
 
 ## Resolution
 

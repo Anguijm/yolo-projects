@@ -1,91 +1,100 @@
 {
   "gate": "plan",
   "project": "naval-scribe",
-  "timestamp": "2026-04-08T11:48:15.185485+00:00",
+  "timestamp": "2026-04-22T04:40:52.392043+00:00",
   "verdicts": [
     {
       "angle": "bugs",
       "verdict": "APPROVE",
       "severity": "low",
-      "reason": "The plan demonstrates robust error handling for localStorage, explicit state consistency on save failures, and proper sanitization of user input.",
+      "reason": "The plan robustly handles critical edge cases like empty From/To fields (by preventing fill), gracefully degrades the reference line, and explicitly warns the user about the Via chain being cleared, preventing silent data loss or misinterpretation.",
       "required_fix": "",
       "evidence": "",
-      "veto": false
+      "veto": false,
+      "parse_failed": false
     },
     {
       "angle": "security",
-      "verdict": "OBJECT",
-      "severity": "critical",
-      "reason": "The application's use of `unsafe-inline` in its Content Security Policy (CSP) creates a critical XSS vulnerability across the entire application, potentially leading to the exfiltration of all `localStorage` data, including address book entries, despite this feature's internal input sanitization.",
-      "required_fix": "Refactor the application to eliminate `unsafe-inline` from the CSP by externalizing all scripts and styles or using strict hashes/nonces, thereby mitigating the pervasive XSS risk.",
-      "evidence": "SECURITY CSP objection: `unsafe-inline` is the deliberate architecture for the entire zero-dep single-file HTML app \u2014 changing it would require extracting ALL inline styles and scripts across 3200+ lines into external files, breaking the zero-dep constraint. This is a known architectural tradeoff, not a per-feature issue.",
-      "veto": false
+      "verdict": "APPROVE",
+      "severity": "low",
+      "reason": "The plan explicitly addresses potential XSS vectors by using `.textContent` for preview rendering and assigning values to `.value` properties of form elements, which are safe against HTML injection. No new data exposure or trust boundary violations are introduced.",
+      "required_fix": "",
+      "evidence": "",
+      "veto": false,
+      "parse_failed": false
     },
     {
       "angle": "ui",
-      "verdict": "APPROVE",
-      "severity": "low",
-      "reason": "The plan demonstrates excellent consideration for first-time users, clear affordances, helpful empty and error states, and strong mobile responsiveness.",
-      "required_fix": "",
-      "evidence": "",
-      "veto": false
+      "verdict": "OBJECT",
+      "severity": "critical",
+      "reason": "The plan proposes overwriting existing body content without any warning or preview, which can lead to data loss and user frustration.",
+      "required_fix": "1. Body Content: The boilerplate 'Per reference (a),' should be prepended to any existing text in the body field, rather than replacing it. If overwriting is strictly necessary, the drawer must include a clear warning in the preview (e.g., 'Existing Body: Will be overwritten'). 2. Other Cleared/Reset Fields: The reply drawer's preview section should explicitly list all fields that will be cleared or reset (e.g., 'Enclosures: Cleared', 'Copy To: Cleared', 'Signature: Cleared', 'Distribution Checkbox: Unchecked', 'Document Type: Letter') to ensure full transparency before the user commits.",
+      "evidence": "naval-scribe/plan.md under 'Edge Cases' table, row 'Body has existing content', column 'Handling': 'Replaced without warning'. Also, 'Subtask 3: JS \u2014 generateReplyDraft()' for `enclFields.setValues([])`, `copyToFields.setValues([])`, `distCheck.checked = false`, `F.sigName.value = F.sigRank.value = F.sigTitle.value = ''`, and `typeSelect.value = 'letter'`, which are not explicitly previewed or warned about in the drawer.",
+      "veto": false,
+      "parse_failed": false
     },
     {
       "angle": "guide",
-      "verdict": "APPROVE",
-      "severity": "low",
-      "reason": "The plan includes clear placeholder text, an empty state message, descriptive action buttons, and informative inline error messages, making the feature highly discoverable and self-documenting.",
-      "required_fix": "",
-      "evidence": "",
-      "veto": false
+      "verdict": "OBJECT",
+      "severity": "high",
+      "reason": "The reply drawer preview does not explicitly inform the user that existing body content will be entirely overwritten, nor that the document type will be automatically reset to 'letter'.",
+      "required_fix": "Add a clear warning or explicit statement in the reply drawer preview indicating that existing body content will be replaced (e.g., 'Body (will replace existing): ...'), and add a line to the preview stating the document type will be set to 'letter' (e.g., 'Document Type: Letter (auto-set)').",
+      "evidence": "UI section under 'Drawer shows:' and 'Guide' section under 'Preview labels:' do not mention body replacement or type reset.",
+      "veto": false,
+      "parse_failed": false
     },
     {
       "angle": "usefulness",
       "verdict": "APPROVE",
       "severity": "low",
-      "reason": "This feature directly addresses a high-frequency pain point for the target user by eliminating repetitive typing of official command names.",
+      "reason": "This feature provides significant, recurring utility by automating a common, repetitive task in formal correspondence.",
       "required_fix": "",
-      "evidence": "It solves the problem of re-typing long, official command names into form fields, which is a common and time-consuming task in drafting formal communications. This is a clear tool, not a toy, for a recurring use case.",
-      "veto": false
+      "evidence": "Replying to letters is a fundamental and frequent task for the target user; this feature streamlines multiple manual steps into a single click, saving time and reducing errors.",
+      "veto": false,
+      "parse_failed": false
     },
     {
       "angle": "cool",
-      "verdict": "OBJECT",
-      "severity": "high",
-      "reason": "The address book is a generic utility feature without a unique interaction, visual identity, or novel approach to make it memorable or distinct from standard saved input functionality.",
-      "required_fix": "Introduce a unique interaction model, a distinctive visual identity, or a novel way to manage and utilize command addresses that goes beyond basic CRUD and one-click fill, creating a 'signature move'.",
-      "evidence": "Any form with saved inputs or generic address book functionality",
-      "veto": false
+      "verdict": "APPROVE",
+      "severity": "low",
+      "reason": "This feature directly reinforces Naval Scribe's identity as a fast, reliable, and protocol-compliant utility by automating a common, domain-specific correspondence task, aligning with the utility-flagship exemption.",
+      "required_fix": "",
+      "evidence": "",
+      "veto": false,
+      "parse_failed": false
     },
     {
       "angle": "lessons",
       "verdict": "APPROVE",
-      "severity": "low",
-      "reason": "The plan adheres to documented lessons, including the conditional use of `document.createDocumentFragment()` for list rendering and proper handling of `localStorage` edge cases. Explicitly states why conditional CSP and sticky column rules do not apply.",
-      "required_fix": "",
-      "evidence": "",
-      "veto": false
+      "severity": "advisory",
+      "reason": "[AUTO-DOWNGRADED: LESSONS VETO missing precondition_evidence] The plan introduces a new static HTML button (`#reply-btn`) without an `aria-label`, repeating a past mistake identified as an 'IMPROVE' lesson for naval-scribe.",
+      "required_fix": "Add an `aria-label` attribute to the `<button class=\"btn\" id=\"reply-btn\">reply</button>` element in `naval-scribe/index.html`.",
+      "evidence": "IMPROVE: Static HTML buttons that have matching JS-generated siblings should get aria-labels at the HTML layer (not just the JS layer) \u2014 #addr-save-btn was initially missing its aria-label until TESTS gate caught it. Always audit HTML-layer buttons alongside JS-generated ones. (from [naval-scribe: Command Address Book] in learnings.md)",
+      "veto": false,
+      "parse_failed": false
     }
   ],
   "all_approved": false,
   "objections": [
     {
-      "angle": "security",
+      "angle": "ui",
       "verdict": "OBJECT",
       "severity": "critical",
-      "reason": "The application's use of `unsafe-inline` in its Content Security Policy (CSP) creates a critical XSS vulnerability across the entire application, potentially leading to the exfiltration of all `localStorage` data, including address book entries, despite this feature's internal input sanitization.",
-      "required_fix": "Refactor the application to eliminate `unsafe-inline` from the CSP by externalizing all scripts and styles or using strict hashes/nonces, thereby mitigating the pervasive XSS risk.",
-      "evidence": "SECURITY CSP objection: `unsafe-inline` is the deliberate architecture for the entire zero-dep single-file HTML app \u2014 changing it would require extracting ALL inline styles and scripts across 3200+ lines into external files, breaking the zero-dep constraint. This is a known architectural tradeoff, not a per-feature issue.",
-      "veto": false
+      "reason": "The plan proposes overwriting existing body content without any warning or preview, which can lead to data loss and user frustration.",
+      "required_fix": "1. Body Content: The boilerplate 'Per reference (a),' should be prepended to any existing text in the body field, rather than replacing it. If overwriting is strictly necessary, the drawer must include a clear warning in the preview (e.g., 'Existing Body: Will be overwritten'). 2. Other Cleared/Reset Fields: The reply drawer's preview section should explicitly list all fields that will be cleared or reset (e.g., 'Enclosures: Cleared', 'Copy To: Cleared', 'Signature: Cleared', 'Distribution Checkbox: Unchecked', 'Document Type: Letter') to ensure full transparency before the user commits.",
+      "evidence": "naval-scribe/plan.md under 'Edge Cases' table, row 'Body has existing content', column 'Handling': 'Replaced without warning'. Also, 'Subtask 3: JS \u2014 generateReplyDraft()' for `enclFields.setValues([])`, `copyToFields.setValues([])`, `distCheck.checked = false`, `F.sigName.value = F.sigRank.value = F.sigTitle.value = ''`, and `typeSelect.value = 'letter'`, which are not explicitly previewed or warned about in the drawer.",
+      "veto": false,
+      "parse_failed": false
     },
     {
-      "angle": "cool",
+      "angle": "guide",
       "verdict": "OBJECT",
       "severity": "high",
-      "reason": "The address book is a generic utility feature without a unique interaction, visual identity, or novel approach to make it memorable or distinct from standard saved input functionality.",
-      "required_fix": "Introduce a unique interaction model, a distinctive visual identity, or a novel way to manage and utilize command addresses that goes beyond basic CRUD and one-click fill, creating a 'signature move'.",
-      "evidence": "Any form with saved inputs or generic address book functionality",
-      "veto": false
+      "reason": "The reply drawer preview does not explicitly inform the user that existing body content will be entirely overwritten, nor that the document type will be automatically reset to 'letter'.",
+      "required_fix": "Add a clear warning or explicit statement in the reply drawer preview indicating that existing body content will be replaced (e.g., 'Body (will replace existing): ...'), and add a line to the preview stating the document type will be set to 'letter' (e.g., 'Document Type: Letter (auto-set)').",
+      "evidence": "UI section under 'Drawer shows:' and 'Guide' section under 'Preview labels:' do not mention body replacement or type reset.",
+      "veto": false,
+      "parse_failed": false
     }
   ],
   "vetoed": false

@@ -1,116 +1,163 @@
-# Plan — Command Address Book (Naval Scribe Tock, 2026-04-08)
+# Reply Draft Auto-Fill — Tock Plan
 
 ## Goal
-Add a localStorage-backed directory of naval commands/organizations. Each entry stores a short label and a full official name. One-click buttons fill To, From, or append to Via in the form. Eliminates re-typing frequently-used command names.
-
-**Escalation resolution applied (2026-04-08 by John, option A):**
-- `saveAddr()` specifically catches `QuotaExceededError` by name; generic errors rethrow; on quota failure shows inline error in `#addr-add-err`; does NOT update in-memory array
-- Inline storage disclaimer visible in drawer: "Stored locally on this device. Not synced. Not encrypted."
-- LESSONS CSP-sha256 rule does not apply (FALSE POSITIVE — project uses `unsafe-inline`, no sha256 tokens)
-- SECURITY CSP objection: `unsafe-inline` is the deliberate architecture for the entire zero-dep single-file HTML app — changing it would require extracting ALL inline styles and scripts across 3200+ lines into external files, breaking the zero-dep constraint. This is a known architectural tradeoff, not a per-feature issue.
-- COOL signature-move requirement: OVERRIDDEN per `feedback_utility_focus.md` — "utility is king, no visual toys, build things people bookmark and use." Address book IS the utility win; zero visual toys required.
+One-click generation of a reply draft with From/To swapped, today's date, original letter as reference (a), and a boilerplate body opener — all within a lightweight preview drawer.
 
 ## Scope
-- `naval-scribe/index.html` — only file modified
-- No new files
+
+**In scope:**
+- "reply" button added to top-bar controls
+- `#reply-drawer` (same fixed-left panel pattern as import/chain/addr drawers)
+- Drawer shows from→to swap preview and generated reference line before user commits
+- "Fill Reply Draft" button applies changes: swap From/To, today's date, original as Ref (a), boilerplate body, clear Via/Encl/CopyTo/Sig
+- Drawer mutual exclusion (closes all other drawers when reply opens; reply closes when other drawers open)
+- Type is reset to "letter" (replies are standard naval letters)
+- SSIC and Subject preserved from original
+
+**Not in scope:**
+- Via chain reversal (too situational — same chain may not apply; user adjusts manually)
+- Reference line formatting beyond "From ltr SSIC of Date" pattern
+- Saving the prefill state to localStorage
+- Any DOCX changes
+- Support for non-letter types as reply target (reply is always a letter)
 
 ## Approach
 
-### HTML Changes
-1. Add `<button class="btn" id="addr-btn">addr book</button>` in `#top-bar` after `chain-btn`
-2. Add `<div id="addr-drawer">` block (between `#chain-drawer` and `#form-panel`)
-   - Header row: "Command Address Book" title + close button
-   - Storage disclaimer: "Stored locally on this device. Not synced. Not encrypted."
-   - `<div id="addr-list"></div>` — rendered entries
-   - Empty-state `<div id="addr-empty">` — "No entries yet — add a command below."
-   - Add-entry form: label input with placeholder `e.g. CNO`, name input with placeholder `e.g. Chief of Naval Operations, Department of the Navy`, save button
-   - `<span id="addr-add-err"></span>` — inline error (never alert)
+### Subtask 1: HTML additions
+Add `#reply-drawer` div after `#addr-drawer`. Structure mirrors import-drawer: close button, preview section (from/to swap display + ref line), warning div (if From/To are empty), and "Fill Reply Draft" button.
 
-### CSS Changes
-1. `#addr-drawer` — same pattern as `#chain-drawer`: `display:none; position:fixed; top:32px; left:0; width:420px; bottom:0; z-index:200; background:var(--bg-surface); border-right:1px solid #333; overflow-y:auto; padding:12px`; `.open { display:block }`; mobile: `width:100%`
-2. `.addr-entry` — flex row, align-items:center, gap:6px, padding:5px 4px, border-bottom:1px solid var(--border-default)
-   - `.addr-label` — accent color, font-size:0.55rem, min-width:60px, flex-shrink:0
-   - `.addr-name` — color var(--text-secondary), font-size:0.6rem, flex:1, overflow:hidden, text-overflow:ellipsis, white-space:nowrap
-   - `.addr-acts` — display:flex, gap:4px, flex-shrink:0
-3. `.addr-act-btn` — tap-target-safe buttons: `padding:5px 8px; min-height:32px; background:transparent; border:1px solid var(--border-default); color:var(--text-tertiary); font-family:inherit; font-size:0.48rem; cursor:pointer; white-space:nowrap` — ensures adequate mobile tap area
-4. `#addr-add-form` — display:flex; gap:4px; margin-top:10px; align-items:flex-start
-   - `#addr-label-in` — width:90px; flex-shrink:0
-   - `#addr-name-in` — flex:1
-5. `#addr-add-err` — display:block; font-size:0.45rem; color:#e3b341; margin-top:4px; min-height:1em
-6. `#addr-disclaimer` — font-size:0.4rem; color:var(--text-tertiary); margin-bottom:8px; line-height:1.5
+Add `<button class="btn" id="reply-btn">reply</button>` in top-bar controls between `addr-btn` and `print-btn`.
 
-### JS Changes (new block `/* ── Command Address Book ── */`)
-1. `var ADDR_KEY = 'naval-scribe-addr-book'`
-2. `function getAddr()` — safe read: `try { return JSON.parse(localStorage.getItem(ADDR_KEY)) || []; } catch(e) { return []; }`
-3. `function saveAddr(arr)` — specific QuotaExceededError handling:
-   ```js
-   try {
-     localStorage.setItem(ADDR_KEY, JSON.stringify(arr));
-     return true;
-   } catch(e) {
-     var errEl = document.getElementById('addr-add-err');
-     if (e.name === 'QuotaExceededError' || e.name === 'NS_ERROR_DOM_QUOTA_REACHED') {
-       if (errEl) errEl.textContent = 'Storage full — entry not saved.';
-     } else {
-       if (errEl) errEl.textContent = 'Could not save entry.';
-       throw e;  // rethrow unexpected errors
-     }
-     return false;  // caller must NOT update in-memory array on false
-   }
-   ```
-4. `function renderAddr()` — rebuilds `#addr-list` using `document.createDocumentFragment()` (batch DOM pattern):
-   - For each entry: create row with `.addr-label` (esc(entry.label)), `.addr-name` (esc(entry.name)), 3 action buttons (→ From, → To, + Via), delete button (×)
-   - All buttons use `.addr-act-btn` class for adequate tap targets
-   - Shows `#addr-empty` when array empty
-5. `addrBtn` click: closes draftsDrawer/importDrawer/chainDrawer, toggles `#addr-drawer.open`
-6. `#addr-close` click: removes `.open`
-7. Fill buttons wired in `renderAddr()` per entry (closures):
-   - `→ From`: `F.from.value = entry.name; updatePreview()`
-   - `→ To`: `F.to.value = entry.name; updatePreview()`
-   - `+ Via`: `viaFields.addItem(entry.name)` (triggers updatePreview internally)
-8. Add-entry save button:
-   - Reads `#addr-label-in` and `#addr-name-in`; trims both; clears prior error
-   - Validates: both non-empty; `arr.length >= 50` (max 50 entries); shows inline error in `#addr-add-err` if invalid
-   - On validation pass: push to local copy of array; call `saveAddr(newArr)` — if `false`, do NOT commit (quota error already shown); if `true`, update global ref, call `renderAddr()`, clear inputs
-9. Delete button per entry (wired in `renderAddr()`): filter array, call `saveAddr(newArr)`, if success call `renderAddr()`
-10. Mutual exclusion: add `addrDrawer.classList.remove('open')` to existing `draftsBtn`, `importBtn`, `chainBtn` listeners
-11. Init: call `renderAddr()` at end of init block
+**No sequencing dependency** — HTML can be written in one pass.
 
-## Files touched
-- Functions added: `getAddr`, `saveAddr`, `renderAddr`
-- Variables added: `ADDR_KEY`, `addrDrawer`, `addrBtn`, addr input/error refs
-- HTML added: `#addr-drawer`, `#addr-btn`
-- CSS added: `#addr-drawer`, `.addr-entry`, `.addr-act-btn`, `.addr-label`, `.addr-name`, `.addr-acts`, `#addr-add-form`, `#addr-add-err`, `#addr-disclaimer`
-- No changes to: `getFullState`, `restoreFullState`, DOCX generation, draft state
+### Subtask 2: CSS additions
+Add `#reply-drawer` style block (identical geometry to `#addr-drawer`). Add `.reply-preview-row` for the swap display rows (label + value, two-column grid). Add `.reply-warn` for the empty-field warning.
+
+**Depends on:** Subtask 1 HTML structure being defined.
+
+### Subtask 3: JS — generateReplyDraft()
+New function `generateReplyDraft()`:
+1. Capture `origFrom`, `origTo`, `origSsic`, `origDate` from current form fields
+2. Build `refLine`: `origFrom + ' ltr ' + origSsic + ' of ' + origDate` (fallback to shorter forms if SSIC or date missing)
+3. Apply to form: `F.from.value = origTo`, `F.to.value = origFrom`, `F.date.value = todayNaval()`, keep SSIC + subject
+4. `viaFields.setValues([])`, `enclFields.setValues([])`, `copyToFields.setValues([])`
+5. `distCheck.checked = false`
+6. `refFields.setValues(refLine ? [refLine] : [])` 
+7. `F.body.value = refLine ? 'Per reference (a), ' : ''`
+8. Clear sig: `F.sigName.value = F.sigRank.value = F.sigTitle.value = ''`
+9. `typeSelect.value = 'letter'`; `updateFieldVisibility()`; `updatePreview()`
+
+### Subtask 4: JS — drawer UI wiring
+- `replyBtn.addEventListener('click', ...)` — closes other 4 drawers, populates preview rows in drawer, opens reply drawer
+- `replyCloseBtn.addEventListener('click', ...)` — closes reply drawer
+- `replyFillBtn.addEventListener('click', ...)` — calls `generateReplyDraft()`, closes drawer, flash feedback
+- 4× existing drawer btn listeners: each gets `replyDrawer.classList.remove('open')` appended (same pattern as addrDrawer mutual exclusion)
+- `addrBtn.addEventListener(...) { replyDrawer.classList.remove('open'); }` — add reply to addr's list
+
+**Depends on:** Subtask 3 function defined first.
+
+### Subtask 5: Populate drawer preview on open
+When `replyBtn` is clicked, before opening the drawer:
+- Read current From/To/SSIC/Date, and `viaFields.getValues()`
+- Inject into `#reply-from-preview`, `#reply-to-preview`, `#reply-ref-preview` spans using `.textContent` (not innerHTML)
+- If From or To is empty, show `#reply-warn` with warning text; hide "Fill" button
+- Otherwise hide `#reply-warn`; show "Fill" button
+- If the original letter has Via entries (`viaFields.getValues().length > 0`), show `#reply-via-warn`: "Via chain cleared — reverse the chain manually if required for correct routing." This warning is always visible in the drawer when Via is non-empty, so the user is informed before they commit.
+
+## File Layout
+
+| File | Change | Lines |
+|------|--------|-------|
+| `naval-scribe/index.html` | Add CSS (~20 lines), HTML (~30 lines), JS (~80 lines) | ~130 net new lines; touches ~3809→~3939 |
+
+## Function Map
+
+**File: naval-scribe/index.html**
+
+| Function | Action | Notes |
+|----------|--------|-------|
+| `generateReplyDraft()` | NEW | Core reply logic: swap fields, build ref, set boilerplate |
+| `replyBtn` click handler | NEW | Opens drawer, populates preview (incl. via-warn if Via non-empty) |
+| `replyCloseBtn` click handler | NEW | Closes drawer |
+| `replyFillBtn` click handler | NEW | Calls `generateReplyDraft()`, closes drawer |
+| Existing drawer open handlers (draftsBtn, importBtn, chainBtn, addrBtn) | MODIFIED | Each gets +1 line: `replyDrawer.classList.remove('open')` |
 
 ## Security
-- All user-entered label/name values rendered through `esc()` before innerHTML
-- Fill targets are direct `.value` assignments — no eval, no innerHTML injection
-- `saveAddr` specifically catches `QuotaExceededError` (and `NS_ERROR_DOM_QUOTA_REACHED` for Firefox); generic errors rethrow
-- CSP `unsafe-inline`: architectural constant for entire zero-dep single-file pattern — not addressable per-feature
+
+- `generateReplyDraft()` reads only existing form field values (`F.from.value`, `F.to.value`, `F.ssic.value`, `F.date.value`) — all previously user-entered, already in the DOM, no new attack surface
+- **Preview rows use `.textContent` (not `innerHTML`)** when populating `#reply-from-preview`, `#reply-to-preview`, `#reply-ref-preview`, `#reply-via-warn` — no XSS vector in preview rendering
+- **`refFields.setValues()` XSS analysis**: `makeMultiField.setValues()` calls `addItems()` internally (see line ~734). `addItems()` creates `<input>` elements and sets their value via `input.value = val` (DOM property assignment, not `innerHTML`). `input.value` is a safe plain-text setter — there is no HTML parsing, so `refLine` does NOT need to be passed through `esc()`. The value is only rendered in the input's value attribute by the browser, not as markup.
+- **Via warning text** uses `.textContent` (static string literal, not user data)
+- No new localStorage writes; no new network calls; no new `innerHTML` with user data
+- CSP unchanged: `unsafe-inline` is the existing architectural decision per CONSTRAINTS.md (SECURITY should not re-litigate this)
+- Trust boundary: all values flow through existing form fields before the reply function reads them
 
 ## UI
-- Drawer pattern identical to existing drawers (fixed left, z-index 200, scrollable)
-- Storage disclaimer visible at top of drawer body
-- Entry: `[LABEL]  full official name  [→ From] [→ To] [+ Via] [×]`
-- Add form: label input (placeholder "e.g. CNO"), name input (placeholder "e.g. Chief of Naval Operations, Department of the Navy"), [save] button
-- Action buttons use `.addr-act-btn` with `min-height:32px; padding:5px 8px` for mobile tap safety
-- Inline error in `#addr-add-err` (never alert)
-- Limit: 50 entries; inline error if over limit
+
+**Interaction flow:**
+1. User has a letter form filled (From, To, SSIC, Date, Subj at minimum)
+2. Clicks "reply" button in top bar
+3. Reply drawer opens from left panel, other drawers close
+4. Drawer shows:
+   - "From: [current To]" — clearly labeled swap preview
+   - "To: [current From]" — clearly labeled swap preview
+   - "Ref (a): [From] ltr [SSIC] of [Date]" — generated reference string
+   - "Body opener: Per reference (a), ..." — what the body will start with
+5. "Fill Reply Draft" button at bottom
+6. User clicks → form is filled, drawer closes, preview updates
+
+**Empty/loading/error states:**
+- If From or To is empty when reply drawer opens: show warning "Fill in From and To fields first."; hide "Fill Reply Draft" button
+- If original letter had a Via chain: show `#reply-via-warn` advisory "Via chain cleared — reverse the chain manually if required for correct routing." This is always visible when Via is non-empty, ensuring the user is informed before committing.
+- If SSIC or Date is missing: ref line degrades gracefully (omits missing parts), still functional
+- No loading state (all synchronous)
+- Drawer mutual exclusion: reply drawer closes all others on open
+
+**Flash feedback:** "Fill Reply Draft" button text changes to "draft filled ✓" for 1.5s after apply (same pattern as "save draft" button).
+
+## Guide
+
+**Button label:** "reply" (matches existing btn labels: "import", "chain", "addr book" — all lowercase, terse)
+
+**Drawer title:** "Reply Draft"
+
+**Preview labels:**
+- "FROM →" and "TO →" (uppercase, with arrow indicating direction)
+- "REF (a):" for the reference line
+- "BODY:" for the boilerplate opener preview
+
+**Warning text (if From/To empty):** "Fill in From and To fields first."
+
+**Fill button:** "fill reply draft"
+
+**Success feedback:** "draft filled ✓"
 
 ## Edge Cases
-- Empty label or empty name → inline error, no save
-- Over 50 entries → inline error, no save
-- localStorage quota exceeded → inline "Storage full — entry not saved.", array unchanged
-- Other localStorage errors → rethrow (unexpected condition)
-- Via fill: works fine (viaFields.addItem is standalone)
-- Addr drawer close when drafts/import/chain open and vice versa
+
+| Case | Handling |
+|------|----------|
+| From is empty | Show warning, hide Fill button |
+| To is empty | Show warning, hide Fill button |
+| Both empty | Same warning |
+| SSIC missing | Ref line: "From ltr of Date" (omit SSIC) |
+| Date missing | Ref line: "From ltr SSIC" (omit date) |
+| Both missing | Ref line: "From letter" |
+| From and To are the same value | Swap still happens (degenerate case, user adjusts) |
+| Long From/To values | Preview rows use `overflow: hidden; text-overflow: ellipsis` |
+| Body has existing content | Replaced without warning (same as "reply" intent — user chose reply, aware of consequences) |
+| Original letter has Via chain | `#reply-via-warn` shown in drawer: "Via chain cleared — reverse the chain manually if required for correct routing." User informed before Fill. |
+| User clicks reply then close (no fill) | No change to form — drawer is preview-only until Fill is clicked |
+| Instruction / SOP type | Reply is set to "letter" regardless; user can change type after |
 
 ## Test Strategy
-- `python3 test_project.py naval-scribe` — HTML loads, key IDs present, JS syntax clean
-- `eval_bugs.py` — check for setTimeout / missing cleanup (addr drawer has none)
-- `security_scan.py` — verify no new external URLs or eval usage
-- Manual: add 3 entries, fill To/From/Via each, verify form fields update
-- Manual: delete an entry, verify list updates
-- Manual: attempt to add >50 entries, verify inline error
-- Manual: open addr with drafts open — drafts close; vice versa
+
+1. **Unit: generateReplyDraft() field swap** — Fill From="A", To="B", SSIC="5216", Date="22 Apr 2026"; click reply → Fill; verify `F.from.value === "B"`, `F.to.value === "A"`
+2. **Unit: ref line generation** — From="CO, USS EXAMPLE", SSIC="5216", Date="22 Apr 2026" → ref = "CO, USS EXAMPLE ltr 5216 of 22 Apr 2026"
+3. **Unit: ref line degradation** — SSIC empty → "CO, USS EXAMPLE ltr of 22 Apr 2026"; Date empty → "CO, USS EXAMPLE ltr 5216"; both empty → "CO, USS EXAMPLE letter"
+4. **Unit: body boilerplate** — After fill, body textarea starts with "Per reference (a), "
+5. **Unit: fields cleared** — After fill: Via=[], Encl=[], CopyTo=[], distCheck=false, sigName/Rank/Title=""
+6. **Unit: type reset** — After fill, `typeSelect.value === "letter"`
+7. **Unit: SSIC + Subject preserved** — SSIC and Subj values unchanged after fill
+8. **UI: empty From warning** — Clear From, click reply → drawer shows warning, Fill button hidden
+9. **UI: drawer mutual exclusion** — Open drafts drawer, click reply → drafts closes, reply opens
+10. **test_project.py** — Must pass (file loads, no JS errors in static analysis)
