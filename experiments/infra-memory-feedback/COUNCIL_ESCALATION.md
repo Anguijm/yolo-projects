@@ -2,57 +2,34 @@
 
 **Gate:** implementation
 **Reason:** Unresolved objections after 2 attempts
-**Timestamp:** 2026-04-22T20:43:36.362915+00:00
+**Timestamp:** 2026-04-22T21:42:48.550651+00:00
 
 ## Angle positions
 
-### BUGS — APPROVE (low)
-- **Reason:** All identified correctness risks from previous gates have been addressed, and new features are implemented with robust data integrity, migration, and error handling.
+### BUGS — OBJECT (critical)
+- **Reason:** The `_escalation_id` helper truncates the `reason` field to 200 characters before hashing, which can lead to identical `escalation_id`s for distinct escalation reasons, causing `INSERT OR IGNORE` to silently drop unique historical records.
+- **Required fix:** The `_escalation_id` helper must use the full `reason` field (or a sufficiently large prefix, e.g., 1024 characters or more, to prevent practical collisions) when computing the content hash to ensure uniqueness for all distinct escalation records.
+- **Evidence:** `New `_escalation_id(entry)` helper: SHA1 content-hash of `project|gate|resolved_at|timestamp|reason[:200]`, truncated to 16 hex chars.`
 
-### SECURITY — OBJECT (medium)
-- **Reason:** The `_escalation_id` function uses SHA1, which is cryptographically broken for collision resistance, potentially allowing an attacker to craft `session_state.json` entries that collide and lead to data loss via `INSERT OR IGNORE`.
-- **Required fix:** Replace SHA1 with a cryptographically strong hash function (e.g., SHA256) for `_escalation_id` to ensure unique content-based identifiers even with hostile input.
-- **Evidence:** `build_memory.py:120: return hashlib.sha1(key.encode('utf-8')).hexdigest()[:16]`
+### SECURITY — APPROVE (low)
+- **Reason:** Previous SHA1 concern is explicitly stated as resolved by upgrade to SHA256 in the active override; all SQL queries use parameterized statements preventing injection; input validation and sanitization are adequate for a CLI tool.
 
 ### UI — APPROVE (low)
-- **Reason:** The CLI commands provide clear usage instructions, actionable error messages, and good feedback for various states, including empty and invalid inputs.
+- **Reason:** The changes improve user feedback and guidance, particularly for invalid inputs, and provide clear CLI commands for new functionality.
 
 ### GUIDE — APPROVE (low)
-- **Reason:** The tool's docstring clearly outlines all commands and their usage, and error messages provide actionable guidance.
+- **Reason:** The updated docstring, explicit command listing, actionable error messages, and comprehensive test examples provide excellent discoverability for both human users and AI agents.
 
 ### USEFULNESS — APPROVE (low)
-- **Reason:** This feature provides a critical feedback loop, allowing the system to evaluate the real-world impact and accuracy of its collected learnings, transforming a data store into a self-improving tool.
-- **Evidence:** `The 'recall-stats' command provides actionable metrics for council members, and 'backfill-recall' automates the initial classification from real historical data, directly addressing the need to validate the utility of 'learnings'.`
+- **Reason:** This project provides a critical feedback loop for measuring the impact and accuracy of the 'learnings' system, enabling its continuous improvement.
+- **Evidence:** `The `recall-stats` command provides actionable metrics (top prevented bugs, top false positives) that are essential for an analyst or developer to understand and refine the 'learnings' system. The `mark-outcome` commands provide a way for human feedback, and `backfill-recall` automates initial class`
 
 ### COOL — APPROVE (low)
-- **Reason:** The recall feedback loop, especially `recall-stats` and automated backfill, provides a unique meta-learning capability to evaluate the effectiveness of past learnings, distinguishing signal from noise.
+- **Reason:** The tool's unique angle is its self-reflection and automated classification of its own past 'learnings' as 'prevented_bug' or 'false_positive', creating a meta-feedback loop for the system itself.
 
 ### LESSONS — APPROVE (low)
-- **Reason:** No documented lessons or anti-patterns were violated by the proposed changes or the implementation.
+- **Reason:** No documented lessons or anti-patterns were violated. Relevant lessons regarding destructive actions and modularity were appropriately applied.
 
 ## Resolution
 
-**RESOLVED 2026-04-23 by John (autonomous wake cycle). SHA1 → SHA256 at source.**
-
-### SECURITY OBJECT (medium) — FIXED AT SOURCE
-Legitimate enough concern to address rather than override, even though the realistic attack model is weak (no adversarial input surface — `session_state.json` is written only by cron and the repo operator; an attacker with write access could just write what they want directly, no collision needed).
-
-**Fix applied** (build_memory.py):
-- `_escalation_id` now uses `hashlib.sha256` instead of `hashlib.sha1`. Same 16-hex-char prefix (64-bit id space, ample for <10^6 escalations).
-- New `_HASH_ALGO_VERSION = 2` constant (v1=SHA1, v2=SHA256) tracked in a new `schema_versions` key-value table.
-- `_migrate_recall_outcomes` upgraded: on algorithm version change, deletes backfilled rows (they regenerate on next `backfill-recall`) and updates the version record. Manual rows preserved.
-- Docstring updated to explain the non-adversarial use case and the SHA256 upgrade rationale.
-
-**Verified migration path** (v1 → v2):
-- Seeded a synthetic v1 row with a SHA1-style hash, forced `escalation_id_algo = 1` in `schema_versions`
-- Opened fresh DB connection → migration detected version mismatch → deleted the v1 row → set version to 2
-- Next `backfill-recall` repopulated with SHA256 hashes cleanly
-
-**Verified idempotency** (v2 only):
-- Fresh DB + `backfill-recall` → 6 rows, 6 unique SHA256-based escalation_ids
-- Second `backfill-recall` → 0 inserted (no duplicates)
-
-### Other 6 angles — all APPROVE
-BUGS, UI, GUIDE, USEFULNESS, COOL, LESSONS all approved with no objections. BUGS specifically noted "All identified correctness risks from previous gates have been addressed" — the escalation_id content hash fix from the earlier round held up cleanly.
-
-Cron may rerun IMPLEMENTATION; expected clean pass. After IMPL → TESTS → OUTCOME, the tick ships and cron advances to `eval-opus-47-backbone` at queue position [1].
+Human decision required. Resume the build after updating session_state.json.
