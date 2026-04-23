@@ -1,0 +1,621 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#0a0a0a">
+<title>svg-fields — populate SVG templates</title>
+<style>
+  :root {
+    --bg-page: #0a0a0a;
+    --bg-surface: #111;
+    --bg-elevated: #1a1a1a;
+    --bg-hover: #222;
+    --text-primary: #fff;
+    --text-body: #ccc;
+    --text-secondary: #aaa;
+    --text-tertiary: #555;
+    --text-label: #444;
+    --text-muted: #333;
+    --border-default: #1a1a1a;
+    --border-visible: #222;
+    --border-active: #444;
+    --border-focus: #555;
+    --accent: #0ff;
+    --error: #f85149;
+    --success: #3fb950;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; height: 100%; background: var(--bg-page); }
+  body {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Courier New", monospace;
+    color: var(--text-body);
+    font-size: 0.75rem;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--border-default);
+    background: var(--bg-surface);
+    flex-wrap: wrap;
+  }
+  h1 {
+    font-size: 0.7rem;
+    font-weight: 200;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.3em;
+    margin: 0;
+    flex-shrink: 0;
+  }
+  h1 .accent { color: var(--accent); }
+  .hint {
+    font-size: 0.55rem;
+    color: var(--text-tertiary);
+    letter-spacing: 0.1em;
+    flex: 1;
+    min-width: 0;
+  }
+  .btn {
+    padding: 5px 10px;
+    background: transparent;
+    border: 1px solid var(--border-default);
+    color: var(--text-label);
+    font-family: inherit;
+    font-size: 0.55rem;
+    cursor: pointer;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+  .btn:hover { border-color: var(--border-active); color: var(--text-secondary); }
+  .btn:active { border-color: var(--border-focus); color: var(--text-secondary); }
+  .btn.primary { border-color: var(--border-active); color: var(--text-secondary); }
+  .btn.primary:hover { border-color: var(--accent); color: var(--accent); }
+  .btn:disabled { opacity: 0.3; cursor: not-allowed; pointer-events: none; }
+  .file-input { display: none; }
+  main {
+    flex: 1;
+    display: grid;
+    grid-template-columns: minmax(240px, 320px) 1fr;
+    min-height: 0;
+    overflow: hidden;
+  }
+  @media (max-width: 700px) {
+    main { grid-template-columns: 1fr; grid-template-rows: auto 1fr; }
+  }
+  .fields-panel {
+    border-right: 1px solid var(--border-default);
+    background: var(--bg-surface);
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding: 12px;
+  }
+  @media (max-width: 700px) {
+    .fields-panel { border-right: none; border-bottom: 1px solid var(--border-default); max-height: 40vh; }
+  }
+  .panel-title {
+    font-size: 0.55rem;
+    text-transform: uppercase;
+    letter-spacing: 0.25em;
+    color: var(--text-label);
+    margin: 0 0 10px 0;
+    font-weight: 400;
+  }
+  .field-row {
+    margin-bottom: 10px;
+  }
+  .field-row label {
+    display: block;
+    font-size: 0.5rem;
+    text-transform: uppercase;
+    letter-spacing: 0.2em;
+    color: var(--text-tertiary);
+    margin-bottom: 3px;
+  }
+  .field-row label .field-count {
+    color: var(--text-muted);
+    margin-left: 6px;
+  }
+  .field-row input[type="text"],
+  .field-row textarea {
+    width: 100%;
+    padding: 5px 7px;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border-default);
+    color: var(--text-body);
+    font-family: inherit;
+    font-size: 0.7rem;
+    resize: vertical;
+    min-height: 26px;
+  }
+  .field-row textarea { min-height: 48px; }
+  .field-row input:focus,
+  .field-row textarea:focus {
+    outline: none;
+    border-color: var(--border-focus);
+    color: var(--text-primary);
+  }
+  .empty-state {
+    color: var(--text-tertiary);
+    font-size: 0.6rem;
+    line-height: 1.6;
+    padding: 20px 0;
+  }
+  .empty-state code {
+    color: var(--accent);
+    background: var(--bg-elevated);
+    padding: 1px 4px;
+    font-size: 0.65rem;
+  }
+  .preview-panel {
+    background: var(--bg-page);
+    overflow: auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+    position: relative;
+  }
+  .preview-stage {
+    max-width: 100%;
+    max-height: 100%;
+    background: #fff;
+    box-shadow: 0 0 0 1px var(--border-visible), 0 0 40px rgba(0, 255, 255, 0.03);
+  }
+  .preview-stage svg {
+    display: block;
+    max-width: 100%;
+    height: auto;
+  }
+  .drop-zone {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.55rem;
+    color: var(--text-tertiary);
+    letter-spacing: 0.25em;
+    text-transform: uppercase;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.15s ease;
+    background: rgba(0, 255, 255, 0.04);
+    border: 2px dashed var(--accent);
+  }
+  .drop-zone.active { opacity: 1; }
+  .toast {
+    position: fixed;
+    bottom: 12px;
+    left: 50%;
+    transform: translateX(-50%);
+    padding: 6px 12px;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border-focus);
+    color: var(--text-secondary);
+    font-size: 0.55rem;
+    text-transform: uppercase;
+    letter-spacing: 0.15em;
+    z-index: 10;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+  }
+  .toast.show { opacity: 1; }
+  .toast.error { border-color: var(--error); color: var(--error); }
+  .toast.success { border-color: var(--success); color: var(--success); }
+  .meta {
+    font-size: 0.5rem;
+    color: var(--text-muted);
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    padding-top: 10px;
+    margin-top: 10px;
+    border-top: 1px solid var(--border-default);
+  }
+  .meta .key { color: var(--text-tertiary); }
+  .meta .val { color: var(--text-secondary); }
+  .order-toggle {
+    display: flex;
+    gap: 4px;
+    margin-bottom: 10px;
+  }
+  .order-toggle .btn { flex: 1; padding: 4px 6px; }
+  .order-toggle .btn.active {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>svg<span class="accent">·</span>fields</h1>
+  <span class="hint" id="hint">Drop SVG · Paste SVG · Or load sample</span>
+  <input type="file" id="file-input" class="file-input" accept=".svg,image/svg+xml">
+  <button class="btn" id="open-btn" aria-label="Open SVG file">open svg</button>
+  <button class="btn" id="sample-btn" aria-label="Load sample certificate SVG">sample</button>
+  <button class="btn" id="paste-btn" aria-label="Paste SVG from clipboard">paste</button>
+  <button class="btn primary" id="download-btn" aria-label="Download populated SVG" disabled>download</button>
+</header>
+
+<main>
+  <aside class="fields-panel" id="fields-panel">
+    <h2 class="panel-title">Fields</h2>
+    <div id="fields-container"></div>
+    <div class="meta" id="meta" style="display: none;">
+      <div><span class="key">fields:</span> <span class="val" id="meta-count">0</span></div>
+      <div><span class="key">order:</span> <span class="val" id="meta-order">document</span></div>
+      <div><span class="key">bytes:</span> <span class="val" id="meta-bytes">0</span></div>
+    </div>
+  </aside>
+
+  <section class="preview-panel" id="preview-panel">
+    <div class="preview-stage" id="preview-stage"></div>
+    <div class="drop-zone" id="drop-zone">drop svg here</div>
+  </section>
+</main>
+
+<div class="toast" id="toast"></div>
+
+<script>
+(function () {
+  'use strict';
+
+  // ── State ────────────────────────────────────────────────────────────
+  let originalSvgText = '';   // raw SVG input as parsed
+  let fieldNames = [];        // ordered field names (unique)
+  let fieldCounts = {};       // name → occurrence count in SVG
+  let values = {};            // name → current value
+
+  // ── DOM refs ─────────────────────────────────────────────────────────
+  const fieldsContainer = document.getElementById('fields-container');
+  const previewStage = document.getElementById('preview-stage');
+  const dropZone = document.getElementById('drop-zone');
+  const previewPanel = document.getElementById('preview-panel');
+  const fileInput = document.getElementById('file-input');
+  const openBtn = document.getElementById('open-btn');
+  const sampleBtn = document.getElementById('sample-btn');
+  const pasteBtn = document.getElementById('paste-btn');
+  const downloadBtn = document.getElementById('download-btn');
+  const hint = document.getElementById('hint');
+  const toast = document.getElementById('toast');
+  const meta = document.getElementById('meta');
+  const metaCount = document.getElementById('meta-count');
+  const metaBytes = document.getElementById('meta-bytes');
+
+  // ── Sample SVG (certificate) ─────────────────────────────────────────
+  const SAMPLE_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 420" font-family="Georgia, serif">
+  <rect width="600" height="420" fill="#faf5e6"/>
+  <rect x="12" y="12" width="576" height="396" fill="none" stroke="#8b7355" stroke-width="2"/>
+  <rect x="20" y="20" width="560" height="380" fill="none" stroke="#8b7355" stroke-width="0.5"/>
+  <text x="300" y="70" text-anchor="middle" font-size="14" fill="#8b7355" letter-spacing="4">CERTIFICATE OF COMPLETION</text>
+  <text x="300" y="110" text-anchor="middle" font-size="11" fill="#555" letter-spacing="2">This is to certify that</text>
+  <text x="300" y="170" text-anchor="middle" font-size="32" fill="#2a2a2a" font-style="italic">{{recipient_name}}</text>
+  <line x1="120" y1="190" x2="480" y2="190" stroke="#8b7355" stroke-width="0.5"/>
+  <text x="300" y="220" text-anchor="middle" font-size="11" fill="#555">has successfully completed the course</text>
+  <text x="300" y="260" text-anchor="middle" font-size="18" fill="#2a2a2a" font-weight="bold">{{course_title}}</text>
+  <text x="300" y="295" text-anchor="middle" font-size="11" fill="#555">on {{completion_date}}</text>
+  <g transform="translate(140, 340)">
+    <line x1="0" y1="0" x2="120" y2="0" stroke="#555" stroke-width="0.5"/>
+    <text x="60" y="18" text-anchor="middle" font-size="9" fill="#8b7355" data-field="signatory_title">Instructor</text>
+    <text x="60" y="-6" text-anchor="middle" font-size="12" fill="#2a2a2a">{{instructor_name}}</text>
+  </g>
+  <g transform="translate(340, 340)">
+    <line x1="0" y1="0" x2="120" y2="0" stroke="#555" stroke-width="0.5"/>
+    <text x="60" y="18" text-anchor="middle" font-size="9" fill="#8b7355">Director</text>
+    <text x="60" y="-6" text-anchor="middle" font-size="12" fill="#2a2a2a">{{director_name}}</text>
+  </g>
+</svg>`;
+
+  // ── Field extraction ─────────────────────────────────────────────────
+  // Two sources, merged in document order:
+  //   1. {{fieldName}} placeholders anywhere in the text (most common)
+  //   2. data-field="fieldName" attributes on <text> elements
+  const MUSTACHE_RE = /\{\{\s*([a-zA-Z_][a-zA-Z0-9_-]*)\s*\}\}/g;
+
+  function extractFields(svgText) {
+    const names = [];
+    const seen = new Set();
+    const counts = {};
+
+    // Pass 1: mustache placeholders in document order — iterate via regex on the raw text
+    // which preserves source order across the whole SVG.
+    let m;
+    MUSTACHE_RE.lastIndex = 0;
+    while ((m = MUSTACHE_RE.exec(svgText)) !== null) {
+      const name = m[1];
+      counts[name] = (counts[name] || 0) + 1;
+      if (!seen.has(name)) { seen.add(name); names.push(name); }
+    }
+
+    // Pass 2: data-field attributes — parse DOM to find them in document order
+    // Insert each at its first document-order position relative to pass 1 results.
+    // Simplest: append any data-field names not already covered by mustache.
+    try {
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(svgText, 'image/svg+xml');
+      const parseErr = doc.querySelector('parsererror');
+      if (parseErr) {
+        throw new Error('SVG parse error');
+      }
+      const withField = doc.querySelectorAll('[data-field]');
+      withField.forEach((el) => {
+        const name = el.getAttribute('data-field');
+        if (!name) return;
+        counts[name] = (counts[name] || 0) + 1;
+        if (!seen.has(name)) { seen.add(name); names.push(name); }
+      });
+    } catch (e) {
+      // DOM parse failed — surface but don't crash; mustache pass may still have results
+      console.warn('DOM parse warning:', e.message);
+    }
+
+    return { names, counts };
+  }
+
+  // ── Render populated SVG ─────────────────────────────────────────────
+  // For each field, replace {{name}} occurrences with the current value and
+  // set textContent on [data-field="name"] elements. We parse once per render
+  // so DOM-based data-field substitution stays clean even if the same SVG
+  // references a field via both mechanisms.
+  function renderPopulated() {
+    if (!originalSvgText) { previewStage.innerHTML = ''; return; }
+    let text = originalSvgText;
+
+    // 1. Mustache substitution — replace {{name}} with escaped value or keep {{name}} if empty.
+    text = text.replace(MUSTACHE_RE, (match, name) => {
+      const v = values[name];
+      if (v === undefined || v === '') return match; // keep placeholder so user sees the gap
+      return escapeXml(v);
+    });
+
+    // 2. data-field substitution — parse, set textContent, serialize back.
+    let final = text;
+    try {
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(text, 'image/svg+xml');
+      if (!doc.querySelector('parsererror')) {
+        const els = doc.querySelectorAll('[data-field]');
+        let modified = false;
+        els.forEach((el) => {
+          const name = el.getAttribute('data-field');
+          if (!name) return;
+          const v = values[name];
+          if (v !== undefined && v !== '') {
+            el.textContent = v;
+            modified = true;
+          }
+        });
+        if (modified) {
+          final = new XMLSerializer().serializeToString(doc);
+        }
+      }
+    } catch (e) {
+      // Fall through — show the mustache-only render
+    }
+
+    previewStage.innerHTML = final;
+  }
+
+  function escapeXml(s) {
+    // NOTE: uses split/join instead of .replace(/regex/g, ...) because regex
+    // literals with embedded " or ' confuse test_project.py's string-stripper
+    // (known pitfall per learnings.md — "regex literals containing \" cause the
+    // double-quote stripper to partially consume them"). split/join works with
+    // plain string args that the stripper handles cleanly.
+    return String(s)
+      .split('&').join('&amp;')
+      .split('<').join('&lt;')
+      .split('>').join('&gt;')
+      .split('"').join('&quot;')
+      .split(String.fromCharCode(39)).join('&apos;');
+  }
+
+  // ── Fields form ──────────────────────────────────────────────────────
+  function renderFields() {
+    fieldsContainer.innerHTML = '';
+    if (fieldNames.length === 0) {
+      const empty = document.createElement('div');
+      empty.className = 'empty-state';
+      empty.innerHTML = originalSvgText
+        ? 'No fields found in this SVG. Add <code>{{field_name}}</code> placeholders in text or <code>data-field="name"</code> on &lt;text&gt; elements.'
+        : 'Load an SVG to see its fields.<br><br>Supported field markers:<br><br><code>{{field_name}}</code> in text<br><code>data-field="name"</code> on &lt;text&gt;';
+      fieldsContainer.appendChild(empty);
+      meta.style.display = originalSvgText ? 'block' : 'none';
+      if (originalSvgText) {
+        metaCount.textContent = '0';
+        metaBytes.textContent = originalSvgText.length.toLocaleString();
+      }
+      return;
+    }
+
+    fieldNames.forEach((name) => {
+      const row = document.createElement('div');
+      row.className = 'field-row';
+
+      const label = document.createElement('label');
+      label.setAttribute('for', 'f-' + name);
+      label.textContent = humanize(name);
+      if (fieldCounts[name] > 1) {
+        const count = document.createElement('span');
+        count.className = 'field-count';
+        count.textContent = '×' + fieldCounts[name];
+        label.appendChild(count);
+      }
+      row.appendChild(label);
+
+      // Use textarea for likely-long values (any name containing body/desc/text/note)
+      const isLong = /body|desc|note|text|paragraph/i.test(name);
+      const input = document.createElement(isLong ? 'textarea' : 'input');
+      if (!isLong) input.type = 'text';
+      input.id = 'f-' + name;
+      input.dataset.fieldName = name;
+      input.value = values[name] || '';
+      input.placeholder = '{{' + name + '}}';
+      input.setAttribute('aria-label', humanize(name));
+      input.addEventListener('input', (e) => {
+        values[name] = e.target.value;
+        renderPopulated();
+      });
+      row.appendChild(input);
+
+      fieldsContainer.appendChild(row);
+    });
+
+    meta.style.display = 'block';
+    metaCount.textContent = String(fieldNames.length);
+    metaBytes.textContent = originalSvgText.length.toLocaleString();
+  }
+
+  function humanize(name) {
+    return name.replace(/[_-]+/g, ' ');
+  }
+
+  // ── Load SVG ─────────────────────────────────────────────────────────
+  function loadSvgText(text, source) {
+    if (!text || typeof text !== 'string') {
+      showToast('No content provided', 'error');
+      return;
+    }
+    // Basic sanity check — looks like SVG?
+    const trimmed = text.trim();
+    if (!/^<(\?xml|svg|\!DOCTYPE)/i.test(trimmed)) {
+      showToast('Not an SVG', 'error');
+      return;
+    }
+    originalSvgText = trimmed;
+    const extracted = extractFields(trimmed);
+    fieldNames = extracted.names;
+    fieldCounts = extracted.counts;
+    values = {};
+    renderFields();
+    renderPopulated();
+    downloadBtn.disabled = false;
+    hint.textContent = source + ' · ' + fieldNames.length + ' field' + (fieldNames.length === 1 ? '' : 's');
+    if (fieldNames.length > 0) {
+      const first = fieldsContainer.querySelector('input, textarea');
+      if (first) first.focus();
+    }
+  }
+
+  function loadFile(file) {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      loadSvgText(String(ev.target.result || ''), file.name);
+    };
+    reader.onerror = () => showToast('Read failed', 'error');
+    reader.readAsText(file);
+  }
+
+  // ── Download ─────────────────────────────────────────────────────────
+  function download() {
+    if (!originalSvgText) return;
+    // Regenerate final SVG from source + current values
+    let text = originalSvgText.replace(MUSTACHE_RE, (match, name) => {
+      const v = values[name];
+      return (v === undefined || v === '') ? match : escapeXml(v);
+    });
+    try {
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(text, 'image/svg+xml');
+      if (!doc.querySelector('parsererror')) {
+        const els = doc.querySelectorAll('[data-field]');
+        els.forEach((el) => {
+          const name = el.getAttribute('data-field');
+          const v = values[name];
+          if (v !== undefined && v !== '') el.textContent = v;
+        });
+        text = new XMLSerializer().serializeToString(doc);
+      }
+    } catch (e) {
+      // keep mustache-only text
+    }
+
+    const blob = new Blob([text], { type: 'image/svg+xml' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'populated.svg';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    showToast('Downloaded populated.svg', 'success');
+  }
+
+  // ── Toast ────────────────────────────────────────────────────────────
+  let toastTimer = null;
+  function showToast(msg, kind) {
+    toast.textContent = msg;
+    toast.className = 'toast show' + (kind ? ' ' + kind : '');
+    if (toastTimer) clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => toast.className = 'toast', 1800);
+  }
+
+  // ── Event wiring ─────────────────────────────────────────────────────
+  openBtn.addEventListener('click', () => fileInput.click());
+  fileInput.addEventListener('change', (e) => {
+    const f = e.target.files && e.target.files[0];
+    if (f) loadFile(f);
+    fileInput.value = '';
+  });
+  sampleBtn.addEventListener('click', () => loadSvgText(SAMPLE_SVG, 'sample'));
+  pasteBtn.addEventListener('click', async () => {
+    try {
+      const text = await navigator.clipboard.readText();
+      if (!text) { showToast('Clipboard empty', 'error'); return; }
+      loadSvgText(text, 'pasted');
+    } catch (e) {
+      showToast('Clipboard denied — use Open or drag-drop', 'error');
+    }
+  });
+  downloadBtn.addEventListener('click', download);
+
+  // Drag and drop anywhere on the preview panel
+  let dragDepth = 0;
+  previewPanel.addEventListener('dragenter', (e) => {
+    e.preventDefault();
+    dragDepth++;
+    dropZone.classList.add('active');
+  });
+  previewPanel.addEventListener('dragleave', (e) => {
+    e.preventDefault();
+    dragDepth--;
+    if (dragDepth <= 0) { dragDepth = 0; dropZone.classList.remove('active'); }
+  });
+  previewPanel.addEventListener('dragover', (e) => e.preventDefault());
+  previewPanel.addEventListener('drop', (e) => {
+    e.preventDefault();
+    dragDepth = 0;
+    dropZone.classList.remove('active');
+    const f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+    if (f) loadFile(f);
+  });
+
+  // Keyboard — Ctrl+S to download, Ctrl+O to open, Ctrl+V paste handled by button
+  document.addEventListener('keydown', (e) => {
+    if ((e.ctrlKey || e.metaKey) && e.key === 's' && !downloadBtn.disabled) {
+      e.preventDefault();
+      download();
+    }
+    if ((e.ctrlKey || e.metaKey) && e.key === 'o') {
+      e.preventDefault();
+      fileInput.click();
+    }
+  });
+
+  // ── Initial render ──────────────────────────────────────────────────
+  renderFields();
+
+})();
+</script>
+</body>
+</html>

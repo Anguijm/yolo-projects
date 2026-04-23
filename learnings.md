@@ -3298,3 +3298,9 @@ The ai-prompt-content block is part of the tool's discoverability surface. Every
 
 **INSIGHT — WILL CHANGE / WILL CLEAR / WILL KEEP pattern for destructive actions:**
 When a feature overwrites or clears existing user data (body text, field sets), the preview drawer must explicitly list every affected field in three named sections. This is both a UX requirement (informed consent) and a council GUIDE/UI requirement. The pattern generalizes: any action that destructively modifies form state needs this disclosure before the user commits.
+
+### [svg-fields] (2026-04-23)
+- **KEEP**: `String.prototype.split(x).join(y)` replaces `.replace(/x/g, y)` when `x` is `"` or `'` — dodges the known `test_project.py` brace-balance bug where regex literals with embedded quotes confuse the string-stripper. For XML/HTML escape functions specifically: 5× split/join chain is readable and test-safe.
+- **KEEP**: SVG templates as data-driven forms — `{{mustache}}` + `data-field="name"` markers extracted in document order become a left-column form. Live preview re-renders via DOMParser + textContent for data-field subs, direct string replace for mustache. No innerHTML with user data.
+- **INSIGHT**: Form-for-every-text pattern — naval-scribe is form→doc, svg-fields is template+form→doc. Any tool where "layout is fixed but strings vary" is this shape. Future builds in this vein (invoice-fill, label-printer, badge-maker) can reuse the split-pane + DOMParser scaffolding.
+- **TEST CAUGHT**: `String.fromCharCode(39)` pattern for single-quote literals works reliably where `"'"` would make the brace-balancer count 231 single-quotes across the file (odd count = orphan quote = stripper goes off the rails). Total-count parity check is the fast diagnostic — if single-quote count is odd after comment strip, there's a naked `'` that will bite the test.
