@@ -36,6 +36,24 @@ Each field gets a label derived from (highest first):
 
 So arbitrary diagrams "just work" — the current text acts as the label. Templates with explicit markers get nicer labels automatically.
 
+## Shapes (links, arrows, paths)
+
+Below the Fields section, a **Shapes** section lists every `<line>`, `<path>`, `<polyline>`, and `<polygon>` in the SVG (excluding those inside `<defs>`, `<marker>`, `<symbol>`, `<clipPath>`, `<mask>`, `<pattern>`, or `<filter>` — those are reference content, not drawn shapes).
+
+Each shape gets compact attribute editors:
+
+- **`<line>`** — four number inputs for `x1` / `y1` / `x2` / `y2` endpoints
+- **`<path>`** — textarea for the raw `d` attribute (M/L/Q/C commands etc.)
+- **`<polyline>` / `<polygon>`** — textarea for the `points` attribute
+
+Plus shared controls on every shape: **stroke color picker** and **stroke-width** number.
+
+**`+ add line`** (next to the Shapes header) — creates a new horizontal `<line>` at center of viewBox with default stroke #333 / width 2. Edit its endpoints, color, and width right there.
+
+**`×` delete** on each shape row removes it from the SVG.
+
+Hover a shape row to highlight the corresponding path/line in the preview (accent color + glow).
+
 ## Add / Remove / Rearrange
 
 - **`+ add text` button** (top of the field column) — creates a new `<text>` element at the center of the SVG's viewBox with a readable default size. Focuses the new input so you can type your label immediately. Edit the size/position later by dragging the resulting SVG in any editor if needed.

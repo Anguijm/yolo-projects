@@ -179,6 +179,120 @@
     fill: var(--accent) !important;
     filter: drop-shadow(0 0 2px var(--accent));
   }
+  /* Shape rows: line/path/polyline/polygon */
+  .shape-row {
+    margin-bottom: 10px;
+    padding: 4px 6px;
+    margin-left: -6px;
+    margin-right: -6px;
+    border-left: 2px solid transparent;
+    display: grid;
+    grid-template-columns: 14px 1fr;
+    gap: 6px;
+    align-items: start;
+  }
+  .shape-row:hover {
+    border-left-color: var(--accent);
+  }
+  .shape-content { min-width: 0; }
+  .shape-row label {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 6px;
+    font-size: 0.5rem;
+    text-transform: uppercase;
+    letter-spacing: 0.2em;
+    color: var(--text-tertiary);
+    margin-bottom: 3px;
+  }
+  .shape-row .tag {
+    color: var(--text-muted);
+    font-size: 0.45rem;
+    letter-spacing: 0.15em;
+  }
+  .coord-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr 1fr;
+    gap: 3px;
+    margin-bottom: 4px;
+  }
+  .coord-grid .coord {
+    display: flex;
+    flex-direction: column;
+  }
+  .coord-grid .coord span {
+    font-size: 0.4rem;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.2em;
+    margin-bottom: 1px;
+  }
+  .coord-grid input {
+    width: 100%;
+    padding: 3px 4px;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border-default);
+    color: var(--text-body);
+    font-family: inherit;
+    font-size: 0.65rem;
+  }
+  .coord-grid input:focus {
+    outline: none;
+    border-color: var(--border-focus);
+    color: var(--text-primary);
+  }
+  .style-row {
+    display: grid;
+    grid-template-columns: 24px 1fr;
+    gap: 5px;
+    align-items: center;
+  }
+  .style-row input[type="color"] {
+    width: 100%;
+    height: 22px;
+    padding: 0;
+    background: transparent;
+    border: 1px solid var(--border-default);
+    cursor: pointer;
+  }
+  .style-row input[type="number"] {
+    padding: 3px 5px;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border-default);
+    color: var(--text-body);
+    font-family: inherit;
+    font-size: 0.65rem;
+  }
+  .style-row input[type="number"]:focus {
+    outline: none;
+    border-color: var(--border-focus);
+    color: var(--text-primary);
+  }
+  .path-d {
+    width: 100%;
+    padding: 4px 6px;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border-default);
+    color: var(--text-body);
+    font-family: inherit;
+    font-size: 0.6rem;
+    resize: vertical;
+    min-height: 44px;
+    margin-bottom: 4px;
+    white-space: pre;
+    overflow-x: auto;
+  }
+  .path-d:focus {
+    outline: none;
+    border-color: var(--border-focus);
+    color: var(--text-primary);
+  }
+  /* Highlight the stroke of a hovered shape */
+  .preview-stage [data-highlight="on"][data-svgfields-shape] {
+    stroke: var(--accent) !important;
+    filter: drop-shadow(0 0 3px var(--accent));
+  }
   .field-row label {
     display: block;
     font-size: 0.5rem;
@@ -320,6 +434,11 @@
       <button class="btn mini" id="add-btn" aria-label="Add a new text element to the SVG" disabled>+ add text</button>
     </div>
     <div id="fields-container"></div>
+    <div class="panel-header" id="shapes-header" style="display: none; margin-top: 18px;">
+      <h2 class="panel-title">Shapes</h2>
+      <button class="btn mini" id="add-line-btn" aria-label="Add a new line to the SVG" disabled>+ add line</button>
+    </div>
+    <div id="shapes-container"></div>
     <div class="meta" id="meta" style="display: none;">
       <div><span class="key">fields:</span> <span class="val" id="meta-count">0</span></div>
       <div><span class="key">order:</span> <span class="val" id="meta-order">document</span></div>
@@ -347,6 +466,7 @@
   let parsedDoc = null;       // DOMParser result; persists across edits
   let originalBytes = 0;      // input byte count for meta display
   let fields = [];            // [{ id, label, element, textNode, original }]
+  let shapes = [];            // [{ id, type, label, element }] — line/path/polyline/polygon
   let hoveredFieldId = null;  // current hover target for highlight
 
   // ── DOM refs ─────────────────────────────────────────────────────────
@@ -360,6 +480,9 @@
   const pasteBtn = document.getElementById('paste-btn');
   const downloadBtn = document.getElementById('download-btn');
   const addBtn = document.getElementById('add-btn');
+  const addLineBtn = document.getElementById('add-line-btn');
+  const shapesContainer = document.getElementById('shapes-container');
+  const shapesHeader = document.getElementById('shapes-header');
   const hint = document.getElementById('hint');
   const toast = document.getElementById('toast');
   const meta = document.getElementById('meta');
@@ -684,6 +807,273 @@
     // Preview doesn't change — DOM order untouched. Hover stays consistent.
   }
 
+  // ── Shape collection + rendering ────────────────────────────────────
+  // Collect all line/path/polyline/polygon NOT inside reference containers
+  // (defs, marker, symbol, clipPath, mask, pattern, filter). These are
+  // the "links" or visual connectors that typically want attribute edits.
+  const SHAPE_TAGS = new Set(['line', 'path', 'polyline', 'polygon']);
+  const SKIP_ANCESTORS = new Set(['defs', 'marker', 'symbol', 'clippath', 'mask', 'pattern', 'filter']);
+
+  function isInsideSkippable(el) {
+    let p = el.parentNode;
+    while (p && p.tagName) {
+      if (SKIP_ANCESTORS.has(p.tagName.toLowerCase())) return true;
+      p = p.parentNode;
+    }
+    return false;
+  }
+
+  function collectShapes(doc) {
+    const out = [];
+    let seq = 0;
+    const walk = (el) => {
+      if (!el || !el.tagName) return;
+      const tag = el.tagName.toLowerCase();
+      if (SHAPE_TAGS.has(tag) && !isInsideSkippable(el)) {
+        out.push({
+          id: 's' + (seq++),
+          type: tag,
+          label: shapeLabel(el, tag, seq - 1),
+          element: el,
+        });
+      }
+      Array.from(el.children).forEach(walk);
+    };
+    walk(doc.documentElement);
+
+    // Marker each element so hover-highlight can find it
+    out.forEach((s) => {
+      if (!s.element.hasAttribute('data-svgfields-id')) {
+        s.element.setAttribute('data-svgfields-id', s.id);
+      }
+      s.element.setAttribute('data-svgfields-shape', s.type);
+    });
+    return out;
+  }
+
+  function shapeLabel(el, tag, idx) {
+    return el.getAttribute('id') || el.getAttribute('class') || (tag + ' ' + (idx + 1));
+  }
+
+  function makeShapeRow(shape) {
+    const row = document.createElement('div');
+    row.className = 'shape-row';
+    row.dataset.shapeId = shape.id;
+
+    // drag handle (cosmetic here — shapes don't reorder in v1)
+    const handle = document.createElement('div');
+    handle.className = 'drag-handle';
+    handle.textContent = '·';
+    handle.style.cursor = 'default';
+    row.appendChild(handle);
+
+    const content = document.createElement('div');
+    content.className = 'shape-content';
+
+    const label = document.createElement('label');
+    const labelText = document.createElement('span');
+    labelText.textContent = shape.label;
+    const tag = document.createElement('span');
+    tag.className = 'tag';
+    tag.textContent = shape.type;
+    labelText.appendChild(tag);
+    label.appendChild(labelText);
+
+    const del = document.createElement('button');
+    del.className = 'delete-btn';
+    del.type = 'button';
+    del.setAttribute('aria-label', 'Remove ' + shape.label);
+    del.title = 'Remove this shape from the SVG';
+    del.textContent = '×';
+    del.addEventListener('click', (e) => {
+      e.stopPropagation();
+      removeShape(shape);
+    });
+    label.appendChild(del);
+    content.appendChild(label);
+
+    // Type-specific geometry editor
+    if (shape.type === 'line') {
+      content.appendChild(makeLineCoords(shape.element));
+    } else if (shape.type === 'path') {
+      content.appendChild(makePathEditor(shape.element));
+    } else if (shape.type === 'polyline' || shape.type === 'polygon') {
+      content.appendChild(makePointsEditor(shape.element));
+    }
+
+    // Shared style row: stroke color + width
+    content.appendChild(makeStyleEditor(shape.element));
+
+    row.appendChild(content);
+
+    // Hover integration with preview highlight
+    row.addEventListener('mouseenter', () => setHover(shape.id));
+    row.addEventListener('mouseleave', () => setHover(null));
+
+    return row;
+  }
+
+  function makeLineCoords(el) {
+    const grid = document.createElement('div');
+    grid.className = 'coord-grid';
+    ['x1', 'y1', 'x2', 'y2'].forEach((attr) => {
+      const cell = document.createElement('div');
+      cell.className = 'coord';
+      const lbl = document.createElement('span');
+      lbl.textContent = attr;
+      const input = document.createElement('input');
+      input.type = 'number';
+      input.step = 'any';
+      input.value = el.getAttribute(attr) || '0';
+      input.setAttribute('aria-label', attr);
+      input.addEventListener('input', (e) => {
+        el.setAttribute(attr, e.target.value);
+        renderPreview();
+      });
+      cell.appendChild(lbl);
+      cell.appendChild(input);
+      grid.appendChild(cell);
+    });
+    return grid;
+  }
+
+  function makePathEditor(el) {
+    const ta = document.createElement('textarea');
+    ta.className = 'path-d';
+    ta.value = el.getAttribute('d') || '';
+    ta.setAttribute('aria-label', 'path d attribute');
+    ta.spellcheck = false;
+    ta.addEventListener('input', (e) => {
+      el.setAttribute('d', e.target.value);
+      renderPreview();
+    });
+    return ta;
+  }
+
+  function makePointsEditor(el) {
+    const ta = document.createElement('textarea');
+    ta.className = 'path-d';
+    ta.value = el.getAttribute('points') || '';
+    ta.setAttribute('aria-label', 'points attribute');
+    ta.spellcheck = false;
+    ta.addEventListener('input', (e) => {
+      el.setAttribute('points', e.target.value);
+      renderPreview();
+    });
+    return ta;
+  }
+
+  function makeStyleEditor(el) {
+    const row = document.createElement('div');
+    row.className = 'style-row';
+
+    const currentStroke = normalizeColor(el.getAttribute('stroke'));
+    const color = document.createElement('input');
+    color.type = 'color';
+    color.value = currentStroke;
+    color.setAttribute('aria-label', 'stroke color');
+    color.title = 'stroke color';
+    color.addEventListener('input', (e) => {
+      el.setAttribute('stroke', e.target.value);
+      renderPreview();
+    });
+
+    const width = document.createElement('input');
+    width.type = 'number';
+    width.step = '0.5';
+    width.min = '0';
+    width.value = el.getAttribute('stroke-width') || '1';
+    width.setAttribute('aria-label', 'stroke width');
+    width.title = 'stroke width';
+    width.addEventListener('input', (e) => {
+      el.setAttribute('stroke-width', e.target.value);
+      renderPreview();
+    });
+
+    row.appendChild(color);
+    row.appendChild(width);
+    return row;
+  }
+
+  function normalizeColor(v) {
+    // <input type="color"> requires a #rrggbb value. Coerce.
+    if (!v) return '#000000';
+    v = v.trim().toLowerCase();
+    if (/^#[0-9a-f]{6}$/.test(v)) return v;
+    if (/^#[0-9a-f]{3}$/.test(v)) {
+      return '#' + v[1] + v[1] + v[2] + v[2] + v[3] + v[3];
+    }
+    // Named colors or rgb(...) — let the browser resolve via a temp element.
+    // NOTE: we strip everything non-digit/comma rather than matching rgb\(...\)
+    // with a regex, because regex literals containing `\(` escape sequences
+    // are miscounted by test_project.py's brace balancer (learnings.md pitfall).
+    try {
+      const probe = document.createElement('div');
+      probe.style.color = v;
+      document.body.appendChild(probe);
+      const rgb = getComputedStyle(probe).color;
+      document.body.removeChild(probe);
+      const nums = rgb.replace(/[^0-9,]/g, '').split(',').slice(0, 3).map((n) => parseInt(n, 10));
+      if (nums.length >= 3 && nums.every((n) => !isNaN(n))) {
+        return '#' + nums.map((n) => n.toString(16).padStart(2, '0')).join('');
+      }
+    } catch (e) { /* ignore */ }
+    return '#000000';
+  }
+
+  function renderShapes() {
+    shapesContainer.innerHTML = '';
+    shapesHeader.style.display = (shapes.length > 0 || parsedDoc) ? 'flex' : 'none';
+    if (shapes.length === 0) {
+      if (parsedDoc) {
+        const empty = document.createElement('div');
+        empty.className = 'empty-state';
+        empty.style.padding = '6px 0';
+        empty.textContent = 'No lines or paths. Use + add line to create one.';
+        shapesContainer.appendChild(empty);
+      }
+      return;
+    }
+    shapes.forEach((shape) => shapesContainer.appendChild(makeShapeRow(shape)));
+  }
+
+  function addLine() {
+    if (!parsedDoc) return;
+    const root = parsedDoc.documentElement;
+    const vb = parseViewBox(root);
+    const cx = vb ? (vb.x + vb.w / 2) : 100;
+    const cy = vb ? (vb.y + vb.h / 2) : 50;
+    const span = vb ? Math.max(20, Math.round(vb.w * 0.2)) : 80;
+    const line = parsedDoc.createElementNS(SVG_NS, 'line');
+    line.setAttribute('x1', String(Math.round(cx - span / 2)));
+    line.setAttribute('y1', String(Math.round(cy)));
+    line.setAttribute('x2', String(Math.round(cx + span / 2)));
+    line.setAttribute('y2', String(Math.round(cy)));
+    line.setAttribute('stroke', '#333333');
+    line.setAttribute('stroke-width', '2');
+    root.appendChild(line);
+
+    const id = 's' + Date.now();
+    line.setAttribute('data-svgfields-id', id);
+    line.setAttribute('data-svgfields-shape', 'line');
+    shapes.push({ id, type: 'line', label: 'line ' + (shapes.length + 1), element: line });
+    renderShapes();
+    renderPreview();
+    showToast('Added new line', 'success');
+  }
+
+  function removeShape(shape) {
+    if (!shape || !shape.element) return;
+    if (shape.element.parentNode) {
+      shape.element.parentNode.removeChild(shape.element);
+    }
+    const idx = shapes.findIndex((s) => s.id === shape.id);
+    if (idx !== -1) shapes.splice(idx, 1);
+    renderShapes();
+    renderPreview();
+    showToast('Removed', 'success');
+  }
+
   function parseViewBox(root) {
     const vb = root.getAttribute && root.getAttribute('viewBox');
     if (!vb) {
@@ -725,12 +1115,17 @@
     parsedDoc = doc;
     originalBytes = trimmed.length;
     fields = collectFields(parsedDoc);
+    shapes = collectShapes(parsedDoc);
     hoveredFieldId = null;
     renderFields();
+    renderShapes();
     renderPreview();
     downloadBtn.disabled = false;
     addBtn.disabled = false;
-    hint.textContent = source + ' · ' + fields.length + ' text element' + (fields.length === 1 ? '' : 's');
+    addLineBtn.disabled = false;
+    const fCount = fields.length + ' text' + (fields.length === 1 ? '' : 's');
+    const sCount = shapes.length + ' shape' + (shapes.length === 1 ? '' : 's');
+    hint.textContent = source + ' · ' + fCount + ' · ' + sCount;
     if (fields.length > 0) {
       const first = fieldsContainer.querySelector('input, textarea');
       if (first) first.focus();
@@ -753,6 +1148,9 @@
     const clone = parsedDoc.cloneNode(true);
     clone.querySelectorAll('[data-svgfields-id]').forEach((el) => {
       el.removeAttribute('data-svgfields-id');
+    });
+    clone.querySelectorAll('[data-svgfields-shape]').forEach((el) => {
+      el.removeAttribute('data-svgfields-shape');
     });
     clone.querySelectorAll('[data-highlight]').forEach((el) => {
       el.removeAttribute('data-highlight');
@@ -806,6 +1204,7 @@
   });
   downloadBtn.addEventListener('click', download);
   addBtn.addEventListener('click', addField);
+  addLineBtn.addEventListener('click', addLine);
 
   // Drag and drop anywhere on the preview panel
   let dragDepth = 0;
