@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src blob: data:; connect-src 'none'; object-src 'none'; base-uri 'self'; form-action 'none'">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
 <meta name="theme-color" content="#000000">
@@ -411,6 +411,7 @@ html, body {
       <div class="section-header" style="margin:0;border:none">Saved Drafts</div>
       <button class="add-btn" id="drafts-close">close ×</button>
     </div>
+    <div id="drafts-disclaimer" style="font-size:0.42rem;color:#555;margin-bottom:6px">Stored locally on this device. Not synced. Not encrypted.</div>
     <div id="status-filter-row" class="status-filter-row"></div>
     <div id="drafts-status-err"></div>
     <div id="drafts-list"></div>
@@ -2297,7 +2298,7 @@ html, body {
     try { return JSON.parse(localStorage.getItem(DRAFTS_KEY)) || []; } catch(e) { return []; }
   }
   function saveDraftsData(arr) {
-    try { localStorage.setItem(DRAFTS_KEY, JSON.stringify(arr)); } catch(e) {}
+    try { localStorage.setItem(DRAFTS_KEY, JSON.stringify(arr)); return true; } catch(e) { return false; }
   }
 
   function getFullState() {
@@ -2500,9 +2501,9 @@ html, body {
     var arr = getDrafts();
     arr.unshift({ id: uniqueDraftId(), name: name.trim(), savedAt: todayNaval(), type: typeSelect.value, status: 'draft', state: getFullState() });
     if (arr.length > 25) arr = arr.slice(0, 25);
-    saveDraftsData(arr);
+    var ok = saveDraftsData(arr);
     var orig = saveDraftBtn.textContent;
-    saveDraftBtn.textContent = 'saved!';
+    saveDraftBtn.textContent = ok ? 'saved!' : 'storage full!';
     setTimeout(function() { saveDraftBtn.textContent = orig; }, 1500);
   });
 
@@ -2516,7 +2517,7 @@ html, body {
     try { return JSON.parse(localStorage.getItem(PRESETS_KEY)) || []; } catch(e) { return []; }
   }
   function savePresetsData(arr) {
-    try { localStorage.setItem(PRESETS_KEY, JSON.stringify(arr)); } catch(e) {}
+    try { localStorage.setItem(PRESETS_KEY, JSON.stringify(arr)); return true; } catch(e) { return false; }
   }
 
   function renderPresets() {
@@ -2552,10 +2553,10 @@ html, body {
     var label = prompt('Name this preset:');
     if (!label || !label.trim()) return;
     arr.push({ id: Date.now(), label: label.trim(), from: fromVal });
-    savePresetsData(arr);
-    renderPresets();
+    var ok = savePresetsData(arr);
+    if (ok) renderPresets();
     var orig = savePresetBtn.textContent;
-    savePresetBtn.textContent = 'saved!';
+    savePresetBtn.textContent = ok ? 'saved!' : 'storage full!';
     setTimeout(function() { savePresetBtn.textContent = orig; }, 1200);
   });
 
