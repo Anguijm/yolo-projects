@@ -2,46 +2,43 @@
 
 **Gate:** tests
 **Reason:** Unresolved objections after 2 attempts
-**Timestamp:** 2026-04-23T19:21:48.581525+00:00
+**Timestamp:** 2026-04-23T19:30:47.497211+00:00
 
 ## Angle positions
 
-### BUGS — APPROVE (low)
-- **Reason:** The Letter Status Tracker feature correctly handles persistence, error states, schema drift, and UI interactions without introducing new correctness risks.
+### BUGS — OBJECT (high)
+- **Reason:** Status updates can fail silently due to localStorage quota limits because the error message for status changes relies on a variable that is never updated by the status update logic.
+- **Required fix:** The `cycleDraftStatus` function, or a helper it calls, must explicitly catch `QuotaExceededError` during `localStorage.setItem` and set the `lastStatusError` variable, which is displayed to the user in the drafts drawer.
+- **Evidence:** `file:index.html
+```javascript
+// In saveDraftsData() (called by cycleDraftStatus)
+// This sets 'lastSaveError', not 'lastStatusError'
+} catch (e) {
+  if (e.name === 'QuotaExceededError' || e.name === 'NS_ERROR_DOM_QUOTA_REACHED') {
+    lastSaveError = 'Storage full \u2014 could not save draft.';
+  }`
 
 ### SECURITY — APPROVE (low)
-- **Reason:** The Letter Status Tracker feature introduces no new exploitable injection surfaces or data exposure, adhering to existing security patterns and constraints.
+- **Reason:** The new feature does not introduce new attack surfaces. Existing robust escaping mechanisms for user input, combined with a restrictive Content Security Policy (connect-src 'none', object-src 'none', form-action 'none'), mitigate potential risks. Local storage warnings are in place per architectural constraints. Crypto.randomUUID() is used appropriately.
 
 ### UI — OBJECT (medium)
-- **Reason:** The color contrast for the 'Signed' status badge is borderline (4.8:1) for readability, especially given the small font size (0.55rem), which may impact accessibility for some users.
-- **Required fix:** Adjust the background or text color of the '.status-badge[data-status="signed"]' to achieve a higher contrast ratio for improved readability of small text.
-- **Evidence:** `naval-scribe/index.html:365`
+- **Reason:** When a status filter is applied in the drafts drawer and no drafts match, the UI provides no specific feedback, leaving the user unsure if there are no drafts or just no matching ones.
+- **Required fix:** Modify the drafts rendering logic to display a 'No drafts match this filter' message when a filter is active and the filtered list is empty, distinct from the 'No saved drafts yet' message.
+- **Evidence:** `Interaction: Open drafts drawer, save a draft, then apply a status filter for which no drafts currently exist. The list area will be empty without explanation.`
 
 ### GUIDE — APPROVE (low)
-- **Reason:** The Letter Status Tracker is well-documented in the AI prompt, and its UI elements are clearly named and interactive.
+- **Reason:** The Letter Status Tracker is well-documented for both human users and AI agents, with clear in-app hints and accessible controls.
 
 ### USEFULNESS — APPROVE (low)
-- **Reason:** The status tracker provides essential workflow management for users handling multiple formal documents, directly enhancing the tool's utility for its target audience.
-- **Evidence:** `This feature addresses a common organizational need to track the lifecycle of official correspondence (e.g., review, signature, transmission), integrating a practical workflow directly into the draft management system. The filter buttons further increase its utility for users managing a high volume `
+- **Reason:** The status tracker provides practical lifecycle management for saved drafts, enhancing the utility of the drafts drawer for users handling multiple documents.
+- **Evidence:** `Integrates a common organizational need (document lifecycle tracking) directly into the tool, reducing context switching and external dependencies for users managing multiple pieces of correspondence.`
 
 ### COOL — APPROVE (low)
-- **Reason:** The status tracker enhances the core utility by adding practical workflow management to naval correspondence, reinforcing its identity as a comprehensive, reliable single-file tool.
+- **Reason:** The letter status tracker provides a domain-specific workflow enhancement that reinforces naval-scribe's identity as a comprehensive, single-file utility for formal correspondence, without needing a generic 'signature move' per project constraints.
 
 ### LESSONS — APPROVE (low)
-- **Reason:** The deliverable adheres to all documented lessons and structural constraints, including specific patterns for string manipulation, function extraction, AI prompt updates, and accessibility focus styles.
+- **Reason:** All documented lessons regarding code patterns, architectural constraints, and documentation updates have been adhered to.
 
 ## Resolution
 
-**RESOLVED 2026-04-24. UI contrast fixed.**
-
-### UI OBJECT (medium) — FIXED
-`.status-badge[data-status="signed"]` contrast bumped from borderline 4.8:1 to ~9:1:
-- Background: `#3a2f00` → `#1f1a00` (darker brown)
-- Color: `#f5c842` → `#ffd34d` (lighter amber)
-
-Maintains the amber/dark theme while clearing WCAG AAA 7:1 for small text.
-
-### Other 6 angles — APPROVE
-BUGS, SECURITY, GUIDE, USEFULNESS, COOL, LESSONS all clean this round. LESSONS explicitly confirmed all documented lessons satisfied.
-
-Cron may rerun TESTS; expected clean pass → OUTCOME → ship.
+Human decision required. Resume the build after updating session_state.json.
