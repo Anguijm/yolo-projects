@@ -2,64 +2,36 @@
 
 **Gate:** plan
 **Reason:** Unresolved objections after 2 attempts
-**Timestamp:** 2026-04-22T04:40:52.392445+00:00
+**Timestamp:** 2026-04-23T06:34:34.971780+00:00
 
 ## Angle positions
 
-### BUGS — APPROVE (low)
-- **Reason:** The plan robustly handles critical edge cases like empty From/To fields (by preventing fill), gracefully degrades the reference line, and explicitly warns the user about the Via chain being cleared, preventing silent data loss or misinterpretation.
+### BUGS — OBJECT (medium)
+- **Reason:** The `setDraftStatus` helper function does not explicitly handle the edge case where the provided `id` does not correspond to an existing draft, which could lead to a misleading 'storage full' error message.
+- **Required fix:** Modify `setDraftStatus` to explicitly check if a draft with the given `id` was found. If no draft is found, it should return `false` without attempting to modify a non-existent object, preventing a `TypeError` and ensuring the 'storage full' error is not displayed for an 'ID not found' scenario.
+- **Evidence:** `Subtask 2 — Data layer: `setDraftStatus()` helper and draft save update: 'reads drafts array, finds entry by `id`, sets `.status`'`
 
 ### SECURITY — APPROVE (low)
-- **Reason:** The plan explicitly addresses potential XSS vectors by using `.textContent` for preview rendering and assigning values to `.value` properties of form elements, which are safe against HTML injection. No new data exposure or trust boundary violations are introduced.
+- **Reason:** The plan explicitly states that status values are hardcoded and all user-visible strings, including status labels, will continue to be routed through `esc()` before rendering, which mitigates injection risks given the architectural constraints.
 
-### UI — OBJECT (critical)
-- **Reason:** The plan proposes overwriting existing body content without any warning or preview, which can lead to data loss and user frustration.
-- **Required fix:** 1. Body Content: The boilerplate 'Per reference (a),' should be prepended to any existing text in the body field, rather than replacing it. If overwriting is strictly necessary, the drawer must include a clear warning in the preview (e.g., 'Existing Body: Will be overwritten'). 2. Other Cleared/Reset Fields: The reply drawer's preview section should explicitly list all fields that will be cleared or reset (e.g., 'Enclosures: Cleared', 'Copy To: Cleared', 'Signature: Cleared', 'Distribution Checkbox: Unchecked', 'Document Type: Letter') to ensure full transparency before the user commits.
-- **Evidence:** `naval-scribe/plan.md under 'Edge Cases' table, row 'Body has existing content', column 'Handling': 'Replaced without warning'. Also, 'Subtask 3: JS — generateReplyDraft()' for `enclFields.setValues([])`, `copyToFields.setValues([])`, `distCheck.checked = false`, `F.sigName.value = F.sigRank.value = `
+### UI — APPROVE ()
+- **Reason:** 
 
-### GUIDE — OBJECT (high)
-- **Reason:** The reply drawer preview does not explicitly inform the user that existing body content will be entirely overwritten, nor that the document type will be automatically reset to 'letter'.
-- **Required fix:** Add a clear warning or explicit statement in the reply drawer preview indicating that existing body content will be replaced (e.g., 'Body (will replace existing): ...'), and add a line to the preview stating the document type will be set to 'letter' (e.g., 'Document Type: Letter (auto-set)').
-- **Evidence:** `UI section under 'Drawer shows:' and 'Guide' section under 'Preview labels:' do not mention body replacement or type reset.`
+### GUIDE — APPROVE (low)
+- **Reason:** The plan includes excellent provisions for discoverability, including clear UI hints, descriptive naming, and explicit documentation for AI agents.
 
 ### USEFULNESS — APPROVE (low)
-- **Reason:** This feature provides significant, recurring utility by automating a common, repetitive task in formal correspondence.
-- **Evidence:** `Replying to letters is a fundamental and frequent task for the target user; this feature streamlines multiple manual steps into a single click, saving time and reducing errors.`
+- **Reason:** This feature provides essential workflow management for users handling multiple formal documents, directly enhancing the tool's core utility.
+- **Evidence:** `Users drafting multiple letters frequently need to track their progress (e.g., awaiting signature, sent, awaiting reply) to manage their workload effectively. This centralizes that tracking within the document creation tool, preventing the need for external systems or manual notes.`
 
 ### COOL — APPROVE (low)
-- **Reason:** This feature directly reinforces Naval Scribe's identity as a fast, reliable, and protocol-compliant utility by automating a common, domain-specific correspondence task, aligning with the utility-flagship exemption.
+- **Reason:** The status tracking feature directly reinforces Naval Scribe's identity as a reliable, standards-conforming utility by enhancing workflow management for formal correspondence, without introducing unnecessary complexity or 'toys'.
 
 ### LESSONS — APPROVE (advisory)
-- **Reason:** [AUTO-DOWNGRADED: LESSONS VETO missing precondition_evidence] The plan introduces a new static HTML button (`#reply-btn`) without an `aria-label`, repeating a past mistake identified as an 'IMPROVE' lesson for naval-scribe.
-- **Required fix:** Add an `aria-label` attribute to the `<button class="btn" id="reply-btn">reply</button>` element in `naval-scribe/index.html`.
-- **Evidence:** `IMPROVE: Static HTML buttons that have matching JS-generated siblings should get aria-labels at the HTML layer (not just the JS layer) — #addr-save-btn was initially missing its aria-label until TESTS gate caught it. Always audit HTML-layer buttons alongside JS-generated ones. (from [naval-scribe: C`
+- **Reason:** [AUTO-DOWNGRADED: LESSONS VETO missing precondition_evidence] The plan introduces a new user-facing feature (status tracking) but fails to include updating the `ai-prompt-content` block, violating the documented lesson about AI prompt discoverability.
+- **Required fix:** Add a subtask to update the `ai-prompt-content` block in `index.html` with a new section documenting the Letter Status Tracker feature, including its states, how to interact with badges, and filter functionality.
+- **Evidence:** `KEEP — AI prompt updated on every feature tock: The ai-prompt-content block is part of the tool's discoverability surface. Every tock that adds a user-facing feature must update it. GUIDE will object if it's missing — don't wait for the objection.`
 
 ## Resolution
 
-**RESOLVED 2026-04-22 by John (autonomous wake cycle). Both UI+GUIDE critiques accepted — plan.md updated.**
-
-### This escalation validated fix-council-enforcement in production
-
-The LESSONS verdict above reads:
-
-> `[AUTO-DOWNGRADED: LESSONS VETO missing precondition_evidence] The plan introduces a new static HTML button (#reply-btn) without an aria-label...`
-
-That's `enforce_lessons_precondition` (shipped in commit `967c98e` yesterday) catching a LESSONS veto attempt that lacked a `file:line:` evidence citation and auto-downgrading it to advisory. **First live production catch of the council enforcement rules.** The patched council is doing what it was built to do.
-
-### UI (critical) + GUIDE (high) — ACCEPTED
-Both objections converged on the same concern: destructive-action consent UX. A "reply" click wipes body content, clears 4 field sets, and resets type — users deserve to know that before clicking. Legitimate substantive feedback.
-
-**Fix (plan.md UI + Guide sections + Edge Cases)**: Reply drawer now has three named sub-sections before the Fill button:
-- **WILL CHANGE** — from, to, date, ref (a), body (with explicit "will REPLACE existing" warning), type (auto-set to letter)
-- **WILL CLEAR** — enclosures, copy-to, distribution checkbox, signature; plus Via chain with reverse-manually guidance when present
-- **WILL KEEP** — SSIC and subject (reassurance)
-
-Body overwrite is no longer silent: the preview string explicitly says "BODY (will REPLACE existing):" in bold before the user commits.
-
-### LESSONS advisory — FIXED ANYWAY
-Even though the rule was auto-downgraded to advisory (missing evidence), the underlying concern is real: the `#reply-btn` needs an `aria-label` at the HTML layer per the documented naval-scribe learning. Subtask 1 updated to include `aria-label="Generate reply draft with From/To swapped"` on the button.
-
-### Other 5 angles — APPROVE
-BUGS, SECURITY, USEFULNESS, COOL, LESSONS (advisory) all passed. BUGS explicitly praised the Via-chain-cleared warning and empty-field handling. SECURITY praised the `.textContent` / `.value` XSS safety. USEFULNESS called it a core utility for the target user.
-
-Cron may rerun PLAN gate; expected clean pass now that disclosure UX is in the plan.
+Human decision required. Resume the build after updating session_state.json.
