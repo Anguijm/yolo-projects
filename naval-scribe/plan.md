@@ -31,10 +31,24 @@ Add `.status-badge` (small pill button) and `.status-filter-row` (flex row of fi
 ### Subtask 2 — Data layer: `setDraftStatus()` helper and draft save update
 The `saveDraftBtn` click handler always creates a **new draft** (via `Date.now()` id + `arr.unshift`). There is no "update existing draft" path. Therefore `status: 'draft'` is always correct for a newly created draft — the first save of any document is always in Draft state, regardless of the current form's contents.
 
-New helper `setDraftStatus(id, newStatus)`: reads drafts array, finds entry by `id`, sets `.status`, writes back via `saveDraftsData`. If the write fails (localStorage full), `saveDraftsData` catches the error silently; `setDraftStatus` returns `false` on failure so the caller can surface a brief inline error message in the drawer without re-rendering to the stale state.
+New helper `setDraftStatus(id, newStatus)`: reads drafts array, finds entry by `id` via `.find()`.
+
+**Per BUGS PLAN-escalation (2026-04-23): explicit id-not-found guard.** If `.find()` returns `undefined`, set module-scoped `lastStatusError = 'not-found'` and return `false` immediately — do NOT proceed to mutate (which would throw `TypeError: Cannot set property 'status' of undefined`) and do NOT surface the misleading "storage full" message.
+
+If the id IS found, sets `.status`, writes back via `saveDraftsData`. If the write fails (localStorage full), `saveDraftsData` catches the error silently; `setDraftStatus` sets `lastStatusError = 'storage'` and returns `false`. On success returns `true` and clears `lastStatusError`.
+
+Return value semantics:
+- `true` — draft found, status updated, write succeeded
+- `false` + `lastStatusError = 'not-found'` — id didn't match any saved draft (rare — usually means the draft was deleted in another tab)
+- `false` + `lastStatusError = 'storage'` — draft found, write failed (localStorage quota)
 
 ### Subtask 3 — Error display for status change failures
-In the drafts drawer HTML: add `<div id="drafts-status-err"></div>`. In the badge click handler: if `setDraftStatus` returns `false`, set this element's text to "Could not save status — storage full." and clear it after 2.5s. If success, render immediately.
+In the drafts drawer HTML: add `<div id="drafts-status-err"></div>`. In the badge click handler: if `setDraftStatus` returns `false`, branch on `lastStatusError`:
+- `'storage'` → "Could not save status — storage full."
+- `'not-found'` → "Draft no longer exists — refresh the drawer."
+- fallback → "Could not save status."
+
+Clear the message after 2.5s. If success, render immediately.
 
 ### Subtask 4 — Render: extend `renderDraftsList()` with filter and badges
 - Module-scoped `var statusFilter = 'all'` variable.
@@ -46,15 +60,25 @@ In the drafts drawer HTML: add `<div id="drafts-status-err"></div>`. In the badg
 ### Subtask 5 — HTML: add placeholders in drafts-drawer
 Add `<div id="status-filter-row" class="status-filter-row"></div>` and `<div id="drafts-status-err"></div>` inside `#drafts-drawer`, above `#drafts-list`.
 
+### Subtask 6 — Update `#ai-prompt-content` discoverability block
+Per the naval-scribe KEEP rule "AI prompt updated on every feature tock" (auto-downgraded LESSONS advisory on this PLAN gate, acknowledged and addressed): add a section to the `#ai-prompt-content` block in `index.html` documenting the Letter Status Tracker feature. Include:
+- The 4 status values (Draft, Signed, Transmitted, Replied) and their colors
+- How to interact: click the status badge on any saved draft to advance through states
+- Filter row usage: click a filter button (All / Draft / Signed / Transmitted / Replied) to narrow the list
+- Persistence: status saves to localStorage alongside the draft data; backward-compatible (drafts without `status` default to Draft)
+
+This is a single-paragraph addition to the existing prompt block. Independent of other subtasks.
+
 ### Sequencing
-Subtasks 1+2+5 are independent; Subtask 3 depends on 2; Subtask 4 depends on 1+2+3+5.
+Subtasks 1+2+5+6 are independent; Subtask 3 depends on 2; Subtask 4 depends on 1+2+3+5.
 
 ## File Layout
 - `naval-scribe/index.html` — only file modified
   - CSS block (~line 12–350): +~30 lines for badge and filter styles
   - HTML `#drafts-drawer` (~line 388–395): +2 lines for `#status-filter-row` and `#drafts-status-err`
+  - HTML `#ai-prompt-content` block: +~6 lines documenting the Letter Status Tracker feature (per LESSONS advisory fix)
   - JS draft save handler (~line 2384–2394): +1 line for `status: 'draft'`
-  - JS draft section (~line 2252–2394): +`statusFilter` var, +`setDraftStatus()`, modified `renderDraftsList()` (~35 net lines)
+  - JS draft section (~line 2252–2394): +`statusFilter` + `lastStatusError` module vars, +`setDraftStatus()` with id-not-found guard, modified `renderDraftsList()` (~40 net lines)
 
 ## Function Map
 | File | Function | Change |
