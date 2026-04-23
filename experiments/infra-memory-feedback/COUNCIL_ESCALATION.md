@@ -32,4 +32,23 @@
 
 ## Resolution
 
-Human decision required. Resume the build after updating session_state.json.
+**RESOLVED 2026-04-23 by John (interactive session). BUGS fixed at source.**
+
+### BUGS OBJECT (critical) — FIXED
+Legitimate in principle. Truncating `reason` to 200 chars before hashing meant two distinct reasons sharing the same 200-char prefix would produce the same `escalation_id`, silently dropping one under `INSERT OR IGNORE`. In practice this would require two escalations with 200+ identical leading chars (highly unlikely), but SHA-256 handles arbitrary-length input at no meaningful cost — no reason to keep the truncation.
+
+**Fix applied** (build_memory.py):
+- `_escalation_id` now hashes the FULL `reason` field (no `[:200]` truncation)
+- Also added `resolution` field to the hash input for extra disambiguation — two escalations with identical reason but different resolutions would now also be distinct
+- `_HASH_ALGO_VERSION` bumped `2 → 3`; migration auto-invalidates v2 backfilled rows on next connection open
+- Docstring updated with the reasoning
+
+**Verified:**
+- Fresh DB + backfill-recall → 6 rows, 6 unique SHA256-based escalation_ids (full reason + resolution)
+- Second backfill → 0 inserted (idempotent)
+- schema_versions.escalation_id_algo = 3
+
+### Other 6 angles — all APPROVE
+SECURITY explicitly approved ("Previous SHA1 concern is resolved by upgrade to SHA256"), UI, GUIDE, USEFULNESS, COOL, LESSONS all clean.
+
+Cron may rerun IMPLEMENTATION; expected clean pass. After IMPL → TESTS → OUTCOME, ships and advances to `eval-opus-47-backbone`.

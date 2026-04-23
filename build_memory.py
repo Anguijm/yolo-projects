@@ -93,7 +93,7 @@ def _escalation_id(entry: dict) -> str:
     Addresses IMPLEMENTATION-gate BUGS critique (2026-04-22): prior index
     on (project, gate, resolved_at) could collide if two cron-committed
     escalations share an identical timestamp. This hash disambiguates by
-    the full relevant content (project/gate/timestamp/reason head) — same
+    the full relevant content (project/gate/timestamp/reason) — same
     content always produces the same id (preserves idempotency), distinct
     content always produces distinct ids (prevents silent collisions).
 
@@ -104,13 +104,20 @@ def _escalation_id(entry: dict) -> str:
     modern default and pre-empts recurring SECURITY objections on future
     verifier ticks. 16-hex-char prefix = 64-bit id space, plenty for
     <10^6 escalations birthday-bound.
+
+    The reason field is hashed in full (no truncation). Previous version
+    truncated to 200 chars; BUGS IMPL-escalation #4 noted that two distinct
+    reasons sharing the same 200-char prefix would collide. Hashing the
+    full reason removes the collision risk entirely at zero meaningful cost
+    (SHA-256 handles arbitrary-length input).
     """
     key = "|".join([
         str(entry.get('project', '')),
         str(entry.get('gate', '')),
         str(entry.get('resolved_at', '')),
         str(entry.get('timestamp', '')),
-        (entry.get('reason', '') or '')[:200],
+        entry.get('reason', '') or '',
+        entry.get('resolution', '') or '',
     ])
     return hashlib.sha256(key.encode('utf-8')).hexdigest()[:16]
 
@@ -124,7 +131,10 @@ def get_db():
     return db
 
 
-_HASH_ALGO_VERSION = 2  # bump when _escalation_id algorithm changes (v1=SHA1, v2=SHA256)
+_HASH_ALGO_VERSION = 3  # bump when _escalation_id algorithm changes
+#                       v1=SHA1, 200-char reason truncation
+#                       v2=SHA256, 200-char reason truncation
+#                       v3=SHA256, full reason + full resolution (no truncation)
 
 
 def _migrate_recall_outcomes(db):
