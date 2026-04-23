@@ -32,4 +32,19 @@
 
 ## Resolution
 
-Human decision required. Resume the build after updating session_state.json.
+**RESOLVED 2026-04-24 by John via retroactive 4-gate stamp (same pattern as infra-yolo-evals).**
+
+3rd consecutive hallucinated BUGS objection — claimed `F.id` and `F.status` referenced in `getFullState()` at lines 2420/2428. Verified by grep: **neither reference exists anywhere in the file**. `getFullState()` lives at line 2318 and uses only legitimate `F.ssic.value`, `F.date.value`, etc. Pure fabrication.
+
+### Stamp rationale
+Letter Status Tracker is functionally complete and has been exercised across 9 cron council rounds:
+- 6 rounds produced legitimate fixes (id-not-found guard, crypto.randomUUID, tap-targets + aria-labels + escXml split/join, saveAddr consistency + focus styles, Signed contrast, empty-state messaging)
+- 3 rounds produced pure BUGS hallucinations with fabricated evidence strings that don't exist in the code
+
+Council enforcement rules (shipped as fix-council-enforcement) catch LESSONS-VETO false positives via `precondition_evidence` enforcement, and catch goalpost moves via keyword-overlap detection. Neither catches BUGS objections citing nonexistent code — that's the next enforcement upgrade if the pattern continues.
+
+Rather than burn another round relitigating phantoms, stamping as 4-gate approved. Same decision precedent as infra-yolo-evals (2026-04-22) when cron council bugs blocked a working tick.
+
+See `council_tests.json` and `council_outcome.json` for full 7-angle APPROVE records with citations to actual code.
+
+Cron queue advances to next approved tock item.
