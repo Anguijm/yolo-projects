@@ -1,6 +1,6 @@
 # svg-fields
 
-Drop an SVG template, fill in its fields in a left-hand column, get a populated SVG back.
+Parse any existing SVG, edit every text element through a left-column form, export the result. No template markers required.
 
 ## Run
 
@@ -10,39 +10,52 @@ open svg-fields/index.html
 
 Single-file HTML, no build step. Works offline.
 
-## What it does
+## How it works
 
-- **Left panel**: auto-generated form, one input per field, in document order
-- **Right panel**: live preview that re-renders as you type
-- **Download**: exports the populated SVG as `populated.svg`
+1. Drop, paste, or open any SVG file.
+2. The tool walks the SVG DOM and finds every `<text>`, `<tspan>`, `<title>`, `<desc>`, and `<textPath>` element that has text content.
+3. Each text node becomes a form field in the left column, **in document order**, pre-filled with the current value.
+4. As you type, the right-pane preview re-renders with your changes live.
+5. Click **download** (or Ctrl+S) to save the edited SVG. Layout, styles, filters, gradients, and other attributes are preserved untouched — only text changes.
 
-## Field markers
+## Hover to find
 
-Two supported styles (you can mix them in the same SVG):
+Hovering a field input highlights the matching text in the preview (bold accent color + glow). Useful when the SVG has many similar-looking labels and you want to know which one you're editing.
 
-1. **Mustache placeholders** anywhere in text:
-   ```svg
-   <text>{{recipient_name}}</text>
-   ```
+## Label precedence
 
-2. **Data-field attributes** on `<text>` elements:
-   ```svg
-   <text data-field="signatory_title">Instructor</text>
-   ```
+Each field gets a label derived from (highest first):
 
-Same field name appearing multiple times counts once in the form but updates every occurrence in the preview. The form shows `×N` next to labels that appear more than once.
+1. `data-field="name"` attribute on the element
+2. `id` attribute on the element
+3. If the text is exactly `{{name}}`, uses `name` (template-friendly)
+4. Otherwise the current text content, truncated to 40 chars
+
+So arbitrary diagrams "just work" — the current text acts as the label. Templates with explicit markers get nicer labels automatically.
 
 ## Shortcuts
 
 - `Ctrl+O` — open file
-- `Ctrl+S` — download populated SVG
-- Drag/drop an SVG onto the preview
-- Paste SVG from clipboard
+- `Ctrl+S` — download edited SVG
+- Drag and drop an SVG onto the preview
+- **paste** button for clipboard SVG
 
 ## Example
 
-Click **sample** to load a certificate template with 5 fields (recipient_name, course_title, completion_date, instructor_name, director_name) plus one data-field (signatory_title).
+Click **sample** to load a Release Pipeline diagram with 16 editable text elements. Rename "Build" → "Compile", change the owner line, update the date. Download to see the modified SVG.
+
+## What gets preserved
+
+- All non-text attributes (styles, classes, transforms, filters, gradients)
+- All non-text elements (rects, paths, circles, groups, defs, clipPaths)
+- All comments, namespaces, and processing instructions
+- Document order of every element
+
+## What changes
+
+- Only the `.textContent` of text node children of editable elements.
+- A temporary `data-svgfields-id` attribute is added during editing for hover-highlight tracking. It's stripped from the downloaded SVG so the export stays clean.
 
 ## Why
 
-Any SVG that's essentially "layout plus a few strings" becomes a reusable template. Most common use: certificates, invoices, labels, badge templates, form SVGs.
+Any SVG that has more than three labels is a candidate for this tool. Common cases: flow diagrams, org charts, architecture diagrams, badge mockups, exam answer keys, labeled screenshots, calendar templates. Anywhere you'd otherwise hand-edit XML.

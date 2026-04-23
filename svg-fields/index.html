@@ -110,6 +110,18 @@
   }
   .field-row {
     margin-bottom: 10px;
+    padding: 4px 6px;
+    margin-left: -6px;
+    margin-right: -6px;
+    border-left: 2px solid transparent;
+  }
+  .field-row:hover {
+    border-left-color: var(--accent);
+  }
+  /* Highlight the corresponding element in the preview */
+  .preview-stage [data-highlight="on"] {
+    fill: var(--accent) !important;
+    filter: drop-shadow(0 0 2px var(--accent));
   }
   .field-row label {
     display: block;
@@ -237,7 +249,7 @@
 <body>
 <header>
   <h1>svg<span class="accent">·</span>fields</h1>
-  <span class="hint" id="hint">Drop SVG · Paste SVG · Or load sample</span>
+  <span class="hint" id="hint">Drop SVG · Paste · Or load sample to edit every text element</span>
   <input type="file" id="file-input" class="file-input" accept=".svg,image/svg+xml">
   <button class="btn" id="open-btn" aria-label="Open SVG file">open svg</button>
   <button class="btn" id="sample-btn" aria-label="Load sample certificate SVG">sample</button>
@@ -269,10 +281,14 @@
   'use strict';
 
   // ── State ────────────────────────────────────────────────────────────
-  let originalSvgText = '';   // raw SVG input as parsed
-  let fieldNames = [];        // ordered field names (unique)
-  let fieldCounts = {};       // name → occurrence count in SVG
-  let values = {};            // name → current value
+  // We hold a parsed SVG document in memory and mutate its text nodes
+  // directly when the user edits a field. Preview re-serializes the DOC;
+  // download serializes it to a blob. This preserves every attribute,
+  // namespace, comment, and style in the input SVG — we only touch text.
+  let parsedDoc = null;       // DOMParser result; persists across edits
+  let originalBytes = 0;      // input byte count for meta display
+  let fields = [];            // [{ id, label, element, textNode, original }]
+  let hoveredFieldId = null;  // current hover target for highlight
 
   // ── DOM refs ─────────────────────────────────────────────────────────
   const fieldsContainer = document.getElementById('fields-container');
@@ -290,216 +306,195 @@
   const metaCount = document.getElementById('meta-count');
   const metaBytes = document.getElementById('meta-bytes');
 
-  // ── Sample SVG (certificate) ─────────────────────────────────────────
-  const SAMPLE_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 420" font-family="Georgia, serif">
-  <rect width="600" height="420" fill="#faf5e6"/>
-  <rect x="12" y="12" width="576" height="396" fill="none" stroke="#8b7355" stroke-width="2"/>
-  <rect x="20" y="20" width="560" height="380" fill="none" stroke="#8b7355" stroke-width="0.5"/>
-  <text x="300" y="70" text-anchor="middle" font-size="14" fill="#8b7355" letter-spacing="4">CERTIFICATE OF COMPLETION</text>
-  <text x="300" y="110" text-anchor="middle" font-size="11" fill="#555" letter-spacing="2">This is to certify that</text>
-  <text x="300" y="170" text-anchor="middle" font-size="32" fill="#2a2a2a" font-style="italic">{{recipient_name}}</text>
-  <line x1="120" y1="190" x2="480" y2="190" stroke="#8b7355" stroke-width="0.5"/>
-  <text x="300" y="220" text-anchor="middle" font-size="11" fill="#555">has successfully completed the course</text>
-  <text x="300" y="260" text-anchor="middle" font-size="18" fill="#2a2a2a" font-weight="bold">{{course_title}}</text>
-  <text x="300" y="295" text-anchor="middle" font-size="11" fill="#555">on {{completion_date}}</text>
-  <g transform="translate(140, 340)">
-    <line x1="0" y1="0" x2="120" y2="0" stroke="#555" stroke-width="0.5"/>
-    <text x="60" y="18" text-anchor="middle" font-size="9" fill="#8b7355" data-field="signatory_title">Instructor</text>
-    <text x="60" y="-6" text-anchor="middle" font-size="12" fill="#2a2a2a">{{instructor_name}}</text>
+  // ── Sample SVG — a process flow diagram, no markers required ─────────
+  // Realistic "existing SVG" use case: labels already in place, user edits them directly.
+  const SAMPLE_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 420" font-family="system-ui, sans-serif">
+  <rect width="640" height="420" fill="#fafafa"/>
+  <text x="320" y="30" text-anchor="middle" font-size="16" font-weight="600" fill="#222">Release Pipeline</text>
+  <text x="320" y="50" text-anchor="middle" font-size="11" fill="#666">from commit to production</text>
+  <g font-size="12" fill="#222" text-anchor="middle">
+    <rect x="40" y="90" width="130" height="60" fill="#fff" stroke="#666" rx="4"/>
+    <text x="105" y="115">Build</text>
+    <text x="105" y="135" font-size="10" fill="#888">compile + lint</text>
+    <rect x="210" y="90" width="130" height="60" fill="#fff" stroke="#666" rx="4"/>
+    <text x="275" y="115">Test</text>
+    <text x="275" y="135" font-size="10" fill="#888">unit + integration</text>
+    <rect x="380" y="90" width="130" height="60" fill="#fff" stroke="#666" rx="4"/>
+    <text x="445" y="115">Review</text>
+    <text x="445" y="135" font-size="10" fill="#888">council + human</text>
+    <rect x="40" y="220" width="130" height="60" fill="#fff" stroke="#666" rx="4"/>
+    <text x="105" y="245">Stage</text>
+    <text x="105" y="265" font-size="10" fill="#888">canary deploy</text>
+    <rect x="210" y="220" width="130" height="60" fill="#fff" stroke="#666" rx="4"/>
+    <text x="275" y="245">Verify</text>
+    <text x="275" y="265" font-size="10" fill="#888">smoke + metrics</text>
+    <rect x="380" y="220" width="130" height="60" fill="#fff" stroke="#666" rx="4"/>
+    <text x="445" y="245">Ship</text>
+    <text x="445" y="265" font-size="10" fill="#888">prod rollout</text>
   </g>
-  <g transform="translate(340, 340)">
-    <line x1="0" y1="0" x2="120" y2="0" stroke="#555" stroke-width="0.5"/>
-    <text x="60" y="18" text-anchor="middle" font-size="9" fill="#8b7355">Director</text>
-    <text x="60" y="-6" text-anchor="middle" font-size="12" fill="#2a2a2a">{{director_name}}</text>
+  <g stroke="#888" fill="none" stroke-width="1">
+    <path d="M170,120 L210,120"/>
+    <path d="M340,120 L380,120"/>
+    <path d="M445,150 L445,210 M170,250 L210,250 M340,250 L380,250"/>
+    <path d="M445,150 Q445,180 105,180 Q105,195 105,220"/>
   </g>
+  <text x="320" y="360" text-anchor="middle" font-size="10" fill="#666">owner: platform team</text>
+  <text x="320" y="378" text-anchor="middle" font-size="10" fill="#666">updated: 2026-04-23</text>
 </svg>`;
 
-  // ── Field extraction ─────────────────────────────────────────────────
-  // Two sources, merged in document order:
-  //   1. {{fieldName}} placeholders anywhere in the text (most common)
-  //   2. data-field="fieldName" attributes on <text> elements
-  const MUSTACHE_RE = /\{\{\s*([a-zA-Z_][a-zA-Z0-9_-]*)\s*\}\}/g;
+  // ── Walk the parsed DOM and collect editable text nodes ─────────────
+  // Editable = a text/tspan/title/desc/textPath element with one or more
+  // direct non-whitespace text node children. Each such child becomes a field.
+  const EDITABLE_TAGS = new Set(['text', 'tspan', 'title', 'desc', 'textpath']);
 
-  function extractFields(svgText) {
-    const names = [];
-    const seen = new Set();
-    const counts = {};
-
-    // Pass 1: mustache placeholders in document order — iterate via regex on the raw text
-    // which preserves source order across the whole SVG.
-    let m;
-    MUSTACHE_RE.lastIndex = 0;
-    while ((m = MUSTACHE_RE.exec(svgText)) !== null) {
-      const name = m[1];
-      counts[name] = (counts[name] || 0) + 1;
-      if (!seen.has(name)) { seen.add(name); names.push(name); }
-    }
-
-    // Pass 2: data-field attributes — parse DOM to find them in document order
-    // Insert each at its first document-order position relative to pass 1 results.
-    // Simplest: append any data-field names not already covered by mustache.
-    try {
-      const parser = new DOMParser();
-      const doc = parser.parseFromString(svgText, 'image/svg+xml');
-      const parseErr = doc.querySelector('parsererror');
-      if (parseErr) {
-        throw new Error('SVG parse error');
-      }
-      const withField = doc.querySelectorAll('[data-field]');
-      withField.forEach((el) => {
-        const name = el.getAttribute('data-field');
-        if (!name) return;
-        counts[name] = (counts[name] || 0) + 1;
-        if (!seen.has(name)) { seen.add(name); names.push(name); }
-      });
-    } catch (e) {
-      // DOM parse failed — surface but don't crash; mustache pass may still have results
-      console.warn('DOM parse warning:', e.message);
-    }
-
-    return { names, counts };
-  }
-
-  // ── Render populated SVG ─────────────────────────────────────────────
-  // For each field, replace {{name}} occurrences with the current value and
-  // set textContent on [data-field="name"] elements. We parse once per render
-  // so DOM-based data-field substitution stays clean even if the same SVG
-  // references a field via both mechanisms.
-  function renderPopulated() {
-    if (!originalSvgText) { previewStage.innerHTML = ''; return; }
-    let text = originalSvgText;
-
-    // 1. Mustache substitution — replace {{name}} with escaped value or keep {{name}} if empty.
-    text = text.replace(MUSTACHE_RE, (match, name) => {
-      const v = values[name];
-      if (v === undefined || v === '') return match; // keep placeholder so user sees the gap
-      return escapeXml(v);
-    });
-
-    // 2. data-field substitution — parse, set textContent, serialize back.
-    let final = text;
-    try {
-      const parser = new DOMParser();
-      const doc = parser.parseFromString(text, 'image/svg+xml');
-      if (!doc.querySelector('parsererror')) {
-        const els = doc.querySelectorAll('[data-field]');
-        let modified = false;
-        els.forEach((el) => {
-          const name = el.getAttribute('data-field');
-          if (!name) return;
-          const v = values[name];
-          if (v !== undefined && v !== '') {
-            el.textContent = v;
-            modified = true;
+  function collectFields(doc) {
+    const out = [];
+    let seq = 0;
+    function walk(el) {
+      if (!el || !el.tagName) return;
+      const tag = el.tagName.toLowerCase();
+      if (EDITABLE_TAGS.has(tag)) {
+        // Scan immediate children for non-empty text nodes
+        el.childNodes.forEach((child) => {
+          if (child.nodeType === 3 && child.textContent && child.textContent.trim()) {
+            const original = child.textContent;
+            out.push({
+              id: 'f' + (seq++),
+              label: labelFor(el, original),
+              element: el,
+              textNode: child,
+              original: original,
+            });
           }
         });
-        if (modified) {
-          final = new XMLSerializer().serializeToString(doc);
-        }
       }
-    } catch (e) {
-      // Fall through — show the mustache-only render
+      // Recurse into all element children (even non-editable parents may contain editables)
+      Array.from(el.children).forEach(walk);
     }
-
-    previewStage.innerHTML = final;
+    walk(doc.documentElement);
+    // Tag each element with a visual marker attribute so we can highlight on hover.
+    // We use a custom data attribute that serializes harmlessly — and we'll strip it on download.
+    out.forEach((f) => {
+      if (!f.element.hasAttribute('data-svgfields-id')) {
+        f.element.setAttribute('data-svgfields-id', f.id);
+      }
+    });
+    return out;
   }
 
-  function escapeXml(s) {
-    // NOTE: uses split/join instead of .replace(/regex/g, ...) because regex
-    // literals with embedded " or ' confuse test_project.py's string-stripper
-    // (known pitfall per learnings.md — "regex literals containing \" cause the
-    // double-quote stripper to partially consume them"). split/join works with
-    // plain string args that the stripper handles cleanly.
-    return String(s)
-      .split('&').join('&amp;')
-      .split('<').join('&lt;')
-      .split('>').join('&gt;')
-      .split('"').join('&quot;')
-      .split(String.fromCharCode(39)).join('&apos;');
+  function labelFor(element, textContent) {
+    // Precedence: data-field > id > mustache content > truncated text
+    const df = element.getAttribute('data-field');
+    if (df) return df;
+    const id = element.getAttribute('id');
+    if (id) return id;
+    // If the text is just a single mustache placeholder, show its name
+    const trimmed = textContent.trim();
+    const m = /^\{\{\s*([a-zA-Z_][a-zA-Z0-9_-]*)\s*\}\}$/.exec(trimmed);
+    if (m) return m[1];
+    // Otherwise use truncated content
+    return trimmed.length > 40 ? trimmed.slice(0, 37) + '…' : trimmed;
   }
 
-  // ── Fields form ──────────────────────────────────────────────────────
+  // ── Serialize the current DOC state for preview / download ──────────
+  function serializeDoc() {
+    if (!parsedDoc) return '';
+    return new XMLSerializer().serializeToString(parsedDoc);
+  }
+
+  function renderPreview() {
+    previewStage.innerHTML = serializeDoc();
+    // Apply highlight style to the hovered element's counterpart in the rendered SVG
+    if (hoveredFieldId) {
+      const rendered = previewStage.querySelector('[data-svgfields-id="' + hoveredFieldId + '"]');
+      if (rendered) rendered.setAttribute('data-highlight', 'on');
+    }
+  }
+
+  // ── Fields form ─────────────────────────────────────────────────────
   function renderFields() {
     fieldsContainer.innerHTML = '';
-    if (fieldNames.length === 0) {
+    if (fields.length === 0) {
       const empty = document.createElement('div');
       empty.className = 'empty-state';
-      empty.innerHTML = originalSvgText
-        ? 'No fields found in this SVG. Add <code>{{field_name}}</code> placeholders in text or <code>data-field="name"</code> on &lt;text&gt; elements.'
-        : 'Load an SVG to see its fields.<br><br>Supported field markers:<br><br><code>{{field_name}}</code> in text<br><code>data-field="name"</code> on &lt;text&gt;';
+      empty.innerHTML = parsedDoc
+        ? 'No text elements found in this SVG. This tool edits <code>&lt;text&gt;</code>, <code>&lt;tspan&gt;</code>, <code>&lt;title&gt;</code>, and <code>&lt;desc&gt;</code> elements.'
+        : 'Load an SVG to see its text fields.<br><br>Every <code>&lt;text&gt;</code>, <code>&lt;tspan&gt;</code>, and <code>&lt;title&gt;</code> element becomes a field you can edit. Layout and styling are preserved — only text changes.';
       fieldsContainer.appendChild(empty);
-      meta.style.display = originalSvgText ? 'block' : 'none';
-      if (originalSvgText) {
+      meta.style.display = parsedDoc ? 'block' : 'none';
+      if (parsedDoc) {
         metaCount.textContent = '0';
-        metaBytes.textContent = originalSvgText.length.toLocaleString();
+        metaBytes.textContent = originalBytes.toLocaleString();
       }
       return;
     }
 
-    fieldNames.forEach((name) => {
+    fields.forEach((field) => {
       const row = document.createElement('div');
       row.className = 'field-row';
+      row.dataset.fieldId = field.id;
 
       const label = document.createElement('label');
-      label.setAttribute('for', 'f-' + name);
-      label.textContent = humanize(name);
-      if (fieldCounts[name] > 1) {
-        const count = document.createElement('span');
-        count.className = 'field-count';
-        count.textContent = '×' + fieldCounts[name];
-        label.appendChild(count);
-      }
+      label.setAttribute('for', field.id);
+      label.textContent = field.label;
       row.appendChild(label);
 
-      // Use textarea for likely-long values (any name containing body/desc/text/note)
-      const isLong = /body|desc|note|text|paragraph/i.test(name);
+      // Textarea for long content (>40 chars) or explicit <desc>
+      const isLong = field.original.length > 40 || field.element.tagName.toLowerCase() === 'desc';
       const input = document.createElement(isLong ? 'textarea' : 'input');
       if (!isLong) input.type = 'text';
-      input.id = 'f-' + name;
-      input.dataset.fieldName = name;
-      input.value = values[name] || '';
-      input.placeholder = '{{' + name + '}}';
-      input.setAttribute('aria-label', humanize(name));
+      input.id = field.id;
+      input.value = field.textNode.textContent;
+      input.setAttribute('aria-label', field.label);
       input.addEventListener('input', (e) => {
-        values[name] = e.target.value;
-        renderPopulated();
+        field.textNode.textContent = e.target.value;
+        renderPreview();
       });
+      input.addEventListener('focus', () => setHover(field.id));
+      input.addEventListener('blur', () => setHover(null));
+      row.addEventListener('mouseenter', () => setHover(field.id));
+      row.addEventListener('mouseleave', () => setHover(null));
       row.appendChild(input);
 
       fieldsContainer.appendChild(row);
     });
 
     meta.style.display = 'block';
-    metaCount.textContent = String(fieldNames.length);
-    metaBytes.textContent = originalSvgText.length.toLocaleString();
+    metaCount.textContent = String(fields.length);
+    metaBytes.textContent = originalBytes.toLocaleString();
   }
 
-  function humanize(name) {
-    return name.replace(/[_-]+/g, ' ');
+  function setHover(fieldId) {
+    hoveredFieldId = fieldId;
+    renderPreview();
   }
 
-  // ── Load SVG ─────────────────────────────────────────────────────────
+  // ── Load SVG ────────────────────────────────────────────────────────
   function loadSvgText(text, source) {
     if (!text || typeof text !== 'string') {
       showToast('No content provided', 'error');
       return;
     }
-    // Basic sanity check — looks like SVG?
     const trimmed = text.trim();
     if (!/^<(\?xml|svg|\!DOCTYPE)/i.test(trimmed)) {
       showToast('Not an SVG', 'error');
       return;
     }
-    originalSvgText = trimmed;
-    const extracted = extractFields(trimmed);
-    fieldNames = extracted.names;
-    fieldCounts = extracted.counts;
-    values = {};
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(trimmed, 'image/svg+xml');
+    if (doc.querySelector('parsererror') || !doc.documentElement || doc.documentElement.tagName.toLowerCase() !== 'svg') {
+      showToast('SVG parse failed', 'error');
+      return;
+    }
+    parsedDoc = doc;
+    originalBytes = trimmed.length;
+    fields = collectFields(parsedDoc);
+    hoveredFieldId = null;
     renderFields();
-    renderPopulated();
+    renderPreview();
     downloadBtn.disabled = false;
-    hint.textContent = source + ' · ' + fieldNames.length + ' field' + (fieldNames.length === 1 ? '' : 's');
-    if (fieldNames.length > 0) {
+    hint.textContent = source + ' · ' + fields.length + ' text element' + (fields.length === 1 ? '' : 's');
+    if (fields.length > 0) {
       const first = fieldsContainer.querySelector('input, textarea');
       if (first) first.focus();
     }
@@ -508,47 +503,42 @@
   function loadFile(file) {
     if (!file) return;
     const reader = new FileReader();
-    reader.onload = (ev) => {
-      loadSvgText(String(ev.target.result || ''), file.name);
-    };
+    reader.onload = (ev) => loadSvgText(String(ev.target.result || ''), file.name);
     reader.onerror = () => showToast('Read failed', 'error');
     reader.readAsText(file);
   }
 
-  // ── Download ─────────────────────────────────────────────────────────
+  // ── Download ────────────────────────────────────────────────────────
   function download() {
-    if (!originalSvgText) return;
-    // Regenerate final SVG from source + current values
-    let text = originalSvgText.replace(MUSTACHE_RE, (match, name) => {
-      const v = values[name];
-      return (v === undefined || v === '') ? match : escapeXml(v);
+    if (!parsedDoc) return;
+    // Clone the doc so we can strip our internal data-svgfields-id markers
+    // without mutating state. The exported SVG should be clean.
+    const clone = parsedDoc.cloneNode(true);
+    clone.querySelectorAll('[data-svgfields-id]').forEach((el) => {
+      el.removeAttribute('data-svgfields-id');
     });
-    try {
-      const parser = new DOMParser();
-      const doc = parser.parseFromString(text, 'image/svg+xml');
-      if (!doc.querySelector('parsererror')) {
-        const els = doc.querySelectorAll('[data-field]');
-        els.forEach((el) => {
-          const name = el.getAttribute('data-field');
-          const v = values[name];
-          if (v !== undefined && v !== '') el.textContent = v;
-        });
-        text = new XMLSerializer().serializeToString(doc);
-      }
-    } catch (e) {
-      // keep mustache-only text
-    }
-
+    clone.querySelectorAll('[data-highlight]').forEach((el) => {
+      el.removeAttribute('data-highlight');
+    });
+    const text = new XMLSerializer().serializeToString(clone);
     const blob = new Blob([text], { type: 'image/svg+xml' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = 'populated.svg';
+    a.download = deriveFilename();
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
     setTimeout(() => URL.revokeObjectURL(url), 1000);
-    showToast('Downloaded populated.svg', 'success');
+    showToast('Downloaded ' + a.download, 'success');
+  }
+
+  function deriveFilename() {
+    // Honor the source filename if we have one; otherwise default to edited.svg
+    const h = hint.textContent || '';
+    const m = /^([^\s·]+\.svg)/i.exec(h);
+    if (m) return m[1].replace(/\.svg$/i, '') + '.edited.svg';
+    return 'edited.svg';
   }
 
   // ── Toast ────────────────────────────────────────────────────────────
