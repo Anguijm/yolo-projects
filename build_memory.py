@@ -43,6 +43,7 @@ Usage:
 """
 
 import hashlib
+import json
 import sqlite3
 import re
 import sys
@@ -130,15 +131,22 @@ def _escalation_id(entry: dict) -> str:
     reasons sharing the same 200-char prefix would collide. Hashing the
     full reason removes the collision risk entirely at zero meaningful cost
     (SHA-256 handles arbitrary-length input).
+
+    Fields are concatenated via `json.dumps([...])` (BUGS TESTS-escalation
+    2026-04-23): a prior "|".join encoding could theoretically collide if
+    any field contained a literal "|" character (e.g., project names or
+    resolution text with pipes). JSON encodes each string with escaped
+    quotes as an unambiguous delimiter, so no field content can ever be
+    confused with a field boundary.
     """
-    key = "|".join([
+    key = json.dumps([
         str(entry.get('project', '')),
         str(entry.get('gate', '')),
         str(entry.get('resolved_at', '')),
         str(entry.get('timestamp', '')),
         entry.get('reason', '') or '',
         entry.get('resolution', '') or '',
-    ])
+    ], ensure_ascii=False, separators=(',', ':'))
     return hashlib.sha256(key.encode('utf-8')).hexdigest()[:16]
 
 
@@ -151,10 +159,11 @@ def get_db():
     return db
 
 
-_HASH_ALGO_VERSION = 3  # bump when _escalation_id algorithm changes
-#                       v1=SHA1, 200-char reason truncation
-#                       v2=SHA256, 200-char reason truncation
-#                       v3=SHA256, full reason + full resolution (no truncation)
+_HASH_ALGO_VERSION = 4  # bump when _escalation_id algorithm changes
+#                       v1=SHA1,   200-char reason truncation, "|" delimiter
+#                       v2=SHA256, 200-char reason truncation, "|" delimiter
+#                       v3=SHA256, full reason+resolution,     "|" delimiter
+#                       v4=SHA256, full reason+resolution,     JSON encoding (collision-proof)
 
 
 def _migrate_recall_outcomes(db):
@@ -727,7 +736,6 @@ def cmd_mark_outcome(db, learning_id, project, gate, outcome, notes=''):
 
 def cmd_backfill_recall(db):
     """Seed recall_outcomes from session_state.json council_escalations_resolved."""
-    import json
     state_path = Path(__file__).parent / 'session_state.json'
     if not state_path.exists():
         print("Error: session_state.json not found")

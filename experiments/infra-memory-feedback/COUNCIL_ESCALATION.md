@@ -35,4 +35,33 @@
 
 ## Resolution
 
-Human decision required. Resume the build after updating session_state.json.
+**RESOLVED 2026-04-23 by John (interactive session). BUGS fixed at source, SECURITY overridden per precedent.**
+
+### BUGS OBJECT (critical) — FIXED AT SOURCE
+Legitimate. The `|` delimiter in `_escalation_id` could produce identical hashes for distinct escalations if any field contained a literal `|` — a real collision risk for `reason`/`resolution` text that might reference pipes.
+
+**Fix applied** (build_memory.py):
+- Replaced `"|".join([...])` with `json.dumps([...], ensure_ascii=False, separators=(",",":"))` — JSON escapes quotes inside strings, so no field content can ever be confused with a field boundary. Collision-proof encoding.
+- Promoted `import json` to module level (was previously inline in `cmd_backfill_recall`).
+- Bumped `_HASH_ALGO_VERSION` 3 → 4 with the new history comment. Migration auto-invalidates v3 backfilled rows on next connection open; next `backfill-recall` repopulates with v4 hashes.
+
+**Verified:**
+- Fresh DB + `backfill-recall` → 6 rows, 6 unique v4 escalation_ids
+- Second `backfill-recall` → 0 inserted (idempotent)
+- `schema_versions.escalation_id_algo = 4`
+- Pipe-in-field test: two entries that would have produced identical hashes under the `|` encoding now produce distinct hashes (verified with a synthetic case)
+
+### SECURITY OBJECT (medium) — OVERRIDDEN
+ReDoS concern on `_FP_RE` and `_PREVENTED_RE` `.*` patterns.
+
+**Override rationale**: ReDoS requires both a vulnerable pattern AND attacker-controlled unbounded input. Neither applies:
+1. `reason` and `resolution` come from `session_state.json`, written only by cron and the repo operator — no external input surface
+2. Real inputs are bounded (typically <1KB, always <100KB)
+3. Matching happens once during `backfill-recall`, not in a request loop
+
+Per the `adopt-planning-mode` precedent (`learnings.md:26`): producer-side hardening not required absent a concrete downstream consumer with a separate trust boundary. Same rationale used for the SHA1 → SHA256 upgrade, the `sys.argv` path concerns on infra-yolo-evals, and SECURITY concerns on earlier infra-memory-feedback gates.
+
+### Other 5 angles — all APPROVE
+UI, GUIDE, USEFULNESS, COOL, LESSONS all clean. No false-positive vetos this round.
+
+Cron may rerun TESTS gate; expected clean pass → OUTCOME → ship. Advances to `eval-opus-47-backbone` after completion.
