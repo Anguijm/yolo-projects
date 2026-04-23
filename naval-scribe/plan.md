@@ -28,8 +28,11 @@ Four status colors embedded in the `<style>` block:
 
 Add `.status-badge` (small pill button) and `.status-filter-row` (flex row of filter buttons) styles.
 
-### Subtask 2 — Data layer: `setDraftStatus()` helper and draft save update
-The `saveDraftBtn` click handler always creates a **new draft** (via `Date.now()` id + `arr.unshift`). There is no "update existing draft" path. Therefore `status: 'draft'` is always correct for a newly created draft — the first save of any document is always in Draft state, regardless of the current form's contents.
+### Subtask 2 — Data layer: `setDraftStatus()` helper, draft save update, and unique ID
+
+**Unique ID generation (per BUGS IMPL-escalation 2026-04-23):** `Date.now()` as draft ID could theoretically collide if two saves land in the same millisecond. New `uniqueDraftId()` helper uses `crypto.randomUUID()` when available (all modern browsers), falls back to `Date.now() + '-' + Math.random().toString(36).slice(2,10)` for older environments. UUIDs carry 122 bits of randomness — collision probability negligible even with millions of drafts. Existing numeric IDs from legacy drafts continue to work via the strict-equality lookup path.
+
+The `saveDraftBtn` click handler always creates a **new draft** (via `uniqueDraftId()` + `arr.unshift`). There is no "update existing draft" path. Therefore `status: 'draft'` is always correct for a newly created draft — the first save of any document is always in Draft state, regardless of the current form's contents.
 
 New helper `setDraftStatus(id, newStatus)`: reads drafts array, finds entry by `id` via `.find()`.
 

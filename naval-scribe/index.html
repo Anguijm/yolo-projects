@@ -2470,11 +2470,21 @@ html, body {
     draftsDrawer.classList.remove('open');
   });
 
+  // Unique draft ID — crypto.randomUUID() with a Date.now()+random fallback for older
+  // browsers. Pure Date.now() could collide if two saves land in the same millisecond
+  // (per BUGS IMPL escalation 2026-04-23). UUIDs have 122 bits of randomness —
+  // collision probability negligible even with millions of drafts.
+  function uniqueDraftId() {
+    if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+      return crypto.randomUUID();
+    }
+    return String(Date.now()) + '-' + Math.random().toString(36).slice(2, 10);
+  }
   saveDraftBtn.addEventListener('click', function() {
     var name = prompt('Save draft as:');
     if (!name || !name.trim()) return;
     var arr = getDrafts();
-    arr.unshift({ id: Date.now(), name: name.trim(), savedAt: todayNaval(), type: typeSelect.value, status: 'draft', state: getFullState() });
+    arr.unshift({ id: uniqueDraftId(), name: name.trim(), savedAt: todayNaval(), type: typeSelect.value, status: 'draft', state: getFullState() });
     if (arr.length > 25) arr = arr.slice(0, 25);
     saveDraftsData(arr);
     var orig = saveDraftBtn.textContent;

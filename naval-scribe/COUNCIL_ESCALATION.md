@@ -32,4 +32,28 @@
 
 ## Resolution
 
-Human decision required. Resume the build after updating session_state.json.
+**RESOLVED 2026-04-24 by John (interactive session). BUGS fixed at source with `crypto.randomUUID()`.**
+
+### BUGS OBJECT (high) — FIXED
+Legitimate in principle. `Date.now()` collision requires two saves in the same millisecond — physically impossible via human clicks, but the correctness argument stands and the fix is one helper function.
+
+**Fix applied** (naval-scribe/index.html, around line 2473):
+```js
+function uniqueDraftId() {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+  return String(Date.now()) + '-' + Math.random().toString(36).slice(2, 10);
+}
+```
+
+`saveDraftBtn` click handler now uses `uniqueDraftId()` instead of `Date.now()`. 122 bits of randomness via RFC 4122 UUID — collision-proof at any realistic draft volume. Graceful fallback for pre-`crypto.randomUUID` environments.
+
+**Backward compatibility**: existing drafts with numeric `Date.now()` IDs continue to work. All lookups (`setDraftStatus`, delete filter) use strict `===` equality, so old numeric IDs match old entries and new string UUIDs match new entries — no cross-type confusion.
+
+Plan.md Subtask 2 updated to document the helper and rationale.
+
+### Other 6 angles — all APPROVE
+SECURITY, UI, GUIDE, USEFULNESS, COOL, LESSONS all clean. LESSONS explicitly confirmed: *"All documented lessons, including the requirement to update the AI prompt, have been satisfied."* → the ai-prompt-content subtask from the prior PLAN resolution stuck.
+
+Cron may rerun IMPLEMENTATION; expected clean pass → TESTS → OUTCOME → ship.
