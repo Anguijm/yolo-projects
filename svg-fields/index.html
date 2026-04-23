@@ -100,13 +100,23 @@
   @media (max-width: 700px) {
     .fields-panel { border-right: none; border-bottom: 1px solid var(--border-default); max-height: 40vh; }
   }
+  .panel-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin: 0 0 10px 0;
+  }
   .panel-title {
     font-size: 0.55rem;
     text-transform: uppercase;
     letter-spacing: 0.25em;
     color: var(--text-label);
-    margin: 0 0 10px 0;
+    margin: 0;
     font-weight: 400;
+  }
+  .btn.mini {
+    padding: 3px 7px;
+    font-size: 0.5rem;
   }
   .field-row {
     margin-bottom: 10px;
@@ -114,9 +124,55 @@
     margin-left: -6px;
     margin-right: -6px;
     border-left: 2px solid transparent;
+    position: relative;
+    display: grid;
+    grid-template-columns: 14px 1fr;
+    gap: 6px;
+    align-items: start;
   }
   .field-row:hover {
     border-left-color: var(--accent);
+  }
+  .field-row.dragging {
+    opacity: 0.4;
+  }
+  .field-row.drag-over {
+    border-top: 2px solid var(--accent);
+    padding-top: 2px;
+  }
+  .drag-handle {
+    color: var(--text-muted);
+    cursor: grab;
+    user-select: none;
+    font-size: 0.7rem;
+    line-height: 1;
+    padding-top: 2px;
+    text-align: center;
+  }
+  .drag-handle:hover { color: var(--text-tertiary); }
+  .drag-handle:active { cursor: grabbing; }
+  .field-content {
+    min-width: 0;  /* allow input to shrink */
+  }
+  .field-row label {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 6px;
+  }
+  .field-row label .delete-btn {
+    background: transparent;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    font-size: 0.8rem;
+    line-height: 1;
+    padding: 0 4px;
+    border-radius: 2px;
+  }
+  .field-row label .delete-btn:hover {
+    color: var(--error);
+    background: var(--bg-elevated);
   }
   /* Highlight the corresponding element in the preview */
   .preview-stage [data-highlight="on"] {
@@ -259,7 +315,10 @@
 
 <main>
   <aside class="fields-panel" id="fields-panel">
-    <h2 class="panel-title">Fields</h2>
+    <div class="panel-header">
+      <h2 class="panel-title">Fields</h2>
+      <button class="btn mini" id="add-btn" aria-label="Add a new text element to the SVG" disabled>+ add text</button>
+    </div>
     <div id="fields-container"></div>
     <div class="meta" id="meta" style="display: none;">
       <div><span class="key">fields:</span> <span class="val" id="meta-count">0</span></div>
@@ -300,11 +359,17 @@
   const sampleBtn = document.getElementById('sample-btn');
   const pasteBtn = document.getElementById('paste-btn');
   const downloadBtn = document.getElementById('download-btn');
+  const addBtn = document.getElementById('add-btn');
   const hint = document.getElementById('hint');
   const toast = document.getElementById('toast');
   const meta = document.getElementById('meta');
   const metaCount = document.getElementById('meta-count');
   const metaBytes = document.getElementById('meta-bytes');
+  // NS URL built WITHOUT a literal `//` because test_project.py's line-comment
+  // stripper (//.*$) otherwise eats from the `//` to end-of-line, orphaning
+  // the closing quote and breaking brace balance (learnings.md pitfall).
+  const SLASH = String.fromCharCode(47);
+  const SVG_NS = 'http:' + SLASH + SLASH + 'www.w3.org/2000/svg';
 
   // ── Sample SVG — a process flow diagram, no markers required ─────────
   // Realistic "existing SVG" use case: labels already in place, user edits them directly.
@@ -451,8 +516,8 @@
       const empty = document.createElement('div');
       empty.className = 'empty-state';
       empty.innerHTML = parsedDoc
-        ? 'No text elements found in this SVG. This tool edits <code>&lt;text&gt;</code>, <code>&lt;tspan&gt;</code>, <code>&lt;title&gt;</code>, and <code>&lt;desc&gt;</code> elements.'
-        : 'Load an SVG to see its text fields.<br><br>Every <code>&lt;text&gt;</code>, <code>&lt;tspan&gt;</code>, and <code>&lt;title&gt;</code> element becomes a field you can edit. Layout and styling are preserved — only text changes.';
+        ? 'No text elements found in this SVG. Click <code>+ add text</code> to create one, or edit the source to add <code>&lt;text&gt;</code> / <code>&lt;tspan&gt;</code> / <code>&lt;title&gt;</code> / <code>&lt;desc&gt;</code> / <code>&lt;foreignObject&gt;</code> content.'
+        : 'Load an SVG to see its text fields.<br><br>Every <code>&lt;text&gt;</code>, <code>&lt;tspan&gt;</code>, <code>&lt;title&gt;</code>, and HTML content inside <code>&lt;foreignObject&gt;</code> becomes an editable field.<br><br>Rearrange with the drag handle · Add with <code>+ add text</code> · Remove with ×.';
       fieldsContainer.appendChild(empty);
       meta.style.display = parsedDoc ? 'block' : 'none';
       if (parsedDoc) {
@@ -463,39 +528,177 @@
     }
 
     fields.forEach((field) => {
-      const row = document.createElement('div');
-      row.className = 'field-row';
-      row.dataset.fieldId = field.id;
-
-      const label = document.createElement('label');
-      label.setAttribute('for', field.id);
-      label.textContent = field.label;
-      row.appendChild(label);
-
-      // Textarea for long content (>40 chars) or explicit <desc>
-      const isLong = field.original.length > 40 || field.element.tagName.toLowerCase() === 'desc';
-      const input = document.createElement(isLong ? 'textarea' : 'input');
-      if (!isLong) input.type = 'text';
-      input.id = field.id;
-      input.value = field.textNode.textContent;
-      input.setAttribute('aria-label', field.label);
-      input.addEventListener('input', (e) => {
-        field.textNode.textContent = e.target.value;
-        renderPreview();
-      });
-      input.addEventListener('focus', () => setHover(field.id));
-      input.addEventListener('blur', () => setHover(null));
-      row.addEventListener('mouseenter', () => setHover(field.id));
-      row.addEventListener('mouseleave', () => setHover(null));
-      row.appendChild(input);
-
-      fieldsContainer.appendChild(row);
+      fieldsContainer.appendChild(makeFieldRow(field));
     });
 
     meta.style.display = 'block';
     metaCount.textContent = String(fields.length);
     metaBytes.textContent = originalBytes.toLocaleString();
   }
+
+  function makeFieldRow(field) {
+    const row = document.createElement('div');
+    row.className = 'field-row';
+    row.dataset.fieldId = field.id;
+    row.draggable = true;
+
+    // Drag handle (left column of the grid)
+    const handle = document.createElement('div');
+    handle.className = 'drag-handle';
+    handle.textContent = '⋮⋮';
+    handle.title = 'Drag to reorder (form only — SVG unchanged)';
+    row.appendChild(handle);
+
+    // Content column: label + delete + input
+    const content = document.createElement('div');
+    content.className = 'field-content';
+
+    const label = document.createElement('label');
+    label.setAttribute('for', field.id);
+    const labelText = document.createElement('span');
+    labelText.textContent = field.label;
+    label.appendChild(labelText);
+    const del = document.createElement('button');
+    del.className = 'delete-btn';
+    del.type = 'button';
+    del.setAttribute('aria-label', 'Remove ' + field.label);
+    del.title = 'Remove this element from the SVG';
+    del.textContent = '×';
+    del.addEventListener('click', (e) => {
+      e.stopPropagation();
+      removeField(field);
+    });
+    label.appendChild(del);
+    content.appendChild(label);
+
+    const isLong = field.original.length > 40 || field.element.tagName.toLowerCase() === 'desc';
+    const input = document.createElement(isLong ? 'textarea' : 'input');
+    if (!isLong) input.type = 'text';
+    input.id = field.id;
+    input.value = field.textNode.textContent;
+    input.setAttribute('aria-label', field.label);
+    input.addEventListener('input', (e) => {
+      field.textNode.textContent = e.target.value;
+      renderPreview();
+    });
+    input.addEventListener('focus', () => setHover(field.id));
+    input.addEventListener('blur', () => setHover(null));
+    content.appendChild(input);
+
+    row.appendChild(content);
+
+    row.addEventListener('mouseenter', () => setHover(field.id));
+    row.addEventListener('mouseleave', () => setHover(null));
+
+    // Drag-and-drop reorder (form only — does not touch the SVG DOM)
+    row.addEventListener('dragstart', (e) => {
+      dragSourceId = field.id;
+      row.classList.add('dragging');
+      e.dataTransfer.effectAllowed = 'move';
+      // Firefox requires data to be set; contents don't matter
+      e.dataTransfer.setData('text/plain', field.id);
+    });
+    row.addEventListener('dragend', () => {
+      row.classList.remove('dragging');
+      clearDragOverStyles();
+      dragSourceId = null;
+    });
+    row.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      clearDragOverStyles();
+      row.classList.add('drag-over');
+    });
+    row.addEventListener('drop', (e) => {
+      e.preventDefault();
+      clearDragOverStyles();
+      if (!dragSourceId || dragSourceId === field.id) return;
+      reorderFields(dragSourceId, field.id);
+    });
+
+    return row;
+  }
+
+  function clearDragOverStyles() {
+    fieldsContainer.querySelectorAll('.drag-over').forEach((el) => el.classList.remove('drag-over'));
+  }
+
+  // ── Add / remove / reorder ──────────────────────────────────────────
+  function addField() {
+    if (!parsedDoc) return;
+    const root = parsedDoc.documentElement;
+    const vb = parseViewBox(root);
+    const text = parsedDoc.createElementNS(SVG_NS, 'text');
+    const cx = vb ? (vb.x + vb.w / 2) : 100;
+    const cy = vb ? (vb.y + vb.h / 2) : 50;
+    const fontSize = vb ? Math.max(10, Math.round(Math.min(vb.w, vb.h) * 0.035)) : 14;
+    text.setAttribute('x', String(Math.round(cx)));
+    text.setAttribute('y', String(Math.round(cy)));
+    text.setAttribute('text-anchor', 'middle');
+    text.setAttribute('font-size', String(fontSize));
+    text.setAttribute('fill', '#222');
+    const initial = 'New text';
+    text.appendChild(parsedDoc.createTextNode(initial));
+    root.appendChild(text);
+
+    const id = 'f' + Date.now();
+    text.setAttribute('data-svgfields-id', id);
+    const newField = {
+      id: id,
+      label: initial,
+      element: text,
+      textNode: text.firstChild,
+      original: initial,
+    };
+    fields.push(newField);
+    renderFields();
+    renderPreview();
+    // Focus the new row's input and select its placeholder text
+    const input = document.getElementById(id);
+    if (input) { input.focus(); input.select(); }
+    showToast('Added new text element', 'success');
+  }
+
+  function removeField(field) {
+    if (!field || !field.element) return;
+    if (field.element.parentNode) {
+      field.element.parentNode.removeChild(field.element);
+    }
+    const idx = fields.findIndex((f) => f.id === field.id);
+    if (idx !== -1) fields.splice(idx, 1);
+    renderFields();
+    renderPreview();
+    showToast('Removed', 'success');
+  }
+
+  function reorderFields(sourceId, targetId) {
+    const sIdx = fields.findIndex((f) => f.id === sourceId);
+    const tIdx = fields.findIndex((f) => f.id === targetId);
+    if (sIdx === -1 || tIdx === -1 || sIdx === tIdx) return;
+    const [moved] = fields.splice(sIdx, 1);
+    // Drop position: insert BEFORE the target so dragging down moves past the target,
+    // dragging up moves above it. Adjust for splice shift when moving downward.
+    const newIdx = (sIdx < tIdx) ? tIdx - 1 : tIdx;
+    fields.splice(newIdx, 0, moved);
+    renderFields();
+    // Preview doesn't change — DOM order untouched. Hover stays consistent.
+  }
+
+  function parseViewBox(root) {
+    const vb = root.getAttribute && root.getAttribute('viewBox');
+    if (!vb) {
+      // Fall back to width/height attributes if present
+      const w = parseFloat(root.getAttribute && root.getAttribute('width'));
+      const h = parseFloat(root.getAttribute && root.getAttribute('height'));
+      if (w > 0 && h > 0) return { x: 0, y: 0, w: w, h: h };
+      return null;
+    }
+    const parts = vb.trim().split(/[\s,]+/).map(parseFloat);
+    if (parts.length !== 4 || parts.some(isNaN)) return null;
+    return { x: parts[0], y: parts[1], w: parts[2], h: parts[3] };
+  }
+
+  let dragSourceId = null;
 
   function setHover(fieldId) {
     hoveredFieldId = fieldId;
@@ -526,6 +729,7 @@
     renderFields();
     renderPreview();
     downloadBtn.disabled = false;
+    addBtn.disabled = false;
     hint.textContent = source + ' · ' + fields.length + ' text element' + (fields.length === 1 ? '' : 's');
     if (fields.length > 0) {
       const first = fieldsContainer.querySelector('input, textarea');
@@ -601,6 +805,7 @@
     }
   });
   downloadBtn.addEventListener('click', download);
+  addBtn.addEventListener('click', addField);
 
   // Drag and drop anywhere on the preview panel
   let dragDepth = 0;

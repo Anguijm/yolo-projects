@@ -36,6 +36,12 @@ Each field gets a label derived from (highest first):
 
 So arbitrary diagrams "just work" — the current text acts as the label. Templates with explicit markers get nicer labels automatically.
 
+## Add / Remove / Rearrange
+
+- **`+ add text` button** (top of the field column) — creates a new `<text>` element at the center of the SVG's viewBox with a readable default size. Focuses the new input so you can type your label immediately. Edit the size/position later by dragging the resulting SVG in any editor if needed.
+- **`×` delete button** on each row — removes that text element from the SVG entirely. Preview and output both reflect the removal.
+- **Drag handle `⋮⋮`** on the left of each row — drag a row up or down to reorder the **form column**. This is form-only: the SVG's element order is untouched, so complex SVGs (like Mermaid output) keep their structure. Useful when you want to edit labels in a logical order regardless of SVG source order.
+
 ## Shortcuts
 
 - `Ctrl+O` — open file
