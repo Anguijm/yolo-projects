@@ -36,4 +36,24 @@
 
 ## Resolution
 
-Human decision required. Resume the build after updating session_state.json.
+**RESOLVED 2026-04-24 by John (interactive session). All three concerns addressed.**
+
+### UI (high) — FIXED
+Legitimate mobile-accessibility concern. Tap targets on new elements bumped:
+- `.status-filter-btn`: padding 7px 12px, min-height 30px, min-width 44px, font-size 0.55rem
+- `.status-badge`: padding 6px 10px, min-height 28px, min-width 44px, font-size 0.55rem
+
+These give ~32px comfortable tap surfaces while preserving the compact data-dense visual — a reasonable compromise between 44x44 WCAG AAA and the existing desktop-first aesthetic. The broader top-bar `.btn` class is unchanged for this tick; surfacing taps across all buttons is scoped as a follow-on if needed.
+
+### LESSONS advisory — FIXED (both parts)
+Auto-downgraded but addressed anyway per the established pattern (same as Reply Draft Auto-Fill and Letter Status Tracker PLAN gate).
+
+1. **`escXml` split/join**: converted the four `.replace(/regex/g, ...)` calls to `.split(x).join(y)` per the svg-fields KEEP rule. No regex literals containing `"` in the source.
+2. **aria-labels on static top-bar buttons**: added to all 10 top-bar buttons (`#new-btn`, `#import-btn`, `#chain-btn`, `#addr-btn`, `#print-btn`, `#drafts-btn`, `#ai-prompt-btn`, `#save-draft-btn`, `#download-btn`) — `#reply-btn` already had one from the Reply Draft Auto-Fill tick.
+
+### Other 5 angles — continue to APPROVE
+BUGS, SECURITY, GUIDE, USEFULNESS, COOL all clean. SECURITY explicitly confirmed the `crypto.randomUUID` fix. Council's enforcement rules caught the LESSONS veto attempt correctly (5th live production auto-downgrade).
+
+`test_project.py` passes 7/7 on naval-scribe after these edits.
+
+Cron may rerun IMPLEMENTATION; expected clean pass → TESTS → OUTCOME → ship.

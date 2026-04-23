@@ -348,12 +348,20 @@ html, body {
   html, body { overflow: visible; height: auto; background: #fff; }
 }
 /* ── Letter Status Tracker ── */
-.status-filter-row { display:flex; gap:4px; flex-wrap:wrap; margin-bottom:8px; }
-.status-filter-btn { font-size:0.5rem; padding:2px 6px; border:1px solid #444; background:#1e1e1e; color:#ccc; cursor:pointer; border-radius:2px; }
+/* Tap targets bumped per UI IMPL-escalation 2026-04-23: padding + min-height give
+   comfortable touch surface (~32px height, ~44px+ width) without blowing up the
+   data-dense visual. Still compact on desktop; actionable on mobile. */
+.status-filter-row { display:flex; gap:6px; flex-wrap:wrap; margin-bottom:8px; }
+.status-filter-btn {
+  font-size:0.55rem; padding:7px 12px; min-height:30px; min-width:44px;
+  border:1px solid #444; background:#1e1e1e; color:#ccc; cursor:pointer; border-radius:3px;
+  font-family:inherit;
+}
 .status-filter-btn.active { border-color:#0ff; color:#0ff; }
 .status-badge {
-  display:inline-block; font-size:0.48rem; padding:1px 5px; border-radius:2px; cursor:pointer;
-  border:none; font-family:inherit; margin-top:3px; line-height:1.4;
+  display:inline-block; font-size:0.55rem; padding:6px 10px; min-height:28px; min-width:44px;
+  border-radius:3px; cursor:pointer; border:none; font-family:inherit;
+  margin-top:4px; line-height:1.3;
 }
 .status-badge[data-status="draft"]       { background:#1a1a1a; color:#b0b0b0; }
 .status-badge[data-status="signed"]      { background:#3a2f00; color:#f5c842; }
@@ -386,16 +394,16 @@ html, body {
         <option value="instruction">naval instruction</option>
         <option value="sop">standard operating procedure</option>
       </select>
-      <button class="btn" id="new-btn">new</button>
-      <button class="btn" id="import-btn">import</button>
-      <button class="btn" id="chain-btn">chain</button>
-      <button class="btn" id="addr-btn">addr book</button>
+      <button class="btn" id="new-btn" aria-label="Clear the form and start a new letter">new</button>
+      <button class="btn" id="import-btn" aria-label="Paste an existing letter to import its fields">import</button>
+      <button class="btn" id="chain-btn" aria-label="Chain endorsements onto a saved draft">chain</button>
+      <button class="btn" id="addr-btn" aria-label="Open the command address book">addr book</button>
       <button class="btn" id="reply-btn" aria-label="Generate reply draft with From/To swapped">reply</button>
-      <button class="btn" id="print-btn">print pdf</button>
-      <button class="btn" id="drafts-btn">drafts</button>
-      <button class="btn" id="ai-prompt-btn" title="Copy the formatting guide as an AI prompt — paste into ChatGPT/Claude to generate a properly-formatted draft">copy ai prompt</button>
-      <button class="btn" id="save-draft-btn">save draft</button>
-      <button class="btn btn-primary" id="download-btn">download .docx</button>
+      <button class="btn" id="print-btn" aria-label="Print current letter to PDF">print pdf</button>
+      <button class="btn" id="drafts-btn" aria-label="Open saved drafts drawer">drafts</button>
+      <button class="btn" id="ai-prompt-btn" aria-label="Copy the formatting guide as an AI prompt" title="Copy the formatting guide as an AI prompt — paste into ChatGPT/Claude to generate a properly-formatted draft">copy ai prompt</button>
+      <button class="btn" id="save-draft-btn" aria-label="Save current letter as a new draft">save draft</button>
+      <button class="btn btn-primary" id="download-btn" aria-label="Download letter as .docx file">download .docx</button>
     </div>
   </div>
   <div id="drafts-drawer">
@@ -1585,7 +1593,13 @@ html, body {
   var REL_NS = 'xmlns:r="http:/' + '/schemas.openxmlformats.org/officeDocument/2006/relationships"';
 
   function escXml(s) {
-    return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    // split/join instead of .replace(/regex/g, ...) — regex literals containing " or '
+    // confuse the test_project.py string-stripper (see learnings.md / svg-fields KEEP entry).
+    return String(s)
+      .split('&').join('&amp;')
+      .split('<').join('&lt;')
+      .split('>').join('&gt;')
+      .split('"').join('&quot;');
   }
 
   function makeParagraph(text, opts) {
