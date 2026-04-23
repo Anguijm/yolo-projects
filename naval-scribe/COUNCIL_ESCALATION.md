@@ -34,4 +34,29 @@
 
 ## Resolution
 
-Human decision required. Resume the build after updating session_state.json.
+**RESOLVED 2026-04-24 by John (interactive session). Both concerns fixed.**
+
+### BUGS OBJECT (high) — FIXED
+Consistency fix. `saveAddr` now returns `false` on all localStorage failures (same pattern as `saveDraftsData` and `savePresetsData`) instead of rethrowing on non-quota errors. Error is logged to `console.warn` and surfaced via `addrAddErr.textContent`. Caller treats false as a soft failure.
+
+### UI OBJECT (high) — FIXED
+Status badges and filter buttons are already rendered as `<button>` elements with `aria-label` attributes (the cron objection was partially incorrect on semantics). **But the focus-styles concern was legitimate** — no `:focus` or `:focus-visible` indicator was defined, so keyboard users had no visible feedback.
+
+Added dedicated focus styles:
+```css
+.status-filter-btn:focus, .status-filter-btn:focus-visible,
+.status-badge:focus, .status-badge:focus-visible {
+  outline: 2px solid #0ff;
+  outline-offset: 2px;
+  box-shadow: 0 0 0 1px #0ff inset;
+}
+```
+
+Accent cyan outline + offset gives clear focus without clashing with the existing color scheme.
+
+### Other 5 angles — APPROVE
+SECURITY, GUIDE, USEFULNESS, COOL, LESSONS all clean. LESSONS approved cleanly this round (no veto attempt).
+
+`test_project.py` passes 7/7 on naval-scribe after edits.
+
+Cron may rerun TESTS gate; expected clean pass → OUTCOME → ship.
