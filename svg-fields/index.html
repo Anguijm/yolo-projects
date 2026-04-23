@@ -343,18 +343,36 @@
 </svg>`;
 
   // ── Walk the parsed DOM and collect editable text nodes ─────────────
-  // Editable = a text/tspan/title/desc/textPath element with one or more
-  // direct non-whitespace text node children. Each such child becomes a field.
-  const EDITABLE_TAGS = new Set(['text', 'tspan', 'title', 'desc', 'textpath']);
+  // Two modes depending on context:
+  //   1. SVG native: only text/tspan/title/desc/textPath are editable
+  //   2. Inside <foreignObject>: ANY element with direct text content is
+  //      editable (Mermaid and other SVG-embedding-HTML tools put their
+  //      labels in <div>/<span>/<p> inside foreignObject, not SVG text).
+  // Blacklist non-visual containers whose text should never be shown:
+  //   style, script, defs (usually — their children are referenced, not rendered)
+  const SVG_EDITABLE_TAGS = new Set(['text', 'tspan', 'title', 'desc', 'textpath']);
+  const HTML_NON_EDITABLE = new Set(['style', 'script', 'br', 'hr']);
 
   function collectFields(doc) {
     const out = [];
     let seq = 0;
-    function walk(el) {
+    function walk(el, insideForeign) {
       if (!el || !el.tagName) return;
       const tag = el.tagName.toLowerCase();
-      if (EDITABLE_TAGS.has(tag)) {
-        // Scan immediate children for non-empty text nodes
+
+      // Inside <style> or <script> — never treat contents as editable
+      if (HTML_NON_EDITABLE.has(tag)) return;
+
+      // Did we just enter a foreignObject? Turn on permissive mode for its subtree
+      const enteredForeign = tag === 'foreignobject';
+      const permissive = insideForeign || enteredForeign;
+
+      // Decide whether this element's direct text children are editable
+      const editable = permissive
+        ? !HTML_NON_EDITABLE.has(tag)  // any non-blacklisted HTML element
+        : SVG_EDITABLE_TAGS.has(tag);  // only SVG native text
+
+      if (editable) {
         el.childNodes.forEach((child) => {
           if (child.nodeType === 3 && child.textContent && child.textContent.trim()) {
             const original = child.textContent;
@@ -368,12 +386,27 @@
           }
         });
       }
-      // Recurse into all element children (even non-editable parents may contain editables)
-      Array.from(el.children).forEach(walk);
+
+      Array.from(el.children).forEach((c) => walk(c, permissive));
     }
-    walk(doc.documentElement);
-    // Tag each element with a visual marker attribute so we can highlight on hover.
-    // We use a custom data attribute that serializes harmlessly — and we'll strip it on download.
+    walk(doc.documentElement, false);
+
+    // Disambiguate duplicate labels — Mermaid diagrams often repeat "Yes"/"No"
+    // on different edges, same text on multiple nodes, etc. Append (N) to repeats.
+    const labelCounts = {};
+    out.forEach((f) => {
+      labelCounts[f.label] = (labelCounts[f.label] || 0) + 1;
+    });
+    const seen = {};
+    out.forEach((f) => {
+      if (labelCounts[f.label] > 1) {
+        seen[f.label] = (seen[f.label] || 0) + 1;
+        f.label = f.label + ' (' + seen[f.label] + ')';
+      }
+    });
+
+    // Tag each element with a marker attribute so we can highlight on hover.
+    // Stripped on download so the exported SVG stays clean.
     out.forEach((f) => {
       if (!f.element.hasAttribute('data-svgfields-id')) {
         f.element.setAttribute('data-svgfields-id', f.id);

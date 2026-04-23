@@ -13,7 +13,10 @@ Single-file HTML, no build step. Works offline.
 ## How it works
 
 1. Drop, paste, or open any SVG file.
-2. The tool walks the SVG DOM and finds every `<text>`, `<tspan>`, `<title>`, `<desc>`, and `<textPath>` element that has text content.
+2. The tool walks the SVG DOM and finds every text-bearing element:
+   - SVG native: `<text>`, `<tspan>`, `<title>`, `<desc>`, `<textPath>`
+   - Inside `<foreignObject>`: any HTML element with direct text content (`<div>`, `<span>`, `<p>`, `<h1>`–`<h6>`, `<li>`, `<td>`, `<th>`, `<label>`, etc.)
+   - This means **Mermaid-generated SVGs work** — Mermaid embeds labels in `<foreignObject>` + HTML `<span>`, not SVG `<text>`.
 3. Each text node becomes a form field in the left column, **in document order**, pre-filled with the current value.
 4. As you type, the right-pane preview re-renders with your changes live.
 5. Click **download** (or Ctrl+S) to save the edited SVG. Layout, styles, filters, gradients, and other attributes are preserved untouched — only text changes.
@@ -43,6 +46,10 @@ So arbitrary diagrams "just work" — the current text acts as the label. Templa
 ## Example
 
 Click **sample** to load a Release Pipeline diagram with 16 editable text elements. Rename "Build" → "Compile", change the owner line, update the date. Download to see the modified SVG.
+
+## Mermaid output works
+
+Render any Mermaid diagram to SVG (e.g., via `mermaid-cli` or a Mermaid live editor), drop the output into svg-fields, and every node/edge label appears as an editable field. Duplicate labels (e.g., multiple `Yes`/`No` edge labels) are auto-disambiguated with a `(2)` suffix so each input targets a specific element.
 
 ## What gets preserved
 
