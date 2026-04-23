@@ -1,5 +1,5 @@
 # Hot Cache — Active Context
-*Auto-updated 2026-04-23 06:03 UTC. Read this FIRST.*
+*Auto-updated 2026-04-23 10:17 UTC. Read this FIRST.*
 
 ## Current State
 - Portfolio: 227 total, 98 active
@@ -22,11 +22,11 @@
 - url-dissect: URL Dissector & Analyzer — component breakdown with encoding
 
 ## Key Patterns (from recent learnings)
+- [INSIGHT] CLI tool `recall-stats` data accumulates via `backfill-recall` from `session_sta
+- [INSIGHT] UI angle late-stage goalpost pattern — UI approved command names at PLAN gate, o
+- [KEEP] Descriptive command aliases without renaming — when UI raises a late-stage namin
+- [KEEP] `schema_versions` table for hash-algo migration — when the content-hash algorith
+- [KEEP] `json.dumps([field1, field2, ...])` for content-hash input — when building a sta
 - [INSIGHT] Form-for-every-text pattern — naval-scribe is form→doc, svg-fields is template+f
 - [KEEP] SVG templates as data-driven forms — `{{mustache}}` + `data-field="name"` marker
 - [KEEP] `String.prototype.split(x).join(y)` replaces `.replace(/x/g, y)` when `x` is `"`
-- [INSIGHT] infra-guardrails escalation history: plan gate → 2 escalations, implementation g
-- [INSIGHT] SECURITY and COOL repeat-objection pattern: both raised essentially the same obj
-- [KEEP] Scope pipe-table row extraction to the target section only using a SECTION_RE sl
-- [KEEP] `[^|]*` (not `[^|]+`) in ROW_RE for markdown pipe-table parsing — empty fields m
-- [INSIGHT] All 84 eval_bugs.py and all 11 security_scan.py findings were pre-existing in th

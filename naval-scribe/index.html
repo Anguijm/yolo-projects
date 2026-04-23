@@ -347,6 +347,19 @@ html, body {
   #preview-page { box-shadow: none; margin: 0; padding: 1in; max-width: none; min-height: auto; }
   html, body { overflow: visible; height: auto; background: #fff; }
 }
+/* ── Letter Status Tracker ── */
+.status-filter-row { display:flex; gap:4px; flex-wrap:wrap; margin-bottom:8px; }
+.status-filter-btn { font-size:0.5rem; padding:2px 6px; border:1px solid #444; background:#1e1e1e; color:#ccc; cursor:pointer; border-radius:2px; }
+.status-filter-btn.active { border-color:#0ff; color:#0ff; }
+.status-badge {
+  display:inline-block; font-size:0.48rem; padding:1px 5px; border-radius:2px; cursor:pointer;
+  border:none; font-family:inherit; margin-top:3px; line-height:1.4;
+}
+.status-badge[data-status="draft"]       { background:#1a1a1a; color:#b0b0b0; }
+.status-badge[data-status="signed"]      { background:#3a2f00; color:#f5c842; }
+.status-badge[data-status="transmitted"] { background:#003333; color:#00e5e5; }
+.status-badge[data-status="replied"]     { background:#002200; color:#56d364; }
+#drafts-status-err { font-size:0.5rem; color:#e05252; min-height:1rem; margin-bottom:4px; }
 </style>
 </head>
 <body>
@@ -390,6 +403,8 @@ html, body {
       <div class="section-header" style="margin:0;border:none">Saved Drafts</div>
       <button class="add-btn" id="drafts-close">close ×</button>
     </div>
+    <div id="status-filter-row" class="status-filter-row"></div>
+    <div id="drafts-status-err"></div>
     <div id="drafts-list"></div>
     <div id="drafts-empty" style="font-size:0.55rem;color:#444;padding:12px 0">No saved drafts yet.</div>
   </div>
@@ -2256,6 +2271,13 @@ html, body {
   var draftsList = document.getElementById('drafts-list');
   var draftsEmpty = document.getElementById('drafts-empty');
   var draftsCloseBtn = document.getElementById('drafts-close');
+  var statusFilterRow = document.getElementById('status-filter-row');
+  var draftsStatusErr = document.getElementById('drafts-status-err');
+  var statusFilter = 'all';
+  var lastStatusError = '';
+
+  var STATUS_CYCLE = ['draft', 'signed', 'transmitted', 'replied'];
+  var STATUS_LABELS = { draft: 'Draft', signed: 'Signed', transmitted: 'Transmitted', replied: 'Replied' };
 
   function getDrafts() {
     try { return JSON.parse(localStorage.getItem(DRAFTS_KEY)) || []; } catch(e) { return []; }
@@ -2333,27 +2355,93 @@ html, body {
     updatePreview();
   }
 
+  function setDraftStatus(id, newStatus) {
+    var arr = getDrafts();
+    var entry = arr.find ? arr.find(function(x) { return x.id === id; }) : (function() {
+      for (var i = 0; i < arr.length; i++) { if (arr[i].id === id) return arr[i]; }
+    })();
+    if (!entry) { lastStatusError = 'not-found'; return false; }
+    entry.status = newStatus;
+    try {
+      localStorage.setItem(DRAFTS_KEY, JSON.stringify(arr));
+      lastStatusError = '';
+      return true;
+    } catch(e) {
+      lastStatusError = 'storage';
+      return false;
+    }
+  }
+
   function renderDraftsList() {
     var arr = getDrafts();
     draftsList.innerHTML = '';
+    draftsStatusErr.textContent = '';
+
+    /* filter row */
+    statusFilterRow.innerHTML = '';
+    var frag = document.createDocumentFragment();
+    var allLabels = ['all', 'draft', 'signed', 'transmitted', 'replied'];
+    for (var f = 0; f < allLabels.length; f++) {
+      (function(lbl) {
+        var fb = document.createElement('button');
+        fb.className = 'status-filter-btn' + (statusFilter === lbl ? ' active' : '');
+        fb.textContent = lbl.charAt(0).toUpperCase() + lbl.slice(1);
+        fb.addEventListener('click', function() { statusFilter = lbl; renderDraftsList(); });
+        frag.appendChild(fb);
+      })(allLabels[f]);
+    }
+    statusFilterRow.appendChild(frag);
+
     if (!arr.length) {
       draftsEmpty.style.display = '';
       return;
     }
     draftsEmpty.style.display = 'none';
-    for (var i = 0; i < arr.length; i++) {
+
+    var visible = arr.filter(function(d) {
+      if (statusFilter === 'all') return true;
+      return (d.status || 'draft') === statusFilter;
+    });
+
+    if (!visible.length) {
+      draftsEmpty.style.display = '';
+      draftsEmpty.textContent = 'No ' + statusFilter + ' drafts.';
+      return;
+    }
+    draftsEmpty.textContent = 'No saved drafts yet.';
+
+    var listFrag = document.createDocumentFragment();
+    for (var i = 0; i < visible.length; i++) {
       (function(draft) {
+        var st = draft.status || 'draft';
         var item = document.createElement('div');
         item.className = 'draft-item';
         item.innerHTML =
           '<div style="flex:1;min-width:0">' +
             '<div class="draft-name">' + esc(draft.name) + '</div>' +
             '<div class="draft-meta">' + esc(draft.type) + ' &middot; ' + esc(draft.savedAt) + '</div>' +
+            '<button class="status-badge" data-status="' + esc(st) + '" title="Click to advance status" aria-label="Status: ' + esc(STATUS_LABELS[st] || st) + ' — click to advance">' + esc(STATUS_LABELS[st] || st) + ' ▶</button>' +
           '</div>' +
           '<div style="display:flex;gap:4px;flex-shrink:0">' +
             '<button class="add-btn" data-act="load">load</button>' +
             '<button class="add-btn" data-act="del">del</button>' +
           '</div>';
+        item.querySelector('.status-badge').addEventListener('click', function() {
+          var cur = draft.status || 'draft';
+          var idx = STATUS_CYCLE.indexOf(cur);
+          var next = STATUS_CYCLE[(idx + 1) % STATUS_CYCLE.length];
+          var ok = setDraftStatus(draft.id, next);
+          if (ok) {
+            draft.status = next;
+            renderDraftsList();
+          } else {
+            var msg = lastStatusError === 'storage' ? 'Could not save status — storage full.'
+                    : lastStatusError === 'not-found' ? 'Draft no longer exists — refresh the drawer.'
+                    : 'Could not save status.';
+            draftsStatusErr.textContent = msg;
+            setTimeout(function() { draftsStatusErr.textContent = ''; }, 2500);
+          }
+        });
         item.querySelector('[data-act="load"]').addEventListener('click', function() {
           restoreFullState(draft.state);
           draftsDrawer.classList.remove('open');
@@ -2363,9 +2451,10 @@ html, body {
           saveDraftsData(updated);
           renderDraftsList();
         });
-        draftsList.appendChild(item);
-      })(arr[i]);
+        listFrag.appendChild(item);
+      })(visible[i]);
     }
+    draftsList.appendChild(listFrag);
   }
 
   draftsBtn.addEventListener('click', function() {
@@ -2385,7 +2474,7 @@ html, body {
     var name = prompt('Save draft as:');
     if (!name || !name.trim()) return;
     var arr = getDrafts();
-    arr.unshift({ id: Date.now(), name: name.trim(), savedAt: todayNaval(), type: typeSelect.value, state: getFullState() });
+    arr.unshift({ id: Date.now(), name: name.trim(), savedAt: todayNaval(), type: typeSelect.value, status: 'draft', state: getFullState() });
     if (arr.length > 25) arr = arr.slice(0, 25);
     saveDraftsData(arr);
     var orig = saveDraftBtn.textContent;
@@ -3965,6 +4054,9 @@ Click the **reply** button in the top toolbar to generate a reply draft. The dra
 Click "fill reply draft" to apply all changes at once.
 
 **Note:** From and To must both be filled in before the reply drawer shows the preview. If either is empty, a warning is shown instead.
+
+### Letter Status Tracker
+Each saved draft has a status that tracks its lifecycle: **Draft** (grey) → **Signed** (amber) → **Transmitted** (cyan) → **Replied** (green). Click the colored status badge on any saved draft row in the Drafts drawer to advance it to the next state (cycles back to Draft after Replied). Use the filter row at the top of the drawer (All / Draft / Signed / Transmitted / Replied) to narrow the list to drafts at a specific stage. Status is saved to localStorage alongside the draft data; drafts created before this feature default to Draft automatically.
 
 <!-- GUIDE:END --></script>
 </body>

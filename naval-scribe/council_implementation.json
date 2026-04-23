@@ -1,15 +1,15 @@
 {
   "gate": "implementation",
   "project": "naval-scribe",
-  "timestamp": "2026-04-22T08:27:37.886112+00:00",
+  "timestamp": "2026-04-23T10:17:07.719940+00:00",
   "verdicts": [
     {
       "angle": "bugs",
-      "verdict": "APPROVE",
-      "severity": "low",
-      "reason": "The implementation correctly handles all specified auto-fill logic, input validation for the drawer, and mutual exclusion with other drawers, using safe text content for display.",
-      "required_fix": "",
-      "evidence": "",
+      "verdict": "OBJECT",
+      "severity": "high",
+      "reason": "Draft IDs generated using `Date.now()` are not guaranteed to be unique, which can lead to multiple drafts having the same ID, causing status updates or deletions to affect the wrong entry or fail silently for duplicates.",
+      "required_fix": "Replace `Date.now()` with a robust unique ID generation mechanism (e.g., UUID) when saving drafts to prevent collisions and ensure correct targeting of individual draft entries for status changes and deletions.",
+      "evidence": "saveDraftBtn.addEventListener('click', function() { ... arr.unshift({ id: Date.now(), name: name.trim(), ... }); ... });",
       "veto": false,
       "parse_failed": false
     },
@@ -17,7 +17,7 @@
       "angle": "security",
       "verdict": "APPROVE",
       "severity": "low",
-      "reason": "The reply draft auto-fill feature is implemented securely, adhering to strict input sanitization and output encoding practices. All user-controlled data displayed in the preview drawer uses .textContent, and data assigned to form fields is handled safely. The Content Security Policy is robust given the architectural constraints.",
+      "reason": "The implementation correctly uses escaping functions (esc, escXml) for all user-controlled data before rendering to HTML or generating DOCX, mitigating injection risks. LocalStorage usage is consistent with architectural constraints, and the address book includes a user-facing warning. The CSP, while using 'unsafe-inline' as per architectural constraint, is otherwise restrictive, limiting other attack vectors.",
       "required_fix": "",
       "evidence": "",
       "veto": false,
@@ -27,7 +27,7 @@
       "angle": "ui",
       "verdict": "APPROVE",
       "severity": "low",
-      "reason": "The reply draft feature provides a clear preview of changes, uses safe text content, and ensures proper drawer management.",
+      "reason": "The status tracking feature is clear, provides good visual feedback, and handles various states effectively, with addressed accessibility concerns.",
       "required_fix": "",
       "evidence": "",
       "veto": false,
@@ -37,7 +37,7 @@
       "angle": "guide",
       "verdict": "APPROVE",
       "severity": "low",
-      "reason": "The reply draft feature is highly discoverable and self-documenting for both human users and AI agents.",
+      "reason": "The new status tracking feature is highly discoverable with clear UI elements, tooltips, and comprehensive documentation for AI agents.",
       "required_fix": "",
       "evidence": "",
       "veto": false,
@@ -47,9 +47,9 @@
       "angle": "usefulness",
       "verdict": "APPROVE",
       "severity": "low",
-      "reason": "The reply draft auto-fill feature provides clear, recurring utility by automating a common, tedious task for the target user.",
+      "reason": "This feature provides practical, recurring utility for managing the lifecycle of official correspondence, directly addressing a common organizational need for the target user.",
       "required_fix": "",
-      "evidence": "This feature streamlines a frequent workflow (replying to correspondence) by handling error-prone data swaps (From/To), adding necessary references, and clearing irrelevant fields, making it a valuable time-saving tool for naval personnel.",
+      "evidence": "Users of formal correspondence tools frequently need to track the progress of documents through various stages (drafting, review, signing, transmission, reply). This feature provides an integrated, quick-glance solution for this, eliminating the need for external tracking or opening each document to ascertain its status. The filter further enhances utility for users managing multiple documents.",
       "veto": false,
       "parse_failed": false
     },
@@ -57,7 +57,7 @@
       "angle": "cool",
       "verdict": "APPROVE",
       "severity": "low",
-      "reason": "The reply draft auto-fill feature directly enhances the core utility of naval-scribe by automating a common, tedious, and error-prone task in formal correspondence with transparent disclosure of changes, reinforcing its identity as a reliable, specialized tool.",
+      "reason": "The status tracker enhances the tool's core utility by providing practical workflow management for drafts, reinforcing its identity as a comprehensive and reliable naval correspondence flagship.",
       "required_fix": "",
       "evidence": "",
       "veto": false,
@@ -67,14 +67,25 @@
       "angle": "lessons",
       "verdict": "APPROVE",
       "severity": "low",
-      "reason": "No documented lessons or prior anti-patterns were violated by the current implementation. All specific instructions from the council focus, including the aria-label and mutual exclusion for drawers, have been addressed.",
+      "reason": "All documented lessons, including the requirement to update the AI prompt, have been satisfied.",
       "required_fix": "",
       "evidence": "",
       "veto": false,
       "parse_failed": false
     }
   ],
-  "all_approved": true,
-  "objections": [],
+  "all_approved": false,
+  "objections": [
+    {
+      "angle": "bugs",
+      "verdict": "OBJECT",
+      "severity": "high",
+      "reason": "Draft IDs generated using `Date.now()` are not guaranteed to be unique, which can lead to multiple drafts having the same ID, causing status updates or deletions to affect the wrong entry or fail silently for duplicates.",
+      "required_fix": "Replace `Date.now()` with a robust unique ID generation mechanism (e.g., UUID) when saving drafts to prevent collisions and ensure correct targeting of individual draft entries for status changes and deletions.",
+      "evidence": "saveDraftBtn.addEventListener('click', function() { ... arr.unshift({ id: Date.now(), name: name.trim(), ... }); ... });",
+      "veto": false,
+      "parse_failed": false
+    }
+  ],
   "vetoed": false
 }
