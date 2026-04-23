@@ -1,25 +1,25 @@
 {
   "gate": "tests",
   "project": "experiments/infra-memory-feedback",
-  "timestamp": "2026-04-23T04:47:03.085809+00:00",
+  "timestamp": "2026-04-23T05:59:03.327474+00:00",
   "verdicts": [
     {
       "angle": "bugs",
-      "verdict": "OBJECT",
-      "severity": "critical",
-      "reason": "The `_escalation_id` hash concatenation uses a simple `|` delimiter, which can lead to hash collisions if the `reason` or `resolution` fields contain the `|` character, causing distinct escalations to be treated as identical due to non-unique IDs and potential data corruption via `INSERT OR IGNORE`.",
-      "required_fix": "Modify `_escalation_id` to use a robust serialization method for concatenation (e.g., length-prefixed fields or JSON serialization) before hashing, to prevent collisions when data fields contain the delimiter character.",
-      "evidence": "_escalation_id(entry)` helper (lines 90\u2013122): SHA-256 content-hash of the full concatenation `project|gate|resolved_at|timestamp|reason|resolution`",
+      "verdict": "APPROVE",
+      "severity": "low",
+      "reason": "The code demonstrates robust error handling, input validation, and careful consideration of edge cases and data consistency, with previous correctness issues thoroughly addressed.",
+      "required_fix": "",
+      "evidence": "",
       "veto": false,
       "parse_failed": false
     },
     {
       "angle": "security",
-      "verdict": "OBJECT",
-      "severity": "medium",
-      "reason": "Regular expressions used for classifying potentially untrusted input from `session_state.json` contain `.*` patterns which could be vulnerable to ReDoS (Regular Expression Denial of Service) if crafted with long, malicious strings.",
-      "required_fix": "Analyze and refactor regular expressions (`_FP_RE`, `_PREVENTED_RE`) to eliminate or mitigate ReDoS vulnerabilities by avoiding problematic constructs like unbounded quantifiers on arbitrary wildcards (`.*`) or ensuring input length limits are enforced before regex application.",
-      "evidence": "file:build_memory.py (lines ~578\u2013630, specifically where `reason` and `resolution` from `session_state.json` are processed by `_FP_RE`, `_PREVENTED_RE`, `_LESSONS_VETO_RE`)",
+      "verdict": "APPROVE",
+      "severity": "low",
+      "reason": "The code uses parameterized queries for all database interactions, validates critical inputs, and explicitly handles FTS5 query terms to prevent injection; ReDoS concerns for internal files are noted and overridden by project context.",
+      "required_fix": "",
+      "evidence": "",
       "veto": false,
       "parse_failed": false
     },
@@ -27,7 +27,7 @@
       "angle": "ui",
       "verdict": "APPROVE",
       "severity": "low",
-      "reason": "The proposed changes significantly improve the user experience by providing clearer error messages, better argument validation feedback, and comprehensive in-tool documentation for new CLI commands.",
+      "reason": "The CLI commands are well-documented, provide clear feedback, and handle empty/error states gracefully. Recent docstring clarifications improve first-use experience.",
       "required_fix": "",
       "evidence": "",
       "veto": false,
@@ -37,9 +37,9 @@
       "angle": "guide",
       "verdict": "APPROVE",
       "severity": "low",
-      "reason": "Module docstring provides comprehensive per-command argument documentation, including types, valid enum values, semantics, and classification categories, addressing previous discoverability concerns.",
+      "reason": "The tool provides excellent self-documentation via its comprehensive docstring, clear command usage, helpful error messages, and explicit guidance for new features.",
       "required_fix": "",
-      "evidence": "build_memory.py: Module docstring (lines 1-28), TESTS gate attempt 2 fix (2026-04-23) in changes.md",
+      "evidence": "",
       "veto": false,
       "parse_failed": false
     },
@@ -47,9 +47,9 @@
       "angle": "usefulness",
       "verdict": "APPROVE",
       "severity": "low",
-      "reason": "This project provides a critical feedback loop for evaluating the effectiveness of 'learnings' derived from council escalations, enabling continuous improvement of the review process.",
+      "reason": "This project provides a critical feedback loop for the 'learnings' system, enabling measurement of their real-world impact (preventing bugs vs. false positives), which is essential for continuous improvement of the learning process itself.",
       "required_fix": "",
-      "evidence": "The `recall-stats` command and the `mark-outcome` commands directly address the need to measure and improve the quality of learnings, which is a common challenge in post-mortem or review processes for any organization.",
+      "evidence": "The 'backfill-recall' command processes real-world escalation data from 'session_state.json', and the 'recall-stats' command provides actionable metrics for evaluating the effectiveness of the learnings, addressing a clear need for quality control and validation of the knowledge base.",
       "veto": false,
       "parse_failed": false
     },
@@ -57,7 +57,7 @@
       "angle": "cool",
       "verdict": "APPROVE",
       "severity": "low",
-      "reason": "The automated classification of 'LESSONS VETO' escalations into 'prevented_bug' or 'false_positive' using regexes, and the subsequent 'recall-stats' reporting, provides a unique signature move for deriving actionable insights from historical feedback, rather than just storing it.",
+      "reason": "The recall feedback loop, tracking which learnings prevent real bugs versus produce false positives, provides a unique and measurable signature move that elevates it beyond a generic knowledge base.",
       "required_fix": "",
       "evidence": "",
       "veto": false,
@@ -67,35 +67,14 @@
       "angle": "lessons",
       "verdict": "APPROVE",
       "severity": "low",
-      "reason": "",
+      "reason": "The deliverable demonstrates strong adherence to lessons regarding robust data handling and explicit management of prior council overrides, specifically addressing collision-safe ID generation and schema migration.",
       "required_fix": "",
-      "evidence": "",
+      "evidence": "Key fix since prior TESTS escalation (attempt 1): _escalation_id now uses json.dumps([project, gate, resolved_at, timestamp, reason, resolution]) instead of '|'.join() \u2014 collision-proof since JSON escapes characters inside strings. _HASH_ALGO_VERSION bumped from 3\u21924. Auto-migration invalidates stale rows on version bump. SECURITY ReDoS concern on _FP_RE/_PREVENTED_RE overridden: inputs are cron-written session_state.json, no external attack surface. Same override pattern as adopt-planning-mode precedent (learnings.md:26).",
       "veto": false,
       "parse_failed": false
     }
   ],
-  "all_approved": false,
-  "objections": [
-    {
-      "angle": "bugs",
-      "verdict": "OBJECT",
-      "severity": "critical",
-      "reason": "The `_escalation_id` hash concatenation uses a simple `|` delimiter, which can lead to hash collisions if the `reason` or `resolution` fields contain the `|` character, causing distinct escalations to be treated as identical due to non-unique IDs and potential data corruption via `INSERT OR IGNORE`.",
-      "required_fix": "Modify `_escalation_id` to use a robust serialization method for concatenation (e.g., length-prefixed fields or JSON serialization) before hashing, to prevent collisions when data fields contain the delimiter character.",
-      "evidence": "_escalation_id(entry)` helper (lines 90\u2013122): SHA-256 content-hash of the full concatenation `project|gate|resolved_at|timestamp|reason|resolution`",
-      "veto": false,
-      "parse_failed": false
-    },
-    {
-      "angle": "security",
-      "verdict": "OBJECT",
-      "severity": "medium",
-      "reason": "Regular expressions used for classifying potentially untrusted input from `session_state.json` contain `.*` patterns which could be vulnerable to ReDoS (Regular Expression Denial of Service) if crafted with long, malicious strings.",
-      "required_fix": "Analyze and refactor regular expressions (`_FP_RE`, `_PREVENTED_RE`) to eliminate or mitigate ReDoS vulnerabilities by avoiding problematic constructs like unbounded quantifiers on arbitrary wildcards (`.*`) or ensuring input length limits are enforced before regex application.",
-      "evidence": "file:build_memory.py (lines ~578\u2013630, specifically where `reason` and `resolution` from `session_state.json` are processed by `_FP_RE`, `_PREVENTED_RE`, `_LESSONS_VETO_RE`)",
-      "veto": false,
-      "parse_failed": false
-    }
-  ],
+  "all_approved": true,
+  "objections": [],
   "vetoed": false
 }

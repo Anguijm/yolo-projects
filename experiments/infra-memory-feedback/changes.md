@@ -67,3 +67,8 @@ Feature is correctly implemented; future multi-LESSONS-VETO sessions will be han
 Fix applied (attempt 2): `_PREVENTED_RE` updated to include `\bAPPLIED\s+FIX\b` alongside
 `\bFIX\s+APPLIED\b`. Now naval-scribe/tests correctly classifies as `prevented_bug` (the LESSONS
 VETO was valid — addItems() DOM batch fix was applied). Backfill: 6 inserted, 0 ambiguous.
+
+**TESTS gate attempt 1 fix + OUTCOME gate attempt 1 fix (2026-04-23, this cron session)**:
+- Module docstring: added `[notes]` optional argument to `mark-veto` and `mark-fp` with type/semantics. Clarified `list-learnings` argument order ("N must come before --project"). [TESTS UI objection]
+- Added descriptive aliases: `mark-prevented-bug` (alias for `mark-veto`) and `mark-false-positive` (alias for `mark-fp`) in main() dispatcher. Docstring updated to show aliases and clarify semantics (mark-prevented-bug = real bug caught; mark-false-positive = false alarm, human overrode). [OUTCOME UI objection]
+- All 4 council gates passed (7/7 approve).

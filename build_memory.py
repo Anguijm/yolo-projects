@@ -19,19 +19,24 @@ Usage:
       N: integer (default 10) — show top/bottom N learnings by outcome count
 
   python3 build_memory.py list-learnings [N] [--project <name>]
-      N: integer (default 20) — number of most-recent learnings to show
+      N: integer (default 20) — number of most-recent learnings to show; must come before --project
       --project <name>: optional filter, e.g. --project naval-scribe
       Output columns: id (use with mark-veto/mark-fp), project, type, snippet
 
-  python3 build_memory.py mark-veto <id> <proj> <gate>
-      id:   integer learning_id from list-learnings output (must be > 0)
-      proj: project name string (e.g. naval-scribe, experiments/infra-memory-feedback)
-      gate: one of: plan | implementation | tests | outcome
-      Records outcome=prevented_bug for the named learning.
+  python3 build_memory.py mark-veto <id> <proj> <gate> [notes]   (alias: mark-prevented-bug)
+      id:    integer learning_id from list-learnings output (must be > 0)
+      proj:  project name string (e.g. naval-scribe, experiments/infra-memory-feedback)
+      gate:  one of: plan | implementation | tests | outcome
+      notes: optional free-text annotation (space-separated words; rest of argv used)
+      Records outcome=prevented_bug (the LESSONS VETO was correct — a real bug was caught).
 
-  python3 build_memory.py mark-fp <id> <proj> <gate>
-      Same arguments as mark-veto. Records outcome=false_positive.
-      (Both mark-veto and mark-fp use INSERT OR REPLACE, so re-running updates the record.)
+  python3 build_memory.py mark-fp <id> <proj> <gate> [notes]   (alias: mark-false-positive)
+      id:    integer learning_id from list-learnings output (must be > 0)
+      proj:  project name string (e.g. naval-scribe, experiments/infra-memory-feedback)
+      gate:  one of: plan | implementation | tests | outcome
+      notes: optional free-text annotation (space-separated words; rest of argv used)
+      Records outcome=false_positive (the LESSONS VETO was a false alarm — human overrode it).
+      Both mark-veto/mark-prevented-bug and mark-fp/mark-false-positive use INSERT OR REPLACE.
 
   python3 build_memory.py backfill-recall
       No arguments. Reads session_state.json from the repo root.
@@ -867,14 +872,14 @@ def main():
                     i += 1
             cmd_list_learnings(db, limit, project_filter)
 
-        elif cmd == 'mark-veto':
+        elif cmd in ('mark-veto', 'mark-prevented-bug'):
             if len(sys.argv) < 5:
                 print("Usage: python3 build_memory.py mark-veto <id> <project> <gate> [notes]")
                 sys.exit(1)
             notes = ' '.join(sys.argv[5:]) if len(sys.argv) > 5 else ''
             cmd_mark_outcome(db, sys.argv[2], sys.argv[3], sys.argv[4], 'prevented_bug', notes)
 
-        elif cmd == 'mark-fp':
+        elif cmd in ('mark-fp', 'mark-false-positive'):
             if len(sys.argv) < 5:
                 print("Usage: python3 build_memory.py mark-fp <id> <project> <gate> [notes]")
                 sys.exit(1)
