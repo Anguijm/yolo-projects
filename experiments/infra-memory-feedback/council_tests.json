@@ -1,0 +1,101 @@
+{
+  "gate": "tests",
+  "project": "experiments/infra-memory-feedback",
+  "timestamp": "2026-04-23T04:47:03.085809+00:00",
+  "verdicts": [
+    {
+      "angle": "bugs",
+      "verdict": "OBJECT",
+      "severity": "critical",
+      "reason": "The `_escalation_id` hash concatenation uses a simple `|` delimiter, which can lead to hash collisions if the `reason` or `resolution` fields contain the `|` character, causing distinct escalations to be treated as identical due to non-unique IDs and potential data corruption via `INSERT OR IGNORE`.",
+      "required_fix": "Modify `_escalation_id` to use a robust serialization method for concatenation (e.g., length-prefixed fields or JSON serialization) before hashing, to prevent collisions when data fields contain the delimiter character.",
+      "evidence": "_escalation_id(entry)` helper (lines 90\u2013122): SHA-256 content-hash of the full concatenation `project|gate|resolved_at|timestamp|reason|resolution`",
+      "veto": false,
+      "parse_failed": false
+    },
+    {
+      "angle": "security",
+      "verdict": "OBJECT",
+      "severity": "medium",
+      "reason": "Regular expressions used for classifying potentially untrusted input from `session_state.json` contain `.*` patterns which could be vulnerable to ReDoS (Regular Expression Denial of Service) if crafted with long, malicious strings.",
+      "required_fix": "Analyze and refactor regular expressions (`_FP_RE`, `_PREVENTED_RE`) to eliminate or mitigate ReDoS vulnerabilities by avoiding problematic constructs like unbounded quantifiers on arbitrary wildcards (`.*`) or ensuring input length limits are enforced before regex application.",
+      "evidence": "file:build_memory.py (lines ~578\u2013630, specifically where `reason` and `resolution` from `session_state.json` are processed by `_FP_RE`, `_PREVENTED_RE`, `_LESSONS_VETO_RE`)",
+      "veto": false,
+      "parse_failed": false
+    },
+    {
+      "angle": "ui",
+      "verdict": "APPROVE",
+      "severity": "low",
+      "reason": "The proposed changes significantly improve the user experience by providing clearer error messages, better argument validation feedback, and comprehensive in-tool documentation for new CLI commands.",
+      "required_fix": "",
+      "evidence": "",
+      "veto": false,
+      "parse_failed": false
+    },
+    {
+      "angle": "guide",
+      "verdict": "APPROVE",
+      "severity": "low",
+      "reason": "Module docstring provides comprehensive per-command argument documentation, including types, valid enum values, semantics, and classification categories, addressing previous discoverability concerns.",
+      "required_fix": "",
+      "evidence": "build_memory.py: Module docstring (lines 1-28), TESTS gate attempt 2 fix (2026-04-23) in changes.md",
+      "veto": false,
+      "parse_failed": false
+    },
+    {
+      "angle": "usefulness",
+      "verdict": "APPROVE",
+      "severity": "low",
+      "reason": "This project provides a critical feedback loop for evaluating the effectiveness of 'learnings' derived from council escalations, enabling continuous improvement of the review process.",
+      "required_fix": "",
+      "evidence": "The `recall-stats` command and the `mark-outcome` commands directly address the need to measure and improve the quality of learnings, which is a common challenge in post-mortem or review processes for any organization.",
+      "veto": false,
+      "parse_failed": false
+    },
+    {
+      "angle": "cool",
+      "verdict": "APPROVE",
+      "severity": "low",
+      "reason": "The automated classification of 'LESSONS VETO' escalations into 'prevented_bug' or 'false_positive' using regexes, and the subsequent 'recall-stats' reporting, provides a unique signature move for deriving actionable insights from historical feedback, rather than just storing it.",
+      "required_fix": "",
+      "evidence": "",
+      "veto": false,
+      "parse_failed": false
+    },
+    {
+      "angle": "lessons",
+      "verdict": "APPROVE",
+      "severity": "low",
+      "reason": "",
+      "required_fix": "",
+      "evidence": "",
+      "veto": false,
+      "parse_failed": false
+    }
+  ],
+  "all_approved": false,
+  "objections": [
+    {
+      "angle": "bugs",
+      "verdict": "OBJECT",
+      "severity": "critical",
+      "reason": "The `_escalation_id` hash concatenation uses a simple `|` delimiter, which can lead to hash collisions if the `reason` or `resolution` fields contain the `|` character, causing distinct escalations to be treated as identical due to non-unique IDs and potential data corruption via `INSERT OR IGNORE`.",
+      "required_fix": "Modify `_escalation_id` to use a robust serialization method for concatenation (e.g., length-prefixed fields or JSON serialization) before hashing, to prevent collisions when data fields contain the delimiter character.",
+      "evidence": "_escalation_id(entry)` helper (lines 90\u2013122): SHA-256 content-hash of the full concatenation `project|gate|resolved_at|timestamp|reason|resolution`",
+      "veto": false,
+      "parse_failed": false
+    },
+    {
+      "angle": "security",
+      "verdict": "OBJECT",
+      "severity": "medium",
+      "reason": "Regular expressions used for classifying potentially untrusted input from `session_state.json` contain `.*` patterns which could be vulnerable to ReDoS (Regular Expression Denial of Service) if crafted with long, malicious strings.",
+      "required_fix": "Analyze and refactor regular expressions (`_FP_RE`, `_PREVENTED_RE`) to eliminate or mitigate ReDoS vulnerabilities by avoiding problematic constructs like unbounded quantifiers on arbitrary wildcards (`.*`) or ensuring input length limits are enforced before regex application.",
+      "evidence": "file:build_memory.py (lines ~578\u2013630, specifically where `reason` and `resolution` from `session_state.json` are processed by `_FP_RE`, `_PREVENTED_RE`, `_LESSONS_VETO_RE`)",
+      "veto": false,
+      "parse_failed": false
+    }
+  ],
+  "vetoed": false
+}

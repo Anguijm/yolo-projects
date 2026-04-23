@@ -4,13 +4,17 @@
 
 ### `build_memory.py` (+175 lines net, 534 → ~709 after IMPL-escalation fixes)
 
-**IMPLEMENTATION-escalation fixes (2026-04-23)**:
-- New `_escalation_id(entry)` helper: SHA1 content-hash of `project|gate|resolved_at|timestamp|reason[:200]`, truncated to 16 hex chars. Replaces plain `resolved_at` as the backfill uniqueness discriminator. Same content → same hash (idempotent); different content → different hash (collision-safe).
-- Schema: added `escalation_id TEXT` column to `recall_outcomes`; `uq_recall_backfill` index now on `(project, gate, escalation_id)` instead of `(project, gate, escalation_timestamp)`.
-- New `_migrate_recall_outcomes(db)`: detects schema lacking `escalation_id`, adds column, drops old index, creates new one, and DELETES pre-migration backfilled rows (they regenerate correctly on next `backfill-recall`). Manual records preserved.
-- `cmd_backfill_recall` now computes and passes `escalation_id` via `_escalation_id(entry)` on each insert.
-- `get_db()` now calls `_migrate_recall_outcomes(db)` after `executescript(SCHEMA)` so existing deployments auto-upgrade.
-- Verified: fresh DB → 6 backfilled rows with 6 unique escalation_ids; second `backfill-recall` call → 0 inserted (idempotent); synthetic collision test (same project/gate/resolved_at, different reasons) → distinct ids.
+**IMPLEMENTATION-escalation fixes (2026-04-23, v1–v3 hash algo progression)**:
+
+- `_escalation_id(entry)` helper (lines 90–122): SHA-256 content-hash of the full concatenation `project|gate|resolved_at|timestamp|reason|resolution` (no truncation), `hexdigest()[:16]` gives a 64-bit id. Using the full `reason` (not `reason[:200]`) eliminates the collision risk for distinct reasons sharing a common 200-char prefix. SHA-256 chosen over SHA-1 per SECURITY escalation; both are non-adversarial contexts but SHA-256 is the modern default.
+- `_HASH_ALGO_VERSION = 3` (line 134): v1=SHA1/200-char, v2=SHA256/200-char, v3=SHA256/full-no-truncation.
+- `schema_versions` table (lines 165–175): KV table tracking `escalation_id_algo` version; when version bumps, all backfilled rows are deleted so they regenerate from the new hash. Manual mark-veto/mark-fp rows (`escalation_timestamp IS NULL`) are preserved across migrations.
+- `_migrate_recall_outcomes(db)` (lines 140–175): two-phase migration — (1) column-presence migration if `escalation_id` column missing (pre-first-fix DBs), (2) version-based migration for algo upgrades. Auto-invoked from `get_db()`.
+- `uq_recall_backfill` index on `(project, gate, escalation_id) WHERE escalation_id IS NOT NULL` — ensures idempotency for backfilled rows.
+- Verified (v3): fresh DB → 6 backfilled rows, 6 unique escalation_ids; second `backfill-recall` → 0 inserted (idempotent); synthetic collision test (same project/gate/resolved_at, different reasons) → distinct ids.
+
+**TESTS gate attempt 2 fix (2026-04-23)**:
+- Module docstring expanded with per-command argument documentation: types, valid enum values for `gate` (plan|implementation|tests|outcome), INSERT OR REPLACE semantics, backfill classification categories (prevented_bug / false_positive / irrelevant). Addresses GUIDE critique.
 
 **IMPLEMENTATION gate attempt 2 fixes (2026-04-22)**:
 - `list-learnings` arg parsing: changed `except ValueError: pass` to print a warning ("Warning: ignoring unrecognized argument ...") so invalid limit args are visible instead of silently dropped. (BUGS low, main():805-808)

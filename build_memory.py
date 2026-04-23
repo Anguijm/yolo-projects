@@ -14,12 +14,32 @@ Usage:
   python3 build_memory.py add <project> <type> <text>  # add a new learning
   python3 build_memory.py context <project-idea>     # relevant learnings for a new build
 
-  Recall feedback commands:
-  python3 build_memory.py recall-stats [N]                         # top/bottom N by outcome (default 10)
-  python3 build_memory.py list-learnings [N] [--project <name>]    # enumerate recent learnings with id/text snippet
-  python3 build_memory.py mark-veto <id> <proj> <gate>             # record prevented_bug outcome
-  python3 build_memory.py mark-fp   <id> <proj> <gate>             # record false_positive outcome
-  python3 build_memory.py backfill-recall                          # seed from session_state.json history
+  Recall feedback commands (track which learnings prevent real bugs vs. produce false positives):
+  python3 build_memory.py recall-stats [N]
+      N: integer (default 10) — show top/bottom N learnings by outcome count
+
+  python3 build_memory.py list-learnings [N] [--project <name>]
+      N: integer (default 20) — number of most-recent learnings to show
+      --project <name>: optional filter, e.g. --project naval-scribe
+      Output columns: id (use with mark-veto/mark-fp), project, type, snippet
+
+  python3 build_memory.py mark-veto <id> <proj> <gate>
+      id:   integer learning_id from list-learnings output (must be > 0)
+      proj: project name string (e.g. naval-scribe, experiments/infra-memory-feedback)
+      gate: one of: plan | implementation | tests | outcome
+      Records outcome=prevented_bug for the named learning.
+
+  python3 build_memory.py mark-fp <id> <proj> <gate>
+      Same arguments as mark-veto. Records outcome=false_positive.
+      (Both mark-veto and mark-fp use INSERT OR REPLACE, so re-running updates the record.)
+
+  python3 build_memory.py backfill-recall
+      No arguments. Reads session_state.json from the repo root.
+      Classifies each LESSONS-VETO entry in council_escalations_resolved[] as:
+        prevented_bug  — resolution shows a FIX APPLIED or legitimate bug
+        false_positive — resolution shows override/phantom/veto dismissed
+        irrelevant     — neither pattern matched (prints AMBIGUOUS for manual review)
+      Idempotent: re-running inserts 0 rows if data is unchanged.
 """
 
 import hashlib

@@ -1,15 +1,15 @@
 {
   "gate": "implementation",
   "project": "experiments/infra-memory-feedback",
-  "timestamp": "2026-04-22T21:42:48.550229+00:00",
+  "timestamp": "2026-04-23T04:42:07.914850+00:00",
   "verdicts": [
     {
       "angle": "bugs",
-      "verdict": "OBJECT",
-      "severity": "critical",
-      "reason": "The `_escalation_id` helper truncates the `reason` field to 200 characters before hashing, which can lead to identical `escalation_id`s for distinct escalation reasons, causing `INSERT OR IGNORE` to silently drop unique historical records.",
-      "required_fix": "The `_escalation_id` helper must use the full `reason` field (or a sufficiently large prefix, e.g., 1024 characters or more, to prevent practical collisions) when computing the content hash to ensure uniqueness for all distinct escalation records.",
-      "evidence": "New `_escalation_id(entry)` helper: SHA1 content-hash of `project|gate|resolved_at|timestamp|reason[:200]`, truncated to 16 hex chars.",
+      "verdict": "APPROVE",
+      "severity": "low",
+      "reason": "All identified correctness risks, including hash collisions and migration robustness, have been thoroughly addressed and verified.",
+      "required_fix": "",
+      "evidence": "",
       "veto": false,
       "parse_failed": false
     },
@@ -17,7 +17,7 @@
       "angle": "security",
       "verdict": "APPROVE",
       "severity": "low",
-      "reason": "Previous SHA1 concern is explicitly stated as resolved by upgrade to SHA256 in the active override; all SQL queries use parameterized statements preventing injection; input validation and sanitization are adequate for a CLI tool.",
+      "reason": "The code demonstrates robust handling of untrusted input through validation, type casting, and parameterized SQL queries, and addresses previous security feedback regarding cryptographic hashing.",
       "required_fix": "",
       "evidence": "",
       "veto": false,
@@ -27,7 +27,7 @@
       "angle": "ui",
       "verdict": "APPROVE",
       "severity": "low",
-      "reason": "The changes improve user feedback and guidance, particularly for invalid inputs, and provide clear CLI commands for new functionality.",
+      "reason": "The new CLI commands provide clear feedback, improved error handling, and good discoverability for first-time users.",
       "required_fix": "",
       "evidence": "",
       "veto": false,
@@ -37,7 +37,7 @@
       "angle": "guide",
       "verdict": "APPROVE",
       "severity": "low",
-      "reason": "The updated docstring, explicit command listing, actionable error messages, and comprehensive test examples provide excellent discoverability for both human users and AI agents.",
+      "reason": "The new CLI commands are well-documented in the docstring, error messages are informative and guide the user, and test results provide clear examples.",
       "required_fix": "",
       "evidence": "",
       "veto": false,
@@ -47,9 +47,9 @@
       "angle": "usefulness",
       "verdict": "APPROVE",
       "severity": "low",
-      "reason": "This project provides a critical feedback loop for measuring the impact and accuracy of the 'learnings' system, enabling its continuous improvement.",
+      "reason": "This feature provides a critical feedback loop for evaluating the actual utility of 'learnings' by classifying them as bug-preventing or false positives, enabling continuous improvement of the memory system.",
       "required_fix": "",
-      "evidence": "The `recall-stats` command provides actionable metrics (top prevented bugs, top false positives) that are essential for an analyst or developer to understand and refine the 'learnings' system. The `mark-outcome` commands provide a way for human feedback, and `backfill-recall` automates initial classification, making this a tool for ongoing system evaluation and improvement.",
+      "evidence": "The ability to measure the effectiveness of learnings (via `recall-stats`) and manually correct classifications (`mark-veto`/`mark-fp`) directly addresses the problem of understanding signal-to-noise ratio in a knowledge base, which is a common challenge in any learning or recommendation system. This moves the `build_memory.py` from a mere repository to a self-improving tool.",
       "veto": false,
       "parse_failed": false
     },
@@ -57,7 +57,7 @@
       "angle": "cool",
       "verdict": "APPROVE",
       "severity": "low",
-      "reason": "The tool's unique angle is its self-reflection and automated classification of its own past 'learnings' as 'prevented_bug' or 'false_positive', creating a meta-feedback loop for the system itself.",
+      "reason": "The system introduces a unique meta-learning feedback loop by automatically classifying the efficacy of past 'learnings' from council escalations, providing a signature moment where the system evaluates its own memory.",
       "required_fix": "",
       "evidence": "",
       "veto": false,
@@ -67,25 +67,14 @@
       "angle": "lessons",
       "verdict": "APPROVE",
       "severity": "low",
-      "reason": "No documented lessons or anti-patterns were violated. Relevant lessons regarding destructive actions and modularity were appropriately applied.",
+      "reason": "No documented lessons from _hot.md or learnings.md are violated by the current implementation. The project itself addresses prior lessons related to escalation ID generation and migration.",
       "required_fix": "",
       "evidence": "",
       "veto": false,
       "parse_failed": false
     }
   ],
-  "all_approved": false,
-  "objections": [
-    {
-      "angle": "bugs",
-      "verdict": "OBJECT",
-      "severity": "critical",
-      "reason": "The `_escalation_id` helper truncates the `reason` field to 200 characters before hashing, which can lead to identical `escalation_id`s for distinct escalation reasons, causing `INSERT OR IGNORE` to silently drop unique historical records.",
-      "required_fix": "The `_escalation_id` helper must use the full `reason` field (or a sufficiently large prefix, e.g., 1024 characters or more, to prevent practical collisions) when computing the content hash to ensure uniqueness for all distinct escalation records.",
-      "evidence": "New `_escalation_id(entry)` helper: SHA1 content-hash of `project|gate|resolved_at|timestamp|reason[:200]`, truncated to 16 hex chars.",
-      "veto": false,
-      "parse_failed": false
-    }
-  ],
+  "all_approved": true,
+  "objections": [],
   "vetoed": false
 }

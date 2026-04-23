@@ -1,54 +1,38 @@
 # Council Escalation — experiments/infra-memory-feedback
 
-**Gate:** implementation
+**Gate:** tests
 **Reason:** Unresolved objections after 2 attempts
-**Timestamp:** 2026-04-22T21:42:48.550651+00:00
+**Timestamp:** 2026-04-23T04:47:03.086154+00:00
 
 ## Angle positions
 
 ### BUGS — OBJECT (critical)
-- **Reason:** The `_escalation_id` helper truncates the `reason` field to 200 characters before hashing, which can lead to identical `escalation_id`s for distinct escalation reasons, causing `INSERT OR IGNORE` to silently drop unique historical records.
-- **Required fix:** The `_escalation_id` helper must use the full `reason` field (or a sufficiently large prefix, e.g., 1024 characters or more, to prevent practical collisions) when computing the content hash to ensure uniqueness for all distinct escalation records.
-- **Evidence:** `New `_escalation_id(entry)` helper: SHA1 content-hash of `project|gate|resolved_at|timestamp|reason[:200]`, truncated to 16 hex chars.`
+- **Reason:** The `_escalation_id` hash concatenation uses a simple `|` delimiter, which can lead to hash collisions if the `reason` or `resolution` fields contain the `|` character, causing distinct escalations to be treated as identical due to non-unique IDs and potential data corruption via `INSERT OR IGNORE`.
+- **Required fix:** Modify `_escalation_id` to use a robust serialization method for concatenation (e.g., length-prefixed fields or JSON serialization) before hashing, to prevent collisions when data fields contain the delimiter character.
+- **Evidence:** `_escalation_id(entry)` helper (lines 90–122): SHA-256 content-hash of the full concatenation `project|gate|resolved_at|timestamp|reason|resolution``
 
-### SECURITY — APPROVE (low)
-- **Reason:** Previous SHA1 concern is explicitly stated as resolved by upgrade to SHA256 in the active override; all SQL queries use parameterized statements preventing injection; input validation and sanitization are adequate for a CLI tool.
+### SECURITY — OBJECT (medium)
+- **Reason:** Regular expressions used for classifying potentially untrusted input from `session_state.json` contain `.*` patterns which could be vulnerable to ReDoS (Regular Expression Denial of Service) if crafted with long, malicious strings.
+- **Required fix:** Analyze and refactor regular expressions (`_FP_RE`, `_PREVENTED_RE`) to eliminate or mitigate ReDoS vulnerabilities by avoiding problematic constructs like unbounded quantifiers on arbitrary wildcards (`.*`) or ensuring input length limits are enforced before regex application.
+- **Evidence:** `file:build_memory.py (lines ~578–630, specifically where `reason` and `resolution` from `session_state.json` are processed by `_FP_RE`, `_PREVENTED_RE`, `_LESSONS_VETO_RE`)`
 
 ### UI — APPROVE (low)
-- **Reason:** The changes improve user feedback and guidance, particularly for invalid inputs, and provide clear CLI commands for new functionality.
+- **Reason:** The proposed changes significantly improve the user experience by providing clearer error messages, better argument validation feedback, and comprehensive in-tool documentation for new CLI commands.
 
 ### GUIDE — APPROVE (low)
-- **Reason:** The updated docstring, explicit command listing, actionable error messages, and comprehensive test examples provide excellent discoverability for both human users and AI agents.
+- **Reason:** Module docstring provides comprehensive per-command argument documentation, including types, valid enum values, semantics, and classification categories, addressing previous discoverability concerns.
+- **Evidence:** `build_memory.py: Module docstring (lines 1-28), TESTS gate attempt 2 fix (2026-04-23) in changes.md`
 
 ### USEFULNESS — APPROVE (low)
-- **Reason:** This project provides a critical feedback loop for measuring the impact and accuracy of the 'learnings' system, enabling its continuous improvement.
-- **Evidence:** `The `recall-stats` command provides actionable metrics (top prevented bugs, top false positives) that are essential for an analyst or developer to understand and refine the 'learnings' system. The `mark-outcome` commands provide a way for human feedback, and `backfill-recall` automates initial class`
+- **Reason:** This project provides a critical feedback loop for evaluating the effectiveness of 'learnings' derived from council escalations, enabling continuous improvement of the review process.
+- **Evidence:** `The `recall-stats` command and the `mark-outcome` commands directly address the need to measure and improve the quality of learnings, which is a common challenge in post-mortem or review processes for any organization.`
 
 ### COOL — APPROVE (low)
-- **Reason:** The tool's unique angle is its self-reflection and automated classification of its own past 'learnings' as 'prevented_bug' or 'false_positive', creating a meta-feedback loop for the system itself.
+- **Reason:** The automated classification of 'LESSONS VETO' escalations into 'prevented_bug' or 'false_positive' using regexes, and the subsequent 'recall-stats' reporting, provides a unique signature move for deriving actionable insights from historical feedback, rather than just storing it.
 
 ### LESSONS — APPROVE (low)
-- **Reason:** No documented lessons or anti-patterns were violated. Relevant lessons regarding destructive actions and modularity were appropriately applied.
+- **Reason:** 
 
 ## Resolution
 
-**RESOLVED 2026-04-23 by John (interactive session). BUGS fixed at source.**
-
-### BUGS OBJECT (critical) — FIXED
-Legitimate in principle. Truncating `reason` to 200 chars before hashing meant two distinct reasons sharing the same 200-char prefix would produce the same `escalation_id`, silently dropping one under `INSERT OR IGNORE`. In practice this would require two escalations with 200+ identical leading chars (highly unlikely), but SHA-256 handles arbitrary-length input at no meaningful cost — no reason to keep the truncation.
-
-**Fix applied** (build_memory.py):
-- `_escalation_id` now hashes the FULL `reason` field (no `[:200]` truncation)
-- Also added `resolution` field to the hash input for extra disambiguation — two escalations with identical reason but different resolutions would now also be distinct
-- `_HASH_ALGO_VERSION` bumped `2 → 3`; migration auto-invalidates v2 backfilled rows on next connection open
-- Docstring updated with the reasoning
-
-**Verified:**
-- Fresh DB + backfill-recall → 6 rows, 6 unique SHA256-based escalation_ids (full reason + resolution)
-- Second backfill → 0 inserted (idempotent)
-- schema_versions.escalation_id_algo = 3
-
-### Other 6 angles — all APPROVE
-SECURITY explicitly approved ("Previous SHA1 concern is resolved by upgrade to SHA256"), UI, GUIDE, USEFULNESS, COOL, LESSONS all clean.
-
-Cron may rerun IMPLEMENTATION; expected clean pass. After IMPL → TESTS → OUTCOME, ships and advances to `eval-opus-47-backbone`.
+Human decision required. Resume the build after updating session_state.json.
