@@ -37,7 +37,7 @@ Naval Scribe is a graduated YOLO project operating under Flagship rules alongsid
 - [x] Command Address Book — localStorage directory of commands, one-click fill To/From/Via
 - [x] Reply Draft Auto-Fill — one click generates reply with swapped From/To, boilerplate
 - [x] Letter Status Tracker — Draft→Signed→Transmitted→Replied per saved draft (shipped 2026-04-24)
-- [ ] Template Letter Library — 12 pre-built templates for common letter situations
+- [x] Template Letter Library — 12 pre-built templates for common letter situations (shipped 2026-04-24, retroactive stamp after 3 identical BUGS hallucinations)
 - [ ] Routing Slip Generator — DON routing slip with reviewer chain, .docx export
 
 ## Recently Completed
