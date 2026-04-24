@@ -1,25 +1,25 @@
 {
   "gate": "outcome",
   "project": "naval-scribe",
-  "timestamp": "2026-04-24T22:33:09.514418+00:00",
+  "timestamp": "2026-04-24T22:40:34.347321+00:00",
   "verdicts": [
     {
       "angle": "bugs",
       "verdict": "APPROVE",
-      "severity": "advisory",
-      "reason": "[AUTO-DOWNGRADED: goalpost move, 0.50 overlap vs prior bugs objection] The routing slip reviewer chain, suspense date, and drafter information are not persisted across page loads, leading to data loss.",
-      "required_fix": "Modify `getFullState` to serialize `routingReviewers` (name and action), `routingSuspense.value`, and `routingDrafter.value` into the application state. Modify `restoreFullState` to clear existing reviewer DOM elements, then reconstruct the reviewer chain by calling `addRoutingReviewer` for each saved entry, and restore the suspense date and drafter fields.",
-      "evidence": "The `routingReviewers` array, `routingSuspense` input, and `routingDrafter` input are not referenced in the `getFullState` or `restoreFullState` functions (which are partially elided but their structure can be inferred from `loadSaved` and other field handling), meaning their state is not saved to or loaded from `localStorage`.",
+      "severity": "low",
+      "reason": "The routing slip generator correctly handles reviewer chains, live preview, and DOCX export with appropriate data persistence and input escaping.",
+      "required_fix": "",
+      "evidence": "",
       "veto": false,
       "parse_failed": false
     },
     {
       "angle": "security",
-      "verdict": "OBJECT",
+      "verdict": "APPROVE",
       "severity": "low",
-      "reason": "The Routing Slip data (reviewer chain, suspense date, drafter) is stored in localStorage, but the Routing Slip drawer does not display the required user-facing disclaimer about local storage, which violates the project's structural constraints.",
-      "required_fix": "Add a disclaimer 'Stored locally on this device. Not synced. Not encrypted.' to the Routing Slip drawer, similar to the disclaimers in the Drafts and Address Book drawers.",
-      "evidence": "naval-scribe/index.html:1052 (missing element after the intro text within #routing-drawer)",
+      "reason": "The routing slip generator uses textContent for live preview and robust XML escaping for DOCX export, preventing injection attacks. LocalStorage use is acknowledged with a user-facing warning, and the strict CSP provides strong defense.",
+      "required_fix": "",
+      "evidence": "",
       "veto": false,
       "parse_failed": false
     },
@@ -27,7 +27,7 @@
       "angle": "ui",
       "verdict": "APPROVE",
       "severity": "low",
-      "reason": "The routing slip generator provides a clear, intuitive flow with good affordances, live preview, and attention to accessibility.",
+      "reason": "The routing slip generator provides a clear, guided flow with excellent live feedback and good affordances for interaction.",
       "required_fix": "",
       "evidence": "",
       "veto": false,
@@ -37,7 +37,7 @@
       "angle": "guide",
       "verdict": "APPROVE",
       "severity": "low",
-      "reason": "The routing slip generator is highly discoverable with clear UI elements, helpful hints, a live preview, and comprehensive AI documentation.",
+      "reason": "The routing slip generator is highly discoverable and well-documented for both human users and AI agents.",
       "required_fix": "",
       "evidence": "",
       "veto": false,
@@ -47,9 +47,9 @@
       "angle": "usefulness",
       "verdict": "APPROVE",
       "severity": "low",
-      "reason": "This feature directly addresses a frequent and critical need for the target user base, streamlining a common administrative task.",
+      "reason": "This feature directly addresses a common, recurring administrative need for naval personnel routing official documents, fitting perfectly within the project's utility focus.",
       "required_fix": "",
-      "evidence": "Naval correspondence frequently requires routing slips for review and signature. This tool provides a structured way to generate these, integrating with the main document's subject and exporting to the required .docx format, making it a highly practical and recurring-use tool for any naval officer or civilian DON employee.",
+      "evidence": "Routing slips are a standard requirement for official correspondence in the DON, making this a highly practical and frequently used tool for administrative staff and officers.",
       "veto": false,
       "parse_failed": false
     },
@@ -57,7 +57,7 @@
       "angle": "cool",
       "verdict": "APPROVE",
       "severity": "low",
-      "reason": "The routing slip generator directly reinforces the project's core identity as a comprehensive, accurate, zero-dependency tool for naval correspondence by adding another specialized, correctly formatted document type.",
+      "reason": "The routing slip generator reinforces naval-scribe's core identity as a comprehensive, zero-dependency tool for naval correspondence by adding another critical document type.",
       "required_fix": "",
       "evidence": "",
       "veto": false,
@@ -66,23 +66,10 @@
     {
       "angle": "lessons",
       "verdict": "APPROVE",
-      "severity": "low",
-      "reason": "No documented lessons or architectural constraints were violated by the deliverable. The fix for the prior BUGS OUTCOME objection aligns with best practices for data serialization.",
-      "required_fix": "",
-      "evidence": "",
-      "veto": false,
-      "parse_failed": false
-    }
-  ],
-  "all_approved": false,
-  "objections": [
-    {
-      "angle": "security",
-      "verdict": "OBJECT",
-      "severity": "low",
-      "reason": "The Routing Slip data (reviewer chain, suspense date, drafter) is stored in localStorage, but the Routing Slip drawer does not display the required user-facing disclaimer about local storage, which violates the project's structural constraints.",
-      "required_fix": "Add a disclaimer 'Stored locally on this device. Not synced. Not encrypted.' to the Routing Slip drawer, similar to the disclaimers in the Drafts and Address Book drawers.",
-      "evidence": "naval-scribe/index.html:1052 (missing element after the intro text within #routing-drawer)",
+      "severity": "advisory",
+      "reason": "[AUTO-DOWNGRADED: LESSONS VETO missing precondition_evidence] The HTML/XML escaping functions `esc()` and `escXml()` do not escape single quotes (`) using the `split().join()` pattern, violating the `[svg-fields] KEEP` rule in `learnings.md` which explicitly states this is needed for both `\"` or `'` to dodge the `test_project.py` brace-balance bug.",
+      "required_fix": "Modify `esc()` and `escXml()` functions to include `.split(\"'').join('&#39;')` to correctly escape single quotes, as per the documented lesson.",
+      "evidence": "KEEP: `String.prototype.split(x).join(y)` replaces `.replace(/x/g, y)` when `x` is `\"` or `'` \u2014 dodges the known `test_project.py` brace-balance bug where regex literals with embedded quotes confuse the string-stripper. For XML/HTML escape functions specifically: 5\u00d7 split/join chain is readable and test-safe. (from learnings.md, [svg-fields] entry)\n\nCode in `naval-scribe/index.html`:\n`function esc(s) { return String(s).split('&').join('&amp;').split('<').join('&lt;').split('>').join('&gt;').split('\"').join('&quot;'); }`\n`function escXml(s) { return String(s).split('&').join('&amp;').split('<').join('&lt;').split('>').join('&gt;').split('\"').join('&quot;'); }`\n(Note: neither `esc` nor `escXml` handles single quotes despite the explicit 'or \\'' in the learning and `escXml`'s own comment.)",
       "veto": false,
       "parse_failed": false
     }

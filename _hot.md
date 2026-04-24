@@ -1,11 +1,11 @@
 # Hot Cache — Active Context
-*Auto-updated 2026-04-24 11:45 UTC. Read this FIRST.*
+*Auto-updated 2026-04-24 22:41 UTC. Read this FIRST.*
 
 ## Current State
-- Portfolio: 229 total, 98 active
+- Portfolio: 230 total, 98 active
 - Tick queue: 12 approved, 0 pending
-- Phase 4: 111 experiments, 12 backlog
-- Next: tock
+- Phase 4: 115 experiments, 16 backlog
+- Next: tick
 
 ## Tick Queue
 - [approved] fix-council-bugs-hallucination: Add BUGS hallucination-detection rule to council.py enforcem

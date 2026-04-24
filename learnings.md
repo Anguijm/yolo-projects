@@ -3334,3 +3334,17 @@ When a feature overwrites or clears existing user data (body text, field sets), 
 
 **COUNCIL** — TESTS gate (rerun): BUGS ✓ `first-match-wins break confirmed`; SECURITY ✓ `CONSTRAINTS.md accepted CSP override`; UI ✓; GUIDE ✓; USEFULNESS ✓; COOL ✓; LESSONS ✓
 **COUNCIL** — OUTCOME gate (attempt 2): all 7 APPROVE. GUIDE flagged missing format docs (attempt 1), resolved with `<details>` SUPPORTED FORMATS block.
+
+---
+
+## naval-scribe Routing Slip Generator — 2026-04-24 — Flagship tock — 4 gates passed (escalation resolved across 2 cron runs)
+
+**KEEP** — autoSave must surface QuotaExceededError to the user — When localStorage auto-save wraps a `try{}catch(e){}` that swallows all errors, BUGS will object at TESTS gate. Fix: mirror the `saveAddr` pattern — on QuotaExceededError show a user-visible message ("Auto-save failed: storage full."), on other errors show a generic message + `console.warn`. Clear the indicator on next successful save. One-liner `catch(e){}` is only acceptable for non-critical operations; auto-save of user data is critical.
+
+**KEEP** — localStorage disclaimer required whenever a drawer persists data — Any drawer that saves user data to localStorage must include a "Stored locally on this device. Not synced. Not encrypted." disclaimer, matching the pattern established by `#drafts-disclaimer` and `#addr-disclaimer`. GUIDE will object if a new drawer adds persistence (e.g., after escalation resolution) without disclosing it. Add the disclaimer at the same time as the persistence code.
+
+**INSIGHT** — Escalation resolution can introduce new issues at TESTS gate — When a cron escalation is resolved by adding new features (e.g., localStorage persistence, focus styles), the next TESTS gate run may catch issues *introduced by the resolution itself* rather than the original feature. In this case: persistence was added to fix BUGS, but GUIDE then objected that the disclaimer was missing; autoSave error handling was not updated to match the new persistence scope. Review all 7 angles against each new line of resolution code, not just the original feature.
+
+**COUNCIL** — TESTS gate attempt 1 (after escalation resolution): BUGS OBJECT (autoSave swallows QuotaExceededError); SECURITY ✓; UI ✓; GUIDE OBJECT (missing localStorage disclaimer in routing drawer); USEFULNESS ✓; COOL ✓; LESSONS ✓
+**COUNCIL** — TESTS gate attempt 2 (both objections resolved): all 7 APPROVE
+**COUNCIL** — OUTCOME gate attempt 1: all 7 APPROVE (LESSONS auto-downgraded veto for missing precondition_evidence)

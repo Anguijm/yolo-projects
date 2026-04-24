@@ -658,8 +658,10 @@ select:focus, select:focus-visible {
       <div id="routing-preview"></div>
     </div>
     <button class="btn btn-primary" id="routing-export-btn" style="width:100%;margin-top:10px;padding:5px 0">export routing_slip.docx</button>
-    <div style="font-size:0.38rem;color:var(--text-tertiary);margin-top:6px;line-height:1.5">Date Recv'd / Date Ret'd / Initials columns are filled by hand on the printed slip.</div>
+    <div style="font-size:0.42rem;color:#555;margin-top:8px;line-height:1.5">Stored locally on this device. Not synced. Not encrypted.</div>
+    <div style="font-size:0.38rem;color:var(--text-tertiary);margin-top:4px;line-height:1.5">Date Recv'd / Date Ret'd / Initials columns are filled by hand on the printed slip.</div>
   </div>
+  <div id="autosave-err" style="display:none;font-size:0.42rem;color:#c55;background:#2a1a1a;border:1px solid #c55;padding:4px 8px;margin:0 0 4px;line-height:1.4"></div>
   <div id="form-panel">
     <div class="field" data-types="letter,memo,endorsement,business,instruction,sop">
       <div class="field-label">SSIC <span style="color:#444;font-size:0.4rem;letter-spacing:0.05em">— type to search</span></div>
@@ -892,6 +894,7 @@ select:focus, select:focus-visible {
   var downloadBtn = document.getElementById('download-btn');
   var previewPage = document.getElementById('preview-page');
   var formPanel = document.getElementById('form-panel');
+  var autosaveErr = document.getElementById('autosave-err');
 
   var F = {
     ssic: document.getElementById('f-ssic'),
@@ -1620,7 +1623,16 @@ select:focus, select:focus-visible {
   function autoSave() {
     try {
       localStorage.setItem(SAVE_KEY, JSON.stringify(getFullState()));
-    } catch(e) {}
+      autosaveErr.style.display = 'none';
+    } catch(e) {
+      if (e.name === 'QuotaExceededError' || e.name === 'NS_ERROR_DOM_QUOTA_REACHED') {
+        autosaveErr.textContent = 'Auto-save failed: storage full. Free space or clear old drafts.';
+      } else {
+        autosaveErr.textContent = 'Auto-save failed.';
+        try { console.warn('autoSave failed:', e); } catch(_) {}
+      }
+      autosaveErr.style.display = 'block';
+    }
   }
   function loadSaved() {
     try {
