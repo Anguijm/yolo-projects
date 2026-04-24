@@ -47,6 +47,7 @@ _HALLUCINATION_CLAIM_RE = re.compile(
     re.IGNORECASE,
 )
 _SYMBOL_FROM_FIX_RE = re.compile(r"`([a-zA-Z_][a-zA-Z0-9_]{2,})`")
+# LLM evidence always cites paths in standard notation (no spaces); [\w\-/.] covers all real cases
 _FILE_REF_RE = re.compile(r"([\w\-/.]+\.\w+):(\d+)(?:[-,]\d+)?")
 
 try:
@@ -365,6 +366,8 @@ def _symbol_defined_in_content(symbol: str, content: str, ext: str) -> bool:
             rf"(?:const|let|var)\s{{1,8}}{esc}\b\s{{0,8}}=",
             # Method shorthand — line-anchored, requires `{` after `)` to exclude call sites.
             rf"(?m)^[ \t]{{0,80}}(?:async\s{{1,4}})?(?:static\s{{1,4}})?{esc}\b\s{{0,8}}\([^)]{{0,500}}\)\s{{0,8}}\{{",
+            # TypeScript/JS class, interface, type alias, enum declarations
+            rf"(?:class|interface|type|enum)\s{{1,8}}{esc}\b",
         ]
     elif ext == ".py":
         patterns = [
@@ -379,10 +382,9 @@ def _symbol_defined_in_content(symbol: str, content: str, ext: str) -> bool:
 def detect_bugs_hallucination(verdict: "Verdict", project: str) -> bool:
     """Return True if a BUGS OBJECT verdict appears to cite nonexistent symbols.
 
-    Two-layer detection:
-    1. Cited-line check — look at exact line numbers from evidence (highest signal)
-    2. Definition-pattern check — language-aware search across the whole file
-    Returns True only when any cited file contradicts the "undefined symbol" claim.
+    Scans each cited file with language-aware definition patterns — not bare text search —
+    so comments and call sites never trigger false auto-downgrades.
+    Returns True only when any cited file disproves the "undefined symbol" claim.
     """
     if verdict.angle != "bugs" or verdict.verdict != "OBJECT":
         return False
@@ -410,29 +412,18 @@ def detect_bugs_hallucination(verdict: "Verdict", project: str) -> bool:
                     break
     if not files:
         return False
-    ref_iter = file_refs if file_refs else [None] * len(files)
-    for raw_path, ref_match in zip(files, ref_iter):
+    for raw_path in files:
         path_obj = Path(raw_path) if os.path.isabs(raw_path) else (REPO_ROOT / raw_path)
         try:
             resolved = path_obj.resolve()
-            resolved.relative_to(REPO_ROOT)
+            resolved.relative_to(REPO_ROOT)  # path-traversal guard — raises ValueError if outside repo
             if resolved.stat().st_size > 2_000_000:  # skip files >2 MB
                 continue
             content = resolved.read_text(encoding="utf-8", errors="replace")
         except (FileNotFoundError, ValueError, OSError):
             continue
         ext = resolved.suffix.lower()
-        lines = content.splitlines()
-        # Layer 1: cited-line check
-        if ref_match is not None:
-            cited_line = int(ref_match.group(2))
-            window_start = max(0, cited_line - 6)
-            window_end = min(len(lines), cited_line + 5)
-            snippet = "\n".join(lines[window_start:window_end])
-            for s in claimed_symbols:
-                if re.search(r"\b" + re.escape(s) + r"\b", snippet):
-                    return True
-        # Layer 2: definition-pattern check across the whole file
+        # Definition-pattern check — requires actual definition syntax, not comments or call sites
         for s in claimed_symbols:
             if _symbol_defined_in_content(s, content, ext):
                 return True
