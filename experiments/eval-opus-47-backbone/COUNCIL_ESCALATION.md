@@ -1,61 +1,35 @@
 # Council Escalation — experiments/eval-opus-47-backbone
 
-**Gate:** implementation
+**Gate:** outcome
 **Reason:** Unresolved objections after 2 attempts
-**Timestamp:** 2026-04-24T00:33:35.028038+00:00
+**Timestamp:** 2026-04-24T00:46:51.334905+00:00
 
 ## Angle positions
 
-### BUGS — OBJECT (high)
-- **Reason:** The cost model allows environment variables to set negative costs, which would produce incorrect and misleading benchmark results.
-- **Required fix:** Modify `_env_float` or `_load_cost_model` to validate that all cost values (HAIKU_COST_IN/OUT, OPUS_COST_IN/OUT) are non-negative, exiting with an error if a negative value is provided.
-- **Evidence:** `def _env_float(name: str, default: float) -> float:
-    """Read a float from an env var; exit 1 with clear message on bad value."""
-    raw = os.environ.get(name)
-    if raw is None:
-        return default
-    try:
-        return float(raw)
-    except ValueError:
-        print(f"[benchmark] ERROR: {`
+### BUGS — APPROVE (low)
+- **Reason:** The benchmark correctly identified a critical blocking issue in the system under test (council.py) and accurately reported the error, root cause, and a data-grounded recommendation, fulfilling its stated goal without introducing new correctness risks in its own deliverables.
 
 ### SECURITY — APPROVE (low)
-- **Reason:** The script demonstrates robust handling of environment variables, path containment for output files, and proper state isolation for monkey-patching, mitigating common security risks.
+- **Reason:** The deliverable is a static report that accurately identifies existing security risks (CSP issues) in other projects and proposes a process improvement for handling recurring findings, without introducing new vulnerabilities.
 
 ### UI — APPROVE (low)
-- **Reason:** The command-line interface provides clear usage instructions, helpful dry-run functionality, excellent progress feedback during execution, and actionable error messages.
+- **Reason:** The results.md document is clearly structured, easy to read, and presents a clear verdict with actionable follow-on steps.
 
-### GUIDE — APPROVE (low)
-- **Reason:** The tool provides comprehensive self-documentation through its docstring, argparse help, clear error messages, and a detailed README, making it highly discoverable for both human users and AI agents.
+### GUIDE — OBJECT (high)
+- **Reason:** The project's `benchmark.py` tool lacks explicit instructions or help documentation for a first-time user or AI agent to understand how to run it.
+- **Required fix:** Add clear instructions to the `README.md` for `eval-opus-47-backbone` on how to execute `benchmark.py`, including required parameters and environment setup, or implement a `--help` flag for `benchmark.py`.
+- **Evidence:** `Missing explicit documentation for `benchmark.py` execution; the content of the project's `README.md` is not provided to confirm it addresses this.`
 
 ### USEFULNESS — APPROVE (low)
-- **Reason:** This tool provides essential data for making informed, recurring decisions about the core LLM backbone of the council.py system.
-- **Evidence:** `It addresses the need for data-driven model selection, cost optimization, and performance monitoring, which are critical for maintaining and evolving the council.py system. This is a clear internal tool with a recurring use case for system maintainers.`
+- **Reason:** This benchmark provides critical data for strategic decisions regarding the core council.py backbone, identifying both model-specific quirks and infrastructure needs.
+- **Evidence:** `The project successfully identified a blocking infrastructure issue for Opus 4.7 and a systematic hallucination pattern in Haiku, directly informing future development and preventing costly mistakes.`
 
 ### COOL — APPROVE (low)
-- **Reason:** Internal infrastructure tool, exempt from COOL requirements per standing precedent.
+- **Reason:** The benchmark successfully identified unique, repeatable LLM failure modes specific to the council.py context, like the Haiku 'UI hallucination' and Opus's temperature parameter incompatibility, which are signature moves for internal diagnostics.
 
 ### LESSONS — APPROVE (low)
-- **Reason:** No documented lessons or anti-patterns were violated. The code correctly handles state restoration and path containment.
+- **Reason:** The deliverable is a benchmark report that accurately reflects observations, including prior lessons angle verdicts, and does not violate any documented architectural rules or anti-patterns.
 
 ## Resolution
 
-**RESOLVED 2026-04-24. BUGS fixed at source.**
-
-### BUGS (high) — FIXED
-Legitimate defensive programming. Negative cost values would produce garbage benchmark output.
-
-Fix in `benchmark.py:_env_float`:
-```python
-if value < 0:
-    print(f"[benchmark] ERROR: {name}={raw!r} must be >= 0 (cost per MTok)", file=sys.stderr)
-    sys.exit(1)
-return value
-```
-
-Verified: `HAIKU_COST_IN=-1 python3 -c "from benchmark import _env_float; _env_float('HAIKU_COST_IN', 0.80)"` → exits with `ERROR: HAIKU_COST_IN='-1' must be >= 0 (cost per MTok)`. Non-negative values unchanged.
-
-### Other 6 angles — APPROVE
-SECURITY, UI, GUIDE, USEFULNESS, LESSONS all clean. COOL continues to approve under the standing override (explicitly cited: "Internal infrastructure tool, exempt from COOL requirements per standing precedent") — the resume_instructions context injection from the prior round carried correctly.
-
-Cron may rerun IMPLEMENTATION; expected clean pass → TESTS → OUTCOME → ship.
+Human decision required. Resume the build after updating session_state.json.
