@@ -30,10 +30,10 @@ Add `.slide-chart` wrapper style matching `.slide-diagram`. Add `aria-label` sup
 1. Lines starting with `title:` → extract title
 2. Remaining non-empty lines → split on first `,` → (label, parseFloat(value)) pairs
 3. Invalid (NaN value, missing comma) → count as `skipped`
-4. Clamp to 20 points max
-5. Returns `{ title, points: [{label, value}], skipped }`
+4. **Cap at 20 points and record `truncated` count** (per UI PLAN-escalation 2026-04-24): if `points.length > 20`, set `truncated = points.length - 20`, slice to 20, and `renderChart` displays a visible warning "20-point limit — N additional points hidden" so the truncation is never silent
+5. Returns `{ title, points: [{label, value}], skipped, truncated }`
 
-All labels truncated to 8 chars with `…` appended if longer (e.g., `Category…`).
+**Labels** truncated to **16 chars** (bumped from 8 per UI PLAN-escalation 2026-04-24 — 8 was aggressive for typical category names like "Q1 Revenue") with `…` appended if longer. 16 chars covers the vast majority of real labels (months, quarters, product names) while still preventing overflow.
 
 **`renderChart(type, csvData)`:**
 - Guard: 0 points → return `[chart: no data]` div
@@ -46,24 +46,27 @@ All labels truncated to 8 chars with `…` appended if longer (e.g., `Category�
 - Derives a 6-color palette from theme: `[tc.accent, tc.heading, tc.primary, '#f59e0b', '#f472b6', '#a78bfa']` where `tc.accent` is the theme's main accent
 - Bar fills, line strokes, pie segments all use this palette → charts look native to the current slide theme
 
-**Bar chart SVG (viewBox 480×220):**
-- Plot area: left margin 40px (y-axis), bottom margin 40px (x-axis), top 24px (title), right 8px
-- Auto-scale: max value → plot height; negative values clamped to 0
+**Bar chart SVG (viewBox 480×260):** (height bumped 220→260 per UI PLAN-escalation 2026-04-24 to accommodate the warning row + larger fonts)
+- Plot area: left margin 44px (y-axis), bottom margin 44px (x-axis), top 28px (title), right 8px, **bottom-of-plot baseline at y=`plotTop + plotH * (max / (max - min))`** when negative values are present
+- **Negative-value rendering** (per BUGS PLAN-escalation 2026-04-24, replaces clamping): if any point has `value < 0`, the y-axis range is `[min, max]` (not `[0, max]`) and bars below the baseline render extending downward. The baseline (zero line) is drawn as a `stroke: #444` reference line. If all values are >= 0, baseline = 0 (existing behavior). No silent data transformation.
 - Bar width: `min(36, (plotW / n) * 0.65)`, centered in each slot
-- **Rounded bar caps:** `rx="3" ry="3"` on rect elements
-- **Value labels:** rendered above each bar (right-aligned to bar center, 8px font, theme accent color)
-- Y-axis: 4 grid lines with labels (0%, 25%, 50%, 75%, 100% of max); `stroke: #1a1a1a`
-- X-axis: labels 8-char max with `…`; rotate `-35°` when >5 items; `font-size: 8px`; anchored at bar center
-- Title: centered, 10px, theme heading color
+- **Rounded bar caps:** `rx="3" ry="3"` on rect elements (top-rounded for positive bars, bottom-rounded for negative bars)
+- **Value labels:** rendered above each positive bar / below each negative bar (right-aligned to bar center, **11px font** [bumped from 8px], theme accent color)
+- Y-axis: 4 grid lines with labels (max, 75%, 50%, 25%, 0% — extended to include negatives if `min < 0`); `stroke: #1a1a1a`
+- X-axis: labels **16-char max** with `…`; rotate `-35°` when >5 items; **`font-size: 11px`** [bumped from 8px]; anchored at bar center
+- Title: centered, **13px** [bumped from 10px], theme heading color
+- **Truncation warning row** (per UI PLAN-escalation 2026-04-24): if `parseChartData` returned `truncated > 0`, render a small text row below the chart: `"⚠ 20-point limit — {truncated} additional points hidden"`, 10px, theme warning color
 - All text via `esc()` before SVG insertion; `aria-label` on wrapping div
 
-**Line chart SVG (viewBox 480×220):**
+**Line chart SVG (viewBox 480×260):** (same height bump)
 - Same margins as bar
-- Filled area below line: polygon from points + baseline, theme accent color at 15% opacity
+- **Negative-value rendering**: same baseline + range logic as bar chart. Line crosses below baseline naturally when values go negative.
+- Filled area: polygon from points + baseline (zero line, not bottom edge), theme accent color at 15% opacity
 - Polyline: stroke = theme accent, stroke-width 2, no fill
 - Dots: `r=3.5`, fill = theme accent
-- **Value labels:** above each dot, `font-size: 8px`, theme heading color
+- **Value labels:** above each dot for positive values / below for negatives, **`font-size: 11px`** [bumped from 8px], theme heading color
 - X/Y axes identical to bar
+- Same truncation warning row when `truncated > 0`
 
 **Pie chart SVG (viewBox 480×220):**
 - Circle center: (160, 110), radius 85
@@ -89,7 +92,22 @@ Add chart counter in extraction (mirror diagram pattern). Add "Charts" card in o
 Add `.slide-chart` to selector so autoFitContent fallback triggers.
 
 ### Subtask 8: DECK_GUIDE.md documentation
-Add "Chart Blocks" section after Diagrams with syntax examples for all 3 types, theme integration note.
+Add a "Chart Blocks" section after the Diagrams section. Per GUIDE PLAN-escalation 2026-04-24 the section MUST explicitly document each behavior — no "see code" hand-waving. Required coverage:
+
+1. **Syntax** — fenced block: ` ```chart bar `, ` ```chart line `, ` ```chart pie ` followed by CSV body
+2. **Optional title line** — `title: My Chart` (must be the first non-empty line) with example
+3. **Data format** — `Label, Value` per line, comma split on FIRST comma only (so labels can contain commas if escaped — but recommend they don't)
+4. **Label truncation** — labels longer than 16 chars are truncated with `…`; document the exact limit and that this is to prevent layout overflow
+5. **20-point cap with warning** — if more than 20 data points, the first 20 render and a `⚠ 20-point limit — N additional points hidden` warning row appears below the chart. Not silent.
+6. **Negative value rendering** — bar/line charts render negatives properly (bars extend below the baseline; line points dip below) when ANY point is negative. The baseline (zero) is drawn as a reference line. No clamping.
+7. **`[chart: no data]` placeholder** — empty or all-invalid CSV body shows this placeholder div instead of an empty SVG, so authors notice and fix
+8. **Skipped invalid lines** — lines with NaN values or missing comma are silently skipped during parse; the count is available via the `parseChartData` return but is not currently surfaced (future improvement)
+9. **Unknown chart type** — `chart foo` with no recognized type (bar/line/pie) falls back to `bar` with a console warning; no crash
+10. **Pie chart `+N more` legend** — pie charts with > 6 slices show top 5 + an aggregate "Other (N more)" wedge so the legend stays readable
+11. **Theme integration** — colors pull from current theme tokens (heading color for titles, accent for bars/lines/value-labels, warn color for the 20-point warning) so charts always match the deck's palette
+12. **Inline `<details>` quick reference** (per LESSONS advisory PLAN-escalation 2026-04-24, satisfies the port-ref `<details>` pattern KEEP rule for tools accepting structured input): in the editor's chart-block help tooltip / panel, include a `<details><summary>SUPPORTED CHART FORMATS</summary>` block listing the syntax, type names, optional title, and CSV format with one example for each chart type. Mirrors the port-ref bulk-annotate help pattern.
+
+The section should include 3 worked examples (bar / line / pie) with fenced chart blocks AND their rendered output described in prose. Total addition: ~80 lines to DECK_GUIDE.md.
 
 ## File Layout
 - `markdown-deck/index.html` (only file modified)

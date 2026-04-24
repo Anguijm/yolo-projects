@@ -39,4 +39,23 @@
 
 ## Resolution
 
-Human decision required. Resume the build after updating session_state.json.
+**RESOLVED 2026-04-25 by John (interactive session). All 4 concerns accepted — plan.md updated.**
+
+### BUGS (high) — ACCEPTED
+Negative-value clamping replaced with proper rendering. Plan Subtask 2 / chart SVG sections updated: y-axis range `[min, max]` when any value is negative; bars extend below the baseline (zero line drawn as `stroke: #444`); top-rounded caps on positive bars / bottom-rounded on negative bars; no silent data transformation.
+
+### UI (high) — ACCEPTED (all 3 sub-issues)
+1. **Silent 20-point truncation** → `parseChartData` records `truncated` count; `renderChart` renders `⚠ 20-point limit — N additional points hidden` warning row below the chart
+2. **8px fonts** → bumped to **11px for value/axis labels**, **13px for titles** (10px warning row). viewBox height bumped 220→260
+3. **8-char label truncation** → bumped to **16 chars**
+
+### GUIDE (high) — ACCEPTED
+Subtask 8 expanded from 1-line stub to explicit 12-point coverage: syntax, title line, data format, label truncation, 20-point cap with warning, negative rendering, `[chart: no data]` placeholder, skipped invalid lines, unknown-type fallback, pie `+N more` legend, theme integration, and a `<details>` SUPPORTED CHART FORMATS reference. 3 worked examples required.
+
+### LESSONS advisory (auto-downgraded) — ACCEPTED via Subtask 8 item 12
+The port-ref `<details>` supported-formats KEEP rule applies. Folded into the documentation subtask rather than as a separate code subtask.
+
+### Other 3 angles — APPROVE
+SECURITY, USEFULNESS, COOL all clean. SECURITY praised the `esc()` wrapping pattern.
+
+Cron may rerun PLAN; expected clean pass.
