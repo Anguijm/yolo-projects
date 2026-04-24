@@ -1,126 +1,129 @@
-# Plan: Letter Status Tracker
+# Plan: Template Letter Library
 
 ## Goal
-Add Draft→Signed→Transmitted→Replied status tracking to saved drafts, visible and editable directly in the Drafts drawer.
+Add a "templates" button to the naval-scribe top bar that opens a drawer listing 12 pre-built letter templates in 4 categories; clicking a template fills the entire form with pre-populated type, subject, and body content.
 
 ## Scope
 **In scope:**
-- Status field on each saved draft (4 values: Draft, Signed, Transmitted, Replied)
-- Colored status badge in draft-item rows (click to advance through states)
-- Backward-compatible: drafts without a `status` field default to "Draft"
-- Filter row in Drafts drawer (All / Draft / Signed / Transmitted / Replied) to narrow the list
+- A `templates` button in the top bar (after `import`, before `chain`)
+- A `#tmpl-drawer` sliding panel listing 12 templates in 4 categories (Personnel, Administrative, Operations, Policy & Instructions)
+- Each template pre-populates: type, subject, body (and bodyBullets/bodyAction/bluf/recommendation for relevant types)
+- Confirmation gate when the form has existing content (inline confirm/cancel row in the drawer, not a browser confirm() dialog)
+- Mutual exclusion: opening templates closes other drawers (drafts, import, chain, addr, reply)
+- AI prompt section updated with Template Library documentation
 
-**Not in scope:**
-- No new top-bar button
-- No new drawer
-- No date/timestamp per status transition
-- No push notifications or reminder logic
-- No status visible on the main preview page or in .docx export
+**NOT in scope:**
+- Saving custom templates to localStorage
+- Editing template content before applying
+- Per-template SSIC or From/To pre-fill (too command-specific; users fill those themselves)
+- Mobile-only redesign (drawer follows existing responsive pattern: full width under 768px)
 
 ## Approach
 
-### Subtask 1 — CSS: add status badge and filter row styles
-Four status colors embedded in the `<style>` block:
-- Draft: `#555` (grey)
-- Signed: `#d29922` (amber)
-- Transmitted: `#0ff` (cyan, matching accent)
-- Replied: `#3fb950` (green, matching `--color-success`)
+### Subtask 1 — CSS
+Add `#tmpl-drawer` CSS block (copy structure from `#reply-drawer`). Add `.tmpl-cat` (category header) and `.tmpl-item` (template button) styles. Position follows the same fixed-left-panel drawer pattern.
 
-Add `.status-badge` (small pill button) and `.status-filter-row` (flex row of filter buttons) styles.
+### Subtask 2 — HTML
+Add `<button class="btn" id="tmpl-btn" aria-label="Open template letter library">templates</button>` in the top bar between `import-btn` and `chain-btn`.
 
-### Subtask 2 — Data layer: `setDraftStatus()` helper, draft save update, and unique ID
+Add `<div id="tmpl-drawer">` before `#form-panel`, with:
+- Header row: "Template Library" label + close button
+- Description hint
+- Confirmation row `#tmpl-confirm-row` (hidden by default): "This will overwrite the current form." + [apply template] + [cancel] buttons
+- Template list area `#tmpl-list` (rendered by JS)
 
-**Unique ID generation (per BUGS IMPL-escalation 2026-04-23):** `Date.now()` as draft ID could theoretically collide if two saves land in the same millisecond. New `uniqueDraftId()` helper uses `crypto.randomUUID()` when available (all modern browsers), falls back to `Date.now() + '-' + Math.random().toString(36).slice(2,10)` for older environments. UUIDs carry 122 bits of randomness — collision probability negligible even with millions of drafts. Existing numeric IDs from legacy drafts continue to work via the strict-equality lookup path.
+### Subtask 3 — JS data: TEMPLATE_LIBRARY
+Define a `TEMPLATE_LIBRARY` array of 12 template objects. Each object:
+```
+{ cat, label, desc, state: { type, fields: {subj, body?, bodyBullets?, bodyAction?, bluf?, recommendation?} } }
+```
+Categories and templates:
+- **Personnel** (3): Leave Request, Commendation Recommendation, Personnel Action Request
+- **Administrative** (3): Appointment Memorandum, Meeting Minutes Forwarding, After-Action Report
+- **Operations** (3): Status Report, Request for Information, Non-Concurrence
+- **Policy & Instructions** (3): Point Paper, Action Memo, Instruction Template
 
-The `saveDraftBtn` click handler always creates a **new draft** (via `uniqueDraftId()` + `arr.unshift`). There is no "update existing draft" path. Therefore `status: 'draft'` is always correct for a newly created draft — the first save of any document is always in Draft state, regardless of the current form's contents.
+### Subtask 4 — JS: renderTmplDrawer()
+Render the 12 template buttons grouped by category into `#tmpl-list`. Each `.tmpl-item` button shows label (large) + desc (small). Event listener calls `selectTemplate(tpl)`.
 
-New helper `setDraftStatus(id, newStatus)`: reads drafts array, finds entry by `id` via `.find()`.
+### Subtask 5 — JS: selectTemplate(tpl) and applyTemplate(tpl)
+`selectTemplate(tpl)` checks if any key form field has content (from, to, subj, body, bodyAction, bodyBullets, bodyMoa). If yes, store `pendingTemplate = tpl` and show `#tmpl-confirm-row`. If no, call `applyTemplate(tpl)` directly.
 
-**Per BUGS PLAN-escalation (2026-04-23): explicit id-not-found guard.** If `.find()` returns `undefined`, set module-scoped `lastStatusError = 'not-found'` and return `false` immediately — do NOT proceed to mutate (which would throw `TypeError: Cannot set property 'status' of undefined`) and do NOT surface the misleading "storage full" message.
+`applyTemplate(tpl)` clears all form fields (sets each input to empty, clears multi-fields, resets type to 'letter') then calls `restoreFullState(tpl.state)`, then sets `pendingTemplate = null`, hides `#tmpl-confirm-row`, and closes the drawer.
 
-If the id IS found, sets `.status`, writes back via `saveDraftsData`. If the write fails (localStorage full), `saveDraftsData` catches the error silently; `setDraftStatus` sets `lastStatusError = 'storage'` and returns `false`. On success returns `true` and clears `lastStatusError`.
+### Subtask 6 — JS: drawer toggle and mutual exclusion
+`tmplBtn` click handler: toggle drawer. If opening, close draftsDrawer, importDrawer, chainDrawer, addrDrawer, replyDrawer. Call `renderTmplDrawer()` once on first open (memoized with `tmplRendered` flag).
 
-Return value semantics:
-- `true` — draft found, status updated, write succeeded
-- `false` + `lastStatusError = 'not-found'` — id didn't match any saved draft (rare — usually means the draft was deleted in another tab)
-- `false` + `lastStatusError = 'storage'` — draft found, write failed (localStorage quota)
+Close button and cancel button both hide `#tmpl-confirm-row`, set `pendingTemplate = null`, and close/cancel appropriately. `applyTemplate()` also sets `pendingTemplate = null` after applying.
 
-### Subtask 3 — Error display for status change failures
-In the drafts drawer HTML: add `<div id="drafts-status-err"></div>`. In the badge click handler: if `setDraftStatus` returns `false`, branch on `lastStatusError`:
-- `'storage'` → "Could not save status — storage full."
-- `'not-found'` → "Draft no longer exists — refresh the drawer."
-- fallback → "Could not save status."
+### Subtask 7 — AI prompt update
+Add a `### Template Letter Library` section to the `#ai-prompt-content` element describing the 12 templates and how to use them.
 
-Clear the message after 2.5s. If success, render immediately.
-
-### Subtask 4 — Render: extend `renderDraftsList()` with filter and badges
-- Module-scoped `var statusFilter = 'all'` variable.
-- Render filter row inside `#status-filter-row` at top of drawer.
-- For each draft: append a `.status-badge` button after the meta line. Badge shows status label + `▶` suffix to signal clickability. `title="Click to advance status"`. `aria-label="Status: [Status] — click to advance"`. Clicking cycles states (draft→signed→transmitted→replied→draft) via `setDraftStatus`, then re-renders only if successful.
-- Apply filter: skip items where `(draft.status || 'draft') !== statusFilter` when filter ≠ 'all'.
-- Empty-after-filter message: "No [status] drafts."
-
-### Subtask 5 — HTML: add placeholders in drafts-drawer
-Add `<div id="status-filter-row" class="status-filter-row"></div>` and `<div id="drafts-status-err"></div>` inside `#drafts-drawer`, above `#drafts-list`.
-
-### Subtask 6 — Update `#ai-prompt-content` discoverability block
-Per the naval-scribe KEEP rule "AI prompt updated on every feature tock" (auto-downgraded LESSONS advisory on this PLAN gate, acknowledged and addressed): add a section to the `#ai-prompt-content` block in `index.html` documenting the Letter Status Tracker feature. Include:
-- The 4 status values (Draft, Signed, Transmitted, Replied) and their colors
-- How to interact: click the status badge on any saved draft to advance through states
-- Filter row usage: click a filter button (All / Draft / Signed / Transmitted / Replied) to narrow the list
-- Persistence: status saves to localStorage alongside the draft data; backward-compatible (drafts without `status` default to Draft)
-
-This is a single-paragraph addition to the existing prompt block. Independent of other subtasks.
-
-### Sequencing
-Subtasks 1+2+5+6 are independent; Subtask 3 depends on 2; Subtask 4 depends on 1+2+3+5.
+### Subtask 8 — Sequencing
+CSS → HTML (drawer + button) → TEMPLATE_LIBRARY data → renderTmplDrawer → selectTemplate + applyTemplate → toggle/mutual exclusion → AI prompt
 
 ## File Layout
-- `naval-scribe/index.html` — only file modified
-  - CSS block (~line 12–350): +~30 lines for badge and filter styles
-  - HTML `#drafts-drawer` (~line 388–395): +2 lines for `#status-filter-row` and `#drafts-status-err`
-  - HTML `#ai-prompt-content` block: +~6 lines documenting the Letter Status Tracker feature (per LESSONS advisory fix)
-  - JS draft save handler (~line 2384–2394): +1 line for `status: 'draft'`
-  - JS draft section (~line 2252–2394): +`statusFilter` + `lastStatusError` module vars, +`setDraftStatus()` with id-not-found guard, modified `renderDraftsList()` (~40 net lines)
+- `naval-scribe/index.html` — sole file modified
+  - `<style>` block: add ~30 lines (drawer CSS + `.tmpl-cat` + `.tmpl-item`)
+  - `<body>`: add `#tmpl-btn` button (1 line) and `#tmpl-drawer` HTML (~25 lines)
+  - `<script>`: add `TEMPLATE_LIBRARY` data (~80 lines), `renderTmplDrawer()` (~25 lines), `selectTemplate()`/`applyTemplate()` (~25 lines), drawer toggle (~20 lines)
+  - `#ai-prompt-content`: add Template Library section (~15 lines)
+  - Net addition: ~220 lines to a 4116-line file
 
 ## Function Map
-| File | Function | Change |
-|---|---|---|
-| `naval-scribe/index.html` | `setDraftStatus(id, newStatus)` | **Added** — reads drafts, updates status by id, writes back; returns bool success |
-| `naval-scribe/index.html` | `renderDraftsList()` | **Modified** — adds filter row render + per-draft status badge with error feedback |
-| `naval-scribe/index.html` | `saveDraftBtn` click handler | **Modified** — adds `status: 'draft'` to new draft object |
+**naval-scribe/index.html (new functions):**
+- `renderTmplDrawer()` — builds and injects HTML for all 12 template buttons into `#tmpl-list`; called once on first open
+- `selectTemplate(tpl)` — checks form emptiness; if content present, shows confirm row with pending template; if empty, calls applyTemplate directly
+- `applyTemplate(tpl)` — clears all form fields then calls `restoreFullState(tpl.state)`, closes drawer
+
+**Modified behavior (not new functions):**
+- `tmplBtn` click handler (inline event listener) — drawer toggle + mutual exclusion
 
 ## Security
-- Status values come from a hardcoded 4-element array; no user input enters the status field. No injection surface.
-- Badge label derived from hardcoded array, not user data.
-- localStorage is same-origin only; no new trust boundary introduced.
-- All existing user-visible strings still routed through `esc()`.
+- All template strings are author-controlled literal JavaScript strings — no external data, no user input in the template definitions
+- Template content is passed to `restoreFullState()` which populates form inputs via `.value =` assignment, not `innerHTML` — no XSS surface
+- The confirm row uses `textContent` assignment not `innerHTML`
+- No new localStorage keys, no new network calls, no new trust boundaries
+- CSP unchanged: `unsafe-inline` already allows inline scripts per Constraint 1; `connect-src 'none'` ensures no external requests
+- Template field values flow through `esc()` in `updatePreview()` before any `innerHTML` rendering — same path as all other form fields
 
 ## UI
-- **Status badge**: small pill button on each draft row. Color matches status. Shows status label + `▶` to indicate clickability. `title="Click to advance status"`. `aria-label="Status: [Status] — click to advance"`. Click advances one step in the 4-state cycle.
-- **Filter row**: five compact buttons (All, Draft, Signed, Transmitted, Replied) above the draft list. Active filter has accent border.
-- **Empty after filter**: "No [status] drafts." replaces the generic empty message.
-- **Error state**: inline "Could not save status — storage full." message in drawer, auto-clears after 2.5s.
+- `templates` button in top bar: same `.btn` class, between `import` and `chain`
+- Drawer: fixed left panel (420px, full-width on mobile), same style as `#reply-drawer`
+- Templates grouped by category. Category header as small-caps label (`.tmpl-cat`). Template buttons as full-width `.tmpl-item` rows showing label + desc in smaller text
+- Confirmation row: hidden until user clicks a template while form has content. Amber warning text + "apply template" (primary) and "cancel" (secondary) buttons
+- Empty form state: template applies immediately, no confirmation
+- Loading a template closes the drawer after apply
+- Tap targets: `.tmpl-item` min-height 44px for mobile touch
 
 ## Guide
-- Badge labels (title-case): Draft, Signed, Transmitted, Replied
-- Badge suffix: `▶` (Unicode U+25B6)
-- Filter button labels: All, Draft, Signed, Transmitted, Replied
-- Badge aria-label pattern: `"Status: Signed — click to advance"`
-- Error message: "Could not save status — storage full."
+- Button label: "templates"
+- Button aria-label: "Open template letter library"
+- Drawer header: "Template Library"
+- Drawer hint: "Select a template to pre-fill the form. Edit fields after loading."
+- Confirmation text: "This will overwrite the current form."
+- Confirm button label: "apply template"
+- Cancel button label: "cancel"
+- Category labels: "Personnel", "Administrative", "Operations", "Policy & Instructions"
+- Template labels (12): Leave Request, Commendation Rec, Personnel Action, Appt Memorandum, Meeting Minutes, After-Action Report, Status Report, Request for Info, Non-Concurrence, Point Paper, Action Memo, Instruction Template
 
 ## Edge Cases
-- Draft with no `status` field (legacy save): treated as 'draft' via `|| 'draft'` default everywhere.
-- `setDraftStatus` localStorage failure: returns `false`; drawer shows inline error; badge does NOT advance visually (re-render reads real state from storage).
-- Filter = 'signed', all signed drafts deleted: shows "No signed drafts."; filter stays on 'signed'.
-- Max 25 drafts enforced by existing save handler — unchanged.
-- `saveDraftBtn` always creates a new draft (new `Date.now()` id) — `status: 'draft'` is always the correct initial state.
+- Form has content → confirm row shown before applying (no destructive overwrite without confirmation)
+- Form is empty → template applies immediately
+- User opens templates, then opens another drawer → templates drawer closes (mutual exclusion handled symmetrically)
+- Template type is `pointpaper` or `actionmemo` — `applyTemplate` calls `restoreFullState` which sets the correct type; `updateFieldVisibility()` called inside `restoreFullState` ensures the right body field is shown
+- User clicks template, sees confirm row, then clicks close or cancel → `pendingTemplate = null`, confirm row hidden, form unchanged
+- After `applyTemplate` runs successfully → `pendingTemplate = null`, confirm row hidden, drawer closed
+- `applyTemplate` clears all fields first (like new-btn) so partial template state leaves other fields empty rather than keeping stale content
 
 ## Test Strategy
-1. Save a new draft → verify `status: 'draft'` in localStorage JSON.
-2. Open drafts drawer → filter row renders; "All" button active by default.
-3. Click badge on a Draft draft → shows Signed ▶; again → Transmitted ▶; again → Replied ▶; again → Draft ▶.
-4. Set filter to Signed → only signed drafts visible.
-5. Filter set to Transmitted with zero matches → "No transmitted drafts." message shown.
-6. Legacy draft (no `status` field in localStorage) → displays as "Draft ▶" badge.
-7. `test_project.py` passes.
+1. `python3 test_project.py naval-scribe` must PASS after implementation
+2. "templates" button appears in top bar between `import` and `chain`
+3. Click templates → drawer opens; other open drawers close
+4. Drawer renders 12 template buttons in 4 categories with labels and descriptions
+5. Empty form: click "Leave Request" → type=letter, subject filled, body filled; drawer closes
+6. Non-empty form: fill any field, open templates, click a template → confirm row appears; click "apply template" → form fills and drawer closes; click "cancel" → form unchanged
+7. All 12 templates apply without JS error
+8. Mobile viewport (375px): drawer spans full width
+9. Close button closes drawer, clears pending template
+10. AI prompt updated: "Template Library" section visible in the prompt text

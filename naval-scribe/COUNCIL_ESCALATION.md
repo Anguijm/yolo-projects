@@ -1,50 +1,38 @@
 # Council Escalation — naval-scribe
 
-**Gate:** tests
+**Gate:** plan
 **Reason:** Unresolved objections after 2 attempts
-**Timestamp:** 2026-04-23T19:46:09.624679+00:00
+**Timestamp:** 2026-04-24T01:20:42.741826+00:00
 
 ## Angle positions
 
-### BUGS — OBJECT (critical)
-- **Reason:** The application will crash with a TypeError on the first attempt to save a draft, auto-save, or use chain features because `F.id` and `F.status` are referenced in `getFullState()` but are not defined in the `F` object.
-- **Required fix:** Modify `getFullState()` to use the global variables `currentDraftId` and `currentDraftStatus` instead of `F.id.value` and `F.status.value`, and ensure `clearForm()` correctly resets these global variables.
-- **Evidence:** `file:2420,2428`
+### BUGS — APPROVE (low)
+- **Reason:** The plan includes a robust confirmation gate and explicit field clearing, mitigating risks of accidental data overwrite or inconsistent state.
 
-### SECURITY — APPROVE (low)
-- **Reason:** The new Letter Status Tracker feature adheres to existing security constraints and does not introduce new attack surfaces; user-controlled data is properly escaped before rendering.
+### SECURITY — OBJECT (high)
+- **Reason:** The plan does not explicitly state that template labels and descriptions, or the new AI prompt content, will be properly escaped or rendered via `textContent` when injected into the DOM, creating a potential XSS vulnerability if `innerHTML` is used directly.
+- **Required fix:** Ensure that all dynamic content, specifically `TEMPLATE_LIBRARY.label` and `TEMPLATE_LIBRARY.desc` when rendered by `renderTmplDrawer()`, and the new AI prompt content, are either inserted using `textContent` or are explicitly escaped via `esc()` before being assigned to `innerHTML`.
+- **Evidence:** `Subtask 4 — JS: renderTmplDrawer()
+Subtask 7 — AI prompt update`
 
 ### UI — APPROVE (low)
-- **Reason:** The status tracker provides clear visual feedback, good affordances for interaction, and explicit documentation for its functionality, aligning with the project's utility focus.
+- **Reason:** The plan demonstrates a thorough understanding of user experience, providing clear affordances, a frictionless flow for empty states, and a well-designed inline confirmation for non-empty states.
 
 ### GUIDE — APPROVE (low)
-- **Reason:** The Letter Status Tracker feature is well-documented in the AI prompt content and visually discoverable through clear UI elements and interactive cues.
+- **Reason:** The plan explicitly details all user-facing text, button labels, hints, and an update to the AI prompt documentation, ensuring high discoverability for both human users and AI agents.
 
 ### USEFULNESS — APPROVE (low)
-- **Reason:** Tracking document status (Draft, Signed, Transmitted, Replied) is a core administrative need for anyone managing multiple formal documents, directly enhancing the utility of a drafting tool.
-- **Evidence:** `This feature solves the problem of manually tracking document lifecycles, which is a frequent task in any organization dealing with formal correspondence. It's a direct improvement over mental notes or separate spreadsheets, integrating workflow management into the drafting tool itself.`
+- **Reason:** This feature directly enhances the core utility of naval-scribe by providing immediate access to frequently used document structures, significantly speeding up drafting for common correspondence types.
+- **Evidence:** `The 12 proposed templates cover highly common administrative and operational documents (e.g., Leave Request, Status Report, Point Paper) that users would otherwise have to type from scratch or copy-paste, aligning perfectly with the project's goal of providing a fast and reliable tool for naval offi`
 
 ### COOL — APPROVE (low)
-- **Reason:** The status tracker enhances the tool's core utility for managing formal correspondence, reinforcing its identity as a reliable, zero-dependency flagship tool.
+- **Reason:** The template library directly reinforces naval-scribe's identity as a specialized, efficient, and reliable tool for naval correspondence by providing common, pre-formatted document starting points, aligning with the project's utility-flagship constraint.
 
-### LESSONS — APPROVE (low)
-- **Reason:** No documented lessons or architectural constraints were violated by the current deliverable.
+### LESSONS — APPROVE (advisory)
+- **Reason:** [AUTO-DOWNGRADED: LESSONS VETO missing precondition_evidence] The plan's confirmation gate for overwriting existing form content does not follow the documented 'WILL CHANGE / WILL CLEAR / WILL KEEP' pattern, which requires explicitly listing affected fields.
+- **Required fix:** Modify the plan to include a detailed confirmation message that explicitly lists the fields that will be changed or cleared, using the 'WILL CHANGE / WILL CLEAR / WILL KEEP' structure, as required for destructive actions.
+- **Evidence:** `INSIGHT — WILL CHANGE / WILL CLEAR / WILL KEEP pattern for destructive actions: When a feature overwrites or clears existing user data (body text, field sets), the preview drawer must explicitly list every affected field in three named sections. This is both a UX requirement (informed consent) and a`
 
 ## Resolution
 
-**RESOLVED 2026-04-24 by John via retroactive 4-gate stamp (same pattern as infra-yolo-evals).**
-
-3rd consecutive hallucinated BUGS objection — claimed `F.id` and `F.status` referenced in `getFullState()` at lines 2420/2428. Verified by grep: **neither reference exists anywhere in the file**. `getFullState()` lives at line 2318 and uses only legitimate `F.ssic.value`, `F.date.value`, etc. Pure fabrication.
-
-### Stamp rationale
-Letter Status Tracker is functionally complete and has been exercised across 9 cron council rounds:
-- 6 rounds produced legitimate fixes (id-not-found guard, crypto.randomUUID, tap-targets + aria-labels + escXml split/join, saveAddr consistency + focus styles, Signed contrast, empty-state messaging)
-- 3 rounds produced pure BUGS hallucinations with fabricated evidence strings that don't exist in the code
-
-Council enforcement rules (shipped as fix-council-enforcement) catch LESSONS-VETO false positives via `precondition_evidence` enforcement, and catch goalpost moves via keyword-overlap detection. Neither catches BUGS objections citing nonexistent code — that's the next enforcement upgrade if the pattern continues.
-
-Rather than burn another round relitigating phantoms, stamping as 4-gate approved. Same decision precedent as infra-yolo-evals (2026-04-22) when cron council bugs blocked a working tick.
-
-See `council_tests.json` and `council_outcome.json` for full 7-angle APPROVE records with citations to actual code.
-
-Cron queue advances to next approved tock item.
+Human decision required. Resume the build after updating session_state.json.
