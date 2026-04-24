@@ -1,53 +1,35 @@
 # Council Escalation — experiments/eval-opus-47-backbone
 
-**Gate:** plan
+**Gate:** implementation
 **Reason:** Unresolved objections after 2 attempts
-**Timestamp:** 2026-04-23T20:56:36.935317+00:00
+**Timestamp:** 2026-04-24T00:28:13.396113+00:00
 
 ## Angle positions
 
-### BUGS — OBJECT (medium)
-- **Reason:** The hardcoded cost model values for Haiku and Opus can become stale if API prices change, leading to incorrect cost calculations and potentially flawed recommendations.
-- **Required fix:** The cost model should be configurable (e.g., via environment variables or a configuration file) or dynamically fetched, and a mechanism for updating these values should be documented.
-- **Evidence:** `Cost model: Haiku $0.80/$4.00 per MTok in/out; Opus $15.00/$75.00 per MTok in/out`
+### BUGS — APPROVE (low)
+- **Reason:** The script correctly handles state restoration, path containment, and potential API response variations, ensuring robust and isolated benchmarking.
 
 ### SECURITY — APPROVE (low)
-- **Reason:** The plan explicitly addresses key security concerns such as API key handling, output path validation, and module state restoration, leaving no apparent exploitable surfaces.
+- **Reason:** The script handles API keys securely via environment variables, implements robust path validation for output files, and correctly restores the state of the council module, mitigating direct security risks within the benchmark execution.
 
 ### UI — APPROVE (low)
-- **Reason:** The plan for the command-line interface provides excellent real-time feedback, clear error messages, and a comprehensive guide for first-time users, ensuring a frictionless experience.
+- **Reason:** The script provides excellent user feedback, clear usage instructions, and helpful features like dry-run and incremental saving, making it easy to use and understand.
 
-### GUIDE — OBJECT (medium)
-- **Reason:** The CLI tool does not explicitly plan for a `--help` flag or equivalent in-app documentation for discovering its arguments and usage.
-- **Required fix:** Add a `--help` flag to `benchmark.py` that lists all CLI arguments and their descriptions.
-- **Evidence:** `Missing mention of `--help` in 'UI' or 'Guide' sections of plan.md`
+### GUIDE — APPROVE (low)
+- **Reason:** The project has excellent discoverability through a comprehensive README, clear command-line help, and well-structured usage examples, making it easy for both human users and AI agents to understand and operate.
 
 ### USEFULNESS — APPROVE (low)
-- **Reason:** This project provides a critical, repeatable tool for making data-driven decisions on core infrastructure (LLM backbone), directly impacting the quality and efficiency of the council.py system.
-- **Evidence:** `The benchmark addresses a recurring need to evaluate new LLM models or model updates against existing ones, ensuring the 'council.py' tool remains performant and cost-effective; it's a tool for ongoing maintenance and improvement, not a one-off experiment.`
+- **Reason:** This tool provides essential, data-driven insights for selecting and optimizing the LLM backbone of the council.py system, addressing a critical and recurring need for performance and cost management.
+- **Evidence:** `It automates the comparison of LLM models based on real-world project evaluations, tracking key metrics like verdicts, latency, and cost, which is crucial for informed engineering decisions and would be a manual, error-prone process otherwise.`
 
-### COOL — APPROVE (low)
-- **Reason:** This internal benchmark script demonstrates elegant, non-invasive engineering for state isolation and token tracking, which are signature moves for a robust internal tool.
+### COOL — OBJECT (high)
+- **Reason:** The tool is a purely functional internal benchmark script that lacks any unique user experience, memorable features, or distinct personality to differentiate it from other well-engineered internal utilities.
+- **Required fix:** Introduce a signature 'cool' moment, such as a highly opinionated and visually striking interactive report, a gamified comparison of model 'personalities', or a novel, delightful interaction pattern for configuring and reviewing benchmarks.
+- **Evidence:** `Any generic internal Python benchmarking script`
 
 ### LESSONS — APPROVE (low)
-- **Reason:** No documented lessons from _hot.md or learnings.md are violated by the plan.
+- **Reason:** The deliverable incorporates documented fixes for path containment and full verdict reason recording, and does not violate any other documented lessons or anti-patterns.
 
 ## Resolution
 
-**RESOLVED 2026-04-24. Both accepted — plan.md updated.**
-
-### BUGS (medium) — ACCEPTED
-Hardcoded cost model can go stale. Plan now specifies:
-- Defaults documented with a pricing snapshot date (2026-04-24)
-- Env-var overrides: `HAIKU_COST_IN`, `HAIKU_COST_OUT`, `OPUS_COST_IN`, `OPUS_COST_OUT`
-- Runtime log line when overrides are applied
-- `results.md` captures effective cost values per run for reproducibility
-- `README.md` will document the single-line edit path for default updates
-
-### GUIDE (medium) — ACCEPTED
-`--help` flag added via `argparse` (auto-generated). Guide section updated with explicit `--help` usage example as the discovery path. Also added a cost-override example showcasing the new env-var knobs.
-
-### Other 5 angles — APPROVE
-SECURITY, UI, USEFULNESS, COOL, LESSONS all clean.
-
-Cron may rerun PLAN; expected clean pass.
+Human decision required. Resume the build after updating session_state.json.
