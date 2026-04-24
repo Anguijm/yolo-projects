@@ -16,6 +16,26 @@ the same angle with conflicting required_fixes, the build escalates.
 Escalations write COUNCIL_ESCALATION.md and halt. Status surfaces them.
 
 Reads GEMINI_API_KEY from environment.
+
+Auto-downgrade enforcement (each rule converts an OBJECT verdict to APPROVE-advisory
+and prefixes `reason` with `[AUTO-DOWNGRADED: …]` so the trigger is self-evident):
+
+  1. Parse-failure retry — unparseable JSON triggers one stricter retry inside
+     `call_angle` before falling back to a phantom OBJECT.
+  2. LESSONS VETO precondition_evidence — `enforce_lessons_precondition` downgrades
+     LESSONS vetoes whose `evidence` lacks a `file.ext:NN` citation OR the literal
+     string `precondition_evidence`.
+  3. Goalpost-move — `check_goalpost_moves` downgrades OBJECTs whose keyword
+     overlap vs any prior reason for the same `(project, angle)` exceeds
+     `GOALPOST_OVERLAP_THRESHOLD` (0.35).
+  4. BUGS hallucination — `detect_bugs_hallucination` downgrades BUGS OBJECTs that
+     claim "undefined/missing/not defined" symbols when those symbols are actually
+     defined in cited files (language-aware definition-pattern check, JS/TS/HTML/Py).
+
+Cron logs every fired downgrade with the `[council]` prefix. See learnings.md
+"Council enforcement rules are now LIVE in code" for the full per-rule rationale
+and `experiments/fix-council-enforcement/` + `experiments/fix-council-bugs-hallucination/`
+for the ticks that shipped them.
 """
 
 from __future__ import annotations

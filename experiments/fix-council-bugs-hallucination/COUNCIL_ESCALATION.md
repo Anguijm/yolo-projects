@@ -32,4 +32,18 @@
 
 ## Resolution
 
-Human decision required. Resume the build after updating session_state.json.
+**RESOLVED 2026-04-25. GUIDE medium fixed at source — module docstring expanded.**
+
+### GUIDE medium — FIXED
+The council's point is fair: `CLAUDE.md` and `changes.md` aren't the primary doc surface for a CLI tool — `council.py --help` and the module docstring are. Expanded the module docstring at the top of `council.py` to enumerate all four auto-downgrade enforcement rules with one-paragraph descriptions each, plus a pointer to learnings.md and the experiments dirs for full rationale. The docstring is now the single canonical reference for council behavior, discoverable via:
+- `head council.py` (developers reading the source)
+- `python3 -c "import council; help(council)"` (REPL/IDE introspection)
+- IDE hover tooltips via `__doc__`
+- AI-agent file reads (the docstring is in the first 30 lines)
+
+This complements (rather than replaces) the CLAUDE.md and learnings.md docs — those remain the canonical surfaces for repo-wide conventions.
+
+### Other 6 angles — APPROVE
+BUGS, SECURITY, UI, USEFULNESS, COOL, LESSONS all clean. SECURITY explicitly noted bounded quantifiers + 2MB size cap + path containment as adequate. BUGS APPROVE (low) — no goalpost issues this round.
+
+Cron may rerun OUTCOME; expected clean pass → ship the tick.
