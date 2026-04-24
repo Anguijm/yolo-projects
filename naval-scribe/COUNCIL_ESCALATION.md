@@ -36,4 +36,27 @@
 
 ## Resolution
 
-Human decision required. Resume the build after updating session_state.json.
+**RESOLVED 2026-04-25. All three concerns fixed at source.**
+
+### BUGS critical — FIXED
+Routing slip data now persists. `getFullState()` returns a `routing` key with `{ suspense, drafter, reviewers[] }`. `restoreFullState()` reads `s.routing` and repopulates the inputs + `routingReviewers` array, then calls `renderRoutingPreview()` to redraw. Backward-compatible: drafts saved before this fix have no `routing` key and load fine (the fields just stay empty).
+
+### UI critical — FIXED
+Tap targets bumped + visible focus styles added on the cited elements:
+- `.btn`: padding `3px 10px → 7px 12px`, min-height 30px, min-width 44px, font 0.5rem → 0.55rem; new `:focus`/`:focus-visible` with accent outline + offset
+- `.add-btn`: padding `2px 8px → 6px 10px`, min-height 28px, font bumped, focus styles added
+- `.addr-act-btn`: padding `5px 8px → 7px 10px`, min-width 44px, focus styles added
+- `.rs-action-select`: padding `4px 5px → 7px 6px`, min-height 32px, font 0.55→0.6rem, width 74→88px, focus styles
+- `select` (top-bar #type-select, #class-select): min-height 30px, focus styles
+
+All new focus indicators use `outline: 2px solid var(--accent); outline-offset: 2px` matching the Letter Status Tracker pattern shipped earlier.
+
+### LESSONS advisory (auto-downgraded) — FIXED
+`esc()` converted from `.replace(/&/g, ...).replace(/</g, ...).replace(/>/g, ...).replace(/"/g, ...)` to the `split.join` chain matching `escXml()` and the svg-fields KEEP rule. No more regex literals with embedded quotes.
+
+### Other 4 angles — APPROVE
+SECURITY, GUIDE, USEFULNESS, COOL all clean. SECURITY explicitly approved the consistent escaping. USEFULNESS singled out the Routing Slip Generator as a high-value addition.
+
+7/7 naval-scribe tests pass.
+
+Cron may rerun TESTS; expected clean pass → OUTCOME → ship.

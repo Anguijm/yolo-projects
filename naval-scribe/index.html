@@ -60,13 +60,28 @@ html, body {
   color: var(--text-secondary); font-family: inherit; font-size: 0.55rem;
   padding: 2px 6px; cursor: pointer; outline: none;
 }
+/* Tap-target + focus-style pass per UI TESTS-escalation 2026-04-25.
+   .btn / .add-btn / .addr-act-btn / .rs-action-select / select bumped to
+   give comfortable touch surface (~32px) without breaking the dense
+   desktop aesthetic, and consistent visible focus indicators added. */
 .btn {
-  padding: 3px 10px; background: transparent; border: 1px solid var(--border-default);
-  color: var(--text-label); font-family: inherit; font-size: 0.5rem;
+  padding: 7px 12px; min-height: 30px; min-width: 44px;
+  background: transparent; border: 1px solid var(--border-default);
+  color: var(--text-label); font-family: inherit; font-size: 0.55rem;
   cursor: pointer; letter-spacing: 0.1em; text-transform: uppercase;
+}
+.btn:hover { border-color: var(--border-active); color: var(--text-secondary); }
+.btn:focus, .btn:focus-visible {
+  outline: 2px solid var(--accent); outline-offset: 2px;
+  border-color: var(--accent); color: var(--accent);
 }
 .btn:active { border-color: var(--accent); color: var(--accent); }
 .btn-primary { border-color: var(--accent); color: var(--accent); }
+/* Native selects (top-bar type/class + inline action selects) — visible focus + min height */
+select:focus, select:focus-visible {
+  outline: 2px solid var(--accent); outline-offset: 2px;
+}
+#type-select, #class-select { min-height: 30px; }
 
 /* Form panel */
 #form-panel {
@@ -91,11 +106,16 @@ html, body {
 .multi-field { display: flex; gap: 4px; margin-bottom: 4px; }
 .multi-field input { flex: 1; }
 .add-btn {
-  padding: 2px 8px; background: transparent; border: 1px solid var(--border-default);
-  color: var(--text-tertiary); font-family: inherit; font-size: 0.5rem;
+  padding: 6px 10px; min-height: 28px; background: transparent;
+  border: 1px solid var(--border-default);
+  color: var(--text-tertiary); font-family: inherit; font-size: 0.55rem;
   cursor: pointer;
 }
 .add-btn:hover { color: var(--text-secondary); border-color: var(--border-active); }
+.add-btn:focus, .add-btn:focus-visible {
+  outline: 2px solid var(--accent); outline-offset: 2px;
+  border-color: var(--accent); color: var(--accent);
+}
 .sig-row { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
 .section-header {
   font-size: 0.45rem; text-transform: uppercase; letter-spacing: 0.2em;
@@ -285,9 +305,14 @@ html, body {
 }
 .addr-acts { display: flex; gap: 4px; flex-shrink: 0; }
 .addr-act-btn {
-  padding: 5px 8px; min-height: 32px; background: transparent;
+  padding: 7px 10px; min-height: 32px; min-width: 44px; background: transparent;
   border: 1px solid var(--border-default); color: var(--text-tertiary);
   font-family: inherit; font-size: 0.55rem; cursor: pointer; white-space: nowrap;
+}
+.addr-act-btn:hover { border-color: var(--border-active); color: var(--text-secondary); }
+.addr-act-btn:focus, .addr-act-btn:focus-visible {
+  outline: 2px solid var(--accent); outline-offset: 2px;
+  border-color: var(--accent); color: var(--accent);
 }
 .addr-act-btn:active { border-color: var(--accent); color: var(--accent); }
 #addr-add-form { display: flex; gap: 4px; margin-top: 10px; align-items: flex-start; }
@@ -446,8 +471,12 @@ html, body {
 .rs-reviewer-row input:focus { border-color: var(--border-active); }
 .rs-action-select {
   background: var(--bg-elevated); border: 1px solid var(--border-default);
-  color: var(--text-secondary); font-family: inherit; font-size: 0.55rem;
-  padding: 4px 5px; outline: none; cursor: pointer; width: 74px; flex-shrink: 0;
+  color: var(--text-secondary); font-family: inherit; font-size: 0.6rem;
+  padding: 7px 6px; min-height: 32px; outline: none; cursor: pointer;
+  width: 88px; flex-shrink: 0;
+}
+.rs-action-select:focus, .rs-action-select:focus-visible {
+  outline: 2px solid var(--accent); outline-offset: 1px;
 }
 #rs-max-warn { font-size: 0.45rem; color: #e3b341; display: none; margin-top: 3px; }
 #routing-preview-wrap { overflow-x: auto; margin-top: 10px; }
@@ -1265,7 +1294,15 @@ html, body {
   }
 
   /* ── Escape HTML ── */
-  function esc(s) { return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
+  // split/join instead of .replace(/regex/g, ...) — regex literals containing "
+  // confuse the test_project.py string-stripper (svg-fields KEEP rule, learnings.md).
+  function esc(s) {
+    return String(s)
+      .split('&').join('&amp;')
+      .split('<').join('&lt;')
+      .split('>').join('&gt;')
+      .split('"').join('&quot;');
+  }
 
   /* ── Preview renderer ── */
   function renderStandardHeader(d, html) {
@@ -2463,7 +2500,14 @@ html, body {
       via: viaFields.getValues(),
       refs: refFields.getValues(),
       encls: enclFields.getValues(),
-      parties: getParties()
+      parties: getParties(),
+      // Routing slip persistence — per BUGS TESTS-escalation 2026-04-25
+      // (routing fields previously not saved → data loss on reload).
+      routing: {
+        suspense: routingSuspense ? routingSuspense.value : '',
+        drafter: routingDrafter ? routingDrafter.value : '',
+        reviewers: (typeof routingReviewers !== 'undefined') ? routingReviewers.slice() : []
+      }
     };
   }
 
@@ -2509,6 +2553,19 @@ html, body {
     refFields.setValues(s.refs || []);
     enclFields.setValues(s.encls || []);
     if (s.parties) restoreParties(s.parties);
+    // Routing slip restore — per BUGS TESTS-escalation 2026-04-25.
+    // Backward-compat: older saved drafts may have no `routing` key (treat as empty).
+    if (s.routing && typeof s.routing === 'object') {
+      if (routingSuspense) routingSuspense.value = s.routing.suspense || '';
+      if (routingDrafter) routingDrafter.value = s.routing.drafter || '';
+      if (typeof routingReviewers !== 'undefined' && Array.isArray(s.routing.reviewers)) {
+        routingReviewers.length = 0;
+        for (var ri = 0; ri < s.routing.reviewers.length; ri++) {
+          routingReviewers.push(s.routing.reviewers[ri]);
+        }
+        if (typeof renderRoutingPreview === 'function') renderRoutingPreview();
+      }
+    }
     updateFieldVisibility();
     updatePreview();
   }
