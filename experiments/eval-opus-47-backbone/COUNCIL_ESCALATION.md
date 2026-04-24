@@ -2,48 +2,42 @@
 
 **Gate:** implementation
 **Reason:** Unresolved objections after 2 attempts
-**Timestamp:** 2026-04-24T00:28:13.396113+00:00
+**Timestamp:** 2026-04-24T00:33:35.028038+00:00
 
 ## Angle positions
 
-### BUGS — APPROVE (low)
-- **Reason:** The script correctly handles state restoration, path containment, and potential API response variations, ensuring robust and isolated benchmarking.
+### BUGS — OBJECT (high)
+- **Reason:** The cost model allows environment variables to set negative costs, which would produce incorrect and misleading benchmark results.
+- **Required fix:** Modify `_env_float` or `_load_cost_model` to validate that all cost values (HAIKU_COST_IN/OUT, OPUS_COST_IN/OUT) are non-negative, exiting with an error if a negative value is provided.
+- **Evidence:** `def _env_float(name: str, default: float) -> float:
+    """Read a float from an env var; exit 1 with clear message on bad value."""
+    raw = os.environ.get(name)
+    if raw is None:
+        return default
+    try:
+        return float(raw)
+    except ValueError:
+        print(f"[benchmark] ERROR: {`
 
 ### SECURITY — APPROVE (low)
-- **Reason:** The script handles API keys securely via environment variables, implements robust path validation for output files, and correctly restores the state of the council module, mitigating direct security risks within the benchmark execution.
+- **Reason:** The script demonstrates robust handling of environment variables, path containment for output files, and proper state isolation for monkey-patching, mitigating common security risks.
 
 ### UI — APPROVE (low)
-- **Reason:** The script provides excellent user feedback, clear usage instructions, and helpful features like dry-run and incremental saving, making it easy to use and understand.
+- **Reason:** The command-line interface provides clear usage instructions, helpful dry-run functionality, excellent progress feedback during execution, and actionable error messages.
 
 ### GUIDE — APPROVE (low)
-- **Reason:** The project has excellent discoverability through a comprehensive README, clear command-line help, and well-structured usage examples, making it easy for both human users and AI agents to understand and operate.
+- **Reason:** The tool provides comprehensive self-documentation through its docstring, argparse help, clear error messages, and a detailed README, making it highly discoverable for both human users and AI agents.
 
 ### USEFULNESS — APPROVE (low)
-- **Reason:** This tool provides essential, data-driven insights for selecting and optimizing the LLM backbone of the council.py system, addressing a critical and recurring need for performance and cost management.
-- **Evidence:** `It automates the comparison of LLM models based on real-world project evaluations, tracking key metrics like verdicts, latency, and cost, which is crucial for informed engineering decisions and would be a manual, error-prone process otherwise.`
+- **Reason:** This tool provides essential data for making informed, recurring decisions about the core LLM backbone of the council.py system.
+- **Evidence:** `It addresses the need for data-driven model selection, cost optimization, and performance monitoring, which are critical for maintaining and evolving the council.py system. This is a clear internal tool with a recurring use case for system maintainers.`
 
-### COOL — OBJECT (high)
-- **Reason:** The tool is a purely functional internal benchmark script that lacks any unique user experience, memorable features, or distinct personality to differentiate it from other well-engineered internal utilities.
-- **Required fix:** Introduce a signature 'cool' moment, such as a highly opinionated and visually striking interactive report, a gamified comparison of model 'personalities', or a novel, delightful interaction pattern for configuring and reviewing benchmarks.
-- **Evidence:** `Any generic internal Python benchmarking script`
+### COOL — APPROVE (low)
+- **Reason:** Internal infrastructure tool, exempt from COOL requirements per standing precedent.
 
 ### LESSONS — APPROVE (low)
-- **Reason:** The deliverable incorporates documented fixes for path containment and full verdict reason recording, and does not violate any other documented lessons or anti-patterns.
+- **Reason:** No documented lessons or anti-patterns were violated. The code correctly handles state restoration and path containment.
 
 ## Resolution
 
-**RESOLVED 2026-04-24. COOL overridden per standing precedent.**
-
-### COOL OBJECT (high) — OVERRIDDEN
-Applied wrong rubric. `benchmark.py` is an **internal council-backbone benchmarking tool** run by developers, not a portfolio-level YOLO utility. Per `feedback_utility_focus` and the standing override pattern used on:
-- `infra-guardrails` (2026-04-21)
-- `infra-yolo-evals` (2026-04-22)
-- `fix-council-enforcement` (2026-04-22)
-- `infra-memory-feedback` (2026-04-22)
-
-...COOL's signature-move bar does not apply to internal infrastructure. The tool's value is evidence-based model selection, not a delightful interaction pattern. Gamifying model personalities would be actively harmful noise in an evaluation harness.
-
-### Other 6 angles — APPROVE
-BUGS, SECURITY, UI, GUIDE, USEFULNESS, LESSONS all clean. BUGS specifically approved the state restoration, path containment, and API response handling. LESSONS confirmed the cost-override env-var pattern and path-containment patterns were correctly implemented.
-
-Cron may rerun IMPLEMENTATION; expected clean pass → TESTS → OUTCOME → ship.
+Human decision required. Resume the build after updating session_state.json.

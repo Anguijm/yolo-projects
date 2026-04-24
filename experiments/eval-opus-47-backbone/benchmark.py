@@ -51,12 +51,24 @@ GOAL = (
 )
 
 
+def _env_float(name: str, default: float) -> float:
+    """Read a float from an env var; exit 1 with clear message on bad value."""
+    raw = os.environ.get(name)
+    if raw is None:
+        return default
+    try:
+        return float(raw)
+    except ValueError:
+        print(f"[benchmark] ERROR: {name}={raw!r} is not a valid number", file=sys.stderr)
+        sys.exit(1)
+
+
 def _load_cost_model() -> dict[str, dict[str, float]]:
     """Build cost table, applying env-var overrides and logging them."""
-    haiku_in  = float(os.environ.get("HAIKU_COST_IN",  _HAIKU_IN_DEFAULT))
-    haiku_out = float(os.environ.get("HAIKU_COST_OUT", _HAIKU_OUT_DEFAULT))
-    opus_in   = float(os.environ.get("OPUS_COST_IN",   _OPUS_IN_DEFAULT))
-    opus_out  = float(os.environ.get("OPUS_COST_OUT",  _OPUS_OUT_DEFAULT))
+    haiku_in  = _env_float("HAIKU_COST_IN",  _HAIKU_IN_DEFAULT)
+    haiku_out = _env_float("HAIKU_COST_OUT", _HAIKU_OUT_DEFAULT)
+    opus_in   = _env_float("OPUS_COST_IN",   _OPUS_IN_DEFAULT)
+    opus_out  = _env_float("OPUS_COST_OUT",  _OPUS_OUT_DEFAULT)
 
     if haiku_in  != _HAIKU_IN_DEFAULT  or haiku_out != _HAIKU_OUT_DEFAULT:
         print(f"[benchmark] cost model overridden from env: haiku in=${haiku_in}/MTok out=${haiku_out}/MTok")
