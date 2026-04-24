@@ -1,73 +1,111 @@
 {
   "gate": "plan",
   "project": "markdown-deck",
-  "timestamp": "2026-04-13T04:49:45.130594+00:00",
+  "timestamp": "2026-04-24T11:55:28.101125+00:00",
   "verdicts": [
     {
       "angle": "bugs",
-      "verdict": "APPROVE",
-      "severity": "low",
-      "reason": "The plan thoroughly addresses critical correctness concerns including localStorage error handling, state consistency, data loss prevention, and edge cases.",
-      "required_fix": "",
-      "evidence": "",
-      "veto": false
+      "verdict": "OBJECT",
+      "severity": "high",
+      "reason": "The plan explicitly states that negative values will be clamped to 0 for bar and line charts, which fundamentally misrepresents the actual data and can lead to incorrect interpretations.",
+      "required_fix": "Implement proper rendering of negative values for bar and line charts (e.g., bars extending below the x-axis, line points below the baseline). If clamping is strictly required, a clear visual warning or indication of data transformation must be added to the chart.",
+      "evidence": "Bar chart SVG (viewBox 480\u00d7220): ... negative values clamped to 0",
+      "veto": false,
+      "parse_failed": false
     },
     {
       "angle": "security",
       "verdict": "APPROVE",
       "severity": "low",
-      "reason": "The plan introduces no new attack surfaces or data exposure beyond the existing architectural constraints for markdown-deck, which explicitly allow `unsafe-inline` CSP and `md() + innerHTML` rendering for user-authored content.",
+      "reason": "The plan explicitly addresses potential injection vectors by stating that all user-provided text (labels, titles, chart type in aria-label) will be run through an `esc()` function before insertion into SVG or HTML attributes, and numeric values are parsed as floats.",
       "required_fix": "",
-      "evidence": "",
-      "veto": false
+      "evidence": "Security section: 'Labels run through `esc()` before SVG text insertion'; 'Values parsed as `parseFloat`'; 'No eval; SVG built by string concatenation with escaped values'; '`aria-label` text uses escaped title/type strings'",
+      "veto": false,
+      "parse_failed": false
     },
     {
       "angle": "ui",
-      "verdict": "APPROVE",
-      "severity": "low",
-      "reason": "The plan demonstrates a strong understanding of user experience, including clear feedback, good affordances for inline editing, and graceful handling of edge cases.",
-      "required_fix": "",
-      "evidence": "",
-      "veto": false
+      "verdict": "OBJECT",
+      "severity": "high",
+      "reason": "The plan silently truncates data to 20 points without user feedback, and uses excessively small font sizes (8-10px) and aggressive 8-character label truncation which will lead to illegibility and confusion.",
+      "required_fix": "Add a warning message when data points exceed the 20-point limit; increase minimum font sizes for labels and titles, and reconsider the 8-character label truncation limit or provide an option to disable it.",
+      "evidence": "Approach > Subtask 2 > parseChartData: 'Clamp to 20 points max' (no corresponding warning in renderChart); Bar/Line/Pie chart SVG sections: 'font-size: 8px', 'Title: 10px', 'All labels truncated to 8 chars with \u2026 appended if longer'",
+      "veto": false,
+      "parse_failed": false
     },
     {
       "angle": "guide",
-      "verdict": "APPROVE",
-      "severity": "low",
-      "reason": "The plan provides excellent discoverability for all features, including keyboard shortcuts, inline editing, and clear error/success feedback.",
-      "required_fix": "",
-      "evidence": "",
-      "veto": false
+      "verdict": "OBJECT",
+      "severity": "high",
+      "reason": "The plan for `DECK_GUIDE.md` documentation is too brief and does not explicitly guarantee coverage of all critical usage details, error messages, and UI behaviors described elsewhere in the plan.",
+      "required_fix": "The `DECK_GUIDE.md` update must explicitly include documentation for: the optional `title:` line, the `Label, Value` data format, label truncation behavior (`\u2026`), the warning message for skipped invalid data lines, the `[chart: no data]` placeholder, the fallback to 'bar' for unknown chart types, the presence of value labels directly on chart elements, the 20-point data limit, and pie chart legend behavior (e.g., `+N more`).",
+      "evidence": "markdown-deck/plan.md:Subtask 8: DECK_GUIDE.md documentation",
+      "veto": false,
+      "parse_failed": false
     },
     {
       "angle": "usefulness",
       "verdict": "APPROVE",
       "severity": "low",
-      "reason": "Version history is a core utility for any content creation tool, preventing data loss and enabling safe experimentation.",
+      "reason": "This feature solves a clear problem for users who need to quickly embed simple, theme-aware charts into their markdown presentations without external tools, enhancing the core utility of markdown-deck.",
       "required_fix": "",
-      "evidence": "Google Docs version history, Figma versioning, any serious text editor's undo/redo history. This addresses a fundamental need for users to manage and recover their work.",
-      "veto": false
+      "evidence": "The 'signature move' of theme-aware colors and direct value labels addresses a common pain point with static image embeds, making it a practical tool for recurring presentation needs. It fills a gap not easily covered by browser features or quick web searches.",
+      "veto": false,
+      "parse_failed": false
     },
     {
       "angle": "cool",
       "verdict": "APPROVE",
       "severity": "low",
-      "reason": "The combination of visual thumbnails, inline editable labels with discoverability, and robust local-only persistence for snapshots in a single-file tool creates a distinct and memorable user experience.",
+      "reason": "The theme-aware charts with inline value labels and rounded bar caps provide a clear signature move, making the tool feel native and polished, differentiating it from generic chart generators.",
       "required_fix": "",
       "evidence": "",
-      "veto": false
+      "veto": false,
+      "parse_failed": false
     },
     {
       "angle": "lessons",
       "verdict": "APPROVE",
-      "severity": "low",
-      "reason": "Plan adheres to documented architectural constraints and incorporates prior lessons regarding batch rendering, modal sizing, and state persistence.",
-      "required_fix": "",
-      "evidence": "Plan explicitly uses `document.createDocumentFragment()` (naval-scribe KEEP), `width: 680px; max-width: calc(100vw - 2rem)` for modal (markdown-deck KEEP), checks `_saveSnaps()` return value (naval-scribe KEEP), uses `textContent` for editable labels (naval-scribe KEEP), and acknowledges `md() + innerHTML` as existing architectural pattern (STRUCTURAL CONSTRAINT 2).",
-      "veto": false
+      "severity": "advisory",
+      "reason": "[AUTO-DOWNGRADED: LESSONS VETO missing precondition_evidence] The plan accepts CSV-style data input but does not include a `<details>` element in the UI to list supported input formats, violating a documented `KEEP` lesson from `port-ref` that addressed a high-severity GUIDE objection.",
+      "required_fix": "Add a `<details>` element to the UI (e.g., near the chart input area or in a help modal) listing the supported CSV input format for chart blocks, as this was previously identified as a high-severity missing documentation issue by GUIDE.",
+      "evidence": "KEEP \u2014 `<details>` supported-formats block for bulk input features \u2014 When a tool accepts structured text input (YAML, JSON, CSV), add a `<details>` element listing supported input formats. Satisfies GUIDE at the OUTCOME gate without cluttering the primary UI; GUIDE flagged the absence of explicit format docs as a high-severity issue.",
+      "veto": false,
+      "parse_failed": false
     }
   ],
-  "all_approved": true,
-  "objections": [],
+  "all_approved": false,
+  "objections": [
+    {
+      "angle": "bugs",
+      "verdict": "OBJECT",
+      "severity": "high",
+      "reason": "The plan explicitly states that negative values will be clamped to 0 for bar and line charts, which fundamentally misrepresents the actual data and can lead to incorrect interpretations.",
+      "required_fix": "Implement proper rendering of negative values for bar and line charts (e.g., bars extending below the x-axis, line points below the baseline). If clamping is strictly required, a clear visual warning or indication of data transformation must be added to the chart.",
+      "evidence": "Bar chart SVG (viewBox 480\u00d7220): ... negative values clamped to 0",
+      "veto": false,
+      "parse_failed": false
+    },
+    {
+      "angle": "ui",
+      "verdict": "OBJECT",
+      "severity": "high",
+      "reason": "The plan silently truncates data to 20 points without user feedback, and uses excessively small font sizes (8-10px) and aggressive 8-character label truncation which will lead to illegibility and confusion.",
+      "required_fix": "Add a warning message when data points exceed the 20-point limit; increase minimum font sizes for labels and titles, and reconsider the 8-character label truncation limit or provide an option to disable it.",
+      "evidence": "Approach > Subtask 2 > parseChartData: 'Clamp to 20 points max' (no corresponding warning in renderChart); Bar/Line/Pie chart SVG sections: 'font-size: 8px', 'Title: 10px', 'All labels truncated to 8 chars with \u2026 appended if longer'",
+      "veto": false,
+      "parse_failed": false
+    },
+    {
+      "angle": "guide",
+      "verdict": "OBJECT",
+      "severity": "high",
+      "reason": "The plan for `DECK_GUIDE.md` documentation is too brief and does not explicitly guarantee coverage of all critical usage details, error messages, and UI behaviors described elsewhere in the plan.",
+      "required_fix": "The `DECK_GUIDE.md` update must explicitly include documentation for: the optional `title:` line, the `Label, Value` data format, label truncation behavior (`\u2026`), the warning message for skipped invalid data lines, the `[chart: no data]` placeholder, the fallback to 'bar' for unknown chart types, the presence of value labels directly on chart elements, the 20-point data limit, and pie chart legend behavior (e.g., `+N more`).",
+      "evidence": "markdown-deck/plan.md:Subtask 8: DECK_GUIDE.md documentation",
+      "veto": false,
+      "parse_failed": false
+    }
+  ],
   "vetoed": false
 }

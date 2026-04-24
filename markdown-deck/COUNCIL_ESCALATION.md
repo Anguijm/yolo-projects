@@ -1,37 +1,42 @@
 # Council Escalation — markdown-deck
 
-**Gate:** implementation
+**Gate:** plan
 **Reason:** Unresolved objections after 2 attempts
-**Timestamp:** 2026-04-13T04:53:28.803711+00:00
+**Timestamp:** 2026-04-24T11:55:28.101522+00:00
 
 ## Angle positions
 
-### BUGS — APPROVE (low)
-- **Reason:** The Named Snapshots feature correctly handles storage limits, data persistence, and UI updates, with robust error handling for localStorage quota and corrupt data.
+### BUGS — OBJECT (high)
+- **Reason:** The plan explicitly states that negative values will be clamped to 0 for bar and line charts, which fundamentally misrepresents the actual data and can lead to incorrect interpretations.
+- **Required fix:** Implement proper rendering of negative values for bar and line charts (e.g., bars extending below the x-axis, line points below the baseline). If clamping is strictly required, a clear visual warning or indication of data transformation must be added to the chart.
+- **Evidence:** `Bar chart SVG (viewBox 480×220): ... negative values clamped to 0`
 
 ### SECURITY — APPROVE (low)
-- **Reason:** The Named Snapshots feature adheres to existing architectural constraints; no new attack surfaces or trust-boundary violations are introduced beyond the established baseline.
+- **Reason:** The plan explicitly addresses potential injection vectors by stating that all user-provided text (labels, titles, chart type in aria-label) will be run through an `esc()` function before insertion into SVG or HTML attributes, and numeric values are parsed as floats.
+- **Evidence:** `Security section: 'Labels run through `esc()` before SVG text insertion'; 'Values parsed as `parseFloat`'; 'No eval; SVG built by string concatenation with escaped values'; '`aria-label` text uses escaped title/type strings'`
 
 ### UI — OBJECT (high)
-- **Reason:** Buttons within the snapshots modal (Restore, Del) and meta-information text are excessively small, leading to poor readability and difficult tap targets, especially on mobile devices or for users with visual impairments.
-- **Required fix:** Increase font size and padding for `.sn-btn` and `.sn-meta` elements to ensure they are easily readable and have sufficient tap target area (minimum 44x44px for touch). Also, ensure sufficient contrast for `.sn-meta` and `.sn-count` text.
-- **Evidence:** `markdown-deck/index.html:1003-1004 (sn-btn font-size, padding), 999 (sn-meta font-size, color), 990 (sn-count color)`
+- **Reason:** The plan silently truncates data to 20 points without user feedback, and uses excessively small font sizes (8-10px) and aggressive 8-character label truncation which will lead to illegibility and confusion.
+- **Required fix:** Add a warning message when data points exceed the 20-point limit; increase minimum font sizes for labels and titles, and reconsider the 8-character label truncation limit or provide an option to disable it.
+- **Evidence:** `Approach > Subtask 2 > parseChartData: 'Clamp to 20 points max' (no corresponding warning in renderChart); Bar/Line/Pie chart SVG sections: 'font-size: 8px', 'Title: 10px', 'All labels truncated to 8 chars with … appended if longer'`
 
-### GUIDE — APPROVE (low)
-- **Reason:** The Named Snapshots feature is highly discoverable with clear in-app hints, tooltips, and comprehensive documentation.
+### GUIDE — OBJECT (high)
+- **Reason:** The plan for `DECK_GUIDE.md` documentation is too brief and does not explicitly guarantee coverage of all critical usage details, error messages, and UI behaviors described elsewhere in the plan.
+- **Required fix:** The `DECK_GUIDE.md` update must explicitly include documentation for: the optional `title:` line, the `Label, Value` data format, label truncation behavior (`…`), the warning message for skipped invalid data lines, the `[chart: no data]` placeholder, the fallback to 'bar' for unknown chart types, the presence of value labels directly on chart elements, the 20-point data limit, and pie chart legend behavior (e.g., `+N more`).
+- **Evidence:** `markdown-deck/plan.md:Subtask 8: DECK_GUIDE.md documentation`
 
 ### USEFULNESS — APPROVE (low)
-- **Reason:** Named Snapshots provide essential version control for a local-first authoring tool, enabling iterative content creation and a safety net for users.
-- **Evidence:** `Similar versioning features are standard in most serious content creation and editing applications (e.g., Google Docs version history, Git for code, design software history panels). This addresses a clear need for users to revert, compare, or explore alternative versions of their presentations witho`
+- **Reason:** This feature solves a clear problem for users who need to quickly embed simple, theme-aware charts into their markdown presentations without external tools, enhancing the core utility of markdown-deck.
+- **Evidence:** `The 'signature move' of theme-aware colors and direct value labels addresses a common pain point with static image embeds, making it a practical tool for recurring presentation needs. It fills a gap not easily covered by browser features or quick web searches.`
 
 ### COOL — APPROVE (low)
-- **Reason:** The named snapshots feature with visual thumbnails, inline editable labels, and a dedicated shortcut (Ctrl+Shift+S) provides a genuinely differentiated and memorable versioning experience for a local-only markdown editor, creating a clear 'signature move' beyond basic undo/redo.
+- **Reason:** The theme-aware charts with inline value labels and rounded bar caps provide a clear signature move, making the tool feel native and polished, differentiating it from generic chart generators.
 
-### LESSONS — APPROVE (low)
-- **Reason:** All documented lessons and architectural constraints are adhered to, including the `createDocumentFragment` fix from the prior plan gate escalation.
+### LESSONS — APPROVE (advisory)
+- **Reason:** [AUTO-DOWNGRADED: LESSONS VETO missing precondition_evidence] The plan accepts CSV-style data input but does not include a `<details>` element in the UI to list supported input formats, violating a documented `KEEP` lesson from `port-ref` that addressed a high-severity GUIDE objection.
+- **Required fix:** Add a `<details>` element to the UI (e.g., near the chart input area or in a help modal) listing the supported CSV input format for chart blocks, as this was previously identified as a high-severity missing documentation issue by GUIDE.
+- **Evidence:** `KEEP — `<details>` supported-formats block for bulk input features — When a tool accepts structured text input (YAML, JSON, CSV), add a `<details>` element listing supported input formats. Satisfies GUIDE at the OUTCOME gate without cluttering the primary UI; GUIDE flagged the absence of explicit fo`
 
 ## Resolution
 
-**RESOLVED 2026-04-13 by John (interactive session).**
-
-UI OBJECT — ACCEPTED. Bumped `.sn-btn` font-size 0.5→0.55rem, padding 2px 8px→6px 12px, added min-height 28px. Bumped `.sn-meta` and `.sn-count` font-size 0.48→0.55rem, color #444→#888 for better contrast. Council should proceed to TESTS gate.
+Human decision required. Resume the build after updating session_state.json.
