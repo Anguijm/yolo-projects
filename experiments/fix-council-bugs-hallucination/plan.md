@@ -39,7 +39,32 @@ The cost of this loop: **6 real fixes + 3 hallucinations on LST; 0 real fixes + 
 
 ### Subtask 1 — detect_bugs_hallucination helper
 
-New function in `council.py`, called after the existing enforcement passes:
+New function in `council.py`, called after the existing enforcement passes.
+
+**Refined detection approach (addressing BUGS concern about comment/string false positives):**
+
+Rather than a bare `\b{symbol}\b` text search (which matches comments, strings, and
+dead code), the helper uses two complementary checks ordered from most specific to least:
+
+1. **Cited-line check**: When evidence contains `file:NNN` references, read the exact
+   cited lines (±5 context) and check whether the symbol appears there. This is the
+   highest-signal path — if the council cited "index.html:2332" and line 2332 literally
+   contains `byDirectionChk`, the claim is contradicted by direct evidence.
+
+2. **Definition-pattern check**: Search the whole file for language-specific definition
+   patterns, not bare identifier occurrences:
+   - `.html`/`.js`: `function\s+{symbol}\b`, `(?:const|let|var)\s+{symbol}\s*=`, `{symbol}\s*\(`
+   - `.py`: `(?:def|class)\s+{symbol}\s*[:(]`, `{symbol}\s*=\s*`
+   - Other: skip whole-file fallback; only cited-line check applies
+
+This avoids matching symbols in comments, string literals, or dead code because
+definition patterns (`function foo`, `const foo =`, `def foo(`) are syntactically
+distinct from mere mentions.
+
+The two-layer design means:
+- Template Lib case (cited lines 2332/2333/2399 define the symbols) → caught by layer 1
+- Future cases with no line refs but clear definitions in source → caught by layer 2
+- Symbol genuinely missing from file → neither layer matches → OBJECT preserved
 
 ```python
 # Regex patterns used to detect "X is undefined" style claims
@@ -47,56 +72,84 @@ _HALLUCINATION_CLAIM_RE = re.compile(
     r"\b(undefined|undeclared|not\s+defined|does\s+not\s+exist|missing)\b",
     re.IGNORECASE,
 )
-# Pull symbol names out of required_fix prose like "Define `X`", "Declare `foo`",
-# "implement `bar` function". Also catches backtick-quoted identifiers anywhere.
+# Pull symbol names out of required_fix/reason prose (backtick-quoted identifiers)
 _SYMBOL_FROM_FIX_RE = re.compile(r"`([a-zA-Z_][a-zA-Z0-9_]{2,})`")
 # Match file:line refs in evidence: "index.html:2332", "build_memory.py:42"
 _FILE_REF_RE = re.compile(r"([\w\-/.]+\.\w+):(\d+)(?:[-,]\d+)?")
+
+def _symbol_defined_in_content(symbol: str, content: str, ext: str) -> bool:
+    """Return True if symbol appears to be *defined* in content using
+    language-appropriate definition patterns. Falls back to cited-line check."""
+    esc = re.escape(symbol)
+    if ext in (".html", ".js", ".ts"):
+        patterns = [
+            rf"function\s+{esc}\b",
+            rf"(?:const|let|var)\s+{esc}\s*=",
+            rf"{esc}\s*\(",           # call-site is NOT a def, but method shorthand is
+        ]
+    elif ext == ".py":
+        patterns = [
+            rf"(?:def|class)\s+{esc}\s*[:(]",
+            rf"^{esc}\s*=",           # module-level assignment
+        ]
+    else:
+        return False  # unknown type — skip whole-file check
+    return any(re.search(p, content, re.MULTILINE) for p in patterns)
 
 def detect_bugs_hallucination(verdict, project):
     """Return True if a BUGS OBJECT verdict appears to cite nonexistent symbols.
 
     Only applies when reason uses 'undefined/undeclared/missing' phrasing
-    AND required_fix/evidence reference specific symbol names. If those
-    symbols ARE present in the referenced file(s), the claim is hallucinated.
+    AND required_fix/evidence reference specific backtick-quoted symbol names.
+    Uses two-layer detection: cited-line check first (highest signal), then
+    definition-pattern check (language-aware, avoids matching comments/strings).
     """
     if verdict.angle != "bugs" or verdict.verdict != "OBJECT":
         return False
     if not _HALLUCINATION_CLAIM_RE.search(verdict.reason or ""):
         return False
-    # Collect symbols to check from required_fix backtick-quoted tokens
     fix_text = (verdict.required_fix or "") + " " + (verdict.reason or "")
     claimed_symbols = set(_SYMBOL_FROM_FIX_RE.findall(fix_text))
     if not claimed_symbols:
-        return False  # No specific symbols to verify → don't downgrade
-    # Collect files from evidence; fall back to common project file paths
+        return False
     evidence = verdict.evidence or ""
-    files = [m.group(1) for m in _FILE_REF_RE.finditer(evidence)]
+    file_refs = list(_FILE_REF_RE.finditer(evidence))
+    # Collect file paths; fall back to known project files if evidence lacks them
+    files = [m.group(1) for m in file_refs]
     if not files:
-        # Try common project files
         proj_dir = REPO_ROOT / project
         for candidate in ("index.html", "benchmark.py", "build_memory.py"):
-            if (proj_dir / candidate).exists():
-                files.append(str(proj_dir / candidate))
-            elif (REPO_ROOT / candidate).exists():
-                files.append(str(REPO_ROOT / candidate))
+            for base in (proj_dir, REPO_ROOT):
+                if (base / candidate).exists():
+                    files.append(str(base / candidate))
+                    break
     if not files:
         return False
-    # For each symbol, if it's found in any of the cited files → claim is wrong
-    for file_path in files:
-        # Resolve relative paths against REPO_ROOT if not absolute
-        path_obj = Path(file_path) if os.path.isabs(file_path) else (REPO_ROOT / file_path)
+    for raw_path, ref_match in zip(files, file_refs if file_refs else [None] * len(files)):
+        path_obj = Path(raw_path) if os.path.isabs(raw_path) else (REPO_ROOT / raw_path)
         try:
             resolved = path_obj.resolve()
-            resolved.relative_to(REPO_ROOT)  # containment safety
+            resolved.relative_to(REPO_ROOT)
             content = resolved.read_text(encoding="utf-8", errors="replace")
         except (FileNotFoundError, ValueError):
             continue
-        found_here = [s for s in claimed_symbols if re.search(r"\b" + re.escape(s) + r"\b", content)]
-        if found_here:
-            # At least one "undefined" symbol is actually defined here → hallucination
-            return True
+        ext = resolved.suffix.lower()
+        lines = content.splitlines()
+        # Layer 1: cited-line check — look at the exact line numbers cited in evidence
+        if ref_match is not None:
+            cited_line = int(ref_match.group(2))
+            window_start = max(0, cited_line - 6)
+            window_end = min(len(lines), cited_line + 5)
+            snippet = "\n".join(lines[window_start:window_end])
+            for s in claimed_symbols:
+                if re.search(r"\b" + re.escape(s) + r"\b", snippet):
+                    return True  # symbol present at cited location → claim is wrong
+        # Layer 2: definition-pattern check across the whole file
+        for s in claimed_symbols:
+            if _symbol_defined_in_content(s, content, ext):
+                return True
     return False
+```
 ```
 
 ### Subtask 2 — Integrate in main()
@@ -173,7 +226,8 @@ Document what shipped and which behaviors changed, plus the 4 fixture outcomes.
 - `_HALLUCINATION_CLAIM_RE` (new module constant) — regex matching "undefined/undeclared/missing" language
 - `_SYMBOL_FROM_FIX_RE` (new module constant) — regex extracting backtick-quoted identifiers
 - `_FILE_REF_RE` (new module constant) — regex extracting file:line references from evidence
-- `detect_bugs_hallucination(verdict, project) -> bool` (new) — pure function, returns True iff the claim is hallucinated
+- `_symbol_defined_in_content(symbol, content, ext) -> bool` (new) — language-aware definition-pattern check; avoids matching comments/strings
+- `detect_bugs_hallucination(verdict, project) -> bool` (new) — two-layer check: cited-line window first, then definition-pattern; returns True iff the claim is hallucinated
 - `main()` — add one loop after `check_goalpost_moves` to apply the check
 
 No other functions modified. `Verdict` dataclass unchanged.
@@ -198,7 +252,7 @@ N/A — internal orchestrator. Output is a stderr log line when a downgrade fire
 
 ## Edge Cases
 
-- **BUGS objection references a symbol that exists but is deprecated / stubbed** — low risk; our pattern checks any presence via `\b{symbol}\b` boundary match, so e.g. `# TODO: remove` commented-out references would match. Acceptable false negative; human review catches if needed.
+- **BUGS objection references a symbol that exists in a comment or string literal** — mitigated by the definition-pattern check (Layer 2), which requires language-specific definition syntax rather than any occurrence. The cited-line check (Layer 1) uses a narrow ±5 line window around the exact cited location, which still matches comments near the cited line — but if the council cited a line that contains the symbol in a comment, that is still evidence the claim is wrong (it can see that line and choose a real code line instead).
 - **Symbol name is a common word** (e.g., "id" or "value") — backtick-quoted identifiers need 3+ characters in the regex (`[a-zA-Z0-9_]{2,}`), which filters out most noise but not all. Could tighten to 4+ later if false positives appear.
 - **File path contains `..`** — `path.resolve().relative_to(REPO_ROOT)` raises `ValueError` and we skip that file. No escape surface.
 - **File doesn't exist** — caught via `FileNotFoundError`, skipped quietly.
