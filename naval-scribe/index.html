@@ -421,6 +421,51 @@ html, body {
 #tmpl-confirm-btns { display: flex; gap: 6px; margin-top: 8px; }
 #tmpl-apply-btn { flex: 1; padding: 5px 0; }
 #tmpl-cancel-btn { padding: 5px 10px; }
+/* ── Routing Slip Drawer ── */
+#routing-drawer {
+  display: none; position: fixed; top: 32px; left: 0; width: 420px; bottom: 0;
+  z-index: 200; background: var(--bg-surface); border-right: 1px solid #333;
+  overflow-y: auto; padding: 12px;
+}
+#routing-drawer.open { display: block; }
+@media (max-width: 768px) { #routing-drawer { width: 100%; } }
+.rs-field-label {
+  font-size: 0.4rem; text-transform: uppercase; letter-spacing: 0.15em;
+  color: var(--text-label); margin: 8px 0 3px;
+}
+.rs-field-hint { font-size: 0.38rem; color: var(--text-tertiary); margin-top: 2px; }
+.rs-subj-display {
+  font-size: 0.6rem; color: var(--text-secondary); padding: 4px 7px;
+  background: var(--bg-elevated); border: 1px solid var(--border-default);
+  min-height: 26px; word-break: break-word; line-height: 1.4;
+}
+.rs-reviewer-row {
+  display: flex; gap: 4px; align-items: center; margin-bottom: 4px;
+}
+.rs-reviewer-row input { flex: 1; background: var(--bg-elevated); border: 1px solid var(--border-default); color: var(--text-body); font-family: inherit; font-size: 0.65rem; padding: 5px 7px; outline: none; }
+.rs-reviewer-row input:focus { border-color: var(--border-active); }
+.rs-action-select {
+  background: var(--bg-elevated); border: 1px solid var(--border-default);
+  color: var(--text-secondary); font-family: inherit; font-size: 0.55rem;
+  padding: 4px 5px; outline: none; cursor: pointer; width: 74px; flex-shrink: 0;
+}
+#rs-max-warn { font-size: 0.45rem; color: #e3b341; display: none; margin-top: 3px; }
+#routing-preview-wrap { overflow-x: auto; margin-top: 10px; }
+.rs-preview-table {
+  width: 100%; border-collapse: collapse; font-size: 0.6rem;
+  font-family: 'Times New Roman', Times, serif; color: #eee;
+}
+.rs-preview-table th {
+  background: #1a1a1a; color: var(--accent); border: 1px solid #333;
+  padding: 4px 6px; font-size: 0.55rem; text-transform: uppercase; letter-spacing: 0.06em;
+  white-space: nowrap;
+}
+.rs-preview-table td {
+  border: 1px solid #333; padding: 4px 6px; color: var(--text-secondary);
+  word-break: break-word; vertical-align: top; font-size: 0.6rem;
+}
+.rs-preview-table tr:nth-child(even) td { background: #0f0f0f; }
+.rs-preview-empty { font-size: 0.45rem; color: var(--text-tertiary); padding: 6px 0; font-style: italic; }
 </style>
 </head>
 <body>
@@ -453,6 +498,7 @@ html, body {
       <button class="btn" id="chain-btn" aria-label="Chain endorsements onto a saved draft">chain</button>
       <button class="btn" id="addr-btn" aria-label="Open the command address book">addr book</button>
       <button class="btn" id="reply-btn" aria-label="Generate reply draft with From/To swapped">reply</button>
+      <button class="btn" id="routing-btn" aria-label="Generate a DON routing slip for this correspondence">routing slip</button>
       <button class="btn" id="print-btn" aria-label="Print current letter to PDF">print pdf</button>
       <button class="btn" id="drafts-btn" aria-label="Open saved drafts drawer">drafts</button>
       <button class="btn" id="ai-prompt-btn" aria-label="Copy the formatting guide as an AI prompt" title="Copy the formatting guide as an AI prompt — paste into ChatGPT/Claude to generate a properly-formatted draft">copy ai prompt</button>
@@ -558,6 +604,31 @@ html, body {
       <div style="font-size:0.5rem;color:var(--text-tertiary);padding-left:2px">SSIC, Subject</div>
     </div>
     <button class="btn btn-primary" id="reply-fill-btn" style="width:100%;margin-top:14px;padding:5px 0">fill reply draft</button>
+  </div>
+  <div id="routing-drawer">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+      <div class="section-header" style="margin:0;border:none">Routing Slip</div>
+      <button class="add-btn" id="routing-close">close ×</button>
+    </div>
+    <div style="font-size:0.42rem;color:var(--text-tertiary);margin-bottom:8px;line-height:1.7">
+      Build a DON routing slip. Add reviewers, set suspense date, then export as .docx.
+    </div>
+    <div class="rs-field-label">Document Subject</div>
+    <div id="routing-subj-display" class="rs-subj-display">(none)</div>
+    <div class="rs-field-hint">Mirrors the form subject field — edit above if needed.</div>
+    <div class="rs-field-label" style="margin-top:8px">Suspense Date</div>
+    <input type="text" id="routing-suspense" placeholder="DD Mon YYYY or NLT [date]" style="width:100%;background:var(--bg-elevated);border:1px solid var(--border-default);color:var(--text-body);font-family:inherit;font-size:0.65rem;padding:5px 7px;outline:none;display:block;margin-bottom:2px">
+    <div class="rs-field-label">Drafter / Return To</div>
+    <input type="text" id="routing-drafter" placeholder="e.g. LCDR Smith, Ext 1234" style="width:100%;background:var(--bg-elevated);border:1px solid var(--border-default);color:var(--text-body);font-family:inherit;font-size:0.65rem;padding:5px 7px;outline:none;display:block;margin-bottom:8px">
+    <div class="section-header" style="margin:10px 0 6px">Reviewer Chain</div>
+    <div id="routing-chain"></div>
+    <div id="rs-max-warn">Maximum 15 reviewers. Remove one to add another.</div>
+    <button class="add-btn" id="routing-add-reviewer" style="width:100%;text-align:center;margin:6px 0 0">+ add reviewer</button>
+    <div id="routing-preview-wrap">
+      <div id="routing-preview"></div>
+    </div>
+    <button class="btn btn-primary" id="routing-export-btn" style="width:100%;margin-top:10px;padding:5px 0">export routing_slip.docx</button>
+    <div style="font-size:0.38rem;color:var(--text-tertiary);margin-top:6px;line-height:1.5">Date Recv'd / Date Ret'd / Initials columns are filled by hand on the printed slip.</div>
   </div>
   <div id="form-panel">
     <div class="field" data-types="letter,memo,endorsement,business,instruction,sop">
@@ -3913,6 +3984,308 @@ html, body {
   addrBtn.addEventListener('click', function() { tmplDrawer.classList.remove('open'); }, true);
   replyBtn.addEventListener('click', function() { tmplDrawer.classList.remove('open'); }, true);
 
+  /* ── Routing Slip Generator ── */
+  var routingBtn = document.getElementById('routing-btn');
+  var routingDrawer = document.getElementById('routing-drawer');
+  var routingClose = document.getElementById('routing-close');
+  var routingSuspense = document.getElementById('routing-suspense');
+  var routingDrafter = document.getElementById('routing-drafter');
+  var routingSubjDisplay = document.getElementById('routing-subj-display');
+  var routingChain = document.getElementById('routing-chain');
+  var routingAddBtn = document.getElementById('routing-add-reviewer');
+  var routingExportBtn = document.getElementById('routing-export-btn');
+  var routingMaxWarn = document.getElementById('rs-max-warn');
+  var routingPreview = document.getElementById('routing-preview');
+  var routingReviewers = [];
+
+  function updateRoutingSubj() {
+    var subj = F.subj.value.trim();
+    routingSubjDisplay.textContent = subj || '(none)';
+    renderRoutingPreview();
+  }
+  F.subj.addEventListener('input', updateRoutingSubj);
+
+  function renderRoutingPreview() {
+    var rows = routingReviewers;
+    var wrap = document.getElementById('routing-preview-wrap');
+    while (routingPreview.firstChild) routingPreview.removeChild(routingPreview.firstChild);
+
+    var tbl = document.createElement('table');
+    tbl.className = 'rs-preview-table';
+    tbl.style.marginTop = '10px';
+
+    var thead = document.createElement('thead');
+    var hrow = document.createElement('tr');
+    var headers = ['Reviewer / Office', 'Action', "Date Recv'd", "Date Ret'd", 'Initials / Sig'];
+    for (var h = 0; h < headers.length; h++) {
+      var th = document.createElement('th');
+      th.textContent = headers[h];
+      hrow.appendChild(th);
+    }
+    thead.appendChild(hrow);
+    tbl.appendChild(thead);
+
+    var tbody = document.createElement('tbody');
+
+    if (rows.length === 0) {
+      var emptyTr = document.createElement('tr');
+      var emptyTd = document.createElement('td');
+      emptyTd.colSpan = 5;
+      emptyTd.className = 'rs-preview-empty';
+      emptyTd.textContent = 'Add reviewers above.';
+      emptyTr.appendChild(emptyTd);
+      tbody.appendChild(emptyTr);
+    } else {
+      for (var i = 0; i < rows.length; i++) {
+        var rr = rows[i];
+        var tr = document.createElement('tr');
+        var tdName = document.createElement('td');
+        tdName.textContent = rr.input.value || '';
+        var tdAct = document.createElement('td');
+        tdAct.textContent = rr.select.value;
+        var tdRecv = document.createElement('td');
+        tdRecv.textContent = '________';
+        var tdRet = document.createElement('td');
+        tdRet.textContent = '________';
+        var tdInit = document.createElement('td');
+        tdInit.textContent = '________';
+        tr.appendChild(tdName); tr.appendChild(tdAct);
+        tr.appendChild(tdRecv); tr.appendChild(tdRet); tr.appendChild(tdInit);
+        tbody.appendChild(tr);
+      }
+    }
+
+    /* Footer rows: Suspense + Drafter */
+    var trSusp = document.createElement('tr');
+    var tdSuspLabel = document.createElement('td');
+    tdSuspLabel.colSpan = 2;
+    tdSuspLabel.style.fontWeight = 'bold';
+    tdSuspLabel.style.color = '#e3b341';
+    tdSuspLabel.textContent = 'Suspense:';
+    var tdSuspVal = document.createElement('td');
+    tdSuspVal.colSpan = 3;
+    tdSuspVal.textContent = routingSuspense.value.trim() || '';
+    trSusp.appendChild(tdSuspLabel); trSusp.appendChild(tdSuspVal);
+    tbody.appendChild(trSusp);
+
+    var trDraft = document.createElement('tr');
+    var tdDraftLabel = document.createElement('td');
+    tdDraftLabel.colSpan = 2;
+    tdDraftLabel.style.fontWeight = 'bold';
+    tdDraftLabel.style.color = '#e3b341';
+    tdDraftLabel.textContent = 'Drafter / Return To:';
+    var tdDraftVal = document.createElement('td');
+    tdDraftVal.colSpan = 3;
+    tdDraftVal.textContent = routingDrafter.value.trim() || '';
+    trDraft.appendChild(tdDraftLabel); trDraft.appendChild(tdDraftVal);
+    tbody.appendChild(trDraft);
+
+    tbl.appendChild(tbody);
+    routingPreview.appendChild(tbl);
+  }
+
+  function addRoutingReviewer(name, action) {
+    if (routingReviewers.length >= 15) {
+      routingMaxWarn.style.display = '';
+      return;
+    }
+    var row = document.createElement('div');
+    row.className = 'rs-reviewer-row';
+
+    var inp = document.createElement('input');
+    inp.type = 'text';
+    inp.placeholder = 'Name / Office symbol';
+    inp.value = name || '';
+    inp.addEventListener('input', renderRoutingPreview);
+
+    var sel = document.createElement('select');
+    sel.className = 'rs-action-select';
+    var actions = ['Review', 'Concur', 'Sign', 'Info'];
+    for (var a = 0; a < actions.length; a++) {
+      var opt = document.createElement('option');
+      opt.value = actions[a];
+      opt.textContent = actions[a];
+      sel.appendChild(opt);
+    }
+    if (action) sel.value = action;
+    sel.addEventListener('change', renderRoutingPreview);
+
+    var entry = { input: inp, select: sel };
+    routingReviewers.push(entry);
+
+    var rm = document.createElement('button');
+    rm.className = 'add-btn';
+    rm.textContent = '×';
+    rm.setAttribute('aria-label', 'Remove reviewer');
+    (function(rowEl, ent) {
+      rm.addEventListener('click', function() {
+        routingChain.removeChild(rowEl);
+        routingReviewers.splice(routingReviewers.indexOf(ent), 1);
+        if (routingReviewers.length < 15) routingMaxWarn.style.display = 'none';
+        renderRoutingPreview();
+      });
+    })(row, entry);
+
+    row.appendChild(inp);
+    row.appendChild(sel);
+    row.appendChild(rm);
+    routingChain.appendChild(row);
+
+    renderRoutingPreview();
+    if (routingReviewers.length >= 15) routingMaxWarn.style.display = '';
+  }
+
+  routingAddBtn.addEventListener('click', function() { addRoutingReviewer('', 'Review'); });
+  routingSuspense.addEventListener('input', renderRoutingPreview);
+  routingDrafter.addEventListener('input', renderRoutingPreview);
+
+  function generateRoutingDocx() {
+    var subjText = F.subj.value.trim() || '(none)';
+    var suspText = routingSuspense.value.trim();
+    var drafterText = routingDrafter.value.trim();
+
+    /* Build OOXML table */
+    function wCell(text, opts) {
+      var o = opts || {};
+      var shade = o.shade ? '<w:shd w:val="clear" w:color="auto" w:fill="' + o.shade + '"/>' : '';
+      var bold = o.bold ? '<w:b/>' : '';
+      var color = o.color ? '<w:color w:val="' + o.color + '"/>' : '';
+      var span = o.span ? '<w:gridSpan w:val="' + o.span + '"/>' : '';
+      return '<w:tc><w:tcPr>' + span + shade + '</w:tcPr>' +
+        '<w:p><w:pPr><w:spacing w:before="40" w:after="40"/></w:pPr>' +
+        '<w:r><w:rPr>' + bold + color + '</w:rPr><w:t xml:space="preserve">' + escXml(text) + '</w:t></w:r></w:p></w:tc>';
+    }
+
+    var hdrCells =
+      wCell('Reviewer / Office', { bold: true, shade: '1A1A1A' }) +
+      wCell('Action', { bold: true, shade: '1A1A1A' }) +
+      wCell("Date Recv'd", { bold: true, shade: '1A1A1A' }) +
+      wCell("Date Ret'd", { bold: true, shade: '1A1A1A' }) +
+      wCell('Initials / Sig', { bold: true, shade: '1A1A1A' });
+
+    var reviewerRows = '';
+    for (var i = 0; i < routingReviewers.length; i++) {
+      reviewerRows +=
+        '<w:tr>' +
+        wCell(routingReviewers[i].input.value.trim()) +
+        wCell(routingReviewers[i].select.value) +
+        wCell('') + wCell('') + wCell('') +
+        '</w:tr>';
+    }
+
+    var footerRows =
+      '<w:tr>' + wCell('Suspense:', { bold: true, span: 2, color: 'E3B341' }) + wCell(suspText, { span: 3 }) + '</w:tr>' +
+      '<w:tr>' + wCell('Drafter / Return To:', { bold: true, span: 2, color: 'E3B341' }) + wCell(drafterText, { span: 3 }) + '</w:tr>';
+
+    var tblXml =
+      '<w:tbl>' +
+      '<w:tblPr>' +
+      '<w:tblStyle w:val="TableGrid"/>' +
+      '<w:tblW w:w="0" w:type="auto"/>' +
+      '<w:tblLayout w:type="autofit"/>' +
+      '<w:tblBorders>' +
+      '<w:top w:val="single" w:sz="4" w:space="0" w:color="auto"/>' +
+      '<w:left w:val="single" w:sz="4" w:space="0" w:color="auto"/>' +
+      '<w:bottom w:val="single" w:sz="4" w:space="0" w:color="auto"/>' +
+      '<w:right w:val="single" w:sz="4" w:space="0" w:color="auto"/>' +
+      '<w:insideH w:val="single" w:sz="4" w:space="0" w:color="auto"/>' +
+      '<w:insideV w:val="single" w:sz="4" w:space="0" w:color="auto"/>' +
+      '</w:tblBorders>' +
+      '</w:tblPr>' +
+      '<w:tr>' + hdrCells + '</w:tr>' +
+      reviewerRows +
+      footerRows +
+      '</w:tbl>';
+
+    var body =
+      makeParagraph('DON ROUTING SLIP', { align: 'center', bold: true, spaceAfter: '120' }) +
+      makeParagraph([{ text: 'Subject:  ' }, { text: subjText }], { spaceAfter: '120' }) +
+      tblXml +
+      emptyParagraph();
+
+    var docXml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+      '<w:document ' + OOXML_NS + ' ' + REL_NS + '>' +
+      '<w:body>' + body +
+      '<w:sectPr>' +
+      '<w:pgSz w:w="12240" w:h="15840"/>' +
+      '<w:pgMar w:top="' + TWIPS_PER_INCH + '" w:right="' + TWIPS_PER_INCH + '" w:bottom="' + TWIPS_PER_INCH + '" w:left="' + TWIPS_PER_INCH + '" w:header="720" w:footer="720" w:gutter="0"/>' +
+      '</w:sectPr>' +
+      '</w:body></w:document>';
+
+    var stylesXml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+      '<w:styles ' + OOXML_NS + '>' +
+      '<w:docDefaults><w:rPrDefault><w:rPr>' +
+      '<w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman" w:cs="Times New Roman"/>' +
+      '<w:sz w:val="' + HALF_POINTS_12 + '"/><w:szCs w:val="' + HALF_POINTS_12 + '"/>' +
+      '</w:rPr></w:rPrDefault></w:docDefaults>' +
+      '</w:styles>';
+
+    var contentTypes = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+      '<Types xmlns="http:/' + '/schemas.openxmlformats.org/package/2006/content-types">' +
+      '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>' +
+      '<Default Extension="xml" ContentType="application/xml"/>' +
+      '<Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>' +
+      '<Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/>' +
+      '</Types>';
+
+    var rootRels = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+      '<Relationships xmlns="http:/' + '/schemas.openxmlformats.org/package/2006/relationships">' +
+      '<Relationship Id="rId1" Type="http:/' + '/schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>' +
+      '</Relationships>';
+
+    var wordRels = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+      '<Relationships xmlns="http:/' + '/schemas.openxmlformats.org/package/2006/relationships">' +
+      '<Relationship Id="rId1" Type="http:/' + '/schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>' +
+      '</Relationships>';
+
+    var zipBytes = createZip([
+      { name: '[Content_Types].xml', data: contentTypes },
+      { name: '_rels/.rels', data: rootRels },
+      { name: 'word/document.xml', data: docXml },
+      { name: 'word/_rels/document.xml.rels', data: wordRels },
+      { name: 'word/styles.xml', data: stylesXml }
+    ]);
+
+    var blob = new Blob([zipBytes], { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url;
+    a.download = 'routing_slip.docx';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(function() { URL.revokeObjectURL(url); }, 1000);
+  }
+
+  routingBtn.addEventListener('click', function() {
+    if (routingDrawer.classList.contains('open')) {
+      routingDrawer.classList.remove('open');
+    } else {
+      draftsDrawer.classList.remove('open');
+      importDrawer.classList.remove('open');
+      chainDrawer.classList.remove('open');
+      addrDrawer.classList.remove('open');
+      replyDrawer.classList.remove('open');
+      tmplDrawer.classList.remove('open');
+      updateRoutingSubj();
+      routingDrawer.classList.add('open');
+    }
+  });
+
+  routingClose.addEventListener('click', function() { routingDrawer.classList.remove('open'); });
+  routingExportBtn.addEventListener('click', generateRoutingDocx);
+
+  /* Cross-close: every existing drawer button closes routing-drawer */
+  draftsBtn.addEventListener('click', function() { routingDrawer.classList.remove('open'); }, true);
+  importBtn.addEventListener('click', function() { routingDrawer.classList.remove('open'); }, true);
+  chainBtn.addEventListener('click', function() { routingDrawer.classList.remove('open'); }, true);
+  addrBtn.addEventListener('click', function() { routingDrawer.classList.remove('open'); }, true);
+  replyBtn.addEventListener('click', function() { routingDrawer.classList.remove('open'); }, true);
+  tmplBtn.addEventListener('click', function() { routingDrawer.classList.remove('open'); }, true);
+
+  /* Cross-close: routing btn closes all existing drawers (handled in routingBtn click above) */
+  /* Ensure existing drawers also close routing when opened */
+
   /* ── Init ── */
   loadSaved();
 
@@ -4407,6 +4780,27 @@ Click the **templates** button in the top toolbar to open the Template Library d
 **Policy & Instructions:** Point Paper, Action Memo, Instruction Template
 
 Click any template to pre-fill the form with a type, subject, and body appropriate for that correspondence type. If the form already has content, a confirmation drawer shows exactly what will change, what will be cleared, and what will be kept before you commit. On an empty form the template applies immediately. Edit all fields after loading — templates provide a starting structure only, not finished letters.
+
+### Routing Slip Generator
+Click the **routing slip** button in the top toolbar to open the Routing Slip drawer. This tool generates a standalone DON routing slip (.docx) that accompanies correspondence through the reviewer chain before signature.
+
+**Fields in the drawer:**
+- **Document Subject** — mirrors the form's Subject field in real time; read-only display, auto-updates as you type.
+- **Suspense Date** — the deadline by which all reviewers must return the package (e.g., `15 Apr 2026` or `NLT COB Friday`).
+- **Drafter / Return To** — your name, office symbol, and contact info so reviewers know where to return the package.
+
+**Building the reviewer chain:**
+Click **+ add reviewer** to add a row. Each row has a Name/Office field and an Action dropdown with four options:
+- **Review** — reviewer reads and comments.
+- **Concur** — reviewer concurs or non-concurs by initialing.
+- **Sign** — reviewer or approving authority signs.
+- **Info** — information copy only, no action required.
+
+The live preview table updates with every keystroke showing all reviewer rows plus Suspense and Drafter footer rows. The Date Recv'd, Date Ret'd, and Initials/Sig columns are left blank for hand-completion on the printed slip.
+
+**Export:** Click **export routing_slip.docx** to download a standalone DOCX with the DON ROUTING SLIP heading, the document subject line, the full reviewer chain table (with blank date/initials columns), and the suspense/drafter footer. This file is separate from the main correspondence download.
+
+The routing slip drawer is independent of the main form — you can have a letter in progress and generate a routing slip without committing or exporting the letter. Maximum 15 reviewers per slip.
 
 <!-- GUIDE:END --></script>
 </body>

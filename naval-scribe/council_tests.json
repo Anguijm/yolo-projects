@@ -1,20 +1,101 @@
 {
   "gate": "tests",
   "project": "naval-scribe",
-  "timestamp": "2026-04-24T07:00:00.000000+00:00",
-  "stamp_type": "human-driven formal approval (retroactive, Template Library)",
-  "stamp_rationale": "Supersedes the earlier Letter Status Tracker stamp. Template Library feature ships alongside. All feature code on disk; 6 of 7 angles consistently APPROVE; BUGS stuck in identical hallucination loop.",
-  "stamped_by": "John (interactive session, 2026-04-24)",
+  "timestamp": "2026-04-24T22:20:35.306873+00:00",
   "verdicts": [
-    { "angle": "bugs", "verdict": "APPROVE", "severity": "low", "reason": "Feature code on disk. Referenced symbols verified via grep.", "required_fix": "", "evidence": "grep confirms byDirectionChk (2332), actingChk (2333), restoreParties (2399) all defined", "veto": false },
-    { "angle": "security", "verdict": "APPROVE", "severity": "low", "reason": "createElement+textContent for template content; esc() for user fields; no new innerHTML-with-user-data path.", "required_fix": "", "evidence": "", "veto": false },
-    { "angle": "ui", "verdict": "APPROVE", "severity": "low", "reason": "Drawer + WILL CHANGE/CLEAR/KEEP disclosure + mutual exclusion implemented per plan.", "required_fix": "", "evidence": "", "veto": false },
-    { "angle": "guide", "verdict": "APPROVE", "severity": "low", "reason": "ai-prompt-content updated, aria-label on tmpl-btn, template items self-documenting.", "required_fix": "", "evidence": "", "veto": false },
-    { "angle": "usefulness", "verdict": "APPROVE", "severity": "critical", "reason": "12 pre-built templates directly address common formatting-from-scratch need.", "required_fix": "", "evidence": "", "veto": false },
-    { "angle": "cool", "verdict": "APPROVE", "severity": "low", "reason": "Utility-flagship exemption: domain-specific templates reinforce naval-scribe identity.", "required_fix": "", "evidence": "", "veto": false },
-    { "angle": "lessons", "verdict": "APPROVE", "severity": "low", "reason": "Every documented pattern followed (aria-label, textContent, esc, WILL CHANGE/CLEAR/KEEP, AI prompt update).", "required_fix": "", "evidence": "", "veto": false }
+    {
+      "angle": "bugs",
+      "verdict": "OBJECT",
+      "severity": "critical",
+      "reason": "Routing slip data (reviewers, suspense, drafter) is not saved to localStorage, leading to complete data loss when the user navigates away or closes the application.",
+      "required_fix": "Integrate routing slip fields (suspense, drafter) and the reviewer chain (routingReviewers array) into the getFullState() and restoreFullState() functions to ensure data persistence via localStorage.",
+      "evidence": "naval-scribe/index.html:L1299-1301 (routingReviewers, routingSuspense, routingDrafter are not included in the state management functions, unlike other form data and lists)",
+      "veto": false,
+      "parse_failed": false
+    },
+    {
+      "angle": "security",
+      "verdict": "APPROVE",
+      "severity": "low",
+      "reason": "The application consistently uses HTML entity encoding (esc() and escXml()) for all user-controlled data before rendering to the DOM or generating DOCX files, effectively mitigating injection risks despite the permissive 'unsafe-inline' CSP, which is an architectural constraint.",
+      "required_fix": "",
+      "evidence": "",
+      "veto": false,
+      "parse_failed": false
+    },
+    {
+      "angle": "ui",
+      "verdict": "OBJECT",
+      "severity": "critical",
+      "reason": "Many interactive elements, including buttons and select dropdowns, have tap targets that are too small and lack visible focus indicators, significantly hindering accessibility and mobile usability.",
+      "required_fix": "Increase the minimum size or padding for all interactive elements (buttons, selects) to ensure adequate tap targets (minimum 44x44px), and add clear ':focus' and ':focus-visible' styles to all interactive elements that currently lack them.",
+      "evidence": "file:index.html: CSS definitions for .btn (line 74), .add-btn (line 82), #type-select (line 49), #class-select (line 40), .rs-action-select (line 389), .addr-act-btn (line 330) show small sizes and missing focus styles. Examples of affected elements include 'new', 'download .docx', '+ add via', '+ add reviewer', and all top-bar select elements.",
+      "veto": false,
+      "parse_failed": false
+    },
+    {
+      "angle": "guide",
+      "verdict": "APPROVE",
+      "severity": "low",
+      "reason": "The in-app AI prompt content serves as an excellent, comprehensive, and discoverable guide for both human users and AI agents, detailing all features and formatting rules.",
+      "required_fix": "",
+      "evidence": "",
+      "veto": false,
+      "parse_failed": false
+    },
+    {
+      "angle": "usefulness",
+      "verdict": "APPROVE",
+      "severity": "low",
+      "reason": "The new features (Routing Slip, Template Library, Reply Draft, Address Book, Endorsement Chain) all address specific, high-frequency pain points for the target user, significantly enhancing the tool's utility for naval correspondence.",
+      "required_fix": "",
+      "evidence": "Each new feature solves a common, recurring problem: Routing slips are mandatory for review chains, templates provide essential starting points, reply drafts automate tedious field swaps, address books save repeated typing, and endorsement chaining streamlines a complex document flow. These are all core utilities for anyone drafting naval correspondence.",
+      "veto": false,
+      "parse_failed": false
+    },
+    {
+      "angle": "cool",
+      "verdict": "APPROVE",
+      "severity": "low",
+      "reason": "The Routing Slip Generator reinforces the project's core identity as a comprehensive, zero-dependency naval correspondence utility by adding a crucial, properly formatted document to the workflow.",
+      "required_fix": "",
+      "evidence": "",
+      "veto": false,
+      "parse_failed": false
+    },
+    {
+      "angle": "lessons",
+      "verdict": "APPROVE",
+      "severity": "advisory",
+      "reason": "[AUTO-DOWNGRADED: LESSONS VETO missing precondition_evidence] The `esc` HTML escaping function in `renderPreview` uses `.replace(/x/g, y)` for quotes, directly violating the documented lesson to use `String.prototype.split(x).join(y)` to avoid the `test_project.py` brace-balance bug.",
+      "required_fix": "Update the `esc` function in the `renderPreview` section to use `String.prototype.split(x).join(y)` for all character replacements, consistent with the `escXml` function and the `svg-fields` lesson.",
+      "evidence": "KEEP: `String.prototype.split(x).join(y)` replaces `.replace(/x/g, y)` when `x` is `\"` or `'` \u2014 dodges the known `test_project.py` brace-balance bug where regex literals with embedded quotes confuse the string-stripper. For XML/HTML escape functions specifically: 5\u00d7 split/join chain is readable and test-safe. (learnings.md, svg-fields, 2026-04-23)",
+      "veto": false,
+      "parse_failed": false
+    }
   ],
-  "all_approved": true,
-  "objections": [],
+  "all_approved": false,
+  "objections": [
+    {
+      "angle": "bugs",
+      "verdict": "OBJECT",
+      "severity": "critical",
+      "reason": "Routing slip data (reviewers, suspense, drafter) is not saved to localStorage, leading to complete data loss when the user navigates away or closes the application.",
+      "required_fix": "Integrate routing slip fields (suspense, drafter) and the reviewer chain (routingReviewers array) into the getFullState() and restoreFullState() functions to ensure data persistence via localStorage.",
+      "evidence": "naval-scribe/index.html:L1299-1301 (routingReviewers, routingSuspense, routingDrafter are not included in the state management functions, unlike other form data and lists)",
+      "veto": false,
+      "parse_failed": false
+    },
+    {
+      "angle": "ui",
+      "verdict": "OBJECT",
+      "severity": "critical",
+      "reason": "Many interactive elements, including buttons and select dropdowns, have tap targets that are too small and lack visible focus indicators, significantly hindering accessibility and mobile usability.",
+      "required_fix": "Increase the minimum size or padding for all interactive elements (buttons, selects) to ensure adequate tap targets (minimum 44x44px), and add clear ':focus' and ':focus-visible' styles to all interactive elements that currently lack them.",
+      "evidence": "file:index.html: CSS definitions for .btn (line 74), .add-btn (line 82), #type-select (line 49), #class-select (line 40), .rs-action-select (line 389), .addr-act-btn (line 330) show small sizes and missing focus styles. Examples of affected elements include 'new', 'download .docx', '+ add via', '+ add reviewer', and all top-bar select elements.",
+      "veto": false,
+      "parse_failed": false
+    }
+  ],
   "vetoed": false
 }

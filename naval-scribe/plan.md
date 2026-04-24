@@ -1,144 +1,114 @@
-# Plan: Template Letter Library
+# Naval Scribe — Routing Slip Generator Plan
 
 ## Goal
-Add a "templates" button to the naval-scribe top bar that opens a drawer listing 12 pre-built letter templates in 4 categories; clicking a template fills the entire form with pre-populated type, subject, and body content.
+Add a DON routing slip generator: a new drawer that builds a reviewer chain (name/office + action code), previews a formatted routing slip table, and exports a standalone routing_slip.docx.
 
 ## Scope
-**In scope:**
-- A `templates` button in the top bar (after `import`, before `chain`)
-- A `#tmpl-drawer` sliding panel listing 12 templates in 4 categories (Personnel, Administrative, Operations, Policy & Instructions)
-- Each template pre-populates: type, subject, body (and bodyBullets/bodyAction/bluf/recommendation for relevant types)
-- Confirmation gate when the form has existing content (inline confirm/cancel row in the drawer, not a browser confirm() dialog)
-- Mutual exclusion: opening templates closes other drawers (drafts, import, chain, addr, reply)
-- AI prompt section updated with Template Library documentation
 
-**NOT in scope:**
-- Saving custom templates to localStorage
-- Editing template content before applying
-- Per-template SSIC or From/To pre-fill (too command-specific; users fill those themselves)
-- Mobile-only redesign (drawer follows existing responsive pattern: full width under 768px)
+**In scope:**
+- New "routing slip" button in top-bar (opens `#routing-drawer`)
+- Drawer: suspense date, drafter/return-to field, document subject (auto-populated from current form subject), editable reviewer chain (up to 15 rows)
+- Each reviewer row: Name/Office text input + Action select (Review / Concur / Sign / Info)
+- Live HTML table preview inside the drawer (static placeholder cells for Date Received, Date Returned, Initials — filled by hand on paper)
+- Export standalone `routing_slip.docx` via existing `createZip` + `makeParagraph` infrastructure
+- Mutual exclusion: routing-drawer closes all other drawers; all other drawer-open clicks close routing-drawer
+
+**Not in scope:**
+- Modifying the main letter's preview or download
+- Saving routing slips to localStorage
+- Printing the routing slip directly (docx export covers this)
+- Any changes to the existing correspondence type system
 
 ## Approach
 
-### Subtask 1 — CSS
-Add `#tmpl-drawer` CSS block (copy structure from `#reply-drawer`). Add `.tmpl-cat` (category header) and `.tmpl-item` (template button) styles. Position follows the same fixed-left-panel drawer pattern.
+1. **CSS** — add `#routing-drawer` styles (same pattern as `#tmpl-drawer`: fixed left overlay, `.open` toggle). Add `.rs-*` class names for the routing slip table preview.
+2. **HTML (drawer)** — add `#routing-drawer` div before the form panel (same location as other drawers). Include: close button, suspense date input, drafter/return-to input, subject display (read-only, mirroring form subject), reviewer chain container, "+ add reviewer" button, live preview div, export button.
+3. **HTML (button)** — add `<button class="btn" id="routing-btn" aria-label="Generate routing slip for this correspondence">routing slip</button>` in the top-bar `.top-controls`, after reply-btn and before print-btn.
+4. **JS** — all new code within the existing IIFE, after the Template Library block and before the `/* ── Init ── */` comment:
+   - DOM refs: `routingBtn`, `routingDrawer`, `routingClose`, `routingSuspense`, `routingDrafter`, `routingSubjDisplay`, `routingChainContainer`, `routingPreviewDiv`
+   - `addRoutingReviewer(name, action)` — appends a reviewer row to chain container; each row has text input (name/office), action select, and a remove button; all changes call `renderRoutingPreview()`
+   - `renderRoutingPreview()` — rebuilds the HTML preview table: header row (Reviewer/Office | Action | Date Recv'd | Date Ret'd | Initials/Sig), body rows from current reviewer inputs, footer row showing suspense + drafter
+   - `generateRoutingDocx()` — assembles OOXML using existing `makeParagraph`, `createZip`, `escXml` helpers; table rendered using `<w:tbl>` OOXML; downloads as `routing_slip.docx`
+   - `routingBtn.addEventListener('click', …)` — mutual exclusion (close all other drawers), open routing-drawer, call `renderRoutingPreview()`
+   - `F.subj.addEventListener('input', updateRoutingSubj)` — always-on listener that updates `#routing-subj-display` and calls `renderRoutingPreview()` whenever the form subject changes, whether drawer is open or not
+   - `routingClose.addEventListener('click', …)` — close routing-drawer
+   - Add `routingDrawer.classList.remove('open')` listeners on all existing drawer buttons (draftsBtn, importBtn, chainBtn, addrBtn, replyBtn, tmplBtn)
+   - Add `routingBtn.addEventListener('click', ...)` close listener on each existing drawer's open button
 
-### Subtask 2 — HTML
-Add `<button class="btn" id="tmpl-btn" aria-label="Open template letter library">templates</button>` in the top bar between `import-btn` and `chain-btn`.
-
-Add `<div id="tmpl-drawer">` before `#form-panel`, with:
-- Header row: "Template Library" label + close button
-- Description hint
-- Confirmation row `#tmpl-confirm-row` (hidden by default): "This will overwrite the current form." + [apply template] + [cancel] buttons
-- Template list area `#tmpl-list` (rendered by JS)
-
-### Subtask 3 — JS data: TEMPLATE_LIBRARY
-Define a `TEMPLATE_LIBRARY` array of 12 template objects. Each object:
-```
-{ cat, label, desc, state: { type, fields: {subj, body?, bodyBullets?, bodyAction?, bluf?, recommendation?} } }
-```
-Categories and templates:
-- **Personnel** (3): Leave Request, Commendation Recommendation, Personnel Action Request
-- **Administrative** (3): Appointment Memorandum, Meeting Minutes Forwarding, After-Action Report
-- **Operations** (3): Status Report, Request for Information, Non-Concurrence
-- **Policy & Instructions** (3): Point Paper, Action Memo, Instruction Template
-
-### Subtask 4 — JS: renderTmplDrawer()
-Render the 12 template buttons grouped by category into `#tmpl-list`. Each `.tmpl-item` button shows label (large) + desc (small). Event listener calls `selectTemplate(tpl)`.
-
-**Safe-rendering requirement (per SECURITY PLAN-escalation 2026-04-24):** All template-author-controlled strings (`tpl.label`, `tpl.desc`, category header) are injected into the DOM via `textContent` assignment or `esc()`-then-innerHTML — never raw innerHTML with template content. Concretely: `.tmpl-item` buttons are built with `document.createElement('button')` + `.textContent = tpl.label` + a child `<span class="tmpl-desc">` with `.textContent = tpl.desc`. Category headers use `.textContent = cat`. This matches the existing `esc()`/`textContent` pattern already applied to every other form field in naval-scribe.
-
-Templates are author-written literals with no user-controllable content today, but we apply the safe-rendering pattern regardless so a future refactor that routes user data through the same rendering path stays safe by construction.
-
-### Subtask 5 — JS: selectTemplate(tpl) and applyTemplate(tpl)
-`selectTemplate(tpl)` checks if ANY form field that `applyTemplate` will clear or overwrite has content. The full set of checked fields: `from`, `to`, `subj`, `body`, `bodyAction`, `bodyBullets`, `bodyMoa`, `bluf`, `recommendation`, `ssic`, `date`, any non-empty entry in `via[]`, `ref[]`, `encl[]`, `copyTo[]`, signature name/rank/title inputs, `endorseNum`, `effectiveDate`, `duration`. If any of these has content, store `pendingTemplate = tpl` and show `#tmpl-confirm-row` populated with the WILL CHANGE / WILL CLEAR / WILL KEEP disclosure (see below). If all are empty, call `applyTemplate(tpl)` directly (no confirmation needed — truly empty form has nothing to lose).
-
-**Confirmation disclosure (per LESSONS advisory 2026-04-24)** — when the form is non-empty, the confirm row populates three named sections matching the Reply Draft Auto-Fill precedent:
-- **WILL CHANGE** — lists every field the template will overwrite with its own values: `type`, `subj`, and whichever of `body` / `bodyBullets` / `bodyAction` / `bluf` / `recommendation` the template defines
-- **WILL CLEAR** — lists every field the template does NOT define but whose current value will be emptied so the draft is coherent: `from`, `to`, `ssic`, `date`, `via[]`, `ref[]`, `encl[]`, `copyTo[]`, signature (name/rank/title), `endorseNum`, `effectiveDate`, `duration` (and any subset actually populated)
-- **WILL KEEP** — lists what carries over: classification marking, letterhead preset selection (cosmetic form-level settings that aren't document content)
-
-Each section header uses `.textContent` assignment; items are rendered as a bulleted list via `createElement('ul')` + `createElement('li')` + `.textContent = fieldName` (no innerHTML with field names). Reply-Draft-Auto-Fill's HTML shape is the pattern to copy.
-
-`applyTemplate(tpl)` clears all form fields (sets each input to empty, clears multi-fields, resets type to 'letter') then calls `restoreFullState(tpl.state)`, then sets `pendingTemplate = null`, hides `#tmpl-confirm-row`, and closes the drawer.
-
-### Subtask 6 — JS: drawer toggle and mutual exclusion
-`tmplBtn` click handler: toggle drawer. If opening, close draftsDrawer, importDrawer, chainDrawer, addrDrawer, replyDrawer. Call `renderTmplDrawer()` once on first open (memoized with `tmplRendered` flag).
-
-Close button and cancel button both hide `#tmpl-confirm-row`, set `pendingTemplate = null`, and close/cancel appropriately. `applyTemplate()` also sets `pendingTemplate = null` after applying.
-
-### Subtask 7 — AI prompt update
-Add a `### Template Letter Library` section to the `#ai-prompt-content` element describing the 12 templates and how to use them.
-
-**Safe-rendering note (per SECURITY PLAN-escalation 2026-04-24):** The `#ai-prompt-content` block is static HTML authored in the source file — no dynamic substitution from TEMPLATE_LIBRARY or any other data source. Describing templates by name in fixed prose does not introduce a user-controlled string path. No `esc()` or `textContent` concerns for this subtask specifically, but the pattern in Subtask 4 still applies to any JS rendering of TEMPLATE_LIBRARY values.
-
-### Subtask 8 — Sequencing
-CSS → HTML (drawer + button) → TEMPLATE_LIBRARY data → renderTmplDrawer → selectTemplate + applyTemplate → toggle/mutual exclusion → AI prompt
+**Sequencing:** CSS → HTML drawer → HTML button → JS (in above order). No inter-subtask dependencies except JS requires DOM elements to exist.
 
 ## File Layout
-- `naval-scribe/index.html` — sole file modified
-  - `<style>` block: add ~30 lines (drawer CSS + `.tmpl-cat` + `.tmpl-item`)
-  - `<body>`: add `#tmpl-btn` button (1 line) and `#tmpl-drawer` HTML (~25 lines)
-  - `<script>`: add `TEMPLATE_LIBRARY` data (~80 lines), `renderTmplDrawer()` (~25 lines), `selectTemplate()`/`applyTemplate()` (~25 lines), drawer toggle (~20 lines)
-  - `#ai-prompt-content`: add Template Library section (~15 lines)
-  - Net addition: ~220 lines to a 4116-line file
+
+- `naval-scribe/index.html` — single file, all changes inline
+  - CSS block (~line 424, end of `<style>`): append ~60 lines of routing drawer + preview table CSS
+  - HTML: insert `#routing-drawer` div (~line 540, after `#reply-drawer` div), ~65 lines
+  - HTML top-bar: insert `routing-btn` button (~line 455, after reply-btn), 1 line
+  - JS: insert new routing slip block (~line 3916, before `/* ── Init ── */`), ~120 lines
 
 ## Function Map
-**naval-scribe/index.html (new functions):**
-- `renderTmplDrawer()` — builds and injects HTML for all 12 template buttons into `#tmpl-list`; called once on first open
-- `selectTemplate(tpl)` — checks form emptiness; if content present, shows confirm row with pending template; if empty, calls applyTemplate directly
-- `applyTemplate(tpl)` — clears all form fields then calls `restoreFullState(tpl.state)`, closes drawer
 
-**Modified behavior (not new functions):**
-- `tmplBtn` click handler (inline event listener) — drawer toggle + mutual exclusion
+`naval-scribe/index.html`:
+- `addRoutingReviewer(name, action)` — **added** — appends one reviewer row (input + select + remove btn) to `#routing-chain`, wires input/change → `renderRoutingPreview`
+- `renderRoutingPreview()` — **added** — reads all reviewer row inputs + suspense/drafter inputs; rebuilds `#routing-preview` innerHTML with an HTML table
+- `generateRoutingDocx()` — **added** — reads routing slip data, calls `makeParagraph` + new inline `makeWTbl` helper for OOXML table; calls `createZip`; triggers download of `routing_slip.docx`
+- `routingBtn.addEventListener` — **added** — mutual exclusion open/close toggle for routing-drawer
+- `routingClose.addEventListener` — **added** — closes routing-drawer
+- Cross-close listeners on all 6 existing drawer buttons — **added** (6 × 1-liner)
 
 ## Security
-- All template strings are author-controlled literal JavaScript strings — no external data, no user input in the template definitions
-- Template content is passed to `restoreFullState()` which populates form inputs via `.value =` assignment, not `innerHTML` — no XSS surface
-- The confirm row uses `textContent` assignment not `innerHTML`
-- No new localStorage keys, no new network calls, no new trust boundaries
-- CSP unchanged: `unsafe-inline` already allows inline scripts per Constraint 1; `connect-src 'none'` ensures no external requests
-- Template field values flow through `esc()` in `updatePreview()` before any `innerHTML` rendering — same path as all other form fields
+
+- All user input rendered in preview via `textContent` assignment (no `innerHTML` of user data). The drawer's live preview table uses DOM construction, not innerHTML concatenation of user strings.
+- DOCX export: all user strings pass through existing `escXml()` before insertion into OOXML.
+- No new external loads; no fetch; no form action. CSP unchanged (`connect-src 'none'`).
+- Routing slip data is never written to localStorage. No new storage surface.
+- Trust boundary: user controls name/office, action, suspense, drafter fields. All are text; no eval; no URL parsing.
 
 ## UI
-- `templates` button in top bar: same `.btn` class, between `import` and `chain`
-- Drawer: fixed left panel (420px, full-width on mobile), same style as `#reply-drawer`
-- Templates grouped by category. Category header as small-caps label (`.tmpl-cat`). Template buttons as full-width `.tmpl-item` rows showing label + desc in smaller text
-- Confirmation row: hidden until user clicks a template while form has content. Structured disclosure with three named sections (WILL CHANGE / WILL CLEAR / WILL KEEP — same pattern as Reply Draft Auto-Fill) showing exactly which fields will be overwritten, emptied, or preserved. Amber warning color for the header. Actions: "apply template" (primary) and "cancel" (secondary)
-- Empty form state: template applies immediately, no confirmation
-- Loading a template closes the drawer after apply
-- Tap targets: `.tmpl-item` min-height 44px for mobile touch
+
+- Button: `routing slip` in top-bar, same `.btn` class, mutual exclusion with all 6 existing drawers.
+- Drawer opens over form panel (same overlay pattern as all other drawers). 420px wide on desktop; 100% on mobile.
+- Drawer header: "Routing Slip" title + close × button.
+- Fields: Suspense date (text input, placeholder "DD Mon YYYY or NLT [date]"), Drafter / Return To (text input), Document Subject (read-only text display wired via live `input` listener on `F.subj`; shows "(none)" when subject is empty; auto-updates in real time as user edits the form subject).
+- Reviewer chain: vertical stack of rows, each row = [Name/Office text input (flex:1)] [Action select] [× remove button]. Rows added with "+ add reviewer" button; minimum 0 rows; max 15 enforced with a warning at 15.
+- Live preview: rendered HTML table below the chain, updating on every keystroke. Table has a header row and one row per reviewer, plus a footer row for suspense/drafter. Static placeholder text "________" for date/initials columns — these are filled by hand.
+- Empty state (0 reviewers): preview shows the table with only header + footer rows and a note "Add reviewers above."
+- Export button: `export routing_slip.docx` — full-width, `.btn-primary` style; always enabled (can export even with 0 reviewers for a blank form).
+- Drawer close: × button at top, and clicking any other drawer button closes routing-drawer.
 
 ## Guide
-- Button label: "templates"
-- Button aria-label: "Open template letter library"
-- Drawer header: "Template Library"
-- Drawer hint: "Select a template to pre-fill the form. Edit fields after loading."
-- Confirmation row heading: "Applying this template will:"
-- Confirmation sections: **WILL CHANGE** (template-defined fields), **WILL CLEAR** (fields emptied so the draft is coherent), **WILL KEEP** (classification + letterhead preset)
-- Each section lists affected fields via `<ul>` with `textContent`-rendered items
-- Confirm button label: "apply template"
-- Cancel button label: "cancel"
-- Category labels: "Personnel", "Administrative", "Operations", "Policy & Instructions"
-- Template labels (12): Leave Request, Commendation Rec, Personnel Action, Appt Memorandum, Meeting Minutes, After-Action Report, Status Report, Request for Info, Non-Concurrence, Point Paper, Action Memo, Instruction Template
+
+- Button label: `routing slip`
+- Drawer title: `Routing Slip`
+- Suspense field label: `Suspense Date`
+- Drafter field label: `Drafter / Return To`
+- Subject field label: `Document Subject` (with hint: "sourced from current form; edit above")
+- Add button text: `+ add reviewer`
+- Action options: `Review`, `Concur`, `Sign`, `Info`
+- Export button text: `export routing_slip.docx`
+- Max-15 warning: `Maximum 15 reviewers. Remove one to add another.`
+- Preview table headers: `Reviewer / Office` | `Action` | `Date Recv'd` | `Date Ret'd` | `Initials / Sig`
+- Preview footer row label: `Drafter / Return To:`
+- Preview suspense row label: `Suspense:`
 
 ## Edge Cases
-- Form has content → confirm row shown before applying (no destructive overwrite without confirmation)
-- Form is empty → template applies immediately
-- User opens templates, then opens another drawer → templates drawer closes (mutual exclusion handled symmetrically)
-- Template type is `pointpaper` or `actionmemo` — `applyTemplate` calls `restoreFullState` which sets the correct type; `updateFieldVisibility()` called inside `restoreFullState` ensures the right body field is shown
-- User clicks template, sees confirm row, then clicks close or cancel → `pendingTemplate = null`, confirm row hidden, form unchanged
-- After `applyTemplate` runs successfully → `pendingTemplate = null`, confirm row hidden, drawer closed
-- `applyTemplate` clears all fields first (like new-btn) so partial template state leaves other fields empty rather than keeping stale content
+
+- **0 reviewers:** export produces a docx with only the header and footer rows — valid blank routing slip.
+- **Empty name/office field:** row still appears in preview and docx; blank cell is fine (user fills on paper).
+- **Subject empty in form:** display "(none)" in subject area; export uses "(none)" as document subject line.
+- **Very long name/office text:** Preview table cells use `word-break: break-word` with no truncation — full text is always visible; the preview div has `overflow-x: auto` so very wide content scrolls. Docx wraps naturally via OOXML `<w:tblLayout w:type="autofit"/>`.
+- **Suspense/drafter empty:** footer row shows blank cells in both preview and docx — acceptable.
+- **15-reviewer max:** `+` button shows warning text and refuses to add; existing rows unaffected.
+- **Drawer already open:** clicking routing-slip button again closes it (toggle, matching all other drawers).
+- **Form subject changes after drawer opens:** subject display auto-updates in real time via an `input` listener on `F.subj`. No stale display — if the user edits the subject while the drawer is open, the field refreshes immediately.
 
 ## Test Strategy
-1. `python3 test_project.py naval-scribe` must PASS after implementation
-2. "templates" button appears in top bar between `import` and `chain`
-3. Click templates → drawer opens; other open drawers close
-4. Drawer renders 12 template buttons in 4 categories with labels and descriptions
-5. Empty form: click "Leave Request" → type=letter, subject filled, body filled; drawer closes
-6. Non-empty form: fill any field, open templates, click a template → confirm row appears; click "apply template" → form fills and drawer closes; click "cancel" → form unchanged
-7. All 12 templates apply without JS error
-8. Mobile viewport (375px): drawer spans full width
-9. Close button closes drawer, clears pending template
-10. AI prompt updated: "Template Library" section visible in the prompt text
+
+1. `python3 test_project.py naval-scribe` — page loads, no JS errors (existing test).
+2. Manual checks:
+   - Click "routing slip" → drawer opens; all other drawers close.
+   - Click another drawer btn while routing-drawer open → routing-drawer closes.
+   - Add 3 reviewers, set suspense + drafter → preview table updates with each keystroke.
+   - Export: downloads `routing_slip.docx`; opening in Word shows "DON ROUTING SLIP" heading, header row, reviewer rows, suspense + drafter footer.
+   - At 15 reviewers, `+` button shows max warning.
+   - Empty form (no subject): subject shows "(none)" in preview and docx.
+   - Close × button closes drawer.
