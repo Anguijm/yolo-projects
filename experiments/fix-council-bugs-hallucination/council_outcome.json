@@ -1,25 +1,25 @@
 {
   "gate": "outcome",
   "project": "experiments/fix-council-bugs-hallucination",
-  "timestamp": "2026-04-24T23:24:43.309768+00:00",
+  "timestamp": "2026-04-24T23:35:07.032128+00:00",
   "verdicts": [
     {
       "angle": "bugs",
       "verdict": "APPROVE",
-      "severity": "advisory",
-      "reason": "[AUTO-DOWNGRADED: goalpost move, 0.41 overlap vs prior bugs objection] The hallucination detection logic will auto-downgrade an entire BUGS OBJECT verdict if only *some* of the claimed 'undefined' symbols are actually defined, causing legitimate bug reports for truly undefined symbols to be ignored.",
-      "required_fix": "Modify `detect_bugs_hallucination` to return `True` (triggering auto-downgrade) only if *all* `claimed_symbols` are found to be defined across the scanned files, rather than if *any* single symbol is found.",
-      "evidence": "```python\n    for raw_path in files:\n        # ... file reading and error handling ...\n        ext = resolved.suffix.lower()\n        # Definition-pattern check\n        for s in claimed_symbols:\n            if _symbol_defined_in_content(s, content, ext):\n                return True # This line causes the entire verdict to be downgraded if any symbol is found.\n    return False\n```",
+      "severity": "low",
+      "reason": "",
+      "required_fix": "",
+      "evidence": "",
       "veto": false,
       "parse_failed": false
     },
     {
       "angle": "security",
-      "verdict": "OBJECT",
-      "severity": "high",
-      "reason": "The feature introduces multiple regular expressions that process untrusted input (verdict reason/evidence, and project file content up to 2MB), creating a potential ReDoS (Regular Expression Denial of Service) vulnerability.",
-      "required_fix": "All regular expressions used in `detect_bugs_hallucination` and `_symbol_defined_in_content` must be reviewed and hardened against ReDoS attacks, ensuring they cannot be exploited by crafted input to cause excessive processing time or resource consumption.",
-      "evidence": "The `detect_bugs_hallucination` function processes `verdict.reason` with `_HALLUCINATION_CLAIM_RE` and `_SYMBOL_FROM_FIX_RE`, `verdict.evidence` with `_FILE_REF_RE`, and file `content` (up to 2MB) with language-specific definition patterns within `_symbol_defined_in_content`.",
+      "verdict": "APPROVE",
+      "severity": "low",
+      "reason": "Existing security mitigations (regex escaping, path traversal guard, file size limit, bounded quantifiers) adequately cover potential attack surfaces introduced by text processing and file I/O.",
+      "required_fix": "",
+      "evidence": "",
       "veto": false,
       "parse_failed": false
     },
@@ -27,7 +27,7 @@
       "angle": "ui",
       "verdict": "APPROVE",
       "severity": "low",
-      "reason": "This change is an internal council logic improvement that prevents false positive BUGS objections, indirectly reducing friction for developers without direct UI impact.",
+      "reason": "The change improves the user experience by reducing false-positive BUGS objections and provides clear feedback when an objection is auto-downgraded.",
       "required_fix": "",
       "evidence": "",
       "veto": false,
@@ -35,11 +35,11 @@
     },
     {
       "angle": "guide",
-      "verdict": "APPROVE",
-      "severity": "low",
-      "reason": "The auto-downgrade mechanism includes a clear prefix in the verdict, making the new behavior self-documenting for users and AI agents.",
-      "required_fix": "",
-      "evidence": "Deliverable (experiments/fix-council-bugs-hallucination/changes.md): Modified main() -> '[AUTO-DOWNGRADED: hallucinated symbol claim, ...]' prefix; Behavior changes section; Full updated detect_bugs_hallucination function docstring",
+      "verdict": "OBJECT",
+      "severity": "medium",
+      "reason": "The new auto-downgrade behavior for hallucinated symbol claims is not easily discoverable by a first-time user without consulting internal documentation or source code.",
+      "required_fix": "Update the `council.py` module docstring or add a user-facing `README.md` to clearly explain the new auto-downgrade behavior, including what triggers it and what the outcome is.",
+      "evidence": "Documentation for new behavior is in CLAUDE.md and changes.md, which are not primary user-facing documentation for a command-line tool.",
       "veto": false,
       "parse_failed": false
     },
@@ -47,9 +47,9 @@
       "angle": "usefulness",
       "verdict": "APPROVE",
       "severity": "low",
-      "reason": "This feature directly improves the accuracy and reliability of the automated code review system by preventing false-positive 'undefined symbol' objections, saving developer time and frustration.",
+      "reason": "This feature directly addresses a real problem of false positive BUGS objections, improving the accuracy and reliability of the automated council system.",
       "required_fix": "",
-      "evidence": "The 'OUTCOME' gate specifically mentions a historical hallucination ('byDirectionChk') that is no longer reproduced, demonstrating a real problem being solved.",
+      "evidence": "Historical fixture replays confirm instances of hallucinated symbol claims, demonstrating a recurring need to prevent unnecessary build blocks.",
       "veto": false,
       "parse_failed": false
     },
@@ -57,7 +57,7 @@
       "angle": "cool",
       "verdict": "APPROVE",
       "severity": "low",
-      "reason": "The system's ability to auto-correct a reviewer's 'hallucinated' bug claim is a unique and memorable signature move, demonstrating self-awareness and preventing unnecessary developer friction.",
+      "reason": "The system's ability to self-correct and auto-downgrade its own hallucinated objections is a unique and memorable signature move.",
       "required_fix": "",
       "evidence": "",
       "veto": false,
@@ -67,9 +67,9 @@
       "angle": "lessons",
       "verdict": "APPROVE",
       "severity": "low",
-      "reason": "The deliverable addresses a documented failure mode (hallucination) and utilizes an established pattern (auto-downgrading verdicts).",
+      "reason": "No documented lessons are violated; the deliverable addresses a recurring 'hallucination' insight.",
       "required_fix": "",
-      "evidence": "INSIGHT: Haiku UI hallucination pattern \u2014 across all 3 benchmark fixtures, the UI angle independently fabricated the same specific detail... This is a systematic single-angle hallucination type: Haiku invents a plausible-sounding technical detail and applies it uniformly. A cross-fixture comparison was the only way to detect it \u2014 isolated reviews would each look credible. (from learnings.md)\nCOUNCIL: ...LESSONS auto-downgraded veto for missing precondition_evidence (from learnings.md)",
+      "evidence": "",
       "veto": false,
       "parse_failed": false
     }
@@ -77,12 +77,12 @@
   "all_approved": false,
   "objections": [
     {
-      "angle": "security",
+      "angle": "guide",
       "verdict": "OBJECT",
-      "severity": "high",
-      "reason": "The feature introduces multiple regular expressions that process untrusted input (verdict reason/evidence, and project file content up to 2MB), creating a potential ReDoS (Regular Expression Denial of Service) vulnerability.",
-      "required_fix": "All regular expressions used in `detect_bugs_hallucination` and `_symbol_defined_in_content` must be reviewed and hardened against ReDoS attacks, ensuring they cannot be exploited by crafted input to cause excessive processing time or resource consumption.",
-      "evidence": "The `detect_bugs_hallucination` function processes `verdict.reason` with `_HALLUCINATION_CLAIM_RE` and `_SYMBOL_FROM_FIX_RE`, `verdict.evidence` with `_FILE_REF_RE`, and file `content` (up to 2MB) with language-specific definition patterns within `_symbol_defined_in_content`.",
+      "severity": "medium",
+      "reason": "The new auto-downgrade behavior for hallucinated symbol claims is not easily discoverable by a first-time user without consulting internal documentation or source code.",
+      "required_fix": "Update the `council.py` module docstring or add a user-facing `README.md` to clearly explain the new auto-downgrade behavior, including what triggers it and what the outcome is.",
+      "evidence": "Documentation for new behavior is in CLAUDE.md and changes.md, which are not primary user-facing documentation for a command-line tool.",
       "veto": false,
       "parse_failed": false
     }
