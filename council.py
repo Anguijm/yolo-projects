@@ -182,13 +182,20 @@ def call_angle(angle: str, user_message: str, _retry: bool = False) -> Verdict:
     system_prompt = load_angle_prompt(angle)
     try:
         if _BACKEND == "claude":
-            response = _ANTHROPIC_CLIENT.messages.create(
-                model=CLAUDE_MODEL,
-                max_tokens=1024,
-                temperature=0.4,
-                system=system_prompt + "\n\nReturn ONLY valid JSON. No prose, no markdown fences.",
-                messages=[{"role": "user", "content": user_message}],
-            )
+            # Opus 4.7 and later use extended thinking and reject `temperature` as a
+            # deprecated parameter (per eval-opus-47-backbone benchmark 2026-04-24
+            # which surfaced the BadRequestError: 'temperature is deprecated for
+            # this model'). Keep the 0.4 temperature for Haiku/Sonnet classes where
+            # it still works as a determinism knob; omit it for Opus-4.x.
+            claude_params = {
+                "model": CLAUDE_MODEL,
+                "max_tokens": 1024,
+                "system": system_prompt + "\n\nReturn ONLY valid JSON. No prose, no markdown fences.",
+                "messages": [{"role": "user", "content": user_message}],
+            }
+            if "opus-4" not in CLAUDE_MODEL:
+                claude_params["temperature"] = 0.4
+            response = _ANTHROPIC_CLIENT.messages.create(**claude_params)
             raw = response.content[0].text
         else:
             model = genai.GenerativeModel(
