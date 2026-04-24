@@ -356,21 +356,20 @@ def _symbol_defined_in_content(symbol: str, content: str, ext: str) -> bool:
     comments, string literals, and call sites. Falls back False for unknown file types.
     """
     esc = re.escape(symbol)
+    # Quantifier bounds below cap worst-case backtracking on adversarial inputs (ReDoS guard
+    # — file-size already capped at 2MB by caller). Real source code never has 80 leading
+    # spaces or 500 chars between `(` and `)` on a method signature.
     if ext in (".html", ".js", ".ts"):
         patterns = [
-            rf"function\s+{esc}\b",
-            rf"(?:const|let|var)\s+{esc}\s*=",
-            # Method shorthand — line-anchored, requires `{` after `)` to exclude call
-            # sites. `\s*` matches spaces AND newlines (Python re semantics) so multi-line
-            # declarations like `method(\n  param\n) {` are correctly detected.
-            rf"(?m)^\s*(?:async\s+)?(?:static\s+)?{esc}\s*\([^)]*\)\s*\{{",
+            rf"function\s{{1,8}}{esc}\b",
+            rf"(?:const|let|var)\s{{1,8}}{esc}\b\s{{0,8}}=",
+            # Method shorthand — line-anchored, requires `{` after `)` to exclude call sites.
+            rf"(?m)^[ \t]{{0,80}}(?:async\s{{1,4}})?(?:static\s{{1,4}})?{esc}\b\s{{0,8}}\([^)]{{0,500}}\)\s{{0,8}}\{{",
         ]
     elif ext == ".py":
         patterns = [
-            rf"(?:def|class)\s+{esc}\s*[:(]",
-            # `^\s*` (with re.MULTILINE) allows leading whitespace so class attributes
-            # like `    my_var = ...` are matched alongside module-level assignments.
-            rf"(?m)^\s*{esc}\s*=",
+            rf"(?:def|class)\s{{1,8}}{esc}\b\s{{0,8}}[:(]",
+            rf"(?m)^[ \t]{{0,80}}{esc}\b\s{{0,8}}=",
         ]
     else:
         return False

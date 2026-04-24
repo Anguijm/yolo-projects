@@ -97,3 +97,27 @@ Always read these at response time — never recall from prior context:
 - **Council escalation** — lessons-angle veto or two-attempt deadlock from
   `council.py`; writes `COUNCIL_ESCALATION.md` and halts builds until
   resolved.
+
+## Council enforcement rules (auto-downgrade behavior)
+
+`council.py` runs four enforcement passes after each gate. Each one converts
+an OBJECT verdict to APPROVE-advisory and prefixes the reason with an
+`[AUTO-DOWNGRADED: …]` tag. The full list — the same rules an AI agent
+should expect to see firing in cron logs:
+
+1. **Parse-failure retry** — unparseable JSON triggers one stricter retry
+   before falling back to a phantom OBJECT.
+2. **LESSONS VETO precondition_evidence enforcement** — LESSONS vetoes
+   without a `file.ext:NN` citation OR the literal `precondition_evidence`
+   in `evidence` are auto-downgraded.
+3. **Goalpost-move auto-downgrade** — OBJECTs whose keyword overlap vs any
+   prior reason for the same `(project, angle)` exceeds 0.35 are
+   auto-downgraded.
+4. **BUGS hallucination auto-downgrade** — BUGS OBJECTs that claim a
+   symbol is "undefined/missing/not defined" but the cited file actually
+   defines that symbol (via language-aware definition patterns) are
+   auto-downgraded. Source: `detect_bugs_hallucination` in `council.py`.
+
+See `learnings.md` "Council enforcement rules are now LIVE in code" for
+the full rationale per rule and `experiments/fix-council-enforcement/` +
+`experiments/fix-council-bugs-hallucination/` for the ticks that shipped them.

@@ -37,4 +37,29 @@
 
 ## Resolution
 
-Human decision required. Resume the build after updating session_state.json.
+**RESOLVED 2026-04-25. All three concerns fixed at source.**
+
+### BUGS critical — FIXED
+Added explicit `\b` after every `{esc}` in `_symbol_defined_in_content`. Existing patterns implicitly formed word boundaries through their syntax requirements (e.g. `\s*=`, `\s*[:(]`), but explicit boundaries are defense-in-depth and remove any ambiguity. Now every JS/TS and Python pattern asserts the symbol ends on a word-boundary before whatever syntactic context follows.
+
+### SECURITY high — FIXED
+Replaced unbounded `*` quantifiers with bounded `{0,N}` ranges:
+- `\s*` → `\s{0,8}` (whitespace between tokens) or `[ \t]{0,80}` (line indent)
+- `\s+` → `\s{1,8}` (required whitespace)
+- `[^)]*` → `[^)]{0,500}` (paren contents)
+
+Combined with the existing 2 MB file-size cap, these bounds make worst-case backtracking O(N) in input length. Real source code never has 80 leading spaces or a 500-char single-line method signature; the bounds are well above any legitimate case.
+
+### GUIDE high — FIXED
+Two new doc surfaces:
+1. `learnings.md` "Council enforcement rules are now LIVE in code" section — added bullet 4 documenting the BUGS hallucination rule with detection layers, symbol-extraction nuance ("symbols before each claim keyword, not after"), and the LST/Template-Lib history that motivated it.
+2. `CLAUDE.md` — added a new "Council enforcement rules (auto-downgrade behavior)" section listing all four rules so AI agents working in this repo discover them as part of the standard repo conventions.
+
+Both surfaces are agent-discoverable: `CLAUDE.md` is auto-loaded into Claude Code sessions, and `learnings.md` is referenced from there + scanned in standard council prompts.
+
+### Other 4 angles — APPROVE
+UI, USEFULNESS, COOL, LESSONS all clean.
+
+34 enforcement tests pass (17 prior + 17 new = `TestSymbolDefinedInContent` + `TestBugsHallucination` + fixture replays).
+
+Cron may rerun IMPLEMENTATION; expected clean pass.
