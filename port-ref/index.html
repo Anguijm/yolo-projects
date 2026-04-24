@@ -273,10 +273,17 @@ function search(query) {
     // partial: ports starting with the digits
     return PORT_DB.filter(r => String(r.p).startsWith(q)).slice(0, 20);
   }
+  // Prefix-index lookup (fast path for short queries)
   const results = IDX.byName.get(q.toLowerCase()) || [];
-  // also search by desc keyword for longer queries
-  if (q.length >= 3 && results.length < 5) {
-    const ql = q.toLowerCase();
+  const ql = q.toLowerCase();
+  // Per BUGS TESTS-escalation 2026-04-24: also substring-match on name so
+  // queries like "sql" find "mssql", "postgresql". Fast path above handles
+  // prefix matches; this pass adds non-prefix substring hits.
+  PORT_DB.forEach(r => {
+    if (!results.includes(r) && r.name.toLowerCase().includes(ql)) results.push(r);
+  });
+  // Also search by desc keyword when there's room
+  if (q.length >= 3 && results.length < 20) {
     PORT_DB.forEach(r => {
       if (!results.includes(r) && r.desc.toLowerCase().includes(ql)) results.push(r);
     });
@@ -284,11 +291,20 @@ function search(query) {
   return results.slice(0, 20);
 }
 
+// ─── Shared sec-badge mapping ─────────────────────────────────────────────────
+// Single source of truth for sec → (label, css class, aria-label) mapping.
+// Per LESSONS advisory TESTS-escalation 2026-04-24: secBadgeHTML + the bulk
+// summary-table were duplicating this logic. Both now call secBadgeInfo().
+function secBadgeInfo(sec) {
+  if (sec === 2) return { label: 'HIGH RISK', cls: 'badge-high', aria: 'Security: high risk' };
+  if (sec === 1) return { label: 'CLEARTEXT', cls: 'badge-clear', aria: 'Security: cleartext or misconfiguration risk' };
+  return { label: 'OK', cls: 'badge-ok', aria: 'Security: no special risk' };
+}
+
 // ─── Render card ─────────────────────────────────────────────────────────────
 function secBadgeHTML(sec) {
-  if (sec === 2) return '<span class="badge badge-high" aria-label="Security: high risk">HIGH RISK</span>';
-  if (sec === 1) return '<span class="badge badge-clear" aria-label="Security: cleartext or misconfiguration risk">CLEARTEXT</span>';
-  return '<span class="badge badge-ok" aria-label="Security: no special risk">OK</span>';
+  const i = secBadgeInfo(sec);
+  return '<span class="badge ' + i.cls + '" aria-label="' + i.aria + '">' + i.label + '</span>';
 }
 
 function renderCard(rec) {
@@ -531,14 +547,18 @@ annotateBtn.addEventListener('click', () => {
     tdDesc.textContent = rec.desc;
     const tdFlags = document.createElement('td');
     tdFlags.className = 'sum-flags';
+    // Use shared secBadgeInfo helper (extracted per LESSONS advisory 2026-04-24)
+    // so bulk summary table and secBadgeHTML stay in sync.
     const flags = [];
-    if (rec.p < 1024 && rec.p !== 0) flags.push(['ROOT REQUIRED', 'badge-priv']);
-    if (rec.sec === 2) flags.push(['HIGH RISK', 'badge-high']);
-    else if (rec.sec === 1) flags.push(['CLEARTEXT', 'badge-clear']);
-    flags.forEach(([label, cls]) => {
+    if (rec.p < 1024 && rec.p !== 0) flags.push({ label: 'ROOT REQUIRED', cls: 'badge-priv' });
+    if (rec.sec > 0) {
+      const si = secBadgeInfo(rec.sec);
+      flags.push({ label: si.label, cls: si.cls });
+    }
+    flags.forEach(f => {
       const b = document.createElement('span');
-      b.className = 'badge ' + cls;
-      b.textContent = label;
+      b.className = 'badge ' + f.cls;
+      b.textContent = f.label;
       tdFlags.appendChild(b);
     });
     [tdPort, tdName, tdProto, tdDesc, tdFlags].forEach(td => tr.appendChild(td));

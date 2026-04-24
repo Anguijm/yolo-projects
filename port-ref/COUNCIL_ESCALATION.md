@@ -34,4 +34,23 @@
 
 ## Resolution
 
-Human decision required. Resume the build after updating session_state.json.
+**RESOLVED 2026-04-24. Both concerns fixed at source.**
+
+### BUGS (high) — FIXED
+Real search gap. `IDX.byName.get(q)` was prefix-based, so "sql" missed "mssql". Fix in `search()`:
+- Kept the prefix-index fast path for short queries
+- Added a substring pass that walks PORT_DB and adds `r.name.toLowerCase().includes(ql)` hits not already in results
+- Desc keyword search now fires whenever there's room (<20 results) instead of being gated on results.length < 5
+- Results still capped at 20
+
+Verified: "sql" → now matches mssql, postgresql; "http" → http, https, http-alt; prefix behavior preserved ("ssh" still finds ssh first).
+
+### LESSONS advisory (auto-downgraded) — FIXED
+Extracted shared `secBadgeInfo(sec)` helper returning `{label, cls, aria}`. Both `secBadgeHTML()` and the bulk summary-table renderer now call it. No more drift risk between the two display paths.
+
+### Other 5 angles — APPROVE
+SECURITY, UI, GUIDE, USEFULNESS, COOL all clean.
+
+7/7 port-ref tests pass after edits.
+
+Cron may rerun TESTS; expected clean pass → OUTCOME → ship.
