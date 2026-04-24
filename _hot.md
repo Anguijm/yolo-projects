@@ -1,18 +1,18 @@
 # Hot Cache — Active Context
-*Auto-updated 2026-04-23 19:31 UTC. Read this FIRST.*
+*Auto-updated 2026-04-24 00:53 UTC. Read this FIRST.*
 
 ## Current State
-- Portfolio: 227 total, 98 active
-- Tick queue: 13 approved, 0 pending
-- Phase 4: 105 experiments, 6 backlog
+- Portfolio: 228 total, 98 active
+- Tick queue: 12 approved, 0 pending
+- Phase 4: 111 experiments, 12 backlog
 - Next: tock
 
 ## Tick Queue
-- [approved] eval-opus-47-backbone: Benchmark Opus 4.7 as the council.py backbone against the cu
 - [approved] port-ref: Well-Known Port Quick-Reference — type a port or service nam
 - [approved] adopt-stack-audit: One-time dependency shelf-life audit
 - [approved] adopt-bare-agent: Minimal 50-line agent loop + comparison_plan.md
 - [approved] model-eval-backbone: Backbone model swap benchmark — latest Claude vs. current ba
+- [approved] strategic-niche-audit: Audit YOLO loop strategic position against the 5 defensible 
 
 ## Recent Builds (last 5)
 - svg-fields: Drop/paste an SVG with {{placeholder}} or data-field markers
