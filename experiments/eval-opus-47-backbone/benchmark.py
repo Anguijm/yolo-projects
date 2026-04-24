@@ -52,15 +52,24 @@ GOAL = (
 
 
 def _env_float(name: str, default: float) -> float:
-    """Read a float from an env var; exit 1 with clear message on bad value."""
+    """Read a non-negative float from an env var; exit 1 on bad value.
+
+    Per BUGS IMPL-escalation 2026-04-24: negative costs would produce garbage
+    results (benchmark would compute negative dollars per run). Reject at the
+    env-var boundary with a clear message.
+    """
     raw = os.environ.get(name)
     if raw is None:
         return default
     try:
-        return float(raw)
+        value = float(raw)
     except ValueError:
         print(f"[benchmark] ERROR: {name}={raw!r} is not a valid number", file=sys.stderr)
         sys.exit(1)
+    if value < 0:
+        print(f"[benchmark] ERROR: {name}={raw!r} must be >= 0 (cost per MTok)", file=sys.stderr)
+        sys.exit(1)
+    return value
 
 
 def _load_cost_model() -> dict[str, dict[str, float]]:
