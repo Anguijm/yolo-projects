@@ -26,14 +26,16 @@ Static single-file PWA port quick-reference tool — type a port number or servi
 
 **Subtask 3 (Search UI):** Single input at top (autofocus). `handleInput()` debounced to 80ms. `search(query)` checks numeric vs. text, returns up to 20 matches. `renderResults(matches)` renders port cards.
 
-**Subtask 4 (Port card):** `renderCard(rec)` returns an HTML string with port number, service name, protocol badge, description, privilege badge (if port < 1024), security badge (if sec > 0), and security note.
+**Subtask 4 (Port card):** `renderCard(rec)` returns an HTML string with port number, service name, protocol badge, description, privilege badge (if port < 1024 **AND port !== 0** — port 0 is reserved and exempt from the privilege rule per Edge Cases, resolving the BUGS PLAN-escalation 2026-04-24 contradiction with Subtask 1), security badge (if sec > 0), and security note.
 
-**Subtask 5 (Bulk mode):** Toggle button shows/hides a textarea. `annotateManifest(text)` uses 5 regex patterns to extract port numbers from common docker-compose and k8s formats:
-  1. `^\s*-\s*"?(\d{1,5}):\d{1,5}"?` — docker-compose port mapping lines
-  2. `\bport(?:s)?:\s*(\d{1,5})\b` — k8s `port:` / `ports:` scalar values
-  3. `\bcontainerPort:\s*(\d{1,5})\b` — k8s containerPort field
-  4. `\bhostPort:\s*(\d{1,5})\b` — k8s hostPort field
-  5. `\bport:\s*(\d{1,5})\b` — generic `port: N` key-value
+**Subtask 5 (Bulk mode):** Toggle button shows/hides a textarea. `annotateManifest(text)` uses **7 regex patterns** (broadened per BUGS PLAN-escalation 2026-04-24 to cover docker-compose forms the original 5 missed) to extract port numbers from common docker-compose and k8s formats. Patterns are tried in order; first match on a line wins:
+  1. `^\s*-\s*"?(\d{1,5}):(\d{1,5})(?:/\w+)?"?` — docker-compose `host:container` mapping with optional `/tcp` `/udp` suffix (extracts host port; container port captured for reference). Covers `- "80:80"`, `- 80:80`, `- "80:80/tcp"`.
+  2. `^\s*-\s*"?(\d{1,3}(?:\.\d{1,3}){3}):(\d{1,5}):(\d{1,5})(?:/\w+)?"?` — **NEW**: IP-bound docker-compose (`- "127.0.0.1:80:80"`, `- "0.0.0.0:8080:80/tcp"`). Extracts middle (host) port.
+  3. `^\s*-\s*"?(\d{1,5})(?:/\w+)?"?\s*$` — **NEW**: single container port with optional protocol (`- "80"`, `- 80`, `- "80/tcp"`). Anchored to end-of-line so it doesn't accidentally match the leading half of a `host:container` mapping.
+  4. `\bport(?:s)?:\s*(\d{1,5})\b` — k8s `port:` / `ports:` scalar values
+  5. `\bcontainerPort:\s*(\d{1,5})\b` — k8s containerPort field
+  6. `\bhostPort:\s*(\d{1,5})\b` — k8s hostPort field
+  7. `\btargetPort:\s*(\d{1,5})\b` — **NEW**: k8s targetPort field (service → endpoint mapping)
   The function deduplicates found port numbers, looks each up in PORT_DB, and renders TWO outputs: (a) the original pasted text line by line, with any line containing a recognized port annotated with `# → SERVICE DESCRIPTION [badge]` appended inline, and (b) a compact summary table of unique ports found. If no ports are recognized, show "NO PORTS FOUND IN RECOGNIZED PATTERNS." Input capped at 50000 chars with a truncation warning.
 
 **Subtask 6 (PWA):** Manifest embedded as `<link rel="manifest" href="data:application/json,...">` for home-screen install. **No service worker** — a single-file HTML with all assets inline is inherently offline-capable (every asset is in the file itself). Service worker via blob URL would create a scope mismatch (blob: origin ≠ file: origin) and is an unnecessary risk. PWA offline capability is achieved by the zero-external-request architecture itself.
@@ -49,7 +51,7 @@ Static single-file PWA port quick-reference tool — type a port number or servi
 - `search(query, idx)` — returns matching records for a query string (numeric or name)
 - `renderCard(rec)` — returns HTML string for a single port record card
 - `renderResults(matches)` — renders result list into #results
-- `annotateManifest(text)` — extracts port numbers from pasted YAML/compose text using 5 regex patterns, annotates each line and generates summary table
+- `annotateManifest(text)` — extracts port numbers from pasted YAML/compose text using **7 regex patterns** (docker-compose host:container, IP-bound host:container, single container port, k8s port/ports/containerPort/hostPort/targetPort), annotates each line and generates summary table
 - `handleInput()` — debounced input handler wired to #query
 - (No service worker — single-file HTML is inherently offline-capable; blob URL SW removed per security review)
 
@@ -79,7 +81,7 @@ Static single-file PWA port quick-reference tool — type a port number or servi
 - App subtitle: "WELL-KNOWN PORT REFERENCE"
 
 ## Edge Cases
-- Port 0 (reserved): in database, no privilege badge (special case)
+- Port 0 (reserved): in database, no privilege badge — **explicit exception in Subtask 4's `renderCard` logic**: `if (port < 1024 && port !== 0) show root-required badge`. This is the authoritative rule; Subtask 4 must honor it.
 - Non-numeric partial: "htt" matches "http", "https"
 - Numeric exact: "443" returns HTTPS record instantly
 - Bulk paste with no recognizable port patterns: "NO PORTS FOUND" message

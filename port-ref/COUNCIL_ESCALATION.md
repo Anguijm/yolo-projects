@@ -32,4 +32,20 @@
 
 ## Resolution
 
-Human decision required. Resume the build after updating session_state.json.
+**RESOLVED 2026-04-24. Both concerns accepted — plan.md updated.**
+
+### BUGS (high) — ACCEPTED (both parts)
+
+**Regex coverage**: broadened from 5 patterns to **7 patterns** covering the three missed docker-compose shapes plus k8s `targetPort`:
+- Pattern 1: `host:container` mapping with optional `/tcp|/udp` suffix (was pattern 1; now handles protocol suffix too)
+- Pattern 2: **NEW** IP-bound form `IP:host:container` (e.g., `- "127.0.0.1:80:80"`) — extracts the middle (host) port
+- Pattern 3: **NEW** single container port with optional protocol (e.g., `- "80"`, `- "80/tcp"`) — end-anchored so it doesn't accidentally match the left half of a host:container mapping
+- Patterns 4-6: k8s `port`/`containerPort`/`hostPort` (unchanged)
+- Pattern 7: **NEW** k8s `targetPort` field (service → endpoint mapping)
+
+**Port-0 contradiction**: `renderCard` now explicitly excludes port 0 from the privilege-badge rule: `if (port < 1024 && port !== 0) show root-required badge`. Plan's Edge Cases section reinforced to name this as the authoritative rule that Subtask 4 must honor. No more contradiction between "tag root: true for ports < 1024" (Subtask 1 shorthand) and "Port 0: no privilege badge" (Edge Cases).
+
+### Other 6 angles — APPROVE
+SECURITY, UI, GUIDE, USEFULNESS, COOL, LESSONS all clean.
+
+Cron may rerun PLAN; expected clean pass.
