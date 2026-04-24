@@ -451,12 +451,17 @@ function extractPortsFromLine(line) {
     });
     if (found.length > 0) return found;
   }
-  // Sequential patterns for scalar / YAML-block lines; collect all matches
+  // Sequential patterns for scalar / YAML-block lines — FIRST MATCH WINS
+  // (per BUGS TESTS-escalation 2026-04-24 + plan.md Subtask 5: "first match
+  // on a line wins"). Prevents a k8s `port: 80` line from also matching
+  // `containerPort: 80` via the generic port regex when both shapes share
+  // digits on the same textual line.
   for (const pat of PORT_PATTERNS) {
     const m = pat.re.exec(line);
     if (m) {
       const p = parseInt(m[pat.grp], 10);
       if (IDX.byPort.has(p) && !found.includes(p)) found.push(p);
+      break;  // first match wins — do not continue to less-specific patterns
     }
   }
   return found;
