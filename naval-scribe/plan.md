@@ -46,8 +46,19 @@ Categories and templates:
 ### Subtask 4 — JS: renderTmplDrawer()
 Render the 12 template buttons grouped by category into `#tmpl-list`. Each `.tmpl-item` button shows label (large) + desc (small). Event listener calls `selectTemplate(tpl)`.
 
+**Safe-rendering requirement (per SECURITY PLAN-escalation 2026-04-24):** All template-author-controlled strings (`tpl.label`, `tpl.desc`, category header) are injected into the DOM via `textContent` assignment or `esc()`-then-innerHTML — never raw innerHTML with template content. Concretely: `.tmpl-item` buttons are built with `document.createElement('button')` + `.textContent = tpl.label` + a child `<span class="tmpl-desc">` with `.textContent = tpl.desc`. Category headers use `.textContent = cat`. This matches the existing `esc()`/`textContent` pattern already applied to every other form field in naval-scribe.
+
+Templates are author-written literals with no user-controllable content today, but we apply the safe-rendering pattern regardless so a future refactor that routes user data through the same rendering path stays safe by construction.
+
 ### Subtask 5 — JS: selectTemplate(tpl) and applyTemplate(tpl)
-`selectTemplate(tpl)` checks if any key form field has content (from, to, subj, body, bodyAction, bodyBullets, bodyMoa). If yes, store `pendingTemplate = tpl` and show `#tmpl-confirm-row`. If no, call `applyTemplate(tpl)` directly.
+`selectTemplate(tpl)` checks if any key form field has content (from, to, subj, body, bodyAction, bodyBullets, bodyMoa). If yes, store `pendingTemplate = tpl` and show `#tmpl-confirm-row` populated with the WILL CHANGE / WILL CLEAR / WILL KEEP disclosure (see below). If no, call `applyTemplate(tpl)` directly (no confirmation needed — empty form has nothing to lose).
+
+**Confirmation disclosure (per LESSONS advisory 2026-04-24)** — when the form is non-empty, the confirm row populates three named sections matching the Reply Draft Auto-Fill precedent:
+- **WILL CHANGE** — lists every field the template will overwrite with its own values: `type`, `subj`, and whichever of `body` / `bodyBullets` / `bodyAction` / `bluf` / `recommendation` the template defines
+- **WILL CLEAR** — lists every field the template does NOT define but whose current value will be emptied so the draft is coherent: `from`, `to`, `ssic`, `date`, `via[]`, `ref[]`, `encl[]`, `copyTo[]`, signature (name/rank/title), `endorseNum`, `effectiveDate`, `duration` (and any subset actually populated)
+- **WILL KEEP** — lists what carries over: classification marking, letterhead preset selection (cosmetic form-level settings that aren't document content)
+
+Each section header uses `.textContent` assignment; items are rendered as a bulleted list via `createElement('ul')` + `createElement('li')` + `.textContent = fieldName` (no innerHTML with field names). Reply-Draft-Auto-Fill's HTML shape is the pattern to copy.
 
 `applyTemplate(tpl)` clears all form fields (sets each input to empty, clears multi-fields, resets type to 'letter') then calls `restoreFullState(tpl.state)`, then sets `pendingTemplate = null`, hides `#tmpl-confirm-row`, and closes the drawer.
 
@@ -58,6 +69,8 @@ Close button and cancel button both hide `#tmpl-confirm-row`, set `pendingTempla
 
 ### Subtask 7 — AI prompt update
 Add a `### Template Letter Library` section to the `#ai-prompt-content` element describing the 12 templates and how to use them.
+
+**Safe-rendering note (per SECURITY PLAN-escalation 2026-04-24):** The `#ai-prompt-content` block is static HTML authored in the source file — no dynamic substitution from TEMPLATE_LIBRARY or any other data source. Describing templates by name in fixed prose does not introduce a user-controlled string path. No `esc()` or `textContent` concerns for this subtask specifically, but the pattern in Subtask 4 still applies to any JS rendering of TEMPLATE_LIBRARY values.
 
 ### Subtask 8 — Sequencing
 CSS → HTML (drawer + button) → TEMPLATE_LIBRARY data → renderTmplDrawer → selectTemplate + applyTemplate → toggle/mutual exclusion → AI prompt
@@ -91,7 +104,7 @@ CSS → HTML (drawer + button) → TEMPLATE_LIBRARY data → renderTmplDrawer �
 - `templates` button in top bar: same `.btn` class, between `import` and `chain`
 - Drawer: fixed left panel (420px, full-width on mobile), same style as `#reply-drawer`
 - Templates grouped by category. Category header as small-caps label (`.tmpl-cat`). Template buttons as full-width `.tmpl-item` rows showing label + desc in smaller text
-- Confirmation row: hidden until user clicks a template while form has content. Amber warning text + "apply template" (primary) and "cancel" (secondary) buttons
+- Confirmation row: hidden until user clicks a template while form has content. Structured disclosure with three named sections (WILL CHANGE / WILL CLEAR / WILL KEEP — same pattern as Reply Draft Auto-Fill) showing exactly which fields will be overwritten, emptied, or preserved. Amber warning color for the header. Actions: "apply template" (primary) and "cancel" (secondary)
 - Empty form state: template applies immediately, no confirmation
 - Loading a template closes the drawer after apply
 - Tap targets: `.tmpl-item` min-height 44px for mobile touch
@@ -101,7 +114,9 @@ CSS → HTML (drawer + button) → TEMPLATE_LIBRARY data → renderTmplDrawer �
 - Button aria-label: "Open template letter library"
 - Drawer header: "Template Library"
 - Drawer hint: "Select a template to pre-fill the form. Edit fields after loading."
-- Confirmation text: "This will overwrite the current form."
+- Confirmation row heading: "Applying this template will:"
+- Confirmation sections: **WILL CHANGE** (template-defined fields), **WILL CLEAR** (fields emptied so the draft is coherent), **WILL KEEP** (classification + letterhead preset)
+- Each section lists affected fields via `<ul>` with `textContent`-rendered items
 - Confirm button label: "apply template"
 - Cancel button label: "cancel"
 - Category labels: "Personnel", "Administrative", "Operations", "Policy & Instructions"

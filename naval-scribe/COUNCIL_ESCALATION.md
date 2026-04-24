@@ -35,4 +35,20 @@ Subtask 7 — AI prompt update`
 
 ## Resolution
 
-Human decision required. Resume the build after updating session_state.json.
+**RESOLVED 2026-04-24. Both concerns addressed in plan.md.**
+
+### SECURITY (high) — ACCEPTED
+Plan now explicitly documents safe-rendering for TEMPLATE_LIBRARY content (Subtask 4): all author-controlled strings (`tpl.label`, `tpl.desc`, category headers) are injected via `createElement` + `.textContent` assignment, never raw innerHTML with template content. Subtask 7 notes that `#ai-prompt-content` is static HTML with no dynamic substitution — no user-controlled path.
+
+### LESSONS advisory (auto-downgraded) — ACCEPTED
+Plan's overwrite confirmation expanded into the WILL CHANGE / WILL CLEAR / WILL KEEP pattern (Subtask 5) matching the Reply Draft Auto-Fill precedent:
+- **WILL CHANGE** — template-defined fields (type, subj, body-family)
+- **WILL CLEAR** — fields emptied for coherence (from/to/ssic/date/via/ref/encl/copyTo/sig/etc.)
+- **WILL KEEP** — classification marking + letterhead preset
+
+Items rendered via `<ul>` + `.textContent = fieldName` — no innerHTML with field data. UI and Guide sections updated to reflect the new disclosure structure.
+
+### Other 5 angles — APPROVE
+BUGS, UI, GUIDE, USEFULNESS, COOL all clean.
+
+Cron may rerun PLAN; expected clean pass.
