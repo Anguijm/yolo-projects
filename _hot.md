@@ -1,14 +1,14 @@
 # Hot Cache — Active Context
-*Auto-updated 2026-04-24 00:53 UTC. Read this FIRST.*
+*Auto-updated 2026-04-24 11:45 UTC. Read this FIRST.*
 
 ## Current State
-- Portfolio: 228 total, 98 active
+- Portfolio: 229 total, 98 active
 - Tick queue: 12 approved, 0 pending
 - Phase 4: 111 experiments, 12 backlog
 - Next: tock
 
 ## Tick Queue
-- [approved] port-ref: Well-Known Port Quick-Reference — type a port or service nam
+- [approved] fix-council-bugs-hallucination: Add BUGS hallucination-detection rule to council.py enforcem
 - [approved] adopt-stack-audit: One-time dependency shelf-life audit
 - [approved] adopt-bare-agent: Minimal 50-line agent loop + comparison_plan.md
 - [approved] model-eval-backbone: Backbone model swap benchmark — latest Claude vs. current ba

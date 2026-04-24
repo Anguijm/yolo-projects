@@ -1,25 +1,25 @@
 {
   "gate": "tests",
   "project": "port-ref",
-  "timestamp": "2026-04-24T11:34:22.486905+00:00",
+  "timestamp": "2026-04-24T11:41:53.771858+00:00",
   "verdicts": [
     {
       "angle": "bugs",
-      "verdict": "OBJECT",
-      "severity": "high",
-      "reason": "The bulk annotation logic for scalar/YAML-block lines contradicts the stated 'first match wins' rule, potentially extracting multiple incorrect ports from a single line.",
-      "required_fix": "In `extractPortsFromLine`, the loop iterating through `PORT_PATTERNS` must `break` after the first pattern successfully extracts a port, to align with the 'first match wins' requirement.",
-      "evidence": "file:port-ref/index.html\n```javascript\n// Sequential patterns for scalar / YAML-block lines; collect all matches\nfor (const pat of PORT_PATTERNS) {\n  const m = pat.re.exec(line);\n  if (m) {\n    const p = parseInt(m[pat.grp], 10);\n    if (IDX.byPort.has(p) && !found.includes(p)) found.push(p);\n    // BUG: This loop continues to check subsequent patterns, even if a match was found.\n    // The project plan states 'first match wins' for these patterns.\n  }\n}\n```",
+      "verdict": "APPROVE",
+      "severity": "low",
+      "reason": "The code demonstrates robust handling of various input types and edge cases, with explicit logic for parsing, data lookup, and output generation. The 'first match wins' rule for port extraction is clearly implemented and documented.",
+      "required_fix": "",
+      "evidence": "",
       "veto": false,
       "parse_failed": false
     },
     {
       "angle": "security",
-      "verdict": "OBJECT",
-      "severity": "critical",
-      "reason": "The Content Security Policy (CSP) uses 'unsafe-inline' for both script-src and style-src, which allows arbitrary inline script execution and style injection, creating critical XSS and defacement vulnerabilities.",
-      "required_fix": "Remove 'unsafe-inline' from script-src and style-src in the CSP. Move all inline JavaScript and CSS into external files and use 'script-src 'self'' and 'style-src 'self'', or use hashes/nonces for the inline blocks.",
-      "evidence": "<meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src data:; base-uri 'none'; form-action 'none';\">",
+      "verdict": "APPROVE",
+      "severity": "low",
+      "reason": "No new attack surfaces or data exposures identified. User input is handled safely with textContent and regex. CSP 'unsafe-inline' is an accepted architectural constraint.",
+      "required_fix": "",
+      "evidence": "",
       "veto": false,
       "parse_failed": false
     },
@@ -27,7 +27,7 @@
       "angle": "ui",
       "verdict": "APPROVE",
       "severity": "low",
-      "reason": "",
+      "reason": "The user interface provides clear flows, good affordances, fast feedback, and handles various states (empty, no match, truncation) effectively for a quick-reference tool.",
       "required_fix": "",
       "evidence": "",
       "veto": false,
@@ -37,7 +37,7 @@
       "angle": "guide",
       "verdict": "APPROVE",
       "severity": "low",
-      "reason": "The tool provides clear titles, descriptive placeholders, an excellent 'Try Example' button for the bulk feature, and informative error messages, making it highly discoverable for both human users and AI agents.",
+      "reason": "The tool provides clear in-app instructions, example inputs, and well-named elements, making it highly discoverable for both human users and AI agents.",
       "required_fix": "",
       "evidence": "",
       "veto": false,
@@ -47,9 +47,9 @@
       "angle": "usefulness",
       "verdict": "APPROVE",
       "severity": "low",
-      "reason": "The bulk annotation feature provides a genuinely useful, automated security review for infrastructure-as-code configurations, addressing a common pain point in DevOps workflows.",
+      "reason": "The bulk YAML annotation feature provides significant utility for developers and operations personnel by automating the contextualization of port numbers in configuration files.",
       "required_fix": "",
-      "evidence": "Automated scanning of Docker/Kubernetes manifests for port security implications is a recurring task for developers, SREs, and security teams. This tool offers a quick, focused way to achieve that, surpassing simple manual lookups or generic YAML linters by providing specific security context.",
+      "evidence": "Manually cross-referencing port numbers in large Docker Compose or Kubernetes manifests is tedious; this tool directly addresses that pain point, making it a valuable time-saver for a recurring task.",
       "veto": false,
       "parse_failed": false
     },
@@ -57,7 +57,7 @@
       "angle": "cool",
       "verdict": "APPROVE",
       "severity": "low",
-      "reason": "The bulk YAML annotation feature with security and privilege flagging is a clear, unique signature move that solves a real problem for infrastructure review.",
+      "reason": "The bulk YAML annotation with security flagging is a genuinely unique and practical signature move, transforming a simple port lookup into an infrastructure security awareness tool.",
       "required_fix": "",
       "evidence": "",
       "veto": false,
@@ -67,35 +67,14 @@
       "angle": "lessons",
       "verdict": "APPROVE",
       "severity": "low",
-      "reason": "No documented lessons or anti-patterns were violated. The deliverable correctly implements the shared helper pattern as per a prior LESSONS advisory.",
+      "reason": "",
       "required_fix": "",
       "evidence": "",
       "veto": false,
       "parse_failed": false
     }
   ],
-  "all_approved": false,
-  "objections": [
-    {
-      "angle": "bugs",
-      "verdict": "OBJECT",
-      "severity": "high",
-      "reason": "The bulk annotation logic for scalar/YAML-block lines contradicts the stated 'first match wins' rule, potentially extracting multiple incorrect ports from a single line.",
-      "required_fix": "In `extractPortsFromLine`, the loop iterating through `PORT_PATTERNS` must `break` after the first pattern successfully extracts a port, to align with the 'first match wins' requirement.",
-      "evidence": "file:port-ref/index.html\n```javascript\n// Sequential patterns for scalar / YAML-block lines; collect all matches\nfor (const pat of PORT_PATTERNS) {\n  const m = pat.re.exec(line);\n  if (m) {\n    const p = parseInt(m[pat.grp], 10);\n    if (IDX.byPort.has(p) && !found.includes(p)) found.push(p);\n    // BUG: This loop continues to check subsequent patterns, even if a match was found.\n    // The project plan states 'first match wins' for these patterns.\n  }\n}\n```",
-      "veto": false,
-      "parse_failed": false
-    },
-    {
-      "angle": "security",
-      "verdict": "OBJECT",
-      "severity": "critical",
-      "reason": "The Content Security Policy (CSP) uses 'unsafe-inline' for both script-src and style-src, which allows arbitrary inline script execution and style injection, creating critical XSS and defacement vulnerabilities.",
-      "required_fix": "Remove 'unsafe-inline' from script-src and style-src in the CSP. Move all inline JavaScript and CSS into external files and use 'script-src 'self'' and 'style-src 'self'', or use hashes/nonces for the inline blocks.",
-      "evidence": "<meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src data:; base-uri 'none'; form-action 'none';\">",
-      "veto": false,
-      "parse_failed": false
-    }
-  ],
+  "all_approved": true,
+  "objections": [],
   "vetoed": false
 }
