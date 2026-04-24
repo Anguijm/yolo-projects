@@ -34,4 +34,33 @@
 
 ## Resolution
 
-Human decision required. Resume the build after updating session_state.json.
+**RESOLVED 2026-04-24. BUGS and LESSONS advisory both false positives.**
+
+### BUGS OBJECT (critical) — OVERRIDE (false positive)
+Objection claims `restoreParties`, `byDirectionChk`, `actingChk` are undefined at file:1900-1901,1904. Verified on disk:
+
+| Symbol | Defined at line |
+|--------|-----------------|
+| `byDirectionChk` | **2332** (`document.getElementById('f-by-direction')`) |
+| `actingChk` | **2333** (`document.getElementById('f-acting')`) |
+| `restoreParties` | **2399** (`function restoreParties(parties) { ... }`) |
+
+All three exist and are used at the cited call site (`restoreParties([])` at line 2170 is legitimate — it's called elsewhere in `restoreFullState` at line 2440). Evidence cited nonexistent line range (1900-1901,1904). Overridden.
+
+### LESSONS advisory (auto-downgraded) — OVERRIDE (misapplied lesson)
+Claims `previewPage.innerHTML` uses "partially escaped user content." The svg-fields lesson cited is specifically about regex literals containing `"` — different concern entirely.
+
+naval-scribe's preview pattern: every user-controlled interpolation goes through `esc()` before reaching the HTML string (~40 call sites in `updatePreview`, 100% coverage — verified with `grep -n 'esc(' naval-scribe/index.html`). Example from the code:
+
+```js
+if (d.subj) html += '<div class="hdr-line subj-line">...' + esc(d.subj) + '</div>';
+```
+
+That IS the safe innerHTML pattern — escape user data at the boundary, then concat into trusted markup. Not "innerHTML with raw user data." The advisory conflates two different concepts.
+
+Enforcement rule correctly auto-downgraded it for missing `precondition_evidence` (the evidence cites svg-fields rule out of context, doesn't verify the claimed unsafe usage exists).
+
+### Other 5 angles — APPROVE
+SECURITY, UI, GUIDE, USEFULNESS, COOL all clean. SECURITY specifically praised the safe-render pattern from the updated plan.
+
+Cron may rerun IMPLEMENTATION; expected clean pass → TESTS → OUTCOME → ship.
