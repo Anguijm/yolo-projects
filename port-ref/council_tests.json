@@ -1,25 +1,25 @@
 {
   "gate": "tests",
   "project": "port-ref",
-  "timestamp": "2026-04-24T11:23:27.182735+00:00",
+  "timestamp": "2026-04-24T11:34:22.486905+00:00",
   "verdicts": [
     {
       "angle": "bugs",
       "verdict": "OBJECT",
       "severity": "high",
-      "reason": "The service name search functionality is incomplete, failing to find relevant ports when the query is a substring of a service name but not a prefix.",
-      "required_fix": "Modify the `search` function to explicitly check if `r.name.toLowerCase().includes(ql)` for all records in PORT_DB, in addition to the current prefix-based index lookup and description search. The `buildIndex` function's fragment indexing for `byName` should be removed or refined to support true substring search.",
-      "evidence": "file:line 186: `const results = IDX.byName.get(q.toLowerCase()) || [];` This line relies on `buildIndex`'s `byName` map (lines 160-165), which only indexes prefixes of service names, not substrings. For example, searching 'sql' will not find 'mssql' because 'sql' is not a prefix of 'mssql', leading to missing results.",
+      "reason": "The bulk annotation logic for scalar/YAML-block lines contradicts the stated 'first match wins' rule, potentially extracting multiple incorrect ports from a single line.",
+      "required_fix": "In `extractPortsFromLine`, the loop iterating through `PORT_PATTERNS` must `break` after the first pattern successfully extracts a port, to align with the 'first match wins' requirement.",
+      "evidence": "file:port-ref/index.html\n```javascript\n// Sequential patterns for scalar / YAML-block lines; collect all matches\nfor (const pat of PORT_PATTERNS) {\n  const m = pat.re.exec(line);\n  if (m) {\n    const p = parseInt(m[pat.grp], 10);\n    if (IDX.byPort.has(p) && !found.includes(p)) found.push(p);\n    // BUG: This loop continues to check subsequent patterns, even if a match was found.\n    // The project plan states 'first match wins' for these patterns.\n  }\n}\n```",
       "veto": false,
       "parse_failed": false
     },
     {
       "angle": "security",
-      "verdict": "APPROVE",
-      "severity": "low",
-      "reason": "All user input is handled safely via textContent or used to filter trusted, hardcoded data, preventing injection attacks and data exposure.",
-      "required_fix": "",
-      "evidence": "",
+      "verdict": "OBJECT",
+      "severity": "critical",
+      "reason": "The Content Security Policy (CSP) uses 'unsafe-inline' for both script-src and style-src, which allows arbitrary inline script execution and style injection, creating critical XSS and defacement vulnerabilities.",
+      "required_fix": "Remove 'unsafe-inline' from script-src and style-src in the CSP. Move all inline JavaScript and CSS into external files and use 'script-src 'self'' and 'style-src 'self'', or use hashes/nonces for the inline blocks.",
+      "evidence": "<meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src data:; base-uri 'none'; form-action 'none';\">",
       "veto": false,
       "parse_failed": false
     },
@@ -37,7 +37,7 @@
       "angle": "guide",
       "verdict": "APPROVE",
       "severity": "low",
-      "reason": "The tool provides clear instructions, example inputs, and self-documenting code for both human users and AI agents.",
+      "reason": "The tool provides clear titles, descriptive placeholders, an excellent 'Try Example' button for the bulk feature, and informative error messages, making it highly discoverable for both human users and AI agents.",
       "required_fix": "",
       "evidence": "",
       "veto": false,
@@ -47,9 +47,9 @@
       "angle": "usefulness",
       "verdict": "APPROVE",
       "severity": "low",
-      "reason": "Provides a useful, consolidated reference for port security and a unique bulk annotation tool for configuration review.",
+      "reason": "The bulk annotation feature provides a genuinely useful, automated security review for infrastructure-as-code configurations, addressing a common pain point in DevOps workflows.",
       "required_fix": "",
-      "evidence": "The bulk annotation feature for Docker/K8s YAML is a practical tool for developers and security engineers, saving time on manual port lookups and risk assessments in configuration files. The PWA aspect ensures offline utility.",
+      "evidence": "Automated scanning of Docker/Kubernetes manifests for port security implications is a recurring task for developers, SREs, and security teams. This tool offers a quick, focused way to achieve that, surpassing simple manual lookups or generic YAML linters by providing specific security context.",
       "veto": false,
       "parse_failed": false
     },
@@ -57,7 +57,7 @@
       "angle": "cool",
       "verdict": "APPROVE",
       "severity": "low",
-      "reason": "The bulk YAML annotation with inline security comments and a summary table is a unique, shareable signature move that elevates a basic port reference into a genuinely useful and memorable tool for developers and ops.",
+      "reason": "The bulk YAML annotation feature with security and privilege flagging is a clear, unique signature move that solves a real problem for infrastructure review.",
       "required_fix": "",
       "evidence": "",
       "veto": false,
@@ -66,10 +66,10 @@
     {
       "angle": "lessons",
       "verdict": "APPROVE",
-      "severity": "advisory",
-      "reason": "[AUTO-DOWNGRADED: LESSONS VETO missing precondition_evidence] The logic for determining security badge text and styling is duplicated across the `secBadgeHTML` function and the bulk annotation summary table, violating the 'extract any function used in two places' lesson.",
-      "required_fix": "Extract a shared helper function that maps the 'sec' value (0, 1, 2) to its corresponding label (OK, CLEARTEXT, HIGH RISK) and CSS class (badge-ok, badge-clear, badge-high). Both `secBadgeHTML` and the summary table generation should call this new helper to avoid duplicating logic.",
-      "evidence": "KEEP \u2014 `buildRefLine()` extracted as shared helper: Shared logic used both in drawer preview (on-open) and in apply (on-click). Extracting it prevents drift where the preview shows one thing but apply does another. Extract any function used in two places.",
+      "severity": "low",
+      "reason": "No documented lessons or anti-patterns were violated. The deliverable correctly implements the shared helper pattern as per a prior LESSONS advisory.",
+      "required_fix": "",
+      "evidence": "",
       "veto": false,
       "parse_failed": false
     }
@@ -80,9 +80,19 @@
       "angle": "bugs",
       "verdict": "OBJECT",
       "severity": "high",
-      "reason": "The service name search functionality is incomplete, failing to find relevant ports when the query is a substring of a service name but not a prefix.",
-      "required_fix": "Modify the `search` function to explicitly check if `r.name.toLowerCase().includes(ql)` for all records in PORT_DB, in addition to the current prefix-based index lookup and description search. The `buildIndex` function's fragment indexing for `byName` should be removed or refined to support true substring search.",
-      "evidence": "file:line 186: `const results = IDX.byName.get(q.toLowerCase()) || [];` This line relies on `buildIndex`'s `byName` map (lines 160-165), which only indexes prefixes of service names, not substrings. For example, searching 'sql' will not find 'mssql' because 'sql' is not a prefix of 'mssql', leading to missing results.",
+      "reason": "The bulk annotation logic for scalar/YAML-block lines contradicts the stated 'first match wins' rule, potentially extracting multiple incorrect ports from a single line.",
+      "required_fix": "In `extractPortsFromLine`, the loop iterating through `PORT_PATTERNS` must `break` after the first pattern successfully extracts a port, to align with the 'first match wins' requirement.",
+      "evidence": "file:port-ref/index.html\n```javascript\n// Sequential patterns for scalar / YAML-block lines; collect all matches\nfor (const pat of PORT_PATTERNS) {\n  const m = pat.re.exec(line);\n  if (m) {\n    const p = parseInt(m[pat.grp], 10);\n    if (IDX.byPort.has(p) && !found.includes(p)) found.push(p);\n    // BUG: This loop continues to check subsequent patterns, even if a match was found.\n    // The project plan states 'first match wins' for these patterns.\n  }\n}\n```",
+      "veto": false,
+      "parse_failed": false
+    },
+    {
+      "angle": "security",
+      "verdict": "OBJECT",
+      "severity": "critical",
+      "reason": "The Content Security Policy (CSP) uses 'unsafe-inline' for both script-src and style-src, which allows arbitrary inline script execution and style injection, creating critical XSS and defacement vulnerabilities.",
+      "required_fix": "Remove 'unsafe-inline' from script-src and style-src in the CSP. Move all inline JavaScript and CSS into external files and use 'script-src 'self'' and 'style-src 'self'', or use hashes/nonces for the inline blocks.",
+      "evidence": "<meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src data:; base-uri 'none'; form-action 'none';\">",
       "veto": false,
       "parse_failed": false
     }
