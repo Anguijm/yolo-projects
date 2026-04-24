@@ -1,0 +1,552 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Port Ref — Well-Known Port Reference</title>
+<link rel="manifest" href="data:application/manifest+json,%7B%22name%22%3A%22Port%20Ref%22%2C%22short_name%22%3A%22Port%20Ref%22%2C%22start_url%22%3A%22.%22%2C%22display%22%3A%22standalone%22%2C%22background_color%22%3A%22%230f172a%22%2C%22theme_color%22%3A%22%230f172a%22%7D">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0f172a;--surface:#1e293b;--surface2:#334155;
+  --accent:#60a5fa;--amber:#fbbf24;--red:#f87171;--green:#4ade80;
+  --text:#f1f5f9;--muted:#94a3b8;--border:#334155;
+  --focus-ring:2px solid #60a5fa;
+}
+body{background:var(--bg);color:var(--text);font-family:'Courier New',Courier,monospace;min-height:100vh;padding:1.5rem 1rem}
+h1{font-size:2rem;letter-spacing:.15em;color:var(--accent);font-weight:700;line-height:1}
+.subtitle{font-size:.7rem;letter-spacing:.2em;color:var(--muted);margin-top:.25rem;margin-bottom:1.5rem}
+#search-wrap{position:relative;margin-bottom:1rem}
+#query{
+  width:100%;background:var(--surface);border:1px solid var(--border);
+  color:var(--text);font-family:inherit;font-size:1rem;
+  padding:.75rem 1rem;border-radius:.375rem;outline:none;
+  transition:border-color .15s;
+}
+#query:focus{border-color:var(--accent);outline:var(--focus-ring);outline-offset:2px}
+#query::placeholder{color:var(--muted)}
+#live-count{font-size:.7rem;color:var(--muted);margin-bottom:.75rem;min-height:1em}
+#results{list-style:none}
+.card{
+  background:var(--surface);border:1px solid var(--border);border-radius:.375rem;
+  padding:.875rem 1rem;margin-bottom:.5rem;
+  display:grid;grid-template-columns:auto 1fr;gap:.5rem 1rem;align-items:start;
+}
+.port-num{font-size:1.5rem;font-weight:700;color:var(--accent);line-height:1;grid-row:span 2;padding-top:.1rem}
+.svc-name{font-size:.95rem;font-weight:600;letter-spacing:.05em;display:flex;flex-wrap:wrap;gap:.35rem;align-items:center}
+.svc-desc{font-size:.8rem;color:var(--muted);grid-column:2}
+.badge{
+  display:inline-block;font-size:.6rem;font-weight:700;letter-spacing:.08em;
+  padding:.15rem .4rem;border-radius:.25rem;line-height:1.4;
+  white-space:nowrap;
+}
+.badge-proto{background:var(--surface2);color:var(--muted)}
+.badge-priv{background:#78350f;color:var(--amber)}
+.badge-clear{background:#451a03;color:var(--amber)}
+.badge-high{background:#450a0a;color:var(--red)}
+.badge-ok{background:#052e16;color:var(--green)}
+.empty-state{color:var(--muted);font-size:.85rem;letter-spacing:.1em;padding:2rem 0;text-align:center}
+
+/* Bulk panel */
+#bulk-toggle{
+  display:inline-flex;align-items:center;gap:.5rem;
+  background:transparent;border:1px solid var(--border);color:var(--muted);
+  font-family:inherit;font-size:.75rem;letter-spacing:.1em;
+  padding:.5rem .875rem;border-radius:.375rem;cursor:pointer;
+  margin-bottom:1rem;transition:border-color .15s,color .15s;
+}
+#bulk-toggle:hover{border-color:var(--accent);color:var(--accent)}
+#bulk-toggle:focus{outline:var(--focus-ring);outline-offset:2px}
+#bulk-panel{display:none;margin-bottom:1.5rem}
+#bulk-panel.open{display:block}
+#bulk-panel h2{font-size:.7rem;letter-spacing:.15em;color:var(--muted);margin-bottom:.75rem}
+#manifest-input{
+  width:100%;background:var(--surface);border:1px solid var(--border);color:var(--text);
+  font-family:'Courier New',Courier,monospace;font-size:.8rem;padding:.75rem;
+  border-radius:.375rem;resize:vertical;min-height:8rem;outline:none;
+}
+#manifest-input:focus{border-color:var(--accent);outline:var(--focus-ring);outline-offset:2px}
+#annotate-btn{
+  display:inline-flex;align-items:center;
+  background:var(--accent);border:none;color:#0f172a;
+  font-family:inherit;font-size:.8rem;font-weight:700;letter-spacing:.1em;
+  padding:.5rem 1.25rem;border-radius:.375rem;cursor:pointer;margin-top:.5rem;
+  transition:opacity .15s;
+}
+#annotate-btn:hover{opacity:.85}
+#annotate-btn:focus{outline:var(--focus-ring);outline-offset:2px}
+#bulk-output{margin-top:1rem}
+#annotated-view{
+  background:var(--surface);border:1px solid var(--border);border-radius:.375rem;
+  padding:.75rem;font-size:.75rem;line-height:1.6;overflow-x:auto;
+  white-space:pre;max-height:20rem;overflow-y:auto;
+}
+#summary-table{margin-top:1rem;width:100%;border-collapse:collapse;font-size:.78rem}
+#summary-table th{text-align:left;color:var(--muted);font-weight:600;letter-spacing:.08em;border-bottom:1px solid var(--border);padding:.35rem .5rem}
+#summary-table td{padding:.35rem .5rem;border-bottom:1px solid var(--surface2);vertical-align:top}
+#summary-table tr:last-child td{border-bottom:none}
+.sum-port{color:var(--accent);font-weight:700}
+.sum-flags{display:flex;flex-wrap:wrap;gap:.25rem}
+
+/* Screen-reader live region */
+#sr-live{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+
+@media(max-width:480px){
+  .card{grid-template-columns:1fr}
+  .port-num{font-size:1.25rem;grid-row:auto}
+  .svc-desc{grid-column:1}
+}
+</style>
+</head>
+<body>
+<span id="sr-live" aria-live="polite" aria-atomic="true"></span>
+<h1>PORT REF</h1>
+<p class="subtitle">WELL-KNOWN PORT REFERENCE</p>
+
+<div id="search-wrap">
+  <input type="search" id="query" autocomplete="off" spellcheck="false"
+    placeholder="Port or service name…"
+    aria-label="Port or service name"
+    aria-controls="results"
+    aria-autocomplete="list">
+</div>
+<div id="live-count" aria-hidden="true"></div>
+<ul id="results" role="list" aria-label="Port search results"></ul>
+
+<button id="bulk-toggle" aria-expanded="false">&#9660; BULK ANNOTATE</button>
+<div id="bulk-panel" role="region" aria-label="Bulk annotate panel">
+  <h2>BULK ANNOTATE — PASTE DOCKER-COMPOSE OR K8S YAML</h2>
+  <textarea id="manifest-input" rows="8"
+    placeholder="Paste docker-compose or k8s YAML here…"
+    aria-label="Docker-compose or Kubernetes YAML to annotate"
+    maxlength="50000"></textarea>
+  <div style="display:flex;gap:.5rem;flex-wrap:wrap;margin-top:.5rem">
+    <button id="annotate-btn" aria-label="Annotate pasted manifest">ANNOTATE</button>
+    <button id="example-btn" style="background:transparent;border:1px solid var(--border);color:var(--muted);font-family:inherit;font-size:.75rem;font-weight:600;letter-spacing:.08em;padding:.5rem .875rem;border-radius:.375rem;cursor:pointer" aria-label="Load example YAML into textarea">TRY EXAMPLE</button>
+  </div>
+  <div id="bulk-output" aria-live="polite"></div>
+</div>
+
+<script>
+'use strict';
+
+// ─── Port Database ──────────────────────────────────────────────────────────
+// sec: 0=safe, 1=cleartext/warn, 2=high-risk
+// root auto-computed at runtime from p < 1024 (except port 0)
+const PORT_DB = [
+  {p:0,   name:'reserved',  proto:'TCP/UDP', desc:'Reserved / wildcard bind — OS assigns ephemeral port', sec:0},
+  {p:20,  name:'ftp-data',  proto:'TCP',     desc:'FTP data transfer', sec:1},
+  {p:21,  name:'ftp',       proto:'TCP',     desc:'FTP control — plaintext credentials', sec:1},
+  {p:22,  name:'ssh',       proto:'TCP',     desc:'Secure Shell — encrypted remote access', sec:0},
+  {p:23,  name:'telnet',    proto:'TCP',     desc:'Telnet — unencrypted remote terminal', sec:2},
+  {p:25,  name:'smtp',      proto:'TCP',     desc:'SMTP — email submission (plaintext)', sec:1},
+  {p:37,  name:'time',      proto:'TCP/UDP', desc:'Time Protocol (legacy)', sec:0},
+  {p:43,  name:'whois',     proto:'TCP',     desc:'WHOIS directory service', sec:0},
+  {p:53,  name:'dns',       proto:'TCP/UDP', desc:'Domain Name System', sec:0},
+  {p:67,  name:'dhcp',      proto:'UDP',     desc:'DHCP server', sec:0},
+  {p:68,  name:'dhcp-client',proto:'UDP',    desc:'DHCP client', sec:0},
+  {p:69,  name:'tftp',      proto:'UDP',     desc:'Trivial FTP — no auth, unauthenticated file transfer', sec:2},
+  {p:80,  name:'http',      proto:'TCP',     desc:'HTTP — unencrypted web traffic', sec:1},
+  {p:88,  name:'kerberos',  proto:'TCP/UDP', desc:'Kerberos authentication', sec:0},
+  {p:110, name:'pop3',      proto:'TCP',     desc:'POP3 — plaintext email retrieval', sec:1},
+  {p:111, name:'rpc',       proto:'TCP/UDP', desc:'ONC RPC portmapper', sec:0},
+  {p:119, name:'nntp',      proto:'TCP',     desc:'Network News Transfer Protocol', sec:1},
+  {p:123, name:'ntp',       proto:'UDP',     desc:'Network Time Protocol — amplification DDoS risk', sec:2},
+  {p:135, name:'msrpc',     proto:'TCP',     desc:'Microsoft RPC endpoint mapper — common attack surface', sec:2},
+  {p:137, name:'netbios-ns',proto:'UDP',     desc:'NetBIOS name service', sec:2},
+  {p:138, name:'netbios-dg',proto:'UDP',     desc:'NetBIOS datagram service', sec:2},
+  {p:139, name:'netbios-ssn',proto:'TCP',    desc:'NetBIOS session service (SMBv1)', sec:2},
+  {p:143, name:'imap',      proto:'TCP',     desc:'IMAP — plaintext email access', sec:1},
+  {p:161, name:'snmp',      proto:'UDP',     desc:'SNMP — community string auth, amplification risk', sec:2},
+  {p:162, name:'snmptrap',  proto:'UDP',     desc:'SNMP Trap', sec:1},
+  {p:179, name:'bgp',       proto:'TCP',     desc:'Border Gateway Protocol', sec:0},
+  {p:194, name:'irc',       proto:'TCP',     desc:'Internet Relay Chat (plaintext)', sec:1},
+  {p:389, name:'ldap',      proto:'TCP/UDP', desc:'LDAP — plaintext directory queries', sec:1},
+  {p:443, name:'https',     proto:'TCP',     desc:'HTTPS — encrypted web traffic', sec:0},
+  {p:445, name:'smb',       proto:'TCP',     desc:'SMB/CIFS — EternalBlue target, block at perimeter', sec:2},
+  {p:465, name:'smtps',     proto:'TCP',     desc:'SMTP over TLS (email submission)', sec:0},
+  {p:500, name:'isakmp',    proto:'UDP',     desc:'IKE/IPsec key exchange', sec:0},
+  {p:514, name:'syslog',    proto:'UDP',     desc:'Syslog — plaintext, unauthenticated', sec:1},
+  {p:515, name:'lpd',       proto:'TCP',     desc:'Line Printer Daemon', sec:1},
+  {p:520, name:'rip',       proto:'UDP',     desc:'Routing Information Protocol', sec:1},
+  {p:546, name:'dhcpv6-client',proto:'UDP',  desc:'DHCPv6 client', sec:0},
+  {p:547, name:'dhcpv6-server',proto:'UDP',  desc:'DHCPv6 server', sec:0},
+  {p:587, name:'submission', proto:'TCP',    desc:'SMTP submission (STARTTLS)', sec:0},
+  {p:631, name:'ipp',       proto:'TCP',     desc:'Internet Printing Protocol', sec:0},
+  {p:636, name:'ldaps',     proto:'TCP',     desc:'LDAP over TLS', sec:0},
+  {p:873, name:'rsync',     proto:'TCP',     desc:'rsync — unauthenticated if misconfigured', sec:1},
+  {p:993, name:'imaps',     proto:'TCP',     desc:'IMAP over TLS', sec:0},
+  {p:995, name:'pop3s',     proto:'TCP',     desc:'POP3 over TLS', sec:0},
+  {p:1080,name:'socks',     proto:'TCP',     desc:'SOCKS proxy — often abused for anonymization', sec:2},
+  {p:1194,name:'openvpn',   proto:'TCP/UDP', desc:'OpenVPN', sec:0},
+  {p:1433,name:'mssql',     proto:'TCP',     desc:'Microsoft SQL Server — common brute-force target', sec:2},
+  {p:1434,name:'mssql-udp', proto:'UDP',     desc:'MSSQL Browser Service — UDP enumeration risk', sec:2},
+  {p:1521,name:'oracle',    proto:'TCP',     desc:'Oracle DB — restrict to internal networks', sec:2},
+  {p:1723,name:'pptp',      proto:'TCP',     desc:'PPTP VPN — deprecated, broken crypto', sec:2},
+  {p:1883,name:'mqtt',      proto:'TCP',     desc:'MQTT — IoT messaging (often unauthenticated)', sec:1},
+  {p:2049,name:'nfs',       proto:'TCP/UDP', desc:'NFS — restrict to trusted hosts', sec:1},
+  {p:2181,name:'zookeeper', proto:'TCP',     desc:'ZooKeeper — no auth by default', sec:1},
+  {p:2375,name:'docker',    proto:'TCP',     desc:'Docker daemon — NEVER expose, root-equivalent access', sec:2},
+  {p:2376,name:'docker-tls',proto:'TCP',     desc:'Docker daemon (TLS) — restrict access', sec:1},
+  {p:2379,name:'etcd',      proto:'TCP',     desc:'etcd client — Kubernetes secrets stored here', sec:2},
+  {p:2380,name:'etcd-peer', proto:'TCP',     desc:'etcd peer communication', sec:1},
+  {p:3000,name:'dev-http',  proto:'TCP',     desc:'Common dev server port (Rails, Grafana, etc.)', sec:0},
+  {p:3306,name:'mysql',     proto:'TCP',     desc:'MySQL/MariaDB — restrict to app tier', sec:1},
+  {p:3389,name:'rdp',       proto:'TCP',     desc:'RDP — brute-force & BlueKeep target, never expose', sec:2},
+  {p:4369,name:'epmd',      proto:'TCP',     desc:'Erlang Port Mapper (RabbitMQ) — restrict to internal', sec:1},
+  {p:4443,name:'https-alt', proto:'TCP',     desc:'HTTPS alternate port', sec:0},
+  {p:4444,name:'metasploit',proto:'TCP',     desc:'Metasploit default listener — should never be open', sec:2},
+  {p:4567,name:'sinatra',   proto:'TCP',     desc:'Sinatra Ruby dev server default', sec:0},
+  {p:5000,name:'flask',     proto:'TCP',     desc:'Flask dev server / Docker Registry', sec:0},
+  {p:5432,name:'postgres',  proto:'TCP',     desc:'PostgreSQL — restrict to app tier', sec:1},
+  {p:5601,name:'kibana',    proto:'TCP',     desc:'Kibana — restrict; may expose sensitive logs', sec:1},
+  {p:5672,name:'amqp',      proto:'TCP',     desc:'AMQP (RabbitMQ) — restrict to internal', sec:1},
+  {p:5900,name:'vnc',       proto:'TCP',     desc:'VNC — plaintext, brute-force target', sec:2},
+  {p:5984,name:'couchdb',   proto:'TCP',     desc:'CouchDB HTTP API — restrict to internal', sec:1},
+  {p:6379,name:'redis',     proto:'TCP',     desc:'Redis — no auth by default, RCE risk if exposed', sec:2},
+  {p:6443,name:'k8s-api',   proto:'TCP',     desc:'Kubernetes API server — restrict, TLS required', sec:1},
+  {p:6666,name:'irc-alt',   proto:'TCP',     desc:'IRC alternate / common malware C2 port', sec:2},
+  {p:7001,name:'weblogic',  proto:'TCP',     desc:'Oracle WebLogic — historically exploited (CVE-2019-2725)', sec:2},
+  {p:7474,name:'neo4j',     proto:'TCP',     desc:'Neo4j HTTP API', sec:1},
+  {p:8000,name:'http-alt',  proto:'TCP',     desc:'Common dev HTTP port (Django, etc.)', sec:0},
+  {p:8008,name:'http-alt2', proto:'TCP',     desc:'HTTP alternate', sec:0},
+  {p:8080,name:'http-proxy',proto:'TCP',     desc:'HTTP alternate / proxy (Tomcat, Jenkins default)', sec:1},
+  {p:8081,name:'http-alt3', proto:'TCP',     desc:'HTTP alternate', sec:0},
+  {p:8086,name:'influxdb',  proto:'TCP',     desc:'InfluxDB HTTP API — restrict to internal', sec:1},
+  {p:8088,name:'riak',      proto:'TCP',     desc:'Riak HTTP API', sec:1},
+  {p:8123,name:'clickhouse',proto:'TCP',     desc:'ClickHouse HTTP interface', sec:1},
+  {p:8161,name:'activemq',  proto:'TCP',     desc:'ActiveMQ web console — default creds risk', sec:2},
+  {p:8443,name:'https-alt2',proto:'TCP',     desc:'HTTPS alternate (Tomcat, Kubernetes dashboard)', sec:0},
+  {p:8500,name:'consul',    proto:'TCP',     desc:'HashiCorp Consul HTTP — restrict to internal', sec:1},
+  {p:8888,name:'jupyter',   proto:'TCP',     desc:'Jupyter Notebook — token auth, restrict to localhost', sec:1},
+  {p:9000,name:'sonarqube', proto:'TCP',     desc:'SonarQube / PHP-FPM / Portainer', sec:1},
+  {p:9090,name:'prometheus',proto:'TCP',     desc:'Prometheus metrics — restrict; exposes internals', sec:1},
+  {p:9092,name:'kafka',     proto:'TCP',     desc:'Apache Kafka — no auth by default, restrict', sec:1},
+  {p:9200,name:'elasticsearch',proto:'TCP',  desc:'Elasticsearch HTTP — no auth by default, RCE risk', sec:2},
+  {p:9300,name:'elasticsearch-cluster',proto:'TCP',desc:'Elasticsearch cluster comms — internal only', sec:1},
+  {p:9418,name:'git',       proto:'TCP',     desc:'Git protocol — unauthenticated read access', sec:1},
+  {p:10250,name:'kubelet',  proto:'TCP',     desc:'Kubernetes kubelet API — restrict; exec-to-container risk', sec:2},
+  {p:10255,name:'kubelet-ro',proto:'TCP',    desc:'Kubernetes kubelet read-only (deprecated)', sec:1},
+  {p:11211,name:'memcached',proto:'TCP/UDP', desc:'Memcached — no auth, amplification DDoS risk', sec:2},
+  {p:15672,name:'rabbitmq-mgmt',proto:'TCP', desc:'RabbitMQ management UI — default guest:guest', sec:2},
+  {p:16379,name:'redis-cluster',proto:'TCP', desc:'Redis Cluster bus', sec:1},
+  {p:17500,name:'dropbox',  proto:'TCP',     desc:'Dropbox LAN sync', sec:0},
+  {p:25565,name:'minecraft',proto:'TCP',     desc:'Minecraft Java Edition server', sec:0},
+  {p:27017,name:'mongodb',  proto:'TCP',     desc:'MongoDB — no auth by default, restrict to internal', sec:2},
+  {p:27018,name:'mongodb-shard',proto:'TCP', desc:'MongoDB shardsvr', sec:1},
+  {p:27019,name:'mongodb-config',proto:'TCP',desc:'MongoDB configsvr', sec:1},
+  {p:32768,name:'ephemeral-start',proto:'TCP/UDP',desc:'Start of ephemeral port range (Linux)', sec:0},
+  {p:49152,name:'ephemeral-start-win',proto:'TCP/UDP',desc:'Start of IANA dynamic/private range (Windows)', sec:0},
+  {p:50051,name:'grpc',     proto:'TCP',     desc:'gRPC default port', sec:0},
+  {p:51820,name:'wireguard',proto:'UDP',     desc:'WireGuard VPN', sec:0},
+  {p:61616,name:'activemq-openwire',proto:'TCP',desc:'ActiveMQ OpenWire — restrict to internal', sec:1},
+];
+
+// ─── Index ───────────────────────────────────────────────────────────────────
+function buildIndex(db) {
+  const byPort = new Map();
+  const byName = new Map();
+  db.forEach(rec => {
+    byPort.set(rec.p, rec);
+    const key = rec.name.toLowerCase();
+    (byName.get(key) || byName.set(key, []).get(key)).push(rec);
+    // also index fragments: "http" indexes "https", "http-alt" etc
+    for (let i = 1; i <= key.length; i++) {
+      const frag = key.slice(0, i);
+      if (!byName.has(frag)) byName.set(frag, []);
+      if (!byName.get(frag).includes(rec)) byName.get(frag).push(rec);
+    }
+  });
+  return {byPort, byName};
+}
+
+const IDX = buildIndex(PORT_DB);
+
+// ─── Search ───────────────────────────────────────────────────────────────────
+function search(query) {
+  const q = query.trim();
+  if (!q) return [];
+  if (/^\d+$/.test(q)) {
+    const p = parseInt(q, 10);
+    const exact = IDX.byPort.get(p);
+    if (exact) return [exact];
+    // partial: ports starting with the digits
+    return PORT_DB.filter(r => String(r.p).startsWith(q)).slice(0, 20);
+  }
+  const results = IDX.byName.get(q.toLowerCase()) || [];
+  // also search by desc keyword for longer queries
+  if (q.length >= 3 && results.length < 5) {
+    const ql = q.toLowerCase();
+    PORT_DB.forEach(r => {
+      if (!results.includes(r) && r.desc.toLowerCase().includes(ql)) results.push(r);
+    });
+  }
+  return results.slice(0, 20);
+}
+
+// ─── Render card ─────────────────────────────────────────────────────────────
+function secBadgeHTML(sec) {
+  if (sec === 2) return '<span class="badge badge-high" aria-label="Security: high risk">HIGH RISK</span>';
+  if (sec === 1) return '<span class="badge badge-clear" aria-label="Security: cleartext or misconfiguration risk">CLEARTEXT</span>';
+  return '<span class="badge badge-ok" aria-label="Security: no special risk">OK</span>';
+}
+
+function renderCard(rec) {
+  const privBadge = (rec.p < 1024 && rec.p !== 0)
+    ? '<span class="badge badge-priv" aria-label="Privilege: root required">ROOT REQUIRED</span>' : '';
+  const li = document.createElement('li');
+  li.className = 'card';
+  li.setAttribute('role', 'listitem');
+  li.innerHTML =
+    '<span class="port-num">' + rec.p + '</span>' +
+    '<span class="svc-name">' +
+      '<span class="badge badge-proto" aria-label="Protocol: ' + rec.proto + '">' + rec.proto + '</span>' +
+      rec.name.toUpperCase() +
+      privBadge +
+      secBadgeHTML(rec.sec) +
+    '</span>' +
+    '<span class="svc-desc"></span>';
+  li.querySelector('.svc-desc').textContent = rec.desc;
+  return li;
+}
+
+// ─── Render results ───────────────────────────────────────────────────────────
+const resultsEl = document.getElementById('results');
+const liveCount = document.getElementById('live-count');
+const srLive = document.getElementById('sr-live');
+
+function renderResults(matches) {
+  resultsEl.innerHTML = '';
+  if (matches === null) {
+    resultsEl.innerHTML = '<li class="empty-state" role="listitem">TYPE A PORT NUMBER OR SERVICE NAME</li>';
+    liveCount.textContent = '';
+    return;
+  }
+  if (matches.length === 0) {
+    resultsEl.innerHTML = '<li class="empty-state" role="listitem">NO MATCH — NOT IN WELL-KNOWN RANGE</li>';
+    liveCount.textContent = '0 results';
+    srLive.textContent = 'No match found.';
+    return;
+  }
+  const frag = document.createDocumentFragment();
+  matches.forEach(m => frag.appendChild(renderCard(m)));
+  resultsEl.appendChild(frag);
+  liveCount.textContent = matches.length + ' result' + (matches.length === 1 ? '' : 's');
+  srLive.textContent = matches.length + ' result' + (matches.length === 1 ? '' : 's') + ' found.';
+}
+
+// ─── Input handler (debounced) ────────────────────────────────────────────────
+const queryEl = document.getElementById('query');
+let debTimer = null;
+
+function handleInput() {
+  clearTimeout(debTimer);
+  debTimer = setTimeout(() => {
+    const v = queryEl.value;
+    if (!v.trim()) { renderResults(null); return; }
+    renderResults(search(v));
+  }, 80);
+}
+
+queryEl.addEventListener('input', handleInput);
+renderResults(null);
+
+// ─── Bulk annotate ────────────────────────────────────────────────────────────
+const bulkToggle = document.getElementById('bulk-toggle');
+const bulkPanel = document.getElementById('bulk-panel');
+const manifestInput = document.getElementById('manifest-input');
+const annotateBtn = document.getElementById('annotate-btn');
+const bulkOutput = document.getElementById('bulk-output');
+
+const EXAMPLE_YAML =
+'# docker-compose.yml\n' +
+'version: "3"\n' +
+'services:\n' +
+'  web:\n' +
+'    ports:\n' +
+'      - "80:80"\n' +
+'      - "443:443"\n' +
+'  db:\n' +
+'    ports:\n' +
+'      - "5432:5432"\n' +
+'  cache:\n' +
+'    ports:\n' +
+'      - 6379:6379\n' +
+'  proxy:\n' +
+'    ports: ["8080:8080", "9090:9090"]\n' +
+'  legacy:\n' +
+'    ports:\n' +
+'      - "127.0.0.1:2375:2375"\n';
+
+bulkToggle.addEventListener('click', () => {
+  const open = bulkPanel.classList.toggle('open');
+  bulkToggle.setAttribute('aria-expanded', String(open));
+  if (open) manifestInput.focus();
+});
+
+document.getElementById('example-btn').addEventListener('click', () => {
+  if (!bulkPanel.classList.contains('open')) {
+    bulkPanel.classList.add('open');
+    bulkToggle.setAttribute('aria-expanded', 'true');
+  }
+  manifestInput.value = EXAMPLE_YAML;
+  manifestInput.focus();
+});
+
+// 7 regex patterns per plan (sequential, non-array lines; first match wins)
+const PORT_PATTERNS = [
+  // 1. docker-compose host:container with optional /proto
+  {re: /^\s*-\s*"?(\d{1,5}):(\d{1,5})(?:\/\w+)?"?\s*(?:#.*)?$/,   grp: 1},
+  // 2. IP-bound docker-compose: IP:host:container with optional /proto
+  {re: /^\s*-\s*"?\d{1,3}(?:\.\d{1,3}){3}:(\d{1,5}):(\d{1,5})(?:\/\w+)?"?\s*(?:#.*)?$/,  grp: 1},
+  // 3. single container port with optional /proto (end-anchored)
+  {re: /^\s*-\s*"?(\d{1,5})(?:\/\w+)?"?\s*$/,                      grp: 1},
+  // 4. k8s port/ports scalar
+  {re: /\bports?:\s*(\d{1,5})\b/,                                    grp: 1},
+  // 5. k8s containerPort
+  {re: /\bcontainerPort:\s*(\d{1,5})\b/,                             grp: 1},
+  // 6. k8s hostPort
+  {re: /\bhostPort:\s*(\d{1,5})\b/,                                  grp: 1},
+  // 7. k8s targetPort (numeric)
+  {re: /\btargetPort:\s*(\d{1,5})\b/,                                grp: 1},
+];
+
+// Extract all port numbers from a single line, handling both inline-array and scalar syntax.
+function extractPortsFromLine(line) {
+  const found = [];
+  // Inline array: ports: [80, 443] or ports: ["80:80", "443:443"]
+  const arrStart = line.indexOf('[');
+  const arrEnd = line.lastIndexOf(']');
+  if (arrStart !== -1 && arrEnd > arrStart) {
+    const arrContent = line.slice(arrStart + 1, arrEnd);
+    arrContent.split(',').forEach(item => {
+      let tok = item.trim();
+      if (tok.length > 1 && ((tok[0] === '"' && tok[tok.length-1] === '"') || (tok[0] === "'" && tok[tok.length-1] === "'"))) tok = tok.slice(1, -1);
+      // IP:host:container
+      let m = /^\d{1,3}(?:\.\d{1,3}){3}:(\d{1,5}):\d{1,5}(?:\/\w+)?$/.exec(tok);
+      if (m) { const p = parseInt(m[1], 10); if (IDX.byPort.has(p) && !found.includes(p)) found.push(p); return; }
+      // host:container with optional /proto
+      m = /^(\d{1,5}):\d{1,5}(?:\/\w+)?$/.exec(tok);
+      if (m) { const p = parseInt(m[1], 10); if (IDX.byPort.has(p) && !found.includes(p)) found.push(p); return; }
+      // plain port number with optional /proto
+      m = /^(\d{1,5})(?:\/\w+)?$/.exec(tok);
+      if (m) { const p = parseInt(m[1], 10); if (IDX.byPort.has(p) && !found.includes(p)) found.push(p); }
+    });
+    if (found.length > 0) return found;
+  }
+  // Sequential patterns for scalar / YAML-block lines (first match per line)
+  for (const pat of PORT_PATTERNS) {
+    const m = pat.re.exec(line);
+    if (m) {
+      const p = parseInt(m[pat.grp], 10);
+      if (IDX.byPort.has(p)) found.push(p);
+      break;
+    }
+  }
+  return found;
+}
+
+function annotateManifest(text) {
+  if (text.length > 50000) text = text.slice(0, 50000);
+  const lines = text.split('\n');
+  const foundPorts = new Map();
+  const annotatedLines = lines.map(line => {
+    const ports = extractPortsFromLine(line);
+    if (ports.length === 0) return line;
+    const parts = ports.map(p => {
+      const rec = IDX.byPort.get(p);
+      foundPorts.set(p, rec);
+      let ann = rec.name.toUpperCase() + ' [' + rec.proto + ']';
+      if (rec.p < 1024 && rec.p !== 0) ann += ' [ROOT REQUIRED]';
+      if (rec.sec === 2) ann += ' [HIGH RISK]';
+      else if (rec.sec === 1) ann += ' [CLEARTEXT]';
+      return ann;
+    });
+    return line + '  # → ' + parts.join(' · ');
+  });
+  return {annotatedLines, foundPorts};
+}
+
+annotateBtn.addEventListener('click', () => {
+  const raw = manifestInput.value;
+  if (!raw.trim()) {
+    bulkOutput.innerHTML = '';
+    const p = document.createElement('p');
+    p.style.cssText = 'color:var(--muted);font-size:.8rem;margin-top:.5rem';
+    p.textContent = 'Paste some YAML above first.';
+    bulkOutput.appendChild(p);
+    return;
+  }
+
+  const truncated = raw.length > 50000;
+  const {annotatedLines, foundPorts} = annotateManifest(raw);
+
+  bulkOutput.innerHTML = '';
+
+  if (truncated) {
+    const warn = document.createElement('p');
+    warn.style.cssText = 'color:var(--amber);font-size:.75rem;margin-bottom:.5rem';
+    warn.textContent = 'Input truncated at 50,000 characters.';
+    bulkOutput.appendChild(warn);
+  }
+
+  if (foundPorts.size === 0) {
+    const msg = document.createElement('p');
+    msg.style.cssText = 'color:var(--muted);font-size:.8rem;margin-top:.5rem';
+    msg.textContent = 'NO PORTS FOUND IN RECOGNIZED PATTERNS.';
+    bulkOutput.appendChild(msg);
+    return;
+  }
+
+  // Annotated view
+  const pre = document.createElement('pre');
+  pre.id = 'annotated-view';
+  pre.textContent = annotatedLines.join('\n');
+  bulkOutput.appendChild(pre);
+
+  // Summary table
+  const table = document.createElement('table');
+  table.id = 'summary-table';
+  const thead = document.createElement('thead');
+  const hrow = document.createElement('tr');
+  ['PORT','SERVICE','PROTO','DESC','FLAGS'].forEach(h => {
+    const th = document.createElement('th');
+    th.textContent = h;
+    hrow.appendChild(th);
+  });
+  thead.appendChild(hrow);
+  table.appendChild(thead);
+
+  const tbody = document.createElement('tbody');
+  Array.from(foundPorts.entries()).sort((a,b) => a[0]-b[0]).forEach(([,rec]) => {
+    const tr = document.createElement('tr');
+    const tdPort = document.createElement('td');
+    tdPort.className = 'sum-port';
+    tdPort.textContent = rec.p;
+    const tdName = document.createElement('td');
+    tdName.textContent = rec.name.toUpperCase();
+    const tdProto = document.createElement('td');
+    tdProto.textContent = rec.proto;
+    const tdDesc = document.createElement('td');
+    tdDesc.textContent = rec.desc;
+    const tdFlags = document.createElement('td');
+    tdFlags.className = 'sum-flags';
+    const flags = [];
+    if (rec.p < 1024 && rec.p !== 0) flags.push(['ROOT REQUIRED', 'badge-priv']);
+    if (rec.sec === 2) flags.push(['HIGH RISK', 'badge-high']);
+    else if (rec.sec === 1) flags.push(['CLEARTEXT', 'badge-clear']);
+    flags.forEach(([label, cls]) => {
+      const b = document.createElement('span');
+      b.className = 'badge ' + cls;
+      b.textContent = label;
+      tdFlags.appendChild(b);
+    });
+    [tdPort, tdName, tdProto, tdDesc, tdFlags].forEach(td => tr.appendChild(td));
+    tbody.appendChild(tr);
+  });
+  table.appendChild(tbody);
+  bulkOutput.appendChild(table);
+});
+</script>
+</body>
+</html>

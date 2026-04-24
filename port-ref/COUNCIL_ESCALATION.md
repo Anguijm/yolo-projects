@@ -1,51 +1,37 @@
 # Council Escalation — port-ref
 
-**Gate:** plan
+**Gate:** tests
 **Reason:** Unresolved objections after 2 attempts
-**Timestamp:** 2026-04-24T08:58:06.081657+00:00
+**Timestamp:** 2026-04-24T11:23:27.183122+00:00
 
 ## Angle positions
 
 ### BUGS — OBJECT (high)
-- **Reason:** The bulk annotation feature's regex patterns are too narrow, causing common docker-compose port formats to be missed, and the privilege badge rule for ports < 1024 directly contradicts the special handling specified for port 0.
-- **Required fix:** Revise the `annotateManifest()` regex patterns to correctly identify all common docker-compose port formats (e.g., single container port, with protocol, IP-bound). Implement explicit logic to exclude port 0 from the privilege badge rule, as stated in the edge cases, despite being numerically less than 1024.
-- **Evidence:** `Subtask 5: regex pattern 1: `^\s*-\s*"?(\d{1,5}):\d{1,5}"?` (misses `- "80"`, `- "80/tcp"`, `- "127.0.0.1:80:80"`); Subtask 1: "Also tag `root: true` for ports < 1024"; Edge Cases: "Port 0 (reserved): in database, no privilege badge (special case)"`
+- **Reason:** The service name search functionality is incomplete, failing to find relevant ports when the query is a substring of a service name but not a prefix.
+- **Required fix:** Modify the `search` function to explicitly check if `r.name.toLowerCase().includes(ql)` for all records in PORT_DB, in addition to the current prefix-based index lookup and description search. The `buildIndex` function's fragment indexing for `byName` should be removed or refined to support true substring search.
+- **Evidence:** `file:line 186: `const results = IDX.byName.get(q.toLowerCase()) || [];` This line relies on `buildIndex`'s `byName` map (lines 160-165), which only indexes prefixes of service names, not substrings. For example, searching 'sql' will not find 'mssql' because 'sql' is not a prefix of 'mssql', leading `
 
 ### SECURITY — APPROVE (low)
-- **Reason:** The plan demonstrates strong security awareness, particularly in preventing XSS from user-pasted content and search queries by consistently using textContent for user-derived output and limiting innerHTML to static, author-controlled data; the single-file architecture and lack of external dependencies also reduce supply chain risks.
+- **Reason:** All user input is handled safely via textContent or used to filter trusted, hardcoded data, preventing injection attacks and data exposure.
 
 ### UI — APPROVE (low)
-- **Reason:** The plan outlines a clear, fast, and user-friendly experience with excellent attention to first-use, empty/error states, mobile accessibility, and detailed feedback for the bulk annotation feature.
+- **Reason:** 
 
 ### GUIDE — APPROVE (low)
-- **Reason:** The plan explicitly details all UI text, placeholders, error messages, and feature discoverability mechanisms, including specific input parsing patterns for AI agents.
+- **Reason:** The tool provides clear instructions, example inputs, and self-documenting code for both human users and AI agents.
 
 ### USEFULNESS — APPROVE (low)
-- **Reason:** This tool provides a genuinely useful, offline-capable quick reference for port information with security context, and offers a unique, time-saving bulk YAML annotation feature for DevOps workflows.
-- **Evidence:** `The bulk annotation feature for docker-compose and k8s YAML files solves a specific, recurring problem for developers and operations teams that is not easily addressed by existing tools or a quick web search. The offline PWA capability further enhances its utility.`
+- **Reason:** Provides a useful, consolidated reference for port security and a unique bulk annotation tool for configuration review.
+- **Evidence:** `The bulk annotation feature for Docker/K8s YAML is a practical tool for developers and security engineers, saving time on manual port lookups and risk assessments in configuration files. The PWA aspect ensures offline utility.`
 
 ### COOL — APPROVE (low)
-- **Reason:** The bulk YAML annotation with inline comments and summary table is a signature move that differentiates it from generic port lookup tools.
+- **Reason:** The bulk YAML annotation with inline security comments and a summary table is a unique, shareable signature move that elevates a basic port reference into a genuinely useful and memorable tool for developers and ops.
 
-### LESSONS — APPROVE (low)
-- **Reason:** No documented lessons or anti-patterns are violated by the plan. The plan explicitly avoids known issues like service worker scope mismatch and adheres to approved CSP patterns.
+### LESSONS — APPROVE (advisory)
+- **Reason:** [AUTO-DOWNGRADED: LESSONS VETO missing precondition_evidence] The logic for determining security badge text and styling is duplicated across the `secBadgeHTML` function and the bulk annotation summary table, violating the 'extract any function used in two places' lesson.
+- **Required fix:** Extract a shared helper function that maps the 'sec' value (0, 1, 2) to its corresponding label (OK, CLEARTEXT, HIGH RISK) and CSS class (badge-ok, badge-clear, badge-high). Both `secBadgeHTML` and the summary table generation should call this new helper to avoid duplicating logic.
+- **Evidence:** `KEEP — `buildRefLine()` extracted as shared helper: Shared logic used both in drawer preview (on-open) and in apply (on-click). Extracting it prevents drift where the preview shows one thing but apply does another. Extract any function used in two places.`
 
 ## Resolution
 
-**RESOLVED 2026-04-24. Both concerns accepted — plan.md updated.**
-
-### BUGS (high) — ACCEPTED (both parts)
-
-**Regex coverage**: broadened from 5 patterns to **7 patterns** covering the three missed docker-compose shapes plus k8s `targetPort`:
-- Pattern 1: `host:container` mapping with optional `/tcp|/udp` suffix (was pattern 1; now handles protocol suffix too)
-- Pattern 2: **NEW** IP-bound form `IP:host:container` (e.g., `- "127.0.0.1:80:80"`) — extracts the middle (host) port
-- Pattern 3: **NEW** single container port with optional protocol (e.g., `- "80"`, `- "80/tcp"`) — end-anchored so it doesn't accidentally match the left half of a host:container mapping
-- Patterns 4-6: k8s `port`/`containerPort`/`hostPort` (unchanged)
-- Pattern 7: **NEW** k8s `targetPort` field (service → endpoint mapping)
-
-**Port-0 contradiction**: `renderCard` now explicitly excludes port 0 from the privilege-badge rule: `if (port < 1024 && port !== 0) show root-required badge`. Plan's Edge Cases section reinforced to name this as the authoritative rule that Subtask 4 must honor. No more contradiction between "tag root: true for ports < 1024" (Subtask 1 shorthand) and "Port 0: no privilege badge" (Edge Cases).
-
-### Other 6 angles — APPROVE
-SECURITY, UI, GUIDE, USEFULNESS, COOL, LESSONS all clean.
-
-Cron may rerun PLAN; expected clean pass.
+Human decision required. Resume the build after updating session_state.json.

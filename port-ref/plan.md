@@ -73,6 +73,15 @@ Static single-file PWA port quick-reference tool — type a port number or servi
 - Privilege badge: "ROOT REQUIRED" (amber)
 - Security badges: "CLEARTEXT" (amber), "HIGH RISK" (red)
 
+**Keyboard navigation and accessibility (Subtask 7):**
+- Tab order: search input → bulk toggle button → (if panel open) textarea → annotate button; logical DOM order mirrors visual order
+- All buttons activated by Enter and Space (native `<button>` elements, no div-buttons)
+- Visible focus rings on all interactive elements: `outline: 2px solid #60a5fa; outline-offset: 2px` — never `outline: none`
+- Contrast: all foreground/background combinations meet WCAG 2.1 AA (≥4.5:1 for normal text, ≥3:1 for large text); dark-theme palette chosen to satisfy this
+- ARIA: search input has `aria-label="Port or service name"`, results list has `role="list"`, each card has `role="listitem"`, badges use `aria-label` describing their meaning (e.g. `aria-label="Privilege: root required"`), bulk toggle button uses `aria-expanded` to reflect panel open/closed state, annotate button has explicit `aria-label="Annotate pasted manifest"`
+- Result cards are non-interactive (read-only display); no keyboard traps
+- Error/empty states use `aria-live="polite"` region so screen readers announce changes
+
 ## Guide
 - Search placeholder: "Port or service name…"
 - Bulk panel header: "BULK ANNOTATE — PASTE DOCKER-COMPOSE OR K8S YAML"
