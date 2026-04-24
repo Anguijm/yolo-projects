@@ -382,6 +382,45 @@ html, body {
   box-shadow: 0 0 0 1px #0ff inset;
 }
 #drafts-status-err { font-size:0.5rem; color:#e05252; min-height:1rem; margin-bottom:4px; }
+/* ── Template Letter Library ── */
+#tmpl-drawer {
+  display: none; position: fixed; top: 32px; left: 0; width: 420px; bottom: 0;
+  z-index: 200; background: var(--bg-surface); border-right: 1px solid #333;
+  overflow-y: auto; padding: 12px;
+}
+#tmpl-drawer.open { display: block; }
+@media (max-width: 768px) { #tmpl-drawer { width: 100%; } }
+.tmpl-cat {
+  font-size: 0.4rem; text-transform: uppercase; letter-spacing: 0.18em;
+  color: var(--text-label); margin: 12px 0 5px;
+  border-top: 1px solid var(--border-default); padding-top: 8px;
+}
+.tmpl-item {
+  display: block; width: 100%; text-align: left; background: var(--bg-elevated);
+  border: 1px solid var(--border-default); color: var(--text-body);
+  font-family: inherit; cursor: pointer; padding: 8px 10px;
+  margin-bottom: 4px; min-height: 44px;
+}
+.tmpl-item:hover { border-color: var(--border-active); color: var(--text-primary); }
+.tmpl-item:focus, .tmpl-item:focus-visible { outline: 2px solid #0ff; outline-offset: 2px; }
+.tmpl-item-label { font-size: 0.6rem; display: block; }
+.tmpl-item-desc { font-size: 0.42rem; color: var(--text-secondary); display: block; margin-top: 2px; }
+#tmpl-confirm-row {
+  background: #1a1200; border: 1px solid #e3b341; padding: 10px; margin: 10px 0;
+}
+#tmpl-confirm-header {
+  font-size: 0.45rem; color: #e3b341; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 8px;
+}
+.tmpl-section-label {
+  font-size: 0.4rem; text-transform: uppercase; letter-spacing: 0.15em;
+  color: var(--text-label); margin: 8px 0 4px;
+}
+.tmpl-field-list { list-style: none; padding-left: 4px; margin: 0 0 4px; }
+.tmpl-field-list li { font-size: 0.45rem; color: var(--text-secondary); padding: 1px 0; }
+.tmpl-field-list li::before { content: "• "; color: var(--text-label); }
+#tmpl-confirm-btns { display: flex; gap: 6px; margin-top: 8px; }
+#tmpl-apply-btn { flex: 1; padding: 5px 0; }
+#tmpl-cancel-btn { padding: 5px 10px; }
 </style>
 </head>
 <body>
@@ -410,6 +449,7 @@ html, body {
       </select>
       <button class="btn" id="new-btn" aria-label="Clear the form and start a new letter">new</button>
       <button class="btn" id="import-btn" aria-label="Paste an existing letter to import its fields">import</button>
+      <button class="btn" id="tmpl-btn" aria-label="Open template letter library">templates</button>
       <button class="btn" id="chain-btn" aria-label="Chain endorsements onto a saved draft">chain</button>
       <button class="btn" id="addr-btn" aria-label="Open the command address book">addr book</button>
       <button class="btn" id="reply-btn" aria-label="Generate reply draft with From/To swapped">reply</button>
@@ -478,6 +518,24 @@ html, body {
       <button class="addr-act-btn" id="addr-save-btn" aria-label="Save entry to address book">save</button>
     </div>
     <span id="addr-add-err"></span>
+  </div>
+  <div id="tmpl-drawer">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+      <div class="section-header" style="margin:0;border:none">Template Library</div>
+      <button class="add-btn" id="tmpl-close">close ×</button>
+    </div>
+    <div style="font-size:0.42rem;color:var(--text-tertiary);margin-bottom:10px;line-height:1.7">
+      Select a template to pre-fill the form. Edit fields after loading.
+    </div>
+    <div id="tmpl-confirm-row" style="display:none">
+      <div id="tmpl-confirm-header">Applying this template will:</div>
+      <div id="tmpl-confirm-sections"></div>
+      <div id="tmpl-confirm-btns">
+        <button class="btn btn-primary" id="tmpl-apply-btn">apply template</button>
+        <button class="btn" id="tmpl-cancel-btn">cancel</button>
+      </div>
+    </div>
+    <div id="tmpl-list"></div>
   </div>
   <div id="reply-drawer">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
@@ -3629,6 +3687,232 @@ html, body {
   chainBtn.addEventListener('click', function() { replyDrawer.classList.remove('open'); }, true);
   addrBtn.addEventListener('click', function() { replyDrawer.classList.remove('open'); }, true);
 
+  /* ── Template Letter Library ── */
+  var TEMPLATE_LIBRARY = [
+    { cat: 'Personnel', label: 'Leave Request', desc: 'Request authorized leave for a service member',
+      state: { type: 'letter', fields: {
+        subj: 'REQUEST FOR AUTHORIZED LEAVE',
+        body: '1.  This command requests authorization for [RANK LAST NAME] to take [NUMBER] days of accrued leave during the period [START DATE] through [END DATE].\n\n2.  The member will remain contactable at [PHONE/EMAIL] throughout the leave period. All duties will be covered by [RELIEF NAME/TITLE].\n\n3.  Request approval.'
+      }}},
+    { cat: 'Personnel', label: 'Commendation Rec', desc: 'Recommend a service member for a commendation or award',
+      state: { type: 'letter', fields: {
+        subj: 'RECOMMENDATION FOR COMMENDATION - [RANK LAST NAME]',
+        body: '1.  It is recommended that [RANK FULL NAME], [RATE/DESIGNATOR], be awarded the [AWARD NAME] for exceptional performance of duty from [START DATE] to [END DATE].\n\n2.  [RANK LAST NAME] distinguished themselves through [SPECIFIC ACCOMPLISHMENTS].\n\n3.  [RANK LAST NAME]\'s dedication and initiative reflect great credit upon themselves and are in keeping with the highest traditions of the naval service.\n\n4.  Required supporting documentation is enclosed.'
+      }}},
+    { cat: 'Personnel', label: 'Personnel Action Request', desc: 'Memorandum requesting a personnel action',
+      state: { type: 'memo', fields: {
+        subj: 'PERSONNEL ACTION REQUEST - [ACTION TYPE]',
+        body: '1.  Request the following personnel action be initiated for [RANK FULL NAME], [RATE/DESIGNATOR]:\n\n    a.  Action requested: [DESCRIBE ACTION]\n\n    b.  Justification: [REASON FOR REQUEST]\n\n    c.  Requested effective date: [DATE]\n\n2.  Enclosures contain supporting documentation.\n\n3.  Point of contact is [NAME] at [PHONE/EMAIL].'
+      }}},
+    { cat: 'Administrative', label: 'Appt Memorandum', desc: 'Appoint an officer or member to a duty or position',
+      state: { type: 'memo', fields: {
+        subj: 'APPOINTMENT OF [RANK LAST NAME] AS [POSITION]',
+        body: '1.  [RANK FULL NAME] is hereby appointed as [POSITION TITLE], effective [DATE].\n\n2.  In this capacity, [RANK LAST NAME] is authorized and directed to [DESCRIBE AUTHORITY AND RESPONSIBILITIES].\n\n3.  This appointment supersedes all previous appointments to this position.'
+      }}},
+    { cat: 'Administrative', label: 'Meeting Minutes', desc: 'Forward meeting minutes to participants for review',
+      state: { type: 'letter', fields: {
+        subj: 'MINUTES OF [MEETING NAME] HELD ON [DATE]',
+        body: '1.  Enclosed are the minutes of the [MEETING NAME] held on [DATE] at [LOCATION].\n\n2.  Attendees are requested to review the minutes and provide any corrections to the point of contact below no later than [DATE]. If no corrections are received by that date, the minutes will be considered approved as written.\n\n3.  Point of contact is [NAME] at [PHONE/EMAIL].'
+      }}},
+    { cat: 'Administrative', label: 'After-Action Report', desc: 'After-action report following a training event or exercise',
+      state: { type: 'letter', fields: {
+        subj: 'AFTER-ACTION REPORT - [EVENT NAME] - [DATE]',
+        body: '1.  Purpose. This letter provides an after-action report for [EVENT NAME] conducted [DATE] at [LOCATION].\n\n2.  Summary. [BRIEF DESCRIPTION OF EVENT AND OUTCOME].\n\n3.  Successes.\n\n    a.  [SUCCESS ITEM 1]\n\n    b.  [SUCCESS ITEM 2]\n\n4.  Areas for Improvement.\n\n    a.  [IMPROVEMENT AREA 1]\n\n    b.  [IMPROVEMENT AREA 2]\n\n5.  Recommendations.\n\n    a.  [RECOMMENDATION 1]\n\n    b.  [RECOMMENDATION 2]'
+      }}},
+    { cat: 'Operations', label: 'Status Report', desc: 'Periodic status report submitted to higher authority',
+      state: { type: 'letter', fields: {
+        subj: 'STATUS REPORT - [PERIOD COVERED]',
+        body: '1.  Purpose. This letter provides a status report for [PERIOD COVERED].\n\n2.  Operational Status. [DESCRIBE CURRENT READINESS AND OPERATIONAL STATUS].\n\n3.  Significant Events.\n\n    a.  [EVENT 1]\n\n    b.  [EVENT 2]\n\n4.  Issues Requiring Higher Authority Assistance.\n\n    a.  [ISSUE 1]\n\n5.  Planned Activities Next Period. [DESCRIBE UPCOMING ACTIVITIES].'
+      }}},
+    { cat: 'Operations', label: 'Request for Info', desc: 'Request specific information or data from a command',
+      state: { type: 'letter', fields: {
+        subj: 'REQUEST FOR INFORMATION - [TOPIC]',
+        body: '1.  Reference (a) directs commands to maintain [RELEVANT PROGRAM OR DATA].\n\n2.  Request your command provide the following information no later than [DATE]:\n\n    a.  [INFORMATION ITEM 1]\n\n    b.  [INFORMATION ITEM 2]\n\n    c.  [INFORMATION ITEM 3]\n\n3.  Provide responses to [POC NAME] at [EMAIL/DSN].'
+      }}},
+    { cat: 'Operations', label: 'Non-Concurrence', desc: 'Memorandum of non-concurrence with a proposed action',
+      state: { type: 'memo', fields: {
+        subj: 'NON-CONCURRENCE WITH [PROPOSED ACTION]',
+        body: '1.  This command does not concur with the proposed [ACTION] for the following reasons:\n\n    a.  [REASON 1]\n\n    b.  [REASON 2]\n\n2.  Recommended alternative: [DESCRIBE ALTERNATIVE COURSE OF ACTION].\n\n3.  This command requests the opportunity to discuss this matter prior to a final decision.'
+      }}},
+    { cat: 'Policy & Instructions', label: 'Point Paper', desc: 'Point paper summarizing a policy issue or position',
+      state: { type: 'pointpaper', fields: {
+        subj: 'TITLE OF POINT PAPER IN ALL CAPS',
+        bodyBullets: 'BOTTOM LINE\n• [State the key conclusion or recommendation.]\n\nBACKGROUND\n• [Essential context item 1.]\n• [Essential context item 2.]\n\nDISCUSSION\n• [Key fact or analysis item 1.]\n• [Key fact or analysis item 2.]\n\nRECOMMENDATION\n• [Restate the recommendation with specificity.]\n• [Include timeline or decision point if applicable.]'
+      }}},
+    { cat: 'Policy & Instructions', label: 'Action Memo', desc: 'Action memorandum requesting a decision or approval',
+      state: { type: 'actionmemo', fields: {
+        subj: 'ACTION MEMO - [DECISION REQUIRED]',
+        bluf: '[State the decision needed in one sentence. Example: Request authorization to [ACTION] by [DATE].]',
+        recommendation: '[APPROVE / DISAPPROVE] the [proposed action] as described.'
+      }}},
+    { cat: 'Policy & Instructions', label: 'Instruction Template', desc: 'Starting template for a new naval instruction',
+      state: { type: 'instruction', fields: {
+        subj: '[INSTRUCTION NUMBER AND TITLE IN ALL CAPS]'
+      }}}
+  ];
+
+  var pendingTemplate = null;
+  var tmplRendered = false;
+  var tmplBtn = document.getElementById('tmpl-btn');
+  var tmplDrawer = document.getElementById('tmpl-drawer');
+  var tmplClose = document.getElementById('tmpl-close');
+  var tmplConfirmRow = document.getElementById('tmpl-confirm-row');
+  var tmplApplyBtn = document.getElementById('tmpl-apply-btn');
+  var tmplCancelBtn = document.getElementById('tmpl-cancel-btn');
+
+  function formHasContent() {
+    var keys = ['from','to','subj','body','bodyAction','bodyBullets','bodyMoa',
+      'bluf','recommendation','ssic','sigName','sigRank','sigTitle','endorseNum',
+      'effectiveDate','duration',
+      'instrNumber','cancelDate','sopNumber','sopEffective','sopReview',
+      'bodyInstr','bodySop'];
+    for (var i = 0; i < keys.length; i++) {
+      if (F[keys[i]] && F[keys[i]].value.trim()) return true;
+    }
+    if (F.date.value.trim() && F.date.value.trim() !== todayNaval()) return true;
+    if (viaFields.getValues().length > 0) return true;
+    if (refFields.getValues().length > 0) return true;
+    if (enclFields.getValues().length > 0) return true;
+    if (copyToFields.getValues().length > 0) return true;
+    if (getParties().length > 0) return true;
+    if (byDirectionChk && byDirectionChk.checked) return true;
+    if (actingChk && actingChk.checked) return true;
+    return false;
+  }
+
+  function renderTmplConfirm(tpl) {
+    var sections = document.getElementById('tmpl-confirm-sections');
+    sections.innerHTML = '';
+    var f = tpl.state.fields || {};
+    var changeItems = ['Type → ' + (tpl.state.type || 'letter')];
+    if (f.subj !== undefined) changeItems.push('Subject');
+    if (f.body !== undefined) changeItems.push('Body');
+    if (f.bodyBullets !== undefined) changeItems.push('Body (bullets)');
+    if (f.bodyAction !== undefined) changeItems.push('Body (action)');
+    if (f.bluf !== undefined) changeItems.push('BLUF');
+    if (f.recommendation !== undefined) changeItems.push('Recommendation');
+    var clearItems = ['From','To','SSIC','Date','Via chain','References',
+      'Enclosures','Copy To','Signature (name, rank, title)',
+      'Endorsement number','Effective date','Duration'];
+    var keepItems = ['Classification marking','Letterhead preset selection'];
+    function makeSection(labelText, items) {
+      var lbl = document.createElement('div');
+      lbl.className = 'tmpl-section-label';
+      lbl.textContent = labelText;
+      sections.appendChild(lbl);
+      var ul = document.createElement('ul');
+      ul.className = 'tmpl-field-list';
+      for (var i = 0; i < items.length; i++) {
+        var li = document.createElement('li');
+        li.textContent = items[i];
+        ul.appendChild(li);
+      }
+      sections.appendChild(ul);
+    }
+    makeSection('Will Change', changeItems);
+    makeSection('Will Clear', clearItems);
+    makeSection('Will Keep', keepItems);
+  }
+
+  function applyTemplate(tpl) {
+    var keys = ['ssic','date','from','to','subj','body','bodyBullets','bodyAction','bodyMoa',
+      'effectiveDate','duration','bluf','recommendation','sigName','sigRank','sigTitle','endorseNum',
+      'instrNumber','cancelDate','sopNumber','sopEffective','sopReview',
+      'bodyInstr','bodySop'];
+    for (var ki = 0; ki < keys.length; ki++) { if (F[keys[ki]]) F[keys[ki]].value = ''; }
+    if (byDirectionChk) byDirectionChk.checked = false;
+    if (actingChk) actingChk.checked = false;
+    viaFields.setValues([]);
+    refFields.setValues([]);
+    enclFields.setValues([]);
+    copyToFields.setValues([]);
+    distCheck.checked = false;
+    restoreParties([]);
+    typeSelect.value = 'letter';
+    restoreFullState(tpl.state);
+    pendingTemplate = null;
+    tmplConfirmRow.style.display = 'none';
+    tmplDrawer.classList.remove('open');
+  }
+
+  function selectTemplate(tpl) {
+    if (formHasContent()) {
+      pendingTemplate = tpl;
+      renderTmplConfirm(tpl);
+      tmplConfirmRow.style.display = '';
+    } else {
+      applyTemplate(tpl);
+    }
+  }
+
+  function renderTmplDrawer() {
+    if (tmplRendered) return;
+    tmplRendered = true;
+    var list = document.getElementById('tmpl-list');
+    var frag = document.createDocumentFragment();
+    var currentCat = null;
+    for (var i = 0; i < TEMPLATE_LIBRARY.length; i++) {
+      var tpl = TEMPLATE_LIBRARY[i];
+      if (tpl.cat !== currentCat) {
+        currentCat = tpl.cat;
+        var catEl = document.createElement('div');
+        catEl.className = 'tmpl-cat';
+        catEl.textContent = tpl.cat;
+        frag.appendChild(catEl);
+      }
+      (function(t) {
+        var btn = document.createElement('button');
+        btn.className = 'tmpl-item';
+        var labelSpan = document.createElement('span');
+        labelSpan.className = 'tmpl-item-label';
+        labelSpan.textContent = t.label;
+        var descSpan = document.createElement('span');
+        descSpan.className = 'tmpl-item-desc';
+        descSpan.textContent = t.desc;
+        btn.appendChild(labelSpan);
+        btn.appendChild(descSpan);
+        btn.addEventListener('click', function() { selectTemplate(t); });
+        frag.appendChild(btn);
+      })(tpl);
+    }
+    list.appendChild(frag);
+  }
+
+  tmplBtn.addEventListener('click', function() {
+    if (tmplDrawer.classList.contains('open')) {
+      tmplDrawer.classList.remove('open');
+    } else {
+      draftsDrawer.classList.remove('open');
+      importDrawer.classList.remove('open');
+      chainDrawer.classList.remove('open');
+      addrDrawer.classList.remove('open');
+      replyDrawer.classList.remove('open');
+      renderTmplDrawer();
+      tmplDrawer.classList.add('open');
+    }
+  });
+
+  tmplClose.addEventListener('click', function() {
+    pendingTemplate = null;
+    tmplConfirmRow.style.display = 'none';
+    tmplDrawer.classList.remove('open');
+  });
+
+  tmplApplyBtn.addEventListener('click', function() {
+    if (pendingTemplate) applyTemplate(pendingTemplate);
+  });
+
+  tmplCancelBtn.addEventListener('click', function() {
+    pendingTemplate = null;
+    tmplConfirmRow.style.display = 'none';
+  });
+
+  draftsBtn.addEventListener('click', function() { tmplDrawer.classList.remove('open'); }, true);
+  importBtn.addEventListener('click', function() { tmplDrawer.classList.remove('open'); }, true);
+  chainBtn.addEventListener('click', function() { tmplDrawer.classList.remove('open'); }, true);
+  addrBtn.addEventListener('click', function() { tmplDrawer.classList.remove('open'); }, true);
+  replyBtn.addEventListener('click', function() { tmplDrawer.classList.remove('open'); }, true);
+
   /* ── Init ── */
   loadSaved();
 
@@ -4110,6 +4394,19 @@ Click "fill reply draft" to apply all changes at once.
 
 ### Letter Status Tracker
 Each saved draft has a status that tracks its lifecycle: **Draft** (grey) → **Signed** (amber) → **Transmitted** (cyan) → **Replied** (green). Click the colored status badge on any saved draft row in the Drafts drawer to advance it to the next state (cycles back to Draft after Replied). Use the filter row at the top of the drawer (All / Draft / Signed / Transmitted / Replied) to narrow the list to drafts at a specific stage. Status is saved to localStorage alongside the draft data; drafts created before this feature default to Draft automatically.
+
+### Template Letter Library
+Click the **templates** button in the top toolbar to open the Template Library drawer. The drawer lists 12 pre-built templates organized into 4 categories:
+
+**Personnel:** Leave Request, Commendation Rec, Personnel Action Request
+
+**Administrative:** Appt Memorandum, Meeting Minutes, After-Action Report
+
+**Operations:** Status Report, Request for Info, Non-Concurrence
+
+**Policy & Instructions:** Point Paper, Action Memo, Instruction Template
+
+Click any template to pre-fill the form with a type, subject, and body appropriate for that correspondence type. If the form already has content, a confirmation drawer shows exactly what will change, what will be cleared, and what will be kept before you commit. On an empty form the template applies immediately. Edit all fields after loading — templates provide a starting structure only, not finished letters.
 
 <!-- GUIDE:END --></script>
 </body>
