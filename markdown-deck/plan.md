@@ -49,6 +49,7 @@ Add `.slide-chart` wrapper style matching `.slide-diagram`. Add `aria-label` sup
 **Bar chart SVG (viewBox 480×260):** (height bumped 220→260 per UI PLAN-escalation 2026-04-24 to accommodate the warning row + larger fonts)
 - Plot area: left margin 44px (y-axis), bottom margin 44px (x-axis), top 28px (title), right 8px, **bottom-of-plot baseline at y=`plotTop + plotH * (max / (max - min))`** when negative values are present
 - **Negative-value rendering** (per BUGS PLAN-escalation 2026-04-24, replaces clamping): if any point has `value < 0`, the y-axis range is `[min, max]` (not `[0, max]`) and bars below the baseline render extending downward. The baseline (zero line) is drawn as a `stroke: #444` reference line. If all values are >= 0, baseline = 0 (existing behavior). No silent data transformation.
+- **Degenerate-range guard** (per BUGS PLAN-escalation #2 2026-04-25): when `max - min == 0` (all data points identical, e.g. `[-5, -5, -5]` or `[7, 7, 7]`), the formula `plotH * (max / (max - min))` would divide by zero. Guard: if `max === min`, render a single horizontal line of bars/dots at `y = plotTop + plotH / 2` (vertical center of plot area), with the baseline reference line drawn at the same y. Y-axis labels show the constant value once; no grid lines drawn for this case. Visually communicates "all values equal at N" without a NaN crash.
 - Bar width: `min(36, (plotW / n) * 0.65)`, centered in each slot
 - **Rounded bar caps:** `rx="3" ry="3"` on rect elements (top-rounded for positive bars, bottom-rounded for negative bars)
 - **Value labels:** rendered above each positive bar / below each negative bar (right-aligned to bar center, **11px font** [bumped from 8px], theme accent color)
@@ -68,13 +69,14 @@ Add `.slide-chart` wrapper style matching `.slide-diagram`. Add `aria-label` sup
 - X/Y axes identical to bar
 - Same truncation warning row when `truncated > 0`
 
-**Pie chart SVG (viewBox 480×220):**
-- Circle center: (160, 110), radius 85
-- If all values 0: gray circle + centered `[no data]` text; legend shows all items with "0%" 
+**Pie chart SVG (viewBox 480×260):** (height bumped 220→260 to match bar/line for layout consistency)
+- Circle center: (160, 130), radius 95
+- If all values 0: gray circle + centered `[no data]` text; legend shows all items with "0%"
 - Segments: SVG arc paths from cumulative angles; theme palette rotation
 - **Value labels:** percentage text inside/near segment center (when segment angle > 15°; else skipped)
-- Legend: right side x=260, y starts 30; colored square 8×8 + label (8-char max + `…`) + `%` value; font-size 8px; up to 8 items shown, remainder indicated by `+N more`
-- Title: x=160 centered, top, 10px
+- **Legend behavior — STANDARDIZED** (per UI PLAN-escalation #2 2026-04-25, resolves the prior contradiction with Subtask 8 item 10): show **top 5 segments by value**, then aggregate the remaining segments into a single **`Other (N more)` wedge** + legend entry. Legend total is always ≤ 6 entries — no `+N more` fly-out, no inconsistent rendering between SVG and docs.
+- Legend layout: right side x=260, y starts 30; colored square 10×10 + label (**16-char max** with `…`, bumped from 8 per UI PLAN-escalation #2) + `%` value; **font-size 11px** [bumped from 8px to match bar/line label fonts]
+- Title: x=160 centered, top, **13px** [bumped from 10px to match bar/line]
 
 ### Subtask 3: Wire into `md()`
 Widen fenced block regex from `` `(\w*)` `` to `([\w ]*)` so `chart bar` is captured. Add `else if (lang.trim().split(' ')[0].toLowerCase() === 'chart')` branch calling `renderChart(lang.trim().split(' ')[1] || 'bar', code)`.

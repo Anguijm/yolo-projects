@@ -36,4 +36,19 @@
 
 ## Resolution
 
-Human decision required. Resume the build after updating session_state.json.
+**RESOLVED 2026-04-25 (round 2). Both concerns accepted.**
+
+### BUGS critical — ACCEPTED
+Division-by-zero guard added. When `max === min` (all data identical), bar/line charts render at vertical center of plot area instead of computing `max / (max - min)`. Y-axis shows the constant value; no grid lines for this degenerate case. No NaN crash.
+
+### UI medium — ACCEPTED (both parts)
+**Legend contradiction resolved**: standardized on **top 5 + "Other (N more)" wedge** (matching Subtask 8 item 10's documentation). Single source of truth — no more divergence between Subtask 2 and Subtask 8.
+
+**Pie legend label truncation** bumped from 8 → 16 chars, matching the bar/line update from round 1. Font sizes also brought in line: 11px legend / 13px title (was 8px / 10px).
+
+Pie chart viewBox bumped 220→260 for layout consistency with bar/line.
+
+### Other 5 angles — APPROVE
+SECURITY, GUIDE, USEFULNESS, COOL, LESSONS all clean.
+
+Cron may rerun PLAN; expected clean pass.
