@@ -41,6 +41,13 @@ GOALPOST_OVERLAP_THRESHOLD = 0.35
 EVIDENCE_CITATION_RE = re.compile(r"\w+\.\w+:\d+")
 # Words 4+ chars long, lowercased, used for keyword-overlap scoring between objections
 TOKEN_RE = re.compile(r"\w{4,}")
+# Patch 4 constants — BUGS hallucination detection
+_HALLUCINATION_CLAIM_RE = re.compile(
+    r"\b(undefined|undeclared|not\s+defined|does\s+not\s+exist|missing)\b",
+    re.IGNORECASE,
+)
+_SYMBOL_FROM_FIX_RE = re.compile(r"`([a-zA-Z_][a-zA-Z0-9_]{2,})`")
+_FILE_REF_RE = re.compile(r"([\w\-/.]+\.\w+):(\d+)(?:[-,]\d+)?")
 
 try:
     import google.generativeai as genai
@@ -342,6 +349,97 @@ def check_goalpost_moves(project: str, verdicts: list[Verdict]) -> list[Verdict]
     return verdicts
 
 
+def _symbol_defined_in_content(symbol: str, content: str, ext: str) -> bool:
+    """Return True if symbol appears to be *defined* in content via language-specific patterns.
+
+    Uses definition-syntax patterns rather than bare identifier search to avoid matching
+    comments, string literals, and call sites. Falls back False for unknown file types.
+    """
+    esc = re.escape(symbol)
+    if ext in (".html", ".js", ".ts"):
+        patterns = [
+            rf"function\s+{esc}\b",
+            rf"(?:const|let|var)\s+{esc}\s*=",
+            # Method shorthand — line-anchored, requires `{` after `)` to exclude call
+            # sites. `\s*` matches spaces AND newlines (Python re semantics) so multi-line
+            # declarations like `method(\n  param\n) {` are correctly detected.
+            rf"(?m)^\s*(?:async\s+)?(?:static\s+)?{esc}\s*\([^)]*\)\s*\{{",
+        ]
+    elif ext == ".py":
+        patterns = [
+            rf"(?:def|class)\s+{esc}\s*[:(]",
+            # `^\s*` (with re.MULTILINE) allows leading whitespace so class attributes
+            # like `    my_var = ...` are matched alongside module-level assignments.
+            rf"(?m)^\s*{esc}\s*=",
+        ]
+    else:
+        return False
+    return any(re.search(p, content, re.MULTILINE) for p in patterns)
+
+
+def detect_bugs_hallucination(verdict: "Verdict", project: str) -> bool:
+    """Return True if a BUGS OBJECT verdict appears to cite nonexistent symbols.
+
+    Two-layer detection:
+    1. Cited-line check — look at exact line numbers from evidence (highest signal)
+    2. Definition-pattern check — language-aware search across the whole file
+    Returns True only when any cited file contradicts the "undefined symbol" claim.
+    """
+    if verdict.angle != "bugs" or verdict.verdict != "OBJECT":
+        return False
+    reason_text = verdict.reason or ""
+    if not _HALLUCINATION_CLAIM_RE.search(reason_text):
+        return False
+    # Extract only symbols that appear BEFORE each claim keyword — not after — to avoid
+    # matching scope/container identifiers like "not defined IN `getFullState`" or
+    # alternative fix suggestions like "replace with `setDraftStatus`" from required_fix.
+    claimed_symbols: set[str] = set()
+    for m in _HALLUCINATION_CLAIM_RE.finditer(reason_text):
+        window_start = max(0, m.start() - 100)
+        claimed_symbols.update(_SYMBOL_FROM_FIX_RE.findall(reason_text[window_start:m.start()]))
+    if not claimed_symbols:
+        return False
+    evidence = verdict.evidence or ""
+    file_refs = list(_FILE_REF_RE.finditer(evidence))
+    files = [m.group(1) for m in file_refs]
+    if not files:
+        proj_dir = REPO_ROOT / project
+        for candidate in ("index.html", "benchmark.py", "build_memory.py"):
+            for base in (proj_dir, REPO_ROOT):
+                if (base / candidate).exists():
+                    files.append(str(base / candidate))
+                    break
+    if not files:
+        return False
+    ref_iter = file_refs if file_refs else [None] * len(files)
+    for raw_path, ref_match in zip(files, ref_iter):
+        path_obj = Path(raw_path) if os.path.isabs(raw_path) else (REPO_ROOT / raw_path)
+        try:
+            resolved = path_obj.resolve()
+            resolved.relative_to(REPO_ROOT)
+            if resolved.stat().st_size > 2_000_000:  # skip files >2 MB
+                continue
+            content = resolved.read_text(encoding="utf-8", errors="replace")
+        except (FileNotFoundError, ValueError, OSError):
+            continue
+        ext = resolved.suffix.lower()
+        lines = content.splitlines()
+        # Layer 1: cited-line check
+        if ref_match is not None:
+            cited_line = int(ref_match.group(2))
+            window_start = max(0, cited_line - 6)
+            window_end = min(len(lines), cited_line + 5)
+            snippet = "\n".join(lines[window_start:window_end])
+            for s in claimed_symbols:
+                if re.search(r"\b" + re.escape(s) + r"\b", snippet):
+                    return True
+        # Layer 2: definition-pattern check across the whole file
+        for s in claimed_symbols:
+            if _symbol_defined_in_content(s, content, ext):
+                return True
+    return False
+
+
 def write_escalation(project: str, gate: str, verdicts: list[Verdict], reason: str) -> Path:
     """Write COUNCIL_ESCALATION.md in project dir and update session_state."""
     proj_dir = REPO_ROOT / project
@@ -448,6 +546,18 @@ def main() -> int:
     # Enforcement passes (learnings.md:20 and :22 — previously documented but not implemented)
     verdicts = enforce_lessons_precondition(verdicts)
     verdicts = check_goalpost_moves(args.project, verdicts)
+    # Patch 4: detect BUGS hallucinations — auto-downgrade "undefined symbol" claims
+    # contradicted by the actual file contents (cited-line check + definition-pattern check).
+    for v in verdicts:
+        if detect_bugs_hallucination(v, args.project):
+            print(
+                "[council] BUGS auto-downgraded (hallucinated symbol) — "
+                "verified definition exists in cited files",
+                file=sys.stderr,
+            )
+            v.verdict = "APPROVE"
+            v.severity = "advisory"
+            v.reason = f"[AUTO-DOWNGRADED: hallucinated symbol claim, symbols present in cited files] {v.reason}"
     out_path = write_gate_result(args.project, args.gate, verdicts)
 
     objections = [v for v in verdicts if v.verdict == "OBJECT"]

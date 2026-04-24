@@ -31,8 +31,10 @@ from council import (  # noqa: E402
     PARSE_FAILURE_MARKER,
     Verdict,
     _keyword_overlap,
+    _symbol_defined_in_content,
     call_angle,
     check_goalpost_moves,
+    detect_bugs_hallucination,
     enforce_lessons_precondition,
 )
 
@@ -283,6 +285,214 @@ class TestContainment(unittest.TestCase):
         # Should return verdicts unmutated (no downgrade) and print a warning to stderr
         out = check_goalpost_moves("../..", [v])
         self.assertEqual(out[0].verdict, "OBJECT")
+
+
+class TestBugsHallucination(unittest.TestCase):
+    """Patch 4: detect_bugs_hallucination unit tests."""
+
+    def setUp(self):
+        self.tmp_dir = tempfile.mkdtemp()
+        self.project = "tmp_hallucination_test"
+        self.proj_dir = REPO_ROOT / self.project
+        self.proj_dir.mkdir(parents=True, exist_ok=True)
+
+    def tearDown(self):
+        import shutil
+        shutil.rmtree(self.tmp_dir, ignore_errors=True)
+        for f in self.proj_dir.iterdir():
+            f.unlink()
+        self.proj_dir.rmdir()
+
+    def _write_index(self, content: str) -> Path:
+        p = self.proj_dir / "index.html"
+        p.write_text(content)
+        return p
+
+    def _bugs_object(self, reason: str, required_fix: str = "", evidence: str = "") -> Verdict:
+        return Verdict(
+            angle="bugs", verdict="OBJECT", severity="high",
+            reason=reason, required_fix=required_fix, evidence=evidence, veto=False,
+        )
+
+    def test_downgrades_when_symbol_defined_in_whole_file(self):
+        """Symbol defined via function keyword → layer 2 catches it → downgrade."""
+        self._write_index("<script>function myFunc() { return 1; }</script>")
+        v = self._bugs_object(
+            reason="`myFunc` is not defined anywhere in the file.",
+            required_fix="Define `myFunc` before using it.",
+            evidence=f"{self.project}/index.html",
+        )
+        self.assertTrue(detect_bugs_hallucination(v, self.project))
+
+    def test_preserves_when_symbol_truly_missing(self):
+        """Symbol genuinely absent from file → OBJECT preserved."""
+        self._write_index("<script>function otherFunc() { }</script>")
+        v = self._bugs_object(
+            reason="`missingFunc` is not defined anywhere.",
+            required_fix="Define `missingFunc` before calling it.",
+            evidence=f"{self.project}/index.html",
+        )
+        self.assertFalse(detect_bugs_hallucination(v, self.project))
+
+    def test_only_applies_to_bugs_angle(self):
+        """SECURITY angle with same text → preserved (rule is bugs-only)."""
+        self._write_index("<script>function myFunc() { }</script>")
+        v = Verdict(
+            angle="security", verdict="OBJECT", severity="high",
+            reason="`myFunc` is not defined anywhere in the file.",
+            required_fix="Define `myFunc`.", evidence=f"{self.project}/index.html", veto=False,
+        )
+        self.assertFalse(detect_bugs_hallucination(v, self.project))
+
+    def test_only_applies_to_object_verdict(self):
+        """APPROVE verdict is never touched regardless of content."""
+        self._write_index("<script>function myFunc() { }</script>")
+        v = Verdict(
+            angle="bugs", verdict="APPROVE", severity="low",
+            reason="`myFunc` is not defined anywhere.",
+            required_fix="", evidence=f"{self.project}/index.html", veto=False,
+        )
+        self.assertFalse(detect_bugs_hallucination(v, self.project))
+
+    def test_requires_undefined_phrasing(self):
+        """Objection without 'undefined/missing' keywords → not a hallucination candidate."""
+        self._write_index("<script>function myFunc() { }</script>")
+        v = self._bugs_object(
+            reason="`myFunc` has a logic error in the return path.",
+            required_fix="Fix the return value of `myFunc`.",
+            evidence=f"{self.project}/index.html",
+        )
+        self.assertFalse(detect_bugs_hallucination(v, self.project))
+
+    def test_requires_at_least_one_symbol_citation(self):
+        """'Something is missing' with no backtick-quoted 3+ char symbol → too vague."""
+        self._write_index("<script>function myFunc() { }</script>")
+        v = self._bugs_object(
+            reason="A required function is missing from the codebase.",
+            required_fix="Add the missing function.",
+            evidence=f"{self.project}/index.html",
+        )
+        self.assertFalse(detect_bugs_hallucination(v, self.project))
+
+
+class TestBugsHallucinationFixtures(unittest.TestCase):
+    """Patch 4: historical fixture replay — correct classification of known cases."""
+
+    def setUp(self):
+        self.project = "tmp_fixture_test"
+        self.proj_dir = REPO_ROOT / self.project
+        self.proj_dir.mkdir(parents=True, exist_ok=True)
+
+    def tearDown(self):
+        import shutil
+        for f in self.proj_dir.iterdir():
+            f.unlink()
+        self.proj_dir.rmdir()
+
+    def _write_index(self, content: str) -> Path:
+        p = self.proj_dir / "index.html"
+        p.write_text(content)
+        return p
+
+    def test_fixture_lst_round9_truly_absent(self):
+        """LST round 9: BUGS claims F.id/F.status in getFullState — symbols genuinely absent.
+        F.id and F.status use dot notation so don't match the 3+-char identifier regex.
+        getFullState appears AFTER 'not defined in' so the before-claim window excludes it.
+        No symbols extracted → function returns False → OBJECT preserved."""
+        self._write_index("<script>function getFullState() { return state; }</script>")
+        v = Verdict(
+            angle="bugs", verdict="OBJECT", severity="high",
+            reason="`F.id` and `F.status` are not defined in `getFullState`.",
+            required_fix="Add `F.id` and `F.status` references inside `getFullState`.",
+            evidence=f"{self.project}/index.html:150",
+            veto=False,
+        )
+        # F.id/F.status: dot notation breaks the identifier regex → no symbols extracted
+        # getFullState: appears AFTER "not defined in" → excluded by before-claim window
+        self.assertFalse(detect_bugs_hallucination(v, self.project))
+
+    def test_fixture_template_lib_round1_symbols_defined(self):
+        """Template Lib round 1: BUGS claims byDirectionChk/actingChk/restoreParties undefined.
+        All three are actually defined in the file → SHOULD downgrade (hallucination)."""
+        content = (
+            "\n" * 2330
+            + "function byDirectionChk(dir) { return dir; }\n"
+            + "function actingChk(p) { return p; }\n"
+            + "\n" * 65
+            + "function restoreParties(x) { return x; }\n"
+        )
+        self._write_index(content)
+        v = Verdict(
+            angle="bugs", verdict="OBJECT", severity="critical",
+            reason=(
+                "`byDirectionChk`, `actingChk`, and `restoreParties` are not defined "
+                "anywhere in the file. These undefined functions are called but never declared."
+            ),
+            required_fix="Define `byDirectionChk`, `actingChk`, and `restoreParties`.",
+            evidence=f"{self.project}/index.html:2332",
+            veto=False,
+        )
+        self.assertTrue(detect_bugs_hallucination(v, self.project))
+
+    def test_fixture_lst_round7_legitimately_absent(self):
+        """LST round 7: BUGS claims cycleDraftStatus is undefined; actual function is setDraftStatus.
+        cycleDraftStatus appears BEFORE 'is not defined' → extracted as claimed symbol.
+        setDraftStatus appears only in required_fix after 'replace with' → not extracted.
+        cycleDraftStatus is genuinely absent from file → OBJECT preserved."""
+        self._write_index(
+            "<script>function setDraftStatus(id, s) { return s; }</script>"
+        )
+        v = Verdict(
+            angle="bugs", verdict="OBJECT", severity="high",
+            reason=(
+                "`cycleDraftStatus` is not defined in the file. "
+                "The function is called at several points but never declared."
+            ),
+            required_fix="Define `cycleDraftStatus` or replace calls with `setDraftStatus`.",
+            evidence=f"{self.project}/index.html:88",
+            veto=False,
+        )
+        # cycleDraftStatus is before "is not defined" → extracted; genuinely absent → no downgrade
+        # setDraftStatus is only in required_fix, not extracted by before-claim window
+        self.assertFalse(detect_bugs_hallucination(v, self.project))
+
+    def test_fixture_infra_memory_feedback_real_bug(self):
+        """infra-memory-feedback round 3: legitimate table-overflow BUGS objection.
+        No 'undefined/missing' phrasing → not a hallucination candidate → preserved."""
+        self._write_index("<table><tr><td>data</td></tr></table>")
+        v = Verdict(
+            angle="bugs", verdict="OBJECT", severity="high",
+            reason="Wide data tables overflow their container on narrow viewports.",
+            required_fix="Add overflow-x:auto to the table wrapper.",
+            evidence=f"{self.project}/index.html:5",
+            veto=False,
+        )
+        self.assertFalse(detect_bugs_hallucination(v, self.project))
+
+
+class TestSymbolDefinedInContent(unittest.TestCase):
+    """Unit tests for the _symbol_defined_in_content layer-2 helper."""
+
+    def test_function_declaration_js(self):
+        self.assertTrue(_symbol_defined_in_content("myFunc", "function myFunc() { }", ".js"))
+
+    def test_const_assignment_js(self):
+        self.assertTrue(_symbol_defined_in_content("myFunc", "const myFunc = () => {};", ".js"))
+
+    def test_method_shorthand_js(self):
+        self.assertTrue(_symbol_defined_in_content("myFunc", "  myFunc() { return 1; }", ".js"))
+
+    def test_call_site_not_definition_js(self):
+        self.assertFalse(_symbol_defined_in_content("myFunc", "myFunc();", ".js"))
+
+    def test_def_python(self):
+        self.assertTrue(_symbol_defined_in_content("my_func", "def my_func(x):\n    pass", ".py"))
+
+    def test_call_site_not_definition_python(self):
+        self.assertFalse(_symbol_defined_in_content("my_func", "result = my_func(x)", ".py"))
+
+    def test_unknown_extension_returns_false(self):
+        self.assertFalse(_symbol_defined_in_content("foo", "foo = bar", ".rb"))
 
 
 if __name__ == "__main__":

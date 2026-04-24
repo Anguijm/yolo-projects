@@ -1,62 +1,40 @@
 # Council Escalation — experiments/fix-council-bugs-hallucination
 
-**Gate:** plan
+**Gate:** implementation
 **Reason:** Unresolved objections after 2 attempts
-**Timestamp:** 2026-04-24T22:47:41.679212+00:00
+**Timestamp:** 2026-04-24T23:02:21.847828+00:00
 
 ## Angle positions
 
 ### BUGS — OBJECT (critical)
-- **Reason:** The JavaScript/TypeScript definition pattern `"{symbol}\\s*\\("` in `_symbol_defined_in_content` incorrectly identifies function calls as definitions, leading to false positives where legitimate BUGS objections about truly undefined functions will be auto-downgraded.
-- **Required fix:** Remove or significantly refine the `rf"{esc}\\s*\\("` pattern in `_symbol_defined_in_content` for `.js` and `.ts` files to prevent misidentifying function calls as definitions, or explicitly state that method shorthand definitions are out of scope for regex detection.
-- **Evidence:** ````python
-    if ext in (".html", ".js", ".ts"):
-        patterns = [
-            rf"function\\s+{esc}\\b",
-            rf"(?:const|let|var)\\s+{esc}\\s*=",
-            rf"{esc}\\s*\\(",           # call-site is NOT a def, but method shorthand is
-        ]
-````
+- **Reason:** The `_symbol_defined_in_content` function lacks word boundaries (`\b`) after the escaped symbol in patterns for JS/TS method shorthand and Python definition/assignment, leading to false positives where a symbol is a substring of another, incorrectly downgrading valid BUGS objections.
+- **Required fix:** Add `\b` after `esc` in the regex patterns for JS/TS method shorthand (`{esc}\b`), Python `def/class` (`{esc}\b`), and Python assignment (`{esc}\b`) within `_symbol_defined_in_content` to ensure exact symbol matching.
+- **Evidence:** `council.py: line 55 (method shorthand pattern), line 60 (Python def/class pattern), line 63 (Python assignment pattern)`
 
-### SECURITY — APPROVE (low)
-- **Reason:** The plan correctly handles path containment and regex injection, and file operations are read-only, limiting direct attack surfaces.
+### SECURITY — OBJECT (high)
+- **Reason:** The regular expressions in `_symbol_defined_in_content` contain unbounded quantifiers (`*`) on potentially large, user-controlled file content, creating a Regular Expression Denial of Service (ReDoS) vulnerability.
+- **Required fix:** Refine the regex patterns in `_symbol_defined_in_content` to prevent excessive backtracking, for example, by using more specific quantifiers or by limiting the length of matched sequences where appropriate, especially for `\s*` and `[^)]*`.
+- **Evidence:** `council.py:70:            rf"(?m)^\s*(?:async\s+)?(?:static\s+)?{esc}\s*\([^)]*\)\s*\{"`
 
 ### UI — APPROVE (low)
-- **Reason:** This plan describes an internal enforcement mechanism for the council system and has no direct impact on user-facing UI or user experience.
+- **Reason:** The change improves the developer's experience by reducing unnecessary blocks due to hallucinated BUGS objections, and provides clear feedback when auto-downgrading.
 
-### GUIDE — APPROVE (low)
-- **Reason:** The plan includes clear logging, updates to `changes.md`, and `learnings.md` to ensure discoverability of the new enforcement rule for both human users and AI agents.
-- **Evidence:** `changes.md, learnings.md, UI section in plan.md`
+### GUIDE — OBJECT (high)
+- **Reason:** The automatic downgrade mechanism for BUGS OBJECTs is not sufficiently documented for a first-time AI agent or human user to anticipate its behavior.
+- **Required fix:** A user-facing document (e.g., a 'Council Rules' or 'Enforcement Guide' for agents) should explicitly describe this auto-downgrade rule, including the conditions that trigger it and the resulting output format, and this document should be discoverable by an AI agent.
+- **Evidence:** `Missing user-facing documentation / AI agent guide for the auto-downgrade rule; `changes.md` is an internal document, not a user-facing guide.`
 
 ### USEFULNESS — APPROVE (low)
-- **Reason:** This project directly addresses a documented, costly problem of AI hallucination, improving the reliability and trustworthiness of a critical internal tool for developers.
-- **Evidence:** `The plan cites specific, recurring instances of hallucinated 'undefined symbol' objections on projects like Letter Status Tracker and Template Letter Library, leading to wasted developer time and manual overrides. This directly solves that problem.`
+- **Reason:** This feature directly addresses a known source of false positives in the BUGS council, preventing incorrect build blocks and saving developer time.
+- **Evidence:** `Historical fixture replays (e.g., Template Lib round 1) demonstrate past occurrences of this problem, confirming a real, recurring need.`
 
 ### COOL — APPROVE (low)
-- **Reason:** The system's ability to detect and auto-downgrade specific AI hallucinations about undefined symbols is a unique, meta-AI signature move, demonstrating depth beyond a generic linter.
+- **Reason:** The system's ability to self-correct its own 'hallucinated' objections is a unique and highly memorable signature move.
 
 ### LESSONS — APPROVE (low)
-- **Reason:** The plan directly addresses and prevents a documented recurring failure mode (BUGS hallucination loop), aligning with the LESSONS mandate to not repeat past mistakes.
-- **Evidence:** `Goal: Add a council.py enforcement rule that auto-downgrades BUGS OBJECT verdicts whose cited evidence doesn't match actual file contents. Closes off the hallucination-loop pattern observed on Letter Status Tracker (rounds 7-9) and Template Letter Library (rounds 1-3) where cron kept objecting with `
+- **Reason:** The project addresses a known hallucination pattern, aligning with the 'Haiku UI hallucination pattern' insight, and does not violate any documented lessons or anti-patterns.
+- **Evidence:** `INSIGHT: Haiku UI hallucination pattern — across all 3 benchmark fixtures, the UI angle independently fabricated the same specific detail: 'injected accessibility override with !important forces illegible font sizes.' None of these projects contain such an override. This is a systematic single-angle`
 
 ## Resolution
 
-**RESOLVED 2026-04-25. BUGS critical accepted; pattern refined.**
-
-### BUGS critical — ACCEPTED
-The objection is correct: `{esc}\s*\(` matches every call site, not just method-shorthand definitions. That would cause false-positive auto-downgrades on legitimate "undefined function" objections whenever the function is called (but not defined) in a cited file.
-
-Fix: replaced the third JS/TS pattern with a line-anchored method-shorthand matcher that requires `{` after the closing paren:
-
-```python
-rf"(?m)^\s*(?:async\s+)?(?:static\s+)?{esc}\s*\([^)]*\)\s*\{{",
-```
-
-This matches method shorthand (`foo() { ... }`, `async bar() { ... }`, `static baz() { ... }`) but excludes call sites (`foo();`, `obj.foo()`, `foo().bar`) because none of those end with `{` directly after the closing paren. Methods inside class/object bodies remain detected since they live at the start of their indented line.
-
-`function foo()` declarations are still caught by the first pattern (`function\s+{esc}\b`); the third pattern's role is strictly the method-shorthand-without-`function` form.
-
-### Other 6 angles — APPROVE
-SECURITY, UI, GUIDE, USEFULNESS, COOL, LESSONS all clean.
-
-Cron may rerun PLAN; expected clean pass.
+Human decision required. Resume the build after updating session_state.json.
