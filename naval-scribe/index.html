@@ -2501,12 +2501,15 @@ select:focus, select:focus-visible {
       refs: refFields.getValues(),
       encls: enclFields.getValues(),
       parties: getParties(),
-      // Routing slip persistence — per BUGS TESTS-escalation 2026-04-25
-      // (routing fields previously not saved → data loss on reload).
+      // Routing slip persistence — per BUGS TESTS-escalation 2026-04-25.
+      // Serialize reviewers as plain data (not DOM refs) so JSON.stringify works.
       routing: {
         suspense: routingSuspense ? routingSuspense.value : '',
         drafter: routingDrafter ? routingDrafter.value : '',
-        reviewers: (typeof routingReviewers !== 'undefined') ? routingReviewers.slice() : []
+        reviewers: (typeof routingReviewers !== 'undefined') ?
+          routingReviewers.map(function(r) {
+            return { name: r.input ? r.input.value : '', action: r.select ? r.select.value : 'Review' };
+          }) : []
       }
     };
   }
@@ -2559,9 +2562,14 @@ select:focus, select:focus-visible {
       if (routingSuspense) routingSuspense.value = s.routing.suspense || '';
       if (routingDrafter) routingDrafter.value = s.routing.drafter || '';
       if (typeof routingReviewers !== 'undefined' && Array.isArray(s.routing.reviewers)) {
+        // Clear existing reviewer rows from DOM and array, then repopulate.
+        if (routingChain) routingChain.innerHTML = '';
         routingReviewers.length = 0;
         for (var ri = 0; ri < s.routing.reviewers.length; ri++) {
-          routingReviewers.push(s.routing.reviewers[ri]);
+          var rv = s.routing.reviewers[ri];
+          if (typeof addRoutingReviewer === 'function') {
+            addRoutingReviewer(rv.name || '', rv.action || 'Review');
+          }
         }
         if (typeof renderRoutingPreview === 'function') renderRoutingPreview();
       }
