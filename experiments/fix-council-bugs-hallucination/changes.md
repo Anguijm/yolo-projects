@@ -8,7 +8,7 @@
 - `_FILE_REF_RE` — extracts file:line references from evidence field
 
 **Added functions** (after check_goalpost_moves):
-- `_symbol_defined_in_content(symbol, content, ext) -> bool` — language-specific definition-pattern check (.html/.js/.ts uses function/const/method-shorthand; .py uses def/class; unknown = False)
+- `_symbol_defined_in_content(symbol, content, ext) -> bool` — language-specific definition-pattern check. `.html`/`.js`/`.ts` uses three patterns: (1) `function NAME`, (2) `(?:const|let|var) NAME =` (covers all three JS variable-declaration keywords), (3) line-anchored method shorthand `NAME(args) {`. `.py` uses `def NAME` / `class NAME` and line-anchored `NAME =` (module/class-level assignment). Unknown extensions return `False` (skip whole-file check).
 - `detect_bugs_hallucination(verdict, project) -> bool` — two-layer check: (1) cited-line window ±5 lines around each file:NNN reference, (2) definition-pattern scan across whole file; returns True iff any cited file disproves the "undefined symbol" claim. Symbols are extracted only from the window BEFORE each claim keyword in the reason field (proximity filter) to avoid false positives from scope identifiers ("in `getFullState`") and fix alternatives ("replace with `setDraftStatus`").
 
 **Modified main()** (after check_goalpost_moves call):
