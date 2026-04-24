@@ -34,4 +34,20 @@
 
 ## Resolution
 
-Human decision required. Resume the build after updating session_state.json.
+**RESOLVED 2026-04-24. Both accepted — plan.md updated.**
+
+### BUGS (medium) — ACCEPTED
+Hardcoded cost model can go stale. Plan now specifies:
+- Defaults documented with a pricing snapshot date (2026-04-24)
+- Env-var overrides: `HAIKU_COST_IN`, `HAIKU_COST_OUT`, `OPUS_COST_IN`, `OPUS_COST_OUT`
+- Runtime log line when overrides are applied
+- `results.md` captures effective cost values per run for reproducibility
+- `README.md` will document the single-line edit path for default updates
+
+### GUIDE (medium) — ACCEPTED
+`--help` flag added via `argparse` (auto-generated). Guide section updated with explicit `--help` usage example as the discovery path. Also added a cost-override example showcasing the new env-var knobs.
+
+### Other 5 angles — APPROVE
+SECURITY, UI, USEFULNESS, COOL, LESSONS all clean.
+
+Cron may rerun PLAN; expected clean pass.

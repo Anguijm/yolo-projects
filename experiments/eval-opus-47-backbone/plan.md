@@ -32,8 +32,13 @@ N=3 × 2 models × 7 angles = 42 angle evaluations per run. This is sufficient t
    - Restoration guarantee: `run_one` saves original values of all three module attributes before patching, then unconditionally restores them in a `finally` block — `TokenTracker.__exit__` also runs in `finally`. This guarantees isolation even if `run_gate` raises an exception mid-run.
    - `TokenTracker` context manager wraps `client.messages.create` to intercept `response.usage.input_tokens` / `.output_tokens` per API call without modifying council.py
    - `run_one(fixture, model_key, client)` — runs `council.run_gate("implementation", ...)` and collects verdicts, gate latency, total tokens, estimated cost
-   - `main()` — CLI with `--fixtures N` (default 3), `--dry-run`, and `--output PATH`; default output filename is timestamped (`benchmark_results_YYYYMMDDTHHMMSS.json`) so successive runs never overwrite prior results; `--output` allows an explicit path (useful for scripting)
-   - Cost model: Haiku $0.80/$4.00 per MTok in/out; Opus $15.00/$75.00 per MTok in/out
+   - `main()` — CLI using `argparse` (inherits `--help` / `-h` automatically) with `--fixtures N` (default 3), `--dry-run`, and `--output PATH`; default output filename is timestamped (`benchmark_results_YYYYMMDDTHHMMSS.json`) so successive runs never overwrite prior results; `--output` allows an explicit path (useful for scripting). Per GUIDE PLAN-escalation 2026-04-24: `argparse` auto-generates `--help` output listing every flag and its description — explicit first-time-user path.
+   - **Cost model** (per BUGS PLAN-escalation 2026-04-24): API prices drift, so costs are configurable rather than hardcoded.
+     - Defaults: Haiku $0.80/$4.00 per MTok in/out; Opus $15.00/$75.00 per MTok in/out (current as of 2026-04-24 per Anthropic pricing page)
+     - Override via env vars: `HAIKU_COST_IN`, `HAIKU_COST_OUT`, `OPUS_COST_IN`, `OPUS_COST_OUT` (dollars per MTok)
+     - On override, print `[benchmark] cost model overridden from env: <model> in=$X.XX/MTok out=$Y.YY/MTok` so run output self-documents the prices used
+     - `results.md` includes a "Cost model used" line capturing the effective values for reproducibility
+     - README.md documents how to update defaults when Anthropic publishes new pricing (single-line edit at top of `benchmark.py`)
 
 3. **Fixtures** — 3 canonical YOLO utility ticks:
    - `url-dissect` (URL Dissector & Analyzer, ~956 lines)
@@ -88,6 +93,10 @@ Command-line tool. Per-run progress to stdout: `fixture × model | latency | app
 ## Guide
 
 ```bash
+# Discover flags
+python3 experiments/eval-opus-47-backbone/benchmark.py --help
+# (argparse-generated output lists --fixtures, --dry-run, --output, plus their defaults)
+
 # Full 3-fixture run (~$0.35 total) — output: benchmark_results_YYYYMMDDTHHMMSS.json
 ANTHROPIC_API_KEY=... python3 experiments/eval-opus-47-backbone/benchmark.py
 
@@ -96,6 +105,10 @@ ANTHROPIC_API_KEY=... python3 experiments/eval-opus-47-backbone/benchmark.py --f
 
 # Explicit output path
 ANTHROPIC_API_KEY=... python3 experiments/eval-opus-47-backbone/benchmark.py --output my_results.json
+
+# Override cost model (when Anthropic updates pricing)
+HAIKU_COST_IN=1.00 HAIKU_COST_OUT=5.00 OPUS_COST_IN=20.00 OPUS_COST_OUT=100.00 \
+  ANTHROPIC_API_KEY=... python3 experiments/eval-opus-47-backbone/benchmark.py --fixtures 1
 
 # Dry run (no API calls)
 python3 experiments/eval-opus-47-backbone/benchmark.py --dry-run
