@@ -41,4 +41,22 @@
 
 ## Resolution
 
-Human decision required. Resume the build after updating session_state.json.
+**RESOLVED 2026-04-25. BUGS critical accepted; pattern refined.**
+
+### BUGS critical — ACCEPTED
+The objection is correct: `{esc}\s*\(` matches every call site, not just method-shorthand definitions. That would cause false-positive auto-downgrades on legitimate "undefined function" objections whenever the function is called (but not defined) in a cited file.
+
+Fix: replaced the third JS/TS pattern with a line-anchored method-shorthand matcher that requires `{` after the closing paren:
+
+```python
+rf"(?m)^\s*(?:async\s+)?(?:static\s+)?{esc}\s*\([^)]*\)\s*\{{",
+```
+
+This matches method shorthand (`foo() { ... }`, `async bar() { ... }`, `static baz() { ... }`) but excludes call sites (`foo();`, `obj.foo()`, `foo().bar`) because none of those end with `{` directly after the closing paren. Methods inside class/object bodies remain detected since they live at the start of their indented line.
+
+`function foo()` declarations are still caught by the first pattern (`function\s+{esc}\b`); the third pattern's role is strictly the method-shorthand-without-`function` form.
+
+### Other 6 angles — APPROVE
+SECURITY, UI, GUIDE, USEFULNESS, COOL, LESSONS all clean.
+
+Cron may rerun PLAN; expected clean pass.

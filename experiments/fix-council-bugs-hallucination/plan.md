@@ -53,7 +53,8 @@ dead code), the helper uses two complementary checks ordered from most specific 
 
 2. **Definition-pattern check**: Search the whole file for language-specific definition
    patterns, not bare identifier occurrences:
-   - `.html`/`.js`: `function\s+{symbol}\b`, `(?:const|let|var)\s+{symbol}\s*=`, `{symbol}\s*\(`
+   - `.html`/`.js`/`.ts`: `function\s+{symbol}\b`, `(?:const|let|var)\s+{symbol}\s*=`,
+     and a line-anchored method-shorthand pattern `^\s*(?:async\s+)?(?:static\s+)?{symbol}\s*\([^)]*\)\s*\{` (requires `{` after `)` so call sites like `foo()` are excluded)
    - `.py`: `(?:def|class)\s+{symbol}\s*[:(]`, `{symbol}\s*=\s*`
    - Other: skip whole-file fallback; only cited-line check applies
 
@@ -85,7 +86,9 @@ def _symbol_defined_in_content(symbol: str, content: str, ext: str) -> bool:
         patterns = [
             rf"function\s+{esc}\b",
             rf"(?:const|let|var)\s+{esc}\s*=",
-            rf"{esc}\s*\(",           # call-site is NOT a def, but method shorthand is
+            # Method shorthand only — line-anchored AND requires opening brace after `)`.
+            # `foo()` (call) won't match because no `{` follows; `foo() {` (method def) will.
+            rf"(?m)^\s*(?:async\s+)?(?:static\s+)?{esc}\s*\([^)]*\)\s*\{{",
         ]
     elif ext == ".py":
         patterns = [
