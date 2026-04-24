@@ -96,12 +96,12 @@ Add a "Chart Blocks" section after the Diagrams section. Per GUIDE PLAN-escalati
 
 1. **Syntax** — fenced block: ` ```chart bar `, ` ```chart line `, ` ```chart pie ` followed by CSV body
 2. **Optional title line** — `title: My Chart` (must be the first non-empty line) with example
-3. **Data format** — `Label, Value` per line, comma split on FIRST comma only (so labels can contain commas if escaped — but recommend they don't)
+3. **Data format** — `Label, Value` per line, comma split on FIRST comma only; labels must not contain commas (no escape mechanism exists)
 4. **Label truncation** — labels longer than 16 chars are truncated with `…`; document the exact limit and that this is to prevent layout overflow
 5. **20-point cap with warning** — if more than 20 data points, the first 20 render and a `⚠ 20-point limit — N additional points hidden` warning row appears below the chart. Not silent.
 6. **Negative value rendering** — bar/line charts render negatives properly (bars extend below the baseline; line points dip below) when ANY point is negative. The baseline (zero) is drawn as a reference line. No clamping.
 7. **`[chart: no data]` placeholder** — empty or all-invalid CSV body shows this placeholder div instead of an empty SVG, so authors notice and fix
-8. **Skipped invalid lines** — lines with NaN values or missing comma are silently skipped during parse; the count is available via the `parseChartData` return but is not currently surfaced (future improvement)
+8. **Skipped invalid lines** — lines with NaN values or missing comma are skipped during parse; if any lines were skipped, a visible `[N line(s) skipped — invalid format]` warning div is rendered below the chart so authors can spot and fix bad data
 9. **Unknown chart type** — `chart foo` with no recognized type (bar/line/pie) falls back to `bar` with a console warning; no crash
 10. **Pie chart `+N more` legend** — pie charts with > 6 slices show top 5 + an aggregate "Other (N more)" wedge so the legend stays readable
 11. **Theme integration** — colors pull from current theme tokens (heading color for titles, accent for bars/lines/value-labels, warn color for the 20-point warning) so charts always match the deck's palette
@@ -154,7 +154,7 @@ The section should include 3 worked examples (bar / line / pie) with fenced char
 - Syntax: ` ```chart bar `, ` ```chart line `, ` ```chart pie `
 - Optional first line: `title: My Title`
 - Data lines: `Label, Value` (numeric value required)
-- Labels > 8 chars truncated with `…` in display
+- Labels > 16 chars truncated with `…` in display
 - Unknown type → bar fallback
 - Invalid lines skipped; count shown below chart
 - Charts automatically use the current deck theme palette
@@ -163,8 +163,8 @@ The section should include 3 worked examples (bar / line / pie) with fenced char
 - 0 valid points → `[chart: no data]` placeholder
 - 1 data point → single bar / single dot / full-circle pie
 - All values 0 → bars/line at baseline; pie shows gray circle + `[no data]`; legend shows 0% for all entries
-- Negative values → clamped to 0
-- Labels > 8 chars → truncated with `…`
+- Negative values → rendered below baseline (bars extend down, line dips; zero line drawn as reference)
+- Labels > 16 chars → truncated with `…`
 - Unknown chart type → bar fallback
 - > 20 data points → first 20 only
 - Missing comma → line skipped, count noted in warning
