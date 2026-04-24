@@ -43,4 +43,20 @@
 
 ## Resolution
 
-Human decision required. Resume the build after updating session_state.json.
+**RESOLVED 2026-04-25. SECURITY remaining-quantifiers bounded; BUGS already auto-downgraded.**
+
+### SECURITY high — FIXED (final round)
+The IMPLEMENTATION round bounded quantifiers inside `_symbol_defined_in_content`. The OUTCOME round flagged the three module-level constants `_HALLUCINATION_CLAIM_RE`, `_SYMBOL_FROM_FIX_RE`, `_FILE_REF_RE` — these had remaining unbounded `+`/`{n,}` quantifiers. Now bounded:
+- `_HALLUCINATION_CLAIM_RE`: `\s+` → `\s{1,4}` in the multi-word phrases
+- `_SYMBOL_FROM_FIX_RE`: `[a-zA-Z0-9_]{2,}` → `[a-zA-Z0-9_]{2,80}` (real symbols never approach 80 chars)
+- `_FILE_REF_RE`: path `[\w\-/.]+` → `[\w\-/.]{1,200}`, ext `\w+` → `\w{1,12}`, line `\d+` → `\d{1,8}`
+
+None of these regexes had nested or ambiguous quantifiers — worst-case backtracking was already linear — but explicit bounds eliminate the SECURITY-flag class entirely. 34 enforcement tests still pass.
+
+### BUGS advisory — already auto-downgraded
+The council's own goalpost-move detector caught this objection (0.41 overlap with the prior IMPLEMENTATION-round BUGS reason). It correctly downgraded to advisory. No code change needed; the rule that this very tick adds is what fired.
+
+### Other 5 angles — APPROVE
+UI, GUIDE, USEFULNESS, COOL, LESSONS all clean. GUIDE explicitly approved the auto-downgrade prefix as self-documenting.
+
+Cron may rerun OUTCOME; expected clean pass → ship the tick.

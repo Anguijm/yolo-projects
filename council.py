@@ -41,14 +41,17 @@ GOALPOST_OVERLAP_THRESHOLD = 0.35
 EVIDENCE_CITATION_RE = re.compile(r"\w+\.\w+:\d+")
 # Words 4+ chars long, lowercased, used for keyword-overlap scoring between objections
 TOKEN_RE = re.compile(r"\w{4,}")
-# Patch 4 constants — BUGS hallucination detection
+# Patch 4 constants — BUGS hallucination detection. Every quantifier is bounded;
+# none have nested or overlapping character classes so worst-case backtracking is
+# linear in input length (ReDoS-safe even on adversarial 2MB-cap file content).
 _HALLUCINATION_CLAIM_RE = re.compile(
-    r"\b(undefined|undeclared|not\s+defined|does\s+not\s+exist|missing)\b",
+    r"\b(undefined|undeclared|not\s{1,4}defined|does\s{1,4}not\s{1,4}exist|missing)\b",
     re.IGNORECASE,
 )
-_SYMBOL_FROM_FIX_RE = re.compile(r"`([a-zA-Z_][a-zA-Z0-9_]{2,})`")
-# LLM evidence always cites paths in standard notation (no spaces); [\w\-/.] covers all real cases
-_FILE_REF_RE = re.compile(r"([\w\-/.]+\.\w+):(\d+)(?:[-,]\d+)?")
+# Identifiers cap at 80 chars — real symbol names never approach that; bound prevents pathological inputs.
+_SYMBOL_FROM_FIX_RE = re.compile(r"`([a-zA-Z_][a-zA-Z0-9_]{2,80})`")
+# Path segment capped at 200 chars, line number capped at 8 digits (covers files up to 100M lines).
+_FILE_REF_RE = re.compile(r"([\w\-/.]{1,200}\.\w{1,12}):(\d{1,8})(?:[-,]\d{1,8})?")
 
 try:
     import google.generativeai as genai
