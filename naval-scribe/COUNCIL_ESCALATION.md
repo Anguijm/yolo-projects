@@ -34,4 +34,17 @@
 
 ## Resolution
 
-Human decision required. Resume the build after updating session_state.json.
+**RESOLVED 2026-04-25. SECURITY low fixed at source; BUGS goalpost-downgrade noted.**
+
+### SECURITY low — FIXED
+Added `<div id="routing-disclaimer">` with the standard `Stored locally on this device. Not synced. Not encrypted.` text inside `#routing-drawer`, right after the intro line — matching the pattern from `#drafts-disclaimer` (line 543) and `#addr-disclaimer` (line 587). Same `font-size:0.42rem;color:#555;margin-bottom:8px` styling as `#drafts-disclaimer`.
+
+### BUGS advisory (auto-downgraded) — N/A
+This round's BUGS objection was a goalpost-move from the prior round's TESTS BUGS-critical, which was already fixed at source in 5d78f04 (`getFullState` / `restoreFullState` now persist `routing: { suspense, drafter, reviewers[] }`). Auto-downgrade fired correctly (0.50 overlap).
+
+### Other 5 angles — APPROVE
+UI, GUIDE, USEFULNESS, COOL, LESSONS all clean.
+
+7/7 naval-scribe tests pass.
+
+Cron may rerun OUTCOME; expected clean pass → ship.
