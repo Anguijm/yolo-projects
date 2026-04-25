@@ -1,6 +1,6 @@
 # Phase 4 Pipeline — Comprehensive Report
 
-**Snapshot date:** 2026-04-25
+**Snapshot date:** 2026-04-25 (regenerated after the 22:04 UTC Phase 4 cron run)
 **Source-of-truth files** (read live, never recall): `phase4_run.json`, `experiments.json`, `session_state.json`, `_hot.md`, `fetch_youtube_rss.py` (CHANNELS dict).
 
 ---
@@ -10,10 +10,10 @@
 Phase 4 is the **YouTube Research Pipeline** — the daily cron that ingests new videos from a curated channel roster, extracts experiment proposals, runs them through a council-graded cull, promotes winners into the YOLO tick queue, and reflects outcomes back into project memory. It is the upstream feeder for everything the tick-tock builder builds.
 
 **Current state at a glance:**
-- Last cron run: **2026-04-24 22:24 UTC** — 7.9 hours ago — **success** (within the 12h freshness window).
-- 11 channels scanned, 0 feeds failed, 12 new videos found, 4 new experiments added.
-- Lifetime experiment total: **115**.
-- Currently waiting at the cull: **16 backlog items**.
+- Last cron run: **2026-04-25 22:04 UTC** — well within the 12h freshness window — **success**.
+- 11 channels scanned, 0 feeds failed, 10 new videos found, 3 new experiments added.
+- Lifetime experiment total: **118**.
+- Currently waiting at the cull: **19 backlog items**.
 - **41 experiments adopted; 33 have shipped with concrete outcomes** that are now load-bearing in the loop.
 - Approved tick queue: **10 infrastructure items** ready to build.
 - Open council escalations: **0**. Deferred: **1** (`adopt-bare-agent` PLAN, awaiting `CONSTRAINTS.md`).
@@ -91,16 +91,16 @@ Read from `phase4_run.json` at this report's snapshot time:
 
 | Field | Value |
 |---|---|
-| `last_run_utc` | 2026-04-24T22:24:34Z (06:24 JST) |
-| Age | **7.9 hours** |
+| `last_run_utc` | 2026-04-25T22:04:23Z (07:04 JST) |
+| Age at snapshot | **0.8 hours** |
 | Freshness status | **success** (< 12h window) |
 | `channels_scanned` | 11 |
 | `feeds_successful` | 11 |
 | `feeds_failed` | 0 |
-| `new_videos_found` | 12 |
-| `new_experiments_added` | 4 |
-| `total_experiments` | 115 |
-| `backlog_count` | 16 |
+| `new_videos_found` | 10 |
+| `new_experiments_added` | 3 |
+| `total_experiments` | 118 |
+| `backlog_count` | 19 |
 
 **Freshness rules** (per `CLAUDE.md`):
 - `<12h` → success
@@ -130,12 +130,12 @@ Every experiment moves through this state machine:
         +--> [ skipped ]   <--  2, rare — not evaluated at all
 ```
 
-**Status counts (115 total):** 44 done, 17 adopted, 20 deferred, 16 discarded, 2 skipped, 16 backlog.
+**Status counts (118 total):** 44 done, 17 adopted, 20 deferred, 16 discarded, 2 skipped, 19 backlog.
 
 **Verdict counts (when set):** 41 adopt, 15 discard, 20 deferred, 11 discarded, 10 adopted (the `verdict` and `status` fields use slightly different labels — counts overlap by lifecycle).
 
 **Conversion math:**
-- 99 experiments have been evaluated (115 total minus 16 backlog).
+- 99 experiments have been evaluated (118 total minus 19 backlog).
 - Of those, 41 carry `verdict=adopt` (~41% adoption rate).
 - 16 discarded + 20 deferred = 36 rejected/parked (~36% filter-out rate).
 - The rest are in transitional states.
@@ -323,7 +323,9 @@ The defer pile has natural recall mechanisms: when `model-eval-backbone` ships, 
 
 ---
 
-## 9. Backlog (16 Items Awaiting Cull)
+## 9. Backlog (19 Items Awaiting Cull)
+
+**Note:** The 22:04 UTC cron added 3 new items on top of the 16 documented below; new items will appear in the next refresh of this section. The 16 itemized below are the older backlog cohort — newer items are in `experiments.json` filtered by `status=backlog`.
 
 These were ingested in the most recent cron run but have not yet been evaluated. Listed newest-first:
 

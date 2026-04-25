@@ -1,13 +1,13 @@
 # YOLO Projects
 
-AI-assisted build system with human-gated approval. Claude proposes project ideas hourly, a 6-angle Gemini council reviews everything, and nothing ships without human sign-off.
+AI-assisted build system with human-gated approval. Claude proposes project ideas hourly, a 7-angle Gemini council reviews everything, and nothing ships without human sign-off.
 
 ## How It Works
 
 An hourly cron trigger fires a Claude Code remote agent that alternates between two modes:
 
 ### Tick (New Projects — Approval-Gated)
-1. **If approved ideas exist** — builds the next one: Plan (Gemini critique) → Build → Test → 6-angle Council → Reflect
+1. **If approved ideas exist** — builds the next one: Plan (Gemini critique) → Build → Test → 7-angle Council → Reflect
 2. **If queue is empty** — brainstorms 1 idea, adds to pending queue, does NOT build. Human approves or denies at next check-in.
 
 ### Tock (Flagship Features)
@@ -17,7 +17,7 @@ Alternates between two flagship projects, implementing approved features or brai
 1. **Plan** — boring-but-high-ROI filter, vertical outline, Gemini critique
 2. **Build** — code from validated plan
 3. **Test** — `test_project.py` (7 checks) + `eval_bugs.py` (26 patterns) + `security_scan.py` (22 rules)
-4. **Review** — 6-angle Gemini council (bugs, security, UI, guide, usefulness, cool)
+4. **Review** — 7-angle Gemini council (bugs, security, ui, guide, usefulness, cool, lessons). LESSONS has veto power; four enforcement rules auto-downgrade matching OBJECTs (parse-failure retry, LESSONS precondition_evidence, goalpost-move, BUGS hallucination)
 5. **Reflect** — structured KEEP/IMPROVE/INSIGHT/COUNCIL appended to learnings.md
 
 ### Safety
@@ -29,9 +29,11 @@ Alternates between two flagship projects, implementing approved features or brai
 
 | Metric | Count |
 |--------|-------|
-| Total built | 210+ |
-| Active (passed council) | 87+ |
+| Total built | 232 |
+| Active (passed council) | 98 |
 | Culled (duplicates, visual toys, low utility) | 121+ |
+
+*Live numbers: read from `_hot.md` "Current State" section.*
 
 ### Categories
 - **Dev Tools** — jwt-decode, json-explorer, regex-playground, ssl-check, dns-lookup, diff-painter, shader-forge, yaml-fmt, etc.
@@ -55,13 +57,13 @@ Naval correspondence formatter per SECNAV M-5216.5. 7 document types (standard l
 Council reviews competing projects head-to-head. Higher score survives.
 
 ### Phase 2: Usefulness Refinement
-Full 6-angle council on every survivor. Score 5+ on usefulness or get culled.
+Full 7-angle council on every survivor. Score 5+ on usefulness or get culled.
 
 ### Phase 3: Usefulness Cull
 Final pass — anything still not genuinely useful gets cut.
 
 ### Phase 4: YouTube Research
-Daily cron (06:15 JST) auto-discovers new videos from 7 monitored YouTube channels via RSS, extracts experiment cards, maintains a backlog. 44 experiments processed: 27 adopted, 10 parked, 7 in backlog.
+Daily cron (~07:00 JST) auto-discovers new videos from 11 monitored YouTube channels via RSS, generates experiment proposals, runs them through council cull, and promotes adopted items into the tick queue. **Lifetime totals (live):** 118 experiments — 41 adopted, 20 deferred, 16 discarded, 19 in backlog. See `PHASE4_REPORT.md` for the full snapshot and per-experiment outcomes.
 
 ### Security Scanning
 22-rule regex scanner (`security_scan.py`) runs on every build. Full portfolio triaged: 0 real vulnerabilities. CSP meta tag in design.md boilerplate.
@@ -69,12 +71,13 @@ Daily cron (06:15 JST) auto-discovers new videos from 7 monitored YouTube channe
 ### Architecture Audit
 12-piece agent architecture audit: 5 STRONG, 5 ADEQUATE, 0 WEAK (2 resolved). Halt mechanism and cost cap implemented.
 
-## Adopted Experiments (27)
+## Adopted Experiments (41 — see `PHASE4_REPORT.md` for the full list with outcomes)
 
 Key process improvements from Phase 4 research:
 
 - **Approval-gated builds** — cron proposes, human approves, then it builds
-- **6-angle council review** — bugs, security, UI, guide, usefulness, cool
+- **7-angle council review** — bugs, security, ui, guide, usefulness, cool, lessons (lessons has veto power)
+- **Council enforcement rules (live in `council.py`)** — auto-downgrade for: parse-failure retry, LESSONS precondition_evidence, goalpost-move (keyword-overlap > 0.35 vs prior reasons), BUGS hallucination (claimed-undefined symbols that grep finds defined). See `council_rules.md` for the canonical reference.
 - **Vertical planning** — structure outline before code eliminates rework
 - **Boring-but-high-ROI filter** — "would a business pay for this?" idea selection
 - **3-phase pipeline** — Plan (Gemini critique) → Build → Review (council)
@@ -92,10 +95,10 @@ Key process improvements from Phase 4 research:
 | Trigger | Schedule | What |
 |---------|----------|------|
 | Tick-Tock Builder | Hourly | Proposes ideas (tick) or implements flagship features (tock). Builds only approved items. |
-| Phase 4 Research | Daily 06:15 JST | YouTube RSS scan across 7 channels, experiment extraction, always commits run report |
+| Phase 4 Research | Daily ~07:00 JST | YouTube RSS scan across 11 channels, experiment extraction, always commits run report |
 
-## Monitored YouTube Channels (7)
-@NateBJones, @MLOps, @DavidOndrej, [un]prompted, @NateHerk, @TwoMinutePapers, @Fireship
+## Monitored YouTube Channels (11 — authoritative roster in `fetch_youtube_rss.py:CHANNELS`)
+@NateBJones, @MLOps, @DavidOndrej, [un]prompted, @NateHerk, @swyx, @GregKamradt, @AIJasonZ, @echohive, @ShawTalebi, @Mark_Kashef
 
 ## Key Files
 
@@ -105,13 +108,16 @@ Key process improvements from Phase 4 research:
 | `design.md` | Visual design system (dark industrial aesthetic) |
 | `learnings.md` | Accumulated build knowledge (3000+ lines) |
 | `yolo_log.json` | Append-only log of all builds |
-| `experiments.json` | Phase 4 experiment tracker (44 experiments) |
+| `experiments.json` | Phase 4 experiment tracker (118 experiments — live count) |
+| `PHASE4_REPORT.md` | Comprehensive Phase 4 snapshot (regenerable; all numbers re-derivable from source files) |
+| `STACK_AUDIT.md` (in `experiments/adopt-stack-audit/`) | Dated dependency shelf-life audit with grep-by-content citations |
+| `council_rules.md` | Canonical reference for council mechanics + 4 enforcement rules |
 | `session_state.json` | Tick-tock state, approval queues, phase 4 queue |
 | `dashboard.html` | Portfolio dashboard (generated from log) |
 | `test_project.py` | Automated test suite (7 checks) |
 | `eval_bugs.py` | 26-pattern bug scanner |
 | `security_scan.py` | 22-rule security scanner |
-| `fetch_youtube_rss.py` | Phase 4 RSS feed fetcher (7 channels) |
+| `fetch_youtube_rss.py` | Phase 4 RSS feed fetcher (11 channels) |
 | `build_log.py` | Structured JSON audit trail per build |
 | `model-upgrade-audit.md` | 5-layer checklist for model swaps |
 | `model-eval/` | Golden-prompt regression suite (8 prompts) |
@@ -128,8 +134,8 @@ Key process improvements from Phase 4 research:
 
 ## Stack
 
-- **Builder**: Claude Sonnet 4.6 (remote triggers)
-- **Council**: Gemini Pro (6-angle reviews via MCP)
+- **Builder**: Claude Code (remote triggers); current model Claude Opus 4.7 with Sonnet/Haiku fallbacks per workflow definition
+- **Council**: Gemini 2.5 Flash (primary), Claude Haiku 4.5 (fallback) — 7-angle reviews invoked from `council.py`
 - **Testing**: Python + Node.js + Playwright
 - **Frontend**: Single-file HTML, zero external dependencies
 - **Design**: Dark industrial aesthetic, monospace, ghost buttons
