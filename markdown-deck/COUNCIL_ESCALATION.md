@@ -36,4 +36,17 @@
 
 ## Resolution
 
-Human decision required. Resume the build after updating session_state.json.
+**RESOLVED 2026-04-25. BUGS medium fixed at source — Edge Cases entry harmonized.**
+
+### BUGS medium — FIXED
+The Edge Cases bullet on line 175 was stale leftover text from before the round-2 standardization (`df21c3a`, 2026-04-25). It still said "Pie legend > 8 items → first 8 shown + +N more text", which contradicts the canonical "top 5 + Other (N more) wedge" approach now in Subtask 2 (line 77) and Subtask 8 (line 108).
+
+Updated to:
+> Pie segments > 6 → top 5 by value shown + aggregate `Other (N more)` wedge (matches Subtask 2 + Subtask 8 standardized behavior)
+
+Single source of truth: top 5 + Other-wedge, ≤ 6 legend entries. No more divergence between sections.
+
+### Other 6 angles — APPROVE
+SECURITY, UI, GUIDE, USEFULNESS, COOL, LESSONS all clean.
+
+Cron may rerun PLAN; expected clean pass → IMPLEMENTATION.

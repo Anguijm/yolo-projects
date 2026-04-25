@@ -172,7 +172,7 @@ The section should include 3 worked examples (bar / line / pie) with fenced char
 - Missing comma → line skipped, count noted in warning
 - Value is NaN → line skipped, count noted in warning
 - Pie segment angle ≤ 15° → value label omitted (too small to fit)
-- Pie legend > 8 items → first 8 shown + `+N more` text
+- Pie segments > 6 → top 5 by value shown + aggregate `Other (N more)` wedge (matches Subtask 2 + Subtask 8 standardized behavior)
 
 ## Test Strategy
 - `test_project.py markdown-deck` — headless browser load, no JS errors
