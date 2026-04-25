@@ -1,49 +1,40 @@
 # Council Escalation — markdown-deck
 
-**Gate:** plan
+**Gate:** implementation
 **Reason:** Unresolved objections after 2 attempts
-**Timestamp:** 2026-04-25T00:02:56.248653+00:00
+**Timestamp:** 2026-04-25T00:19:56.664966+00:00
 
 ## Angle positions
 
-### BUGS — APPROVE (low)
-- **Reason:** The plan robustly addresses all identified correctness risks, including degenerate data ranges, negative values, data truncation, and invalid input handling, with explicit warnings and fallback mechanisms.
+### BUGS — OBJECT (high)
+- **Reason:** Pie charts can produce incorrect or uninterpretable visual output when given negative data values, which are not explicitly supported by the stated goal for pie charts.
+- **Required fix:** Modify `renderChart` to filter out negative data points for pie charts and optionally display a warning, as the stated goal only supports negative values for bar and line charts.
+- **Evidence:** `file:1000-1004, function _chartPie(parsed, tc, palette) { ... var total = pts.reduce(function(a, b) { return a + b.value; }, 0); ... var angles = displayPts.map(function(p) { return p.value / total * 360; }); ... }`
 
 ### SECURITY — APPROVE (low)
-- **Reason:** The plan explicitly addresses XSS by escaping all user-provided text before SVG insertion and parsing values safely, adhering to existing architectural security constraints.
+- **Reason:** The new chart feature correctly escapes user-provided labels and titles, and theme-derived colors are prefixed with '#' before SVG insertion, preventing new XSS vectors.
 
-### UI — OBJECT (low)
-- **Reason:** When an unknown chart type is specified (e.g., `chart foo`), the system silently falls back to a bar chart, which can confuse the user who expects a different type or explicit feedback.
-- **Required fix:** Display a small, visible warning message below the chart (similar to the truncation or skipped lines warnings) when an unknown chart type is encountered, informing the user of the fallback to 'bar'.
-- **Evidence:** `Subtask 8, point 9: "Unknown chart type — `chart foo` with no recognized type (bar/line/pie) falls back to `bar` with a console warning; no crash"`
+### UI — APPROVE (low)
+- **Reason:** The inline chart blocks are well-integrated, provide clear feedback for invalid data, are responsive, and include good accessibility attributes.
 
-### GUIDE — APPROVE (low)
-- **Reason:** The plan includes comprehensive documentation in DECK_GUIDE.md, explicit in-app help via a <details> block, clear examples, and visible, actionable error/warning messages, ensuring high discoverability for both human users and AI agents.
+### GUIDE — OBJECT (medium)
+- **Reason:** The inline chart block feature is not discoverable through the default application content or a dedicated UI element.
+- **Required fix:** Add a basic chart block example to the initial markdown content displayed in the editor textarea.
+- **Evidence:** `file:markdown-deck/index.html (textarea id='input' content is missing a chart example)`
 
 ### USEFULNESS — APPROVE (low)
-- **Reason:** This feature addresses a clear and recurring need for users creating data-driven presentations, integrating charts directly into the markdown workflow with theme consistency.
-- **Evidence:** `The ability to define simple charts inline, with automatic theme-matching, significantly reduces friction compared to generating charts externally and embedding images, making markdown-deck a more complete and useful tool for presentations.`
+- **Reason:** Inline chart blocks directly address a core need for data visualization in presentations, enhancing utility significantly.
+- **Evidence:** `Common presentation tools (PowerPoint, Google Slides) all offer chart creation. This feature brings that essential capability directly into the markdown workflow, reducing friction and ensuring theme consistency. The handling of data (CSV, truncation warnings) suggests robustness for real-world use.`
 
 ### COOL — APPROVE (low)
-- **Reason:** The automatic theme integration for charts is a strong signature move, making them feel native to the presentation and differentiating from generic chart tools.
-- **Evidence:** `Many online CSV-to-chart tools, Chart.js demos`
+- **Reason:** Pure SVG, zero-dependency, theme-aware inline charts with simple CSV syntax are a signature move that reinforces the project's unique ethos.
 
-### LESSONS — APPROVE (low)
-- **Reason:** The plan explicitly incorporates the `<details>` pattern for structured input documentation and adheres to the `CONSTRAINTS.md` for CSP, showing proactive application of documented lessons.
-- **Evidence:** `Subtask 8, item 12: 'Inline `<details>` quick reference (per LESSONS advisory PLAN-escalation 2026-04-24, satisfies the port-ref `<details>` pattern KEEP rule for tools accepting structured input)...' and Security section: 'CSP unchanged (CONSTRAINTS.md)'`
+### LESSONS — APPROVE (advisory)
+- **Reason:** [AUTO-DOWNGRADED: LESSONS VETO missing precondition_evidence] The SECURITY objection, as described in the council focus, re-litigates architectural constraints (unsafe-inline CSP, md() + innerHTML rendering) that are explicitly documented as out-of-scope for per-feature review, violating `STRUCTURAL CONSTRAINTS` and a recurring `INSIGHT` in `learnings.md`.
+- **Required fix:** The SECURITY angle must retract its objection based on pre-existing architectural patterns and instead focus only on new attack surfaces introduced by the chart feature, which are already mitigated by `esc()` calls for user-provided data.
+- **Evidence:** `STRUCTURAL CONSTRAINTS Constraint 1: 'SECURITY may NOT object to `unsafe-inline` as a per-feature issue.'
+STRUCTURAL CONSTRAINTS Constraint 2: 'SECURITY may NOT require `DOMPurify` or any server-side sanitization for individual features that use `md() + innerHTML` when that pattern is already the ap`
 
 ## Resolution
 
-**RESOLVED 2026-04-25. UI low fixed at source — unknown chart type now shows a visible warning row.**
-
-### UI low — FIXED
-Updated Subtask 8 item 9 and the Edge Cases entry to specify a visible warning row when an unknown chart type is encountered, matching the existing pattern for truncation/skipped-lines warnings:
-
-> Unknown chart type — `chart foo` with no recognized type (bar/line/pie) falls back to `bar` with a **visible warning row below the chart**: `⚠ unknown chart type "{requested}" — rendered as bar`. Same `slide-chart-warn` style as the truncation/skipped-lines warnings; never silent. Console warning still emitted for debugging.
-
-Behavior is now uniform across the three "soft fallback" cases (truncation, skipped lines, unknown type) — every silent fallback gets a visible row.
-
-### Other 6 angles — APPROVE
-BUGS, SECURITY, GUIDE, USEFULNESS, COOL, LESSONS all clean.
-
-Cron may rerun PLAN; expected clean pass → IMPLEMENTATION.
+Human decision required. Resume the build after updating session_state.json.

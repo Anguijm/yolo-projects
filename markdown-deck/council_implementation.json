@@ -1,82 +1,100 @@
 {
   "gate": "implementation",
   "project": "markdown-deck",
-  "timestamp": "2026-04-13T04:53:28.803324+00:00",
+  "timestamp": "2026-04-25T00:19:56.664519+00:00",
   "verdicts": [
     {
       "angle": "bugs",
-      "verdict": "APPROVE",
-      "severity": "low",
-      "reason": "The Named Snapshots feature correctly handles storage limits, data persistence, and UI updates, with robust error handling for localStorage quota and corrupt data.",
-      "required_fix": "",
-      "evidence": "",
-      "veto": false
+      "verdict": "OBJECT",
+      "severity": "high",
+      "reason": "Pie charts can produce incorrect or uninterpretable visual output when given negative data values, which are not explicitly supported by the stated goal for pie charts.",
+      "required_fix": "Modify `renderChart` to filter out negative data points for pie charts and optionally display a warning, as the stated goal only supports negative values for bar and line charts.",
+      "evidence": "file:1000-1004, function _chartPie(parsed, tc, palette) { ... var total = pts.reduce(function(a, b) { return a + b.value; }, 0); ... var angles = displayPts.map(function(p) { return p.value / total * 360; }); ... }",
+      "veto": false,
+      "parse_failed": false
     },
     {
       "angle": "security",
       "verdict": "APPROVE",
       "severity": "low",
-      "reason": "The Named Snapshots feature adheres to existing architectural constraints; no new attack surfaces or trust-boundary violations are introduced beyond the established baseline.",
+      "reason": "The new chart feature correctly escapes user-provided labels and titles, and theme-derived colors are prefixed with '#' before SVG insertion, preventing new XSS vectors.",
       "required_fix": "",
       "evidence": "",
-      "veto": false
+      "veto": false,
+      "parse_failed": false
     },
     {
       "angle": "ui",
-      "verdict": "OBJECT",
-      "severity": "high",
-      "reason": "Buttons within the snapshots modal (Restore, Del) and meta-information text are excessively small, leading to poor readability and difficult tap targets, especially on mobile devices or for users with visual impairments.",
-      "required_fix": "Increase font size and padding for `.sn-btn` and `.sn-meta` elements to ensure they are easily readable and have sufficient tap target area (minimum 44x44px for touch). Also, ensure sufficient contrast for `.sn-meta` and `.sn-count` text.",
-      "evidence": "markdown-deck/index.html:1003-1004 (sn-btn font-size, padding), 999 (sn-meta font-size, color), 990 (sn-count color)",
-      "veto": false
+      "verdict": "APPROVE",
+      "severity": "low",
+      "reason": "The inline chart blocks are well-integrated, provide clear feedback for invalid data, are responsive, and include good accessibility attributes.",
+      "required_fix": "",
+      "evidence": "",
+      "veto": false,
+      "parse_failed": false
     },
     {
       "angle": "guide",
-      "verdict": "APPROVE",
-      "severity": "low",
-      "reason": "The Named Snapshots feature is highly discoverable with clear in-app hints, tooltips, and comprehensive documentation.",
-      "required_fix": "",
-      "evidence": "",
-      "veto": false
+      "verdict": "OBJECT",
+      "severity": "medium",
+      "reason": "The inline chart block feature is not discoverable through the default application content or a dedicated UI element.",
+      "required_fix": "Add a basic chart block example to the initial markdown content displayed in the editor textarea.",
+      "evidence": "file:markdown-deck/index.html (textarea id='input' content is missing a chart example)",
+      "veto": false,
+      "parse_failed": false
     },
     {
       "angle": "usefulness",
       "verdict": "APPROVE",
       "severity": "low",
-      "reason": "Named Snapshots provide essential version control for a local-first authoring tool, enabling iterative content creation and a safety net for users.",
+      "reason": "Inline chart blocks directly address a core need for data visualization in presentations, enhancing utility significantly.",
       "required_fix": "",
-      "evidence": "Similar versioning features are standard in most serious content creation and editing applications (e.g., Google Docs version history, Git for code, design software history panels). This addresses a clear need for users to revert, compare, or explore alternative versions of their presentations without manual file management.",
-      "veto": false
+      "evidence": "Common presentation tools (PowerPoint, Google Slides) all offer chart creation. This feature brings that essential capability directly into the markdown workflow, reducing friction and ensuring theme consistency. The handling of data (CSV, truncation warnings) suggests robustness for real-world use.",
+      "veto": false,
+      "parse_failed": false
     },
     {
       "angle": "cool",
       "verdict": "APPROVE",
       "severity": "low",
-      "reason": "The named snapshots feature with visual thumbnails, inline editable labels, and a dedicated shortcut (Ctrl+Shift+S) provides a genuinely differentiated and memorable versioning experience for a local-only markdown editor, creating a clear 'signature move' beyond basic undo/redo.",
+      "reason": "Pure SVG, zero-dependency, theme-aware inline charts with simple CSV syntax are a signature move that reinforces the project's unique ethos.",
       "required_fix": "",
       "evidence": "",
-      "veto": false
+      "veto": false,
+      "parse_failed": false
     },
     {
       "angle": "lessons",
       "verdict": "APPROVE",
-      "severity": "low",
-      "reason": "All documented lessons and architectural constraints are adhered to, including the `createDocumentFragment` fix from the prior plan gate escalation.",
-      "required_fix": "",
-      "evidence": "",
-      "veto": false
+      "severity": "advisory",
+      "reason": "[AUTO-DOWNGRADED: LESSONS VETO missing precondition_evidence] The SECURITY objection, as described in the council focus, re-litigates architectural constraints (unsafe-inline CSP, md() + innerHTML rendering) that are explicitly documented as out-of-scope for per-feature review, violating `STRUCTURAL CONSTRAINTS` and a recurring `INSIGHT` in `learnings.md`.",
+      "required_fix": "The SECURITY angle must retract its objection based on pre-existing architectural patterns and instead focus only on new attack surfaces introduced by the chart feature, which are already mitigated by `esc()` calls for user-provided data.",
+      "evidence": "STRUCTURAL CONSTRAINTS Constraint 1: 'SECURITY may NOT object to `unsafe-inline` as a per-feature issue.'\nSTRUCTURAL CONSTRAINTS Constraint 2: 'SECURITY may NOT require `DOMPurify` or any server-side sanitization for individual features that use `md() + innerHTML` when that pattern is already the app-wide baseline.'\nlearnings.md (eval-opus-47-backbone entry): 'INSIGHT: SECURITY over-indexing on portfolio-wide CSP \u2014 the `unsafe-inline` CSP is an approved architectural tradeoff for zero-dependency single-file HTML tools... SECURITY objects to it on every project despite the standing constraint.'\ncouncil_focus: 'The SECURITY objection in attempt 1 cited overridesToStyle() \u2014 that function is PRE-EXISTING... Per CONSTRAINTS.md Constraint 2: 'The user authors their own markdown... There is no third-party content injection path.' ... The chart feature's user-provided data (CSV labels, values, chart type) are all passed through esc() before any HTML/SVG insertion \u2014 no new XSS surface exists.'",
+      "veto": false,
+      "parse_failed": false
     }
   ],
   "all_approved": false,
   "objections": [
     {
-      "angle": "ui",
+      "angle": "bugs",
       "verdict": "OBJECT",
       "severity": "high",
-      "reason": "Buttons within the snapshots modal (Restore, Del) and meta-information text are excessively small, leading to poor readability and difficult tap targets, especially on mobile devices or for users with visual impairments.",
-      "required_fix": "Increase font size and padding for `.sn-btn` and `.sn-meta` elements to ensure they are easily readable and have sufficient tap target area (minimum 44x44px for touch). Also, ensure sufficient contrast for `.sn-meta` and `.sn-count` text.",
-      "evidence": "markdown-deck/index.html:1003-1004 (sn-btn font-size, padding), 999 (sn-meta font-size, color), 990 (sn-count color)",
-      "veto": false
+      "reason": "Pie charts can produce incorrect or uninterpretable visual output when given negative data values, which are not explicitly supported by the stated goal for pie charts.",
+      "required_fix": "Modify `renderChart` to filter out negative data points for pie charts and optionally display a warning, as the stated goal only supports negative values for bar and line charts.",
+      "evidence": "file:1000-1004, function _chartPie(parsed, tc, palette) { ... var total = pts.reduce(function(a, b) { return a + b.value; }, 0); ... var angles = displayPts.map(function(p) { return p.value / total * 360; }); ... }",
+      "veto": false,
+      "parse_failed": false
+    },
+    {
+      "angle": "guide",
+      "verdict": "OBJECT",
+      "severity": "medium",
+      "reason": "The inline chart block feature is not discoverable through the default application content or a dedicated UI element.",
+      "required_fix": "Add a basic chart block example to the initial markdown content displayed in the editor textarea.",
+      "evidence": "file:markdown-deck/index.html (textarea id='input' content is missing a chart example)",
+      "veto": false,
+      "parse_failed": false
     }
   ],
   "vetoed": false

@@ -38,7 +38,8 @@ Add `.slide-chart` wrapper style matching `.slide-diagram`. Add `aria-label` sup
 **`renderChart(type, csvData)`:**
 - Guard: 0 points → return `[chart: no data]` div
 - Wraps SVG in `<div class="slide-chart" role="img" aria-label="[type] chart: [title]">`
-- If `skipped > 0`, appends a `<div class="slide-chart-warn">[N line(s) skipped — invalid format]</div>` below SVG
+- If `skipped > 0`, appends a `<div class="slide-chart-warn">[N line(s) skipped — invalid format]</div>` below SVG (static string, no user input)
+- Unknown chart type warning: `⚠ unknown chart type "` + **`esc(type)`** + `" — rendered as bar"` — the `type` string (from the fenced-block language tag) is passed through `esc()` before insertion into the warning div
 - Dispatches to bar/line/pie renderer
 
 **Theme integration (signature move):**
@@ -72,7 +73,7 @@ Add `.slide-chart` wrapper style matching `.slide-diagram`. Add `aria-label` sup
 **Pie chart SVG (viewBox 480×260):** (height bumped 220→260 to match bar/line for layout consistency)
 - Circle center: (160, 130), radius 95
 - If all values 0: gray circle + centered `[no data]` text; legend shows all items with "0%"
-- Segments: SVG arc paths from cumulative angles; theme palette rotation
+- Segments: SVG arc paths from cumulative angles; theme palette rotation; **last segment angle = 360° minus sum of prior angles** (eliminates float drift gap/overlap; standard technique)
 - **Value labels:** percentage text inside/near segment center (when segment angle > 15°; else skipped)
 - **Legend behavior — STANDARDIZED** (per UI PLAN-escalation #2 2026-04-25, resolves the prior contradiction with Subtask 8 item 10): show **top 5 segments by value**, then aggregate the remaining segments into a single **`Other (N more)` wedge** + legend entry. Legend total is always ≤ 6 entries — no `+N more` fly-out, no inconsistent rendering between SVG and docs.
 - Legend layout: right side x=260, y starts 30; colored square 10×10 + label (**16-char max** with `…`, bumped from 8 per UI PLAN-escalation #2) + `%` value; **font-size 11px** [bumped from 8px to match bar/line label fonts]
@@ -141,6 +142,7 @@ The section should include 3 worked examples (bar / line / pie) with fenced char
 - Theme colors from `getThemeColors()` are internal CSS values (already trusted)
 - No external resources, no XHR; CSP unchanged (CONSTRAINTS.md)
 - `aria-label` text uses escaped title/type strings
+- **Warning div content:** `{requested}` chart-type string in `slide-chart-warn` divs is passed through `esc()` before HTML insertion; static warning strings (skipped-lines count, truncation count) are numeric/fixed and need no escaping
 
 ## UI
 - Charts render inline at fenced block position (same as diagrams)

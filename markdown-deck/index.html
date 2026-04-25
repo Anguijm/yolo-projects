@@ -93,6 +93,9 @@ textarea:focus { outline: none; }
 .present-slide .math-inline { font-size: 1.1em; }
 .slide-diagram { margin: 0.5rem 0; text-align: center; }
 .slide-diagram svg { max-width: 100%; }
+.slide-chart { margin: 0.5rem 0; text-align: center; }
+.slide-chart svg { max-width: 100%; }
+.slide-chart-warn { font-size: 0.55rem; color: #f59e0b; margin-top: 0.15rem; padding: 0.1rem 0.3rem; text-align: left; }
 .code-lang { display: block; font-size: 0.6rem; color: #555; letter-spacing: 0.1em; margin-bottom: -0.2rem; text-transform: uppercase; }
 /* Syntax highlighting tokens */
 .sg-keyword  { color: #c678dd; }
@@ -833,6 +836,156 @@ var FlowDiagram = (function() {
   return { toSvg: toSvg };
 })();
 
+// ============ CHART RENDERER (pure SVG, zero-dep) ============
+function _truncLabel(s) { return s.length > 16 ? s.substring(0, 15) + '…' : s; }
+
+function parseChartData(csvData) {
+  var lines = (csvData || '').split('\n');
+  var title = '', points = [], skipped = 0;
+  for (var i = 0; i < lines.length; i++) {
+    var l = lines[i].trim();
+    if (!l) continue;
+    if (/^title:/i.test(l)) { title = l.replace(/^title:\s*/i, ''); continue; }
+    var ci = l.indexOf(',');
+    if (ci === -1) { skipped++; continue; }
+    var lbl = l.substring(0, ci).trim();
+    var val = parseFloat(l.substring(ci + 1));
+    if (isNaN(val)) { skipped++; continue; }
+    points.push({ label: lbl, value: val });
+  }
+  var truncated = 0;
+  if (points.length > 20) { truncated = points.length - 20; points = points.slice(0, 20); }
+  return { title: title, points: points, skipped: skipped, truncated: truncated };
+}
+
+function _chartBarLine(type, parsed, tc, palette) {
+  var pts = parsed.points, n = pts.length;
+  var vW = 480, vH = 260, pL = 44, pR = 472, pT = 28, pB = 216, pW = 428, pH = 188;
+  var vals = pts.map(function(p) { return p.value; });
+  var hasNeg = vals.some(function(v) { return v < 0; });
+  var rawMax = Math.max.apply(null, vals);
+  var rawMin = hasNeg ? Math.min.apply(null, vals) : 0;
+  var degenerate = rawMax === rawMin;
+  var dMax = degenerate ? rawMax + 1 : rawMax;
+  var dMin = degenerate ? rawMax - 1 : rawMin;
+  var dRange = dMax - dMin;
+  function yOf(v) { return pT + pH * (dMax - v) / dRange; }
+  var baseY = degenerate ? pT + pH / 2 : yOf(0);
+  if (baseY < pT) baseY = pT;
+  if (baseY > pB) baseY = pB;
+  var svg = '<svg viewBox="0 0 ' + vW + ' ' + vH + '">';
+  if (parsed.title) svg += '<text x="' + (pL + pW / 2) + '" y="18" text-anchor="middle" font-size="13" fill="#' + tc.heading + '">' + esc(parsed.title) + '</text>';
+  var gridVals = degenerate ? [rawMax] : [dMax, dMax - dRange * 0.25, dMax - dRange * 0.5, dMax - dRange * 0.75, dMin];
+  for (var gi = 0; gi < gridVals.length; gi++) {
+    var gy = degenerate ? pT + pH / 2 : yOf(gridVals[gi]);
+    svg += '<line x1="' + pL + '" y1="' + gy.toFixed(1) + '" x2="' + pR + '" y2="' + gy.toFixed(1) + '" stroke="#1a1a1a" stroke-width="0.5"/>';
+    var glbl = gridVals[gi] % 1 === 0 ? String(gridVals[gi]) : gridVals[gi].toFixed(1);
+    svg += '<text x="' + (pL - 3) + '" y="' + (gy + 3).toFixed(1) + '" text-anchor="end" font-size="8" fill="#' + tc.text + '">' + glbl + '</text>';
+  }
+  if ((hasNeg || degenerate) && !degenerate) svg += '<line x1="' + pL + '" y1="' + baseY.toFixed(1) + '" x2="' + pR + '" y2="' + baseY.toFixed(1) + '" stroke="#444" stroke-width="1"/>';
+  if (type === 'bar') {
+    var bW = Math.min(36, pW / n * 0.65), slot = pW / n;
+    for (var bi = 0; bi < n; bi++) {
+      var bx = pL + slot * bi + slot / 2;
+      var vy = yOf(pts[bi].value);
+      var isPos = pts[bi].value >= 0;
+      var ry = isPos ? vy : baseY, rh = Math.max(1, Math.abs(vy - baseY));
+      svg += '<rect x="' + (bx - bW / 2).toFixed(1) + '" y="' + ry.toFixed(1) + '" width="' + bW.toFixed(1) + '" height="' + rh.toFixed(1) + '" fill="' + palette[0] + '" rx="3" ry="3"/>';
+      var vl = pts[bi].value % 1 === 0 ? String(pts[bi].value) : pts[bi].value.toFixed(1);
+      svg += '<text x="' + bx.toFixed(1) + '" y="' + (isPos ? vy - 3 : vy + 11).toFixed(1) + '" text-anchor="middle" font-size="11" fill="' + palette[0] + '">' + vl + '</text>';
+      var xl = esc(_truncLabel(pts[bi].label));
+      if (n > 5) svg += '<text x="' + bx.toFixed(1) + '" y="' + (pB + 14) + '" text-anchor="end" font-size="11" fill="#' + tc.text + '" transform="rotate(-35 ' + bx.toFixed(1) + ' ' + (pB + 14) + ')">' + xl + '</text>';
+      else svg += '<text x="' + bx.toFixed(1) + '" y="' + (pB + 14) + '" text-anchor="middle" font-size="11" fill="#' + tc.text + '">' + xl + '</text>';
+    }
+  } else {
+    var slotL = n > 1 ? pW / (n - 1) : 0;
+    var polyPts = '', firstX = pL + (n === 1 ? pW / 2 : 0), lastX = pL + (n === 1 ? pW / 2 : slotL * (n - 1));
+    for (var li = 0; li < n; li++) {
+      var lx = pL + (n === 1 ? pW / 2 : slotL * li), ly = yOf(pts[li].value);
+      polyPts += lx.toFixed(1) + ',' + ly.toFixed(1) + ' ';
+    }
+    svg += '<polygon points="' + polyPts + lastX.toFixed(1) + ',' + baseY.toFixed(1) + ' ' + firstX.toFixed(1) + ',' + baseY.toFixed(1) + '" fill="' + palette[0] + '" fill-opacity="0.15"/>';
+    svg += '<polyline points="' + polyPts + '" fill="none" stroke="' + palette[0] + '" stroke-width="2"/>';
+    for (var li2 = 0; li2 < n; li2++) {
+      var lx2 = pL + (n === 1 ? pW / 2 : slotL * li2), ly2 = yOf(pts[li2].value);
+      svg += '<circle cx="' + lx2.toFixed(1) + '" cy="' + ly2.toFixed(1) + '" r="3.5" fill="' + palette[0] + '"/>';
+      var vl2 = pts[li2].value % 1 === 0 ? String(pts[li2].value) : pts[li2].value.toFixed(1);
+      var isPos2 = pts[li2].value >= 0;
+      svg += '<text x="' + lx2.toFixed(1) + '" y="' + (isPos2 ? ly2 - 6 : ly2 + 14).toFixed(1) + '" text-anchor="middle" font-size="11" fill="#' + tc.heading + '">' + vl2 + '</text>';
+      var xl2 = esc(_truncLabel(pts[li2].label));
+      if (n > 5) svg += '<text x="' + lx2.toFixed(1) + '" y="' + (pB + 14) + '" text-anchor="end" font-size="11" fill="#' + tc.text + '" transform="rotate(-35 ' + lx2.toFixed(1) + ' ' + (pB + 14) + ')">' + xl2 + '</text>';
+      else svg += '<text x="' + lx2.toFixed(1) + '" y="' + (pB + 14) + '" text-anchor="middle" font-size="11" fill="#' + tc.text + '">' + xl2 + '</text>';
+    }
+  }
+  svg += '</svg>';
+  return svg;
+}
+
+function _chartPie(parsed, tc, palette) {
+  var pts = parsed.points, vW = 480, vH = 260, cx = 160, cy = 130, r = 95;
+  var svg = '<svg viewBox="0 0 ' + vW + ' ' + vH + '">';
+  if (parsed.title) svg += '<text x="' + cx + '" y="16" text-anchor="middle" font-size="13" fill="#' + tc.heading + '">' + esc(parsed.title) + '</text>';
+  var total = pts.reduce(function(a, b) { return a + b.value; }, 0);
+  if (total === 0) {
+    svg += '<circle cx="' + cx + '" cy="' + cy + '" r="' + r + '" fill="#333"/>';
+    svg += '<text x="' + cx + '" y="' + (cy + 5) + '" text-anchor="middle" font-size="12" fill="#888">[no data]</text>';
+    var ly0 = 30;
+    for (var zi = 0; zi < Math.min(pts.length, 6); zi++) { svg += '<rect x="260" y="' + ly0 + '" width="10" height="10" fill="' + palette[zi % palette.length] + '"/><text x="275" y="' + (ly0 + 9) + '" font-size="11" fill="#' + tc.text + '">' + esc(_truncLabel(pts[zi].label)) + ' 0%</text>'; ly0 += 20; }
+    return svg + '</svg>';
+  }
+  var sorted = pts.slice().sort(function(a, b) { return b.value - a.value; });
+  var displayPts;
+  if (sorted.length > 6) {
+    displayPts = sorted.slice(0, 5);
+    var otherVal = sorted.slice(5).reduce(function(a, b) { return a + b.value; }, 0);
+    displayPts.push({ label: 'Other (' + (sorted.length - 5) + ' more)', value: otherVal });
+  } else { displayPts = sorted; }
+  var angles = displayPts.map(function(p) { return p.value / total * 360; });
+  var sumPrev = angles.slice(0, -1).reduce(function(a, b) { return a + b; }, 0);
+  angles[angles.length - 1] = 360 - sumPrev;
+  var cumAngle = -90;
+  for (var pi = 0; pi < displayPts.length; pi++) {
+    var seg = angles[pi];
+    if (seg <= 0) { cumAngle += seg; continue; }
+    var sa = cumAngle * Math.PI / 180, ea = (cumAngle + seg) * Math.PI / 180;
+    var x1 = cx + r * Math.cos(sa), y1 = cy + r * Math.sin(sa);
+    var x2 = cx + r * Math.cos(ea), y2 = cy + r * Math.sin(ea);
+    var col = palette[pi % palette.length];
+    svg += '<path d="M ' + cx + ' ' + cy + ' L ' + x1.toFixed(2) + ' ' + y1.toFixed(2) + ' A ' + r + ' ' + r + ' 0 ' + (seg > 180 ? 1 : 0) + ' 1 ' + x2.toFixed(2) + ' ' + y2.toFixed(2) + ' Z" fill="' + col + '"/>';
+    if (seg > 15) {
+      var midRad = (cumAngle + seg / 2) * Math.PI / 180;
+      svg += '<text x="' + (cx + r * 0.6 * Math.cos(midRad)).toFixed(1) + '" y="' + (cy + r * 0.6 * Math.sin(midRad) + 4).toFixed(1) + '" text-anchor="middle" font-size="10" fill="#fff">' + Math.round(displayPts[pi].value / total * 100) + '%</text>';
+    }
+    cumAngle += seg;
+  }
+  var legendY = 30;
+  for (var li = 0; li < displayPts.length; li++) {
+    svg += '<rect x="260" y="' + legendY + '" width="10" height="10" fill="' + palette[li % palette.length] + '"/>';
+    svg += '<text x="275" y="' + (legendY + 9) + '" font-size="11" fill="#' + tc.text + '">' + esc(_truncLabel(displayPts[li].label)) + ' ' + Math.round(displayPts[li].value / total * 100) + '%</text>';
+    legendY += 20;
+  }
+  return svg + '</svg>';
+}
+
+function renderChart(type, csvData) {
+  var parsed = parseChartData(csvData || '');
+  var tc = getThemeColors();
+  var palette = ['#' + tc.accent, '#' + tc.subheading, '#' + tc.emphasis, '#f59e0b', '#f472b6', '#a78bfa'];
+  var chartType = ((type || 'bar').trim().split(/\s+/)[0]).toLowerCase();
+  var warns = '';
+  if (chartType !== 'bar' && chartType !== 'line' && chartType !== 'pie') {
+    warns += '<div class="slide-chart-warn">⚠ unknown chart type “' + esc(chartType) + '” — rendered as bar</div>';
+    console.warn('[chart] unknown type:', chartType, '— fallback to bar');
+    chartType = 'bar';
+  }
+  if (parsed.truncated > 0) warns += '<div class="slide-chart-warn">⚠ 20-point limit — ' + parsed.truncated + ' additional point' + (parsed.truncated === 1 ? '' : 's') + ' hidden</div>';
+  if (parsed.skipped > 0) warns += '<div class="slide-chart-warn">[' + parsed.skipped + ' line(s) skipped — invalid format]</div>';
+  var aria = esc(chartType) + ' chart' + (parsed.title ? ': ' + esc(parsed.title) : '');
+  if (parsed.points.length === 0) return '<div class="slide-chart" role="img" aria-label="' + aria + '"><div style="padding:1rem;color:#666;font-size:0.8rem">[chart: no data]</div>' + warns + '</div>';
+  var svgHtml = chartType === 'pie' ? _chartPie(parsed, tc, palette) : _chartBarLine(chartType, parsed, tc, palette);
+  return '<div class="slide-chart" role="img" aria-label="' + aria + '">' + svgHtml + warns + '</div>';
+}
+
 // ============ MATH RENDERER (zero-dep LaTeX subset) ============
 var MATH_GREEK = {alpha:'\u03B1',beta:'\u03B2',gamma:'\u03B3',delta:'\u03B4',epsilon:'\u03B5',zeta:'\u03B6',eta:'\u03B7',theta:'\u03B8',iota:'\u03B9',kappa:'\u03BA',lambda:'\u03BB',mu:'\u03BC',nu:'\u03BD',xi:'\u03BE',pi:'\u03C0',rho:'\u03C1',sigma:'\u03C3',tau:'\u03C4',upsilon:'\u03C5',phi:'\u03C6',chi:'\u03C7',psi:'\u03C8',omega:'\u03C9',Alpha:'\u0391',Beta:'\u0392',Gamma:'\u0393',Delta:'\u0394',Theta:'\u0398',Lambda:'\u039B',Pi:'\u03A0',Sigma:'\u03A3',Phi:'\u03A6',Psi:'\u03A8',Omega:'\u03A9'};
 var MATH_SYMS = {infty:'\u221E',pm:'\u00B1',mp:'\u2213',times:'\u00D7',div:'\u00F7',cdot:'\u22C5',leq:'\u2264',geq:'\u2265',neq:'\u2260',approx:'\u2248',equiv:'\u2261',sum:'\u2211',prod:'\u220F',int:'\u222B',partial:'\u2202',nabla:'\u2207',forall:'\u2200',exists:'\u2203',in:'\u2208',notin:'\u2209',subset:'\u2282',supset:'\u2283',cup:'\u222A',cap:'\u2229',emptyset:'\u2205',rightarrow:'\u2192',leftarrow:'\u2190',Rightarrow:'\u21D2',Leftarrow:'\u21D0',leftrightarrow:'\u2194',sqrt:'\u221A',langle:'\u27E8',rangle:'\u27E9',ldots:'\u2026',cdots:'\u22EF',star:'\u22C6',circ:'\u2218',bullet:'\u2022',neg:'\u00AC',land:'\u2227',lor:'\u2228'};
@@ -926,11 +1079,14 @@ function md(text) {
 
   // 1. Extract fenced code blocks into placeholders
   var codeBlocks = [];
-  var html = text.replace(/```(\w*)\n([\s\S]*?)```/g, function(_, lang, code) {
+  var html = text.replace(/```([\w ]*)\n([\s\S]*?)```/g, function(_, lang, code) {
     var langAttr = lang ? ' data-lang="' + esc(lang) + '"' : '';
-    var langLabel = lang ? '<span class="code-lang">' + esc(lang) + '</span>' : '';
-    if (lang && lang.toLowerCase() === 'diagram') {
+    var langLabel = lang ? '<span class="code-lang">' + esc(lang.trim()) + '</span>' : '';
+    if (lang && lang.trim().toLowerCase() === 'diagram') {
       codeBlocks.push('<div class="slide-diagram">' + FlowDiagram.toSvg(code.trimEnd()) + '</div>');
+    } else if (lang && lang.trim().split(/\s+/)[0].toLowerCase() === 'chart') {
+      var chartSubtype = lang.trim().split(/\s+/)[1] || 'bar';
+      codeBlocks.push(renderChart(chartSubtype, code));
     } else {
       var highlighted = lang ? sgHighlight(code.trimEnd(), lang.toLowerCase()) : esc(code.trimEnd());
       codeBlocks.push(langLabel + '<pre' + langAttr + '><code>' + highlighted + '</code></pre>');
@@ -1219,7 +1375,7 @@ var Pretext = (function() {
   var _cx = _cv.getContext('2d');
 
   function _hasComplex(el) {
-    return !!(el.querySelector('pre, img, table, svg, .slide-diagram, .math-block, .math-inline, .pos-block, .columns'));
+    return !!(el.querySelector('pre, img, table, svg, .slide-diagram, .slide-chart, .math-block, .math-inline, .pos-block, .columns'));
   }
 
   function _lines(text, maxW, font) {
@@ -1950,6 +2106,13 @@ function parseBodyLines(lines) {
       while (i < lines.length && !/^```/.test(lines[i])) { diag.push(lines[i]); i++; }
       body.push({ type: 'diagram', text: diag.join('\n') });
     }
+    else if (/^```chart/.test(l)) {
+      var chartSubtype = l.replace(/^```chart\s*/, '').trim() || 'bar';
+      var chartLines = [];
+      i++;
+      while (i < lines.length && !/^```/.test(lines[i])) { chartLines.push(lines[i]); i++; }
+      body.push({ type: 'chart', chartType: chartSubtype, text: chartLines.join('\n') });
+    }
     else if (/^```/.test(l)) {
       var code = [];
       i++;
@@ -2129,6 +2292,15 @@ function buildSlideXml(parsed, idx, imageRegistry) {
         slideImages.push({ rId: diagRId, src: '__diagram__', svgData: diagSvg });
         imageRegistry.push({ src: '__diagram__', slideIdx: idx, rId: diagRId, svgData: diagSvg });
         paras += '<a:p><a:pPr algn="ctr"><a:spcBef><a:spcPts val="200"/></a:spcBef></a:pPr><a:r><a:rPr lang="en-US" sz="1000"><a:solidFill><a:srgbClr val="555555"/></a:solidFill></a:rPr><a:t>[diagram]</a:t></a:r></a:p>';
+      } else if (item.type === 'chart') {
+        // Render chart as SVG then rasterize to PNG via same pipeline as diagrams
+        var chartRId = 'rChart' + imageRegistry.length;
+        var chartHtml = renderChart(item.chartType, item.text);
+        var svgMatch = chartHtml.match(/<svg[\s\S]*?<\/svg>/);
+        var chartSvgData = svgMatch ? svgMatch[0] : '';
+        slideImages.push({ rId: chartRId, src: '__chart__', svgData: chartSvgData });
+        imageRegistry.push({ src: '__chart__', slideIdx: idx, rId: chartRId, svgData: chartSvgData });
+        paras += '<a:p><a:pPr algn="ctr"><a:spcBef><a:spcPts val="200"/></a:spcBef></a:pPr><a:r><a:rPr lang="en-US" sz="1000"><a:solidFill><a:srgbClr val="555555"/></a:solidFill></a:rPr><a:t>[chart]</a:t></a:r></a:p>';
       } else if (item.type === 'table') {
         // OOXML table — rendered as a separate shape, but inlined as paragraph placeholder
         // We'll build a mini table XML and wrap it as text since true <a:tbl> requires a separate shape
@@ -3708,7 +3880,9 @@ renderPreview();
     var hasTables = /^\|[-|: ]+\|/m.test(body) ? 1 : 0;
     // Diagrams: ```diagram blocks
     var diagrams = (body.match(/^```diagram/gmi) || []).length;
-    return { codeBlocks: codeBlocks - diagrams, images: images, tables: hasTables, diagrams: diagrams };
+    // Charts: ```chart blocks
+    var charts = (body.match(/^```chart/gmi) || []).length;
+    return { codeBlocks: codeBlocks - diagrams - charts, images: images, tables: hasTables, diagrams: diagrams, charts: charts };
   }
 
   function hasNotes(raw) {
@@ -3722,7 +3896,7 @@ renderPreview();
   }
 
   function computeStats() {
-    var totalWords = 0, totalCode = 0, totalImages = 0, totalTables = 0, totalDiagrams = 0, notesSlides = 0;
+    var totalWords = 0, totalCode = 0, totalImages = 0, totalTables = 0, totalDiagrams = 0, totalCharts = 0, notesSlides = 0;
     var rows = [];
     for (var i = 0; i < slides.length; i++) {
       var raw = slides[i];
@@ -3734,11 +3908,12 @@ renderPreview();
       totalImages += elems.images;
       totalTables += elems.tables;
       totalDiagrams += elems.diagrams;
+      totalCharts += elems.charts;
       if (notes) notesSlides++;
       rows.push({ idx: i + 1, title: slideTitle(raw), words: w, elems: elems, notes: notes });
     }
     var totalSecs = Math.round(totalWords / WPM * 60);
-    return { slides: slides.length, words: totalWords, totalSecs: totalSecs, codeBlocks: totalCode, images: totalImages, tables: totalTables, diagrams: totalDiagrams, notesSlides: notesSlides, rows: rows };
+    return { slides: slides.length, words: totalWords, totalSecs: totalSecs, codeBlocks: totalCode, images: totalImages, tables: totalTables, diagrams: totalDiagrams, charts: totalCharts, notesSlides: notesSlides, rows: rows };
   }
 
   function renderOverview(stats) {
@@ -3752,7 +3927,8 @@ renderPreview();
       '<div class="sm-card"><div class="sm-card-label">Code Blocks</div><div class="sm-card-value">' + stats.codeBlocks + '</div></div>' +
       '<div class="sm-card"><div class="sm-card-label">Images</div><div class="sm-card-value">' + stats.images + '</div></div>' +
       '<div class="sm-card"><div class="sm-card-label">Tables</div><div class="sm-card-value">' + stats.tables + '</div></div>' +
-      '<div class="sm-card"><div class="sm-card-label">Diagrams</div><div class="sm-card-value">' + stats.diagrams + '</div></div>';
+      '<div class="sm-card"><div class="sm-card-label">Diagrams</div><div class="sm-card-value">' + stats.diagrams + '</div></div>' +
+      '<div class="sm-card"><div class="sm-card-label">Charts</div><div class="sm-card-value">' + stats.charts + '</div></div>';
   }
 
   function renderRows(stats) {
@@ -3768,6 +3944,7 @@ renderPreview();
       if (r.elems.images > 0) badges += '<span class="sm-badge-pill">img\u00d7' + r.elems.images + '</span>';
       if (r.elems.tables > 0) badges += '<span class="sm-badge-pill">table</span>';
       if (r.elems.diagrams > 0) badges += '<span class="sm-badge-pill">diagram\u00d7' + r.elems.diagrams + '</span>';
+      if (r.elems.charts > 0) badges += '<span class="sm-badge-pill">chart\u00d7' + r.elems.charts + '</span>';
       html +=
         '<tr>' +
         '<td class="sm-num">' + r.idx + '</td>' +
@@ -4281,6 +4458,118 @@ Use ````diagram` fenced blocks to render flowcharts directly in your slides. Use
 - Works in preview and presentation mode
 - In PPTX export, diagrams are rendered as embedded PNG images (SVG → Canvas → PNG pipeline)
 - Self-referencing edges (`[A] --> [A]`) are not supported in the deck renderer
+
+---
+
+## Chart Blocks
+
+Use ````chart` fenced blocks to render bar, line, or pie charts directly in your slides. Data is entered as CSV-style `Label, Value` lines. Charts automatically inherit the active deck theme colors.
+
+### Syntax
+````
+```chart bar
+title: Q1 Revenue
+Jan, 120
+Feb, 145
+Mar, 98
+```
+````
+
+The word after `chart` selects the chart type: `bar`, `line`, or `pie`. If omitted, defaults to `bar`.
+
+<details><summary>SUPPORTED CHART FORMATS</summary>
+
+**Bar chart**
+````
+```chart bar
+title: My Bar Chart
+Label A, 10
+Label B, 25
+Label C, 15
+```
+````
+
+**Line chart**
+````
+```chart line
+title: Trend Over Time
+Week 1, 42
+Week 2, 58
+Week 3, 51
+Week 4, 73
+```
+````
+
+**Pie chart**
+````
+```chart pie
+title: Market Share
+Product A, 45
+Product B, 30
+Product C, 25
+```
+````
+
+**Rules:**
+- First non-empty line may be `title: My Title` (optional)
+- Data lines: `Label, Value` — value must be a number; split on the **first comma only**
+- Labels must not contain commas (no escape mechanism)
+- Labels longer than 16 characters are truncated with `…`
+- Maximum 20 data points (first 20 rendered; excess produces a visible warning)
+- Negative values are supported for bar and line charts
+
+</details>
+
+### Behavior Reference
+
+1. **Data format** — `Label, Value` per line. Split on first comma. Labels must not contain commas.
+2. **Optional title** — `title: My Title` as the first non-empty line.
+3. **Label truncation** — labels longer than 16 chars display as `Label Nam…` to prevent overflow.
+4. **20-point cap** — if > 20 data points, first 20 render and a `⚠ 20-point limit — N additional points hidden` warning appears below the chart.
+5. **Invalid lines skipped** — lines with missing comma or non-numeric value are skipped; a `[N line(s) skipped — invalid format]` warning appears if any were skipped.
+6. **Unknown chart type** — `chart foo` falls back to `bar` with a visible `⚠ unknown chart type "foo" — rendered as bar` warning below the chart. Never silent.
+7. **Empty data** — empty or all-invalid body shows `[chart: no data]` placeholder.
+8. **Negative values** — bar and line charts render negatives below a zero baseline. The baseline (zero line) is drawn as a reference. No clamping.
+9. **Pie legend** — pie charts with > 6 slices show top 5 by value plus an aggregate `Other (N more)` wedge, keeping the legend readable.
+10. **Theme integration** — chart colors pull from the current deck theme (accent for bars/lines, heading for titles and line labels, subheading/emphasis for palette variety). Switch themes and charts update automatically on re-render.
+11. **PPTX export** — charts export as embedded PNG images via the SVG → Canvas → PNG pipeline (same as diagrams).
+
+### Example: Bar Chart
+````
+```chart bar
+title: Monthly Users
+Jan, 1200
+Feb, 1450
+Mar, 1380
+Apr, 1620
+May, 1890
+Jun, 2100
+```
+````
+
+### Example: Line Chart
+````
+```chart line
+title: Error Rate (%)
+Week 1, 3.2
+Week 2, 2.8
+Week 3, 1.5
+Week 4, 1.1
+Week 5, 0.9
+```
+````
+
+### Example: Pie Chart
+````
+```chart pie
+title: Traffic Sources
+Organic Search, 48
+Direct, 22
+Social Media, 18
+Email, 8
+Paid Ads, 4
+```
+````
 
 ---
 
