@@ -495,6 +495,37 @@ select:focus, select:focus-visible {
 }
 .rs-preview-table tr:nth-child(even) td { background: #0f0f0f; }
 .rs-preview-empty { font-size: 0.45rem; color: var(--text-tertiary); padding: 6px 0; font-style: italic; }
+/* ── Letter Quality Checker Drawer ── */
+#quality-drawer {
+  display: none; position: fixed; top: 32px; left: 0; width: 420px; bottom: 0;
+  z-index: 200; background: var(--bg-surface); border-right: 1px solid #333;
+  overflow-y: auto; padding: 12px;
+}
+#quality-drawer.open { display: block; }
+@media (max-width: 768px) { #quality-drawer { width: 100%; } }
+.qc-summary {
+  font-size: 0.55rem; color: var(--accent); font-weight: bold;
+  margin-bottom: 10px; letter-spacing: 0.04em;
+}
+.qc-item {
+  display: flex; gap: 8px; align-items: flex-start;
+  margin-bottom: 7px; padding-bottom: 7px;
+  border-bottom: 1px solid #1e1e1e;
+}
+.qc-icon { font-size: 0.75rem; flex-shrink: 0; line-height: 1.3; }
+.qc-pass .qc-icon { color: #3fb950; }
+.qc-fail .qc-icon { color: #e05252; }
+.qc-pass .qc-label { color: var(--text-secondary); }
+.qc-fail .qc-label { color: var(--text-primary); }
+.qc-label { font-size: 0.55rem; font-weight: bold; }
+.qc-note { font-size: 0.48rem; margin-top: 2px; line-height: 1.5; }
+.qc-pass .qc-note { color: var(--text-tertiary); }
+.qc-fail .qc-note { color: #e3b341; }
+/* ── Draft I/O status message ── */
+#draft-io-msg {
+  font-size: 0.48rem; margin-left: 6px; vertical-align: middle;
+  display: inline-block; min-width: 0;
+}
 </style>
 </head>
 <body>
@@ -527,7 +558,12 @@ select:focus, select:focus-visible {
       <button class="btn" id="chain-btn" aria-label="Chain endorsements onto a saved draft">chain</button>
       <button class="btn" id="addr-btn" aria-label="Open the command address book">addr book</button>
       <button class="btn" id="reply-btn" aria-label="Generate reply draft with From/To swapped">reply</button>
+      <button class="btn" id="quality-btn" aria-label="Run letter quality checks">check</button>
       <button class="btn" id="routing-btn" aria-label="Generate a DON routing slip for this correspondence">routing slip</button>
+      <button class="btn" id="export-draft-btn" aria-label="Export current draft as .navalscribe.json">export draft</button>
+      <button class="btn" id="import-draft-btn" aria-label="Import a .navalscribe.json draft file">import draft</button>
+      <input type="file" id="import-draft-file" accept=".json" style="display:none">
+      <span id="draft-io-msg"></span>
       <button class="btn" id="print-btn" aria-label="Print current letter to PDF">print pdf</button>
       <button class="btn" id="drafts-btn" aria-label="Open saved drafts drawer">drafts</button>
       <button class="btn" id="ai-prompt-btn" aria-label="Copy the formatting guide as an AI prompt" title="Copy the formatting guide as an AI prompt — paste into ChatGPT/Claude to generate a properly-formatted draft">copy ai prompt</button>
@@ -660,6 +696,27 @@ select:focus, select:focus-visible {
     <button class="btn btn-primary" id="routing-export-btn" style="width:100%;margin-top:10px;padding:5px 0">export routing_slip.docx</button>
     <div style="font-size:0.42rem;color:#555;margin-top:8px;line-height:1.5">Stored locally on this device. Not synced. Not encrypted.</div>
     <div style="font-size:0.38rem;color:var(--text-tertiary);margin-top:4px;line-height:1.5">Date Recv'd / Date Ret'd / Initials columns are filled by hand on the printed slip.</div>
+  </div>
+  <div id="quality-drawer">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+      <div class="section-header" style="margin:0;border:none">Letter Quality</div>
+      <button class="add-btn" id="quality-close" aria-label="Close quality checker">close ×</button>
+    </div>
+    <div style="font-size:0.42rem;color:var(--text-tertiary);margin-bottom:10px;line-height:1.7">Advisory checks — does not block export.</div>
+    <div id="quality-results"></div>
+    <button class="btn" id="quality-recheck-btn" style="margin-top:8px;width:100%;text-align:center" aria-label="Re-run quality checks">re-check</button>
+    <details style="margin-top:14px;font-size:0.42rem;color:var(--text-tertiary)">
+      <summary style="cursor:pointer;color:var(--text-secondary);font-size:0.45rem;letter-spacing:0.06em;text-transform:uppercase">Export / Import Format</summary>
+      <div style="margin-top:6px;line-height:1.8">
+        <strong>export draft</strong> — downloads a <code>.navalscribe.json</code> file you can re-import later or share.<br>
+        <strong>import draft</strong> — loads a <code>.navalscribe.json</code> file into the form.<br><br>
+        Required envelope: <code>{ "_navalscribe_version": "1", … }</code><br>
+        Top-level keys accepted:
+        <code>type, classification, fields, copyTo, distribution, via, refs, encls, parties, routing, _navalscribe_version, _navalscribe_exported_at</code><br>
+        Types: <code>type</code> string · <code>classification</code> string · <code>fields</code> object · <code>copyTo</code> array · <code>distribution</code> boolean · <code>via/refs/encls/parties</code> array · <code>routing</code> object<br>
+        Extra keys are silently stripped; type-mismatched keys are dropped.
+      </div>
+    </details>
   </div>
   <div id="autosave-err" style="display:none;font-size:0.42rem;color:#c55;background:#2a1a1a;border:1px solid #c55;padding:4px 8px;margin:0 0 4px;line-height:1.4"></div>
   <div id="form-panel">
@@ -4363,6 +4420,252 @@ select:focus, select:focus-visible {
 
   /* Cross-close: routing btn closes all existing drawers (handled in routingBtn click above) */
   /* Ensure existing drawers also close routing when opened */
+
+  /* ── Letter Quality Checker ── */
+  var qualityBtn = document.getElementById('quality-btn');
+  var qualityDrawer = document.getElementById('quality-drawer');
+  var qualityClose = document.getElementById('quality-close');
+  var qualityResults = document.getElementById('quality-results');
+  var qualityRecheckBtn = document.getElementById('quality-recheck-btn');
+
+  function runQualityChecks() {
+    var F2 = F; /* same F alias used throughout */
+    var type = typeSelect.value;
+    var classSel = document.getElementById('class-select');
+    function nonEmpty(v) { return String(v || '').trim().length > 0; }
+    var checks = [];
+
+    /* 1. Date Format */
+    var skipDate = ['pointpaper','actionmemo','moa'].indexOf(type) !== -1;
+    if (skipDate) {
+      checks.push({label:'Date Format', pass:true, note:'N/A for this type'});
+    } else {
+      var dateOk = /^\d{1,2}\s+(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+\d{4}$/i.test(String(F2.date ? F2.date.value : '').trim());
+      checks.push({label:'Date Format', pass:dateOk, note: dateOk ? 'DD Mon YYYY' : 'Use format: 2 Apr 2026'});
+    }
+
+    /* 2. SSIC Pattern */
+    var skipSsic = ['pointpaper','actionmemo','moa'].indexOf(type) !== -1;
+    if (skipSsic) {
+      checks.push({label:'SSIC Pattern', pass:true, note:'N/A for this type'});
+    } else {
+      var ssicVal = String(F2.ssic ? F2.ssic.value : '').trim();
+      var ssicOk = /^\d{4,5}$/.test(ssicVal);
+      checks.push({label:'SSIC Pattern', pass:ssicOk, note: ssicOk ? '4–5 digit code' : 'Enter a 4–5 digit SSIC (e.g. 5216)'});
+    }
+
+    /* 3. Subject non-empty and ≤ 80 chars */
+    var subjVal = String(F2.subj ? F2.subj.value : '').trim();
+    if (!nonEmpty(subjVal)) {
+      checks.push({label:'Subject', pass:false, note:'Subject is required'});
+    } else if (subjVal.length > 80) {
+      checks.push({label:'Subject', pass:false, note:'Subject exceeds 80 characters — consider abbreviating'});
+    } else {
+      checks.push({label:'Subject', pass:true, note:subjVal.length + ' characters'});
+    }
+
+    /* 4. From / To filled */
+    var skipFromTo = ['pointpaper','actionmemo','moa'].indexOf(type) !== -1;
+    if (skipFromTo) {
+      checks.push({label:'From / To', pass:true, note:'N/A for this type'});
+    } else {
+      var fromOk = nonEmpty(F2.from ? F2.from.value : '');
+      var toOk   = nonEmpty(F2.to   ? F2.to.value   : '');
+      var ftOk = fromOk && toOk;
+      var ftNote = ftOk ? 'Both filled' : (!fromOk && !toOk ? 'From and To are empty' : (!fromOk ? 'From is empty' : 'To is empty'));
+      checks.push({label:'From / To', pass:ftOk, note:ftNote});
+    }
+
+    /* 5. Body para 1 numbering */
+    var numberedTypes = ['letter','memo','endorsement','business','instruction','sop'];
+    if (numberedTypes.indexOf(type) === -1) {
+      checks.push({label:'Body Numbering', pass:true, note:'N/A for this type'});
+    } else {
+      var bodyEl = type === 'instruction' ? F2.bodyInstr : type === 'sop' ? F2.bodySop : F2.body;
+      var bodyVal = String(bodyEl ? bodyEl.value : '');
+      var paras = bodyVal.split(/\n\s*\n+/).filter(function(p){ return p.trim().length > 0; });
+      if (paras.length < 2) {
+        checks.push({label:'Body Numbering', pass:true, note:'Single paragraph — numbering not required'});
+      } else {
+        var firstPara = paras[0].trimStart();
+        var numOk = firstPara.startsWith('1.  ') || /^1\.\s/.test(firstPara);
+        checks.push({label:'Body Numbering', pass:numOk, note: numOk ? 'Starts with "1."' : 'Multi-paragraph body should begin with "1.  "'});
+      }
+    }
+
+    /* 6. Signature block */
+    var sigTypes = ['letter','memo','endorsement','business','actionmemo','instruction','sop'];
+    if (sigTypes.indexOf(type) === -1) {
+      checks.push({label:'Signature Block', pass:true, note:'N/A for this type'});
+    } else {
+      var sigName = document.getElementById('f-sig-name');
+      var sigRank = document.getElementById('f-sig-rank');
+      var sigNameOk = nonEmpty(sigName ? sigName.value : '');
+      var sigRankOk = nonEmpty(sigRank ? sigRank.value : '');
+      var sigOk = sigNameOk && sigRankOk;
+      var sigNote = sigOk ? 'Name and rank/title set' : (!sigNameOk ? 'Signature name is empty' : 'Signature rank/title is empty');
+      checks.push({label:'Signature Block', pass:sigOk, note:sigNote});
+    }
+
+    /* 7. Classification marking (advisory — always counts as pass for summary) */
+    var classVal = classSel ? classSel.value : '';
+    var classUnset = !classVal || classVal === '' || classVal === 'No Marking';
+    checks.push({label:'Classification', pass:true, note: classUnset ? 'Advisory: consider setting classification marking' : classVal, advisory: classUnset});
+
+    return checks;
+  }
+
+  function renderQualityPanel() {
+    var checks = runQualityChecks();
+    var passed = checks.filter(function(c){ return c.pass && !c.advisory; }).length;
+    var total  = checks.filter(function(c){ return !c.advisory; }).length;
+    while (qualityResults.firstChild) qualityResults.removeChild(qualityResults.firstChild);
+    var summary = document.createElement('div');
+    summary.className = 'qc-summary';
+    summary.textContent = passed + '/' + total + ' checks passed';
+    qualityResults.appendChild(summary);
+    checks.forEach(function(c) {
+      var row = document.createElement('div');
+      row.className = 'qc-item ' + (c.pass ? 'qc-pass' : 'qc-fail');
+      var icon = document.createElement('div');
+      icon.className = 'qc-icon';
+      icon.textContent = c.pass ? '✓' : '✗';
+      var text = document.createElement('div');
+      var lbl = document.createElement('div');
+      lbl.className = 'qc-label';
+      lbl.textContent = c.label;
+      var note = document.createElement('div');
+      note.className = 'qc-note';
+      note.textContent = c.note;
+      text.appendChild(lbl);
+      text.appendChild(note);
+      row.appendChild(icon);
+      row.appendChild(text);
+      qualityResults.appendChild(row);
+    });
+  }
+
+  qualityBtn.addEventListener('click', function() {
+    var allDrawers = [draftsDrawer, importDrawer, chainDrawer, addrDrawer, replyDrawer, tmplDrawer, routingDrawer];
+    if (qualityDrawer.classList.contains('open')) {
+      qualityDrawer.classList.remove('open');
+    } else {
+      allDrawers.forEach(function(d){ d.classList.remove('open'); });
+      renderQualityPanel();
+      qualityDrawer.classList.add('open');
+    }
+  });
+  qualityClose.addEventListener('click', function() { qualityDrawer.classList.remove('open'); });
+  qualityRecheckBtn.addEventListener('click', renderQualityPanel);
+
+  /* Cross-close: quality drawer closes when any other drawer opens */
+  [draftsBtn, importBtn, chainBtn, addrBtn, replyBtn, tmplBtn, routingBtn].forEach(function(btn) {
+    btn.addEventListener('click', function() { qualityDrawer.classList.remove('open'); }, true);
+  });
+
+  /* ── Portable Draft Export / Import ── */
+  var exportDraftBtn  = document.getElementById('export-draft-btn');
+  var importDraftBtn  = document.getElementById('import-draft-btn');
+  var importDraftFile = document.getElementById('import-draft-file');
+  var draftIoMsg      = document.getElementById('draft-io-msg');
+  var draftIoTimer    = null;
+
+  function showDraftMsg(text, color) {
+    if (draftIoTimer) clearTimeout(draftIoTimer);
+    draftIoMsg.textContent = text;
+    draftIoMsg.style.color = color || 'var(--text-secondary)';
+    draftIoTimer = setTimeout(function() { draftIoMsg.textContent = ''; }, 4000);
+  }
+
+  exportDraftBtn.addEventListener('click', function() {
+    var state = getFullState();
+    state._navalscribe_version = '1';
+    state._navalscribe_exported_at = new Date().toISOString();
+    var blob = new Blob([JSON.stringify(state, null, 2)], {type: 'application/json'});
+    var url  = URL.createObjectURL(blob);
+    var now  = new Date();
+    var pad  = function(n){ return n < 10 ? '0' + n : '' + n; };
+    var fname = 'naval_draft_' + now.getFullYear() + pad(now.getMonth()+1) + pad(now.getDate()) + '.navalscribe.json';
+    var a = document.createElement('a');
+    a.href = url; a.download = fname;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    showDraftMsg('Draft exported.', '#3fb950');
+  });
+
+  importDraftBtn.addEventListener('click', function() { importDraftFile.click(); });
+
+  var QC_WHITELIST = ['type','classification','fields','copyTo','distribution','via','refs','encls','parties','routing','_navalscribe_version','_navalscribe_exported_at'];
+  var QC_TYPES = {
+    type: 'string', classification: 'string', fields: 'object',
+    copyTo: 'array', distribution: 'boolean', via: 'array',
+    refs: 'array', encls: 'array', parties: 'array', routing: 'object'
+  };
+
+  function validateImportSchema(obj) {
+    var errors = [];
+    if (!obj || typeof obj !== 'object' || Array.isArray(obj)) {
+      return {valid: false, sanitized: null, errors: ['Not a valid JSON object']};
+    }
+    if (!('_navalscribe_version' in obj)) {
+      return {valid: false, sanitized: null, errors: ['Not a Naval Scribe draft file']};
+    }
+    if (obj._navalscribe_version !== '1') {
+      return {valid: false, sanitized: null, errors: ['Unsupported draft version — cannot import']};
+    }
+    var sanitized = {};
+    Object.keys(obj).forEach(function(k) {
+      if (QC_WHITELIST.indexOf(k) === -1) { return; } /* strip unknown keys silently */
+      if (k in QC_TYPES) {
+        var expected = QC_TYPES[k];
+        var v = obj[k];
+        if (v === undefined || v === null) { return; } /* absent/null → skip silently */
+        var ok = (expected === 'array')   ? Array.isArray(v) :
+                 (expected === 'object')  ? (typeof v === 'object' && !Array.isArray(v)) :
+                 (expected === 'boolean') ? (typeof v === 'boolean') :
+                                            (typeof v === expected);
+        if (ok) {
+          sanitized[k] = v;
+        } else {
+          errors.push('Type mismatch on key "' + k + '" — skipped');
+        }
+      } else {
+        sanitized[k] = obj[k]; /* _navalscribe_version, _navalscribe_exported_at */
+      }
+    });
+    return {valid: true, sanitized: sanitized, errors: errors};
+  }
+
+  importDraftFile.addEventListener('change', function() {
+    var file = importDraftFile.files && importDraftFile.files[0];
+    if (!file) return;
+    var reader = new FileReader();
+    reader.onload = function(e) {
+      var parsed;
+      try { parsed = JSON.parse(e.target.result); }
+      catch (err) {
+        showDraftMsg('Import failed: Not a valid JSON file', '#e05252');
+        importDraftFile.value = '';
+        return;
+      }
+      var result = validateImportSchema(parsed);
+      if (!result.valid) {
+        showDraftMsg('Import failed: ' + result.errors[0], '#e05252');
+        importDraftFile.value = '';
+        return;
+      }
+      restoreFullState(result.sanitized);
+      importDraftFile.value = '';
+      showDraftMsg('Draft imported.', '#3fb950');
+    };
+    reader.onerror = function() {
+      showDraftMsg('Import failed: Could not read file', '#e05252');
+      importDraftFile.value = '';
+    };
+    reader.readAsText(file);
+  });
 
   /* ── Init ── */
   loadSaved();

@@ -1,25 +1,25 @@
 {
   "gate": "plan",
   "project": "naval-scribe",
-  "timestamp": "2026-04-25T05:43:15.857177+00:00",
+  "timestamp": "2026-04-25T05:51:35.120596+00:00",
   "verdicts": [
     {
       "angle": "bugs",
-      "verdict": "OBJECT",
-      "severity": "medium",
-      "reason": "The plan lacks precise definitions for parsing body paragraphs and for 'non-empty' checks, which could lead to incorrect quality check results for the advisory panel.",
-      "required_fix": "For 'Body Para 1 Numbering', explicitly define the method for splitting paragraphs (e.g., regex for blank lines) and the exact string matching for '1.'. For 'From and To Filled' and 'Signature Block', clarify that 'non-empty' means `value.trim().length > 0`. For 'Classification Marking', explicitly state the failure condition as `classSel.value === \"\" || classSel.value === \"No Marking\"`.",
-      "evidence": "Subtask 3 \u2014 Quality checker JS: Rules 4, 5, 6, 7",
+      "verdict": "APPROVE",
+      "severity": "low",
+      "reason": "The plan provides precise predicates for all quality checks, robust schema validation for import, and explicitly mandates .textContent for status messages, covering all correctness concerns.",
+      "required_fix": "",
+      "evidence": "",
       "veto": false,
       "parse_failed": false
     },
     {
       "angle": "security",
-      "verdict": "OBJECT",
-      "severity": "high",
-      "reason": "The plan does not explicitly state that error messages displayed in `#draft-io-msg` will be sanitized or escaped before being written to the DOM, creating a potential XSS vulnerability if user-controlled strings (e.g., stripped key names from imported JSON) are included in error messages.",
-      "required_fix": "Ensure all content displayed in `#draft-io-msg` that originates from user-controlled input (e.g., stripped key names from imported JSON via `validateImportSchema`) is properly sanitized or escaped (e.g., using `esc()` or `textContent`) before being written to the DOM.",
-      "evidence": "Subtask 4 \u2014 Portable Export/Import JS: `validateImportSchema(obj)` states 'Any key not in whitelist \u2192 stripped (silent)' and 'Type mismatch \u2192 strip key, add to errors'. The `importDraftFile.change` handler then 'show success/error in `#draft-io-msg`'. The plan does not specify how these error messages are constructed or if they are escaped when displayed.",
+      "verdict": "APPROVE",
+      "severity": "low",
+      "reason": "The plan explicitly addresses potential XSS vectors in imported data and status messages, relying on existing robust escaping for state restoration and mandating textContent for new UI elements displaying user-controlled content.",
+      "required_fix": "",
+      "evidence": "",
       "veto": false,
       "parse_failed": false
     },
@@ -27,7 +27,7 @@
       "angle": "ui",
       "verdict": "APPROVE",
       "severity": "low",
-      "reason": "The plan outlines clear, consistent UI elements and flows for both features, with good feedback and minimal friction.",
+      "reason": "The plan provides clear feedback, consistent interaction patterns, and excellent discoverability for the import format, ensuring a frictionless user experience.",
       "required_fix": "",
       "evidence": "",
       "veto": false,
@@ -37,7 +37,7 @@
       "angle": "guide",
       "verdict": "APPROVE",
       "severity": "low",
-      "reason": "The plan thoroughly addresses discoverability through clear naming, in-app help, and actionable error messages for both features.",
+      "reason": "The plan includes explicit discoverability for all new features, including a detailed schema for import/export.",
       "required_fix": "",
       "evidence": "",
       "veto": false,
@@ -47,9 +47,9 @@
       "angle": "usefulness",
       "verdict": "APPROVE",
       "severity": "low",
-      "reason": "Both features directly address core user needs: ensuring document compliance and providing essential data portability/backup for critical work.",
+      "reason": "Both the quality checker and draft export/import features provide essential utility for the target user, addressing common pain points in formal document creation and data portability.",
       "required_fix": "",
-      "evidence": "Quality checker solves the problem of manual, error-prone naval formatting checks. Export/Import solves the problem of data loss from localStorage and enables draft transfer between devices, which is a fundamental requirement for any serious productivity tool.",
+      "evidence": "The quality checker directly helps users meet strict naval formatting standards, preventing errors and rework. The export/import feature provides critical backup and transfer capabilities for user-generated content, especially important given the localStorage-only constraint.",
       "veto": false,
       "parse_failed": false
     },
@@ -57,7 +57,7 @@
       "angle": "cool",
       "verdict": "APPROVE",
       "severity": "low",
-      "reason": "The features directly reinforce Naval Scribe's core identity as a specialized, zero-dependency utility, enhancing its reliability and conformance to naval standards.",
+      "reason": "The quality checker and portable draft features reinforce Naval Scribe's core identity as a reliable, correct, and portable single-file utility for naval correspondence, aligning with its utility-flagship exemption.",
       "required_fix": "",
       "evidence": "",
       "veto": false,
@@ -67,35 +67,14 @@
       "angle": "lessons",
       "verdict": "APPROVE",
       "severity": "advisory",
-      "reason": "[AUTO-DOWNGRADED: LESSONS VETO missing precondition_evidence] The plan for Portable Draft Import violates the documented lesson requiring a <details> block for supported input formats, which previously led to a high-severity GUIDE objection.",
-      "required_fix": "Add a <details> element near the import button or within the import status area, explicitly listing the .navalscribe.json schema requirements (e.g., _navalscribe_version: \"1\", whitelisted top-level keys, and their expected types) as per the validateImportSchema function.",
-      "evidence": "KEEP \u2014 <details> supported-formats block for bulk input features \u2014 When a tool accepts structured text input (YAML, JSON, CSV), add a <details> element listing supported input formats. Satisfies GUIDE at the OUTCOME gate without cluttering the primary UI; GUIDE flagged the absence of explicit format docs as a high-severity issue.",
+      "reason": "[AUTO-DOWNGRADED: LESSONS VETO missing precondition_evidence] The plan introduces a portable draft import feature which causes user data to be persisted to localStorage, but it omits the required 'Stored locally...' disclaimer, violating a documented KEEP rule and the project's CONSTRAINTS.md.",
+      "required_fix": "Add a 'Stored locally on this device. Not synced. Not encrypted.' disclaimer adjacent to the import button or within the #draft-io-msg area, to inform the user about the local persistence of imported draft data.",
+      "evidence": "KEEP \u2014 localStorage disclaimer required whenever a drawer persists data \u2014 Any drawer that saves user data to localStorage must include a 'Stored locally on this device. Not synced. Not encrypted.' disclaimer, matching the pattern established by #drafts-disclaimer and #addr-disclaimer. GUIDE will object if a new drawer adds persistence (e.g., after escalation resolution) without disclosing it. Add the disclaimer at the same time as the persistence code.\n\nConstraint 3: Storage is localStorage, not server-side ... Council instruction (SECURITY angle): SECURITY may evaluate whether a specific data class is sensitive enough to warrant a user-facing storage warning, but may NOT demand server-side storage as a fix. The acceptable remedy for any 'sensitive local storage' concern is an inline warning to the user (e.g., 'Stored locally on this device. Not synced. Not encrypted.').",
       "veto": false,
       "parse_failed": false
     }
   ],
-  "all_approved": false,
-  "objections": [
-    {
-      "angle": "bugs",
-      "verdict": "OBJECT",
-      "severity": "medium",
-      "reason": "The plan lacks precise definitions for parsing body paragraphs and for 'non-empty' checks, which could lead to incorrect quality check results for the advisory panel.",
-      "required_fix": "For 'Body Para 1 Numbering', explicitly define the method for splitting paragraphs (e.g., regex for blank lines) and the exact string matching for '1.'. For 'From and To Filled' and 'Signature Block', clarify that 'non-empty' means `value.trim().length > 0`. For 'Classification Marking', explicitly state the failure condition as `classSel.value === \"\" || classSel.value === \"No Marking\"`.",
-      "evidence": "Subtask 3 \u2014 Quality checker JS: Rules 4, 5, 6, 7",
-      "veto": false,
-      "parse_failed": false
-    },
-    {
-      "angle": "security",
-      "verdict": "OBJECT",
-      "severity": "high",
-      "reason": "The plan does not explicitly state that error messages displayed in `#draft-io-msg` will be sanitized or escaped before being written to the DOM, creating a potential XSS vulnerability if user-controlled strings (e.g., stripped key names from imported JSON) are included in error messages.",
-      "required_fix": "Ensure all content displayed in `#draft-io-msg` that originates from user-controlled input (e.g., stripped key names from imported JSON via `validateImportSchema`) is properly sanitized or escaped (e.g., using `esc()` or `textContent`) before being written to the DOM.",
-      "evidence": "Subtask 4 \u2014 Portable Export/Import JS: `validateImportSchema(obj)` states 'Any key not in whitelist \u2192 stripped (silent)' and 'Type mismatch \u2192 strip key, add to errors'. The `importDraftFile.change` handler then 'show success/error in `#draft-io-msg`'. The plan does not specify how these error messages are constructed or if they are escaped when displayed.",
-      "veto": false,
-      "parse_failed": false
-    }
-  ],
+  "all_approved": true,
+  "objections": [],
   "vetoed": false
 }

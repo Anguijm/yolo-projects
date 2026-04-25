@@ -1,15 +1,15 @@
 {
   "gate": "implementation",
   "project": "naval-scribe",
-  "timestamp": "2026-04-24T22:18:47.529448+00:00",
+  "timestamp": "2026-04-25T05:55:12.981508+00:00",
   "verdicts": [
     {
       "angle": "bugs",
-      "verdict": "APPROVE",
-      "severity": "low",
-      "reason": "The routing slip generator correctly uses existing helpers, handles edge cases for reviewer chains, and implements robust mutual exclusion for drawers, ensuring data integrity and correct output.",
-      "required_fix": "",
-      "evidence": "",
+      "verdict": "OBJECT",
+      "severity": "medium",
+      "reason": "The import draft schema validation is shallow, only checking top-level container types for 'fields', 'parties', and 'routing' but not their nested contents, which contradicts 'strict schema validation' and could lead to runtime errors or malformed output if inner data is malformed.",
+      "required_fix": "Implement recursive schema validation within `validateImportSchema` for nested objects and arrays (e.g., `fields`, `parties` elements, `routing` properties) to ensure their internal structure and types conform to expectations.",
+      "evidence": "file:2250:5-2273:7",
       "veto": false,
       "parse_failed": false
     },
@@ -17,7 +17,7 @@
       "angle": "security",
       "verdict": "APPROVE",
       "severity": "low",
-      "reason": "The application adheres to its structural constraints regarding CSP and local storage. All user-controlled input is consistently escaped using `esc()` or `escXml()` before being rendered to HTML or included in DOCX XML, mitigating injection risks. No new unmitigated attack surfaces were identified.",
+      "reason": "The application adheres to structural constraints, uses robust input escaping for rendering, and implements strict schema validation for draft imports. User-facing warnings for local storage are present as required.",
       "required_fix": "",
       "evidence": "",
       "veto": false,
@@ -27,7 +27,7 @@
       "angle": "ui",
       "verdict": "APPROVE",
       "severity": "low",
-      "reason": "The routing slip generator is well-integrated, provides clear affordances, and maintains consistent UX patterns with the rest of the application.",
+      "reason": "The Letter Quality Checker and Portable Draft Export/Import features are well-implemented with clear feedback, consistent UI patterns, and good affordances.",
       "required_fix": "",
       "evidence": "",
       "veto": false,
@@ -37,7 +37,7 @@
       "angle": "guide",
       "verdict": "APPROVE",
       "severity": "low",
-      "reason": "The application provides comprehensive in-app documentation, clear naming, and an explicit AI formatting guide, ensuring high discoverability for both human users and AI agents.",
+      "reason": "The tool provides comprehensive in-app documentation and hints for both human users and AI agents.",
       "required_fix": "",
       "evidence": "",
       "veto": false,
@@ -47,9 +47,9 @@
       "angle": "usefulness",
       "verdict": "APPROVE",
       "severity": "low",
-      "reason": "All new features directly address common, recurring pain points in naval correspondence, enhancing efficiency and compliance for real users.",
+      "reason": "Both the quality checker and portable draft features provide essential utility for the target user, addressing real pain points in naval correspondence drafting and data management.",
       "required_fix": "",
-      "evidence": "Routing Slip Generator, Template Library, Reply Draft, Address Book, Endorsement Chain, and Letter Status Tracker all solve specific, frequent administrative tasks for naval personnel, saving time and reducing errors.",
+      "evidence": "The Letter Quality Checker automates adherence to complex naval formatting standards, a frequent and critical task for the target audience. The Portable Draft Export/Import feature provides crucial backup, sharing, and cross-device functionality, directly mitigating the limitations of local-only storage for a serious document creation tool.",
       "veto": false,
       "parse_failed": false
     },
@@ -57,7 +57,7 @@
       "angle": "cool",
       "verdict": "APPROVE",
       "severity": "low",
-      "reason": "The new features (routing slip, templates, reply draft, status tracker) significantly deepen the tool's utility and reinforce its identity as the indispensable, comprehensive single-file solution for naval correspondence, providing specific, highly valuable workflow enhancements.",
+      "reason": "The Letter Quality Checker provides a deeply domain-specific validation that reinforces the tool's core promise of 'proper formatting' and 'correctness,' making it unreasonably good at a niche task. The Portable Draft Export/Import enhances the utility's single-file portability, aligning perfectly with its unique architectural constraints.",
       "required_fix": "",
       "evidence": "",
       "veto": false,
@@ -66,15 +66,26 @@
     {
       "angle": "lessons",
       "verdict": "APPROVE",
-      "severity": "advisory",
-      "reason": "[AUTO-DOWNGRADED: LESSONS VETO missing precondition_evidence] The `esc` function uses a regex literal with an embedded double quote (`/\"/g, '&quot;'`), which violates the documented `svg-fields` KEEP lesson to use `String.prototype.split(x).join(y)` for quotes to avoid the `test_project.py` brace-balance bug.",
-      "required_fix": "Modify the `esc` function to replace `s.replace(/\"/g, '&quot;')` with `String(s).split('\"').join('&quot;')` to comply with the documented lesson.",
-      "evidence": "KEEP: `String.prototype.split(x).join(y)` replaces `.replace(/x/g, y)` when `x` is `\"` or `'` \u2014 dodges the known `test_project.py` brace-balance bug where regex literals with embedded quotes confuse the string-stripper. For XML/HTML escape functions specifically: 5\u00d7 split/join chain is readable and test-safe. (from `learnings.md` under `[svg-fields]`)",
+      "severity": "low",
+      "reason": "All documented lessons regarding escaping, error handling, disclaimers, and format documentation are correctly implemented or not applicable.",
+      "required_fix": "",
+      "evidence": "",
       "veto": false,
       "parse_failed": false
     }
   ],
-  "all_approved": true,
-  "objections": [],
+  "all_approved": false,
+  "objections": [
+    {
+      "angle": "bugs",
+      "verdict": "OBJECT",
+      "severity": "medium",
+      "reason": "The import draft schema validation is shallow, only checking top-level container types for 'fields', 'parties', and 'routing' but not their nested contents, which contradicts 'strict schema validation' and could lead to runtime errors or malformed output if inner data is malformed.",
+      "required_fix": "Implement recursive schema validation within `validateImportSchema` for nested objects and arrays (e.g., `fields`, `parties` elements, `routing` properties) to ensure their internal structure and types conform to expectations.",
+      "evidence": "file:2250:5-2273:7",
+      "veto": false,
+      "parse_failed": false
+    }
+  ],
   "vetoed": false
 }
