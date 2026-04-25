@@ -39,6 +39,8 @@ Naval Scribe is a graduated YOLO project operating under Flagship rules alongsid
 - [x] Letter Status Tracker — Draft→Signed→Transmitted→Replied per saved draft (shipped 2026-04-24)
 - [x] Template Letter Library — 12 pre-built templates for common letter situations (shipped 2026-04-24, retroactive stamp after 3 identical BUGS hallucinations)
 - [x] Routing Slip Generator — DON routing slip with reviewer chain, .docx export
+- [ ] **Letter Quality Checker** (approved 2026-04-25, priority 1) — "Check" button opens side panel scanning current form against 7 naval formatting rules (date format, SSIC pattern, Subject length, From/To non-empty, body para 1 starts with "1.", signature block, classification set). ✓/✗ per check with brief explanation. Advisory only — does not block export.
+- [ ] **Portable Draft Export/Import** (approved 2026-04-25, priority 2) — "Export Draft" downloads current form state as `.navalscribe.json` (same shape as `getFullState`); "Import Draft" file picker reads it back via `restoreFullState`. Enables backup, cross-device transfer, draft sharing. **Plan must include explicit JSON schema validation in `restoreFullState` import path** (whitelist top-level keys, type-check each, reject extras) to pre-empt SECURITY injection-surface objection.
 
 ## Recently Completed
 
@@ -62,8 +64,7 @@ Naval Scribe is a graduated YOLO project operating under Flagship rules alongsid
 
 ## Proposed Features (Pending Approval)
 
-- **Letter Quality Checker** — "Check" button opens a side panel that scans the current form against naval formatting rules: date in DD Mon YYYY format, SSIC present and matching NNN.NN pattern, Subject ≤ 1 line, From/To non-empty, body paragraph 1 starts with "1.", signature block has name and grade, classification set. ✓/✗ per check with brief explanation. Advisory only — does not block export.
-- **Portable Draft Export/Import** — "Export Draft" button downloads the current form state as a `.navalscribe.json` file (same structure as getFullState). "Import Draft" file picker reads it back and calls restoreFullState. Enables backup, cross-device transfer, and sharing drafts with colleagues who run their own instance.
+(Both 2026-04-25 brainstorm proposals approved this session — see Approved (Remaining) section above.)
 
 ## Parking Lot
 
