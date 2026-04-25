@@ -34,4 +34,23 @@
 
 ## Resolution
 
-Human decision required. Resume the build after updating session_state.json.
+**RESOLVED 2026-04-25. BUGS+SECURITY scope-expansion overridden; explicit Follow-Up Ticks added.**
+
+### BUGS critical + SECURITY critical — OVERRIDDEN (scope expansion)
+Both objections ask the audit to *implement* the remediations it identifies (Node 22 upgrade, pip pinning, RSS sanitization, removing unused `requests`). That's scope creep — the plan explicitly approved this as "documentation-only tick: one markdown file created" (Function Map: "N/A — no functions added/modified") and PLAN-gate council unanimously approved it as such.
+
+The audit's purpose is to **snapshot risks for review**. Bundling the remediations defeats that purpose: it conflates "identify" with "fix" and obscures the audit's role as a dated reference. Per `feedback_approval_gate.md` ("All builds require human approval — cron proposes, John decides"), modifying production workflow files (`.github/workflows/tick_tock.yml`) without an explicit approval gate is exactly what the user asked us NOT to do.
+
+**What was done instead:** Added a "Recommended Follow-Up Ticks" section to STACK_AUDIT.md proposing each high-risk row as its own tick:
+- `infra-node-22-upgrade` (Critical, 5-day urgency)
+- `infra-genai-migration` (High)
+- `infra-pip-pinning` (High)
+- `infra-rss-sanitize` (Medium)
+- `infra-prune-unused-deps` (Low)
+
+Each gets its own PLAN/IMPL/TESTS/OUTCOME approval cycle. The user can prioritize via the standard tick-queue mechanism. This delivers the value the council is asking for (action on identified risks) while preserving the audit-vs-remediation separation and the human approval gate for production changes.
+
+### Other 5 angles — APPROVE
+UI, GUIDE, USEFULNESS, COOL, LESSONS all clean. COOL specifically called out the grep-by-content design as "a clever signature move that ensures its ongoing relevance and prevents staleness."
+
+Cron may rerun IMPLEMENTATION; expected clean pass → TESTS → OUTCOME → ship.

@@ -110,3 +110,19 @@ This is the anti-fragile core of the portfolio. A tool built today in 2026 will 
 | `CLAUDE_MODEL` haiku date-stamp | low | 12mo | Monitor Anthropic model deprecation notices |
 | `MODEL_NAME` gemini-2.5-flash | low | 12mo | Monitor Google AI model lifecycle |
 | All other entries | — | No action | Stable, no foreseeable risk |
+
+---
+
+## Recommended Follow-Up Ticks
+
+This audit is a **snapshot document**, not a remediation. Each high-risk row above is proposed as its own follow-up tick so production-affecting changes go through their own approval gate (per `feedback_approval_gate.md`):
+
+| Proposed tick name | Risk addressed | Scope (one-line) |
+|---|---|---|
+| `infra-node-22-upgrade` | Node.js 20 EOL | Change `node-version: '20'` → `'22'` in both workflow YAMLs; verify `@anthropic-ai/claude-code` installs cleanly on Node 22 |
+| `infra-genai-migration` | `google-generativeai` deprecation | Replace `import google.generativeai as genai` with `from google import genai`; rewrite the four `genai.*` call sites in `council.py` |
+| `infra-pip-pinning` | unpinned-package supply chain risk | Add `==` version pins for `anthropic`, `google-generativeai` (or successor), and any other pip packages; document the pinning convention in `learnings.md` |
+| `infra-rss-sanitize` | YouTube RSS field handling | Apply `html.unescape()` to extracted titles in `fetch_youtube_rss.py:parse_entries()`; assert `video_id` matches `^[a-zA-Z0-9_-]{11}$` before storing |
+| `infra-prune-unused-deps` | unused `requests` package | Remove `requests` from the `pip install` line in `tick_tock.yml`; smoke-test the next cron run for any latent import |
+
+Each follow-up should be its own queue entry with its own PLAN/IMPL/TESTS/OUTCOME gates. Bundling them into this audit would conflate "identify" with "remediate" and obscure the audit's role as a dated reference snapshot.
