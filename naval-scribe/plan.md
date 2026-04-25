@@ -38,14 +38,15 @@ Add `#quality-drawer` HTML block (before `#autosave-err`):
 - "re-check" button to re-run without closing
 
 **Subtask 3 — Quality checker JS (depends on Subtask 2)**
-`function runQualityChecks()` — reads current form state, returns `[{label, pass, note}, …]`:
+`function runQualityChecks()` — reads current form state, returns `[{label, pass, note}, …]`. Throughout, "non-empty" means **`String(value || '').trim().length > 0`** (consistent across all checks; trims whitespace before length check):
+
 1. **Date Format** — `F.date.value` matches `/^\d{1,2}\s+(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+\d{4}$/i` (skip check for pointpaper/actionmemo/moa which don't show date field)
 2. **SSIC Pattern** — `F.ssic.value` matches `/^\d{4,5}$/` (skip for types without SSIC: pointpaper/actionmemo/moa)
-3. **Subject Non-Empty and Length** — `F.subj.value` trimmed length > 0 AND ≤ 80 chars; if > 80 fail with "Subject exceeds 80 characters — consider abbreviating"
-4. **From and To Filled** — `F.from.value` and `F.to.value` both non-empty (skip for pointpaper/actionmemo/moa which use different header)
-5. **Body Para 1 Numbering** — for letter/memo/endorsement/business/instruction/sop: if body has 2+ blank-line-separated paragraphs, first para must start with `1.`; single-para bodies pass always
-6. **Signature Block** — for types with a sig block (letter/memo/endorsement/business/actionmemo/instruction/sop): `F.sigName.value` and `F.sigRank.value` both non-empty
-7. **Classification Marking** — `classSel.value` non-empty (i.e., not "No Marking"); if empty, advisory note "Consider setting classification marking"
+3. **Subject Non-Empty and Length** — `F.subj.value.trim().length > 0` AND ≤ 80 chars; if > 80 fail with "Subject exceeds 80 characters — consider abbreviating"
+4. **From and To Filled** — `F.from.value.trim().length > 0` AND `F.to.value.trim().length > 0` (skip for pointpaper/actionmemo/moa which use different header)
+5. **Body Para 1 Numbering** — for letter/memo/endorsement/business/instruction/sop: paragraphs split by **`F.body.value.split(/\n\s*\n+/)`** (one or more blank lines, allowing trailing whitespace). If `paragraphs.filter(p => p.trim().length > 0).length >= 2`, the first non-empty paragraph's `.trimStart()` MUST begin with the literal 4-character prefix `"1.  "` (digit `1`, period, two spaces — naval letter convention) to pass; the looser `/^1\.\s/` regex is also accepted (single space) for users who haven't typed the canonical double-space yet. Single-paragraph or empty bodies pass always.
+6. **Signature Block** — for types with a sig block (letter/memo/endorsement/business/actionmemo/instruction/sop): `F.sigName.value.trim().length > 0` AND `F.sigRank.value.trim().length > 0`
+7. **Classification Marking** — failure condition is exactly **`!classSel.value || classSel.value === '' || classSel.value === 'No Marking'`**; if any of those, advisory note "Consider setting classification marking" (advisory does not flip overall pass count for this rule — it always counts as informational, never blocks).
 
 `function renderQualityPanel()` — clears `#quality-results` and injects one `.qc-item` per check; drawer shows summary line "N/7 checks passed" at top.
 
@@ -70,6 +71,10 @@ Quality drawer open/close + mutual exclusion with all existing drawers (same pat
 
 `importDraftBtn.click` → triggers `importDraftFile.click()`
 `importDraftFile.change` → FileReader → JSON.parse → `validateImportSchema` → if valid call `restoreFullState(sanitized)` → show success/error in `#draft-io-msg` (auto-clears after 4s)
+
+**Status-message safety (XSS prevention):** All writes to `#draft-io-msg` MUST use `.textContent` assignment, never `.innerHTML`. Error strings may contain user-controlled content (e.g., schema-validator messages naming a stripped key like `"Stripped unknown key: foo<script>"`); `.textContent` ensures any such content renders as inert text rather than executing as DOM. The success path also uses `.textContent` for consistency. No `esc()` call needed because `.textContent` is the strongest guarantee — the browser will not interpret HTML in the assigned string at all. This is documented as a planning constraint so the implementation reviewer can grep for `draft-io-msg.innerHTML` and reject the patch if it appears.
+
+**Schema discoverability:** Add a `<details><summary>SUPPORTED FORMAT</summary>` block adjacent to the import button (or inside `#draft-io-msg`'s container) listing the `.navalscribe.json` schema requirements: required `_navalscribe_version: "1"` envelope, the whitelisted top-level keys (`type, classification, fields, copyTo, distribution, via, refs, encls, parties, routing, _navalscribe_version, _navalscribe_exported_at`), and each key's expected type. This satisfies the `<details>` supported-formats KEEP rule from learnings.md and pre-empts the recurring GUIDE objection that bulk-input features lack discoverable format docs.
 
 ## File Layout
 
@@ -96,10 +101,11 @@ No existing functions are modified.
 
 - Import path: all JSON is validated via `validateImportSchema` before any DOM writes; extra keys stripped, type mismatches stripped — no XSS vector via import payload
 - `restoreFullState` already escapes via `esc()` before any `innerHTML` write — the existing escape chain covers imported data
+- **Status messages**: all writes to `#draft-io-msg` use `.textContent` (never `.innerHTML`), so error messages naming user-controlled content (e.g., stripped key names from imported JSON) render as inert text. Implementation reviewers must reject any patch that writes `.innerHTML` to that element.
 - Export: `JSON.stringify` of in-memory state only; no shell, no eval, no innerHTML
 - File input: `accept=".json"` is a hint not enforcement; actual validation is JSON.parse + schema check in JS
 - CSP: `connect-src 'none'` already blocks outbound — export/import is purely local blob/file, within existing constraints
-- No new injection surface introduced; import validation is the defense-in-depth layer per roadmap requirement
+- No new injection surface introduced; import validation + `.textContent` for status messages = defense in depth per roadmap requirement
 
 ## UI
 

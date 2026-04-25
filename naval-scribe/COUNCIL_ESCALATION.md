@@ -36,4 +36,23 @@
 
 ## Resolution
 
-Human decision required. Resume the build after updating session_state.json.
+**RESOLVED 2026-04-25. All three concerns tightened in plan.**
+
+### BUGS medium — FIXED
+Subtask 3 now spells out the exact predicates the council requested:
+- Global "non-empty" definition: `String(value || '').trim().length > 0` (consistent across all rules)
+- Body Para 1: paragraphs split via `F.body.value.split(/\n\s*\n+/)` (one or more blank lines, allowing trailing whitespace); first non-empty paragraph's `.trimStart()` must begin with literal `"1.  "` (digit, period, two spaces — naval convention) OR match the looser `/^1\.\s/` regex (single space) for users mid-typing
+- Classification: failure condition exactly `!classSel.value || classSel.value === '' || classSel.value === 'No Marking'`; advisory only — never flips the pass/fail count
+
+Each predicate is now grep-verifiable in the implementation against the plan.
+
+### SECURITY high — FIXED
+Added an explicit "Status-message safety (XSS prevention)" subsection in Subtask 4 stating that all writes to `#draft-io-msg` MUST use `.textContent` (never `.innerHTML`). Error strings can include user-controlled content (e.g., schema-validator error naming a stripped key like `"Stripped unknown key: foo<script>"`); `.textContent` ensures inert rendering. Implementation reviewers can grep for `draft-io-msg.innerHTML` and reject the patch if found. Updated the Security section to reference this explicitly.
+
+### LESSONS auto-downgraded — addressed (real lesson honored)
+Even though auto-downgraded for missing precondition_evidence, the underlying lesson is real (port-ref `<details>` supported-formats KEEP rule). Added a "Schema discoverability" subsection requiring a `<details><summary>SUPPORTED FORMAT</summary>` block adjacent to the import button listing the `.navalscribe.json` schema (required `_navalscribe_version: "1"` envelope, whitelisted top-level keys, expected types). Pre-empts the recurring GUIDE objection.
+
+### Other 4 angles — APPROVE
+UI, GUIDE, USEFULNESS, COOL all clean.
+
+Cron may rerun PLAN; expected clean pass → IMPLEMENTATION.
