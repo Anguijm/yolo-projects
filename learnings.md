@@ -3367,3 +3367,17 @@ When a feature overwrites or clears existing user data (body text, field sets), 
 **COUNCIL** — IMPLEMENTATION gate attempt 2 (final): all 7 APPROVE — _safeHex + ai-prompt-content rule both verified
 **COUNCIL** — TESTS gate attempt 1: all 7 APPROVE
 **COUNCIL** — OUTCOME gate attempt 1: all 7 APPROVE
+
+---
+
+## adopt-stack-audit — 2026-04-25 (tick/infra)
+
+**KEEP** — Doc-only infrastructure ticks stay doc-only: when BUGS or SECURITY ask an audit to *implement* the remediations it identifies, that's scope creep. The audit's purpose is to snapshot risks. Each identified risk becomes its own follow-up tick with its own approval gate.
+
+**KEEP** — Grep-by-content patterns as citations: dependency tables cite `grep -nE "pip install" .github/workflows/*.yml` verbatim rather than static line numbers. If the file is reorganized, the grep still finds the dep; the audit stays valid.
+
+**INSIGHT** — npm packages carry the same supply chain risk as pip packages but are often overlooked in audits. `@anthropic-ai/claude-code` global install with no pin is as risky as unpinned pip packages. Include both in risk registers.
+
+**INSIGHT** — YouTube RSS data flows into LLM prompts (council.py reads experiments.json which contains RSS-sourced titles). Explicitly frame this as LLM prompt injection risk, not just "malformed JSON" — the attack vector is a crafted video title injecting instructions into the LLM context window.
+
+**COUNCIL** — PLAN gate: all 7 APPROVE (scope clearly bounded as doc-only). IMPLEMENTATION gate: OBJECT×2 (SECURITY: npm risk missing from register + YouTube RSS framing incomplete) → fix → APPROVE×7. TESTS gate: APPROVE×7. OUTCOME gate: APPROVE×7.

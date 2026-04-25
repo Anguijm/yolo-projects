@@ -19,3 +19,6 @@
 - `requests` installed but never imported — can be removed
 
 All rows use grep-by-content patterns rather than static line numbers.
+
+## Post-escalation addition (2026-04-25)
+- Added **§8 Recommended Follow-Up Ticks** table to STACK_AUDIT.md — proposes 5 follow-up ticks (`infra-node-22-upgrade`, `infra-genai-migration`, `infra-pip-pinning`, `infra-rss-sanitize`, `infra-prune-unused-deps`) each with their own PLAN/IMPL/TESTS/OUTCOME gate cycle. This preserves the audit-vs-remediation boundary and keeps production changes gated behind human approval.
