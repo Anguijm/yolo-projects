@@ -1,25 +1,25 @@
 {
   "gate": "plan",
   "project": "naval-scribe",
-  "timestamp": "2026-04-24T22:14:49.176571+00:00",
+  "timestamp": "2026-04-25T05:43:15.857177+00:00",
   "verdicts": [
     {
       "angle": "bugs",
-      "verdict": "APPROVE",
-      "severity": "low",
-      "reason": "The plan comprehensively addresses edge cases, error handling, and state consistency, with explicit strategies for mutual exclusion, data rendering, and document generation.",
-      "required_fix": "",
-      "evidence": "",
+      "verdict": "OBJECT",
+      "severity": "medium",
+      "reason": "The plan lacks precise definitions for parsing body paragraphs and for 'non-empty' checks, which could lead to incorrect quality check results for the advisory panel.",
+      "required_fix": "For 'Body Para 1 Numbering', explicitly define the method for splitting paragraphs (e.g., regex for blank lines) and the exact string matching for '1.'. For 'From and To Filled' and 'Signature Block', clarify that 'non-empty' means `value.trim().length > 0`. For 'Classification Marking', explicitly state the failure condition as `classSel.value === \"\" || classSel.value === \"No Marking\"`.",
+      "evidence": "Subtask 3 \u2014 Quality checker JS: Rules 4, 5, 6, 7",
       "veto": false,
       "parse_failed": false
     },
     {
       "angle": "security",
-      "verdict": "APPROVE",
-      "severity": "low",
-      "reason": "The plan explicitly addresses XSS in the HTML preview using textContent and DOM construction, and XML injection in the DOCX export using existing escXml() helper, adhering to existing strong CSP and structural constraints.",
-      "required_fix": "",
-      "evidence": "",
+      "verdict": "OBJECT",
+      "severity": "high",
+      "reason": "The plan does not explicitly state that error messages displayed in `#draft-io-msg` will be sanitized or escaped before being written to the DOM, creating a potential XSS vulnerability if user-controlled strings (e.g., stripped key names from imported JSON) are included in error messages.",
+      "required_fix": "Ensure all content displayed in `#draft-io-msg` that originates from user-controlled input (e.g., stripped key names from imported JSON via `validateImportSchema`) is properly sanitized or escaped (e.g., using `esc()` or `textContent`) before being written to the DOM.",
+      "evidence": "Subtask 4 \u2014 Portable Export/Import JS: `validateImportSchema(obj)` states 'Any key not in whitelist \u2192 stripped (silent)' and 'Type mismatch \u2192 strip key, add to errors'. The `importDraftFile.change` handler then 'show success/error in `#draft-io-msg`'. The plan does not specify how these error messages are constructed or if they are escaped when displayed.",
       "veto": false,
       "parse_failed": false
     },
@@ -27,7 +27,7 @@
       "angle": "ui",
       "verdict": "APPROVE",
       "severity": "low",
-      "reason": "The plan demonstrates a comprehensive understanding of user experience, providing clear flows, excellent feedback, and consistent interaction patterns.",
+      "reason": "The plan outlines clear, consistent UI elements and flows for both features, with good feedback and minimal friction.",
       "required_fix": "",
       "evidence": "",
       "veto": false,
@@ -37,9 +37,9 @@
       "angle": "guide",
       "verdict": "APPROVE",
       "severity": "low",
-      "reason": "The plan includes an explicit 'Guide' section detailing all UI labels, hints, and messages, ensuring excellent discoverability for both users and AI agents.",
+      "reason": "The plan thoroughly addresses discoverability through clear naming, in-app help, and actionable error messages for both features.",
       "required_fix": "",
-      "evidence": "naval-scribe/plan.md: Guide section",
+      "evidence": "",
       "veto": false,
       "parse_failed": false
     },
@@ -47,9 +47,9 @@
       "angle": "usefulness",
       "verdict": "APPROVE",
       "severity": "low",
-      "reason": "This feature provides a highly frequent and essential utility for the target audience (DON personnel) by automating the generation of a standardized routing slip, integrated directly into their existing correspondence tool.",
+      "reason": "Both features directly address core user needs: ensuring document compliance and providing essential data portability/backup for critical work.",
       "required_fix": "",
-      "evidence": "DON routing slips are a mandatory component of official correspondence, and this tool streamlines their creation, reducing manual effort and ensuring correct formatting for a critical, recurring task.",
+      "evidence": "Quality checker solves the problem of manual, error-prone naval formatting checks. Export/Import solves the problem of data loss from localStorage and enables draft transfer between devices, which is a fundamental requirement for any serious productivity tool.",
       "veto": false,
       "parse_failed": false
     },
@@ -57,7 +57,7 @@
       "angle": "cool",
       "verdict": "APPROVE",
       "severity": "low",
-      "reason": "This feature directly reinforces Naval Scribe's core identity as a comprehensive, zero-dependency, single-file tool for naval correspondence by adding another standard document type.",
+      "reason": "The features directly reinforce Naval Scribe's core identity as a specialized, zero-dependency utility, enhancing its reliability and conformance to naval standards.",
       "required_fix": "",
       "evidence": "",
       "veto": false,
@@ -66,15 +66,36 @@
     {
       "angle": "lessons",
       "verdict": "APPROVE",
-      "severity": "low",
-      "reason": "The plan adheres to all documented architectural constraints and explicitly incorporates safe rendering practices for user input, aligning with past lessons.",
-      "required_fix": "",
-      "evidence": "",
+      "severity": "advisory",
+      "reason": "[AUTO-DOWNGRADED: LESSONS VETO missing precondition_evidence] The plan for Portable Draft Import violates the documented lesson requiring a <details> block for supported input formats, which previously led to a high-severity GUIDE objection.",
+      "required_fix": "Add a <details> element near the import button or within the import status area, explicitly listing the .navalscribe.json schema requirements (e.g., _navalscribe_version: \"1\", whitelisted top-level keys, and their expected types) as per the validateImportSchema function.",
+      "evidence": "KEEP \u2014 <details> supported-formats block for bulk input features \u2014 When a tool accepts structured text input (YAML, JSON, CSV), add a <details> element listing supported input formats. Satisfies GUIDE at the OUTCOME gate without cluttering the primary UI; GUIDE flagged the absence of explicit format docs as a high-severity issue.",
       "veto": false,
       "parse_failed": false
     }
   ],
-  "all_approved": true,
-  "objections": [],
+  "all_approved": false,
+  "objections": [
+    {
+      "angle": "bugs",
+      "verdict": "OBJECT",
+      "severity": "medium",
+      "reason": "The plan lacks precise definitions for parsing body paragraphs and for 'non-empty' checks, which could lead to incorrect quality check results for the advisory panel.",
+      "required_fix": "For 'Body Para 1 Numbering', explicitly define the method for splitting paragraphs (e.g., regex for blank lines) and the exact string matching for '1.'. For 'From and To Filled' and 'Signature Block', clarify that 'non-empty' means `value.trim().length > 0`. For 'Classification Marking', explicitly state the failure condition as `classSel.value === \"\" || classSel.value === \"No Marking\"`.",
+      "evidence": "Subtask 3 \u2014 Quality checker JS: Rules 4, 5, 6, 7",
+      "veto": false,
+      "parse_failed": false
+    },
+    {
+      "angle": "security",
+      "verdict": "OBJECT",
+      "severity": "high",
+      "reason": "The plan does not explicitly state that error messages displayed in `#draft-io-msg` will be sanitized or escaped before being written to the DOM, creating a potential XSS vulnerability if user-controlled strings (e.g., stripped key names from imported JSON) are included in error messages.",
+      "required_fix": "Ensure all content displayed in `#draft-io-msg` that originates from user-controlled input (e.g., stripped key names from imported JSON via `validateImportSchema`) is properly sanitized or escaped (e.g., using `esc()` or `textContent`) before being written to the DOM.",
+      "evidence": "Subtask 4 \u2014 Portable Export/Import JS: `validateImportSchema(obj)` states 'Any key not in whitelist \u2192 stripped (silent)' and 'Type mismatch \u2192 strip key, add to errors'. The `importDraftFile.change` handler then 'show success/error in `#draft-io-msg`'. The plan does not specify how these error messages are constructed or if they are escaped when displayed.",
+      "veto": false,
+      "parse_failed": false
+    }
+  ],
   "vetoed": false
 }

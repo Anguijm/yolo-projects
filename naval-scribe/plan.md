@@ -1,114 +1,158 @@
-# Naval Scribe — Routing Slip Generator Plan
+# Naval Scribe — Letter Quality Checker + Portable Draft Export/Import
 
 ## Goal
-Add a DON routing slip generator: a new drawer that builds a reviewer chain (name/office + action code), previews a formatted routing slip table, and exports a standalone routing_slip.docx.
+Add a "check" button that opens a drawer running 7 naval formatting rules against the current form (advisory only), plus "export draft" / "import draft" buttons for portable `.navalscribe.json` backup/transfer with strict schema validation on import.
 
 ## Scope
 
 **In scope:**
-- New "routing slip" button in top-bar (opens `#routing-drawer`)
-- Drawer: suspense date, drafter/return-to field, document subject (auto-populated from current form subject), editable reviewer chain (up to 15 rows)
-- Each reviewer row: Name/Office text input + Action select (Review / Concur / Sign / Info)
-- Live HTML table preview inside the drawer (static placeholder cells for Date Received, Date Returned, Initials — filled by hand on paper)
-- Export standalone `routing_slip.docx` via existing `createZip` + `makeParagraph` infrastructure
-- Mutual exclusion: routing-drawer closes all other drawers; all other drawer-open clicks close routing-drawer
+- Letter Quality Checker: new `#quality-drawer` with 7 checks, `check` button in top bar
+- Portable Draft Export: `export draft` button triggers immediate `.navalscribe.json` download
+- Portable Draft Import: `import draft` button triggers hidden file picker; JSON validated (whitelist + type-check) before `restoreFullState`
 
-**Not in scope:**
-- Modifying the main letter's preview or download
-- Saving routing slips to localStorage
-- Printing the routing slip directly (docx export covers this)
-- Any changes to the existing correspondence type system
+**Explicitly out of scope:**
+- Blocking export when checks fail (advisory only — zero friction)
+- Server-side storage or sync (CONSTRAINTS.md Constraint 3: localStorage only)
+- Any change to the `.docx` export path
+- Modifying existing `getFullState` or `restoreFullState` signatures
+- Auto-run of quality check on every keystroke (on-open only, with a re-check button)
 
 ## Approach
 
-1. **CSS** — add `#routing-drawer` styles (same pattern as `#tmpl-drawer`: fixed left overlay, `.open` toggle). Add `.rs-*` class names for the routing slip table preview.
-2. **HTML (drawer)** — add `#routing-drawer` div before the form panel (same location as other drawers). Include: close button, suspense date input, drafter/return-to input, subject display (read-only, mirroring form subject), reviewer chain container, "+ add reviewer" button, live preview div, export button.
-3. **HTML (button)** — add `<button class="btn" id="routing-btn" aria-label="Generate routing slip for this correspondence">routing slip</button>` in the top-bar `.top-controls`, after reply-btn and before print-btn.
-4. **JS** — all new code within the existing IIFE, after the Template Library block and before the `/* ── Init ── */` comment:
-   - DOM refs: `routingBtn`, `routingDrawer`, `routingClose`, `routingSuspense`, `routingDrafter`, `routingSubjDisplay`, `routingChainContainer`, `routingPreviewDiv`
-   - `addRoutingReviewer(name, action)` — appends a reviewer row to chain container; each row has text input (name/office), action select, and a remove button; all changes call `renderRoutingPreview()`
-   - `renderRoutingPreview()` — rebuilds the HTML preview table: header row (Reviewer/Office | Action | Date Recv'd | Date Ret'd | Initials/Sig), body rows from current reviewer inputs, footer row showing suspense + drafter
-   - `generateRoutingDocx()` — assembles OOXML using existing `makeParagraph`, `createZip`, `escXml` helpers; table rendered using `<w:tbl>` OOXML; downloads as `routing_slip.docx`
-   - `routingBtn.addEventListener('click', …)` — mutual exclusion (close all other drawers), open routing-drawer, call `renderRoutingPreview()`
-   - `F.subj.addEventListener('input', updateRoutingSubj)` — always-on listener that updates `#routing-subj-display` and calls `renderRoutingPreview()` whenever the form subject changes, whether drawer is open or not
-   - `routingClose.addEventListener('click', …)` — close routing-drawer
-   - Add `routingDrawer.classList.remove('open')` listeners on all existing drawer buttons (draftsBtn, importBtn, chainBtn, addrBtn, replyBtn, tmplBtn)
-   - Add `routingBtn.addEventListener('click', ...)` close listener on each existing drawer's open button
+**Subtask 1 — CSS (no dependencies)**
+Add styles for:
+- `#quality-drawer` — same fixed-left-420px pattern as all existing drawers
+- `.qc-item` — row layout: status icon + rule name + note
+- `.qc-pass` / `.qc-fail` — green ✓ / red ✗ styling
+- `#draft-io-msg` — small inline feedback span in top-bar area for import/export status
 
-**Sequencing:** CSS → HTML drawer → HTML button → JS (in above order). No inter-subtask dependencies except JS requires DOM elements to exist.
+**Subtask 2 — HTML (depends on Subtask 1)**
+Add to `<div id="top-bar">`:
+- `<button id="quality-btn">check</button>` (before `print-btn`)
+- `<button id="export-draft-btn">export draft</button>` (after `routing-btn`)
+- `<button id="import-draft-btn">import draft</button>` (after `export-draft-btn`)
+- `<input type="file" id="import-draft-file" accept=".json" style="display:none">`
+
+Add `#quality-drawer` HTML block (before `#autosave-err`):
+- Close button, intro text, `<div id="quality-results">` container
+- "re-check" button to re-run without closing
+
+**Subtask 3 — Quality checker JS (depends on Subtask 2)**
+`function runQualityChecks()` — reads current form state, returns `[{label, pass, note}, …]`:
+1. **Date Format** — `F.date.value` matches `/^\d{1,2}\s+(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+\d{4}$/i` (skip check for pointpaper/actionmemo/moa which don't show date field)
+2. **SSIC Pattern** — `F.ssic.value` matches `/^\d{4,5}$/` (skip for types without SSIC: pointpaper/actionmemo/moa)
+3. **Subject Non-Empty and Length** — `F.subj.value` trimmed length > 0 AND ≤ 80 chars; if > 80 fail with "Subject exceeds 80 characters — consider abbreviating"
+4. **From and To Filled** — `F.from.value` and `F.to.value` both non-empty (skip for pointpaper/actionmemo/moa which use different header)
+5. **Body Para 1 Numbering** — for letter/memo/endorsement/business/instruction/sop: if body has 2+ blank-line-separated paragraphs, first para must start with `1.`; single-para bodies pass always
+6. **Signature Block** — for types with a sig block (letter/memo/endorsement/business/actionmemo/instruction/sop): `F.sigName.value` and `F.sigRank.value` both non-empty
+7. **Classification Marking** — `classSel.value` non-empty (i.e., not "No Marking"); if empty, advisory note "Consider setting classification marking"
+
+`function renderQualityPanel()` — clears `#quality-results` and injects one `.qc-item` per check; drawer shows summary line "N/7 checks passed" at top.
+
+Quality drawer open/close + mutual exclusion with all existing drawers (same pattern as routing-drawer).
+
+**Subtask 4 — Portable Export/Import JS (no dependency on Subtask 3)**
+`function exportDraft()`:
+- Calls `getFullState()`
+- Adds `_navalscribe_version: "1"` and `_navalscribe_exported_at: new Date().toISOString()`
+- `JSON.stringify(state)` → Blob → download link → click → revoke
+- Filename: `naval_draft_<YYYYMMDD>.navalscribe.json`
+
+`function validateImportSchema(obj)`:
+- Returns `{valid: bool, sanitized: obj, errors: []}`
+- Checks `obj` is a plain object (not null, not array)
+- Checks for `_navalscribe_version` key (rejects file without it: "Not a Naval Scribe draft file")
+- Checks that `_navalscribe_version === "1"` (the current schema version); rejects files with a different version value with "Unsupported draft version — cannot import"
+- Whitelisted top-level keys: `type, classification, fields, copyTo, distribution, via, refs, encls, parties, routing, _navalscribe_version, _navalscribe_exported_at`
+- Any key not in whitelist → stripped (silent)
+- Type checks: `type` string, `classification` string, `fields` object, `copyTo` array-or-undefined, `distribution` boolean-or-undefined, `via` array, `refs` array, `encls` array, `parties` array, `routing` object-or-undefined
+- Type mismatch → strip key, add to errors
+
+`importDraftBtn.click` → triggers `importDraftFile.click()`
+`importDraftFile.change` → FileReader → JSON.parse → `validateImportSchema` → if valid call `restoreFullState(sanitized)` → show success/error in `#draft-io-msg` (auto-clears after 4s)
 
 ## File Layout
 
-- `naval-scribe/index.html` — single file, all changes inline
-  - CSS block (~line 424, end of `<style>`): append ~60 lines of routing drawer + preview table CSS
-  - HTML: insert `#routing-drawer` div (~line 540, after `#reply-drawer` div), ~65 lines
-  - HTML top-bar: insert `routing-btn` button (~line 455, after reply-btn), 1 line
-  - JS: insert new routing slip block (~line 3916, before `/* ── Init ── */`), ~120 lines
+**`naval-scribe/index.html`** (sole file modified)
+- CSS section (~line 498 end of `</style>`): insert `#quality-drawer` + `.qc-*` styles + `#draft-io-msg` style (~40 lines)
+- HTML `#top-bar` buttons (~line 530 area): insert `quality-btn`, `export-draft-btn`, `import-draft-btn`, hidden file input (~5 lines)
+- HTML drawers section (~line 663, before `#autosave-err`): insert `#quality-drawer` block (~20 lines)
+- JS section (~line 4367, before `loadSaved()`): insert ~170 lines of new JS (quality checks, export, import, drawer wiring)
 
 ## Function Map
 
-`naval-scribe/index.html`:
-- `addRoutingReviewer(name, action)` — **added** — appends one reviewer row (input + select + remove btn) to `#routing-chain`, wires input/change → `renderRoutingPreview`
-- `renderRoutingPreview()` — **added** — reads all reviewer row inputs + suspense/drafter inputs; rebuilds `#routing-preview` innerHTML with an HTML table
-- `generateRoutingDocx()` — **added** — reads routing slip data, calls `makeParagraph` + new inline `makeWTbl` helper for OOXML table; calls `createZip`; triggers download of `routing_slip.docx`
-- `routingBtn.addEventListener` — **added** — mutual exclusion open/close toggle for routing-drawer
-- `routingClose.addEventListener` — **added** — closes routing-drawer
-- Cross-close listeners on all 6 existing drawer buttons — **added** (6 × 1-liner)
+**`naval-scribe/index.html`**
+
+New functions added:
+- `runQualityChecks()` — reads form, returns array of 7 check results `[{label, pass, note}]`
+- `renderQualityPanel()` — clears and repopulates `#quality-results` div
+- `exportDraft()` — builds JSON payload, triggers download as `.navalscribe.json`
+- `validateImportSchema(obj)` — returns `{valid, sanitized, errors}` with whitelisted/type-checked copy
+- *(anonymous)* `importDraftFile.addEventListener('change', …)` — FileReader → validate → restoreFullState
+
+No existing functions are modified.
 
 ## Security
 
-- All user input rendered in preview via `textContent` assignment (no `innerHTML` of user data). The drawer's live preview table uses DOM construction, not innerHTML concatenation of user strings.
-- DOCX export: all user strings pass through existing `escXml()` before insertion into OOXML.
-- No new external loads; no fetch; no form action. CSP unchanged (`connect-src 'none'`).
-- Routing slip data is never written to localStorage. No new storage surface.
-- Trust boundary: user controls name/office, action, suspense, drafter fields. All are text; no eval; no URL parsing.
+- Import path: all JSON is validated via `validateImportSchema` before any DOM writes; extra keys stripped, type mismatches stripped — no XSS vector via import payload
+- `restoreFullState` already escapes via `esc()` before any `innerHTML` write — the existing escape chain covers imported data
+- Export: `JSON.stringify` of in-memory state only; no shell, no eval, no innerHTML
+- File input: `accept=".json"` is a hint not enforcement; actual validation is JSON.parse + schema check in JS
+- CSP: `connect-src 'none'` already blocks outbound — export/import is purely local blob/file, within existing constraints
+- No new injection surface introduced; import validation is the defense-in-depth layer per roadmap requirement
 
 ## UI
 
-- Button: `routing slip` in top-bar, same `.btn` class, mutual exclusion with all 6 existing drawers.
-- Drawer opens over form panel (same overlay pattern as all other drawers). 420px wide on desktop; 100% on mobile.
-- Drawer header: "Routing Slip" title + close × button.
-- Fields: Suspense date (text input, placeholder "DD Mon YYYY or NLT [date]"), Drafter / Return To (text input), Document Subject (read-only text display wired via live `input` listener on `F.subj`; shows "(none)" when subject is empty; auto-updates in real time as user edits the form subject).
-- Reviewer chain: vertical stack of rows, each row = [Name/Office text input (flex:1)] [Action select] [× remove button]. Rows added with "+ add reviewer" button; minimum 0 rows; max 15 enforced with a warning at 15.
-- Live preview: rendered HTML table below the chain, updating on every keystroke. Table has a header row and one row per reviewer, plus a footer row for suspense/drafter. Static placeholder text "________" for date/initials columns — these are filled by hand.
-- Empty state (0 reviewers): preview shows the table with only header + footer rows and a note "Add reviewers above."
-- Export button: `export routing_slip.docx` — full-width, `.btn-primary` style; always enabled (can export even with 0 reviewers for a blank form).
-- Drawer close: × button at top, and clicking any other drawer button closes routing-drawer.
+- **Quality checker button**: "check" — compact, consistent with other top-bar buttons
+- **Quality drawer**: left-side overlay (same as all drawers); close button top-right; intro "Advisory only — does not block export."; summary line "N/7 passed" in accent color; 7 rows each: icon (✓ or ✗) + rule name + note text; "re-check" button at bottom
+- **Pass state**: icon `✓` in `var(--color-success)` (#3fb950 green); rule name in `var(--text-secondary)`; note in `var(--text-tertiary)`
+- **Fail state**: icon `✗` in `#e05252` red; rule name in `var(--text-primary)`; note in `#e3b341` amber (highlights the issue)
+- **Export draft button**: "export draft" — triggers immediate download, no modal
+- **Import draft button**: "import draft" — triggers file picker, then shows 1-line status message `#draft-io-msg` that auto-clears
+- **Import success**: "Draft imported." in green
+- **Import error**: "Import failed: <reason>" in amber/red
+- **Empty state**: quality drawer opened with no body content shows all checks that need content with their "not filled" notes
 
 ## Guide
 
-- Button label: `routing slip`
-- Drawer title: `Routing Slip`
-- Suspense field label: `Suspense Date`
-- Drafter field label: `Drafter / Return To`
-- Subject field label: `Document Subject` (with hint: "sourced from current form; edit above")
-- Add button text: `+ add reviewer`
-- Action options: `Review`, `Concur`, `Sign`, `Info`
-- Export button text: `export routing_slip.docx`
-- Max-15 warning: `Maximum 15 reviewers. Remove one to add another.`
-- Preview table headers: `Reviewer / Office` | `Action` | `Date Recv'd` | `Date Ret'd` | `Initials / Sig`
-- Preview footer row label: `Drafter / Return To:`
-- Preview suspense row label: `Suspense:`
+- Quality drawer intro: "Advisory checks — does not block export."
+- Re-check button label: "re-check"
+- Check item labels (7): "Date Format", "SSIC Pattern", "Subject", "From / To", "Body Numbering", "Signature Block", "Classification"
+- Export button: "export draft"
+- Import button: "import draft"
+- Import file filter: `.json` (user-visible)
+- Import success message: "Draft imported."
+- Import error prefix: "Import failed: "
+- Draft-io status auto-clears after 4000ms
 
 ## Edge Cases
 
-- **0 reviewers:** export produces a docx with only the header and footer rows — valid blank routing slip.
-- **Empty name/office field:** row still appears in preview and docx; blank cell is fine (user fills on paper).
-- **Subject empty in form:** display "(none)" in subject area; export uses "(none)" as document subject line.
-- **Very long name/office text:** Preview table cells use `word-break: break-word` with no truncation — full text is always visible; the preview div has `overflow-x: auto` so very wide content scrolls. Docx wraps naturally via OOXML `<w:tblLayout w:type="autofit"/>`.
-- **Suspense/drafter empty:** footer row shows blank cells in both preview and docx — acceptable.
-- **15-reviewer max:** `+` button shows warning text and refuses to add; existing rows unaffected.
-- **Drawer already open:** clicking routing-slip button again closes it (toggle, matching all other drawers).
-- **Form subject changes after drawer opens:** subject display auto-updates in real time via an `input` listener on `F.subj`. No stale display — if the user edits the subject while the drawer is open, the field refreshes immediately.
+- **Quality checker opened on blank form**: all checks that require content will fail — expected, shows what needs to be filled
+- **Single-paragraph body**: Body Numbering check passes (no "1." required by naval convention)
+- **Type without SSIC/date field** (pointpaper, actionmemo, moa): corresponding checks are skipped (marked pass with "N/A for this type")
+- **Import of non-JSON file**: JSON.parse throws → catch → show "Import failed: Not a valid JSON file"
+- **Import of JSON without `_navalscribe_version`**: rejected with "Not a Naval Scribe draft file"
+- **Import with extra keys**: extra keys stripped silently; import proceeds with valid keys only
+- **Export filename collision**: browser handles via download dialog / auto-rename — no action needed
+- **Subject > 80 chars**: quality check fails with note "Subject exceeds 80 characters"
+- **Classification = "No Marking"**: quality check fails advisory with "Consider setting classification marking"
+- **Mutual exclusion**: quality-drawer opens → all other drawers close; any other drawer opens → quality-drawer closes
 
 ## Test Strategy
 
-1. `python3 test_project.py naval-scribe` — page loads, no JS errors (existing test).
-2. Manual checks:
-   - Click "routing slip" → drawer opens; all other drawers close.
-   - Click another drawer btn while routing-drawer open → routing-drawer closes.
-   - Add 3 reviewers, set suspense + drafter → preview table updates with each keystroke.
-   - Export: downloads `routing_slip.docx`; opening in Word shows "DON ROUTING SLIP" heading, header row, reviewer rows, suspense + drafter footer.
-   - At 15 reviewers, `+` button shows max warning.
-   - Empty form (no subject): subject shows "(none)" in preview and docx.
-   - Close × button closes drawer.
+1. `python3 test_project.py naval-scribe` — must pass (HTML/JS syntax, file existence)
+2. Manual feature verification plan:
+   - Open quality drawer on blank form → all 7 fail with appropriate notes
+   - Fill all fields correctly → all 7 pass; "7/7 checks passed" shown
+   - Fill date as "2 Apr 2026" → Date Format passes; fill as "April 2" → fails
+   - Set SSIC to "5216" → passes; "abc" → fails
+   - Fill 60-char subject → passes; 90-char subject → fails
+   - Fill From/To → passes; clear From → fails
+   - Two-paragraph body starting with "1." → passes; two-paragraph without "1." → fails
+   - Fill sig name+rank → passes; clear one → fails
+   - Set classification to UNCLASSIFIED → passes; set to No Marking → advisory fail
+3. Export draft → file downloads as `.navalscribe.json`; contents are valid JSON with `_navalscribe_version` key
+4. Import downloaded file → form restores correctly
+5. Import arbitrary JSON without `_navalscribe_version` → "Not a Naval Scribe draft file" error
+6. Import JSON with extra keys → extra keys stripped, rest restores correctly
+7. Mutual exclusion: open quality drawer → other drawers closed; open drafts → quality drawer closes
