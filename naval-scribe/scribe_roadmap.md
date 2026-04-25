@@ -60,6 +60,11 @@ Naval Scribe is a graduated YOLO project operating under Flagship rules alongsid
 - [x] Inline tables in body text — parse markdown-style tables and render in preview + .docx
 - [x] Paste-to-parse references — paste a block of references, auto-split into lettered (a), (b), (c) entries
 
+## Proposed Features (Pending Approval)
+
+- **Letter Quality Checker** — "Check" button opens a side panel that scans the current form against naval formatting rules: date in DD Mon YYYY format, SSIC present and matching NNN.NN pattern, Subject ≤ 1 line, From/To non-empty, body paragraph 1 starts with "1.", signature block has name and grade, classification set. ✓/✗ per check with brief explanation. Advisory only — does not block export.
+- **Portable Draft Export/Import** — "Export Draft" button downloads the current form state as a `.navalscribe.json` file (same structure as getFullState). "Import Draft" file picker reads it back and calls restoreFullState. Enables backup, cross-device transfer, and sharing drafts with colleagues who run their own instance.
+
 ## Parking Lot
 
 - SSIC code search/lookup database
@@ -91,3 +96,4 @@ Naval Scribe is a graduated YOLO project operating under Flagship rules alongsid
 | 2026-04-08 | Tock | Command Address Book: "addr book" button opens drawer; add up to 50 entries (label + full name); one-click → From / → To / + Via / × delete per entry; QuotaExceededError handling inline; createDocumentFragment batch render; aria-labels on all 5 action buttons; mutual exclusion with drafts/import/chain drawers. 4 council gates passed (plan attempt 2 after escalation; implementation attempt 2 after John fixed font-size 0.48rem→0.55rem + aria-labels; tests attempt 2; outcome attempt 2). |
 | 2026-04-22 | Tock | Reply Draft Auto-Fill: "reply" button in top bar opens preview drawer with WILL CHANGE / WILL CLEAR / WILL KEEP sections; generateReplyDraft() swaps From/To, sets today's date, builds ref line via conditional part assembly (no spacing defects on missing SSIC/Date), sets body to "Per reference (a), ", clears Via/Encl/CopyTo/distCheck/sig, resets type to letter, preserves SSIC+Subject; mutual exclusion with all 4 existing drawers; aria-label on reply btn; AI prompt updated with feature docs; 4 council gates passed (plan attempt 2: refLine conditional assembly fix; tests attempt 2: AI prompt documentation added). |
 | 2026-04-24 | Tock | Routing Slip Generator: "routing slip" button opens drawer; suspense date + drafter/return-to inputs; document subject mirrors form subject live; reviewer chain (up to 15 rows: name/office + action select); live HTML table preview updates on every keystroke; exports standalone routing_slip.docx via OOXML w:tbl; mutual exclusion with all 6 existing drawers. Routing data persists via localStorage (getFullState/restoreFullState). Tap targets bumped (min 44px) + focus styles on all interactive elements. esc() converted to split/join chain. autoSave now shows user-visible error on QuotaExceededError. Routing drawer has localStorage disclaimer. 4 council gates passed (escalation resolved across 2 cron runs). |
+| 2026-04-25 | Tock | No approved items remaining. Brainstormed 2 PENDING features: Letter Quality Checker, Portable Draft Export/Import. |
