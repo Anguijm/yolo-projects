@@ -32,4 +32,19 @@
 
 ## Resolution
 
-Human decision required. Resume the build after updating session_state.json.
+**RESOLVED 2026-04-25. BUGS medium fixed at source — recursive schema validation added.**
+
+### BUGS medium — FIXED
+The original `validateImportSchema` only checked top-level container types. Added three recursive helpers + a `QC_FIELD_KEYS` whitelist for `fields`:
+
+- `_sanitizeFieldsObj(v, errors)` — keeps only known field names from `QC_FIELD_KEYS` (the 17 form fields actually used by `getFullState`); type-checks each as string; strips unknown or non-string entries.
+- `_sanitizeStringArray(v, label, errors)` — used for `via`, `refs`, `encls`, `copyTo`; drops non-string entries with a positional error note.
+- `_sanitizeParties(v, errors)` — drops non-object entries; keeps only the four recognized party-string fields (`name`, `title`, `organization`, `signature`); skips empty entries.
+- `_sanitizeRouting(v, errors)` — type-checks `suspense` / `drafter` strings; for `reviewers` array, drops non-object entries and coerces `name`/`action` to safe defaults.
+
+Each helper drops malformed entries silently and pushes a one-line `errors[]` note for the user-facing import status (which already uses `.textContent`, so the note renders as inert text). The envelope keys (`_navalscribe_version`, `_navalscribe_exported_at`) are also now string-type-checked. 7/7 naval-scribe tests pass.
+
+### Other 6 angles — APPROVE
+SECURITY, UI, GUIDE, USEFULNESS, COOL, LESSONS all clean.
+
+Cron may rerun IMPLEMENTATION; expected clean pass → TESTS → OUTCOME → ship.

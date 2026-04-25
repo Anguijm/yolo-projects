@@ -4603,6 +4603,77 @@ select:focus, select:focus-visible {
     copyTo: 'array', distribution: 'boolean', via: 'array',
     refs: 'array', encls: 'array', parties: 'array', routing: 'object'
   };
+  /* Whitelist of allowed keys inside `fields`; any other key is dropped. */
+  var QC_FIELD_KEYS = ['ssic','date','endorseNum','from','to','subj','body','bodyBullets','bodyAction','bodyMoa','effectiveDate','duration','bluf','recommendation','sigName','sigRank','sigTitle'];
+
+  /* Recursive validators per BUGS IMPL-escalation 2026-04-25 — each returns a
+     sanitized copy or null if the nested shape is unrecoverable. Drops bad
+     entries silently and pushes a one-line note into errors[]. */
+  function _sanitizeFieldsObj(v, errors) {
+    if (!v || typeof v !== 'object' || Array.isArray(v)) {
+      errors.push('fields: not an object — skipped');
+      return null;
+    }
+    var out = {};
+    Object.keys(v).forEach(function(k) {
+      if (QC_FIELD_KEYS.indexOf(k) === -1) return; /* strip unknown */
+      if (typeof v[k] === 'string') out[k] = v[k];
+      else errors.push('fields.' + k + ': not a string — skipped');
+    });
+    return out;
+  }
+  function _sanitizeStringArray(v, label, errors) {
+    var out = [];
+    for (var i = 0; i < v.length; i++) {
+      if (typeof v[i] === 'string') out.push(v[i]);
+      else errors.push(label + '[' + i + ']: not a string — skipped');
+    }
+    return out;
+  }
+  function _sanitizeParties(v, errors) {
+    var out = [];
+    for (var i = 0; i < v.length; i++) {
+      var p = v[i];
+      if (!p || typeof p !== 'object' || Array.isArray(p)) {
+        errors.push('parties[' + i + ']: not an object — skipped');
+        continue;
+      }
+      var entry = {};
+      ['name','title','organization','signature'].forEach(function(k) {
+        if (typeof p[k] === 'string') entry[k] = p[k];
+      });
+      if (Object.keys(entry).length > 0) out.push(entry);
+      else errors.push('parties[' + i + ']: no recognized string fields — skipped');
+    }
+    return out;
+  }
+  function _sanitizeRouting(v, errors) {
+    if (!v || typeof v !== 'object' || Array.isArray(v)) {
+      errors.push('routing: not an object — skipped');
+      return null;
+    }
+    var out = {};
+    if (typeof v.suspense === 'string') out.suspense = v.suspense;
+    if (typeof v.drafter === 'string') out.drafter = v.drafter;
+    out.reviewers = [];
+    if (Array.isArray(v.reviewers)) {
+      for (var i = 0; i < v.reviewers.length; i++) {
+        var r = v.reviewers[i];
+        if (!r || typeof r !== 'object' || Array.isArray(r)) {
+          errors.push('routing.reviewers[' + i + ']: not an object — skipped');
+          continue;
+        }
+        var rev = {
+          name: typeof r.name === 'string' ? r.name : '',
+          action: typeof r.action === 'string' ? r.action : 'Review'
+        };
+        out.reviewers.push(rev);
+      }
+    } else if (v.reviewers !== undefined) {
+      errors.push('routing.reviewers: not an array — reset to empty');
+    }
+    return out;
+  }
 
   function validateImportSchema(obj) {
     var errors = [];
@@ -4626,13 +4697,28 @@ select:focus, select:focus-visible {
                  (expected === 'object')  ? (typeof v === 'object' && !Array.isArray(v)) :
                  (expected === 'boolean') ? (typeof v === 'boolean') :
                                             (typeof v === expected);
-        if (ok) {
-          sanitized[k] = v;
-        } else {
+        if (!ok) {
           errors.push('Type mismatch on key "' + k + '" — skipped');
+          return;
+        }
+        /* Recursive validation for nested containers */
+        if (k === 'fields') {
+          var f = _sanitizeFieldsObj(v, errors);
+          if (f) sanitized[k] = f;
+        } else if (k === 'parties') {
+          sanitized[k] = _sanitizeParties(v, errors);
+        } else if (k === 'routing') {
+          var r = _sanitizeRouting(v, errors);
+          if (r) sanitized[k] = r;
+        } else if (k === 'via' || k === 'refs' || k === 'encls' || k === 'copyTo') {
+          sanitized[k] = _sanitizeStringArray(v, k, errors);
+        } else {
+          sanitized[k] = v;
         }
       } else {
-        sanitized[k] = obj[k]; /* _navalscribe_version, _navalscribe_exported_at */
+        /* _navalscribe_version, _navalscribe_exported_at — strings only */
+        if (typeof obj[k] === 'string') sanitized[k] = obj[k];
+        else errors.push('Type mismatch on envelope key "' + k + '" — skipped');
       }
     });
     return {valid: true, sanitized: sanitized, errors: errors};
