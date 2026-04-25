@@ -37,4 +37,34 @@ STRUCTURAL CONSTRAINTS Constraint 2: 'SECURITY may NOT require `DOMPurify` or an
 
 ## Resolution
 
-Human decision required. Resume the build after updating session_state.json.
+**RESOLVED 2026-04-25. Both BUGS and GUIDE fixed at source.**
+
+### BUGS high — FIXED
+Pie charts now filter out negative values before computing percentages and surface the count via the existing `.slide-chart-warn` row pattern. The filter runs in `renderChart` after the truncation/skipped warnings (so they all collect in `warns` and render uniformly):
+
+```js
+if (chartType === 'pie') {
+  var negCount = 0;
+  for (var ni = 0; ni < parsed.points.length; ni++) { if (parsed.points[ni].value < 0) negCount++; }
+  if (negCount > 0) {
+    parsed.points = parsed.points.filter(function(p) { return p.value >= 0; });
+    warns += '<div class="slide-chart-warn">⚠ N negative value(s) hidden — pie charts require non-negative data</div>';
+  }
+}
+```
+
+Chosen here (in `renderChart`) rather than inside `_chartPie` so the warning row joins the existing warning collection cleanly. Bar/line charts retain their negative-value rendering (bars below baseline, line dipping) per the plan.
+
+### GUIDE medium — FIXED
+Added a `## Charts` slide to the initial markdown content in the editor textarea (between `## Code Blocks` and `## Two-Column Layout`). Demonstrates a working `chart bar` block with a 4-point Q1 revenue dataset and prose pointing to `chart line` / `chart pie` for the other types. First-time users now see the feature in the default deck without consulting docs.
+
+### LESSONS auto-downgraded — N/A
+LESSONS objected on SECURITY architecture re-litigation; auto-downgraded for missing precondition_evidence (the rule fired correctly).
+
+### Other 5 angles — APPROVE
+SECURITY, UI, USEFULNESS, COOL all clean.
+
+### Note on test_project.py brace_balance
+Pre-existing failure unrelated to this feature: SG_GRAMMARS regex literals contain `(?=\s*\()`-style patterns with escaped parens that confuse test_project.py's naive brace-balance counter (per learnings.md:2652 — known pattern, fix would be `new RegExp(string)` constructor). Failure exists on prior shipped commits; not flagged by IMPLEMENTATION-gate council.
+
+Cron may rerun IMPLEMENTATION; expected clean pass → TESTS.

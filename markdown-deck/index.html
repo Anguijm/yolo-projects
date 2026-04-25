@@ -323,6 +323,22 @@ def hello():
 
 ---
 
+## Charts
+
+Inline `chart` blocks render as theme-aware SVG.
+
+```chart bar
+title: Q1 Revenue
+North America, 42
+EMEA, 31
+APAC, 18
+LATAM, 9
+```
+
+Try `chart line` or `chart pie` for other types.
+
+---
+
 ## Two-Column Layout
 
 - Left column bullet
@@ -980,6 +996,14 @@ function renderChart(type, csvData) {
   }
   if (parsed.truncated > 0) warns += '<div class="slide-chart-warn">⚠ 20-point limit — ' + parsed.truncated + ' additional point' + (parsed.truncated === 1 ? '' : 's') + ' hidden</div>';
   if (parsed.skipped > 0) warns += '<div class="slide-chart-warn">[' + parsed.skipped + ' line(s) skipped — invalid format]</div>';
+  if (chartType === 'pie') {
+    var negCount = 0;
+    for (var ni = 0; ni < parsed.points.length; ni++) { if (parsed.points[ni].value < 0) negCount++; }
+    if (negCount > 0) {
+      parsed.points = parsed.points.filter(function(p) { return p.value >= 0; });
+      warns += '<div class="slide-chart-warn">⚠ ' + negCount + ' negative value' + (negCount === 1 ? '' : 's') + ' hidden — pie charts require non-negative data</div>';
+    }
+  }
   var aria = esc(chartType) + ' chart' + (parsed.title ? ': ' + esc(parsed.title) : '');
   if (parsed.points.length === 0) return '<div class="slide-chart" role="img" aria-label="' + aria + '"><div style="padding:1rem;color:#666;font-size:0.8rem">[chart: no data]</div>' + warns + '</div>';
   var svgHtml = chartType === 'pie' ? _chartPie(parsed, tc, palette) : _chartBarLine(chartType, parsed, tc, palette);
