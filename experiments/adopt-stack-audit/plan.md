@@ -34,6 +34,8 @@ Locate by **grep-by-content**, not by line number — line numbers rot when file
 
 Each row in the dependency table records the grep match itself (file + content) rather than a static line number. If the workflow file is reorganized, the grep still finds the dep.
 
+**Security note:** GitHub Actions secrets are never stored in workflow files — they appear only as `${{ secrets.KEY_NAME }}` references. The grep output for `ANTHROPIC_API_KEY` or `GEMINI_API_KEY` will contain the variable reference, not any actual secret value. If a grep match unexpectedly contains what appears to be an actual secret value, redact it with `[REDACTED]` before recording it in STACK_AUDIT.md and flag the source file for immediate remediation.
+
 **Step 2 — Hardcoded model names (from council.py):**
 - `grep -nE "^(MODEL_NAME|CLAUDE_MODEL)\s*=" council.py`
 

@@ -1,51 +1,37 @@
 # Council Escalation — experiments/adopt-stack-audit
 
-**Gate:** plan
+**Gate:** implementation
 **Reason:** Unresolved objections after 2 attempts
-**Timestamp:** 2026-04-25T00:47:43.385346+00:00
+**Timestamp:** 2026-04-25T01:05:54.862834+00:00
 
 ## Angle positions
 
 ### BUGS — OBJECT (critical)
-- **Reason:** The plan relies on hardcoded line numbers for extracting dependencies and model names, making the audit immediately incorrect and stale if source files change.
-- **Required fix:** Adopt a robust parsing method (e.g., YAML parser for workflows, AST parser for Python code) to identify dependencies by content and structure, rather than fragile line numbers.
-- **Evidence:** `Approach: Step 1 cites 'line 37 of tick_tock.yml, line 59 of daily_research.yml' and 'tick_tock.yml line 40'. Step 2 cites 'council.py:90-91'. Test Strategy also relies on 'exact file and line'.`
+- **Reason:** The deliverable accurately identifies several critical correctness risks in the system (e.g., Node.js 20 EOL in 5 days, unpinned dependencies, YouTube RSS injection vulnerability) but does not implement their resolution.
+- **Required fix:** The implementation should include the code changes necessary to resolve the critical correctness risks identified in the STACK_AUDIT.md document, starting with the Node.js 20 EOL.
+- **Evidence:** `STACK_AUDIT.md, Summary: Risk Register: 'Node.js 20 EOL (2026-04-30) | CRITICAL | Immediate (5 days) | Change `node-version: '22'` in `tick_tock.yml:29`'`
 
-### SECURITY — APPROVE (low)
-- **Reason:** The plan is for a documentation-only artifact, creating no new executable code or storing secrets, thus introducing no new attack surface.
+### SECURITY — OBJECT (critical)
+- **Reason:** The project introduces critical supply chain risks due to unpinned dependencies and an End-of-Life runtime, alongside high-severity injection vulnerabilities from unsanitized external data.
+- **Required fix:** 1. Upgrade `node-version` to `'22'` in `.github/workflows/tick_tock.yml`. 2. Pin all Python packages (`anthropic`, `google-generativeai`, `requests`) and the npm package (`@anthropic-ai/claude-code`) to specific versions using `==` or `~=` in their respective workflow files. 3. Modify `fetch_youtube_rss.py:parse_entries()` to apply `html.unescape()` to extracted text fields and verify `video_id` matches `[a-zA-Z0-9_-]{11}`. 4. Remove `requests` from the `pip install` line in `.github/workflows/tick_tock.yml`.
+- **Evidence:** `Node.js 20 EOL: "Node.js 20 | `20` | `tick_tock.yml:29` | **3mo / critical** — Node 20 entered maintenance Apr 2024; End of Life **2026-04-30** (5 days from snapshot date)." Unpinned dependencies: "None of the three packages are pinned to a version in the workflow. ... **unpinned packages are a supp`
 
 ### UI — APPROVE (low)
-- **Reason:** The deliverable is a static documentation artifact (markdown file), so there is no user interface to evaluate for UX concerns.
+- **Reason:** The STACK_AUDIT.md document is exceptionally clear, well-structured, and actionable, providing excellent affordances for maintainers to understand and address pipeline dependencies.
 
 ### GUIDE — APPROVE (low)
-- **Reason:** The plan is exceptionally well-documented, providing clear steps, scope, methodology, and even edge cases for both human and AI agents to follow without external help.
+- **Reason:** The STACK_AUDIT.md is exceptionally well-documented, providing clear instructions for verification, detailed explanations, and actionable mitigation plans for all dependencies.
 
 ### USEFULNESS — APPROVE (low)
-- **Reason:** This project creates a valuable, consolidated reference for managing technical debt and future architectural decisions related to external dependencies.
-- **Evidence:** `A dependency audit with risk assessment (deprecation, coupling) is a standard and necessary tool for project maintainers and architects, providing insights beyond simple package lists.`
+- **Reason:** This audit provides critical, actionable insights into pipeline dependencies, preventing future outages and security risks.
+- **Evidence:** `It identifies an urgent Node 20 EOL issue (5 days out), a deprecated SDK, and supply chain risks from unpinned packages, all with clear mitigation plans. This is a vital tool for long-term project health.`
 
-### COOL — APPROVE ()
-- **Reason:** The plan outlines a unique, human-augmented dependency audit methodology that goes beyond automated scanning, providing deep architectural insights like coupling depth and deprecation horizons for a broad scope of dependencies, including a 'zero-dep celebration'.
+### COOL — APPROVE (low)
+- **Reason:** The audit document's design, featuring `grep` commands for self-verification, is a clever signature move that ensures its ongoing relevance and prevents staleness, differentiating it from typical static reports.
 
 ### LESSONS — APPROVE (low)
-- **Reason:** The plan is for a documentation-only artifact and does not introduce any code, UI, or architectural changes that would violate documented lessons.
+- **Reason:** No documented lessons or anti-patterns were violated by the deliverable or its described implementation.
 
 ## Resolution
 
-**RESOLVED 2026-04-25. BUGS critical accepted — all line numbers replaced with grep-by-content patterns.**
-
-### BUGS critical — FIXED
-The objection is correct: hardcoded line numbers rot the moment a workflow file or `council.py` is reorganized, making the audit immediately stale. Replaced every line-number citation with a grep pattern that locates the dependency by content. The plan now defines exact grep commands for each step:
-
-- Step 1: `grep -nE "pip install" .github/workflows/*.yml` (and equivalents for npm, `uses:`, `node-version`, `python-version`)
-- Step 2: `grep -nE "^(MODEL_NAME|CLAUDE_MODEL)\s*=" council.py`
-- Step 3: targeted greps for each API service's SDK construction site and the matching workflow secret usage
-- Edge cases: `requests` unused-status check uses `grep -rn "^import requests\|^from requests" --include="*.py" .`
-- Test Strategy: each row cites a grep pattern, not a line number; **the audit document is invalid if any cited grep returns zero matches** — that is the test signal.
-
-This makes the audit re-derivable with one command per row even after files have shifted, which is the central anti-rot property the BUGS objection demanded.
-
-### Other 6 angles — APPROVE
-SECURITY, UI, GUIDE, USEFULNESS, COOL, LESSONS all clean. GUIDE explicitly approved as "exceptionally well-documented."
-
-Cron may rerun PLAN; expected clean pass → IMPLEMENTATION (write `STACK_AUDIT.md`).
+Human decision required. Resume the build after updating session_state.json.
