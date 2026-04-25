@@ -4604,7 +4604,7 @@ select:focus, select:focus-visible {
     refs: 'array', encls: 'array', parties: 'array', routing: 'object'
   };
   /* Whitelist of allowed keys inside `fields`; any other key is dropped. */
-  var QC_FIELD_KEYS = ['ssic','date','endorseNum','from','to','subj','body','bodyBullets','bodyAction','bodyMoa','effectiveDate','duration','bluf','recommendation','sigName','sigRank','sigTitle'];
+  var QC_FIELD_KEYS = ['ssic','date','endorseNum','from','to','subj','body','bodyBullets','bodyAction','bodyMoa','effectiveDate','duration','bluf','recommendation','sigName','sigRank','sigTitle','instrNumber','cancelDate','sopNumber','sopEffective','sopReview','bodyInstr','bodySop'];
 
   /* Recursive validators per BUGS IMPL-escalation 2026-04-25 — each returns a
      sanitized copy or null if the nested shape is unrecoverable. Drops bad
@@ -4639,7 +4639,7 @@ select:focus, select:focus-visible {
         continue;
       }
       var entry = {};
-      ['name','title','organization','signature'].forEach(function(k) {
+      ['org','serial','name','rank','title'].forEach(function(k) {
         if (typeof p[k] === 'string') entry[k] = p[k];
       });
       if (Object.keys(entry).length > 0) out.push(entry);
@@ -4727,6 +4727,10 @@ select:focus, select:focus-visible {
   importDraftFile.addEventListener('change', function() {
     var file = importDraftFile.files && importDraftFile.files[0];
     if (!file) return;
+    if (formHasContent() && !window.confirm('Import will replace the current draft. Continue?')) {
+      importDraftFile.value = '';
+      return;
+    }
     var reader = new FileReader();
     reader.onload = function(e) {
       var parsed;
@@ -4744,7 +4748,11 @@ select:focus, select:focus-visible {
       }
       restoreFullState(result.sanitized);
       importDraftFile.value = '';
-      showDraftMsg('Draft imported.', '#3fb950');
+      if (result.errors && result.errors.length > 0) {
+        showDraftMsg('Draft imported (' + result.errors.length + ' field(s) adjusted — see console).', '#e3b341');
+      } else {
+        showDraftMsg('Draft imported.', '#3fb950');
+      }
     };
     reader.onerror = function() {
       showDraftMsg('Import failed: Could not read file', '#e05252');
