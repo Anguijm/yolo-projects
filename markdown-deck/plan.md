@@ -104,7 +104,7 @@ Add a "Chart Blocks" section after the Diagrams section. Per GUIDE PLAN-escalati
 6. **Negative value rendering** — bar/line charts render negatives properly (bars extend below the baseline; line points dip below) when ANY point is negative. The baseline (zero) is drawn as a reference line. No clamping.
 7. **`[chart: no data]` placeholder** — empty or all-invalid CSV body shows this placeholder div instead of an empty SVG, so authors notice and fix
 8. **Skipped invalid lines** — lines with NaN values or missing comma are skipped during parse; if any lines were skipped, a visible `[N line(s) skipped — invalid format]` warning div is rendered below the chart so authors can spot and fix bad data
-9. **Unknown chart type** — `chart foo` with no recognized type (bar/line/pie) falls back to `bar` with a console warning; no crash
+9. **Unknown chart type** — `chart foo` with no recognized type (bar/line/pie) falls back to `bar` with a **visible warning row below the chart**: `⚠ unknown chart type "{requested}" — rendered as bar`. Same `slide-chart-warn` style as the truncation/skipped-lines warnings; never silent. Console warning still emitted for debugging.
 10. **Pie chart `+N more` legend** — pie charts with > 6 slices show top 5 + an aggregate "Other (N more)" wedge so the legend stays readable
 11. **Theme integration** — colors pull from current theme tokens (heading color for titles, accent for bars/lines/value-labels, warn color for the 20-point warning) so charts always match the deck's palette
 12. **Inline `<details>` quick reference** (per LESSONS advisory PLAN-escalation 2026-04-24, satisfies the port-ref `<details>` pattern KEEP rule for tools accepting structured input): in the editor's chart-block help tooltip / panel, include a `<details><summary>SUPPORTED CHART FORMATS</summary>` block listing the syntax, type names, optional title, and CSV format with one example for each chart type. Mirrors the port-ref bulk-annotate help pattern.
@@ -167,7 +167,7 @@ The section should include 3 worked examples (bar / line / pie) with fenced char
 - All values 0 → bars/line at baseline; pie shows gray circle + `[no data]`; legend shows 0% for all entries
 - Negative values → rendered below baseline (bars extend down, line dips; zero line drawn as reference)
 - Labels > 16 chars → truncated with `…`
-- Unknown chart type → bar fallback
+- Unknown chart type → bar fallback + visible warning row (`⚠ unknown chart type "{requested}" — rendered as bar`); same `slide-chart-warn` style as truncation/skipped warnings
 - > 20 data points → first 20 only
 - Missing comma → line skipped, count noted in warning
 - Value is NaN → line skipped, count noted in warning

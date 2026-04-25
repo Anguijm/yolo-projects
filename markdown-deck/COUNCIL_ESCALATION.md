@@ -34,4 +34,16 @@
 
 ## Resolution
 
-Human decision required. Resume the build after updating session_state.json.
+**RESOLVED 2026-04-25. UI low fixed at source — unknown chart type now shows a visible warning row.**
+
+### UI low — FIXED
+Updated Subtask 8 item 9 and the Edge Cases entry to specify a visible warning row when an unknown chart type is encountered, matching the existing pattern for truncation/skipped-lines warnings:
+
+> Unknown chart type — `chart foo` with no recognized type (bar/line/pie) falls back to `bar` with a **visible warning row below the chart**: `⚠ unknown chart type "{requested}" — rendered as bar`. Same `slide-chart-warn` style as the truncation/skipped-lines warnings; never silent. Console warning still emitted for debugging.
+
+Behavior is now uniform across the three "soft fallback" cases (truncation, skipped lines, unknown type) — every silent fallback gets a visible row.
+
+### Other 6 angles — APPROVE
+BUGS, SECURITY, GUIDE, USEFULNESS, COOL, LESSONS all clean.
+
+Cron may rerun PLAN; expected clean pass → IMPLEMENTATION.
