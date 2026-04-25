@@ -26,21 +26,25 @@ Produce a dated snapshot document cataloguing every external dependency in the y
 Single file: `experiments/adopt-stack-audit/STACK_AUDIT.md`.
 
 **Step 1 — Installable packages and runtime versions (from workflow YAML):**
-Read `.github/workflows/tick_tock.yml` and `.github/workflows/daily_research.yml`. Extract:
-- All `pip install` packages (line 37 of tick_tock.yml, line 59 of daily_research.yml)
-- All `npm install` packages (tick_tock.yml line 40)
-- All `uses: owner/action@version` references
-- `node-version` and `python-version` pinned values
+Locate by **grep-by-content**, not by line number — line numbers rot when files shift. Each commands below should be cited verbatim in `STACK_AUDIT.md` so a future reader can re-derive the data with one command:
+- `grep -nE "pip install" .github/workflows/*.yml` — pip packages
+- `grep -nE "npm install" .github/workflows/*.yml` — npm packages
+- `grep -nE "uses: [^@]+@" .github/workflows/*.yml` — every `owner/action@version` reference
+- `grep -nE "(node|python)-version:" .github/workflows/*.yml` — pinned runtime versions
+
+Each row in the dependency table records the grep match itself (file + content) rather than a static line number. If the workflow file is reorganized, the grep still finds the dep.
 
 **Step 2 — Hardcoded model names (from council.py):**
-Read `council.py:90-91` to extract `MODEL_NAME` and `CLAUDE_MODEL` constants. These are pipeline dependencies even though they aren't installable packages — a model deprecation forces a code edit.
+- `grep -nE "^(MODEL_NAME|CLAUDE_MODEL)\s*=" council.py`
+
+These are pipeline dependencies even though they aren't installable packages — a model deprecation forces a code edit. Recording the grep pattern means the audit stays valid even if the constants move within the file.
 
 **Step 3 — External API services (documented from code inspection):**
-These are not installable packages but are live runtime dependencies:
-- **Anthropic API** — `council.py` calls `anthropic_sdk.Anthropic(api_key=...)` (line ~553); `scripts/process_experiments.py` calls the Anthropic messages API. Citation: `council.py:553`, `tick_tock.yml:99` (ANTHROPIC_API_KEY secret).
-- **Google Gemini API** — `council.py` calls `genai.configure(api_key=...)` (line ~542) and `genai.GenerativeModel(...)` (line ~232). Citation: `council.py:542`, `tick_tock.yml:100` (GEMINI_API_KEY secret).
-- **GitHub Actions platform** — the entire cron scheduling, runner provisioning, and `git push` integration depends on GitHub-hosted runners. Citation: `.github/workflows/tick_tock.yml` (entire file).
-- **YouTube RSS** — `fetch_youtube_rss.py` uses `urllib.request.urlopen` on YouTube RSS endpoints. No API key — pure HTTP. Citation: `fetch_youtube_rss.py` (imports `urllib`), `.github/workflows/daily_research.yml:63`.
+These are not installable packages but are live runtime dependencies. Each citation is a grep pattern, not a line number:
+- **Anthropic API** — `grep -n "anthropic_sdk.Anthropic\|anthropic\.Anthropic" council.py` for SDK construction; `grep -n "ANTHROPIC_API_KEY" .github/workflows/*.yml` for secret usage.
+- **Google Gemini API** — `grep -n "genai\.configure\|genai\.GenerativeModel" council.py` for SDK construction; `grep -n "GEMINI_API_KEY" .github/workflows/*.yml` for secret usage.
+- **GitHub Actions platform** — the entire cron scheduling, runner provisioning, and `git push` integration depends on GitHub-hosted runners. Citation: existence of `.github/workflows/tick_tock.yml` (entire file is the dependency surface).
+- **YouTube RSS** — `grep -n "youtube\.com/feeds\|urllib\.request" fetch_youtube_rss.py` for the network call site; `grep -n "fetch_youtube_rss" .github/workflows/daily_research.yml` for the workflow invocation.
 
 **Step 4 — Zero-dep celebration section:** Document the single-file HTML YOLO tool pattern as the lowest-coupling surface.
 
@@ -96,13 +100,14 @@ Document is authored for the human architect/owner. Tone: factual, terse. Each r
 
 ## Edge Cases
 
-- `requests` pip package: installed in `tick_tock.yml` line 37 but no `import requests` found in repo Python files. Document as installed-but-unused with a note.
+- `requests` pip package: installed via `tick_tock.yml` (locate by `grep -n "pip install.*requests" .github/workflows/*.yml`) but no `import requests` found in repo Python files (`grep -rn "^import requests\|^from requests" --include="*.py" .`). Document as installed-but-unused with a note.
 - `stefanzweifel/git-auto-commit-action@v5` only appears in `daily_research.yml`, not `tick_tock.yml` (which uses `git` directly). Document per workflow.
 - Model names are hardcoded strings in `council.py`, not versioned packages — coupling is deep despite the simple syntax.
 
 ## Test Strategy
 
-- Each dependency row cites the exact file and line where it appears — verifiable by `grep`.
-- Model names verified against `council.py:90-91`.
-- Runtime versions verified against workflow YAML step definitions.
-- `requests` installed-but-unused status verified by absence of `import requests` in `*.py`.
+- Each dependency row cites the **grep pattern** that locates it (not a line number) — verifiable by re-running the command. This is the central anti-rot mechanism: if a file is reorganized, the grep still finds the dep.
+- Model names verified by `grep -nE "^(MODEL_NAME|CLAUDE_MODEL)\s*=" council.py`.
+- Runtime versions verified by `grep -nE "(node|python)-version:" .github/workflows/*.yml`.
+- `requests` installed-but-unused status verified by `grep -rn "^import requests\|^from requests" --include="*.py" .` returning empty.
+- The audit document is invalid if any cited grep returns zero matches — that is the test signal.
