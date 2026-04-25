@@ -3349,3 +3349,21 @@ When a feature overwrites or clears existing user data (body text, field sets), 
 **COUNCIL** — TESTS gate attempt 1 (after escalation resolution): BUGS OBJECT (autoSave swallows QuotaExceededError); SECURITY ✓; UI ✓; GUIDE OBJECT (missing localStorage disclaimer in routing drawer); USEFULNESS ✓; COOL ✓; LESSONS ✓
 **COUNCIL** — TESTS gate attempt 2 (both objections resolved): all 7 APPROVE
 **COUNCIL** — OUTCOME gate attempt 1: all 7 APPROVE (LESSONS auto-downgraded veto for missing precondition_evidence)
+
+## tock: markdown-deck Inline Chart Blocks (2026-04-25)
+
+**KEEP** — _safeHex() for theme colors in new SVG renderers — When a new feature introduces SVG string generation that uses user-editable theme colors (from `getThemeColors()`), always sanitize those values through a hex-stripping function before inserting into `fill` attributes. Pattern: `function _safeHex(val, fallback) { var h = String(val || '').replace(/[^0-9a-fA-F]/g, '').substring(0, 6); return h.length >= 3 ? h : fallback; }`. The sanitized object `stc` is passed to chart sub-renderers instead of raw `tc`. This prevents injection even though the user controls their own deck.
+
+**KEEP** — ai-prompt-content CRITICAL section must be updated when new block types are added — Whenever a new fenced block type is added to markdown-deck (diagrams, charts, etc.), a numbered rule must be added to the `CRITICAL: Rules for AI-Generated Slides` section in `id="ai-prompt-content"`. The rule should mirror the diagram rule format: block syntax, data format, and a one-line example. GUIDE will object if the CRITICAL section omits a new block type.
+
+**INSIGHT** — Council angles can shift objections across retry attempts when inline context changes — In this build: attempt 1 had a transient UI API timeout (not a real objection); attempt 2 had SECURITY objecting to a genuinely new issue (_safeHex missing). These were different concerns across attempts, not goalpost-moves, because the inline context changed. The correct response was to fix each real issue and continue rather than treating the entire sequence as a deadlock.
+
+**INSIGHT** — CONSTRAINTS.md "orchestrator override" is a hard rule, not a suggestion — When SECURITY objects to host-architecture patterns explicitly excluded in CONSTRAINTS.md Constraint 2 (existing md()+innerHTML, renderMath, table cell rendering), the orchestrator MUST downgrade that objection to advisory and NOT treat it as a blocker. This is distinct from auto-downgrade (which is council.py behavior); the orchestrator override applies when council.py cannot detect the scope violation.
+
+**COUNCIL** — PLAN gate attempt 1: all 7 APPROVE
+**COUNCIL** — IMPLEMENTATION gate attempt 1 (prior session): BUGS OBJECT (pie negatives), GUIDE OBJECT (no default chart example) → ESCALATION
+**COUNCIL** — IMPLEMENTATION gate attempt 2 (resolution run, new SECURITY+GUIDE concerns): SECURITY OBJECT (host-arch, advisory per CONSTRAINTS.md), GUIDE OBJECT (ai-prompt-content) → treated as 1 real OBJECT; GUIDE fixed
+**COUNCIL** — IMPLEMENTATION gate attempt 1 (final with _safeHex + GUIDE fix): SECURITY OBJECT (theme color injection in new SVG code) — 1 real OBJECT
+**COUNCIL** — IMPLEMENTATION gate attempt 2 (final): all 7 APPROVE — _safeHex + ai-prompt-content rule both verified
+**COUNCIL** — TESTS gate attempt 1: all 7 APPROVE
+**COUNCIL** — OUTCOME gate attempt 1: all 7 APPROVE

@@ -1,18 +1,18 @@
 # Hot Cache — Active Context
-*Auto-updated 2026-04-24 23:51 UTC. Read this FIRST.*
+*Auto-updated 2026-04-25 00:41 UTC. Read this FIRST.*
 
 ## Current State
-- Portfolio: 230 total, 98 active
-- Tick queue: 12 approved, 0 pending
+- Portfolio: 231 total, 98 active
+- Tick queue: 11 approved, 0 pending
 - Phase 4: 115 experiments, 16 backlog
 - Next: tick
 
 ## Tick Queue
-- [approved] fix-council-bugs-hallucination: Add BUGS hallucination-detection rule to council.py enforcem
 - [approved] adopt-stack-audit: One-time dependency shelf-life audit
 - [approved] adopt-bare-agent: Minimal 50-line agent loop + comparison_plan.md
 - [approved] model-eval-backbone: Backbone model swap benchmark — latest Claude vs. current ba
 - [approved] strategic-niche-audit: Audit YOLO loop strategic position against the 5 defensible 
+- [approved] eval-managed-agents: Benchmark Claude Managed Agents vs manual orchestration on a
 
 ## Recent Builds (last 5)
 - svg-fields: Drop/paste an SVG with {{placeholder}} or data-field markers

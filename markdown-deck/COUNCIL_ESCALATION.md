@@ -2,69 +2,37 @@
 
 **Gate:** implementation
 **Reason:** Unresolved objections after 2 attempts
-**Timestamp:** 2026-04-25T00:19:56.664966+00:00
+**Timestamp:** 2026-04-25T00:34:54.292351+00:00
 
 ## Angle positions
 
-### BUGS — OBJECT (high)
-- **Reason:** Pie charts can produce incorrect or uninterpretable visual output when given negative data values, which are not explicitly supported by the stated goal for pie charts.
-- **Required fix:** Modify `renderChart` to filter out negative data points for pie charts and optionally display a warning, as the stated goal only supports negative values for bar and line charts.
-- **Evidence:** `file:1000-1004, function _chartPie(parsed, tc, palette) { ... var total = pts.reduce(function(a, b) { return a + b.value; }, 0); ... var angles = displayPts.map(function(p) { return p.value / total * 360; }); ... }`
+### BUGS — APPROVE (low)
+- **Reason:** The chart implementation is robust, handles various edge cases and malformed input gracefully with visible warnings, and correctly applies theme-aware styling.
 
-### SECURITY — APPROVE (low)
-- **Reason:** The new chart feature correctly escapes user-provided labels and titles, and theme-derived colors are prefixed with '#' before SVG insertion, preventing new XSS vectors.
+### SECURITY — OBJECT (high)
+- **Reason:** User-controlled input in math blocks and table cells is not escaped before being inserted into the DOM, allowing for cross-site scripting (XSS).
+- **Required fix:** Apply HTML escaping (e.g., `esc()`) to the content of `\text{}` and `\mathbf{}` in the `renderMath` function, and to table cell content (`c`) before insertion into `<th>` or `<td>` tags.
+- **Evidence:** `renderMath: `s = s.replace(/__TEXT__\{([^}]*)\}/g, '$1');`, `s = s.replace(/__BOLD__\{([^}]*)\}/g, '<b>$1</b>');`
+md (table parsing): `return '<' + tag + ' style="' + style + '">' + c + '</' + tag + '>';``
 
 ### UI — APPROVE (low)
-- **Reason:** The inline chart blocks are well-integrated, provide clear feedback for invalid data, are responsive, and include good accessibility attributes.
+- **Reason:** The chart implementation provides clear visual feedback, handles edge cases gracefully with warnings, and integrates well with the existing theme system and accessibility features.
 
 ### GUIDE — OBJECT (medium)
-- **Reason:** The inline chart block feature is not discoverable through the default application content or a dedicated UI element.
-- **Required fix:** Add a basic chart block example to the initial markdown content displayed in the editor textarea.
-- **Evidence:** `file:markdown-deck/index.html (textarea id='input' content is missing a chart example)`
+- **Reason:** The critical instructions for AI agents do not explicitly mention the syntax and rules for chart blocks, which could lead to common generation failures.
+- **Required fix:** Add a point to the 'CRITICAL: Rules for AI-Generated Slides' section detailing how AI should generate `chart` blocks, similar to the existing instruction for `diagram` blocks.
+- **Evidence:** `script type="text/plain" id="ai-prompt-content" (specifically the 'CRITICAL: Rules for AI-Generated Slides' section)`
 
 ### USEFULNESS — APPROVE (low)
-- **Reason:** Inline chart blocks directly address a core need for data visualization in presentations, enhancing utility significantly.
-- **Evidence:** `Common presentation tools (PowerPoint, Google Slides) all offer chart creation. This feature brings that essential capability directly into the markdown workflow, reducing friction and ensuring theme consistency. The handling of data (CSV, truncation warnings) suggests robustness for real-world use.`
+- **Reason:** Inline chart blocks provide a highly useful, friction-reducing way to visualize data directly within the markdown presentation workflow, addressing a common need for quick, theme-aware data visualization without external tools.
+- **Evidence:** `This feature solves the problem of needing to generate charts externally (e.g., in Excel, dedicated charting tools) and then embed them as static images, which is cumbersome for iterative changes and theme consistency. The ability to define charts with CSV-like data directly in markdown, with theme `
 
 ### COOL — APPROVE (low)
-- **Reason:** Pure SVG, zero-dependency, theme-aware inline charts with simple CSV syntax are a signature move that reinforces the project's unique ethos.
+- **Reason:** The inline, zero-dependency, theme-aware SVG charts are a signature move that differentiates this tool from generic markdown editors and presentation tools, offering a delightful 'oh, nice' moment when themes are switched.
 
-### LESSONS — APPROVE (advisory)
-- **Reason:** [AUTO-DOWNGRADED: LESSONS VETO missing precondition_evidence] The SECURITY objection, as described in the council focus, re-litigates architectural constraints (unsafe-inline CSP, md() + innerHTML rendering) that are explicitly documented as out-of-scope for per-feature review, violating `STRUCTURAL CONSTRAINTS` and a recurring `INSIGHT` in `learnings.md`.
-- **Required fix:** The SECURITY angle must retract its objection based on pre-existing architectural patterns and instead focus only on new attack surfaces introduced by the chart feature, which are already mitigated by `esc()` calls for user-provided data.
-- **Evidence:** `STRUCTURAL CONSTRAINTS Constraint 1: 'SECURITY may NOT object to `unsafe-inline` as a per-feature issue.'
-STRUCTURAL CONSTRAINTS Constraint 2: 'SECURITY may NOT require `DOMPurify` or any server-side sanitization for individual features that use `md() + innerHTML` when that pattern is already the ap`
+### LESSONS — APPROVE (low)
+- **Reason:** No documented lessons or prior anti-patterns were violated. Escalation fixes are correctly implemented.
 
 ## Resolution
 
-**RESOLVED 2026-04-25. Both BUGS and GUIDE fixed at source.**
-
-### BUGS high — FIXED
-Pie charts now filter out negative values before computing percentages and surface the count via the existing `.slide-chart-warn` row pattern. The filter runs in `renderChart` after the truncation/skipped warnings (so they all collect in `warns` and render uniformly):
-
-```js
-if (chartType === 'pie') {
-  var negCount = 0;
-  for (var ni = 0; ni < parsed.points.length; ni++) { if (parsed.points[ni].value < 0) negCount++; }
-  if (negCount > 0) {
-    parsed.points = parsed.points.filter(function(p) { return p.value >= 0; });
-    warns += '<div class="slide-chart-warn">⚠ N negative value(s) hidden — pie charts require non-negative data</div>';
-  }
-}
-```
-
-Chosen here (in `renderChart`) rather than inside `_chartPie` so the warning row joins the existing warning collection cleanly. Bar/line charts retain their negative-value rendering (bars below baseline, line dipping) per the plan.
-
-### GUIDE medium — FIXED
-Added a `## Charts` slide to the initial markdown content in the editor textarea (between `## Code Blocks` and `## Two-Column Layout`). Demonstrates a working `chart bar` block with a 4-point Q1 revenue dataset and prose pointing to `chart line` / `chart pie` for the other types. First-time users now see the feature in the default deck without consulting docs.
-
-### LESSONS auto-downgraded — N/A
-LESSONS objected on SECURITY architecture re-litigation; auto-downgraded for missing precondition_evidence (the rule fired correctly).
-
-### Other 5 angles — APPROVE
-SECURITY, UI, USEFULNESS, COOL all clean.
-
-### Note on test_project.py brace_balance
-Pre-existing failure unrelated to this feature: SG_GRAMMARS regex literals contain `(?=\s*\()`-style patterns with escaped parens that confuse test_project.py's naive brace-balance counter (per learnings.md:2652 — known pattern, fix would be `new RegExp(string)` constructor). Failure exists on prior shipped commits; not flagged by IMPLEMENTATION-gate council.
-
-Cron may rerun IMPLEMENTATION; expected clean pass → TESTS.
+Human decision required. Resume the build after updating session_state.json.

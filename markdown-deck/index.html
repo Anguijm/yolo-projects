@@ -854,6 +854,7 @@ var FlowDiagram = (function() {
 
 // ============ CHART RENDERER (pure SVG, zero-dep) ============
 function _truncLabel(s) { return s.length > 16 ? s.substring(0, 15) + '…' : s; }
+function _safeHex(val, fallback) { var h = String(val || '').replace(/[^0-9a-fA-F]/g, '').substring(0, 6); return h.length >= 3 ? h : (fallback || '888888'); }
 
 function parseChartData(csvData) {
   var lines = (csvData || '').split('\n');
@@ -986,7 +987,8 @@ function _chartPie(parsed, tc, palette) {
 function renderChart(type, csvData) {
   var parsed = parseChartData(csvData || '');
   var tc = getThemeColors();
-  var palette = ['#' + tc.accent, '#' + tc.subheading, '#' + tc.emphasis, '#f59e0b', '#f472b6', '#a78bfa'];
+  var palette = ['#' + _safeHex(tc.accent, 'a78bfa'), '#' + _safeHex(tc.subheading, '60a5fa'), '#' + _safeHex(tc.emphasis, 'fbbf24'), '#f59e0b', '#f472b6', '#a78bfa'];
+  var stc = { heading: _safeHex(tc.heading, 'ffffff'), text: _safeHex(tc.text, 'cccccc') };
   var chartType = ((type || 'bar').trim().split(/\s+/)[0]).toLowerCase();
   var warns = '';
   if (chartType !== 'bar' && chartType !== 'line' && chartType !== 'pie') {
@@ -1006,7 +1008,7 @@ function renderChart(type, csvData) {
   }
   var aria = esc(chartType) + ' chart' + (parsed.title ? ': ' + esc(parsed.title) : '');
   if (parsed.points.length === 0) return '<div class="slide-chart" role="img" aria-label="' + aria + '"><div style="padding:1rem;color:#666;font-size:0.8rem">[chart: no data]</div>' + warns + '</div>';
-  var svgHtml = chartType === 'pie' ? _chartPie(parsed, tc, palette) : _chartBarLine(chartType, parsed, tc, palette);
+  var svgHtml = chartType === 'pie' ? _chartPie(parsed, stc, palette) : _chartBarLine(chartType, parsed, stc, palette);
   return '<div class="slide-chart" role="img" aria-label="' + aria + '">' + svgHtml + warns + '</div>';
 }
 
@@ -4215,7 +4217,18 @@ Generate a markdown slide deck following these STRICT rules:
 9. Diagrams use ```diagram fenced blocks with the DSL:
    [Node] --> [Node] --label--> [Node]
 
-10. For the design.md theme tokens, output them SEPARATELY after the slide
+10. Charts use ```chart bar / ```chart line / ```chart pie fenced blocks.
+    Data format: one "Label, Value" pair per line (numeric values only).
+    Optional first line: "title: My Title". Labels over 16 chars are truncated.
+    Example:
+    ```chart bar
+    title: Q1 Revenue
+    Product A, 42
+    Product B, 31
+    Product C, 55
+    ```
+
+11. For the design.md theme tokens, output them SEPARATELY after the slide
     code block — not inside it.
 ```
 

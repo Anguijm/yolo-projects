@@ -1,15 +1,15 @@
 {
   "gate": "implementation",
   "project": "markdown-deck",
-  "timestamp": "2026-04-25T00:19:56.664519+00:00",
+  "timestamp": "2026-04-25T00:38:59.930925+00:00",
   "verdicts": [
     {
       "angle": "bugs",
-      "verdict": "OBJECT",
-      "severity": "high",
-      "reason": "Pie charts can produce incorrect or uninterpretable visual output when given negative data values, which are not explicitly supported by the stated goal for pie charts.",
-      "required_fix": "Modify `renderChart` to filter out negative data points for pie charts and optionally display a warning, as the stated goal only supports negative values for bar and line charts.",
-      "evidence": "file:1000-1004, function _chartPie(parsed, tc, palette) { ... var total = pts.reduce(function(a, b) { return a + b.value; }, 0); ... var angles = displayPts.map(function(p) { return p.value / total * 360; }); ... }",
+      "verdict": "APPROVE",
+      "severity": "low",
+      "reason": "The `_safeHex` function effectively sanitizes color inputs, preventing injection vulnerabilities in SVG fill attributes, and all other correctness concerns, including chart data parsing, edge cases, and previous fixes, are adequately addressed.",
+      "required_fix": "",
+      "evidence": "",
       "veto": false,
       "parse_failed": false
     },
@@ -17,7 +17,7 @@
       "angle": "security",
       "verdict": "APPROVE",
       "severity": "low",
-      "reason": "The new chart feature correctly escapes user-provided labels and titles, and theme-derived colors are prefixed with '#' before SVG insertion, preventing new XSS vectors.",
+      "reason": "The _safeHex function effectively sanitizes user-controlled theme color inputs, preventing SVG attribute injection. All other chart data (labels, values) are properly escaped or validated, and the feature adheres to established architectural constraints regarding innerHTML usage.",
       "required_fix": "",
       "evidence": "",
       "veto": false,
@@ -27,7 +27,7 @@
       "angle": "ui",
       "verdict": "APPROVE",
       "severity": "low",
-      "reason": "The inline chart blocks are well-integrated, provide clear feedback for invalid data, are responsive, and include good accessibility attributes.",
+      "reason": "The chart feature is well-designed with clear syntax, comprehensive error handling, and good theme integration, making it intuitive for first-time users.",
       "required_fix": "",
       "evidence": "",
       "veto": false,
@@ -35,11 +35,11 @@
     },
     {
       "angle": "guide",
-      "verdict": "OBJECT",
-      "severity": "medium",
-      "reason": "The inline chart block feature is not discoverable through the default application content or a dedicated UI element.",
-      "required_fix": "Add a basic chart block example to the initial markdown content displayed in the editor textarea.",
-      "evidence": "file:markdown-deck/index.html (textarea id='input' content is missing a chart example)",
+      "verdict": "APPROVE",
+      "severity": "",
+      "reason": "",
+      "required_fix": "",
+      "evidence": "",
       "veto": false,
       "parse_failed": false
     },
@@ -47,9 +47,9 @@
       "angle": "usefulness",
       "verdict": "APPROVE",
       "severity": "low",
-      "reason": "Inline chart blocks directly address a core need for data visualization in presentations, enhancing utility significantly.",
+      "reason": "Chart support is a fundamental and frequently needed feature for any presentation tool, significantly enhancing its utility.",
       "required_fix": "",
-      "evidence": "Common presentation tools (PowerPoint, Google Slides) all offer chart creation. This feature brings that essential capability directly into the markdown workflow, reducing friction and ensuring theme consistency. The handling of data (CSV, truncation warnings) suggests robustness for real-world use.",
+      "evidence": "Most presentation tools (PowerPoint, Google Slides, Keynote) include built-in chart functionality. This feature directly addresses a core user need for data visualization in presentations, making Markdown Deck a more complete and useful tool.",
       "veto": false,
       "parse_failed": false
     },
@@ -57,45 +57,24 @@
       "angle": "cool",
       "verdict": "APPROVE",
       "severity": "low",
-      "reason": "Pure SVG, zero-dependency, theme-aware inline charts with simple CSV syntax are a signature move that reinforces the project's unique ethos.",
+      "reason": "The inline SVG charts with CSV-like input, theme-aware colors, and robust PPTX export as images provide a unique, integrated, and 'oh, nice' experience for quick data visualization within markdown presentations, differentiating it from generic chart tools.",
       "required_fix": "",
-      "evidence": "",
+      "evidence": "Chart.js, Google Charts (as external libraries/services); Marp, reveal.js (as presentation tools lacking this specific inline, zero-dep, theme-aware chart integration)",
       "veto": false,
       "parse_failed": false
     },
     {
       "angle": "lessons",
       "verdict": "APPROVE",
-      "severity": "advisory",
-      "reason": "[AUTO-DOWNGRADED: LESSONS VETO missing precondition_evidence] The SECURITY objection, as described in the council focus, re-litigates architectural constraints (unsafe-inline CSP, md() + innerHTML rendering) that are explicitly documented as out-of-scope for per-feature review, violating `STRUCTURAL CONSTRAINTS` and a recurring `INSIGHT` in `learnings.md`.",
-      "required_fix": "The SECURITY angle must retract its objection based on pre-existing architectural patterns and instead focus only on new attack surfaces introduced by the chart feature, which are already mitigated by `esc()` calls for user-provided data.",
-      "evidence": "STRUCTURAL CONSTRAINTS Constraint 1: 'SECURITY may NOT object to `unsafe-inline` as a per-feature issue.'\nSTRUCTURAL CONSTRAINTS Constraint 2: 'SECURITY may NOT require `DOMPurify` or any server-side sanitization for individual features that use `md() + innerHTML` when that pattern is already the app-wide baseline.'\nlearnings.md (eval-opus-47-backbone entry): 'INSIGHT: SECURITY over-indexing on portfolio-wide CSP \u2014 the `unsafe-inline` CSP is an approved architectural tradeoff for zero-dependency single-file HTML tools... SECURITY objects to it on every project despite the standing constraint.'\ncouncil_focus: 'The SECURITY objection in attempt 1 cited overridesToStyle() \u2014 that function is PRE-EXISTING... Per CONSTRAINTS.md Constraint 2: 'The user authors their own markdown... There is no third-party content injection path.' ... The chart feature's user-provided data (CSV labels, values, chart type) are all passed through esc() before any HTML/SVG insertion \u2014 no new XSS surface exists.'",
+      "severity": "low",
+      "reason": "No documented lessons or architectural constraints were violated. The deliverable adheres to established patterns and includes fixes for prior escalations.",
+      "required_fix": "",
+      "evidence": "",
       "veto": false,
       "parse_failed": false
     }
   ],
-  "all_approved": false,
-  "objections": [
-    {
-      "angle": "bugs",
-      "verdict": "OBJECT",
-      "severity": "high",
-      "reason": "Pie charts can produce incorrect or uninterpretable visual output when given negative data values, which are not explicitly supported by the stated goal for pie charts.",
-      "required_fix": "Modify `renderChart` to filter out negative data points for pie charts and optionally display a warning, as the stated goal only supports negative values for bar and line charts.",
-      "evidence": "file:1000-1004, function _chartPie(parsed, tc, palette) { ... var total = pts.reduce(function(a, b) { return a + b.value; }, 0); ... var angles = displayPts.map(function(p) { return p.value / total * 360; }); ... }",
-      "veto": false,
-      "parse_failed": false
-    },
-    {
-      "angle": "guide",
-      "verdict": "OBJECT",
-      "severity": "medium",
-      "reason": "The inline chart block feature is not discoverable through the default application content or a dedicated UI element.",
-      "required_fix": "Add a basic chart block example to the initial markdown content displayed in the editor textarea.",
-      "evidence": "file:markdown-deck/index.html (textarea id='input' content is missing a chart example)",
-      "veto": false,
-      "parse_failed": false
-    }
-  ],
+  "all_approved": true,
+  "objections": [],
   "vetoed": false
 }
