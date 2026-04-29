@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "last_updated": "2026-04-25T22:53:43.696102Z",
+  "last_updated": "2026-04-29T16:43:46.976Z",
   "tick_tock": {
     "last_session_type": "tock",
     "last_tock_flagship": "deck",
@@ -138,6 +138,24 @@
         ],
         "plan_summary": "sweep_runner.py (~150 LOC): reads sweep_spec.yaml (structure: base_tick, param_grid, max_runs, budget_cap), enumerates cartesian product of params, writes N tick_queue_approved entries with param_{name}={value} fields appended to the plan_summary. Designed to be invoked from the tick-tock workflow when next_session_type=sweep. Safety: max 10 runs per sweep, $5 budget cap (configurable). sweep_spec_example.yaml shows a realistic example (eval-opus-47-backbone \u00d7 3 deliverables) that would have saved 2 human cycles.",
         "council_focus": "PLAN: is tick-queue injection the right integration point, or should sweep_runner invoke council.py directly? IMPLEMENTATION: budget cap enforcement robust to partial failures mid-sweep? TESTS: dry-run mode that enumerates the grid without actually running, verify against sweep_spec_example.yaml. OUTCOME: sweep_runner shipped; eval-opus-47-backbone can optionally be promoted to sweep mode in its own plan."
+      },
+      {
+        "name": "bench-prompt-format",
+        "type": "infrastructure",
+        "source_experiment": null,
+        "idea": "Empirical A/B/C of markdown vs JSON vs XML on the BUGS angle reviewer",
+        "rationale": "Manually proposed (not Phase-4-sourced) in response to a question about whether JSON beats markdown for prompts. The claim is real but contested in the literature; Anthropic specifically recommends XML tags for Claude. This tick produces grounded data on the YOLO loop's actual prompt by running three semantically-equivalent variants of the BUGS angle reviewer through eval_bugs.json and comparing scores. Picks the BUGS angle because it has a sharp pass/fail signal (planted-bug catch rate) and an existing eval set, so we don't have to invent a rubric. Reuses experiments/eval-harness/eval_harness.py for scoring rather than reimplementing. The result might be 'no significant difference' \u2014 that is a valid verdict and the plan calls it out explicitly. Avoids any production-prompt migration; that is a follow-on tick if results justify it.",
+        "deliverable_paths": [
+          "experiments/bench-prompt-format/prompts/bugs_angle.md",
+          "experiments/bench-prompt-format/prompts/bugs_angle.json",
+          "experiments/bench-prompt-format/prompts/bugs_angle.xml",
+          "experiments/bench-prompt-format/bench.py",
+          "experiments/bench-prompt-format/results/runs.jsonl",
+          "experiments/bench-prompt-format/results/RESULTS.md",
+          "experiments/bench-prompt-format/README.md"
+        ],
+        "plan_summary": "Three variants of the BUGS angle prompt with identical semantic content. bench.py runs each variant against the 20 tasks in eval_bugs.json with N=3 runs per (variant, task) -> 60 data points per variant. Records to runs.jsonl after every task for resumability. RESULTS.md reports per-variant mean score, prompt+output token cost, run-to-run variance, Wilcoxon signed-rank significance test, and format-compliance rate (fraction of outputs that parsed cleanly in the expected format). Total spend ~180 Opus 4.7 calls. Full plan at experiments/bench-prompt-format/plan.md.",
+        "council_focus": "PLAN: are the three variants truly semantically equivalent, or did format conversion silently change content? Reviewer must diff them side-by-side, not just confirm they exist. Content drift is the single most likely failure mode. IMPLEMENTATION: does bench.py correctly resume a partial run? Does it gracefully handle a variant that returns malformed output? TESTS: smoke test (--limit 1) passes; runs.jsonl is well-formed; Wilcoxon implementation agrees with scipy.stats.wilcoxon on a fixture input. OUTCOME: RESULTS.md states a clear ship/iterate/discard verdict with an effect-size number, not just a p-value. If the result is no-significant-difference, that IS the verdict \u2014 say it."
       }
     ],
     "tick_queue_pending": [],
