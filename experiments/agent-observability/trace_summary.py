@@ -45,19 +45,29 @@ def summarize(records: list[dict]) -> dict:
 
 
 def main(argv: list[str]) -> int:
-    if len(argv) != 2:
-        print("usage: trace_summary.py <traces.jsonl>", file=sys.stderr)
+    if len(argv) < 2:
+        print("usage: trace_summary.py <traces.jsonl> [--exclude tool=X[,Y]]", file=sys.stderr)
         return 2
+    excluded: set[str] = set()
+    for i, a in enumerate(argv):
+        if a == "--exclude" and i + 1 < len(argv):
+            excluded = set(argv[i + 1].replace("tool=", "").split(","))
     records = _read(Path(argv[1]))
+    if excluded:
+        records = [r for r in records if (r.get("tool") or "(no-tool)") not in excluded]
     summary = summarize(records)
-    print(f"total spans: {summary['total_spans']}")
+    total_cost = sum(r.get("cost_usd", 0.0) for r in records)
+    print(f"total spans: {summary['total_spans']}  total_cost_usd: {total_cost:.4f}")
+    if excluded:
+        print(f"excluded tools: {', '.join(sorted(excluded))}")
     print()
-    print(f"{'tool':35s} {'calls':>6} {'p50ms':>7} {'p95ms':>7} {'tok_in':>8} {'tok_out':>8} {'err%':>6}")
-    print("-" * 85)
+    print(f"{'tool':35s} {'calls':>6} {'p50ms':>7} {'p95ms':>7} {'tok_in':>8} {'tok_out':>8} {'cost$':>9} {'err%':>6}")
+    print("-" * 95)
     for r in summary["per_tool"]:
+        tool_cost = sum(rec.get("cost_usd", 0.0) for rec in records if (rec.get("tool") or "(no-tool)") == r["tool"])
         print(
             f"{r['tool']:35s} {r['calls']:>6} {r['p50_ms']:>7.0f} {r['p95_ms']:>7.0f} "
-            f"{r['token_in']:>8} {r['token_out']:>8} {r['error_rate']*100:>5.1f}%"
+            f"{r['token_in']:>8} {r['token_out']:>8} {tool_cost:>9.4f} {r['error_rate']*100:>5.1f}%"
         )
     print()
     print("slowest 5:")

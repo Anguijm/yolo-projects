@@ -1,3 +1,5 @@
+Usage: `/plan` (no args; operates on the current task in context)
+
 Produce a structured `plan.md` for the current task at
 `experiments/<task-name>/plan.md`. The file MUST have these sections in this
 order, matching the council PLAN gate's expected structure:

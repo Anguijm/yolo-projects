@@ -81,9 +81,23 @@ def cmd_enqueue(args: list[str]) -> int:
     return 0
 
 
+STALE_THRESHOLD_S = 60
+
+
 def cmd_drain(_: list[str]) -> int:
     view = _current_view()
+    now = time.time()
     pending = [t for t in view.values() if t["state"] == "pending"]
+    stuck = [
+        t for t in view.values()
+        if t["state"] == "in_progress"
+        and (now - max(h["ts"] for h in t["history"])) > STALE_THRESHOLD_S
+    ]
+    if stuck:
+        print(f"recovering {len(stuck)} stuck task(s)")
+        for t in stuck:
+            _append({"task_id": t["task_id"], "state": "pending", "note": "auto-recovered from stuck in_progress"})
+            pending.append({**t, "state": "pending"})
     if not pending:
         print("no pending tasks")
         return 0
@@ -105,22 +119,38 @@ def cmd_status(_: list[str]) -> int:
     if not view:
         print("(no tasks)")
         return 0
+    now = time.time()
     counts: dict[str, int] = {}
     for t in view.values():
         counts[t["state"]] = counts.get(t["state"], 0) + 1
     print("counts:", counts)
     for tid, task in view.items():
         prompt_preview = task.get("prompt", "")[:60]
-        print(f"  {tid}  {task['state']:12s}  {prompt_preview}")
+        flag = ""
+        if task["state"] == "in_progress":
+            age = now - max(h["ts"] for h in task["history"])
+            if age > STALE_THRESHOLD_S:
+                flag = f"  STUCK({int(age)}s)"
+        print(f"  {tid}  {task['state']:12s}  {prompt_preview}{flag}")
     return 0
 
 
-COMMANDS = {"enqueue": cmd_enqueue, "drain": cmd_drain, "status": cmd_status}
+def cmd_reset(args: list[str]) -> int:
+    if not args:
+        print("usage: reset <task_id>", file=sys.stderr)
+        return 2
+    tid = args[0]
+    _append({"task_id": tid, "state": "pending", "note": "manual reset"})
+    print(f"reset {tid} to pending")
+    return 0
+
+
+COMMANDS = {"enqueue": cmd_enqueue, "drain": cmd_drain, "status": cmd_status, "reset": cmd_reset}
 
 
 def main(argv: list[str]) -> int:
     if len(argv) < 2 or argv[1] not in COMMANDS:
-        print("usage: bg_task_runner.py {enqueue|drain|status} [args]", file=sys.stderr)
+        print("usage: bg_task_runner.py {enqueue|drain|status|reset} [args]", file=sys.stderr)
         return 2
     return COMMANDS[argv[1]](argv[2:])
 

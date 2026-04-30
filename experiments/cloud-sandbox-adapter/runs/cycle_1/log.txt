@@ -1,0 +1,46 @@
+sandbox_id=local_5d02e636
+  exec exit=0
+  stdout: -rw-r--r-- 1 root root 23 Apr 30 02:15 hello.txt
+  read: hello from the sandbox
+--- dry-run ---
+sandbox_id=dryrun_cf742076
+  exec exit=0
+  stdout: [dry-run]
+
+trace:
+[
+  {
+    "op": "create",
+    "sandbox_id": "dryrun_cf742076"
+  },
+  {
+    "op": "write",
+    "path": "hello.txt",
+    "bytes": 23
+  },
+  {
+    "op": "exec",
+    "cmd": "ls -la hello.txt"
+  },
+  {
+    "op": "read",
+    "path": "hello.txt"
+  },
+  {
+    "op": "teardown",
+    "sandbox_id": "dryrun_cf742076"
+  }
+]
+--- non-trivial sequence (local) ---
+=== local ===
+  exec exit=0 stdout='hello'
+  exec exit=0 stdout='requests==2.31.0'
+=== dryrun ===
+  exec exit=0 stdout='[dry-run]'
+  exec exit=0 stdout='[dry-run]'
+  trace ops: ['create', 'write', 'write', 'exec', 'exec', 'teardown']
+--- error path: bad exec ---
+exit=127 stderr='/bin/sh: 1: definitely_not_a_command_xyzzy: not found'
+--- read nonexistent ---
+local: raised FileNotFoundError: [Errno 2] No such file or directory: '/tmp/does/not/exist.txt'
+dryrun: read returned ''

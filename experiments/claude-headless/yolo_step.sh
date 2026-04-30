@@ -26,7 +26,20 @@ if ! command -v claude >/dev/null 2>&1; then
   exit 127
 fi
 
-resp=$("${cmd[@]}")
+max_attempts="${YOLO_MAX_ATTEMPTS:-3}"
+attempt=1
+resp=""
+while [[ $attempt -le $max_attempts ]]; do
+  resp=$("${cmd[@]}" 2>&1) && break || true
+  if echo "$resp" | grep -qiE "rate.?limit|429|temporar|retry"; then
+    sleep_for=$((2 ** (attempt - 1)))
+    echo "[retry] transient error, sleeping ${sleep_for}s (attempt $attempt/$max_attempts)" >&2
+    sleep $sleep_for
+    ((attempt++))
+  else
+    break
+  fi
+done
 
 if ! echo "$resp" | python3 -c "import json,sys; json.loads(sys.stdin.read())" >/dev/null 2>&1; then
   echo "error: claude returned non-JSON" >&2

@@ -63,10 +63,18 @@ class LocalSandbox:
 
 @dataclass
 class DryRunSandbox:
-    """Records every operation without executing it. Output is the migration audit."""
+    """Records every operation without executing it. Output is the migration audit.
+
+    Cycle 2: tracks written paths so read() can raise FileNotFoundError on
+    paths the same session never wrote (matches LocalSandbox behavior).
+    Stores write contents up to a per-write byte cap so the trace is
+    forensic-quality.
+    """
 
     trace: list[dict] = field(default_factory=list)
     sandbox_id: str = ""
+    _written: dict[str, str] = field(default_factory=dict)
+    write_capture_bytes: int = 4096
 
     def create(self) -> str:
         self.sandbox_id = f"dryrun_{uuid.uuid4().hex[:8]}"
@@ -78,14 +86,47 @@ class DryRunSandbox:
         return ExecResult(cmd=cmd, exit_code=0, stdout="[dry-run]", stderr="")
 
     def write(self, path: str, contents: str) -> None:
-        self.trace.append({"op": "write", "path": path, "bytes": len(contents)})
+        self._written[path] = contents
+        captured = contents[: self.write_capture_bytes]
+        self.trace.append({
+            "op": "write",
+            "path": path,
+            "bytes": len(contents),
+            "preview": captured,
+            "truncated": len(contents) > self.write_capture_bytes,
+        })
 
     def read(self, path: str) -> str:
         self.trace.append({"op": "read", "path": path})
-        return ""
+        if path not in self._written:
+            raise FileNotFoundError(f"[dry-run] no such file: {path}")
+        return self._written[path]
 
     def teardown(self) -> None:
         self.trace.append({"op": "teardown", "sandbox_id": self.sandbox_id})
+
+
+def replay_trace(trace: list[dict], target: SandboxAdapter) -> dict:
+    """Replay a DryRun trace against a real adapter; report whether the
+    same operations succeed. The actual migration validation harness."""
+    target.create()
+    discrepancies = []
+    for op in trace:
+        if op["op"] == "create" or op["op"] == "teardown":
+            continue
+        if op["op"] == "exec":
+            r = target.exec(op["cmd"])
+            if r.exit_code != 0:
+                discrepancies.append({"op": "exec", "cmd": op["cmd"], "exit_code": r.exit_code, "stderr": r.stderr[:200]})
+        elif op["op"] == "write":
+            target.write(op["path"], op.get("preview", ""))
+        elif op["op"] == "read":
+            try:
+                target.read(op["path"])
+            except FileNotFoundError as e:
+                discrepancies.append({"op": "read", "path": op["path"], "error": str(e)})
+    target.teardown()
+    return {"ops": len(trace), "discrepancies": discrepancies}
 
 
 def demo(adapter: SandboxAdapter) -> None:

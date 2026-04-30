@@ -87,14 +87,19 @@ def validate_plan(plan: dict) -> tuple[bool, str]:
 
 def get_plan(request: str, max_retries: int = 1) -> dict:
     user = f"Request: {request}\n\nReturn the plan JSON now."
+    last_raw = ""
     for attempt in range(max_retries + 1):
         raw = _claude_call(PLANNER_PROMPT, user)
+        last_raw = raw
         try:
             plan = json.loads(raw)
-        except json.JSONDecodeError:
+        except json.JSONDecodeError as exc:
             if attempt == max_retries:
-                raise ValueError(f"planner returned non-JSON after {attempt+1} tries")
-            user = f"Request: {request}\n\nReturn ONLY valid JSON. Your previous response was not JSON."
+                raise ValueError(f"planner returned non-JSON after {attempt+1} tries: {exc}")
+            user = (
+                f"Request: {request}\n\nYour previous response was:\n---\n{raw[:1000]}\n---\n"
+                f"It was not valid JSON ({exc}). Return ONLY valid JSON now."
+            )
             continue
         ok, reason = validate_plan(plan)
         if ok:
@@ -102,16 +107,25 @@ def get_plan(request: str, max_retries: int = 1) -> dict:
         if attempt == max_retries:
             raise ValueError(f"planner returned invalid plan: {reason}")
         user = (
-            f"Request: {request}\n\nYour previous plan was invalid: {reason}. "
-            "Return a corrected plan as JSON."
+            f"Request: {request}\n\nYour previous plan was:\n---\n{raw[:1000]}\n---\n"
+            f"It failed validation: {reason}. Return a corrected plan as JSON."
         )
     raise RuntimeError("unreachable")
 
 
 def execute_plan(plan: dict) -> list[dict]:
     results = []
+    accumulated = ""
     for step in plan["steps"]:
-        executor_user = f"PLAN:\n{json.dumps(plan, indent=2)}\n\nEXECUTE STEP: {step['id']} — {step['description']}"
+        prior = (
+            f"\n\nPRIOR STEP DIFFS (use these as the current state of the files):\n{accumulated}"
+            if accumulated else ""
+        )
+        executor_user = (
+            f"PLAN:\n{json.dumps(plan, indent=2)}\n\n"
+            f"EXECUTE STEP: {step['id']} — {step['description']}"
+            f"{prior}"
+        )
         diff = _codex_call(EXECUTOR_PROMPT, executor_user)
         results.append({
             "step_id": step["id"],
@@ -120,15 +134,17 @@ def execute_plan(plan: dict) -> list[dict]:
             "success_criterion": step["success_criterion"],
             "diff": diff,
         })
+        accumulated += f"\n--- {step['id']} ---\n{diff}\n"
     return results
 
 
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("request", help="The change request to plan and execute")
+    parser.add_argument("--max-retries", type=int, default=1, help="planner retry budget on JSON/validation failure")
     args = parser.parse_args()
 
-    plan = get_plan(args.request)
+    plan = get_plan(args.request, max_retries=args.max_retries)
     PLAN_PATH.write_text(json.dumps(plan, indent=2))
     print(f"plan ok: {len(plan['steps'])} steps -> {PLAN_PATH}")
 

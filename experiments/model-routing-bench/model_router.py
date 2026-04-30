@@ -16,12 +16,22 @@ ROUTING_RULES = {
     "simple": "claude-haiku-4-5",
 }
 
+# Note: explicit non-letter boundary instead of \b. \b doesn't fire between
+# `_` and a letter (underscore is a word character), so prompts with
+# underscored placeholder text — common in ML/data work — silently fail
+# keyword matching. Cycle 3 found this on long-1.
+_BEFORE = r"(?:^|[^a-zA-Z])"
+_AFTER = r"(?:[^a-zA-Z]|$)"
 CODE_HINTS = re.compile(
-    r"\b(def |class |function |implement|refactor|fix the bug|write code|pytest|unit test|TypeScript|Python|JavaScript|SQL|regex)\b",
+    _BEFORE + r"(def |class |function |implement|refactor|fix the bug|write code|pytest|unit test|TypeScript|Python|JavaScript|SQL|regex)" + _AFTER,
     re.IGNORECASE,
 )
 REASONING_HINTS = re.compile(
-    r"\b(why|explain|reason|trade.?off|compare|argue|infer|derive|prove)\b",
+    _BEFORE + r"(why|explain|reason|trade.?off|compare|argue|infer|derive|prove)" + _AFTER,
+    re.IGNORECASE,
+)
+LONG_CONTEXT_HINTS = re.compile(
+    _BEFORE + r"(summarize|extract|from this document|key entities|tldr)" + _AFTER,
     re.IGNORECASE,
 )
 
@@ -33,8 +43,13 @@ class Classification:
 
 
 def classify(prompt: str) -> Classification:
-    if len(prompt) > 8000:
-        return Classification("long_context", f"prompt is {len(prompt)} chars (>8000)")
+    if not prompt or not prompt.strip():
+        raise ValueError("classify: prompt must be non-empty")
+    # Long-context detection: either size OR keyword signals.
+    if len(prompt) > 4000:
+        return Classification("long_context", f"prompt is {len(prompt)} chars (>4000)")
+    if LONG_CONTEXT_HINTS.search(prompt) and len(prompt) > 500:
+        return Classification("long_context", "matched long-context keywords + length>500")
     if CODE_HINTS.search(prompt):
         return Classification("code", "matched code keywords")
     if REASONING_HINTS.search(prompt):

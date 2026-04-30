@@ -13,13 +13,22 @@ prompt="$2"
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 step_runner="$script_dir/yolo_step.sh"
 
+max_context_bytes="${MAX_CONTEXT_BYTES:-32768}"
+
 run_step() {
   local label="$1"
   local input_file="$2"
   local output_file="$3"
   local context=""
   if [[ -f "$input_file" ]]; then
-    context=$(cat "$input_file")
+    context=$(head -c "$max_context_bytes" "$input_file")
+    local full_size
+    full_size=$(wc -c < "$input_file")
+    if [[ $full_size -gt $max_context_bytes ]]; then
+      context="$context
+
+[truncated: prior output was $full_size bytes, kept first $max_context_bytes]"
+    fi
   fi
   local full_prompt
   if [[ -n "$context" ]]; then

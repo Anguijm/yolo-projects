@@ -106,17 +106,44 @@ async def run_one(task: dict) -> TaskResult:
         )
 
 
-async def run_all(tasks: list[dict]) -> dict[str, Any]:
+async def run_all(tasks: list[dict], per_model_concurrency: int = 2) -> dict[str, Any]:
+    semaphores: dict[str, asyncio.Semaphore] = {}
+
+    async def gated(task: dict):
+        sem = semaphores.setdefault(task["model"], asyncio.Semaphore(per_model_concurrency))
+        async with sem:
+            return await run_one(task)
+
     started = time.monotonic()
-    results = await asyncio.gather(*(run_one(t) for t in tasks))
+    results = await asyncio.gather(*(gated(t) for t in tasks))
     elapsed = time.monotonic() - started
     serial_total = sum(r.wall_seconds for r in results)
+    by_model: dict[str, float] = {}
+    for r in results:
+        by_model[r.model] = by_model.get(r.model, 0.0) + r.wall_seconds
+    effective_speedup = (serial_total / max(by_model.values())) if by_model and max(by_model.values()) > 0 else 0.0
+    failure_classes = {"validation": 0, "exception": 0, "none": 0}
+    for r in results:
+        if r.success:
+            failure_classes["none"] += 1
+        elif r.error and "unknown model adapter" in r.error:
+            failure_classes["validation"] += 1
+        else:
+            failure_classes["exception"] += 1
+    degraded = any(
+        r.output.startswith("[claude-stub]") or r.output.startswith("[codex-stub]")
+        for r in results if r.success
+    )
     return {
         "elapsed_parallel_seconds": elapsed,
         "elapsed_serial_seconds": serial_total,
         "speedup_factor": (serial_total / elapsed) if elapsed > 0 else 0.0,
+        "effective_speedup": effective_speedup,
+        "per_model_total_seconds": by_model,
         "task_count": len(results),
         "success_count": sum(1 for r in results if r.success),
+        "failure_classes": failure_classes,
+        "degraded_mode": degraded,
         "tasks": [asdict(r) for r in results],
     }
 
@@ -135,7 +162,9 @@ def main(argv: list[str]) -> int:
         f"  parallel={report['elapsed_parallel_seconds']:.2f}s  "
         f"serial={report['elapsed_serial_seconds']:.2f}s  "
         f"speedup={report['speedup_factor']:.2f}x  "
-        f"{report['success_count']}/{report['task_count']} ok"
+        f"effective={report['effective_speedup']:.2f}x  "
+        f"{report['success_count']}/{report['task_count']} ok  "
+        f"degraded={report['degraded_mode']}"
     )
     return 0
 

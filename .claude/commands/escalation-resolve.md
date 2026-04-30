@@ -1,3 +1,5 @@
+Usage: `/escalation-resolve` (no args; reads COUNCIL_ESCALATION.md if present)
+
 Walk the user through clearing an active council escalation.
 
 1. Read `COUNCIL_ESCALATION.md` at repo root. If it doesn't exist, say

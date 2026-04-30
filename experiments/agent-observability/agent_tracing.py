@@ -21,6 +21,20 @@ _current_span: contextvars.ContextVar[str | None] = contextvars.ContextVar(
     "current_span", default=None
 )
 
+# Per-token pricing in USD/1M tokens. Replace with real values per model.
+_PRICING: dict[str, tuple[float, float]] = {
+    "claude-opus-4-7": (15.0, 75.0),
+    "claude-haiku-4-5": (1.0, 5.0),
+    "claude.messages.create": (15.0, 75.0),  # default to opus rates if unspecified
+    "gpt-5-codex": (5.0, 20.0),
+    "gemini-1.5-pro": (3.5, 10.5),
+}
+
+
+def _cost_usd(tool: str, token_in: int, token_out: int) -> float:
+    rates = _PRICING.get(tool, (0.0, 0.0))
+    return round((token_in * rates[0] + token_out * rates[1]) / 1_000_000, 6)
+
 
 def _short_hash(value: Any) -> str:
     if value is None:
@@ -57,6 +71,7 @@ class Span:
             "latency_ms": latency_ms,
             "token_in": self.token_in,
             "token_out": self.token_out,
+            "cost_usd": _cost_usd(self.tool, self.token_in, self.token_out),
             "input_hash": self.input_hash,
             "output_hash": self.output_hash,
             "status": self.status,
@@ -104,6 +119,30 @@ class Tracer:
 
     def hash(self, value: Any) -> str:
         return _short_hash(value)
+
+
+    def summary(self) -> dict[str, Any]:
+        """In-memory aggregate over the current sink path. Useful when the
+        caller wants live stats without spawning a separate aggregator."""
+        if self._path is None or not self._path.exists():
+            return {"total_spans": 0, "tools": {}}
+        total = 0
+        tools: dict[str, dict[str, Any]] = {}
+        with self._path.open() as f:
+            for line in f:
+                if not line.strip():
+                    continue
+                r = json.loads(line)
+                total += 1
+                tool = r.get("tool") or "(no-tool)"
+                t = tools.setdefault(tool, {"calls": 0, "token_in": 0, "token_out": 0, "cost_usd": 0.0, "errors": 0})
+                t["calls"] += 1
+                t["token_in"] += r.get("token_in", 0)
+                t["token_out"] += r.get("token_out", 0)
+                t["cost_usd"] += r.get("cost_usd", 0.0)
+                if r.get("status") == "error":
+                    t["errors"] += 1
+        return {"total_spans": total, "tools": tools}
 
 
 tracer = Tracer()

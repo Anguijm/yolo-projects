@@ -7,6 +7,7 @@ import time
 from pathlib import Path
 from typing import Callable
 
+import os
 from rubric import score
 
 REPORT_PATH = Path(__file__).parent / "eval_report.json"
@@ -51,12 +52,17 @@ def run_eval(agent_fn: Callable[[str], str], tasks_path: str | Path = "tasks.jso
         })
     avg = sum(r["score"] for r in records) / len(records) if records else 0.0
     passed = sum(1 for r in records if r["score"] >= 0.95)
+    score_failed = sum(1 for r in records if r["score"] < 0.95 and r.get("error") is None)
+    agent_failed = sum(1 for r in records if r.get("error") is not None)
+    degraded = bool(os.environ.get("ANTHROPIC_API_KEY")) is False and any(r["rubric_type"] == "llm" for r in records)
     aggregate = {
         "task_count": len(records),
         "avg_score": round(avg, 3),
         "passed": passed,
-        "failed": len(records) - passed,
+        "score_failed": score_failed,
+        "agent_failed": agent_failed,
         "total_latency_s": round(sum(r["latency_s"] for r in records), 3),
+        "degraded_mode": degraded,
     }
     report = {"aggregate": aggregate, "records": records}
     REPORT_PATH.write_text(json.dumps(report, indent=2))

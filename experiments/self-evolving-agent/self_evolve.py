@@ -61,22 +61,33 @@ def _agent_call(system_prompt: str, user_prompt: str) -> str:
 
 def _reflector_edit(prompt: str, failures: list[dict]) -> str:
     """Return a new prompt with a single-line addition addressing the
-    most common failure mode. Stub-deterministic when no key is set."""
+    most common failure mode. Stub-deterministic when no key is set.
+
+    Cycle 2: 5 heuristics instead of 3. Skips additions already present.
+    """
     if not failures:
         return prompt
-    # Identify the weakness: format errors? wrong content? verbose?
     sample_outputs = " ".join(f["output"][:120] for f in failures[:3]).lower()
+    rubrics = [r for f in failures for r in f.get("rubric", [])]
+    rubric_text = " ".join(rubrics).lower()
     additions = []
     if "ramble" in sample_outputs or len(sample_outputs) > 200:
         additions.append("Be concise. Output only the answer.")
-    if "json" in sample_outputs or any("rubric" in f and any("\"" in r for r in f.get("rubric", [])) for f in failures):
+    if "json" in sample_outputs or any('"' in r for r in rubrics):
         additions.append("When asked for JSON, return valid JSON only — no prose.")
+    # New: numeric-answer heuristic
+    if any(r.replace(".", "").replace("-", "").isdigit() for r in rubrics):
+        additions.append("When the answer is a number, return ONLY the number.")
+    # New: proper-noun heuristic
+    if any(r and r[0].isupper() and r.isalpha() for r in rubrics if isinstance(r, str)):
+        additions.append("Return names exactly as commonly written, with no extra words.")
     if not additions:
         additions.append("Read the question carefully and answer exactly what was asked.")
-    addition = additions[0]
-    if addition in prompt:
-        return prompt
-    return prompt.rstrip() + "\n" + addition + "\n"
+    # Pick the first heuristic whose addition isn't already in the prompt.
+    for addition in additions:
+        if addition not in prompt:
+            return prompt.rstrip() + "\n" + addition + "\n"
+    return prompt
 
 
 @dataclass
@@ -114,21 +125,30 @@ def main() -> int:
 
     current_prompt = (PROMPTS_DIR / "prompt_v0.txt").read_text()
 
+    prev_avg = -1.0
+    prev_prompt = current_prompt
     for i in range(args.iterations):
         results = run_iteration(current_prompt, tasks)
         avg = sum(r.score for r in results) / len(results)
         failures = [{"task_id": r.task_id, "output": r.output, "rubric": r.rubric} for r in results if r.score < 1.0]
+        regressed = i > 0 and avg < prev_avg - 0.01
         record = {
             "iteration": i,
             "prompt_version": f"prompt_v{i}.txt",
             "avg_score": round(avg, 3),
             "passed": sum(1 for r in results if r.score == 1.0),
             "total": len(results),
+            "regressed": regressed,
             "failures": failures,
         }
         with EVOLUTION_LOG.open("a") as f:
             f.write(json.dumps(record) + "\n")
-        print(f"iter {i}: avg={avg:.3f} passed={record['passed']}/{record['total']}")
+        print(f"iter {i}: avg={avg:.3f} passed={record['passed']}/{record['total']}{' [REGRESSED]' if regressed else ''}")
+
+        if regressed:
+            print(f"regression detected (was {prev_avg:.3f}, now {avg:.3f}); reverting to prev prompt and stopping")
+            current_prompt = prev_prompt
+            break
 
         if avg >= args.threshold:
             print("threshold reached, stopping")
@@ -137,7 +157,12 @@ def main() -> int:
         if new_prompt == current_prompt:
             print("reflector produced no change, stopping")
             break
+        prev_avg = avg
+        prev_prompt = current_prompt
         current_prompt = new_prompt
+        diff_line = next((ln for ln in current_prompt.splitlines() if ln and ln not in prev_prompt), "")
+        with EVOLUTION_LOG.open("a") as f:
+            f.write(json.dumps({"iteration": i, "edit_added": diff_line}) + "\n")
         (PROMPTS_DIR / f"prompt_v{i+1}.txt").write_text(current_prompt)
 
     print(f"done. evolution log: {EVOLUTION_LOG}")

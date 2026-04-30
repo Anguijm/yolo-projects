@@ -1,7 +1,16 @@
+Usage: `/status-deep` (no args)
+
 Run the standard `status` report (see CLAUDE.md for the canonical shape) and
 then append three additional sections sourced from disk at response time.
 
-After the standard `## Session` block, add:
+Steps:
+
+1. Run the standard `status` and emit it verbatim.
+2. After the standard `## Session` block, append the three sections below in order.
+3. Apply the live-reads-only rule from CLAUDE.md (no caching, no recall).
+4. If a source file is missing, render the section's value as `unknown` rather than `0` or empty.
+
+The three sections to append:
 
 ### Tick queue (full)
 Read `session_state.json` -> `tick_tock.tick_queue_approved`. For each
