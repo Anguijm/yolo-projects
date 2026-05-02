@@ -23,7 +23,7 @@ instead of a reactor's title.
 
 **In:**
 - One-line addition to `CHANNELS` in `fetch_youtube_rss.py`:
-  `"@AndrejKarpathy": "UCPk3RbfyaUwgTUXTgIANI3w"`
+  `"@AndrejKarpathy": "UCXUPKJO5MZQN11PqgIvyuvQ"`
 - Verify with the next cron run that his channel is fetched and his
   recent uploads appear in `experiments.json` (or are appropriately
   skipped).
@@ -64,7 +64,7 @@ is "low-signal channel for our purpose" — not "broken pipeline".
 None. Single dictionary entry.
 
 ## Security
-- The channel ID `UCPk3RbfyaUwgTUXTgIANI3w` is public information.
+- The channel ID `UCXUPKJO5MZQN11PqgIvyuvQ` is public information.
 - No new code paths, no new dependencies.
 
 ## UI / Guide

@@ -9,6 +9,7 @@ to skip already-processed videos.
 import json
 import sys
 import re
+import subprocess
 from datetime import datetime, timedelta
 from pathlib import Path
 from urllib.request import urlopen, Request
@@ -28,9 +29,109 @@ CHANNELS = {
     "@echohive": "UCL7przoMtZTmiQMhc9ifIww",
     "@ShawTalebi": "UCa9gErQ9AE5jT2DZLjXBIdA",
     "@Mark_Kashef": "UCHkzp52CldSPZqU5T49mOnA",
+    # Added 2026-04-30 — primary source instead of reactor commentary.
+    # Verified ID via /channel/ redirect from /@AndrejKarpathy.
+    "@AndrejKarpathy": "UCXUPKJO5MZQN11PqgIvyuvQ",
 }
 
 RSS_URL = "https://www.youtube.com/feeds/videos.xml?channel_id={}"
+
+TRANSCRIPT_CACHE = Path(__file__).parent / "phase4_cache" / "transcripts"
+TRANSCRIPT_HEAD_CHARS = 6000
+TRANSCRIPT_TAIL_CHARS = 4000
+
+
+def _strip_vtt(vtt: str) -> str:
+    """Strip VTT timestamps and headers, returning plain text."""
+    out_lines = []
+    for line in vtt.splitlines():
+        stripped = line.strip()
+        if not stripped:
+            continue
+        if stripped.startswith(("WEBVTT", "Kind:", "Language:", "NOTE")):
+            continue
+        # Skip cue timing lines like "00:00:01.000 --> 00:00:04.000"
+        if "-->" in stripped:
+            continue
+        # Skip cue identifier lines (numeric or short alphanumerics on their own)
+        if re.fullmatch(r"\d+", stripped):
+            continue
+        # Strip inline cue tags like <c> </c> and <00:00:01.000>
+        cleaned = re.sub(r"<[^>]+>", "", stripped)
+        out_lines.append(cleaned)
+    # Auto-captions repeat each phrase (rolling karaoke). Dedupe consecutive duplicates.
+    deduped = []
+    for line in out_lines:
+        if not deduped or deduped[-1] != line:
+            deduped.append(line)
+    return " ".join(deduped)
+
+
+def truncate_transcript(text: str, head: int = TRANSCRIPT_HEAD_CHARS, tail: int = TRANSCRIPT_TAIL_CHARS) -> str:
+    """Keep the first `head` chars + last `tail` chars; drop the middle.
+
+    The hook + intro tend to live in the head; "what we built / try this"
+    callouts tend to live in the tail. The middle is mostly mid-roll filler.
+    """
+    if len(text) <= head + tail:
+        return text
+    head_part = text[:head]
+    tail_part = text[-tail:]
+    return f"{head_part}\n\n[... transcript truncated, {len(text) - head - tail} chars elided ...]\n\n{tail_part}"
+
+
+def fetch_transcript(video_id: str, timeout: int = 30) -> str | None:
+    """Fetch auto-captions via yt-dlp; return plain text or None on any failure.
+
+    Caches raw VTT at phase4_cache/transcripts/<video_id>.vtt so re-runs are free.
+    """
+    TRANSCRIPT_CACHE.mkdir(parents=True, exist_ok=True)
+    cache_file = TRANSCRIPT_CACHE / f"{video_id}.vtt"
+    if cache_file.exists() and cache_file.stat().st_size > 0:
+        try:
+            return _strip_vtt(cache_file.read_text(encoding="utf-8", errors="replace"))
+        except OSError:
+            pass  # re-fetch
+
+    url = f"https://www.youtube.com/watch?v={video_id}"
+    out_template = str(TRANSCRIPT_CACHE / f"{video_id}.%(ext)s")
+    try:
+        proc = subprocess.run(
+            [
+                "yt-dlp",
+                "--skip-download",
+                "--write-auto-sub",
+                "--sub-lang", "en,en-US,en-auto",
+                "--sub-format", "vtt",
+                "--output", out_template,
+                "--no-warnings",
+                "--quiet",
+                url,
+            ],
+            timeout=timeout,
+            capture_output=True,
+            text=True,
+        )
+    except (subprocess.TimeoutExpired, FileNotFoundError) as e:
+        print(f"  WARN: yt-dlp transcript fetch failed for {video_id}: {type(e).__name__}", file=sys.stderr)
+        return None
+    if proc.returncode != 0:
+        print(f"  WARN: yt-dlp exit {proc.returncode} for {video_id}: {(proc.stderr or '').strip()[:140]}", file=sys.stderr)
+        return None
+
+    # yt-dlp picks one of the requested langs; find what it actually wrote.
+    candidates = sorted(TRANSCRIPT_CACHE.glob(f"{video_id}*.vtt"))
+    if not candidates:
+        return None
+    chosen = candidates[0]
+    if chosen != cache_file:
+        # Normalize filename so the cache lookup hits next time.
+        chosen.rename(cache_file)
+    try:
+        return _strip_vtt(cache_file.read_text(encoding="utf-8", errors="replace"))
+    except OSError as e:
+        print(f"  WARN: cannot read cached transcript for {video_id}: {e}", file=sys.stderr)
+        return None
 
 
 def fetch_feed(channel_id):
@@ -92,6 +193,8 @@ def main():
     if not since:
         since = (datetime.utcnow() - timedelta(days=7)).strftime("%Y-%m-%d")
 
+    with_transcripts = "--with-transcripts" in sys.argv
+
     known_ids = get_known_video_ids()
     results = {
         "scan_time_utc": datetime.utcnow().isoformat() + "Z",
@@ -99,6 +202,9 @@ def main():
         "channels_scanned": len(CHANNELS),
         "feeds_successful": 0,
         "feeds_failed": 0,
+        "with_transcripts": with_transcripts,
+        "transcripts_fetched": 0,
+        "transcripts_missing": 0,
         "new_videos": [],
     }
 
@@ -116,6 +222,15 @@ def main():
             if entry["video_id"] in known_ids:
                 continue
             entry["channel"] = channel_name
+            if with_transcripts:
+                transcript = fetch_transcript(entry["video_id"])
+                if transcript:
+                    entry["transcript"] = truncate_transcript(transcript)
+                    entry["transcript_full_chars"] = len(transcript)
+                    results["transcripts_fetched"] += 1
+                else:
+                    entry["transcript"] = None
+                    results["transcripts_missing"] += 1
             results["new_videos"].append(entry)
 
     print(json.dumps(results, indent=2))
