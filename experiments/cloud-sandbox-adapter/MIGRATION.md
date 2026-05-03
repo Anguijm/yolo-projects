@@ -6,8 +6,6 @@ through `SandboxAdapter` before a remote cloud adapter is viable.
 
 ## Direct shell-outs
 
-- `phase4_fetch.py` — `subprocess.run("git ...", ...)` in the cron-commit
-  helper. Most invocations.
 - `update_dashboard.py` — runs `git log` for recent commits.
 - `verify_build.py` — runs `pytest` and `playwright test` against project
   directories.

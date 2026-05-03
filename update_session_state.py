@@ -67,7 +67,12 @@ def get_pending_deck_fixes():
 
 
 def get_channels():
-    path = ROOT / "phase4_fetch.py"
+    """Read the canonical channel roster from fetch_youtube_rss.py.
+
+    Roster moved from phase4_fetch.py (deprecated yt-dlp fetcher) to
+    fetch_youtube_rss.py (RSS-based fetcher) on 2026-04-30.
+    """
+    path = ROOT / "fetch_youtube_rss.py"
     if not path.exists():
         return []
     text = path.read_text()
