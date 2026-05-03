@@ -7,12 +7,13 @@ Outputs JSON array of new videos to stdout. Compares against experiments.json
 to skip already-processed videos.
 """
 import json
+import os
 import sys
 import re
 from datetime import datetime, timedelta
 from pathlib import Path
 from urllib.request import urlopen, Request
-from urllib.error import URLError
+from urllib.error import URLError, HTTPError
 
 CHANNELS = {
     # Kept from original roster
@@ -96,17 +97,116 @@ def _snippets_to_text(texts: list[str]) -> str:
     return " ".join(cleaned)
 
 
+SUPADATA_ENDPOINT = "https://api.supadata.ai/v1/youtube/transcript"
+
+
+def _fetch_via_supadata(video_id: str, api_key: str, timeout: int = 30) -> list[dict] | None:
+    """Fetch transcript via supadata.ai; returns list of {text, start, duration} or None.
+
+    Supadata proxies through residential IPs and is not blocked by YouTube's
+    datacenter-IP filtering. Free tier: 100 transcripts/month.
+
+    Response shape (without `text=true`): {
+      "content": [{"text": "...", "offset": 0, "duration": 1500, "lang": "en"}, ...],
+      "lang": "en",
+      "availableLangs": [...]
+    }
+    Note: `offset` and `duration` are in MILLISECONDS in supadata's response.
+    """
+    url = f"{SUPADATA_ENDPOINT}?videoId={video_id}&lang=en"
+    req = Request(url, headers={"x-api-key": api_key, "User-Agent": "yolo-projects-phase4/1.0"})
+    try:
+        with urlopen(req, timeout=timeout) as resp:
+            body = resp.read().decode("utf-8", errors="replace")
+    except HTTPError as e:
+        # 404 = no transcript; 401/403 = bad key; 429 = quota; 5xx = upstream issue
+        body_preview = ""
+        try:
+            body_preview = e.read().decode("utf-8", errors="replace")[:200]
+        except Exception:
+            pass
+        print(f"  WARN: supadata HTTP {e.code} for {video_id}: {body_preview}", file=sys.stderr)
+        return None
+    except (URLError, TimeoutError) as e:
+        print(f"  WARN: supadata network error for {video_id}: {type(e).__name__}: {e}", file=sys.stderr)
+        return None
+    except Exception as e:
+        print(f"  WARN: supadata unexpected error for {video_id}: {type(e).__name__}: {str(e)[:140]}", file=sys.stderr)
+        return None
+
+    try:
+        data = json.loads(body)
+    except json.JSONDecodeError:
+        print(f"  WARN: supadata returned non-JSON for {video_id}: {body[:200]}", file=sys.stderr)
+        return None
+
+    content = data.get("content")
+    if not isinstance(content, list) or not content:
+        return None
+
+    # Normalize to {text, start, duration} in seconds (matches youtube-transcript-api shape).
+    snippets = []
+    for c in content:
+        text = c.get("text", "")
+        if not text:
+            continue
+        offset_ms = c.get("offset", 0) or 0
+        duration_ms = c.get("duration", 0) or 0
+        snippets.append({
+            "text": text,
+            "start": offset_ms / 1000.0,
+            "duration": duration_ms / 1000.0,
+        })
+    return snippets or None
+
+
+def _fetch_via_youtube_transcript_api(video_id: str) -> list[dict] | None:
+    """Fetch transcript via youtube-transcript-api; returns list of {text, start, duration} or None.
+
+    Used as the fallback when SUPADATA_API_KEY is not set, or alongside it
+    for local dev. Almost always blocked by YouTube on datacenter IPs
+    (verified 0/14 in CI 2026-05-03), but harmless to keep as a secondary
+    path in case YouTube ever stops blocking.
+    """
+    try:
+        from youtube_transcript_api import YouTubeTranscriptApi
+        from youtube_transcript_api._errors import (
+            TranscriptsDisabled,
+            NoTranscriptFound,
+            VideoUnavailable,
+        )
+    except ImportError:
+        return None
+
+    try:
+        fetched = YouTubeTranscriptApi().fetch(video_id, languages=["en", "en-US", "en-GB"])
+    except (TranscriptsDisabled, NoTranscriptFound):
+        return None
+    except VideoUnavailable as e:
+        print(f"  WARN: video unavailable {video_id}: {e}", file=sys.stderr)
+        return None
+    except Exception as e:
+        print(f"  WARN: youtube-transcript-api failed for {video_id}: {type(e).__name__}: {str(e)[:140]}", file=sys.stderr)
+        return None
+
+    snippets = list(fetched)
+    if not snippets:
+        return None
+    return [{"text": s.text, "start": s.start, "duration": s.duration} for s in snippets]
+
+
 def fetch_transcript(video_id: str, timeout: int = 30) -> str | None:
-    """Fetch auto-captions via youtube-transcript-api; return plain text or None.
+    """Fetch auto-captions; return plain text or None on any failure.
 
-    Originally used yt-dlp, but YouTube blocks yt-dlp aggressively from
-    GitHub Actions IP ranges (verified 2026-05-03: 0/18 fetched).
-    youtube-transcript-api uses the same endpoint youtube.com itself uses
-    to render the transcript panel — much less blocked.
+    Strategy (verified-best-first):
+      1. JSON cache hit at phase4_cache/transcripts/<video_id>.json.
+      2. supadata.ai if SUPADATA_API_KEY env var is set (residential-IP proxied
+         endpoint that bypasses YouTube's datacenter-IP block).
+      3. youtube-transcript-api as a fallback (almost always blocked from
+         datacenter IPs but cheap to try once).
+      4. None if everything fails — caller falls back to title-only generation.
 
-    Cache: phase4_cache/transcripts/<video_id>.json with raw snippets.
-    `timeout` kept for signature compatibility but the library does not
-    expose per-call timeouts; failures bubble up via exceptions instead.
+    Cache schema: list of {text, start, duration}. Times in seconds.
     """
     TRANSCRIPT_CACHE.mkdir(parents=True, exist_ok=True)
     cache_file = TRANSCRIPT_CACHE / f"{video_id}.json"
@@ -119,42 +219,21 @@ def fetch_transcript(video_id: str, timeout: int = 30) -> str | None:
         except (OSError, json.JSONDecodeError, KeyError, TypeError):
             pass  # fall through and re-fetch
 
-    try:
-        from youtube_transcript_api import YouTubeTranscriptApi
-        from youtube_transcript_api._errors import (
-            TranscriptsDisabled,
-            NoTranscriptFound,
-            VideoUnavailable,
-        )
-    except ImportError:
-        print(f"  WARN: youtube-transcript-api not installed for {video_id}", file=sys.stderr)
-        return None
-
-    try:
-        fetched = YouTubeTranscriptApi().fetch(video_id, languages=["en", "en-US", "en-GB"])
-    except (TranscriptsDisabled, NoTranscriptFound):
-        return None
-    except VideoUnavailable as e:
-        print(f"  WARN: video unavailable {video_id}: {e}", file=sys.stderr)
-        return None
-    except Exception as e:
-        # Network failures, parser errors, IP blocks all reach here.
-        print(f"  WARN: transcript fetch failed for {video_id}: {type(e).__name__}: {str(e)[:140]}", file=sys.stderr)
-        return None
-
-    snippets = list(fetched)
+    snippets: list[dict] | None = None
+    api_key = os.environ.get("SUPADATA_API_KEY")
+    if api_key:
+        snippets = _fetch_via_supadata(video_id, api_key, timeout=timeout)
+    if snippets is None:
+        snippets = _fetch_via_youtube_transcript_api(video_id)
     if not snippets:
         return None
 
     try:
-        cache_file.write_text(
-            json.dumps([{"text": s.text, "start": s.start, "duration": s.duration} for s in snippets]),
-            encoding="utf-8",
-        )
+        cache_file.write_text(json.dumps(snippets), encoding="utf-8")
     except OSError as e:
         print(f"  WARN: cannot cache transcript for {video_id}: {e}", file=sys.stderr)
 
-    return _snippets_to_text([s.text for s in snippets])
+    return _snippets_to_text([s["text"] for s in snippets])
 
 
 def fetch_feed(channel_id):

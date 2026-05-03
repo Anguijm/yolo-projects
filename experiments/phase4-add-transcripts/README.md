@@ -51,7 +51,23 @@ The next scheduled cron run should produce:
 - `phase4_run.json.transcripts_fetched > 0` (most channels have auto-captions).
 - Resulting cards' `hypothesis` and `what_they_did` fields visibly drawing from transcript content.
 
-If `transcripts_fetched == 0` after one cron cycle, that's the signal to investigate (most likely cause: yt-dlp version mismatch in the runner).
+## Required GitHub secret
+
+`SUPADATA_API_KEY` must be set in the repo's Actions secrets:
+- Sign up at https://supadata.ai (free tier: 100 transcripts/month — more than enough for our ~5-10 videos/cron run).
+- Copy the API key from the dashboard.
+- In the repo: Settings → Secrets and variables → Actions → New repository secret. Name: `SUPADATA_API_KEY`. Value: the key.
+- Without the secret, the cron still runs and writes title-only cards (graceful degrade). With it, transcripts get pulled and cards become much higher quality.
+
+## History (2026-04-30 → 2026-05-03)
+
+The fetcher implementation went through three iterations:
+
+1. **yt-dlp** (original) — 2026-04-30. Verified 0/18 fetched in CI. YouTube blocks `yt-dlp` aggressively from GitHub Actions IPs.
+2. **youtube-transcript-api** — 2026-05-03. Cleaner Python integration, hits a different YouTube endpoint. Verified 0/14 fetched in CI. Same root cause: YouTube blocks the entire datacenter-IP range.
+3. **supadata.ai (current)** — 2026-05-03. Third-party service that proxies through residential IPs. youtube-transcript-api kept as a fallback for the rare case where YouTube ever stops blocking GHA IPs.
+
+Cache schema is normalized across all paths: `[{"text": str, "start": float-seconds, "duration": float-seconds}, ...]`.
 
 ## Cost estimate
 
