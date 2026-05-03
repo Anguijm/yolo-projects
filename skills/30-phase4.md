@@ -51,11 +51,10 @@
 5. @NateHerk — AI workflows, Claude Code, 2-3/week
 
 ## Input
-- `phase4_queue.json` (what needs processing)
-- `experiments.json` (existing experiments for dedup)
-- `phase4_experiments.md` (processing protocol)
+- RSS feed of each channel in `fetch_youtube_rss.py:CHANNELS` (live).
+- `experiments.json` (existing experiments for dedup against video_id).
+- `SUPADATA_API_KEY` env var (optional; enables transcript-driven cards).
 
 ## Output
-- Processed queue entries
-- New experiment cards in `experiments.json`
-- Updated `phase4_queue.json`
+- New experiment cards appended directly to `experiments.json`.
+- `phase4_run.json` updated with per-cron-cycle stats (channels scanned, transcripts fetched, etc).

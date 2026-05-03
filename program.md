@@ -246,7 +246,7 @@ One project per run. The flow is:
 
 ## Phase 4: YouTube Experiment Tracker
 
-See `phase4_experiments.md` for the complete system. Phase 4 is a separate R&D intelligence pipeline that feeds actionable experiments into the dev loop. It does NOT replace Phases 1-3 — it runs in parallel once Phase 3 refinement completes.
+See `skills/30-phase4.md` for the methodology and `fetch_youtube_rss.py` + `scripts/process_experiments.py` for the implementation. Live state is `experiments.json` (per-card) and `phase4_run.json` (per-cron-cycle). Phase 4 is a separate R&D intelligence pipeline that feeds actionable experiments into the dev loop. It does NOT replace Phases 1-3 — it runs in parallel once Phase 3 refinement completes.
 
 1. **@NateBJones** — AI News & Strategy Daily
    - Focus: AI strategy, developer workflows, agentic systems, implementation patterns, team/org adoption of AI tooling.

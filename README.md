@@ -63,7 +63,7 @@ Full 7-angle council on every survivor. Score 5+ on usefulness or get culled.
 Final pass — anything still not genuinely useful gets cut.
 
 ### Phase 4: YouTube Research
-Daily cron (~07:00 JST) auto-discovers new videos from 11 monitored YouTube channels via RSS, generates experiment proposals, runs them through council cull, and promotes adopted items into the tick queue. **Lifetime totals (live):** 118 experiments — 41 adopted, 20 deferred, 16 discarded, 19 in backlog. See `PHASE4_REPORT.md` for the full snapshot and per-experiment outcomes.
+Daily cron (~07:00 JST) auto-discovers new videos from 12 monitored YouTube channels via RSS, pulls auto-captions through supadata.ai, generates experiment proposals, runs them through council cull, and promotes adopted items into the tick queue. Live lifetime counts: see `phase4_run.json`. Per-experiment narrative: `experiments.json` is the source of truth; `experiments/FINAL_REPORT.md` has the most recent comprehensive write-up.
 
 ### Security Scanning
 22-rule regex scanner (`security_scan.py`) runs on every build. Full portfolio triaged: 0 real vulnerabilities. CSP meta tag in design.md boilerplate.
@@ -71,7 +71,7 @@ Daily cron (~07:00 JST) auto-discovers new videos from 11 monitored YouTube chan
 ### Architecture Audit
 12-piece agent architecture audit: 5 STRONG, 5 ADEQUATE, 0 WEAK (2 resolved). Halt mechanism and cost cap implemented.
 
-## Adopted Experiments (41 — see `PHASE4_REPORT.md` for the full list with outcomes)
+## Adopted Experiments (live count in `phase4_run.json`; per-experiment outcomes in `experiments.json`)
 
 Key process improvements from Phase 4 research:
 
@@ -97,8 +97,8 @@ Key process improvements from Phase 4 research:
 | Tick-Tock Builder | Hourly | Proposes ideas (tick) or implements flagship features (tock). Builds only approved items. |
 | Phase 4 Research | Daily ~07:00 JST | YouTube RSS scan across 11 channels, experiment extraction, always commits run report |
 
-## Monitored YouTube Channels (11 — authoritative roster in `fetch_youtube_rss.py:CHANNELS`)
-@NateBJones, @MLOps, @DavidOndrej, [un]prompted, @NateHerk, @swyx, @GregKamradt, @AIJasonZ, @echohive, @ShawTalebi, @Mark_Kashef
+## Monitored YouTube Channels (12 — authoritative roster in `fetch_youtube_rss.py:CHANNELS`)
+@NateBJones, @MLOps, @DavidOndrej, [un]prompted, @NateHerk, @swyx, @GregKamradt, @AIJasonZ, @echohive, @ShawTalebi, @Mark_Kashef, @AndrejKarpathy
 
 ## Key Files
 
@@ -108,8 +108,8 @@ Key process improvements from Phase 4 research:
 | `design.md` | Visual design system (dark industrial aesthetic) |
 | `learnings.md` | Accumulated build knowledge (3000+ lines) |
 | `yolo_log.json` | Append-only log of all builds |
-| `experiments.json` | Phase 4 experiment tracker (118 experiments — live count) |
-| `PHASE4_REPORT.md` | Comprehensive Phase 4 snapshot (regenerable; all numbers re-derivable from source files) |
+| `experiments.json` | Phase 4 experiment tracker (live count) |
+| `experiments/FINAL_REPORT.md` | Most recent comprehensive Phase 4 write-up (replaces the stale 2026-04-25 snapshot) |
 | `STACK_AUDIT.md` (in `experiments/adopt-stack-audit/`) | Dated dependency shelf-life audit with grep-by-content citations |
 | `council_rules.md` | Canonical reference for council mechanics + 4 enforcement rules |
 | `session_state.json` | Tick-tock state, approval queues, phase 4 queue |
