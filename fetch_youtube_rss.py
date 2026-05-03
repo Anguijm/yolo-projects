@@ -9,7 +9,6 @@ to skip already-processed videos.
 import json
 import sys
 import re
-import subprocess
 from datetime import datetime, timedelta
 from pathlib import Path
 from urllib.request import urlopen, Request
@@ -80,58 +79,82 @@ def truncate_transcript(text: str, head: int = TRANSCRIPT_HEAD_CHARS, tail: int 
     return f"{head_part}\n\n[... transcript truncated, {len(text) - head - tail} chars elided ...]\n\n{tail_part}"
 
 
-def fetch_transcript(video_id: str, timeout: int = 30) -> str | None:
-    """Fetch auto-captions via yt-dlp; return plain text or None on any failure.
+def _snippets_to_text(texts: list[str]) -> str:
+    """Join transcript snippet text fragments and dedupe consecutive duplicates.
 
-    Caches raw VTT at phase4_cache/transcripts/<video_id>.vtt so re-runs are free.
+    Auto-captions sometimes have rolling-karaoke repeats; collapse those.
+    Non-consecutive duplicates (the same word in different sentences) survive.
+    """
+    cleaned = []
+    for raw in texts:
+        line = raw.strip().replace("\n", " ")
+        if not line:
+            continue
+        if cleaned and cleaned[-1] == line:
+            continue
+        cleaned.append(line)
+    return " ".join(cleaned)
+
+
+def fetch_transcript(video_id: str, timeout: int = 30) -> str | None:
+    """Fetch auto-captions via youtube-transcript-api; return plain text or None.
+
+    Originally used yt-dlp, but YouTube blocks yt-dlp aggressively from
+    GitHub Actions IP ranges (verified 2026-05-03: 0/18 fetched).
+    youtube-transcript-api uses the same endpoint youtube.com itself uses
+    to render the transcript panel — much less blocked.
+
+    Cache: phase4_cache/transcripts/<video_id>.json with raw snippets.
+    `timeout` kept for signature compatibility but the library does not
+    expose per-call timeouts; failures bubble up via exceptions instead.
     """
     TRANSCRIPT_CACHE.mkdir(parents=True, exist_ok=True)
-    cache_file = TRANSCRIPT_CACHE / f"{video_id}.vtt"
+    cache_file = TRANSCRIPT_CACHE / f"{video_id}.json"
+
     if cache_file.exists() and cache_file.stat().st_size > 0:
         try:
-            return _strip_vtt(cache_file.read_text(encoding="utf-8", errors="replace"))
-        except OSError:
-            pass  # re-fetch
+            data = json.loads(cache_file.read_text(encoding="utf-8"))
+            if isinstance(data, list) and data:
+                return _snippets_to_text([s["text"] for s in data])
+        except (OSError, json.JSONDecodeError, KeyError, TypeError):
+            pass  # fall through and re-fetch
 
-    url = f"https://www.youtube.com/watch?v={video_id}"
-    out_template = str(TRANSCRIPT_CACHE / f"{video_id}.%(ext)s")
     try:
-        proc = subprocess.run(
-            [
-                "yt-dlp",
-                "--skip-download",
-                "--write-auto-sub",
-                "--sub-lang", "en,en-US,en-auto",
-                "--sub-format", "vtt",
-                "--output", out_template,
-                "--no-warnings",
-                "--quiet",
-                url,
-            ],
-            timeout=timeout,
-            capture_output=True,
-            text=True,
+        from youtube_transcript_api import YouTubeTranscriptApi
+        from youtube_transcript_api._errors import (
+            TranscriptsDisabled,
+            NoTranscriptFound,
+            VideoUnavailable,
         )
-    except (subprocess.TimeoutExpired, FileNotFoundError) as e:
-        print(f"  WARN: yt-dlp transcript fetch failed for {video_id}: {type(e).__name__}", file=sys.stderr)
-        return None
-    if proc.returncode != 0:
-        print(f"  WARN: yt-dlp exit {proc.returncode} for {video_id}: {(proc.stderr or '').strip()[:140]}", file=sys.stderr)
+    except ImportError:
+        print(f"  WARN: youtube-transcript-api not installed for {video_id}", file=sys.stderr)
         return None
 
-    # yt-dlp picks one of the requested langs; find what it actually wrote.
-    candidates = sorted(TRANSCRIPT_CACHE.glob(f"{video_id}*.vtt"))
-    if not candidates:
-        return None
-    chosen = candidates[0]
-    if chosen != cache_file:
-        # Normalize filename so the cache lookup hits next time.
-        chosen.rename(cache_file)
     try:
-        return _strip_vtt(cache_file.read_text(encoding="utf-8", errors="replace"))
-    except OSError as e:
-        print(f"  WARN: cannot read cached transcript for {video_id}: {e}", file=sys.stderr)
+        fetched = YouTubeTranscriptApi().fetch(video_id, languages=["en", "en-US", "en-GB"])
+    except (TranscriptsDisabled, NoTranscriptFound):
         return None
+    except VideoUnavailable as e:
+        print(f"  WARN: video unavailable {video_id}: {e}", file=sys.stderr)
+        return None
+    except Exception as e:
+        # Network failures, parser errors, IP blocks all reach here.
+        print(f"  WARN: transcript fetch failed for {video_id}: {type(e).__name__}: {str(e)[:140]}", file=sys.stderr)
+        return None
+
+    snippets = list(fetched)
+    if not snippets:
+        return None
+
+    try:
+        cache_file.write_text(
+            json.dumps([{"text": s.text, "start": s.start, "duration": s.duration} for s in snippets]),
+            encoding="utf-8",
+        )
+    except OSError as e:
+        print(f"  WARN: cannot cache transcript for {video_id}: {e}", file=sys.stderr)
+
+    return _snippets_to_text([s.text for s in snippets])
 
 
 def fetch_feed(channel_id):
