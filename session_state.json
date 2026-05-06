@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "last_updated": "2026-05-03T22:26:16.043657+00:00",
+  "last_updated": "2026-05-06T19:44:25Z",
   "tick_tock": {
     "last_session_type": "tock",
     "last_tock_flagship": "deck",
@@ -156,6 +156,99 @@
         ],
         "plan_summary": "Three variants of the BUGS angle prompt with identical semantic content. bench.py runs each variant against the 20 tasks in eval_bugs.json with N=3 runs per (variant, task) -> 60 data points per variant. Records to runs.jsonl after every task for resumability. RESULTS.md reports per-variant mean score, prompt+output token cost, run-to-run variance, Wilcoxon signed-rank significance test, and format-compliance rate (fraction of outputs that parsed cleanly in the expected format). Total spend ~180 Opus 4.7 calls. Full plan at experiments/bench-prompt-format/plan.md.",
         "council_focus": "PLAN: are the three variants truly semantically equivalent, or did format conversion silently change content? Reviewer must diff them side-by-side, not just confirm they exist. Content drift is the single most likely failure mode. IMPLEMENTATION: does bench.py correctly resume a partial run? Does it gracefully handle a variant that returns malformed output? TESTS: smoke test (--limit 1) passes; runs.jsonl is well-formed; Wilcoxon implementation agrees with scipy.stats.wilcoxon on a fixture input. OUTCOME: RESULTS.md states a clear ship/iterate/discard verdict with an effect-size number, not just a p-value. If the result is no-significant-difference, that IS the verdict \u2014 say it."
+      },
+      {
+        "name": "adopt-skill-creator",
+        "type": "infrastructure",
+        "source_experiment": "nh-2026-05-03-claude-code-skill-creator",
+        "idea": "Install Anthropic Skill Creator plugin at user scope; bootstrap reusable skills via plain-English prompts",
+        "rationale": "Adopted from Phase 4 nh-2026-05-03-claude-code-skill-creator. Low-effort: install once at user scope (`/plugin install skill-creator`), then describe a skill in plain English (or drop in an SOP) and Claude drafts/tests/packages it. Direct fit \u2014 we already maintain skills/30-phase4.md and similar; Skill Creator removes the manual markdown authoring step. Verifiable: install the plugin, generate a single skill from a sentence-long description, confirm the result lands in skills/ in the expected shape.",
+        "deliverable_paths": [
+          "skills/<one-new-skill-from-prompt>.md",
+          "experiments/adopt-skill-creator/README.md"
+        ]
+      },
+      {
+        "name": "adopt-superpowers-skill",
+        "type": "infrastructure",
+        "source_experiment": "nh-2026-05-03-superpowers-plan-first-skill",
+        "idea": "Install the Superpowers plugin to enforce plan-then-test discipline in Claude Code sessions",
+        "rationale": "Adopted from Phase 4 nh-2026-05-03-superpowers-plan-first-skill. Pairs naturally with the council PLAN gate \u2014 Superpowers forces full-plan-first, test-before-code, and an internal review pass before output. Low effort to install; the open question is whether it duplicates or augments our existing council gates. Build deliverable: a one-page comparison doc between Superpowers' enforcement and our PLAN/IMPLEMENTATION/TESTS gate sequence, plus install instructions.",
+        "deliverable_paths": [
+          "experiments/adopt-superpowers-skill/COMPARISON.md",
+          "experiments/adopt-superpowers-skill/README.md"
+        ]
+      },
+      {
+        "name": "skill-scope-audit",
+        "type": "infrastructure",
+        "source_experiment": "mk-2026-05-03-global-vs-project-skill-hygiene",
+        "idea": "Audit existing skills (skills/*.md and .claude/commands/*.md) and explicitly tag each as global or project-scoped",
+        "rationale": "Adopted from Phase 4 mk-2026-05-03-global-vs-project-skill-hygiene. Prerequisite for any multi-agent layering. The scope decision is currently implicit; making it explicit reveals which skills are polluting context windows for agents that don't need them. Low-effort: read every skill, add a `scope: global|project` frontmatter line, write a SCOPES.md summary.",
+        "deliverable_paths": [
+          "experiments/skill-scope-audit/SCOPES.md",
+          "skills/*.md (frontmatter additions)",
+          ".claude/commands/*.md (frontmatter additions)"
+        ]
+      },
+      {
+        "name": "adopt-claude-design-patterns",
+        "type": "infrastructure",
+        "source_experiment": "nh-2026-05-03-claude-design-course",
+        "idea": "Apply Claude-specific prompt design patterns (persona, structured output, escalation) to council angle prompts and tick_tock_prompt.md",
+        "rationale": "Adopted from Phase 4 nh-2026-05-03-claude-design-course. The course covered structured prompt design specifically for Claude. Our council angles and tick_tock_prompt.md were written organically; running them through the design patterns should improve consistency and reduce angle drift. Build deliverable: a redesign of one council angle (BUGS, the most-fired) following the design patterns, plus a measurement against the prior version using bench-prompt-format's harness once that ticks lands.",
+        "deliverable_paths": [
+          "experiments/adopt-claude-design-patterns/REDESIGN.md",
+          "council.py (BUGS angle prompt rewrite)"
+        ]
+      },
+      {
+        "name": "adopt-higgsfield-mcp",
+        "type": "experiment",
+        "source_experiment": "nh-2026-05-05-higgsfield-claude-mcp-creative-agency",
+        "idea": "Wire Higgsfield MCP into Claude (via Settings \u2192 Connectors) for image and video asset generation",
+        "rationale": "Adopted from Phase 4 nh-2026-05-05-higgsfield-claude-mcp-creative-agency. The card captured the exact UI path (Settings \u2192 Connectors \u2192 Add Custom Connector \u2192 paste Higgsfield MCP command \u2192 OAuth) and a single high-level prompt that drives the full brand-asset pipeline. Useful for portfolio dashboard imagery, project hero visuals, social posts. Effort is medium because the actual quality assessment of generated assets requires human eyeballing. Verifiable: connector live, single test prompt produces N assets, manual grade.",
+        "deliverable_paths": [
+          "experiments/adopt-higgsfield-mcp/SETUP.md",
+          "experiments/adopt-higgsfield-mcp/sample_outputs/"
+        ]
+      },
+      {
+        "name": "adopt-voice-agent",
+        "type": "experiment",
+        "source_experiment": "nh-2026-05-04-voice-agent-claude-code-elevenlabs",
+        "idea": "Build a knowledge-grounded voice agent (ElevenLabs voice + Claude Code knowledge base) over the YOLO portfolio",
+        "rationale": "Adopted from Phase 4 nh-2026-05-04-voice-agent-claude-code-elevenlabs. Source captured all four voice-agent components (persona/system prompt, voice, knowledge base, deployment endpoint) and a 15-minute build trajectory. Knowledge base for our use case: experiments.json + learnings.md + CLAUDE.md \u2014 the loop's accumulated wisdom queryable by voice. Effort medium (ElevenLabs cost + voice tuning); deliverable is one working voice query against the loop.",
+        "deliverable_paths": [
+          "experiments/adopt-voice-agent/README.md",
+          "experiments/adopt-voice-agent/knowledge_base.md",
+          "experiments/adopt-voice-agent/sample_queries.md"
+        ]
+      },
+      {
+        "name": "adopt-claude-md-memory-layering",
+        "type": "infrastructure",
+        "source_experiment": "nb-2026-04-22-claude-code-memory-patterns",
+        "idea": "Audit our CLAUDE.md memory patterns against the canonical four-pattern framework (root, nested, in-conv injection, ephemeral)",
+        "rationale": "Adopted from Phase 4 nb-2026-04-22-claude-code-memory-patterns. We have one CLAUDE.md at repo root and ad-hoc context-injection in slash commands; we don't have nested per-subdirectory CLAUDE.md files. The audit enumerates which pattern fits each part of the codebase (e.g., experiments/ probably needs its own nested CLAUDE.md describing the LESSONS/HANDOFF/runs/ shape so a fresh agent doesn't have to infer it). Verifiable: a single MEMORY_LAYERING.md plus at least one new nested CLAUDE.md based on the audit's findings.",
+        "deliverable_paths": [
+          "experiments/adopt-claude-md-memory-layering/MEMORY_LAYERING.md",
+          "experiments/CLAUDE.md (new nested context file, if audit recommends)"
+        ]
+      },
+      {
+        "name": "prototype-hive-mind-multi-agent",
+        "type": "experiment",
+        "source_experiment": "mk-2026-05-03-hive-mind-multi-agent-os",
+        "idea": "Prototype a 2-agent shared-memory layer (research + comms) on top of Claude Code",
+        "rationale": "Adopted from Phase 4 mk-2026-05-03-hive-mind-multi-agent-os. High effort, but the core pattern is well-defined: shared memory store (graph or table), specialized agents with role-specific skills, message-passing interface. For the YOLO loop, the analog is: one agent watching Phase 4 cron output, one agent triaging the resulting backlog into ticks/tocks, sharing state via session_state.json or a new ledger. Cut the prototype scope tight: 2 agents, shared SQLite (not a graph), no Telegram interface, just the in-loop coordination. Sets up future expansion if the pattern works.",
+        "deliverable_paths": [
+          "experiments/prototype-hive-mind-multi-agent/README.md",
+          "experiments/prototype-hive-mind-multi-agent/coordinator.py",
+          "experiments/prototype-hive-mind-multi-agent/shared_memory.py",
+          "experiments/prototype-hive-mind-multi-agent/agent_research.py",
+          "experiments/prototype-hive-mind-multi-agent/agent_comms.py"
+        ]
       }
     ],
     "tick_queue_pending": [],
