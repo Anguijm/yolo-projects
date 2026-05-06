@@ -10,8 +10,8 @@
 
 ### 1. Select Project
 - If user specified: use that project
-- If batch sweep: read `yolo_log.json`, find next unrefined survivor
-- Check `learnings.md` for existing refinement entries to avoid re-refining
+- If batch sweep: read `.harness/yolo_log.json`, find next unrefined survivor
+- Check `.harness/learnings.md` for existing refinement entries to avoid re-refining
 
 ### 2. Read Code
 - Read the main file (usually `<project>/index.html`)
@@ -27,7 +27,7 @@
 - Dark Factory retry loop: fix → retest, max 3 cycles
 
 ### 5. Log
-- Add refinement entry to `learnings.md`:
+- Add refinement entry to `.harness/learnings.md`:
   ```
   ### <project> refinement (<date>) — PHASE 2 #N
   - **FIX**: [what was fixed]
@@ -42,7 +42,7 @@
 ## Input
 - Project name
 - Project source code
-- `learnings.md` (check for existing refinement)
+- `.harness/learnings.md` (check for existing refinement)
 
 ## Output
 - Fixed project code

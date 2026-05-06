@@ -9,8 +9,8 @@
 ## Methodology
 
 ### 1. Ideate
-- Read `learnings.md` (first 50 lines — accumulated principles)
-- Read `yolo_log.json` to avoid duplicates
+- Read `.harness/learnings.md` (first 50 lines — accumulated principles)
+- Read `.harness/yolo_log.json` to avoid duplicates
 - Check `markdown-deck/deck_roadmap.md` → YOLO Feeder Projects for unbuilt feeders
 - If feeder available → build that (it serves double duty)
 - Otherwise → generate a fresh idea biased toward useful dev tools
@@ -35,23 +35,23 @@
 
 ### 5. Ship
 - Write `README.md` in project folder
-- Add entry to `yolo_log.json`
+- Add entry to `.harness/yolo_log.json`
 - Regenerate dashboard: `python3 update_dashboard.py`
-- Add learnings entry to `learnings.md`
+- Add learnings entry to `.harness/learnings.md`
 - If feeder: mark as "FEEDER: ready for Deck integration"
 
 ### 6. Commit & Update State
-- `git add <project>/ yolo_log.json dashboard.html learnings.md`
+- `git add <project>/ .harness/yolo_log.json dashboard.html learnings.md`
 - `git commit` with Co-Authored-By trailer
 - `git push`
 - Update session log in `markdown-deck/deck_roadmap.md`
 - Run `python3 update_session_state.py`
 
 ## Input
-- `session_state.json` (context)
+- `.harness/session_state.json` (context)
 - `design.md` (visual system)
-- `learnings.md` (patterns)
-- `yolo_log.json` (what exists)
+- `.harness/learnings.md` (patterns)
+- `.harness/yolo_log.json` (what exists)
 
 ## Output
 - One shipped project (HTML file + README)

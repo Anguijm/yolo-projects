@@ -8,14 +8,14 @@
 
 ## Methodology
 
-1. Read `session_state.json` for full context recovery
+1. Read `.harness/session_state.json` for full context recovery
 2. Read `tick_tock.next_session_type` to determine mode
 3. If **Tick**: load `skills/10-tick.md`
 4. If **Tock**: load `skills/11-tock.md`
 5. If user overrides with specific request, follow that instead
 
 ## Input
-- `session_state.json` (auto-generated)
+- `.harness/session_state.json` (auto-generated)
 
 ## Output
 - Decision: Tick or Tock
