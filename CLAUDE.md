@@ -159,7 +159,9 @@ Yolo-projects pre-dates the canonical multi-persona-synthesis pattern. Its `coun
 - **Four auto-downgrade passes** — parse-failure retry, LESSONS-veto precondition, goalpost-move, BUGS hallucination. See `.harness/scripts/council_rules.md` for the full rules.
 - **Two-attempt deadlock escalation** — writes `COUNCIL_ESCALATION.md` at repo root, halts the build, awaits human resolution.
 
-The canonical lead-architect synthesizer (verdict = CLEAR / CONDITIONAL / BLOCK based on persona scores) doesn't fire in this repo's hot path. `.harness/council/lead-architect.md` exists as a stub for canonical-topology completeness; only the rare PR-triggered `council.yml` workflow would consult it (manual changes like the conformance PR itself, not the hourly cron's project gates).
+The canonical lead-architect synthesizer (verdict = CLEAR / CONDITIONAL / BLOCK based on persona scores) doesn't fire in this repo. `.harness/council/lead-architect.md` exists as a stub for canonical-topology completeness.
+
+**PR-triggered council is deferred for yolo-projects.** The canonical `council.yml` workflow is shipped as a no-op placeholder (so drift-check stays happy), with a 4-iteration roadmap in the file's header comment. PR review on yolo today is human + Codex (the two active reviewers); the cron's gate-council via `tick_tock.yml` continues to run on autonomous tick-tock work. Migration to a working diff-mode council, including SDK migration from `google-generativeai` to `google-genai`, lands across follow-up PRs.
 
 ## Hook timeouts (`.claude/settings.json`)
 
