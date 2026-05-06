@@ -17,7 +17,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 ROOT = Path(__file__).parent
-STATE_FILE = ROOT / "session_state.json"
+STATE_FILE = ROOT / ".harness" / "session_state.json"
 
 
 def count_experiments():
@@ -48,7 +48,7 @@ def get_unprocessed_queue():
 
 
 def get_portfolio():
-    path = ROOT / "yolo_log.json"
+    path = ROOT / ".harness" / "yolo_log.json"
     if not path.exists():
         return {"total": 0, "culled": 0, "active": 0}
     log = json.loads(path.read_text())

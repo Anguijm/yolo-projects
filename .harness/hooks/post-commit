@@ -1,0 +1,81 @@
+#!/usr/bin/env bash
+# Post-commit hook: refresh durable session state on every commit.
+#
+# - Rewrites .harness/session_state.json with the new last_commit block.
+# - Appends a {"event": "commit", ...} line to .harness/yolo_log.jsonl.
+#
+# Installed via `.harness/scripts/install_hooks.sh` which sets
+# core.hooksPath=.harness/hooks. The files this hook updates are tracked and
+# will appear in the *next* commit — that's intentional and avoids recursion.
+
+set -eu
+
+REPO_ROOT="$(git rev-parse --show-toplevel)"
+HARNESS_DIR="$REPO_ROOT/.harness"
+STATE_FILE="$HARNESS_DIR/session_state.json"
+LOG_FILE="$HARNESS_DIR/yolo_log.jsonl"
+
+# Only operate when the harness directory exists (no-op on orphan checkouts).
+if [ ! -d "$HARNESS_DIR" ]; then
+  exit 0
+fi
+
+# Guard against recursion: if something sources this hook in a loop.
+if [ -n "${HARNESS_POST_COMMIT_RUNNING:-}" ]; then
+  exit 0
+fi
+export HARNESS_POST_COMMIT_RUNNING=1
+
+export COMMIT_HASH="$(git rev-parse HEAD)"
+export COMMIT_SHORT="$(git rev-parse --short HEAD)"
+export COMMIT_SUBJECT="$(git log -1 --pretty=%s)"
+export COMMIT_AUTHOR="$(git log -1 --pretty='%an <%ae>')"
+export COMMIT_TS_ISO="$(git log -1 --pretty=%cI)"
+export BRANCH="$(git rev-parse --abbrev-ref HEAD)"
+export FILES_CHANGED="$(git diff-tree --no-commit-id --name-only -r HEAD | wc -l | tr -d ' ')"
+
+python3 - "$STATE_FILE" "$LOG_FILE" <<'PYEOF'
+import json
+import os
+import sys
+from datetime import datetime, timezone
+
+state_path, log_path = sys.argv[1], sys.argv[2]
+
+last_commit = {
+    "hash": os.environ["COMMIT_HASH"],
+    "short": os.environ["COMMIT_SHORT"],
+    "subject": os.environ["COMMIT_SUBJECT"],
+    "author": os.environ["COMMIT_AUTHOR"],
+    "branch": os.environ["BRANCH"],
+    "committed_at": os.environ["COMMIT_TS_ISO"],
+    "files_changed": int(os.environ["FILES_CHANGED"]),
+}
+
+state = {}
+if os.path.exists(state_path):
+    try:
+        with open(state_path, "r", encoding="utf-8") as fh:
+            state = json.load(fh) or {}
+    except (json.JSONDecodeError, OSError):
+        state = {}
+
+state["last_commit"] = last_commit
+state["schema_version"] = state.get("schema_version", 1)
+
+tmp = state_path + ".tmp"
+with open(tmp, "w", encoding="utf-8") as fh:
+    json.dump(state, fh, indent=2, ensure_ascii=False)
+    fh.write("\n")
+os.replace(tmp, state_path)
+
+entry = {
+    "ts": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+    "event": "commit",
+    "commit": last_commit,
+}
+with open(log_path, "a", encoding="utf-8") as fh:
+    fh.write(json.dumps(entry, ensure_ascii=False) + "\n")
+PYEOF
+
+exit 0

@@ -13,7 +13,7 @@ Steps:
 The three sections to append:
 
 ### Tick queue (full)
-Read `session_state.json` -> `tick_tock.tick_queue_approved`. For each
+Read `.harness/session_state.json` -> `tick_tock.tick_queue_approved`. For each
 entry, print:
 
 ```
@@ -24,7 +24,7 @@ entry, print:
 Cap at 10 entries; elide the rest with `… +N more`.
 
 ### Recent escalations (last 5 resolved)
-Read `session_state.json` -> `council_escalations_resolved`. Sort by
+Read `.harness/session_state.json` -> `council_escalations_resolved`. Sort by
 resolution timestamp descending, take the top 5. For each:
 
 ```

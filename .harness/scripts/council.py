@@ -83,8 +83,8 @@ try:
 except ImportError:
     anthropic_sdk = None  # type: ignore[assignment]
 
-REPO_ROOT = Path(__file__).resolve().parent
-ANGLES_DIR = REPO_ROOT / "council" / "angles"
+REPO_ROOT = Path(__file__).resolve().parent.parent.parent  # .harness/scripts/council.py → repo root
+ANGLES_DIR = REPO_ROOT / ".harness" / "council"
 ANGLES = ["bugs", "security", "ui", "guide", "usefulness", "cool", "lessons"]
 GATES = ["plan", "implementation", "tests", "outcome"]
 MODEL_NAME = "gemini-2.5-flash"  # fast, cheap enough to run 7 per gate × 4 gates
@@ -157,7 +157,7 @@ def load_context_for_lessons() -> str:
     hot = REPO_ROOT / "_hot.md"
     if hot.exists():
         parts.append("## _hot.md (active patterns)\n\n" + hot.read_text())
-    learnings = REPO_ROOT / "learnings.md"
+    learnings = REPO_ROOT / ".harness" / "learnings.md"
     if learnings.exists():
         content = learnings.read_text()
         # last ~8000 chars to keep prompt size reasonable
@@ -485,7 +485,7 @@ def write_escalation(project: str, gate: str, verdicts: list[Verdict], reason: s
     esc_path.write_text("\n".join(lines))
 
     # Update session_state.json
-    state_path = REPO_ROOT / "session_state.json"
+    state_path = REPO_ROOT / ".harness" / "session_state.json"
     if state_path.exists():
         try:
             state = json.loads(state_path.read_text())

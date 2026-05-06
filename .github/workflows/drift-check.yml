@@ -1,0 +1,100 @@
+name: Harness Drift Check
+
+# Weekly read-only verification that this repo's harness layout matches the
+# canonical topology emitted by harness-cli. Catches when a workflow file or
+# persona has been edited without a corresponding template update — or when
+# the template has moved forward and this repo hasn't.
+#
+# On drift: opens (or updates) a single tracking issue with the report.
+# Manual run: workflow_dispatch.
+#
+# Pinning: HARNESS_VERSION below pins the canonical version this repo
+# compares itself against. Bump it deliberately when you want to upgrade
+# this repo to a newer harness release.
+
+env:
+  # The harness-cli release tag this repo is pinned to.
+  # Bump deliberately; see https://github.com/Anguijm/harness-cli/releases.
+  # HARNESS_SHA must be updated alongside (the immutable commit pin used
+  # for the actual checkout — supply-chain guard against tag force-push).
+  HARNESS_VERSION: V0.3.1
+  HARNESS_SHA: 12a9f3fe5fed4f8a7ebdfc1eb97838f8a750537d
+
+on:
+  schedule:
+    # Mondays at 14:00 UTC.
+    - cron: '0 14 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  drift:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout this repo
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4
+
+      - name: Checkout harness-cli (canonical topology source)
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4
+        with:
+          repository: Anguijm/harness-cli
+          # Pin to immutable SHA, not tag (tag could theoretically be force-pushed).
+          # HARNESS_VERSION above is the human-readable label for the same release.
+          ref: ${{ env.HARNESS_SHA }}
+          path: .harness-cli-canonical
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020  # v4
+        with:
+          node-version: '20'
+
+      - name: Install harness-cli deps
+        working-directory: .harness-cli-canonical
+        run: npm ci
+
+      - name: Run drift check
+        id: check
+        run: |
+          set +e
+          node .harness-cli-canonical/src/cli.js check --verbose > drift.txt 2>&1
+          STATUS=$?
+          set -e
+          echo "status=$STATUS" >> "$GITHUB_OUTPUT"
+          cat drift.txt
+          if [ "$STATUS" -ne 0 ]; then
+            {
+              echo "## Harness drift detected"
+              echo
+              echo "Pinned to harness-cli **${{ env.HARNESS_VERSION }}**."
+              echo
+              echo '```'
+              cat drift.txt
+              echo '```'
+              echo
+              echo "**Missing files:** run \`harness init --update\` from a checkout of [Anguijm/harness-cli@${{ env.HARNESS_VERSION }}](https://github.com/Anguijm/harness-cli/tree/${{ env.HARNESS_VERSION }}) to add them."
+              echo
+              echo "**Modified files:** these may be intentional repo-specific customizations or stale copies of an older canonical version. Review manually."
+              echo
+              echo "**To upgrade to a newer harness release:** bump \`HARNESS_VERSION\` in \`.github/workflows/drift-check.yml\`, then re-run this workflow. See https://github.com/Anguijm/harness-cli/releases."
+            } > issue-body.md
+          fi
+
+      - name: Open or update tracking issue
+        if: steps.check.outputs.status != '0'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          TITLE="Harness drift: $(date -u +%Y-%m-%d)"
+          EXISTING=$(gh issue list --repo "$REPO" --label "harness-drift" --state open --limit 1 --json number --jq '.[0].number // empty')
+          if [ -n "$EXISTING" ]; then
+            gh issue comment "$EXISTING" --repo "$REPO" --body-file issue-body.md
+            echo "Commented on existing drift issue #$EXISTING."
+          else
+            gh label create harness-drift --repo "$REPO" --color "ededed" --description "Drift between repo and canonical harness topology" 2>/dev/null || true
+            gh issue create --repo "$REPO" --title "$TITLE" --label "harness-drift" --body-file issue-body.md
+          fi

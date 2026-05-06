@@ -51,7 +51,7 @@ Always read these at response time — never recall from prior context:
 
 | Source | For |
 |---|---|
-| `session_state.json` | tick/tock, council_escalations, build_memory |
+| `.harness/session_state.json` | tick/tock, council_escalations, build_memory |
 | `_hot.md` | portfolio totals, recent builds, tick queue |
 | `phase4_run.json` | last cron (last_run_utc, feeds_successful/failed, new_videos_found, new_experiments_added, backlog_count) |
 | `experiments.json` | per-experiment status + verdict + source |
@@ -95,12 +95,12 @@ Always read these at response time — never recall from prior context:
 - **Experiment verdict** (set when `done`): `adopt` (promote into portfolio),
   `discard` (reject), `iterate` (needs another pass).
 - **Council escalation** — lessons-angle veto or two-attempt deadlock from
-  `council.py`; writes `COUNCIL_ESCALATION.md` and halts builds until
+  `.harness/scripts/council.py`; writes `COUNCIL_ESCALATION.md` and halts builds until
   resolved.
 
 ## Council enforcement rules (auto-downgrade behavior)
 
-`council.py` runs four enforcement passes after each gate. Each one converts
+`.harness/scripts/council.py` runs four enforcement passes after each gate. Each one converts
 an OBJECT verdict to APPROVE-advisory and prefixes the reason with an
 `[AUTO-DOWNGRADED: …]` tag. The full list — the same rules an AI agent
 should expect to see firing in cron logs:
@@ -116,8 +116,68 @@ should expect to see firing in cron logs:
 4. **BUGS hallucination auto-downgrade** — BUGS OBJECTs that claim a
    symbol is "undefined/missing/not defined" but the cited file actually
    defines that symbol (via language-aware definition patterns) are
-   auto-downgraded. Source: `detect_bugs_hallucination` in `council.py`.
+   auto-downgraded. Source: `detect_bugs_hallucination` in `.harness/scripts/council.py`.
 
-See `learnings.md` "Council enforcement rules are now LIVE in code" for
+See `.harness/learnings.md` "Council enforcement rules are now LIVE in code" for
 the full rationale per rule and `experiments/fix-council-enforcement/` +
 `experiments/fix-council-bugs-hallucination/` for the ticks that shipped them.
+
+## V0.3.1 canonical conformance
+
+This repo conforms to the [harness-cli V0.3.1](https://github.com/Anguijm/harness-cli/releases/tag/V0.3.1) canonical layout as of the conformance PR. Pinned in `.github/workflows/drift-check.yml`:
+
+```
+HARNESS_VERSION: V0.3.1
+HARNESS_SHA: 12a9f3fe5fed4f8a7ebdfc1eb97838f8a750537d
+```
+
+**Path map** (everything under `.harness/` is the canonical home):
+
+| What | Path |
+|---|---|
+| Personas | `.harness/council/{bugs,cool,guide,lessons,security,ui,usefulness}.md` (specialized 7) |
+| Synthesizer placeholder | `.harness/council/lead-architect.md` (stub — see file for why) |
+| The runner | `.harness/scripts/council.py` |
+| Council rules ref | `.harness/scripts/council_rules.md` |
+| Steering loop | `.harness/learnings.md` |
+| Session state | `.harness/session_state.json` |
+| Build log | `.harness/yolo_log.json` (kept `.json`, not canonical `.jsonl`) |
+| Active plan | `.harness/active_plan.md` |
+| Model-bump checklist | `.harness/model-upgrade-audit.md` |
+| Halt instructions | `.harness/halt_instructions.md` |
+
+**Project-portfolio data stays at root** (not harness artifacts):
+
+`_hot.md`, `phase4_run.json`, `experiments.json`, `COUNCIL_ESCALATION.md`, `dashboard.html`, all the per-project subdirectories.
+
+## Why this repo's council doesn't use a lead-architect synthesizer
+
+Yolo-projects pre-dates the canonical multi-persona-synthesis pattern. Its `council.py` evolved its own synthesis discipline tailored to autonomous cron-driven gate review:
+
+- **Per-angle JSON Verdict** with `verdict` / `severity` / `reason` / `required_fix` / `evidence` fields.
+- **`lessons` veto power** — a lessons OBJECT halts builds before any other angle can override.
+- **Four auto-downgrade passes** — parse-failure retry, LESSONS-veto precondition, goalpost-move, BUGS hallucination. See `.harness/scripts/council_rules.md` for the full rules.
+- **Two-attempt deadlock escalation** — writes `COUNCIL_ESCALATION.md` at repo root, halts the build, awaits human resolution.
+
+The canonical lead-architect synthesizer (verdict = CLEAR / CONDITIONAL / BLOCK based on persona scores) doesn't fire in this repo. `.harness/council/lead-architect.md` exists as a stub for canonical-topology completeness.
+
+**PR-triggered council is deferred for yolo-projects.** The canonical `council.yml` workflow is shipped as a no-op placeholder (so drift-check stays happy), with a 4-iteration roadmap in the file's header comment. PR review on yolo today is human + Codex (the two active reviewers); the cron's gate-council via `tick_tock.yml` continues to run on autonomous tick-tock work. Migration to a working diff-mode council, including SDK migration from `google-generativeai` to `google-genai`, lands across follow-up PRs.
+
+## Hook timeouts (`.claude/settings.json`)
+
+JSON doesn't allow inline comments, so the rationale for the configured hook timeouts lives here:
+
+- **`SessionStart` hook timeout: 10s.** Runs `.claude/hooks/session-start.sh`. Local file reads + `git log`. Typical run < 2s. Failure mode: hook killed, Claude proceeds without session-start context. Optimize the hook script rather than raising the timeout.
+- **`PreToolUse` (Bash) hook timeout: 15s.** Runs `.claude/hooks/check-branch-not-merged.sh`. Includes `git fetch origin main`, which can be slow on poor networks. Failure mode: fail-OPEN by design — this is a best-effort developer guardrail, NOT a security gate. The hard merge-discipline gates are PR + council + branch-guard.yml.
+
+## Cron-pause discipline for harness restructures
+
+When a PR is restructuring files the hourly `tick_tock.yml` cron reads/writes (`.harness/session_state.json`, `.harness/yolo_log.json`), pause the cron via the GitHub Actions UI for the merge window. Re-enable + verify-by-manual-trigger after merge.
+
+This was established in the V0.3.1 conformance PR (the file moves were atomic-single-commit, but a cron run firing during the merge moment could have written to old paths and diverged state). Documented here so the next restructure follows the same protocol.
+
+## Branch-guard carve-out
+
+The canonical `branch-guard.yml` flags any push to `main` that's not associated with a merged PR. Yolo's hourly cron pushes to `main` directly as `tick-tock-bot` (the build pipeline IS the discipline here). The local `.github/workflows/branch-guard.yml` has a `if: github.actor != 'github-actions[bot]'` carve-out at the job level so cron commits pass; human direct-pushes still get caught.
+
+This is a deliberate deviation from the canonical V0.3.1 template. If a future harness-cli release reformulates `branch-guard.yml`, the `harness check` drift-modified flag will surface it, but the carve-out should be preserved.

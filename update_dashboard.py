@@ -8,7 +8,7 @@ import json
 from pathlib import Path
 
 ROOT = Path(__file__).parent
-LOG_FILE = ROOT / "yolo_log.json"
+LOG_FILE = ROOT / ".harness" / "yolo_log.json"
 DASHBOARD = ROOT / "dashboard.html"
 
 TEMPLATE = r'''<!DOCTYPE html>
@@ -506,7 +506,7 @@ FLAGSHIPS = {'markdown-deck', 'naval-scribe'}  # flagships have their own pages,
 
 def get_refined_projects():
     """Scan learnings.md for refined project names."""
-    learnings = ROOT / "learnings.md"
+    learnings = ROOT / ".harness" / "learnings.md"
     refined = set()
     if learnings.exists():
         import re

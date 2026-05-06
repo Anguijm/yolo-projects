@@ -10,7 +10,7 @@
 
 ### 1. Read Context
 - Read `markdown-deck/deck_roadmap.md` for current priorities
-- Read `session_state.json` → `markdown_deck.pending_items` for what's next
+- Read `.harness/session_state.json` → `markdown_deck.pending_items` for what's next
 - If user gave specific feedback → address that first (user feedback overrides roadmap)
 
 ### 2. Implement
@@ -36,7 +36,7 @@
 - Run `python3 update_session_state.py`
 
 ## Input
-- `session_state.json` (context)
+- `.harness/session_state.json` (context)
 - `markdown-deck/deck_roadmap.md` (priorities)
 - `markdown-deck/index.html` (current code)
 - `markdown-deck/DECK_GUIDE.md` (documentation)

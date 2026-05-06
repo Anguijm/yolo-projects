@@ -20,8 +20,8 @@ one-line reason. If OBJECT, cite the offending file and line.
   `subprocess` shell=True with user input? Any new auth or trust boundary?
 - **TESTS** — is there at least one test case per modified function, or is
   there a documented reason there isn't?
-- **LESSONS** — does the diff repeat a mistake recorded in `learnings.md`?
-  (cite `file:line` from learnings.md if so).
+- **LESSONS** — does the diff repeat a mistake recorded in `.harness/learnings.md`?
+  (cite `file:line` from .harness/learnings.md if so).
 
 End with a one-paragraph summary: ship / iterate / block, with the single
 biggest concern named.
