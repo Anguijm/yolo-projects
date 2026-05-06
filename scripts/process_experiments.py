@@ -32,12 +32,30 @@ def generate_cards_via_api(videos, existing_count):
 
     client = anthropic.Anthropic()
 
-    video_list = "\n".join(
-        f"- {v['channel']}: \"{v['title']}\" ({v['url']})"
-        for v in videos
+    blocks = []
+    transcripts_present = 0
+    for v in videos:
+        block = f"- {v['channel']}: \"{v['title']}\" ({v['url']})"
+        transcript = v.get("transcript")
+        if transcript:
+            transcripts_present += 1
+            block += (
+                f"\n  TRANSCRIPT (auto-captions, possibly truncated; "
+                f"original {v.get('transcript_full_chars', len(transcript))} chars):\n"
+                f"  ---\n{transcript}\n  ---"
+            )
+        blocks.append(block)
+    video_list = "\n".join(blocks)
+
+    transcript_note = (
+        "Some videos include auto-generated captions in a TRANSCRIPT block. When a transcript is present, base hypothesis and what_they_did on the transcript content, NOT on the title alone. When absent, fall back to inferring from the title."
+        if transcripts_present
+        else "Transcripts are not provided for these videos; infer hypothesis and what_they_did from the title."
     )
 
     prompt = f"""You are the Phase 4 YouTube Experiment Tracker. Generate experiment cards from these videos.
+
+{transcript_note}
 
 Videos to process:
 {video_list}
@@ -68,7 +86,7 @@ Output a JSON array. Each card must have this exact structure:
   "notes": ""
 }}
 
-Channel shortcodes: @NateBJones=nb, @MLOps=mlops, @DavidOndrej=do, [un]prompted=up, @NateHerk=nh, @swyx=swyx, @GregKamradt=gk, @AIJasonZ=aij, @echohive=eh, @ShawTalebi=st
+Channel shortcodes: @NateBJones=nb, @MLOps=mlops, @DavidOndrej=do, [un]prompted=up, @NateHerk=nh, @swyx=swyx, @GregKamradt=gk, @AIJasonZ=aij, @echohive=eh, @ShawTalebi=st, @Mark_Kashef=mk, @AndrejKarpathy=ak, @aiDotEngineer=aie
 
 Output ONLY the JSON array. No markdown, no explanation."""
 

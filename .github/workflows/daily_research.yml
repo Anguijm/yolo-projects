@@ -56,11 +56,13 @@ jobs:
 
       - name: Install dependencies
         if: steps.skip.outputs.skip != 'true'
-        run: pip install anthropic
+        run: pip install anthropic 'youtube-transcript-api>=0.6.2'
 
-      - name: Fetch YouTube RSS feeds
+      - name: Fetch YouTube RSS feeds (with transcripts)
         if: steps.skip.outputs.skip != 'true'
-        run: python3 fetch_youtube_rss.py --since $(date -d '3 days ago' +%Y-%m-%d) > /tmp/rss_scan.json
+        env:
+          SUPADATA_API_KEY: ${{ secrets.SUPADATA_API_KEY }}
+        run: python3 fetch_youtube_rss.py --since $(date -d '3 days ago' +%Y-%m-%d) --with-transcripts > /tmp/rss_scan.json
 
       - name: Generate experiment cards
         if: steps.skip.outputs.skip != 'true'
@@ -97,6 +99,9 @@ jobs:
               'new_experiments_added': new_added,
               'total_experiments': len(exps),
               'backlog_count': backlog,
+              'with_transcripts': scan.get('with_transcripts', False),
+              'transcripts_fetched': scan.get('transcripts_fetched', 0),
+              'transcripts_missing': scan.get('transcripts_missing', 0),
               'status': status
           }
           json.dump(run, open('phase4_run.json', 'w'), indent=2)

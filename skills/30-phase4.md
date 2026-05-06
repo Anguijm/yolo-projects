@@ -9,17 +9,15 @@
 ## Methodology
 
 ### 1. Fetch
-- Run `python3 phase4_fetch.py`
-- This checks all 5 channels via yt-dlp, diffs against processed IDs
-- New videos go to `phase4_queue.json`
+- Run `python3 fetch_youtube_rss.py --since $(date -d '3 days ago' +%Y-%m-%d) --with-transcripts > /tmp/rss_scan.json`
+- This polls the RSS feed for every channel in `CHANNELS` (12 as of 2026-05), diffs against video_ids already in `experiments.json`, and pulls auto-captions via supadata.ai when `SUPADATA_API_KEY` is set.
+- The cron entry point is `.github/workflows/daily_research.yml`.
 
-### 2. Process Queue
-- For each unprocessed video in `phase4_queue.json`:
-  - Use `mcp__gemini__gemini-youtube-summary` (style: detailed) to get content
-  - Evaluate: does this video contain actionable experiments for our dev loop?
-  - If YES: extract 1-3 experiment cards following the schema in `phase4_experiments.md`
-  - If NO: mark as processed with note "no experiments extracted — [reason]"
-  - Check for duplicates against existing experiments before appending
+### 2. Process queue
+- Run `python3 scripts/process_experiments.py /tmp/rss_scan.json`
+- The script calls Anthropic to generate 1-2 experiment cards per video. Cards include the transcript when present (otherwise title-only).
+- Skip rules: pure news/commentary, YouTube Shorts.
+- Cards are appended directly to `experiments.json` (not a queue file).
 
 ### 3. Experiment Card Schema
 ```json
@@ -53,11 +51,10 @@
 5. @NateHerk — AI workflows, Claude Code, 2-3/week
 
 ## Input
-- `phase4_queue.json` (what needs processing)
-- `experiments.json` (existing experiments for dedup)
-- `phase4_experiments.md` (processing protocol)
+- RSS feed of each channel in `fetch_youtube_rss.py:CHANNELS` (live).
+- `experiments.json` (existing experiments for dedup against video_id).
+- `SUPADATA_API_KEY` env var (optional; enables transcript-driven cards).
 
 ## Output
-- Processed queue entries
-- New experiment cards in `experiments.json`
-- Updated `phase4_queue.json`
+- New experiment cards appended directly to `experiments.json`.
+- `phase4_run.json` updated with per-cron-cycle stats (channels scanned, transcripts fetched, etc).

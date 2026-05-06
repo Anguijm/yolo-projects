@@ -1,0 +1,19 @@
+Cycle 1 — mk-claude-codex-parallel
+
+Baseline (3 tasks): speedup 3.00x, 3/3 ok.
+
+Perturbation 1: single task
+  parallel=0.20s serial=0.20s speedup=1.00x — degenerate case clean.
+
+Perturbation 2: 10 tasks
+  parallel=0.20s serial=2.01s speedup=9.99x — scales linearly with task count
+  in the stub regime (since each stub sleeps 0.2s).
+
+Perturbation 3: unknown model adapter
+  Returns {success: False, error: "unknown model adapter: gemini"} for the bad
+  task; the good task in the same batch still succeeds. Aggregate
+  success_count = 1/2, no exception escapes.
+
+Measurement: speedup factor scales linearly with task count under stubs.
+Real-world ceiling will be the slowest task in the batch; with two models
+and unbalanced task distribution, the speedup peaks at min(N_tasks, 2).

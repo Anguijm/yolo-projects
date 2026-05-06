@@ -61,7 +61,7 @@
 **What exists:**
 - **Gemini MCP tools:** `gemini-analyze-code` (code review), `gemini-youtube-summary` (video processing), `gemini-query` (brainstorming)
 - **CLI tools:** `yt-dlp` (YouTube fetching), `node -c` (syntax checking), Playwright (browser testing)
-- **Python scripts as tools:** `test_project.py`, `eval_bugs.py`, `build_log.py`, `phase4_fetch.py`, `update_dashboard.py`, `update_session_state.py`
+- **Python scripts as tools:** `test_project.py`, `eval_bugs.py`, `build_log.py`, `fetch_youtube_rss.py`, `update_dashboard.py`, `update_session_state.py`
 - **PAI skill system:** Skills invokable via `Skill` tool with defined input/output contracts
 
 **Why STRONG:** The tool ecosystem covers the full build lifecycle from ideation (Gemini brainstorm) through testing (Playwright headless browser) to deployment (git push). Tools are composable — the skill system chains them into pipelines.
@@ -85,7 +85,7 @@
 
 **What exists:**
 - **Dark Factory retry loop:** Build -> test -> fix -> retest, max 3 cycles. Defined in `program.md` and referenced in every skill.
-- **Phase 4 fetch:** `subprocess.TimeoutExpired` and `FileNotFoundError` caught in `phase4_fetch.py`
+- **Phase 4 fetch:** `subprocess.TimeoutExpired` and `FileNotFoundError` caught in `fetch_youtube_rss.py`
 - **Test runner:** Playwright tests have 30-second timeout, browser error collection, graceful HTTP server shutdown
 - **15-minute stuck rule:** "If you're stuck on one approach for more than 15 minutes, try a completely different approach."
 
@@ -95,7 +95,7 @@
 - No "quarantine" for projects that fail repeatedly
 - No alerting when retry budget is exhausted
 
-**Fix:** Add a `consecutive_failures` counter to `.harness/session_state.json`. If it hits 3, switch to a "safe mode" that builds from a simpler template or refines existing projects instead of attempting novel builds. Add exponential backoff to `phase4_fetch.py` for network failures.
+**Fix:** Add a `consecutive_failures` counter to `.harness/session_state.json`. If it hits 3, switch to a "safe mode" that builds from a simpler template or refines existing projects instead of attempting novel builds. Add exponential backoff to `fetch_youtube_rss.py` for network failures.
 
 ---
 
