@@ -171,7 +171,7 @@ Generated 2026-04-13. Covers 75 experiments from 60 videos across 8 channels.
 **Stop Shipping on Vibes — How to Build Real Evals for Coding Agents** (2026-03-31)
 
 - **Build a golden dataset of past bugs as an eval suite** [medium] — `adopt`
-  - If we extract 20-30 past Gemini-caught bugs from learnings.md as test cases (input: buggy code, expected: the fix), then we can measure whether future agent builds avoid those same bug patterns — turn
+  - If we extract 20-30 past Gemini-caught bugs from .harness/learnings.md as test cases (input: buggy code, expected: the fix), then we can measure whether future agent builds avoid those same bug patterns — turn
 
 **Decomposing the Agent Orchestration System: Lessons Learned** (2026-03-31)
 
@@ -613,11 +613,11 @@ Every experiment with verdict `adopt` or `adopted`, with full context.
 - **Effort:** medium
 - **Status:** done | **Verdict:** adopt
 
-**Hypothesis:** If we extract 20-30 past Gemini-caught bugs from learnings.md as test cases (input: buggy code, expected: the fix), then we can measure whether future agent builds avoid those same bug patterns — turning learnings into a regression test.
+**Hypothesis:** If we extract 20-30 past Gemini-caught bugs from .harness/learnings.md as test cases (input: buggy code, expected: the fix), then we can measure whether future agent builds avoid those same bug patterns — turning learnings into a regression test.
 
 **What they did:** Conference talk on building evals for coding agents. Key insight: mine your own past bugs as a proprietary eval suite. Also: execution-based evals (run the code, not string comparison), trajectory evaluation (track tool calls), and tiered eval systems (unit → tool → end-to-end).
 
-**Relevance:** learnings.md has 350+ bug fixes documented. Mining them into an automated regression check would compound the value of all that accumulated knowledge.
+**Relevance:** .harness/learnings.md has 350+ bug fixes documented. Mining them into an automated regression check would compound the value of all that accumulated knowledge.
 
 ### Filter YOLO Tick ideas through the 'boring-but-high-ROI' automation criteria
 
@@ -862,7 +862,7 @@ Every experiment with verdict `adopt` or `adopted`, with full context.
 
 **What they did:** MLOps presented lessons from building a self-learning agent — specifically how to fix the 'amnesia' problem where agents forget context between sessions and keep making the same mistakes.
 
-**Relevance:** The YOLO loop already has learnings.md but it's read passively. Making it an active memory retrieval system would close the learning loop.
+**Relevance:** The YOLO loop already has .harness/learnings.md but it's read passively. Making it an active memory retrieval system would close the learning loop.
 
 **Notes:** Adopted 2026-04-07: validates and extends current build_memory.py (1916 learnings, 263 projects, FTS5). Adoption work: add a feedback loop logging "did the recalled learning prevent a bug?" so we can measure the angle's value over time.
 
@@ -879,7 +879,7 @@ Every experiment with verdict `adopt` or `adopted`, with full context.
 
 **What they did:** The self-learning agent approach implies a write-back loop: agent acts, evaluates outcome, writes learnings to persistent memory, retrieves them in future sessions.
 
-**Relevance:** Currently learnings.md is human-curated. Automating the write-back loop would make the system truly self-learning.
+**Relevance:** Currently .harness/learnings.md is human-curated. Automating the write-back loop would make the system truly self-learning.
 
 **Notes:** Title-only inference. Companion to self-learning-agent-memory — this is the write side, that is the read side.
 
@@ -896,7 +896,7 @@ Every experiment with verdict `adopt` or `adopted`, with full context.
 
 **What they did:** NateBJones analyzed successful vs failing agent startups. Winners have persistent memory as a database layer (Postgres + MCP), not afterthought text files. Agents that compound context over time outperform those that start fresh. Likened memory to a substrate, not a feature.
 
-**Relevance:** learnings.md is 3000+ lines of flat text. The build agent reads it but cannot query it. A structured memory store (SQLite or indexed JSON) with per-project, per-pattern, per-bug entries would let the agent ask "what went wrong last time I built a JWT tool?" instead of skimming 3000 lines.
+**Relevance:** .harness/learnings.md is 3000+ lines of flat text. The build agent reads it but cannot query it. A structured memory store (SQLite or indexed JSON) with per-project, per-pattern, per-bug entries would let the agent ask "what went wrong last time I built a JWT tool?" instead of skimming 3000 lines.
 
 ### Create pre-wired agent recipes instead of blank-canvas prompting
 
@@ -956,7 +956,7 @@ Every experiment with verdict `adopt` or `adopted`, with full context.
 
 **What they did:** Karpathy uses flat Markdown wiki with CLAUDE.md rules, index.md catalog, log.md history, and a _hot.md "hot cache" that auto-updates at end of each session with the most relevant current context. Agent reads _hot.md first, skips full wiki unless needed.
 
-**Relevance:** Directly applicable. Our cron reads learnings.md (3000+ lines) every session. A _hot.md with the last 5 builds, current queue state, and active issues would give the agent instant context without the full scan. build_memory.py could auto-generate _hot.md.
+**Relevance:** Directly applicable. Our cron reads .harness/learnings.md (3000+ lines) every session. A _hot.md with the last 5 builds, current queue state, and active issues would give the agent instant context without the full scan. build_memory.py could auto-generate _hot.md.
 
 ### Build a skill-creator meta-agent that writes SKILL.md files from successful interactions
 

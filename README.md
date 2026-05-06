@@ -77,7 +77,7 @@ Key process improvements from Phase 4 research:
 
 - **Approval-gated builds** — cron proposes, human approves, then it builds
 - **7-angle council review** — bugs, security, ui, guide, usefulness, cool, lessons (lessons has veto power)
-- **Council enforcement rules (live in `council.py`)** — auto-downgrade for: parse-failure retry, LESSONS precondition_evidence, goalpost-move (keyword-overlap > 0.35 vs prior reasons), BUGS hallucination (claimed-undefined symbols that grep finds defined). See `council_rules.md` for the canonical reference.
+- **Council enforcement rules (live in `.harness/scripts/council.py`)** — auto-downgrade for: parse-failure retry, LESSONS precondition_evidence, goalpost-move (keyword-overlap > 0.35 vs prior reasons), BUGS hallucination (claimed-undefined symbols that grep finds defined). See `.harness/scripts/council_rules.md` for the canonical reference.
 - **Vertical planning** — structure outline before code eliminates rework
 - **Boring-but-high-ROI filter** — "would a business pay for this?" idea selection
 - **3-phase pipeline** — Plan (Gemini critique) → Build → Review (council)
@@ -106,20 +106,20 @@ Key process improvements from Phase 4 research:
 |------|---------|
 | `program.md` | Full builder methodology |
 | `design.md` | Visual design system (dark industrial aesthetic) |
-| `learnings.md` | Accumulated build knowledge (3000+ lines) |
-| `yolo_log.json` | Append-only log of all builds |
+| `.harness/learnings.md` | Accumulated build knowledge (3000+ lines) |
+| `.harness/yolo_log.json` | Append-only log of all builds |
 | `experiments.json` | Phase 4 experiment tracker (118 experiments — live count) |
 | `PHASE4_REPORT.md` | Comprehensive Phase 4 snapshot (regenerable; all numbers re-derivable from source files) |
 | `STACK_AUDIT.md` (in `experiments/adopt-stack-audit/`) | Dated dependency shelf-life audit with grep-by-content citations |
-| `council_rules.md` | Canonical reference for council mechanics + 4 enforcement rules |
-| `session_state.json` | Tick-tock state, approval queues, phase 4 queue |
+| `.harness/scripts/council_rules.md` | Canonical reference for council mechanics + 4 enforcement rules |
+| `.harness/session_state.json` | Tick-tock state, approval queues, phase 4 queue |
 | `dashboard.html` | Portfolio dashboard (generated from log) |
 | `test_project.py` | Automated test suite (7 checks) |
 | `eval_bugs.py` | 26-pattern bug scanner |
 | `security_scan.py` | 22-rule security scanner |
 | `fetch_youtube_rss.py` | Phase 4 RSS feed fetcher (11 channels) |
 | `build_log.py` | Structured JSON audit trail per build |
-| `model-upgrade-audit.md` | 5-layer checklist for model swaps |
+| `.harness/model-upgrade-audit.md` | 5-layer checklist for model swaps |
 | `model-eval/` | Golden-prompt regression suite (8 prompts) |
 | `security_triage.md` | Full portfolio security triage report |
 | `agent_architecture_audit.md` | 12-piece architecture audit |
@@ -135,7 +135,7 @@ Key process improvements from Phase 4 research:
 ## Stack
 
 - **Builder**: Claude Code (remote triggers); current model Claude Opus 4.7 with Sonnet/Haiku fallbacks per workflow definition
-- **Council**: Gemini 2.5 Flash (primary), Claude Haiku 4.5 (fallback) — 7-angle reviews invoked from `council.py`
+- **Council**: Gemini 2.5 Flash (primary), Claude Haiku 4.5 (fallback) — 7-angle reviews invoked from `.harness/scripts/council.py`
 - **Testing**: Python + Node.js + Playwright
 - **Frontend**: Single-file HTML, zero external dependencies
 - **Design**: Dark industrial aesthetic, monospace, ghost buttons

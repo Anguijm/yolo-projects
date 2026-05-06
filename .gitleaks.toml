@@ -1,0 +1,42 @@
+# Gitleaks configuration.
+# Extends the default ruleset (high-entropy + well-known key patterns), then
+# adds repo-specific exceptions.
+#
+# Why: PR diffs get shipped to third-party LLMs (Gemini council). Anything
+# this scanner misses gets exfiltrated. Tighter is better.
+
+title = "yolo-projects gitleaks"
+
+[extend]
+# Start from the default ruleset.
+useDefault = true
+
+[allowlist]
+description = "Allowed false positives"
+paths = [
+  # Persona files contain prose that sometimes mentions placeholder keys
+  # and env var names for illustration. Real keys never land here.
+  '''\.harness/council/.*\.md''',
+  '''\.harness/scripts/security_checklist\.md''',
+  # Documentation-style examples.
+  '''\.harness/README\.md''',
+  '''\.harness/model-upgrade-audit\.md''',
+  '''\.harness/halt_instructions\.md''',
+  '''CONTRIBUTING\.md''',
+  '''README\.md''',
+  '''CLAUDE\.md''',
+  # Council-generated artifacts (never contain real secrets).
+  '''\.harness/last_council\.md''',
+  '''\.harness/active_plan\.md''',
+  '''\.harness/learnings\.md''',
+  # Standard env-example placeholder file.
+  '''\.env\.example''',
+]
+# Placeholder strings used in examples and docs.
+regexes = [
+  '''GEMINI_API_KEY\s*=\s*["']?(your[-_]?key|\.{3}|<.*?>|xxx+|fake)["']?''',
+  '''ANTHROPIC_API_KEY\s*=\s*["']?(your[-_]?key|\.{3}|<.*?>|xxx+|fake)["']?''',
+  '''OPENAI_API_KEY\s*=\s*["']?(your[-_]?key|\.{3}|<.*?>|xxx+|fake)["']?''',
+  '''sk-ant-[a-zA-Z0-9_-]*example[a-zA-Z0-9_-]*''',
+  '''sk-[a-zA-Z0-9_-]*example[a-zA-Z0-9_-]*''',
+]

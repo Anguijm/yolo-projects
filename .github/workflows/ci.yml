@@ -1,0 +1,96 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: read
+  security-events: write
+
+jobs:
+  secret-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4
+        with:
+          fetch-depth: 0
+      - name: gitleaks
+        uses: gitleaks/gitleaks-action@dcedce43c6f43de0b836d1fe38946645c9c638dc
+        with:
+          config-path: .gitleaks.toml
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  validate:
+    runs-on: ubuntu-latest
+    needs: [secret-scan]
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5
+        with:
+          python-version: '3.11'
+          cache: pip
+
+      - name: Install
+        run: |
+          if [ -f requirements.txt ]; then
+            pip install -r requirements.txt
+          fi
+          if [ -f requirements-dev.txt ]; then
+            pip install -r requirements-dev.txt
+          fi
+          if [ -f pyproject.toml ]; then
+            pip install -e ".[dev]" 2>/dev/null || pip install -e . 2>/dev/null || true
+          fi
+
+      - name: Lint (ruff)
+        run: |
+          if command -v ruff >/dev/null 2>&1; then
+            ruff check .
+          else
+            echo "ruff not installed — skipping lint"
+          fi
+
+      - name: Typecheck (pyright)
+        run: |
+          if command -v pyright >/dev/null 2>&1; then
+            pyright
+          else
+            echo "pyright not installed — skipping typecheck"
+          fi
+
+      - name: Test (pytest)
+        run: |
+          if command -v pytest >/dev/null 2>&1; then
+            pytest
+          else
+            echo "pytest not installed — skipping tests"
+          fi
+
+  council-script-check:
+    runs-on: ubuntu-latest
+    needs: [secret-scan]
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5
+        with:
+          python-version: '3.11'
+      - name: pip install council deps
+        run: pip install --quiet -r .harness/scripts/requirements.txt
+      - name: council.py imports cleanly
+        run: |
+          python3 -c "
+          import importlib.util, pathlib
+          spec = importlib.util.spec_from_file_location('c', pathlib.Path('.harness/scripts/council.py'))
+          m = importlib.util.module_from_spec(spec)
+          spec.loader.exec_module(m)
+          print('council.py loaded OK')
+          "

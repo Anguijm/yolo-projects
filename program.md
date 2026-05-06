@@ -10,7 +10,7 @@ This workspace operates on a **Tick-Tock cadence** to maintain momentum on both 
 - Build one new project from scratch, OR refine an existing survivor
 - Standard YOLO rules apply (single session, ship fast, Gemini review)
 - **Feeder builds**: Some Tick sessions build standalone prototypes that test features destined for Markdown Deck. See `markdown-deck/deck_roadmap.md` → "YOLO Feeder Projects" for the queue. These follow normal YOLO rules but solve a specific problem.
-- When a feeder build succeeds, note it in learnings.md as "FEEDER: ready for Deck integration"
+- When a feeder build succeeds, note it in .harness/learnings.md as "FEEDER: ready for Deck integration"
 
 ### Tock (Flagship Session)
 - Work on Markdown Deck exclusively — read `markdown-deck/deck_roadmap.md` for priorities
@@ -22,7 +22,7 @@ This workspace operates on a **Tick-Tock cadence** to maintain momentum on both 
 
 ### Session State & Skills (harness)
 At the start of every session:
-1. Read `session_state.json` for full context recovery
+1. Read `.harness/session_state.json` for full context recovery
 2. Read `skills/00-bootstrap.md` to determine what skill to execute
 3. Follow the routed skill's methodology step by step
 
@@ -31,7 +31,7 @@ At the end of every session, run `python3 update_session_state.py` to persist st
 Skills are in `skills/` — each is a focused, chainable unit under 150 lines with defined Input/Output contracts. They are the executable decomposition of this program.md. See `skills/README.md` for the full skill catalog.
 
 ### How to decide which mode:
-- Read `session_state.json` → `tick_tock.next_session_type` tells you what to do
+- Read `.harness/session_state.json` → `tick_tock.next_session_type` tells you what to do
 - If the user says "build" or triggers program.md → **Tick** (YOLO)
 - If the user says "deck" or "markdown deck" → **Tock** (Flagship)
 - If unclear, follow session_state.json
@@ -58,7 +58,7 @@ Machine-checkable pre-ship gates. Every build must satisfy all 10 before committ
 | C5 | LESSONS VETO is a hard halt | Exit code 10 from council.py triggers immediate escalation; no auto-fix permitted | Commit escalation state; push; exit 0; await human resolution |
 | C6 | Max 3 fix attempts per gate | Attempt counter stays at 3 or fewer per gate; third failure triggers escalation (exit code 11) | Escalate; do not retry a fourth time |
 | C7 | Commit message must include build prefix | Message starts with cron( or tick: or tock: or ESCALATION: | Rephrase commit message before committing |
-| C8 | council_escalations empty at build start | session_state.json council_escalations array is empty | Stop immediately; do not build; push nothing |
+| C8 | council_escalations empty at build start | .harness/session_state.json council_escalations array is empty | Stop immediately; do not build; push nothing |
 | C9 | No harness halt at build start | .harness_halt file does not exist in repo root | Read halt file; log reason; stop; exit 0 |
 | C10 | All 4 gates pass before push | Plan and Implementation and Tests and Outcome each return exit code 0 | Any gate failure halts push; no partial builds reach git push |
 
@@ -85,8 +85,8 @@ Machine-checkable pre-ship gates. Every build must satisfy all 10 before committ
 Inspired by [Karpathy's autoresearch](https://github.com/karpathy/autoresearch): every build should compound on what you've learned.
 
 Before starting a new project:
-1. **Read `learnings.md`** — your accumulated knowledge about what works and what doesn't.
-2. **Read `yolo_log.json`** — see all past builds, their status, and takeaways.
+1. **Read `.harness/learnings.md`** — your accumulated knowledge about what works and what doesn't.
+2. **Read `.harness/yolo_log.json`** — see all past builds, their status, and takeaways.
 3. **Identify patterns** — what techniques got high Gemini ratings? What got criticized? What categories are underexplored?
 4. **Apply learnings** — use the best techniques from previous builds. Don't repeat mistakes.
 
@@ -216,7 +216,7 @@ Format each entry as:
 **This is a bedrock rule.** The system must get better over time.
 
 After every 5 builds:
-1. Review the last 5 entries in `learnings.md`
+1. Review the last 5 entries in `.harness/learnings.md`
 2. Identify recurring problems (same Gemini critique twice = process failure)
 3. Update the testing protocol if tests missed bugs that users found
 4. Update the accumulated principles in learnings.md
@@ -228,7 +228,7 @@ The goal: **zero user-reported bugs.** Every bug the user finds is a failure of 
 
 One project per run. The flow is:
 
-1. Read `learnings.md` and `yolo_log.json` — reflect on what you know
+1. Read `.harness/learnings.md` and `.harness/yolo_log.json` — reflect on what you know
 2. Brainstorm with Gemini — pitch ideas, play the whimsical/too-cool dynamic
 3. Define "what does working look like" for this project
 4. Build the project
@@ -236,10 +236,10 @@ One project per run. The flow is:
 6. **Gemini code audit** — send actual code, address bugs
 7. **Re-test after fixes** — verify nothing broke
 8. Write README
-9. Log to `yolo_log.json`
+9. Log to `.harness/yolo_log.json`
 10. Update dashboard
 11. Commit and push to GitHub
-12. **Write reflections to `learnings.md`** — including what tests caught
+12. **Write reflections to `.harness/learnings.md`** — including what tests caught
 13. Done — leave a summary as the final message
 
 ---

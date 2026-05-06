@@ -57,24 +57,24 @@ jobs:
 
       # WORKFLOW-LEVEL ESCALATION GUARD
       # The agent prompt also checks this, but the agent has tool access
-      # to session_state.json and was bypassing the halt by clearing
+      # to .harness/session_state.json and was bypassing the halt by clearing
       # escalations between runs. This guard runs OUTSIDE the agent and
       # cannot be bypassed — claude-code is never invoked when an
       # unresolved escalation is present. Humans must edit
-      # session_state.json (clear council_escalations) to resume.
+      # .harness/session_state.json (clear council_escalations) to resume.
       - name: Council escalation guard
         if: steps.halt.outputs.halted != 'true'
         id: escalation
         run: |
           set -e
-          COUNT=$(python3 -c "import json; s=json.load(open('session_state.json')); print(len(s.get('council_escalations', [])))")
+          COUNT=$(python3 -c "import json; s=json.load(open('.harness/session_state.json')); print(len(s.get('council_escalations', [])))")
           if [ "$COUNT" -gt 0 ]; then
             echo "::warning::Council escalation pending — agent will NOT run"
             echo ""
             echo "===== Pending escalations ($COUNT) ====="
             python3 -c "
           import json
-          s = json.load(open('session_state.json'))
+          s = json.load(open('.harness/session_state.json'))
           for e in s.get('council_escalations', []):
               print(f\"  PROJECT: {e.get('project','?')}\")
               print(f\"  GATE:    {e.get('gate','?')}\")
@@ -85,7 +85,7 @@ jobs:
           "
             echo "===== End escalations ====="
             echo ""
-            echo "To resume: edit session_state.json and clear council_escalations to []"
+            echo "To resume: edit .harness/session_state.json and clear council_escalations to []"
             echo "Then re-run this workflow manually, or wait for the next hourly schedule."
             echo "skipped=true" >> $GITHUB_OUTPUT
           else

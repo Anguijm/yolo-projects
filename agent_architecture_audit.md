@@ -12,7 +12,7 @@
 | # | Component | Rating | Key Evidence |
 |---|-----------|--------|--------------|
 | 1 | Task Decomposition / Planning | STRONG | 3-phase pipeline, skill routing, ISC criteria system |
-| 2 | Memory (short + long term) | STRONG | session_state.json + learnings.md + MEMORY.md index |
+| 2 | Memory (short + long term) | STRONG | .harness/session_state.json + .harness/learnings.md + MEMORY.md index |
 | 3 | Tool Use / Function Calling | STRONG | Gemini MCP, yt-dlp, Playwright, node, Python scripts |
 | 4 | Self-Reflection / Self-Critique | STRONG | Post-build reflection, learnings.md, Algorithm LEARN phase |
 | 5 | Error Recovery / Retry Logic | ADEQUATE | Dark Factory 3-retry loop, but no circuit breaker or escalation |
@@ -21,7 +21,7 @@
 | 8 | Observability / Logging | ADEQUATE | build_log.py exists but build-logs/ is empty; session_state works |
 | 9 | Cost Management / Budget Controls | RESOLVED | 15-call Gemini cap per session, partial review on exceed |
 | 10 | Evaluation / Quality Metrics | STRONG | test_project.py + eval_bugs.py + 6-angle council + golden prompts |
-| 11 | Context Management / Compression | ADEQUATE | session_state.json recovery, but no explicit context window management in cron |
+| 11 | Context Management / Compression | ADEQUATE | .harness/session_state.json recovery, but no explicit context window management in cron |
 | 12 | Multi-Agent Coordination | STRONG | Gemini-as-reviewer, Phase 4 pipeline, tick-tock scheduling, PAI Agent system |
 
 **Overall: 5 STRONG, 5 ADEQUATE, 0 WEAK (2 RESOLVED), 0 MISSING**
@@ -46,13 +46,13 @@
 ### 2. Memory (Short-Term + Long-Term) — STRONG
 
 **What exists:**
-- **Short-term:** `session_state.json` captures tick-tock state, Phase 4 stats, portfolio counts, and resume instructions. Read at session start, written at session end.
-- **Long-term:** `learnings.md` (3,069 lines) accumulates KEEP/IMPROVE/DISCARD/INSIGHT entries across all builds. `yolo_log.json` is append-only build history.
+- **Short-term:** `.harness/session_state.json` captures tick-tock state, Phase 4 stats, portfolio counts, and resume instructions. Read at session start, written at session end.
+- **Long-term:** `.harness/learnings.md` (3,069 lines) accumulates KEEP/IMPROVE/DISCARD/INSIGHT entries across all builds. `.harness/yolo_log.json` is append-only build history.
 - **Structured long-term:** `experiments.json` (44 experiments) with full lifecycle tracking.
 - **PAI-level:** `~/.claude/projects/*/memory/MEMORY.md` index pointing to topic-specific memory files (user profile, feedback, project state).
 - **Algorithm-level:** PRD files in `MEMORY/WORK/{slug}/` serve as per-task memory with YAML frontmatter and criteria checkboxes.
 
-**Why STRONG:** Memory spans multiple timescales (within-session, across-sessions, permanent knowledge) with both unstructured (learnings.md) and structured (JSON) stores. The resume_instructions field in session_state.json is a clever "compressed context" pattern.
+**Why STRONG:** Memory spans multiple timescales (within-session, across-sessions, permanent knowledge) with both unstructured (learnings.md) and structured (JSON) stores. The resume_instructions field in .harness/session_state.json is a clever "compressed context" pattern.
 
 ---
 
@@ -71,10 +71,10 @@
 ### 4. Self-Reflection / Self-Critique — STRONG
 
 **What exists:**
-- **Per-build reflection:** `learnings.md` entries with KEEP/IMPROVE/DISCARD/INSIGHT/TEST CAUGHT categories
+- **Per-build reflection:** `.harness/learnings.md` entries with KEEP/IMPROVE/DISCARD/INSIGHT/TEST CAUGHT categories
 - **Every-5-builds review:** `program.md` mandates reviewing the last 5 builds for recurring problems
 - **PAI Algorithm LEARN phase:** 4 reflection questions ("What should I have done differently?", "What would a smarter algorithm have done?", etc.) with mandatory JSONL logging to `algorithm-reflections.jsonl`
-- **Model upgrade audit:** `model-upgrade-audit.md` is a 5-layer self-audit checklist for when the underlying model changes
+- **Model upgrade audit:** `.harness/model-upgrade-audit.md` is a 5-layer self-audit checklist for when the underlying model changes
 - **Experiment lifecycle:** `experiments.json` verdict field (adopt/discard/iterate) forces explicit evaluation of whether experiments worked
 
 **Why STRONG:** Reflection is baked in at every level — per-build, per-cycle, per-model-upgrade. The JSONL reflections log creates a queryable history of what the system learned over time. The experiment tracker with explicit verdicts prevents "trying things but never evaluating them."
@@ -95,7 +95,7 @@
 - No "quarantine" for projects that fail repeatedly
 - No alerting when retry budget is exhausted
 
-**Fix:** Add a `consecutive_failures` counter to `session_state.json`. If it hits 3, switch to a "safe mode" that builds from a simpler template or refines existing projects instead of attempting novel builds. Add exponential backoff to `phase4_fetch.py` for network failures.
+**Fix:** Add a `consecutive_failures` counter to `.harness/session_state.json`. If it hits 3, switch to a "safe mode" that builds from a simpler template or refines existing projects instead of attempting novel builds. Add exponential backoff to `phase4_fetch.py` for network failures.
 
 ---
 
@@ -123,7 +123,7 @@
 
 **What exists:**
 - The tick-tock model allows the human to intervene ("build" for tick, "deck" for tock)
-- `session_state.json` resume_instructions let the human see what happened
+- `.harness/session_state.json` resume_instructions let the human see what happened
 - PAI Algorithm has an `AskUserQuestion` tool for interactive sessions
 - The model-upgrade audit explicitly requires human judgment for layer decisions
 
@@ -141,9 +141,9 @@
 
 **What exists:**
 - **Build logging:** `build_log.py` provides structured JSON event logging per project with timestamps, event types, and data payloads
-- **Session state:** `session_state.json` tracks portfolio stats, phase 4 metrics, tick-tock history
+- **Session state:** `.harness/session_state.json` tracks portfolio stats, phase 4 metrics, tick-tock history
 - **Phase 4 run log:** `phase4_run.json` records last run stats (channels scanned, experiments found, status)
-- **YOLO log:** `yolo_log.json` is the append-only project registry
+- **YOLO log:** `.harness/yolo_log.json` is the append-only project registry
 - **PAI-level:** PRD files with phase tracking, progress counters, and verification evidence
 - **Algorithm reflections:** JSONL log of per-session learning
 
@@ -153,7 +153,7 @@
 - **No latency tracking.** How long each phase takes is not recorded, so you can't identify bottlenecks.
 - **No Gemini API call logging.** If Gemini is slow or returning poor reviews, there's no record.
 
-**Fix:** Wire `build_log.py` into `skills/10-tick.md` by adding explicit `BuildLog` calls at each phase transition. This is low-hanging fruit — the code exists, it just needs to be called. Add a `timing` field to session_state.json that records phase durations. Create a `system_health.json` that tracks: cron success rate, average build time, Gemini response times.
+**Fix:** Wire `build_log.py` into `skills/10-tick.md` by adding explicit `BuildLog` calls at each phase transition. This is low-hanging fruit — the code exists, it just needs to be called. Add a `timing` field to .harness/session_state.json that records phase durations. Create a `system_health.json` that tracks: cron success rate, average build time, Gemini response times.
 
 ---
 
@@ -185,7 +185,7 @@ Original proposed fix (deferred):
   }
 }
 ```
-This daily-aggregate tracking in `session_state.json` remains a good future enhancement but requires cross-session counter persistence that the current cron setup doesn't support cleanly.
+This daily-aggregate tracking in `.harness/session_state.json` remains a good future enhancement but requires cross-session counter persistence that the current cron setup doesn't support cleanly.
 
 ---
 
@@ -206,17 +206,17 @@ This daily-aggregate tracking in `session_state.json` remains a good future enha
 ### 11. Context Management / Compression — ADEQUATE
 
 **What exists:**
-- **Session state compression:** `resume_instructions` in `session_state.json` is a compressed natural-language summary for context recovery
+- **Session state compression:** `resume_instructions` in `.harness/session_state.json` is a compressed natural-language summary for context recovery
 - **Skill routing:** `00-bootstrap.md` reads only the state needed, then routes to the relevant skill — avoiding loading everything at once
 - **PAI Algorithm compaction:** At phase boundaries (Extended+ effort), accumulated context is self-summarized. "Preserve: ISC status, key results, next actions. Discard: verbose tool output, intermediate reasoning."
 - **Context recovery protocol:** If lost, read the most recent PRD for full state recovery
 
 **What's missing:**
-- **Cron sessions have no explicit context budget.** The hourly cron loads `program.md` (327 lines), `learnings.md` (3,069 lines), `design.md`, `session_state.json`, and potentially `yolo_log.json` — all at session start. No evidence of selective loading.
+- **Cron sessions have no explicit context budget.** The hourly cron loads `program.md` (327 lines), `.harness/learnings.md` (3,069 lines), `design.md`, `.harness/session_state.json`, and potentially `.harness/yolo_log.json` — all at session start. No evidence of selective loading.
 - **learnings.md is growing unbounded.** At 3,069 lines, it may already exceed useful context. No summarization or archival strategy.
 - **No context priority ranking.** When approaching context limits, there's no defined order of what to drop first.
 
-**Fix:** Add a `learnings_archive.md` and cap `learnings.md` at the most recent 500 lines. Older entries get moved to the archive (still searchable, not loaded by default). In `skills/10-tick.md`, change "Read learnings.md (first 50 lines)" to explicitly use the Read tool with `limit: 50` so the full file is never loaded. Add a `context_budget` section to skill files defining what to load and in what order.
+**Fix:** Add a `learnings_archive.md` and cap `.harness/learnings.md` at the most recent 500 lines. Older entries get moved to the archive (still searchable, not loaded by default). In `skills/10-tick.md`, change "Read .harness/learnings.md (first 50 lines)" to explicitly use the Read tool with `limit: 50` so the full file is never loaded. Add a `context_budget` section to skill files defining what to load and in what order.
 
 ---
 
@@ -225,7 +225,7 @@ This daily-aggregate tracking in `session_state.json` remains a good future enha
 **What exists:**
 - **Gemini as external reviewer:** Every build goes through Gemini for code review — a genuine multi-model architecture
 - **Phase 4 YouTube pipeline:** A separate cron agent that feeds the experiment backlog, decoupled from the build agent
-- **Tick-Tock scheduling:** Two agent "modes" (builder vs. flagship developer) with state-machine coordination via `session_state.json`
+- **Tick-Tock scheduling:** Two agent "modes" (builder vs. flagship developer) with state-machine coordination via `.harness/session_state.json`
 - **PAI Agent system:** Full agent composition framework with traits, voices, specializations, and team creation
 - **Council pattern:** 6-angle review simulates multiple expert perspectives
 - **Skill chaining:** Skills call sub-skills (Tick calls Review, Refine calls Review) — a basic agent delegation pattern
@@ -249,11 +249,11 @@ The `BuildLog` class exists and is well-designed. Add import and event calls to 
 
 ### P3 — Cap and archive learnings.md
 **Impact:** Improves context management. **Effort:** Low.
-Create `learnings_archive.md`. Move entries older than 30 days. Keep `learnings.md` under 500 lines. The "read first 50 lines" instruction in tick.md already acknowledges this file is too large — archiving makes the implicit explicit.
+Create `learnings_archive.md`. Move entries older than 30 days. Keep `.harness/learnings.md` under 500 lines. The "read first 50 lines" instruction in tick.md already acknowledges this file is too large — archiving makes the implicit explicit.
 
 ### P4 — Add circuit breaker for consecutive failures
 **Impact:** Improves error recovery. **Effort:** Low.
-Add `consecutive_build_failures` to `session_state.json`. If >= 3, next session auto-routes to refine (skill 40) instead of new build (skill 10). Resets on success.
+Add `consecutive_build_failures` to `.harness/session_state.json`. If >= 3, next session auto-routes to refine (skill 40) instead of new build (skill 10). Resets on success.
 
 ---
 

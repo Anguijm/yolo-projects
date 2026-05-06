@@ -17,7 +17,7 @@ skills/
 ## How to Use
 
 At the start of any session:
-1. Read `session_state.json` for context recovery
+1. Read `.harness/session_state.json` for context recovery
 2. Read `skills/00-bootstrap.md` to determine what to do
 3. Follow the routed skill's methodology step by step
 4. Each skill defines its Input (what to read) and Output (what to produce)

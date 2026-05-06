@@ -1,0 +1,93 @@
+name: Branch Guard (main)
+
+# Post-hoc detection of direct pushes to main. The push has already landed
+# by the time this runs — this is doctrine reinforcement, not a hard gate.
+# (GitHub's hard-block branch protection requires Pro for private repos.)
+#
+# A "direct push" = any push to main whose head commit is not associated
+# with a merged PR via /repos/{owner}/{repo}/commits/{sha}/pulls.
+#
+# Squash merges, merge commits, and rebase merges from gh/UI all attach
+# their PR via the GitHub API — they pass. Anything else fails the check
+# and surfaces in the Actions tab as a doctrine violation.
+#
+# === YOLO-PROJECTS CARVE-OUT ===
+# This repo runs an hourly autonomous tick-tock builder workflow that
+# commits directly to main as `tick-tock-bot`. Those commits are
+# legitimate (the build pipeline IS the discipline here) and would
+# otherwise fail this guard on every cron run.
+#
+# The carve-out: skip the check when the pusher is `github-actions[bot]`
+# (the actor for any workflow-triggered commit, including the cron's
+# safety-net push). Human direct-pushes still get caught.
+#
+# This is a deliberate customization from the canonical V0.3.1
+# branch-guard.yml — documented here so future template updates don't
+# silently overwrite it.
+
+on:
+  push:
+    branches: [main]
+
+# SECURITY NOTE: This workflow uses ZERO third-party actions — no actions/checkout,
+# no uses: lines anywhere. The only step is an inline `run:` block invoking the
+# `gh` CLI (preinstalled on GitHub-hosted runners) against the GitHub REST API.
+# `pull-requests: read` is the minimum scope required by the
+# /repos/{owner}/{repo}/commits/{sha}/pulls endpoint we call. There is no
+# third-party-action attack surface to pin to a SHA.
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  check-pr-merge:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify push originated from a merged PR
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -eu
+          SHA="${{ github.sha }}"
+          REPO="${{ github.repository }}"
+          echo "Checking commit $SHA on $REPO ..."
+
+          # GitHub's commit→PR association endpoint is eventually consistent.
+          # On a freshly-merged PR the lookup can return [] for several seconds
+          # before the index catches up. Retry with bounded backoff (~30s total).
+          # A genuine direct push stays empty across all retries and still fails.
+          PR_JSON=""
+          PR_COUNT=0
+          for ATTEMPT in 1 2 3 4; do
+            PR_JSON=$(gh api "/repos/$REPO/commits/$SHA/pulls")
+            PR_COUNT=$(echo "$PR_JSON" | jq 'length')
+            if [ "$PR_COUNT" -gt 0 ]; then
+              if [ "$ATTEMPT" -gt 1 ]; then
+                echo "PR association resolved on attempt $ATTEMPT."
+              fi
+              break
+            fi
+            if [ "$ATTEMPT" -lt 4 ]; then
+              SLEEP=$((ATTEMPT * 5))
+              echo "Attempt $ATTEMPT: no PR association yet, sleeping ${SLEEP}s..."
+              sleep "$SLEEP"
+            fi
+          done
+
+          if [ "$PR_COUNT" -eq 0 ]; then
+            echo "::error::Direct push to main detected (commit $SHA has no associated PR)."
+            echo "::error::All changes to main must go through a PR per CLAUDE.md doctrine."
+            echo "::error::See: https://github.com/$REPO/blob/main/CLAUDE.md#the-council-is-the-audit-gate"
+            exit 1
+          fi
+
+          MERGED_COUNT=$(echo "$PR_JSON" | jq '[.[] | select(.merged_at != null)] | length')
+          if [ "$MERGED_COUNT" -eq 0 ]; then
+            echo "::error::Commit $SHA is referenced by PR(s) but none are marked merged."
+            echo "::error::This is unexpected on main; investigate manually."
+            exit 1
+          fi
+
+          PR_NUM=$(echo "$PR_JSON" | jq '[.[] | select(.merged_at != null)][0].number')
+          echo "✓ Commit $SHA is the merge of PR #$PR_NUM — branch guard passes."

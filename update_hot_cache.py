@@ -13,8 +13,8 @@ ROOT = Path(__file__).parent
 
 def main():
     # Load state
-    session = json.loads((ROOT / "session_state.json").read_text())
-    log = json.loads((ROOT / "yolo_log.json").read_text())
+    session = json.loads((ROOT / ".harness" / "session_state.json").read_text())
+    log = json.loads((ROOT / ".harness" / "yolo_log.json").read_text())
     experiments = json.loads((ROOT / "experiments.json").read_text())
 
     # Portfolio stats

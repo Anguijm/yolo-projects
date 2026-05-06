@@ -1,7 +1,7 @@
 # Phase 4 Pipeline — Comprehensive Report
 
 **Snapshot date:** 2026-04-25 (regenerated after the 22:04 UTC Phase 4 cron run)
-**Source-of-truth files** (read live, never recall): `phase4_run.json`, `experiments.json`, `session_state.json`, `_hot.md`, `fetch_youtube_rss.py` (CHANNELS dict).
+**Source-of-truth files** (read live, never recall): `phase4_run.json`, `experiments.json`, `.harness/session_state.json`, `_hot.md`, `fetch_youtube_rss.py` (CHANNELS dict).
 
 ---
 
@@ -171,8 +171,8 @@ These are the experiments that have not just been approved but have produced con
 
 | ID | What it shipped |
 |---|---|
-| `nh-2026-04-05-karpathy-llm-wiki-hot-cache` | **`_hot.md` hot cache** (33 lines) + `update_hot_cache.py` auto-generator. Cron reads `_hot.md` FIRST instead of the 3000+ line `learnings.md`. ~95% token reduction for context recovery. |
-| `nb-2026-04-04-compounding-agent-memory` | **build_memory.py** — SQLite + FTS5 store. Imported 1916 learnings from 263 projects. Query by text, project, patterns, context. Replaces flat learnings.md scanning with instant queryable database. |
+| `nh-2026-04-05-karpathy-llm-wiki-hot-cache` | **`_hot.md` hot cache** (33 lines) + `update_hot_cache.py` auto-generator. Cron reads `_hot.md` FIRST instead of the 3000+ line `.harness/learnings.md`. ~95% token reduction for context recovery. |
+| `nb-2026-04-04-compounding-agent-memory` | **build_memory.py** — SQLite + FTS5 store. Imported 1916 learnings from 263 projects. Query by text, project, patterns, context. Replaces flat .harness/learnings.md scanning with instant queryable database. |
 | `mlops-2026-03-17-durable-execution-agents` | **session_state.json + update_session_state.py** — file-based state persistence. Tracks tick-tock position, pending fixes, Phase 4 queue, portfolio counts, resume instructions. |
 | `nh-2026-04-02-compact-at-milestones` | **3 compaction milestones** in cron prompt: after reading learnings, after build complete, after council fixes. Each summarizes and discards verbose output. |
 | `mlops-2026-03-31-agent-debug-logging` | **build_log.py** — structured JSON logging per project. Events: idea_selected, plan_created, gemini_critique, build_complete, test_result, eval_bugs, council_review, fixes, shipped. |
@@ -189,7 +189,7 @@ These are the experiments that have not just been approved but have produced con
 
 | ID | What it shipped |
 |---|---|
-| `mlops-2026-04-03-self-learning-feedback-loop` | **Mandatory Phase 4: REFLECT step** in cron. Every tick build appends structured reflection to learnings.md (KEEP/IMPROVE/INSIGHT/COUNCIL scores). |
+| `mlops-2026-04-03-self-learning-feedback-loop` | **Mandatory Phase 4: REFLECT step** in cron. Every tick build appends structured reflection to .harness/learnings.md (KEEP/IMPROVE/INSIGHT/COUNCIL scores). |
 | `do-2026-03-31-autoresearch-loop` | **Autoresearch loop** with metric=Gemini bug count, target=0. color-mix: iter 1 = 4 bugs, iter 2 = 0 bugs, converged in 216 seconds. |
 | `do-2026-03-29-self-improving-eval-loop` | **Self-critique** subsumed into Phase 1C Gemini plan validation (catches data model issues and missing edge cases) plus 6-angle council. |
 
@@ -218,7 +218,7 @@ These were adopted but the loop already practiced them implicitly:
 
 | ID | What it shipped |
 |---|---|
-| `nb-2026-03-24-context-compression` | Already implemented organically: learnings.md accumulates per-project, conversation compaction preserves key decisions, memory files store cross-session context. |
+| `nb-2026-03-24-context-compression` | Already implemented organically: .harness/learnings.md accumulates per-project, conversation compaction preserves key decisions, memory files store cross-session context. |
 | `nb-2026-03-24-strict-linting-agents` | `.eslintrc.json` with 14 rules. 68/70 survivors pass clean. Gemini reviews already caught most lint-level issues. Config committed for future test pipeline use. |
 | `nb-2026-03-29-close-the-loops` | Phase 2 refinement and Phase 3 cull already embodied close-the-loops; principle adopted implicitly. No new tooling. |
 | `fs-2026-04-02-pretext-text-measurement` | Validated 30KB Pretext IIFE bundle passes YOLO inline constraint. layout() at 0.0002ms. Integration target: autoFitContent() in markdown-deck. Ready for implementation. |
@@ -291,7 +291,7 @@ Deferred ≠ discarded. These are kept alive but not actionable yet, with explic
 
 | ID | Why deferred |
 |---|---|
-| `nh-2026-04-21-claude-design-prompt-structure` | Better as a learnings.md entry later — not a distinct tick deliverable. |
+| `nh-2026-04-21-claude-design-prompt-structure` | Better as a .harness/learnings.md entry later — not a distinct tick deliverable. |
 | `nh-2026-04-19-claude-video-editing` | Video editing outside current portfolio scope. |
 | `nh-2026-04-19-claude-design-unstoppable` | Generic "Claude iterates UI" prompting — vague deliverable. |
 | `nh-2026-04-16-claude-heygen-content-pipeline` | Requires HeyGen API key + video trust model not established. |
@@ -491,7 +491,7 @@ Recent resolution patterns observed in the past 24h:
 - **No human escalation path** — if Phase 4 itself fails (e.g., all feeds error, or cull produces empty results for 3 days), there's no automatic alert. Also flagged as WEAK.
 
 ### Memory and operational risk
-- The memory layer (`build_memory.db` + `learnings.md` + `_hot.md` + memory feedback) is increasingly load-bearing. A schema migration bug or accidental file deletion would compound across the loop. `infra-memory-feedback` ticks have been adding redundancy here.
+- The memory layer (`build_memory.db` + `.harness/learnings.md` + `_hot.md` + memory feedback) is increasingly load-bearing. A schema migration bug or accidental file deletion would compound across the loop. `infra-memory-feedback` ticks have been adding redundancy here.
 
 ---
 
@@ -514,9 +514,9 @@ This report is a **dated snapshot** like `STACK_AUDIT.md` — useful for:
 ## 15. Cross-References
 
 - Adoption pipeline: `experiments.json`, `phase4_run.json`
-- Tick queue + escalation log: `session_state.json`
+- Tick queue + escalation log: `.harness/session_state.json`
 - Channel roster: `fetch_youtube_rss.py:CHANNELS`
-- Council mechanics: `council_rules.md`, `council.py` module docstring, `learnings.md` "Council enforcement rules are now LIVE in code"
+- Council mechanics: `.harness/scripts/council_rules.md`, `.harness/scripts/council.py` module docstring, `.harness/learnings.md` "Council enforcement rules are now LIVE in code"
 - Status protocol contract: `CLAUDE.md`
 - Live portfolio summary: `_hot.md`
 - Workflow definitions: `.github/workflows/daily_research.yml`, `.github/workflows/tick_tock.yml`
