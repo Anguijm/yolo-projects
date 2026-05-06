@@ -63,7 +63,7 @@ Full 7-angle council on every survivor. Score 5+ on usefulness or get culled.
 Final pass — anything still not genuinely useful gets cut.
 
 ### Phase 4: YouTube Research
-Daily cron (~07:00 JST) auto-discovers new videos from 12 monitored YouTube channels via RSS, pulls auto-captions through supadata.ai, generates experiment proposals, runs them through council cull, and promotes adopted items into the tick queue. Live lifetime counts: see `phase4_run.json`. Per-experiment narrative: `experiments.json` is the source of truth; `experiments/FINAL_REPORT.md` has the most recent comprehensive write-up.
+Daily cron (~07:00 JST) auto-discovers new videos from 13 monitored YouTube channels via RSS, pulls auto-captions through supadata.ai, generates experiment proposals, runs them through council cull, and promotes adopted items into the tick queue. Live lifetime counts: see `phase4_run.json`. Per-experiment narrative: `experiments.json` is the source of truth; `experiments/FINAL_REPORT.md` has the most recent comprehensive write-up.
 
 ### Security Scanning
 22-rule regex scanner (`security_scan.py`) runs on every build. Full portfolio triaged: 0 real vulnerabilities. CSP meta tag in design.md boilerplate.
@@ -97,8 +97,8 @@ Key process improvements from Phase 4 research:
 | Tick-Tock Builder | Hourly | Proposes ideas (tick) or implements flagship features (tock). Builds only approved items. |
 | Phase 4 Research | Daily ~07:00 JST | YouTube RSS scan across 11 channels, experiment extraction, always commits run report |
 
-## Monitored YouTube Channels (12 — authoritative roster in `fetch_youtube_rss.py:CHANNELS`)
-@NateBJones, @MLOps, @DavidOndrej, [un]prompted, @NateHerk, @swyx, @GregKamradt, @AIJasonZ, @echohive, @ShawTalebi, @Mark_Kashef, @AndrejKarpathy
+## Monitored YouTube Channels (13 — authoritative roster in `fetch_youtube_rss.py:CHANNELS`)
+@NateBJones, @MLOps, @DavidOndrej, [un]prompted, @NateHerk, @swyx, @GregKamradt, @AIJasonZ, @echohive, @ShawTalebi, @Mark_Kashef, @AndrejKarpathy, @aiDotEngineer
 
 ## Key Files
 

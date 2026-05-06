@@ -32,6 +32,10 @@ CHANNELS = {
     # Added 2026-04-30 — primary source instead of reactor commentary.
     # Verified ID via /channel/ redirect from /@AndrejKarpathy.
     "@AndrejKarpathy": "UCXUPKJO5MZQN11PqgIvyuvQ",
+    # Added 2026-05-05 — AI Engineer conference channel (Summit, World's Fair).
+    # Hosts talks from Anthropic, DeepMind, ElevenLabs, Supabase, etc.
+    # Verified ID via /channel/ redirect from /@aiDotEngineer.
+    "@aiDotEngineer": "UCLKPca3kwwd-B59HNr-_lvA",
 }
 
 RSS_URL = "https://www.youtube.com/feeds/videos.xml?channel_id={}"
