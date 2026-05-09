@@ -297,9 +297,9 @@ def enforce_lessons_precondition(verdicts: list[Verdict]) -> list[Verdict]:
         if has_citation or has_marker:
             continue
         print(
-            f"[council] LESSONS VETO auto-downgraded to advisory — missing precondition_evidence "
-            f"(no file:line citation or 'precondition_evidence' marker in evidence field). "
-            f"Per learnings.md:20 enforcement rule.",
+            "[council] LESSONS VETO auto-downgraded to advisory — missing precondition_evidence "
+            "(no file:line citation or 'precondition_evidence' marker in evidence field). "
+            "Per learnings.md:20 enforcement rule.",
             file=sys.stderr,
         )
         v.veto = False
