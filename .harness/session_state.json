@@ -249,6 +249,67 @@
           "experiments/prototype-hive-mind-multi-agent/agent_research.py",
           "experiments/prototype-hive-mind-multi-agent/agent_comms.py"
         ]
+      },
+      {
+        "name": "deterministic-script-verification",
+        "type": "experiment",
+        "source_experiment": "nb-2026-05-09-deterministic-script-verification",
+        "idea": "Pin council/cron-script outputs against deterministic golden fixtures so silent-truncation-style regressions fail loud.",
+        "rationale": "Adopted from Phase 4 nb-2026-05-09-deterministic-script-verification. The card-generator silent-truncation bug (process_experiments.py max_tokens=4000 swallowed JSONDecodeError, 25 transcript-rich videos -> 0 cards) is the canonical example: a script ran 'successfully' for days while producing zero output, and nothing alerted us. Deterministic verification means: pick the small handful of scripts where output shape matters (process_experiments, fetch_youtube_rss summary, council.py per-angle JSON), capture a known-good output for a frozen input, and add a CI check that re-runs the script against that input and diffs the output. Low effort, high payoff: one regression caught is worth the entire build.",
+        "deliverable_paths": [
+          "experiments/deterministic-script-verification/README.md",
+          "experiments/deterministic-script-verification/fixtures/process_experiments_input.json",
+          "experiments/deterministic-script-verification/fixtures/process_experiments_expected_shape.json",
+          "experiments/deterministic-script-verification/verify.py",
+          "experiments/deterministic-script-verification/proposed_ci_check.yml"
+        ],
+        "plan_summary": "Produce four deliverables in experiments/deterministic-script-verification/. (1) README.md: the one-pager \u2014 what 'deterministic verification' means here (golden-fixture diff, not perfect equality; we check shape/keys/count, not LLM-generated text), why it matters (point at the max_tokens=4000 silent-truncation incident), and a list of 3 candidate scripts to pin: process_experiments.py, fetch_youtube_rss.py, council.py. (2) fixtures/: a frozen 5-video input scan plus the expected JSON-shape (top-level keys, per-card required fields, card count range). NOT the literal generated text \u2014 a schema. (3) verify.py: a script that takes a generator + a fixture and returns pass/fail with a diff. (4) proposed_ci_check.yml: a draft GitHub Actions step (not wired to .github/workflows/ \u2014 proposed, for the next tick to merge) that runs verify.py against the fixture using a stub LLM (no API spend) plus a smoke-test against the real API gated to manual dispatch. The point is the protocol, not the full rollout \u2014 the rollout is a follow-on tick once we agree the shape works.",
+        "council_focus": "PLAN: are golden fixtures the right granularity (vs. property-based tests)? IMPLEMENTATION: does verify.py actually catch a synthetic regression (e.g., truncated JSON, missing field)? TESTS: at minimum, run verify.py on the fixture and confirm pass; then mutate the fixture to confirm fail. OUTCOME: README explains scope clearly, verify.py runs end-to-end, the proposed CI yml is correct GHA syntax."
+      },
+      {
+        "name": "pydantic-agents-production-optimisation",
+        "type": "experiment",
+        "source_experiment": "aie-2026-05-09-pydantic-agents-production-optimisation",
+        "idea": "Apply Pydantic-AI's production-optimization checklist (structured outputs + retries + cost guardrails) to one council angle as a focused stress test.",
+        "rationale": "Adopted from Phase 4 aie-2026-05-09-pydantic-agents-production-optimisation. The talk's specific claim is that structured-output enforcement + bounded retries + per-call cost ceilings turn flaky LLM calls into reliable production primitives. Our council is exactly that domain: per-angle JSON Verdicts that already silently fall through to phantom OBJECTs when parsing fails (parse-failure retry rule). Pick the single angle most prone to misformatted output (likely BUGS or LESSONS) and rewrite its parse-and-validate path using Pydantic models. Measure: parse-failure rate before vs after on 50 historical cron runs, time-to-detect-bad-output, and end-to-end latency overhead. Medium effort, but bounded scope (one angle) means we can ship in a tick.",
+        "deliverable_paths": [
+          "experiments/pydantic-agents-production-optimisation/README.md",
+          "experiments/pydantic-agents-production-optimisation/verdict_schema.py",
+          "experiments/pydantic-agents-production-optimisation/parse_with_pydantic.py",
+          "experiments/pydantic-agents-production-optimisation/comparison_protocol.md"
+        ],
+        "plan_summary": "Produce four files in experiments/pydantic-agents-production-optimisation/. (1) README.md: the case for structured-output enforcement on council Verdicts, what we're adopting from the Pydantic-AI talk, what we're not (we don't need their full agent-framework). (2) verdict_schema.py: Pydantic models for the per-angle Verdict (verdict: Literal['APPROVE','OBJECT'], severity: Literal['low','medium','high'], reason: str, required_fix: str | None, evidence: str | None) \u2014 exact field set lifted from .harness/scripts/council_rules.md. (3) parse_with_pydantic.py: a function `parse_verdict(raw_text: str) -> Verdict | ParseError` that wraps the existing parse path with Pydantic validation, including the one-retry-on-failure semantics already in council.py. (4) comparison_protocol.md: how to run the A/B over 50 historical cron logs (.harness/yolo_log.json + experiments.json source verdicts) without re-spending API budget \u2014 replay raw text from logs through both parsers and tally parse-success rates. NOT a full council.py rewrite \u2014 just the proof that the new path works for one angle, leaving the production swap as a follow-on tick.",
+        "council_focus": "PLAN: is one angle the right scope, or do we need to validate across all 7 to catch angle-specific schema drift? IMPLEMENTATION: does Pydantic actually produce clearer error messages than the current homegrown parse path? TESTS: feed parse_with_pydantic.py 5 known-good and 5 known-bad raw outputs from logs and verify correct classification. OUTCOME: schema, parser, and replay-protocol exist as standalone files; comparison_protocol.md is concrete enough that a follow-on tick can execute the A/B and decide on production rollout."
+      },
+      {
+        "name": "agents-survive-production",
+        "type": "experiment",
+        "source_experiment": "mlops-2026-05-09-agents-survive-production",
+        "idea": "Run the MLOps 'agents in production' survival checklist against our tick_tock cron and document where YOLO falls short.",
+        "rationale": "Adopted from Phase 4 mlops-2026-05-09-agents-survive-production. The talk's argument: most agent prototypes survive demos but die in production from drift, silent failures, missing observability, and lack of runbooks. Our tick_tock.yml cron is the closest thing we have to a production agent (autonomous, hourly, mutates state). The card-generator silent-truncation bug is exactly the failure mode the talk warns about \u2014 the cron 'succeeded' for days while producing zero output. High effort if we tried to fix everything, but the deliverable here is a HONEST AUDIT: take the talk's checklist, score yolo-loop against each item (pass / partial / fail), document the top 3 gaps with concrete remediation tickets. Then specific gaps become follow-on ticks. This is the closest we'll get to a production-readiness pass without paying for one.",
+        "deliverable_paths": [
+          "experiments/agents-survive-production/README.md",
+          "experiments/agents-survive-production/audit_checklist.md",
+          "experiments/agents-survive-production/yolo_score.md",
+          "experiments/agents-survive-production/top_gaps.md"
+        ],
+        "plan_summary": "Produce four markdown files in experiments/agents-survive-production/. (1) README.md: framing \u2014 yolo-loop's tick_tock.yml IS our production agent, what 'survives production' means in our context (autonomous mutation of state, no human in the loop for hours), what's out of scope (we're not deploying user-facing agents). (2) audit_checklist.md: the checklist transcribed from the MLOps talk plus our additions (drift detection, secret rotation, log retention, alerting, idempotency, rollback path, dependency pinning, observability, cost ceilings, runbook coverage). 10\u201315 items total. (3) yolo_score.md: each checklist item scored pass / partial / fail with one-line evidence pointing at a file path or workflow run. Be honest \u2014 we will fail many items. (4) top_gaps.md: the 3 most-impactful FAIL items reformulated as follow-on tick proposals (full source_experiment-style cards including effort estimate). Reuse the silent-truncation incident as the case study for the observability gap.",
+        "council_focus": "PLAN: is the audit checklist comprehensive enough, or are we cherry-picking items we already pass? IMPLEMENTATION: does the score in yolo_score.md cite real evidence for each item? TESTS: spot-check 3 random PASS scores by looking at the cited evidence \u2014 if any are wrong, the audit fails. OUTCOME: README, checklist, score, and top_gaps all exist; top_gaps.md proposes 3 concrete follow-on ticks that the next backlog triage can promote."
+      },
+      {
+        "name": "effect-clone-repo-agent-context",
+        "type": "experiment",
+        "source_experiment": "aie-2026-05-10-effect-clone-repo-agent-context",
+        "idea": "Adopt the 'clone the repo into agent context' pattern (from the Effect talk) for our council reviewers \u2014 replace per-file reads with a one-shot context bundle.",
+        "rationale": "Adopted from Phase 4 aie-2026-05-10-effect-clone-repo-agent-context. The talk's specific technique: instead of giving the LLM a tool to read files one-by-one (which spends turns and limits reasoning), pre-compute a single tightly-scoped repo context bundle (filtered file list + key files inlined + import graph summary) and pass it once. Our council reviewers currently see a diff plus PR metadata; they can't see the surrounding code unless it's in the diff. The aie-2026-05-09-mcp-ui-extensions card and the recent BUGS hallucination auto-downgrade rule both point at the same gap: reviewers without enough context hallucinate. Low effort, well-bounded: write a `bundle_repo.py` that produces the context blob for a given diff, run it on 5 historical PRs, and diff the resulting council Verdicts (with vs without bundle) by hand for quality.",
+        "deliverable_paths": [
+          "experiments/effect-clone-repo-agent-context/README.md",
+          "experiments/effect-clone-repo-agent-context/bundle_repo.py",
+          "experiments/effect-clone-repo-agent-context/sample_bundle.md",
+          "experiments/effect-clone-repo-agent-context/quality_protocol.md"
+        ],
+        "plan_summary": "Produce four files in experiments/effect-clone-repo-agent-context/. (1) README.md: the case for repo-bundle context (point at the BUGS-hallucination auto-downgrade as evidence reviewers lack context), the technique from the Effect talk, the budget question (token cost of a bundle vs. the cost of a wrong verdict). (2) bundle_repo.py: a CLI that takes a diff (git format) and outputs a markdown bundle: a) changed files in full, b) filtered list of related files (siblings + imports), c) inlined contents of the top 5 most-related files, d) one-paragraph repo overview. Token budget: 8K cap with a clear truncation strategy. (3) sample_bundle.md: the bundle produced for one historical PR (probably PR #8, the card-generator fix). Inline so reviewers can sanity-check the output without running the script. (4) quality_protocol.md: how to A/B-test on 5 historical PRs \u2014 run council.py with vs without the bundle prepended to the prompt, capture Verdicts, manually score whether the bundle changed the conclusion or just the reasoning quality. NOT a council.py integration \u2014 that's a follow-on tick once we know the bundle is worth the tokens.",
+        "council_focus": "PLAN: is 8K tokens the right cap (does that even fit alongside the diff in the existing council prompt)? IMPLEMENTATION: does bundle_repo.py actually produce a useful bundle on PR #8, or is it dominated by noise? TESTS: run bundle_repo.py on a fresh diff and confirm output is well-formed markdown under the cap. OUTCOME: README, bundle_repo.py, sample_bundle.md, and quality_protocol.md exist; sample_bundle.md is concrete enough that a follow-on tick can execute the A/B and decide whether to wire into council.py."
       }
     ],
     "tick_queue_pending": [],
