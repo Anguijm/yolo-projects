@@ -5755,5 +5755,173 @@
     "outcome": null,
     "verdict": null,
     "notes": ""
+  },
+  {
+    "id": "aie-2026-05-10-on-device-tts-cost-reduction",
+    "source": {
+      "channel": "aiDotEngineer",
+      "video_title": "Voice AI: when is the \"Her\" moment? \u2014 Neil Zeghidour, Gradium AI",
+      "video_url": "https://www.youtube.com/watch?v=P_RI1kCkRbo",
+      "published_date": "2026-05-10",
+      "ingested_date": "2026-05-10"
+    },
+    "experiment": {
+      "title": "Replace cloud TTS with on-device CPU model to eliminate API costs",
+      "hypothesis": "If we swap a cloud TTS provider for an on-device model (e.g., Gradion Phonon, <100M params running on smartphone CPU), then per-user voice API costs drop to near zero, because the inference runs locally without any network call or billed API token.",
+      "what_they_did": "Neil Zeghidour described how voice apps routinely burn fundraising budgets on TTS API bills before achieving user-base growth. His team built Gradion Phonon, a sub-100M parameter TTS model that runs on a smartphone CPU with voice cloning, outperforming existing on-device models like Kokoro which lack cloning. They opened a private beta to let developers build consumer voice apps that scale without per-call API fees.",
+      "effort_estimate": "medium",
+      "relevance_to_yolo_loop": "Any YOLO-loop feature that speaks output (status narration, agent voice feedback) currently incurs TTS API cost per run. Swapping to an on-device model removes that cost ceiling and enables offline/private operation."
+    },
+    "status": "backlog",
+    "status_history": [
+      {
+        "status": "backlog",
+        "date": "2026-05-10",
+        "note": "Extracted from YouTube RSS"
+      }
+    ],
+    "outcome": null,
+    "verdict": null,
+    "notes": "Gradion Phonon private beta at gradium.ai. Key constraint: voice cloning still requires ~10s reference audio clip. Latency tradeoff vs cloud not yet benchmarked on our hardware."
+  },
+  {
+    "id": "aie-2026-05-10-semantic-vad-streaming-pipeline",
+    "source": {
+      "channel": "aiDotEngineer",
+      "video_title": "Voice AI: when is the \"Her\" moment? \u2014 Neil Zeghidour, Gradium AI",
+      "video_url": "https://www.youtube.com/watch?v=P_RI1kCkRbo",
+      "published_date": "2026-05-10",
+      "ingested_date": "2026-05-10"
+    },
+    "experiment": {
+      "title": "Add semantic VAD to streaming STT\u2192LLM\u2192TTS pipeline to reduce perceived latency",
+      "hypothesis": "If we replace fixed-silence voice activity detection with semantic VAD in a streaming cascade pipeline, then end-of-turn detection fires earlier and more accurately, because the model uses meaning rather than silence duration to decide when the user has finished speaking, reducing total round-trip latency.",
+      "what_they_did": "Neil explained that the full cascaded stack (streaming STT + semantic VAD + LLM + streaming TTS with voice cloning) still produces >200ms TTS-alone latency, while human conversational response budgets the entire understand-generate-speak cycle within ~200ms. He identified semantic VAD as a key building block that Gradium ships as part of their cascade to minimize unnecessary silence-wait before LLM invocation.",
+      "effort_estimate": "medium",
+      "relevance_to_yolo_loop": "If the YOLO loop gains a voice interface for hands-free operation or agent status reporting, semantic VAD is the component that makes turn-taking feel natural rather than clunky, directly affecting developer UX during long agentic runs."
+    },
+    "status": "backlog",
+    "status_history": [
+      {
+        "status": "backlog",
+        "date": "2026-05-10",
+        "note": "Extracted from YouTube RSS"
+      }
+    ],
+    "outcome": null,
+    "verdict": null,
+    "notes": "Speaker noted that even best-in-class cascaded systems are 'not there yet' for human-level conversation. Semantic VAD is an incremental improvement, not a full solution. Full speech-to-speech models (Moshi-style) likely needed for true Her-moment parity."
+  },
+  {
+    "id": "aie-2026-05-10-vit-nas-deployment-flexibility",
+    "source": {
+      "channel": "aiDotEngineer",
+      "video_title": "How Transformers Finally Ate Vision \u2013 Isaac Robinson, Roboflow",
+      "video_url": "https://www.youtube.com/watch?v=VhfAVA3BG2I",
+      "published_date": "2026-05-10",
+      "ingested_date": "2026-05-10"
+    },
+    "experiment": {
+      "title": "Use neural architecture search on a pretrained ViT backbone to generate a family of deployment-flexible vision models",
+      "hypothesis": "If we apply hardware-aware neural architecture search to a massively pretrained ViT foundation model rather than training separate models per deployment target, then we get a family of models spanning accuracy/latency tradeoffs with a single pretraining cost, because NAS-generated variants share the same pretrained weights and only modify architecture knobs that are drop-in compatible with the foundation model infrastructure.",
+      "what_they_did": "Isaac Robinson traced the ViT evolution (VIT \u2192 Swin \u2192 ConvNeXt \u2192 Hera \u2192 plain ViT) and argued that massive ViT-specific pretraining plus LLM infrastructure speedups now dominate inductive bias advantages. Roboflow introduced RF100-VL benchmark and RFDetR, where they applied NAS to a shared foundation model backbone to produce an entire family of real-time instance segmentation models. They achieved ~40x speedup over fine-tuning SAM3 at equivalent accuracy, and outperformed best convolutional real-time models, all from one NAS pass over the same pretrained backbone with flexible knobs (drop-in compatible).",
+      "effort_estimate": "high",
+      "relevance_to_yolo_loop": "If the YOLO loop incorporates vision-based tooling (screenshot understanding, UI grounding, object detection in agent environments), using a NAS-derived compact ViT variant instead of a monolithic 800M-param model like SAM3 would cut inference latency from 300ms to practical real-time, enabling tighter loop iterations."
+    },
+    "status": "backlog",
+    "status_history": [
+      {
+        "status": "backlog",
+        "date": "2026-05-10",
+        "note": "Extracted from YouTube RSS"
+      }
+    ],
+    "outcome": null,
+    "verdict": null,
+    "notes": "RF100-VL dataset and RFDetR available via Roboflow. SAM3 baseline is 800M params / 300ms on T4. NAS family trades some accuracy for 15-40x speed improvement. VJEPA not yet proven for downstream transfer per speaker."
+  },
+  {
+    "id": "aie-2026-05-10-flux-context-realtime-image-editing",
+    "source": {
+      "channel": "aiDotEngineer",
+      "video_title": "FLUX, Open Research, and the Future of Visual AI \u2014 Stephen Batifol, Black Forest Labs",
+      "video_url": "https://www.youtube.com/watch?v=x8Yb4RidLgM",
+      "published_date": "2026-05-10",
+      "ingested_date": "2026-05-10"
+    },
+    "experiment": {
+      "title": "Integrate Flux Context for sub-second in-loop image editing instead of generation-only models",
+      "hypothesis": "If we use Flux Context (or the faster Client variant) for iterative image editing in an agent loop instead of a text-to-image-only model, then the loop can perform character/product-consistent visual modifications in under 1 second per step, because Flux Context combines editing and generation in one model and the Client variant achieves ~0.5s latency vs ~15s for comparable open-source alternatives.",
+      "what_they_did": "Stephen Batifol described Black Forest Labs' model progression: Flux 1 (open-source text-to-image), Flux Context (first open-source combined text-to-image + image editing model with character consistency, ~7-8s vs GPT Image's 40-50s), Flux 2 (best quality, accepts up to 10 simultaneous input images), and Client (near-real-time editing at ~0.5s for 4B and 9B variants vs Qwen's ~15-20s). He demonstrated storyboarding, product photography, outfit generation from reference images, and local editing use cases. He also previewed world models and physical AI/robotics directions.",
+      "effort_estimate": "low",
+      "relevance_to_yolo_loop": "An agent loop that generates visual artifacts (mockups, UI screenshots, diagrams) currently waits on slow image generation. Swapping to Flux Context/Client enables rapid iterative visual refinement within the loop at near-real-time speed, making visual output a practical loop-native operation rather than an expensive async step."
+    },
+    "status": "backlog",
+    "status_history": [
+      {
+        "status": "backlog",
+        "date": "2026-05-10",
+        "note": "Extracted from YouTube RSS"
+      }
+    ],
+    "outcome": null,
+    "verdict": null,
+    "notes": "Client model available via BFL API. Training data composition is trade secret per Q&A. World model / robotics work is forward-looking research, not yet productized. Flux 1 is open-source and runnable locally."
+  },
+  {
+    "id": "aie-2026-05-10-effect-clone-repo-agent-context",
+    "source": {
+      "channel": "aiDotEngineer",
+      "video_title": "Vibe Engineering Effect Apps \u2014 Michael Arnaldi, Effectful",
+      "video_url": "https://www.youtube.com/watch?v=Wmp2Tku2PrI",
+      "published_date": "2026-05-10",
+      "ingested_date": "2026-05-10"
+    },
+    "experiment": {
+      "title": "Feed the full library repo as agent context instead of relying on training data or MCP docs",
+      "hypothesis": "If we give a coding agent direct access to the full source repository of an underdocumented library (via clone + context injection) rather than relying on the model's training-time knowledge or MCP documentation servers, then the agent produces correct, idiomatic library usage, because the model can read actual patterns, types, and examples directly from source rather than hallucinating from stale or absent training data.",
+      "what_they_did": "Michael Arnaldi ran a live unprepared workshop building a working Effect.ts TypeScript API from scratch using an LLM agent. He argued that LLMs freeze at pretraining and cannot update their knowledge daily, so for niche or rapidly-evolving libraries (like Effect v4, which lacks broad online documentation), the correct strategy is to clone the repo and inject it into the agent's context window. He built a complete todo API with typed services, layers, HTTP routing, and error handling purely through agent interaction, never writing code by hand, starting from an empty repository. He noted this approach works across TypeScript and Rust for library-level code.",
+      "effort_estimate": "low",
+      "relevance_to_yolo_loop": "The YOLO loop itself uses libraries and frameworks that may be newer than model training cutoffs. Cloning dependency repos into agent context is a zero-infrastructure technique that immediately improves code generation accuracy for any cutting-edge dependency, and can be applied as a standard YOLO loop preparation step."
+    },
+    "status": "backlog",
+    "status_history": [
+      {
+        "status": "backlog",
+        "date": "2026-05-10",
+        "note": "Extracted from YouTube RSS"
+      }
+    ],
+    "outcome": null,
+    "verdict": null,
+    "notes": "Speaker used ~1.5 hours to build a working typed API from scratch with zero prior preparation. Key insight: treat LLMs as fixed-knowledge machines requiring explicit context injection, not live learners. Effect workflows (for long-running AI processes) flagged as high-value follow-on experiment."
+  },
+  {
+    "id": "aie-2026-05-10-effect-workflows-long-running-ai",
+    "source": {
+      "channel": "aiDotEngineer",
+      "video_title": "Vibe Engineering Effect Apps \u2014 Michael Arnaldi, Effectful",
+      "video_url": "https://www.youtube.com/watch?v=Wmp2Tku2PrI",
+      "published_date": "2026-05-10",
+      "ingested_date": "2026-05-10"
+    },
+    "experiment": {
+      "title": "Use Effect Cluster workflows to guarantee completion of multi-step AI agent processes across server crashes",
+      "hypothesis": "If we wrap multi-step AI agent operations (e.g., register user \u2192 send email, or LLM call \u2192 write DB \u2192 notify) in Effect workflow primitives backed by Effect Cluster, then the process completes exactly once even if the server crashes mid-flight, because the workflow engine persists state and resumes on a different node, eliminating the silent partial-completion failures that become common when LLM response times extend average process duration from milliseconds to minutes.",
+      "what_they_did": "Michael Arnaldi observed that AI-driven processes convert previously 10ms operations into minute-long operations, making server failure during a request statistically likely even at low user counts. He drew the analogy to registration flows where 'if email didn't arrive, retry' is a symptom of unguaranteed two-operation sequences. Effect Cluster provides durable workflow execution (similar to Temporal/Inngest) where a started procedure is guaranteed to finish by migrating to another node on crash. He noted this is currently in the unstable part of Effect but will stabilize soon, and that the agent-assisted development pattern (clone repo \u2192 extract patterns \u2192 implement) applies equally to Effect workflows.",
+      "effort_estimate": "medium",
+      "relevance_to_yolo_loop": "YOLO loop agentic runs are long-lived processes (LLM calls, tool chains, file writes, external API calls) that currently have no crash-recovery guarantee. Wrapping loop phases in Effect workflows would make the loop resumable after infrastructure failures without duplicate side effects."
+    },
+    "status": "backlog",
+    "status_history": [
+      {
+        "status": "backlog",
+        "date": "2026-05-10",
+        "note": "Extracted from YouTube RSS"
+      }
+    ],
+    "outcome": null,
+    "verdict": null,
+    "notes": "Effect workflows currently marked unstable in Effect v4. Speaker expects stabilization soon. Temporal cited as proof-of-market: its adoption spiked in past 12 months due to AI process longevity. Evaluate Effect workflows vs Temporal for TypeScript-native stack alignment."
   }
 ]
