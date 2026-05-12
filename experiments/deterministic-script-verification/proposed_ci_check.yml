@@ -1,0 +1,65 @@
+# Proposed CI check for golden-fixture shape verification.
+#
+# NOT WIRED — this file lives in experiments/ as a proposal. A follow-on
+# tick copies it into .github/workflows/script-verify.yml once we have:
+#   1. --stub mode in scripts/process_experiments.py (follow-on tick #1)
+#   2. Agreement on which scripts to pin (process_experiments first)
+#
+# Two jobs:
+#   - shape-check: zero-cost stub run on every PR
+#   - smoke-check: real-API run on manual dispatch only (cost-gated)
+
+name: Script Verification (proposed — not wired)
+
+on:
+  pull_request:
+    paths:
+      - 'scripts/process_experiments.py'
+      - 'experiments/deterministic-script-verification/**'
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 'Verification mode'
+        type: choice
+        options: [stub, smoke]
+        default: stub
+
+permissions:
+  contents: read
+
+jobs:
+  shape-check:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request' || inputs.mode == 'stub'
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5
+        with:
+          python-version: '3.11'
+      - name: Run verifier against canonical stub response
+        run: |
+          python3 experiments/deterministic-script-verification/verify.py
+
+  smoke-check:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch' && inputs.mode == 'smoke'
+    # Real-LLM run; gated to manual dispatch so it doesn't burn budget on
+    # every PR. Use after a process_experiments.py change to confirm the
+    # real model still produces conforming shape.
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5
+        with:
+          python-version: '3.11'
+      - name: Install deps
+        run: pip install -q anthropic
+      - name: Run real process_experiments against fixture input
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          # Requires scripts/process_experiments.py to grow a --stub-output
+          # flag that writes its JSON to a path instead of mutating
+          # experiments.json. Tracked as follow-on tick #1.
+          cp experiments/deterministic-script-verification/fixtures/process_experiments_input.json /tmp/scan.json
+          python3 scripts/process_experiments.py /tmp/scan.json --stub-output /tmp/cards.json
+          python3 experiments/deterministic-script-verification/verify.py --stub /tmp/cards.json
