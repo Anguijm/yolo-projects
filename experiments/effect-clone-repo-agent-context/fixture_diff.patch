@@ -1,0 +1,59 @@
+diff --git a/scripts/process_experiments.py b/scripts/process_experiments.py
+index 6d75bca..cfb58be 100644
+--- a/scripts/process_experiments.py
++++ b/scripts/process_experiments.py
+@@ -92,7 +92,13 @@ Output ONLY the JSON array. No markdown, no explanation."""
+ 
+     response = client.messages.create(
+         model="claude-sonnet-4-6",
+-        max_tokens=4000,
++        # max_tokens raised 4000 -> 16000 (2026-05-08): with supadata transcripts
++        # the prompt routinely processes 20+ videos with rich content. The output
++        # is up to ~50 cards × ~500 tokens each. The prior 4000 cap silently
++        # truncated the JSON mid-stream, the parse failed, and the broad
++        # exception handler in main() swallowed the error as 0 cards added.
++        # Sonnet supports much larger output budgets; 16K gives ~3x headroom.
++        max_tokens=16000,
+         messages=[{"role": "user", "content": prompt}]
+     )
+ 
+@@ -102,6 +108,11 @@ Output ONLY the JSON array. No markdown, no explanation."""
+         text = re.sub(r"^```\w*\n?", "", text)
+         text = re.sub(r"\n?```$", "", text)
+ 
++    # Surface the stop reason so output truncation is diagnosable from logs.
++    stop_reason = getattr(response, "stop_reason", None)
++    if stop_reason and stop_reason != "end_turn":
++        print(f"WARN: model stop_reason={stop_reason!r} — output may be truncated", file=sys.stderr)
++
+     return json.loads(text)
+ 
+ 
+@@ -139,11 +150,25 @@ def main():
+ 
+     print(f"Processing {len(new_videos)} new videos...")
+ 
+-    # Generate experiment cards
++    # Generate experiment cards.
++    # Verbose error reporting (2026-05-08): the prior `except Exception as e:
++    # print(f"API error: {e}")` was swallowing JSON-parse failures from
++    # truncated model output, so 25 transcript-rich videos silently produced
++    # 0 cards. Now we log the type, message, and a slice of the raw response
++    # when available so the failure mode is diagnosable from the workflow log.
+     try:
+         cards = generate_cards_via_api(new_videos, len(experiments))
++    except json.JSONDecodeError as e:
++        print(f"ERROR: card generator returned non-JSON: {e}", file=sys.stderr)
++        print(f"  doc snippet (first 500 chars): {e.doc[:500]!r}", file=sys.stderr)
++        print(f"  doc snippet (last 500 chars):  {e.doc[-500:]!r}", file=sys.stderr)
++        print(f"  position: {e.pos} of {len(e.doc)} chars", file=sys.stderr)
++        Path("/tmp/new_count.txt").write_text("0")
++        return
+     except Exception as e:
+-        print(f"API error: {e}")
++        import traceback
++        print(f"ERROR: {type(e).__name__}: {e}", file=sys.stderr)
++        traceback.print_exc()
+         Path("/tmp/new_count.txt").write_text("0")
+         return
+ 
