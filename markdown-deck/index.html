@@ -1017,7 +1017,11 @@ var MATH_GREEK = {alpha:'\u03B1',beta:'\u03B2',gamma:'\u03B3',delta:'\u03B4',eps
 var MATH_SYMS = {infty:'\u221E',pm:'\u00B1',mp:'\u2213',times:'\u00D7',div:'\u00F7',cdot:'\u22C5',leq:'\u2264',geq:'\u2265',neq:'\u2260',approx:'\u2248',equiv:'\u2261',sum:'\u2211',prod:'\u220F',int:'\u222B',partial:'\u2202',nabla:'\u2207',forall:'\u2200',exists:'\u2203',in:'\u2208',notin:'\u2209',subset:'\u2282',supset:'\u2283',cup:'\u222A',cap:'\u2229',emptyset:'\u2205',rightarrow:'\u2192',leftarrow:'\u2190',Rightarrow:'\u21D2',Leftarrow:'\u21D0',leftrightarrow:'\u2194',sqrt:'\u221A',langle:'\u27E8',rangle:'\u27E9',ldots:'\u2026',cdots:'\u22EF',star:'\u22C6',circ:'\u2218',bullet:'\u2022',neg:'\u00AC',land:'\u2227',lor:'\u2228'};
 
 function renderMath(tex) {
-  var s = tex.trim();
+  // Escape user input up front: math content is data, never HTML. esc() only
+  // touches & < > " — none of which are math syntax (\ { } ^ _), so every
+  // transformation below still works while \text{}, \mathbf{}, ^{}, _{} etc.
+  // can no longer inject markup.
+  var s = esc(tex.trim());
   // Greek letters and symbols: \alpha, \infty, etc.
   s = s.replace(/\\([a-zA-Z]+)/g, function(_, cmd) {
     if (MATH_GREEK[cmd]) return MATH_GREEK[cmd];
@@ -1192,7 +1196,7 @@ function md(text) {
       var style = isHeader
         ? 'padding:0.4rem 1rem;border-bottom:2px solid #444;text-align:left;font-weight:600;color:#fff'
         : 'padding:0.3rem 1rem;border-bottom:1px solid #222';
-      result += '<tr>' + cells.map(function(c) { return '<' + tag + ' style="' + style + '">' + c + '</' + tag + '>'; }).join('') + '</tr>';
+      result += '<tr>' + cells.map(function(c) { return '<' + tag + ' style="' + style + '">' + esc(c) + '</' + tag + '>'; }).join('') + '</tr>';
       if (isHeader && r === 0 && rows.length > 1 && rows[1].match(/^\|[\s\-:|]+\|$/)) {
         // Keep isHeader true only for first row
       }
