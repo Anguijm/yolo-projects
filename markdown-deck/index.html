@@ -499,6 +499,7 @@ These are speaker notes. They won't appear in the presentation but are preserved
   <div class="toolbar">
     <h2>design.md</h2>
     <button onclick="applyDesign()">Apply</button>
+    <button id="design-copy-btn" onclick="copyDesignTokens()" title="Copy current design tokens to clipboard — paste back into Claude or into a slide deck">Copy</button>
     <button onclick="toggleDesignPanel()">Close</button>
   </div>
   <div style="padding:0.3rem 0.75rem;border-bottom:1px solid #1a1a1a;font-size:0.45rem;color:#666;line-height:1.4">Theme applies to <strong style="color:#aaa">all slides</strong> globally. To override a single slide, add <code style="color:#58a6ff">&lt;!-- bg: #color, text: #color --&gt;</code> in that slide's markdown.</div>
@@ -510,6 +511,7 @@ These are speaker notes. They won't appear in the presentation but are preserved
     <button class="preset-theme" onclick="loadTheme('neon')" style="background:#1a1a1a;border:1px solid #333;color:#888;padding:2px 8px;font-size:0.6rem;cursor:pointer;border-radius:3px;font-family:inherit">Neon</button>
     <button class="preset-theme" onclick="loadTheme('corporate')" style="background:#1a1a1a;border:1px solid #333;color:#888;padding:2px 8px;font-size:0.6rem;cursor:pointer;border-radius:3px;font-family:inherit">Corporate</button>
   </div>
+  <div id="color-pickers" style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:3px 8px;padding:0.5rem 0.75rem;border-bottom:1px solid #1a1a1a;font-size:0.55rem;color:#888"></div>
   <textarea id="design-input" spellcheck="false"># Slide Design
 
 ## Colors
@@ -2010,8 +2012,110 @@ window.loadTheme = function(name) {
   }
 };
 
+// Color pickers for the design panel — visual overlay on the token textarea.
+// Text stays the single source of truth: pickers READ from parsed tokens on
+// open/Apply, and a picker change does a TARGETED single-line rewrite of just
+// that "key:" line. No whole-doc regeneration, so headers/comments/font-stacks
+// and any tokens tokensToCss doesn't consume are preserved.
+var COLOR_TOKEN_KEYS = [
+  'background','text','heading','subheading','accent','strong','emphasis',
+  'code-text','code-bg','pre-bg','quote-text','quote-border','link','hr'
+];
+var COLOR_TOKEN_LABELS = {
+  'background':'BG','text':'Text','heading':'H1','subheading':'H2','accent':'H3/Accent',
+  'strong':'Strong','emphasis':'Em','code-text':'Code','code-bg':'Code BG','pre-bg':'Pre BG',
+  'quote-text':'Quote','quote-border':'Quote bar','link':'Link','hr':'HR'
+};
+
+// Normalize any CSS color (#fff, named, rgb(), hsl()) to #rrggbb so an
+// <input type=color> can display it. Returns null if the browser rejects.
+function _toHex6(c) {
+  if (!c) return null;
+  var probe = document.createElement('div');
+  probe.style.color = c;
+  if (!probe.style.color) return null;
+  document.body.appendChild(probe);
+  var rgb = getComputedStyle(probe).color;
+  document.body.removeChild(probe);
+  var m = rgb && rgb.match(/\d+/g);
+  if (!m || m.length < 3) return null;
+  function h(n){ n = +n; return (n < 16 ? '0' : '') + n.toString(16); }
+  return '#' + h(m[0]) + h(m[1]) + h(m[2]);
+}
+
+// Rewrite exactly one "key: ..." line in the textarea; append if absent.
+// Matches "key:" at line start with optional leading whitespace — won't touch
+// comments ("# background: ..."), section headers ("## Colors"), or distinct
+// keys ("background-color: ...").
+function _rewriteTokenLine(key, val) {
+  var ta = document.getElementById('design-input');
+  var src = ta.value;
+  var escKey = key.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&');
+  var re = new RegExp('^([ \\t]*)' + escKey + '[ \\t]*:.*$', 'm');
+  if (re.test(src)) {
+    ta.value = src.replace(re, '$1' + key + ': ' + val);
+  } else {
+    ta.value = src + (src.endsWith('\n') ? '' : '\n') + key + ': ' + val + '\n';
+  }
+}
+
+function _buildColorPickers() {
+  var container = document.getElementById('color-pickers');
+  if (!container || container.dataset.built) return;
+  container.dataset.built = '1';
+  COLOR_TOKEN_KEYS.forEach(function(key) {
+    var label = document.createElement('label');
+    label.style.cssText = 'display:flex;align-items:center;gap:6px;cursor:pointer;overflow:hidden;text-overflow:ellipsis;white-space:nowrap';
+    var picker = document.createElement('input');
+    picker.type = 'color';
+    picker.dataset.token = key;
+    picker.style.cssText = 'width:22px;height:16px;border:1px solid #333;background:#0a0a0a;padding:0;cursor:pointer;flex-shrink:0';
+    picker.addEventListener('input', function() {
+      _rewriteTokenLine(key, picker.value);
+      applyDesign();
+    });
+    var span = document.createElement('span');
+    span.textContent = COLOR_TOKEN_LABELS[key] || key;
+    label.appendChild(picker);
+    label.appendChild(span);
+    container.appendChild(label);
+  });
+}
+
+function _syncColorPickersFromText() {
+  _buildColorPickers();
+  var src = document.getElementById('design-input').value;
+  var tokens = parseDesignTokens(src);
+  var pickers = document.querySelectorAll('#color-pickers input[type=color]');
+  pickers.forEach(function(p) {
+    var hex = _toHex6(tokens[p.dataset.token]);
+    if (hex) p.value = hex;
+  });
+}
+
+window.copyDesignTokens = function() {
+  var src = document.getElementById('design-input').value;
+  var btn = document.getElementById('design-copy-btn');
+  function ack(msg) {
+    if (!btn) return;
+    var orig = btn.dataset.orig || btn.textContent;
+    btn.dataset.orig = orig;
+    btn.textContent = msg;
+    setTimeout(function() { btn.textContent = orig; }, 900);
+  }
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(src).then(function() { ack('Copied!'); }, function() { ack('Failed'); });
+  } else {
+    var ta = document.getElementById('design-input');
+    ta.select();
+    try { document.execCommand('copy'); ack('Copied!'); } catch(e) { ack('Failed'); }
+  }
+};
+
 window.toggleDesignPanel = function() {
-  document.getElementById('design-panel').classList.toggle('open');
+  var panel = document.getElementById('design-panel');
+  panel.classList.toggle('open');
+  if (panel.classList.contains('open')) _syncColorPickersFromText();
 };
 
 window.applyDesign = function() {
@@ -2027,6 +2131,7 @@ window.applyDesign = function() {
   // Also store the tokens for PPTX export
   window._designTokens = tokens;
   try { localStorage.setItem('mdeck_design', src); } catch(e) {}
+  _syncColorPickersFromText();
 };
 
 // Load saved design on startup
@@ -2043,6 +2148,9 @@ try {
     window._designTokens = tokens;
   }
 } catch(e) {}
+
+// Populate pickers from whatever's currently in the textarea (saved or default).
+try { _syncColorPickersFromText(); } catch(e) {}
 
 // ============ PPTX EXPORT ============
 // Minimal ZIP writer (store-only, no compression — PPTX readers handle it fine)
