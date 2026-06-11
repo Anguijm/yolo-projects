@@ -35,4 +35,16 @@ md (table parsing): `return '<' + tag + ' style="' + style + '">' + c + '</' + t
 
 ## Resolution
 
-Human decision required. Resume the build after updating session_state.json.
+**RESOLVED 2026-05-28 by John (interactive session, via Claude).**
+
+### SECURITY OBJECT — ACCEPTED (fix applied)
+Legitimate XSS. `renderMath()` inserted captured `\text{}`/`\mathbf{}` (and `^{}`/`_{}`) content into innerHTML unescaped, and the table parser inserted cell content unescaped — both reachable sinks (math content reaches `<div class="math-block">`/`<span class="math-inline">`, table cells reach `<td>`/`<th>`). Fixed by:
+- Escaping math input at the top of `renderMath`: `var s = esc(tex.trim());`. `esc()` only touches `& < > "`, none of which are math syntax (`\ { } ^ _`), so every transformation still works while `\text{}`, `\mathbf{}`, `^{}`, `_{}` can no longer inject markup. (Also hardens sup/sub, which had the identical hole.)
+- Wrapping table cell content in `esc(c)` in the table-row builder.
+
+Note: escaping table cells renders any raw HTML / inline links inside a cell as literal text (the secure behavior for tabular data); inline code in cells is unaffected (placeholder-protected).
+
+### GUIDE OBJECT — ALREADY SATISFIED (no action)
+Chart-block rules were added to the `ai-prompt-content` CRITICAL section in commit d28e0c1 (rule 10 "Charts use ```chart bar / line / pie", a chart example, and the "## Chart Blocks" section). The objection no longer applies.
+
+All other angles approved. Build may resume.

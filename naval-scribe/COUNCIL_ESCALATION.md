@@ -32,4 +32,14 @@
 
 ## Resolution
 
-Human decision required. Resume the build after updating session_state.json.
+**RESOLVED 2026-05-28 by John (interactive session, via Claude).**
+
+### UI OBJECT — OVERRIDDEN (false positive)
+The angle claims opening Templates/Routing Slip does not close other open drawers. Tracing every drawer pair shows mutual exclusion already holds in both directions:
+- `tmplBtn` handler closes all earlier drawers (drafts/import/chain/addr/reply); later drawers close via capture-phase cross-close listeners — routing at `index.html:4419`, quality at `index.html:4562-4563`.
+- `routingBtn` handler closes all earlier drawers including `tmpl` (`index.html:4404`); quality closes via the capture listener at `index.html:4562-4563`.
+- When `routing`/`quality` open, `tmpl` is closed by their handlers (routing at 4404; quality's `allDrawers` sweep).
+
+So Templates and Routing Slip both close every sibling drawer when opened, and are closed when any sibling opens. The objection deadlocked on a non-bug — the same conclusion the builder reached in commit 42cbc3d ("UI mutual-exclusion false-positive deadlock"). No code change required.
+
+All other angles approved. Build may resume.
