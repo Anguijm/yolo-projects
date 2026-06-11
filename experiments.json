@@ -7627,5 +7627,117 @@
     "outcome": null,
     "verdict": null,
     "notes": ""
+  },
+  {
+    "id": "mk-2026-06-11-fable5-tiered-effort-workflow",
+    "source": {
+      "channel": "mk",
+      "video_title": "Don't Use Claude Fable 5 Until You See This",
+      "video_url": "https://www.youtube.com/watch?v=113P6SBWAm8",
+      "published_date": "2026-06-11",
+      "ingested_date": "2026-06-11"
+    },
+    "experiment": {
+      "title": "Route tasks across model tiers by complexity to minimize token burn",
+      "hypothesis": "If we assign planning to Fable 5 max/high, execution to Opus 4.8 or Sonnet, and verification back to Fable 5, then we reduce cost significantly while maintaining output quality because the expensive model is only used at decision points, not for bulk work.",
+      "what_they_did": "Speaker analyzed Claude Fable 5's system prompt versus Opus 4.8, noted that Fable 5 auto-downgrades to Opus 4.8 for certain sensitive query types, and used this as a template for a voluntary tiered workflow: use Fable 5 for planning and verification gates, use cheaper models (Opus 4.8, Sonnet) for execution steps, and orchestrate via agents with MCPs and CLI access. He also noted that Fable 5 Medium beats Opus 4.8 Max, giving a cost-quality tradeoff ladder.",
+      "effort_estimate": "medium",
+      "relevance_to_yolo_loop": "Directly applicable to our agentic dev loop: we can gate expensive model calls to planning and verification phases while routing code generation and bulk edits to cheaper models, reducing token costs in continuous agent runs."
+    },
+    "status": "backlog",
+    "status_history": [
+      {
+        "status": "backlog",
+        "date": "2026-06-11",
+        "note": "Extracted from YouTube RSS"
+      }
+    ],
+    "outcome": null,
+    "verdict": null,
+    "notes": ""
+  },
+  {
+    "id": "aie-2026-06-11-studio-nl-business-queries",
+    "source": {
+      "channel": "aie",
+      "video_title": "Why Can't Anyone Answer Questions About the Business? \u2014 Garrett Galow, WorkOS",
+      "video_url": "https://www.youtube.com/watch?v=iUWwcG-C8OU",
+      "published_date": "2026-06-11",
+      "ingested_date": "2026-06-11"
+    },
+    "experiment": {
+      "title": "Build an internal NL-to-SQL agent with persistent widget output for business queries",
+      "hypothesis": "If we build a LangGraph agent that translates natural language questions into Snowflake/DB queries guided by a schema context layer, and renders results as declarative code widgets rather than live LLM calls, then non-technical teammates can self-serve data questions reliably because widgets execute deterministically after initial generation.",
+      "what_they_did": "WorkOS built an internal tool called Studio using LangGraph with Claude Opus, connected to Snowflake, Linear, and Notion via an integration proxy. A guidance layer provides schema context and join rules so the agent avoids common SQL mistakes. Query results are rendered as JavaScript widgets that make direct API calls on refresh, removing the LLM from the hot path after initial widget creation. The tool is accessible via a dashboard or a Slack bot.",
+      "effort_estimate": "high",
+      "relevance_to_yolo_loop": "Pattern for making our dev loop's data layer queryable by agents: separating LLM-generated code from LLM-at-runtime is a reliability pattern we can apply when agents need repeatable data access in the loop."
+    },
+    "status": "backlog",
+    "status_history": [
+      {
+        "status": "backlog",
+        "date": "2026-06-11",
+        "note": "Extracted from YouTube RSS"
+      }
+    ],
+    "outcome": null,
+    "verdict": null,
+    "notes": ""
+  },
+  {
+    "id": "aie-2026-06-11-webmcp-structured-site-tools",
+    "source": {
+      "channel": "aie",
+      "video_title": "The agent-ready web: Simplify user actions with WebMCP \u2014 Tara Agyemang, Google",
+      "video_url": "https://www.youtube.com/watch?v=ghJmWQCIHRM",
+      "published_date": "2026-06-11",
+      "ingested_date": "2026-06-11"
+    },
+    "experiment": {
+      "title": "Expose site capabilities as Web MCP tools to replace brittle DOM-scraping agent flows",
+      "hypothesis": "If we define structured MCP tools on a web interface instead of letting agents infer actions from the DOM, then agent task completion rate increases and token cost drops because the agent receives a deterministic action menu instead of parsing HTML, accessibility trees, and screenshots.",
+      "what_they_did": "Google Chrome DevRel demoed Web MCP, a proposed web standard that lets developers declare named tools (e.g. search_concerts, purchase_ticket) directly on a page. A Chrome extension inspector lists available tools per page. Gemini in Chrome calls these tools sequentially instead of scraping the DOM, completing multi-step flows (find concert \u2192 open page \u2192 buy tickets) with three clean tool calls and UI kept in sync. Setup requires Chrome Canary v146+, an experimental flag, and the MCP inspector extension.",
+      "effort_estimate": "medium",
+      "relevance_to_yolo_loop": "If our dev loop involves agents driving web UIs or internal dashboards, replacing screenshot/DOM scraping with declared MCP tools would make those steps faster, cheaper, and more reliable."
+    },
+    "status": "backlog",
+    "status_history": [
+      {
+        "status": "backlog",
+        "date": "2026-06-11",
+        "note": "Extracted from YouTube RSS"
+      }
+    ],
+    "outcome": null,
+    "verdict": null,
+    "notes": ""
+  },
+  {
+    "id": "aie-2026-06-11-async-agent-verification-loop",
+    "source": {
+      "channel": "aie",
+      "video_title": "How to Keep Shipping When You Walk Away from Your Desk \u2014 Zack Proser, WorkOS",
+      "video_url": "https://www.youtube.com/watch?v=so9l_MwS2yg",
+      "published_date": "2026-06-11",
+      "ingested_date": "2026-06-11"
+    },
+    "experiment": {
+      "title": "Give agents MCP access to the target environment so they can self-verify before surfacing results",
+      "hypothesis": "If we grant the coding agent write-and-read access to the runtime environment (e.g. Slack channel, test suite, staging URL) alongside the codebase, then the agent can close its own feedback loop and return only verified completions, reducing human review overhead because the agent catches regressions before handing back control.",
+      "what_they_did": "Proser added an MCP connection to Slack for Claude Code so that after fixing a sentence-case bug it could post to the blog channel, observe the blog bot's output, and confirm the fix end-to-end before declaring done. He also described a broader async pattern: queue work as Linear tickets tagged 'agent-ready', run a cron loop every 15 minutes to churn through tickets overnight, use voice-first input to brief agents before stepping away, and review summarized results on return rather than babysitting execution.",
+      "effort_estimate": "medium",
+      "relevance_to_yolo_loop": "Core pattern for our YOLO loop: attaching environment-side verification tools (test runner, log reader, channel poster) to the agent so the loop closes without human intervention and we wake up to done tickets rather than stalled agents."
+    },
+    "status": "backlog",
+    "status_history": [
+      {
+        "status": "backlog",
+        "date": "2026-06-11",
+        "note": "Extracted from YouTube RSS"
+      }
+    ],
+    "outcome": null,
+    "verdict": null,
+    "notes": ""
   }
 ]
