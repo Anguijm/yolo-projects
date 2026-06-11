@@ -21,6 +21,26 @@ ROOT = Path(__file__).resolve().parent.parent
 # cards/video × ~270 tokens/card, 15 videos = ~8K output tokens worst case.
 BATCH_SIZE = 15
 
+# Valid channel-shortcode pattern. The id prefix (e.g., "aie" in
+# "aie-2026-06-11-foo") is the catalog's canonical channel identifier;
+# source.channel is purely cosmetic and was previously inconsistent
+# (@-prefix, casing, "Nate Herk" vs "NateHerk", etc.). We overwrite
+# source.channel with the id prefix so aggregates work.
+_SHORTCODE_RE = re.compile(r'^[a-z0-9_]+$')
+
+
+def canonicalize_card_channel(card):
+    """Set source.channel to the id-prefix shortcode. Skips cards whose id
+    doesn't look like '<shortcode>-...' so unexpected formats don't get
+    silently mangled."""
+    eid = card.get('id', '')
+    if not eid or '-' not in eid:
+        return
+    shortcode = eid.split('-', 1)[0]
+    if not _SHORTCODE_RE.fullmatch(shortcode):
+        return
+    card.setdefault('source', {})['channel'] = shortcode
+
 
 def get_existing_video_ids(experiments):
     """Extract video IDs from existing experiments for dedup."""
@@ -168,6 +188,8 @@ def main():
         print(f"  Batch {batch_idx + 1}/{n_batches}: {len(batch)} videos...")
         try:
             cards = generate_cards_via_api(batch, len(experiments))
+            for c in cards:
+                canonicalize_card_channel(c)
             all_cards.extend(cards)
             print(f"    -> {len(cards)} cards")
         except json.JSONDecodeError as e:
