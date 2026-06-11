@@ -14,6 +14,13 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 
+# Videos sent to Claude per API call. The May 8 fix raised max_tokens from
+# 4K → 16K to handle "20+ video runs," but a 35-day backfill (54 videos) still
+# truncated at the cap. Rather than chasing token limits, batch the input so
+# each call's output fits comfortably under 16K with headroom. At up to 2
+# cards/video × ~270 tokens/card, 15 videos = ~8K output tokens worst case.
+BATCH_SIZE = 15
+
 
 def get_existing_video_ids(experiments):
     """Extract video IDs from existing experiments for dedup."""
@@ -148,34 +155,43 @@ def main():
         Path("/tmp/new_count.txt").write_text("0")
         return
 
-    print(f"Processing {len(new_videos)} new videos...")
+    print(f"Processing {len(new_videos)} new videos in batches of {BATCH_SIZE}...")
 
-    # Generate experiment cards.
-    # Verbose error reporting (2026-05-08): the prior `except Exception as e:
-    # print(f"API error: {e}")` was swallowing JSON-parse failures from
-    # truncated model output, so 25 transcript-rich videos silently produced
-    # 0 cards. Now we log the type, message, and a slice of the raw response
-    # when available so the failure mode is diagnosable from the workflow log.
-    try:
-        cards = generate_cards_via_api(new_videos, len(experiments))
-    except json.JSONDecodeError as e:
-        print(f"ERROR: card generator returned non-JSON: {e}", file=sys.stderr)
-        print(f"  doc snippet (first 500 chars): {e.doc[:500]!r}", file=sys.stderr)
-        print(f"  doc snippet (last 500 chars):  {e.doc[-500:]!r}", file=sys.stderr)
-        print(f"  position: {e.pos} of {len(e.doc)} chars", file=sys.stderr)
-        Path("/tmp/new_count.txt").write_text("0")
-        return
-    except Exception as e:
-        import traceback
-        print(f"ERROR: {type(e).__name__}: {e}", file=sys.stderr)
-        traceback.print_exc()
-        Path("/tmp/new_count.txt").write_text("0")
-        return
+    # Batched API calls. Per-batch failures are logged but don't abort the
+    # whole run — we keep whatever cards we got from successful batches.
+    n_batches = (len(new_videos) + BATCH_SIZE - 1) // BATCH_SIZE
+    all_cards = []
+    failed_batches = 0
+    for batch_idx in range(n_batches):
+        start = batch_idx * BATCH_SIZE
+        batch = new_videos[start:start + BATCH_SIZE]
+        print(f"  Batch {batch_idx + 1}/{n_batches}: {len(batch)} videos...")
+        try:
+            cards = generate_cards_via_api(batch, len(experiments))
+            all_cards.extend(cards)
+            print(f"    -> {len(cards)} cards")
+        except json.JSONDecodeError as e:
+            failed_batches += 1
+            print(f"    ERROR batch {batch_idx + 1}: non-JSON output: {e}", file=sys.stderr)
+            print(f"      doc tail (last 500 chars): {e.doc[-500:]!r}", file=sys.stderr)
+            print(f"      position: {e.pos} of {len(e.doc)} chars", file=sys.stderr)
+            continue
+        except Exception as e:
+            failed_batches += 1
+            import traceback
+            print(f"    ERROR batch {batch_idx + 1}: {type(e).__name__}: {e}", file=sys.stderr)
+            traceback.print_exc()
+            continue
+
+    if failed_batches:
+        print(f"WARN: {failed_batches}/{n_batches} batch(es) failed; "
+              f"continuing with {len(all_cards)} cards from successful batches",
+              file=sys.stderr)
 
     # Deduplicate by ID
     existing_exp_ids = {e["id"] for e in experiments}
     added = 0
-    for card in cards:
+    for card in all_cards:
         if card.get("id") and card["id"] not in existing_exp_ids:
             experiments.append(card)
             existing_exp_ids.add(card["id"])
