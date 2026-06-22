@@ -831,7 +831,7 @@ select:focus, select:focus-visible {
       <div class="bp-body" id="bp-body"></div>
     </div>
     <div class="field" data-types="letter,memo,endorsement,business,instruction,sop">
-      <textarea id="f-body" rows="12" placeholder="Type or paste correspondence body text here.&#10;&#10;Use blank lines between paragraphs.&#10;Indent with spaces or tabs for sub-paragraphs.&#10;Numbering (1. a. (1) (a)) is auto-applied.&#10;&#10;Tables: use markdown syntax (| Col1 | Col2 |) on consecutive lines."></textarea>
+      <textarea id="f-body" rows="12" placeholder="Type or paste correspondence body text here.&#10;&#10;Use blank lines between paragraphs.&#10;Indent with spaces or tabs for sub-paragraphs.&#10;Numbering (1. a. (1) (a)) is auto-applied.&#10;Lead a paragraph with &quot;+ &quot; to continue the current section without a new number.&#10;&#10;Tables: use markdown syntax (| Col1 | Col2 |) on consecutive lines."></textarea>
     </div>
     <div class="field" data-types="pointpaper">
       <textarea id="f-body-bullets" rows="12" placeholder="One bullet point per line.&#10;&#10;Each line becomes a bullet.&#10;Keep each bullet under 5 lines.&#10;Point papers should fit on one page."></textarea>
@@ -840,13 +840,13 @@ select:focus, select:focus-visible {
       <textarea id="f-body-action" rows="12" placeholder="Action items and supporting information.&#10;&#10;First bullet is the direction statement.&#10;Keep each bullet under 5 lines.&#10;Label supporting docs as TAB A, TAB B, etc."></textarea>
     </div>
     <div class="field" data-types="moa">
-      <textarea id="f-body-moa" rows="12" placeholder="Agreement terms and articles.&#10;&#10;Use blank lines between articles.&#10;Indent for sub-articles.&#10;Numbering (1. a. (1) (a)) auto-applied."></textarea>
+      <textarea id="f-body-moa" rows="12" placeholder="Agreement terms and articles.&#10;&#10;Use blank lines between articles.&#10;Indent for sub-articles.&#10;Numbering (1. a. (1) (a)) auto-applied.&#10;Lead a paragraph with &quot;+ &quot; to continue the current article without a new number."></textarea>
     </div>
     <div class="field" data-types="instruction">
-      <textarea id="f-body-instr" rows="12" placeholder="Instruction sections.&#10;&#10;Standard sections: Purpose, Cancellation, Scope, Policy, Responsibilities, Action, Records Management.&#10;&#10;Use blank lines between paragraphs.&#10;Numbering (1. a. (1) (a)) auto-applied."></textarea>
+      <textarea id="f-body-instr" rows="12" placeholder="Instruction sections.&#10;&#10;Standard sections: Purpose, Cancellation, Scope, Policy, Responsibilities, Action, Records Management.&#10;&#10;Use blank lines between paragraphs.&#10;Numbering (1. a. (1) (a)) auto-applied.&#10;Lead a paragraph with &quot;+ &quot; to continue the current section without a new number."></textarea>
     </div>
     <div class="field" data-types="sop">
-      <textarea id="f-body-sop" rows="12" placeholder="SOP sections.&#10;&#10;Standard sections: Purpose, Scope, Definitions, Responsibilities, Procedures, Safety, References.&#10;&#10;Use blank lines between paragraphs.&#10;Numbering (1. a. (1) (a)) auto-applied."></textarea>
+      <textarea id="f-body-sop" rows="12" placeholder="SOP sections.&#10;&#10;Standard sections: Purpose, Scope, Definitions, Responsibilities, Procedures, Safety, References.&#10;&#10;Use blank lines between paragraphs.&#10;Numbering (1. a. (1) (a)) auto-applied.&#10;Lead a paragraph with &quot;+ &quot; to continue the current section without a new number."></textarea>
     </div>
     <div class="section-header" data-types="letter,memo,endorsement,business,actionmemo,moa,instruction,sop">Signature Block</div>
     <div class="sig-row" data-types="letter,memo,endorsement,business,actionmemo,instruction,sop">
@@ -1223,7 +1223,15 @@ select:focus, select:focus-visible {
     var paragraphs = [];
     var current = '';
     var currentIndent = 0;
+    var currentIsCont = false;
     var i = 0;
+
+    function pushCurrent() {
+      if (!current.trim()) return;
+      paragraphs.push({ text: current.trim(), indent: currentIndent, is_continuation: currentIsCont });
+      current = '';
+      currentIsCont = false;
+    }
 
     while (i < lines.length) {
       var line = lines[i];
@@ -1231,10 +1239,7 @@ select:focus, select:focus-visible {
 
       /* detect start of a markdown table block */
       if (trimmed.charAt(0) === '|' && trimmed.charAt(trimmed.length - 1) === '|') {
-        if (current.trim()) {
-          paragraphs.push({ text: current.trim(), indent: currentIndent });
-          current = '';
-        }
+        pushCurrent();
         var tableLines = [];
         while (i < lines.length) {
           var tl = lines[i].trim();
@@ -1260,10 +1265,7 @@ select:focus, select:focus-visible {
       }
 
       if (trimmed === '') {
-        if (current.trim()) {
-          paragraphs.push({ text: current.trim(), indent: currentIndent });
-          current = '';
-        }
+        pushCurrent();
         i++;
         continue;
       }
@@ -1271,22 +1273,36 @@ select:focus, select:focus-visible {
       var spaces = line.match(/^(\s*)/)[1].length;
       var level = Math.min(Math.floor(spaces / 4), 3);
       if (!current) {
-        currentIndent = level;
-        current = trimmed;
+        /* `+ ` prefix marks a continuation paragraph: stays in the current
+         * section/subsection, gets no number, renders flush with parent body
+         * text. The indent of `+` determines its level, same rule as
+         * numbered paragraphs — match the parent's indent to continue it. */
+        if (trimmed.length >= 2 && trimmed.charAt(0) === '+' && trimmed.charAt(1) === ' ') {
+          currentIsCont = true;
+          currentIndent = level;
+          current = trimmed.substr(2).trim();
+        } else {
+          currentIsCont = false;
+          currentIndent = level;
+          current = trimmed;
+        }
       } else {
         current += ' ' + trimmed;
       }
       i++;
     }
-    if (current.trim()) {
-      paragraphs.push({ text: current.trim(), indent: currentIndent });
-    }
+    pushCurrent();
 
-    /* apply numbering (skip tables) */
+    /* apply numbering — skip tables AND continuations */
     var counters = [0, 0, 0, 0];
     for (var j = 0; j < paragraphs.length; j++) {
       var p = paragraphs[j];
       if (p.type === 'table') continue;
+      if (p.is_continuation) {
+        p.number = '';
+        p.level = p.indent;
+        continue;
+      }
       var lvl = p.indent;
       counters[lvl]++;
       for (var k = lvl + 1; k < 4; k++) counters[k] = 0;
@@ -1294,8 +1310,10 @@ select:focus, select:focus-visible {
       p.level = lvl;
     }
 
-    /* naval standard: if only one top-level paragraph, omit its number */
-    var topLevel = paragraphs.filter(function(p) { return p.type !== 'table' && p.level === 0; });
+    /* naval standard: if only one top-level NUMBERED paragraph, omit its number */
+    var topLevel = paragraphs.filter(function(p) {
+      return p.type !== 'table' && p.level === 0 && !p.is_continuation;
+    });
     if (topLevel.length === 1) {
       topLevel[0].number = '';
     }
@@ -1437,13 +1455,17 @@ select:focus, select:focus-visible {
 
   function renderBody(d, html) {
     var INDENT_PX = [0, 36, 72, 108];
+    var NUM_WIDTH_PX = [24, 24, 36, 36];
     for (var b = 0; b < d.body.length; b++) {
       var para = d.body[b];
       if (para.type === 'table') {
         html += renderTableHTML(para);
         continue;
       }
-      html += '<div class="body-para" style="padding-left:' + INDENT_PX[para.level] + 'px">';
+      var padLeft = INDENT_PX[para.level];
+      /* continuation paragraphs render flush with the parent's body text */
+      if (para.is_continuation) padLeft += NUM_WIDTH_PX[para.level];
+      html += '<div class="body-para" style="padding-left:' + padLeft + 'px">';
       if (para.number) {
         html += '<span style="display:inline-block;min-width:' + (para.level > 1 ? '36px' : '24px') + '">' + esc(para.number) + '</span> ';
       }
@@ -1982,13 +2004,15 @@ select:focus, select:focus-visible {
     }
     function dBodyParas(body) {
       var INDENT_TWIPS = [0, 540, 1080, 1620];
+      var NUM_WIDTH_TWIPS = [360, 360, 432, 432];
       for (var b = 0; b < d.body.length; b++) {
         var para = d.body[b];
         if (para.type === 'table') {
           body += makeDocxTable(para);
           continue;
         }
-        body += makeParagraph((para.number ? para.number + '  ' : '') + para.text, { indent: INDENT_TWIPS[para.level], spaceAfter: '240' });
+        var pIndent = INDENT_TWIPS[para.level] + (para.is_continuation ? NUM_WIDTH_TWIPS[para.level] : 0);
+        body += makeParagraph((para.number ? para.number + '  ' : '') + para.text, { indent: pIndent, spaceAfter: '240' });
       }
       return body;
     }
@@ -3301,11 +3325,13 @@ select:focus, select:focus-visible {
   }
   function dxBodyParas(d, body) {
     var INDENT_TWIPS2 = [0, 540, 1080, 1620];
+    var NUM_WIDTH_TWIPS2 = [360, 360, 432, 432];
     for (var bi = 0; bi < d.body.length; bi++) {
       var para = d.body[bi];
       if (para.type === 'table') { body += makeDocxTable(para); continue; }
+      var pIndent2 = INDENT_TWIPS2[para.level] + (para.is_continuation ? NUM_WIDTH_TWIPS2[para.level] : 0);
       body += makeParagraph((para.number ? para.number + '  ' : '') + para.text,
-        { indent: INDENT_TWIPS2[para.level], spaceAfter: '240' });
+        { indent: pIndent2, spaceAfter: '240' });
     }
     return body;
   }
@@ -3601,6 +3627,7 @@ select:focus, select:focus-visible {
     var baseSubj2 = baseD.subj;
     var fullBody = buildDocxBodyFromData(baseD);
     var INDENT_TWIPS3 = [0, 540, 1080, 1620];
+    var NUM_WIDTH_TWIPS3 = [360, 360, 432, 432];
     for (var xei = 0; xei < chainEndorseItems.length; xei++) {
       var xins = chainEndorseItems[xei].ins;
       var xordinal = ORDINALS[Math.min(xei, ORDINALS.length - 1)];
@@ -3626,8 +3653,9 @@ select:focus, select:focus-visible {
         for (var xbi = 0; xbi < xbp.length; xbi++) {
           var xpara = xbp[xbi];
           if (xpara.type === 'table') { fullBody += makeDocxTable(xpara); continue; }
+          var xIndent = INDENT_TWIPS3[xpara.level] + (xpara.is_continuation ? NUM_WIDTH_TWIPS3[xpara.level] : 0);
           fullBody += makeParagraph((xpara.number ? xpara.number + '  ' : '') + xpara.text,
-            { indent: INDENT_TWIPS3[xpara.level], spaceAfter: '240' });
+            { indent: xIndent, spaceAfter: '240' });
         }
       }
       fullBody += emptyParagraph(4);

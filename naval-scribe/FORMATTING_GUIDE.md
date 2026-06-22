@@ -97,6 +97,46 @@ Rules:
 - If you create sub-paragraphs, you must have **at least two** at each level.
 - Single-paragraph letters do NOT get a number.
 
+#### Continuation paragraphs (no new number)
+
+Sometimes a paragraph needs visual spacing from the previous one but should NOT bump the numbering — for example, a second paragraph elaborating on `1.` that you don't want to renumber as `2.`. Lead the line with `+ ` (plus + space):
+
+```
+1.  Per reference (a), this command requests a 30-day extension.
+
++ This request reflects coordination with the Type Commander completed on
+   15 Mar 2026 and supersedes the verbal request of 10 Mar 2026.
+
+2.  The following factors support this request:
+
+    a.  Operational tasking requires continued presence.
+
+    + Subordinate units have been notified and are postured to support.
+
+    b.  Maintenance status per enclosure (2) supports extended operations.
+```
+
+Renders as:
+
+```
+1.  Per reference (a), this command requests a 30-day extension.
+
+    This request reflects coordination with the Type Commander completed
+    on 15 Mar 2026 and supersedes the verbal request of 10 Mar 2026.
+
+2.  The following factors support this request:
+
+    a.  Operational tasking requires continued presence.
+
+        Subordinate units have been notified and are postured to support.
+
+    b.  Maintenance status per enclosure (2) supports extended operations.
+```
+
+- The indent of the `+` determines the continuation's level — same rule as numbered paragraphs. Match the parent's indent: `+` at column 0 continues a top-level `1.`; `    +` (4 spaces) continues a level-`a.` subsection; `        +` (8 spaces) continues a level-`(1)` sub-subsection.
+- Continuation paragraphs render flush with the parent's body text, with the same vertical spacing as numbered paragraphs.
+- The numbering counter does not advance — the next numbered paragraph at the same level picks up where it left off.
+
 ### Signature Block
 ```
 J. A. SMITH
