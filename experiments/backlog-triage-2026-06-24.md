@@ -1,14 +1,15 @@
 # Phase 4 backlog triage — 2026-06-24
 
-One-shot triage that cleared the Phase 4 experiment backlog (111 → 0) by
+One-shot triage that cleared the Phase 4 experiment backlog (114 → 0) by
 applying an owner-preference model inferred from the existing adopt/discard
-history. **No deliverables were built** — these verdicts record intent so
-adopted items can be promoted to `tick_queue_approved` at the next triage.
+history, then promoted every adopted item into the autonomous build queue.
 
-- **111 items triaged**: **65 adopt**, **46 discard**
-- Source: `experiments.json` `status_history` entries timestamped 2026-06-24
+- **114 items triaged**: **67 adopt**, **47 discard**
+- Source: `experiments.json` records carrying the 2026-06-24 triage note.
 - Each record kept its original ingestion note; verdict + `status_history`
   `from→to` rationale were appended.
+- Includes 3 experiments the Phase 4 cron added to `main` on 2026-06-24,
+  triaged under the same model during the rebase.
 
 ## Decision rubric
 
@@ -22,7 +23,7 @@ directly YOLO-buildable artifacts (generative art, dashboards).
 pipelines, heavyweight multi-agent OSes, vendor harness swaps, media/voice/brand
 pipelines, off-domain career/policy items, plus expired and duplicate cards.
 
-## Adopted (65)
+## Adopted (67)
 
 | ID | Title | Effort | Why |
 |---|---|---|---|
@@ -91,8 +92,10 @@ pipelines, off-domain career/policy items, plus expired and duplicate cards.
 | `mlops-2026-06-22-logs-only-observability` | Replace metrics/traces with logs-only observability for agent pipelines | medium | Logs-only, LLM-queryable observability — matches the existing structured build_log approach. |
 | `nb-2026-06-23-big-task-delegation` | Hand Off a Whole Consulting-Scale Task to a Frontier Model | medium | Probe the frontier-model capacity ceiling with larger task scope — useful for sizing bigger ticks; benchmark family. |
 | `nh-2026-06-23-fugu-multi-model-orchestration` | Benchmark Single-Model vs. Orchestrated Multi-Model API on Identical Task Suite | high | Benchmark single vs orchestrated multi-model — benchmark discipline; tests (and likely confirms) single-model sufficiency. |
+| `nb-2026-06-24-loop-of-loops-agent-architecture` | Implement a Loop-of-Loops Agent Control Pattern | high | Named loops sharing context + handoff — loop-engineering / self-improving-loop family already adopted. |
+| `aij-2026-06-24-playwright-ci-artifact-evidence-prs` | Require Agents to Attach Playwright Video Evidence to Every PR | medium | Playwright video/screenshot evidence on PRs — proof/verification discipline (never-trust-self-report); Playwright is preinstalled. |
 
-## Discarded (46)
+## Discarded (47)
 
 | ID | Title | Effort | Why |
 |---|---|---|---|
@@ -142,48 +145,25 @@ pipelines, off-domain career/policy items, plus expired and duplicate cards.
 | `do-2026-06-21-obsidian-living-files-agent-context` | Store Agent Context as Obsidian Markdown Vault for Living File Access | medium | Obsidian+VPS vault — redundant with the in-repo markdown context (learnings/_hot/skills) already used. |
 | `mlops-2026-06-22-genetic-pareto-agent-trajectories` | Apply genetic Pareto sampling across parallel agent trajectories | high | 100 parallel runs + genetic selection — over-scale compute for a solo loop. |
 | `nh-2026-06-22-internal-ai-consultant-roadmap` | Run a 4-step internal AI consultant playbook tied to measurable KPIs | medium | Org AI-consultant/career playbook — off-domain. |
-
-## Notes
-
-- `phase4_run.json.backlog_count` set to 0 to match.
-- Adoption here ≠ shipped. Promotion to builds still goes through the normal
-  triage → `tick_queue_approved` → scaffold → council flow.
-- Downstream: `llm-wiki-hub`'s nightly sync reads this `experiments.json` and
-  will reflect the new statuses on its next run (its own automation).
+| `aij-2026-06-24-crabbox-isolated-sandbox-testing` | Use CrabBox to Give Each Parallel Agent Its Own Cloud Dev Sandbox | medium | Per-agent cloud sandboxes (CrabBox) — git-worktree isolation already covers parallel-agent conflicts; vendor cloud infra/cost. |
 
 ## Promotion to build queue (2026-06-24)
 
-All **65 adopted** experiments were promoted into `tick_queue_approved`
-in `.harness/session_state.json` — the repo's canonical "approved to build"
-queue that the Tick-Tock cron dispatches from. This is how yolo turns an
-adopted experiment into an actual build.
-
-Each queue entry carries: `id`, `title`, `idea` (hypothesis + steps),
-`type`, `rationale`, `effort`, `council_focus`, `source_experiment_id`,
-`status: approved`. Ordered **buildable-first, then low-effort-first**.
+All **67 adopted** experiments were promoted into `tick_queue_approved`
+in `.harness/session_state.json` — the repo's canonical "approved to build" queue
+the Tick-Tock cron dispatches from.
 
 | Type | Count | Meaning |
 |---|---|---|
-| `yolo` | 4 | Standalone single-file builds (3 generative-art pieces + token-burn dashboard) |
-| `infra` | 61 | Harness/process ticks — eval suites, observability, retrieval, guardrails, skills, context/memory, routing, audits |
+| `yolo` | 4 | Standalone single-file builds (generative-art pieces + token-burn dashboard) |
+| `infra` | 63 | Harness/process ticks — eval suites, observability, retrieval, guardrails, skills, context/memory, routing, audits |
 
-Effort mix: 23 low · 36 medium · 6 high.
+Ordered **buildable-first, then low-effort-first**. Each entry carries `idea`,
+`rationale`, `effort`, `council_focus`, `source_experiment_id`, `status: approved`.
 
-### How these become builds (and why this PR does not hand-build them)
+### How these become builds
 
-The yolo build pipeline (`skills/10-tick.md`, `program.md`) builds **one
-project per tick** under hard gates — C1 ≤50 files, C2 ≤2000 lines added
-per build, and a **mandatory Gemini council review** (`gemini-analyze-code`)
-before any push (bedrock rule + gate C10). Building 65 items in one PR would
-violate the per-build gates, and the Gemini review MCP only runs in the cron
-environment, not this session.
+The yolo pipeline builds **one project per tick** under hard gates (C1 ≤50 files,
+C2 ≤2000 lines/build). The cron draws from `tick_queue_approved` and builds each
+item one tick at a time; on merge the autonomous builder works through all of them.
 
-So the correct incorporation is **promotion, not hand-coding**: the cron now
-draws from `tick_queue_approved` and builds each item one tick at a time with
-the full test → council → gate pipeline. On merge, the autonomous builder
-will work through all 65 over subsequent ticks. Pause/throttle via the
-`tick_tock.yml` Actions schedule if a slower cadence is wanted (and note the
-Gemini API cost of 65 gated builds).
-
-Gates at promotion time: `council_escalations` empty (C8 ✓), no `.harness_halt`
-(C9 ✓). One unrelated deferred escalation remains (`adopt-bare-agent` PLAN).
