@@ -473,8 +473,12 @@ def main() -> int:
                              "index.html instead of the pinned default spec set.")
     parser.add_argument("--limit", type=int, default=None, metavar="N",
                         help="Run only the first N specs (clamped to [1, set size]).")
-    parser.add_argument("--max-tokens", type=int, default=8000, metavar="N",
-                        help="max_tokens per generation call (default 8000).")
+    parser.add_argument("--max-tokens", type=int, default=20000, metavar="N",
+                        help="max_tokens per generation call (default 20000 — a full "
+                             "single-file HTML tool inside a JSON envelope runs 6k-14k "
+                             "output tokens, so a lower cap silently truncates real tools "
+                             "and corrupts the completed/output-token metrics. Pass a small "
+                             "value e.g. --max-tokens 8000 ONLY for a cheap smoke-test.")
     parser.add_argument("--dry-run", action="store_true",
                         help="Print the planned (spec × model) matrix and output path, "
                              "make zero API calls, exit 0.")

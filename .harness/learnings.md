@@ -3381,3 +3381,24 @@ When a feature overwrites or clears existing user data (body text, field sets), 
 **INSIGHT** — YouTube RSS data flows into LLM prompts (council.py reads experiments.json which contains RSS-sourced titles). Explicitly frame this as LLM prompt injection risk, not just "malformed JSON" — the attack vector is a crafted video title injecting instructions into the LLM context window.
 
 **COUNCIL** — PLAN gate: all 7 APPROVE (scope clearly bounded as doc-only). IMPLEMENTATION gate: OBJECT×2 (SECURITY: npm risk missing from register + YouTube RSS framing incomplete) → fix → APPROVE×7. TESTS gate: APPROVE×7. OUTCOME gate: APPROVE×7.
+
+---
+
+## model-eval-backbone — 2026-06-25 (tick/infra)
+
+**INSIGHT** — A token cap silently corrupts an HTML-in-JSON generation benchmark. Asking a model to return a full single-file HTML tool *inside a JSON envelope* costs 6k–14k output tokens (the historical originals are 6k–11k tokens of HTML before JSON-escaping). An 8000-token cap truncates mid-document, parse_envelope sees no closing brace, html=null, and the run is silently scored `completed=False / passed=False` — a config artifact masquerading as a model failure. The smoke run (`--limit 1`, default cap) caught it: BOTH models scored 0. Always size `--max-tokens` to the artifact, not the prompt. Fix shipped: default raised 8000→20000, small caps reserved for explicit smoke-tests.
+
+**KEEP** — Verify the smoke before the full run. Running `--limit 1` first (one spec × both models) surfaced the truncation footgun for ~$0.70 instead of after a $4.45 ten-run sweep. For any benchmark with a per-cell cost, smoke one cell end-to-end and inspect the record shape (completed/passed/token counts) before fanning out.
+
+**INSIGHT** — opus-4-8 is concise AND reliable, not a verbosity-for-quality trade. On 5 historical YOLO builds opus-4-8 passed 5/5 and completed 5/5 while emitting *fewer* output tokens (mean 9150 vs sonnet 13166) and running ~1.9× faster wall-clock (82.6s vs 153.6s). sonnet-4-6 shipped 2 defective builds: one broken-JS (url-dissect, fails `node --check`) and one >20k truncation (uuid-inspector). The only axis favoring sonnet is raw price (~3.5×). For an autonomous pipeline where a defective build burns a cron cycle + may escalate, the sub-dollar/build premium buys 100% completion — hence the PROMOTE-opus recommendation. (N=5, single-trial — directional.)
+
+**KEEP** — First-party corpus defuses "untrusted LLM output" SECURITY objections, but you must SAY SO. The benchmark replays this repo's own yolo_log build specs through our own model endpoints; there is no external attacker channel and no code-execution path (generated HTML is statically parsed via `node --check` — parse-only — in a `.resolve()`-checked `_gen/` sandbox, never run). SECURITY re-raised the "malicious LLM output → RCE/DoS" concern at TESTS-attempt1 and OUTCOME-attempt1; both flipped to APPROVE once the trust boundary (first-party inputs, no exec path, `except Exception` containment of one cell) was injected verbatim.
+
+**INSIGHT** — COOL objects to the whole *category* of internal infra deliverables. Both TESTS-attempt1 and OUTCOME-attempt1 saw COOL object that the benchmark "lacks a shareable signature move" with evidence literally "Any standard internal LLM benchmarking process." COOL has no veto; for a `type=infrastructure` tick (deliverable_paths = 3 files, no end-user UI) the "make it a public interactive tool" ask is out-of-scope. Reframing the signature move as the *finding* (cap-corruption + opus-concise-and-reliable) flipped COOL to APPROVE both times.
+
+**COUNCIL** — PLAN gate (attempt 1): all 7 APPROVE. BUGS: "exceptionally thorough in addressing correctness, edge cases, and error handling, including the explicit implementation of the previously accepted BUGS override for parse_envelope."
+**COUNCIL** — IMPLEMENTATION gate (attempt 1): all 7 APPROVE.
+**COUNCIL** — TESTS gate (attempt 1): OBJECT×3 — SECURITY high (untrusted LLM output), GUIDE high (README "missing" — reviewer only saw results.md), COOL medium (no signature move). Fixed: documented `--max-tokens` in README CLI table, injected README + prior SECURITY approvals + infra scope.
+**COUNCIL** — TESTS gate (attempt 2): all 7 APPROVE. GUIDE: "The README provides comprehensive documentation for usage, CLI flags, metrics."
+**COUNCIL** — OUTCOME gate (attempt 1): OBJECT×3 — BUGS high (default --max-tokens 8000 truncates real tools), SECURITY high (re-raise), COOL critical (re-raise). BUGS accepted + fixed (default→20000); SECURITY/COOL re-injected as adjudicated/out-of-scope.
+**COUNCIL** — OUTCOME gate (attempt 2): all 7 APPROVE. COOL: "The report's core finding — that a higher-cost model is simultaneously more reliable and concise." LESSONS: "correctly adheres to the 'Doc-only infrastructure ticks stay doc-only' [pattern]."

@@ -36,8 +36,9 @@ python3 experiments/model-eval-backbone/benchmark.py --dry-run
 # One spec × both models — end-to-end smoke.
 python3 experiments/model-eval-backbone/benchmark.py --limit 1
 
-# Full pinned 5-spec run.
-python3 experiments/model-eval-backbone/benchmark.py
+# Full pinned 5-spec run. The default --max-tokens (20000) is sized for real tools.
+python3 experiments/model-eval-backbone/benchmark.py \
+    --output experiments/model-eval-backbone/benchmark_results.json
 
 # Custom model pair.
 python3 experiments/model-eval-backbone/benchmark.py \
@@ -47,9 +48,21 @@ python3 experiments/model-eval-backbone/benchmark.py \
 python3 experiments/model-eval-backbone/benchmark.py --from-log 5
 ```
 
+### CLI flags
+
+| Flag | Default | Purpose |
+|---|---|---|
+| `--backbone <id>`  | `claude-sonnet-4-6` | Current backbone (control) model id. |
+| `--candidate <id>` | `claude-opus-4-8`   | Candidate model id to evaluate. |
+| `--from-log N`     | off (pinned 5 specs) | Auto-select N recent logged builds from `.harness/yolo_log.json` instead of the pinned set. |
+| `--limit N`        | all specs | Cap the number of specs run (use `--limit 1` for a one-spec smoke). |
+| `--max-tokens N`   | `20000` | Per-generation output cap. Defaults to 20000 because a full single-file HTML tool encoded inside a JSON envelope runs 6 k–14 k output tokens; a lower cap silently truncates real tools and corrupts the `completed`/output-token metrics. Pass a small value (e.g. `--max-tokens 8000`) ONLY for a cheap smoke-test where truncation is acceptable. |
+| `--dry-run`        | off | Print the planned matrix, make zero API calls, exit 0. |
+| `--output <path>`  | timestamped `benchmark_results_<TS>.json` | Where to write the incremental results JSON. |
+
 Requires `ANTHROPIC_API_KEY` in the environment for live runs (`--dry-run` does
-not). Output is written incrementally to a timestamped
-`benchmark_results_<TS>.json` so a partial run is recoverable.
+not). Output is written incrementally to the `--output` path (default: a
+timestamped `benchmark_results_<TS>.json`) so a partial run is recoverable.
 
 ## What "pass" means
 

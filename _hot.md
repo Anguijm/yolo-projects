@@ -1,18 +1,18 @@
 # Hot Cache — Active Context
-*Auto-updated 2026-06-25 19:50 UTC. Read this FIRST.*
+*Auto-updated 2026-06-25 23:14 UTC. Read this FIRST.*
 
 ## Current State
-- Portfolio: 232 total, 98 active
-- Tick queue: 80 approved, 0 pending
+- Portfolio: 233 total, 98 active
+- Tick queue: 79 approved, 0 pending
 - Phase 4: 285 experiments, 0 backlog
-- Next: tick
+- Next: tock
 
 ## Tick Queue
-- [approved] model-eval-backbone: Backbone model swap benchmark — latest Claude vs. current ba
 - [approved] strategic-niche-audit: Audit YOLO loop strategic position against the 5 defensible 
 - [approved] eval-managed-agents: Benchmark Claude Managed Agents vs manual orchestration on a
 - [approved] adopt-session-checkpointing: Context compression + session checkpointing for long YOLO se
 - [approved] adopt-ai-human-gate-spec: Formal spec of which YOLO loop steps are AI-owned vs human-r
+- [approved] infra-failure-mode-audit: Structured failure-mode categorization of the 17 resolved es
 
 ## Recent Builds (last 5)
 - svg-fields: Drop/paste an SVG with {{placeholder}} or data-field markers
