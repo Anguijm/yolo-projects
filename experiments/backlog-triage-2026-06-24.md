@@ -150,3 +150,40 @@ pipelines, off-domain career/policy items, plus expired and duplicate cards.
   triage → `tick_queue_approved` → scaffold → council flow.
 - Downstream: `llm-wiki-hub`'s nightly sync reads this `experiments.json` and
   will reflect the new statuses on its next run (its own automation).
+
+## Promotion to build queue (2026-06-24)
+
+All **65 adopted** experiments were promoted into `tick_queue_approved`
+in `.harness/session_state.json` — the repo's canonical "approved to build"
+queue that the Tick-Tock cron dispatches from. This is how yolo turns an
+adopted experiment into an actual build.
+
+Each queue entry carries: `id`, `title`, `idea` (hypothesis + steps),
+`type`, `rationale`, `effort`, `council_focus`, `source_experiment_id`,
+`status: approved`. Ordered **buildable-first, then low-effort-first**.
+
+| Type | Count | Meaning |
+|---|---|---|
+| `yolo` | 4 | Standalone single-file builds (3 generative-art pieces + token-burn dashboard) |
+| `infra` | 61 | Harness/process ticks — eval suites, observability, retrieval, guardrails, skills, context/memory, routing, audits |
+
+Effort mix: 23 low · 36 medium · 6 high.
+
+### How these become builds (and why this PR does not hand-build them)
+
+The yolo build pipeline (`skills/10-tick.md`, `program.md`) builds **one
+project per tick** under hard gates — C1 ≤50 files, C2 ≤2000 lines added
+per build, and a **mandatory Gemini council review** (`gemini-analyze-code`)
+before any push (bedrock rule + gate C10). Building 65 items in one PR would
+violate the per-build gates, and the Gemini review MCP only runs in the cron
+environment, not this session.
+
+So the correct incorporation is **promotion, not hand-coding**: the cron now
+draws from `tick_queue_approved` and builds each item one tick at a time with
+the full test → council → gate pipeline. On merge, the autonomous builder
+will work through all 65 over subsequent ticks. Pause/throttle via the
+`tick_tock.yml` Actions schedule if a slower cadence is wanted (and note the
+Gemini API cost of 65 gated builds).
+
+Gates at promotion time: `council_escalations` empty (C8 ✓), no `.harness_halt`
+(C9 ✓). One unrelated deferred escalation remains (`adopt-bare-agent` PLAN).
