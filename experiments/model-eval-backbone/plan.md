@@ -83,8 +83,18 @@ Subtasks, in dependency order:
 - `_cost(model_id, in_tok, out_tok, costs) -> float` — dollar cost of one call.
 - `_pricing_key(model_id) -> str` — map a model id to its cost bucket (sonnet/opus/haiku/default).
 - `load_specs(from_log_n) -> list[dict]` — build the replay spec set (pinned default or `--from-log`).
-- `build_prompt(spec) -> str` — generation instruction with the strict-JSON envelope contract.
-- `parse_envelope(text) -> dict` — tolerant parse of the model's JSON reply (fenced/bare).
+- `build_prompt(spec) -> str` — generation instruction with the strict-JSON envelope contract. The
+  untrusted spec goal text is embedded inside an explicitly-delimited `<build_spec>…</build_spec>`
+  block (with any literal `<build_spec`/`</build_spec>` occurrences in the goal neutralized) and the
+  system framing states that the delimited content is a task description to *fulfil*, never
+  instructions to the assistant — prompt-injection containment (SECURITY high objection, attempt 1).
+- `parse_envelope(text) -> dict` — tolerant parse of the model's JSON reply (fenced/bare). **Coerces
+  `clarifying_questions` to a list (default `[]`) before any `len()`** so a non-list value (string,
+  dict, null) can never miscompute `clarification_count` — the ACCEPTED BUGS override from the prior
+  escalation. Always returns `{"clarifying_questions": list, "html": str|None}`.
+- `load_specs(from_log_n)` reads `.harness/yolo_log.json` only when `--from-log` is given; it catches
+  `FileNotFoundError` and `json.JSONDecodeError`, prints a clear stderr message, and exits non-zero
+  rather than crashing with a traceback (BUGS medium objection, attempt 1).
 - `_safe_slug(raw) -> str` — sanitize a spec slug to `[A-Za-z0-9._-]` only (strip `/`, `..`, leading dots) before any path use; reject empty result. Prevents path traversal from untrusted `yolo_log.json`/CLI-derived slugs.
 - `static_pass(html, slug) -> dict` — write html to a temp dir built from `_safe_slug(slug)` only, run test_project static checks, return {passed, detail}.
 - `run_one(spec, model_id, client, costs, max_tokens) -> dict` — one (spec×model) record.
@@ -95,6 +105,14 @@ Subtasks, in dependency order:
 - Trust boundary: model output is **untrusted**. Generated html is written only to a temp dir
   *inside* the experiment folder and is **never** opened in a browser or executed — only parsed
   by static checkers (AST/regex). No `eval`, no network fetch of generated content.
+- **Prompt injection (SECURITY high, attempt 1):** the build-spec goal text is sourced from
+  `.harness/yolo_log.json` / CLI and is therefore untrusted input flowing *into* the prompt.
+  `build_prompt` contains it inside an explicit `<build_spec>…</build_spec>` delimiter, neutralizes
+  any literal delimiter tokens in the goal so the boundary can't be forged, and the surrounding
+  instruction states the delimited block is a task to fulfil, not commands to obey. Residual risk is
+  low (the corpus is our own historical build log, not third-party input) and the blast radius is a
+  single low-quality benchmark run — never code execution or data exfiltration, since output is only
+  statically parsed. Documented as a known limitation in the README rather than claimed airtight.
 - **Slug sanitization (path traversal):** spec slugs come from `yolo_log.json` / `--from-log` /
   CLI and are therefore untrusted. `_safe_slug` whitelists `[A-Za-z0-9._-]`, strips any `/` and
   `..` sequences and leading dots, and rejects an empty result before the slug is used to build a
@@ -127,6 +145,8 @@ CLI tool. States:
 - Generated html missing `<script>` → `static_pass` returns passed=false with reason (mirrors test_project).
 - `--limit` larger than spec set → clamped to set size; `--limit 0` or negative → clamped to 1.
 - A fixture's project dir was deleted → spec still replays (artifact-on-disk is only documentation, not required at runtime); README notes this.
+- `.harness/yolo_log.json` missing or malformed (only read under `--from-log`) → `load_specs` catches `FileNotFoundError`/`json.JSONDecodeError`, prints a clear stderr message, exits non-zero. The pinned default spec set needs no file read, so the default path never crashes on a bad log.
+- Build-spec goal text contains injection-style content or a forged `</build_spec>` delimiter → `build_prompt` neutralizes literal delimiter tokens and the model is framed to treat the block as a task spec; worst case is one degraded run, not execution.
 - One model id invalid / API error on one call → that run recorded with `error` field, others proceed.
 - Temp dir collision across specs → per-(`_safe_slug(slug)`,model) subdir under a fixed `_gen/` root, removed in a `finally`.
 - Malicious/odd slug from `yolo_log.json` (e.g. `../../etc`) → `_safe_slug` reduces it to a safe token or rejects it; no path escapes `_gen/`.
