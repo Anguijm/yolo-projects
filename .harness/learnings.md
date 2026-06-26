@@ -3402,3 +3402,19 @@ When a feature overwrites or clears existing user data (body text, field sets), 
 **COUNCIL** — TESTS gate (attempt 2): all 7 APPROVE. GUIDE: "The README provides comprehensive documentation for usage, CLI flags, metrics."
 **COUNCIL** — OUTCOME gate (attempt 1): OBJECT×3 — BUGS high (default --max-tokens 8000 truncates real tools), SECURITY high (re-raise), COOL critical (re-raise). BUGS accepted + fixed (default→20000); SECURITY/COOL re-injected as adjudicated/out-of-scope.
 **COUNCIL** — OUTCOME gate (attempt 2): all 7 APPROVE. COOL: "The report's core finding — that a higher-cost model is simultaneously more reliable and concise." LESSONS: "correctly adheres to the 'Doc-only infrastructure ticks stay doc-only' [pattern]."
+
+---
+
+## naval-scribe — Letter Quality Checker + Portable Draft Export/Import — 2026-06-26 (tock/scribe)
+
+**KEEP** — Resume-and-ship, don't rebuild. Both features were already implemented in `index.html` and had passed PLAN + IMPLEMENTATION; the impl-gate escalation was a confirmed UI false-positive resolved by the human owner ("Build may resume"). The correct tock action was NOT to re-implement but to detect the completed-but-unsealed state (stale `council_tests.json`/`council_outcome.json` predating the feature, roadmap still `[ ]`) and run only the remaining gates. Mirrors the YOLO "if index.html exists >100 bytes, it was already built — do not rebuild" rule, applied to a flagship.
+
+**KEEP** — A resolved `COUNCIL_ESCALATION.md` is a leftover, not an active block. Authority for "are we halted?" is `session_state.json.council_escalations` (was `[]`), NOT the presence of the file. The file carried a human "RESOLVED … Build may resume" section. Did not delete or edit it (forbidden); read it for context and proceeded.
+
+**INSIGHT** — eval_bugs exit≠0 on a mature flagship is not automatically a blocker. All flagged lines were ≤L3695; the new feature region is L4453+. Proving the new code added zero matches (line-number partition) is the defensible way to ship past a long-standing heuristic-warning baseline without refactoring 4800 lines of working flagship in an unrelated tock. Stated transparently in both gate inlines.
+
+**IMPROVE** — `verify_build.py` still hardcodes root `yolo_log.json` (`LOG_FILE = os.path.join(BASE_DIR, "yolo_log.json")`) while the canonical log moved to `.harness/yolo_log.json` (V0.3.1 conformance). It throws `FileNotFoundError` and exits 0 (misleading). `verify_build --last` is a tick-only mandatory step, so this didn't block the tock, but it's a latent infra bug — candidate for an infrastructure tick to repoint `LOG_FILE` (cf. `update_dashboard.py`/`update_hot_cache.py` which already use `.harness/`).
+
+**COUNCIL** — TESTS gate (attempt 1): all 7 APPROVE. BUGS: "The Letter Quality Checker and Portable Draft Export/Import features are robustly implemented with comprehensive input validation, schema whitelisting, and recu[rsive sanitization]." SECURITY: "New features … use safe DOM manipulation (textContent) for rendering, introducing no new attack surfaces." LESSONS: "implements robust recursive schema validation for impo[rt]."
+**COUNCIL** — OUTCOME gate (attempt 1): all 7 APPROVE. COOL: "Both features reinforce naval-scribe's core identity as a reliable, zero-dep utility by adding niche formatting validation and robust draft portability." LESSONS: "All documented lessons and architectural constraints are adhered to, including specific code patterns and input validation."
+**COUNCIL** — PLAN + IMPLEMENTATION gates: passed previously (2026-04-25); impl UI mutual-exclusion OBJECT was a false positive resolved by John 2026-05-28 (see `naval-scribe/COUNCIL_ESCALATION.md`). Not re-litigated this session per the constraint/override injection.
