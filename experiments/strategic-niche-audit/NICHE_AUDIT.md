@@ -77,3 +77,5 @@ Flags are sampled by **risk category**, not exhaustively across all 79 approved 
 ---
 
 *Method note: this audit is reproducible. Source experiment id is verifiable via `grep nb-2026-04-10-five-safe-places-ai experiments.json`; every flagged slug is a real entry in `tick_tock.tick_queue_approved` or the Phase 4 backlog as of 2026-06-26.*
+
+*Data provenance (re: summary statistics): the portfolio/experiment counts in §2 are a **point-in-time snapshot read from `_hot.md` and `session_state.json` at audit time (2026-06-26)**, not re-derived or independently verified here. They drift as the cron runs (e.g. `_hot.md` already reports different totals on later days) and are used only to size the qualitative niche-fit read — no conclusion in this document depends on a stat being exact. Treat them as illustrative, not authoritative; the authoritative live counts are always the source files, not this snapshot.*
