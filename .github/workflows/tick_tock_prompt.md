@@ -132,7 +132,7 @@ Same exit codes. If `0`, proceed to commit & push.
 
 ## TICK (approval-gated)
 
-If `tick_queue_approved` has items: pop the first, build it through all 4 gates.
+If `tick_queue_approved` has items: pop the first, build it through all 4 gates. After shipping, if `tick_queue_approved` still has items, set `next_session_type=tick` (NOT tock).
 If empty: brainstorm 1 idea, add to `tick_queue_pending`, do NOT build.
 
 **Check the queue item's `type` field:**
@@ -169,6 +169,9 @@ Infrastructure ticks modify EXISTING repo files (not single-file HTML tools). Th
 
 ## TOCK
 
+**Do NOT run a tock while `tick_queue_approved` is non-empty** — TICK-ONLY DRAIN is in effect (see Hard rules). Only proceed with a tock once the approved tick queue is empty.
+
+
 Alternate flagships via `last_tock_flagship`. Read `deck_roadmap.md` or `scribe_roadmap.md`. Pop the first approved item. Build through all 4 gates. If approved is empty, brainstorm 2 PENDING proposals (no council needed for brainstorming).
 
 ## Escalation handling
@@ -200,7 +203,7 @@ If push fails due to conflict, rebase and retry (max 3 attempts).
 
 - **Synchronous only:** never schedule wakeups or wait for background tasks; finish build + `git push` within this single headless process (see Execution Model).
 
-- Always alternate tick/tock.
+- **TICK-ONLY DRAIN (2026-06-27, owner directive):** while `tick_queue_approved` is non-empty, EVERY run is a tick and you MUST set `next_session_type=tick` at the end — do NOT run a tock or alternate. Only when `tick_queue_approved` is empty do you run a tock and resume normal tick/tock alternation.
 - Tocks alternate flagships.
 - POP shipped items from queues — do not rebuild existing projects.
 - Council is advisory: ship even if council objected (log the objection); council never blocks the drain.
