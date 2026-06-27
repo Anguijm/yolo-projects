@@ -1,10 +1,10 @@
 # Hot Cache — Active Context
-*Auto-updated 2026-06-26 00:21 UTC. Read this FIRST.*
+*Auto-updated 2026-06-27 00:00 UTC. Read this FIRST.*
 
 ## Current State
 - Portfolio: 234 total, 98 active
 - Tick queue: 79 approved, 0 pending
-- Phase 4: 293 experiments, 8 backlog
+- Phase 4: 300 experiments, 15 backlog
 - Next: tick
 
 ## Tick Queue

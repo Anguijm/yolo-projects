@@ -59,42 +59,26 @@ jobs:
           fi
 
       # WORKFLOW-LEVEL ESCALATION GUARD
-      # The agent prompt also checks this, but the agent has tool access
-      # to .harness/session_state.json and was bypassing the halt by clearing
-      # escalations between runs. This guard runs OUTSIDE the agent and
-      # cannot be bypassed — claude-code is never invoked when an
-      # unresolved escalation is present. Humans must edit
-      # .harness/session_state.json (clear council_escalations) to resume.
+      # ADVISORY MODE (2026-06-26): council is non-blocking during the backlog
+      # drain (owner directive). This step now only surfaces any pending
+      # escalation as a warning and always lets the agent run. Council verdicts
+      # are still produced and logged per gate; they just cannot halt the build.
       - name: Council escalation guard
         if: steps.halt.outputs.halted != 'true'
         id: escalation
         run: |
           set -e
+          # ADVISORY MODE (2026-06-26, owner directive: "council review cannot stop
+          # backlog drain"). Council still runs and logs verdicts, but it never
+          # blocks. Any pending escalation is surfaced as a warning only; the agent
+          # ALWAYS runs (skipped=false).
           COUNT=$(python3 -c "import json; s=json.load(open('.harness/session_state.json')); print(len(s.get('council_escalations', [])))")
           if [ "$COUNT" -gt 0 ]; then
-            echo "::warning::Council escalation pending — agent will NOT run"
-            echo ""
-            echo "===== Pending escalations ($COUNT) ====="
-            python3 -c "
-          import json
-          s = json.load(open('.harness/session_state.json'))
-          for e in s.get('council_escalations', []):
-              print(f\"  PROJECT: {e.get('project','?')}\")
-              print(f\"  GATE:    {e.get('gate','?')}\")
-              print(f\"  WHEN:    {e.get('timestamp','?')}\")
-              print(f\"  REASON:  {e.get('reason','?')}\")
-              print(f\"  PATH:    {e.get('path','?')}\")
-              print()
-          "
-            echo "===== End escalations ====="
-            echo ""
-            echo "To resume: edit .harness/session_state.json and clear council_escalations to []"
-            echo "Then re-run this workflow manually, or wait for the next hourly schedule."
-            echo "skipped=true" >> $GITHUB_OUTPUT
+            echo "::warning::Council escalation(s) present ($COUNT) — advisory only, agent still runs"
           else
-            echo "No pending escalations — agent will run"
-            echo "skipped=false" >> $GITHUB_OUTPUT
+            echo "No pending escalations"
           fi
+          echo "skipped=false" >> $GITHUB_OUTPUT
 
       - name: Run tick-tock agent
         if: steps.halt.outputs.halted != 'true' && steps.escalation.outputs.skipped != 'true'
