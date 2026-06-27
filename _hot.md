@@ -1,11 +1,11 @@
 # Hot Cache — Active Context
-*Auto-updated 2026-06-27 00:05 UTC. Read this FIRST.*
+*Auto-updated 2026-06-27 03:59 UTC. Read this FIRST.*
 
 ## Current State
-- Portfolio: 235 total, 98 active
+- Portfolio: 236 total, 98 active
 - Tick queue: 78 approved, 0 pending
 - Phase 4: 300 experiments, 15 backlog
-- Next: tock
+- Next: tick
 
 ## Tick Queue
 - [approved] eval-managed-agents: Benchmark Claude Managed Agents vs manual orchestration on a

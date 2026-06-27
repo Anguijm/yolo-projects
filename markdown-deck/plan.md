@@ -1,187 +1,87 @@
-# Plan: Inline Chart Blocks
+# Markdown Deck — Slide Sorter View (Tock plan)
 
 ## Goal
-Add `\`\`\`chart` fenced block support — bar, line, and pie charts rendered as pure inline SVGs in slides, with CSV-style data input and a theme-aware "presentation-native" aesthetic.
+Add a Slide Sorter View: a full-screen overlay grid of slide thumbnails (Shift+V) where the user can click a slide to jump to it and drag a slide to reorder the deck.
 
 ## Scope
 **In scope:**
-- Three chart types: `bar`, `line`, `pie`
-- CSV-style data (label, value pairs; optional `title:` line)
-- Pure SVG rendering, zero dependencies
-- **Signature move:** Charts inherit active deck theme colors via `getThemeColors()` — bars/lines/pies automatically use the slide accent palette; value labels rendered directly on bars/above dots/on pie slices
-- Preview/presentation parity (same `renderChart` function for both)
-- PPTX export: chart SVG → canvas → PNG (same pipeline as diagrams)
-- Stats panel: count chart blocks
-- DECK_GUIDE.md documentation update
+- New `Shift+V` keyboard shortcut to toggle a full-screen Slide Sorter overlay (and a toolbar button).
+- A responsive grid (target 4 columns on desktop, fewer when narrow) of numbered slide cards, each rendering a live `md()` thumbnail of the slide body.
+- Click a card → jump to that slide (sets `currentSlide`, re-renders preview) and close the sorter.
+- Drag a card onto another → reorder the deck, reusing the EXACT same reorder logic as the existing thumbnail-strip drag (extracted into one shared function so both paths stay identical).
+- Highlight the current slide; live re-render of the grid after a reorder.
+- Esc closes the overlay (wired into the existing Escape handler chain).
 
-**Out of scope:**
-- Multi-series charts
-- Interactive hover/tooltips
-- Axis tick customization
-- Export to CSV
+**Explicitly NOT in scope:**
+- No change to the markdown parser, PPTX/PDF/HTML export, or rendering pipeline.
+- No multi-select / bulk move, no slide deletion or duplication from the sorter.
+- No new persistence keys (reorder already persists via existing `autoSave`).
+- No touch-specific drag gestures beyond what native HTML5 DnD provides (matches existing thumbnail strip behavior).
 
 ## Approach
+Subtask 1 — **Refactor shared reorder (dependency for everything else):** Extract the body of the existing `thumbsEl` `drop` handler (lines ~3015-3046) into a reusable `reorderSlideByIndex(srcIdx, dropIdx)` that mutates the textarea, fixes `currentSlide`, re-parses, re-renders, and auto-saves. Point the existing thumbnail drop handler at it (no behavior change). This guarantees the sorter and the strip reorder identically.
 
-### Subtask 1: CSS
-Add `.slide-chart` wrapper style matching `.slide-diagram`. Add `aria-label` support note in SVG generation.
+Subtask 2 — **Markup + CSS:** Add a `#sorter-modal` full-screen overlay (modeled on `#snapshots-modal` / outline panel conventions: header with title + count + close, scrollable body). Add a `.sorter-grid` (CSS grid, `repeat(auto-fill, minmax(...))` → ~4 cols at desktop width) and `.sorter-card` styles reusing the dark theme tokens. Reuse the `.sn-thumb` look for the per-card preview.
 
-### Subtask 2: `parseChartData(csvData)` + `renderChart(type, csvData)` + helpers
-**`parseChartData(csvData)`:**
-1. Lines starting with `title:` → extract title
-2. Remaining non-empty lines → split on first `,` → (label, parseFloat(value)) pairs
-3. Invalid (NaN value, missing comma) → count as `skipped`
-4. **Cap at 20 points and record `truncated` count** (per UI PLAN-escalation 2026-04-24): if `points.length > 20`, set `truncated = points.length - 20`, slice to 20, and `renderChart` displays a visible warning "20-point limit — N additional points hidden" so the truncation is never silent
-5. Returns `{ title, points: [{label, value}], skipped, truncated }`
+Subtask 3 — **Render + open/close (depends on 1, 2):** `renderSorter()` builds cards from `slides[]`, each `draggable`, with `data-idx`, a number badge, an `md()` preview, active-state highlight, and an `onclick="goSlide(i); closeSorter()"`. `openSorter()/closeSorter()/toggleSorter()` mirror the outline panel pattern. Drag handlers on the grid container call `reorderSlideByIndex` then `renderSorter()` to refresh in place.
 
-**Labels** truncated to **16 chars** (bumped from 8 per UI PLAN-escalation 2026-04-24 — 8 was aggressive for typical category names like "Q1 Revenue") with `…` appended if longer. 16 chars covers the vast majority of real labels (months, quarters, product names) while still preventing overflow.
+Subtask 4 — **Wire shortcuts (depends on 3):** Add `Shift+V` to the main keydown handler (guarded by `!presenting` and not typing in the textarea) and an Esc branch to close the sorter. Add a toolbar button.
 
-**`renderChart(type, csvData)`:**
-- Guard: 0 points → return `[chart: no data]` div
-- Wraps SVG in `<div class="slide-chart" role="img" aria-label="[type] chart: [title]">`
-- If `skipped > 0`, appends a `<div class="slide-chart-warn">[N line(s) skipped — invalid format]</div>` below SVG (static string, no user input)
-- Unknown chart type warning: `⚠ unknown chart type "` + **`esc(type)`** + `" — rendered as bar"` — the `type` string (from the fenced-block language tag) is passed through `esc()` before insertion into the warning div
-- Dispatches to bar/line/pie renderer
-
-**Theme integration (signature move):**
-- Calls `getThemeColors()` (already defined in app) to get the current theme
-- Derives a 6-color palette from theme: `[tc.accent, tc.heading, tc.primary, '#f59e0b', '#f472b6', '#a78bfa']` where `tc.accent` is the theme's main accent
-- Bar fills, line strokes, pie segments all use this palette → charts look native to the current slide theme
-
-**Bar chart SVG (viewBox 480×260):** (height bumped 220→260 per UI PLAN-escalation 2026-04-24 to accommodate the warning row + larger fonts)
-- Plot area: left margin 44px (y-axis), bottom margin 44px (x-axis), top 28px (title), right 8px, **bottom-of-plot baseline at y=`plotTop + plotH * (max / (max - min))`** when negative values are present
-- **Negative-value rendering** (per BUGS PLAN-escalation 2026-04-24, replaces clamping): if any point has `value < 0`, the y-axis range is `[min, max]` (not `[0, max]`) and bars below the baseline render extending downward. The baseline (zero line) is drawn as a `stroke: #444` reference line. If all values are >= 0, baseline = 0 (existing behavior). No silent data transformation.
-- **Degenerate-range guard** (per BUGS PLAN-escalation #2 2026-04-25): when `max - min == 0` (all data points identical, e.g. `[-5, -5, -5]` or `[7, 7, 7]`), the formula `plotH * (max / (max - min))` would divide by zero. Guard: if `max === min`, render a single horizontal line of bars/dots at `y = plotTop + plotH / 2` (vertical center of plot area), with the baseline reference line drawn at the same y. Y-axis labels show the constant value once; no grid lines drawn for this case. Visually communicates "all values equal at N" without a NaN crash.
-- Bar width: `min(36, (plotW / n) * 0.65)`, centered in each slot
-- **Rounded bar caps:** `rx="3" ry="3"` on rect elements (top-rounded for positive bars, bottom-rounded for negative bars)
-- **Value labels:** rendered above each positive bar / below each negative bar (right-aligned to bar center, **11px font** [bumped from 8px], theme accent color)
-- Y-axis: 4 grid lines with labels (max, 75%, 50%, 25%, 0% — extended to include negatives if `min < 0`); `stroke: #1a1a1a`
-- X-axis: labels **16-char max** with `…`; rotate `-35°` when >5 items; **`font-size: 11px`** [bumped from 8px]; anchored at bar center
-- Title: centered, **13px** [bumped from 10px], theme heading color
-- **Truncation warning row** (per UI PLAN-escalation 2026-04-24): if `parseChartData` returned `truncated > 0`, render a small text row below the chart: `"⚠ 20-point limit — {truncated} additional points hidden"`, 10px, theme warning color
-- All text via `esc()` before SVG insertion; `aria-label` on wrapping div
-
-**Line chart SVG (viewBox 480×260):** (same height bump)
-- Same margins as bar
-- **Negative-value rendering**: same baseline + range logic as bar chart. Line crosses below baseline naturally when values go negative.
-- Filled area: polygon from points + baseline (zero line, not bottom edge), theme accent color at 15% opacity
-- Polyline: stroke = theme accent, stroke-width 2, no fill
-- Dots: `r=3.5`, fill = theme accent
-- **Value labels:** above each dot for positive values / below for negatives, **`font-size: 11px`** [bumped from 8px], theme heading color
-- X/Y axes identical to bar
-- Same truncation warning row when `truncated > 0`
-
-**Pie chart SVG (viewBox 480×260):** (height bumped 220→260 to match bar/line for layout consistency)
-- Circle center: (160, 130), radius 95
-- If all values 0: gray circle + centered `[no data]` text; legend shows all items with "0%"
-- Segments: SVG arc paths from cumulative angles; theme palette rotation; **last segment angle = 360° minus sum of prior angles** (eliminates float drift gap/overlap; standard technique)
-- **Value labels:** percentage text inside/near segment center (when segment angle > 15°; else skipped)
-- **Legend behavior — STANDARDIZED** (per UI PLAN-escalation #2 2026-04-25, resolves the prior contradiction with Subtask 8 item 10): show **top 5 segments by value**, then aggregate the remaining segments into a single **`Other (N more)` wedge** + legend entry. Legend total is always ≤ 6 entries — no `+N more` fly-out, no inconsistent rendering between SVG and docs.
-- Legend layout: right side x=260, y starts 30; colored square 10×10 + label (**16-char max** with `…`, bumped from 8 per UI PLAN-escalation #2) + `%` value; **font-size 11px** [bumped from 8px to match bar/line label fonts]
-- Title: x=160 centered, top, **13px** [bumped from 10px to match bar/line]
-
-### Subtask 3: Wire into `md()`
-Widen fenced block regex from `` `(\w*)` `` to `([\w ]*)` so `chart bar` is captured. Add `else if (lang.trim().split(' ')[0].toLowerCase() === 'chart')` branch calling `renderChart(lang.trim().split(' ')[1] || 'bar', code)`.
-
-### Subtask 4: `parseBodyLines()` update
-Add chart block detection before generic `` ``` `` branch. Capture subtype, collect lines, push `{ type: 'chart', chartType, text }`.
-
-### Subtask 5: PPTX export
-Add `item.type === 'chart'` branch in PPTX body generator parallel to diagram branch: call `renderChart`, extract SVG content, register as rasterizable image.
-
-### Subtask 6: Stats panel
-Add chart counter in extraction (mirror diagram pattern). Add "Charts" card in overview. Add `chart×N` badge in per-slide breakdown.
-
-### Subtask 7: `complexContent()` update
-Add `.slide-chart` to selector so autoFitContent fallback triggers.
-
-### Subtask 8: DECK_GUIDE.md documentation
-Add a "Chart Blocks" section after the Diagrams section. Per GUIDE PLAN-escalation 2026-04-24 the section MUST explicitly document each behavior — no "see code" hand-waving. Required coverage:
-
-1. **Syntax** — fenced block: ` ```chart bar `, ` ```chart line `, ` ```chart pie ` followed by CSV body
-2. **Optional title line** — `title: My Chart` (must be the first non-empty line) with example
-3. **Data format** — `Label, Value` per line, comma split on FIRST comma only; labels must not contain commas (no escape mechanism exists)
-4. **Label truncation** — labels longer than 16 chars are truncated with `…`; document the exact limit and that this is to prevent layout overflow
-5. **20-point cap with warning** — if more than 20 data points, the first 20 render and a `⚠ 20-point limit — N additional points hidden` warning row appears below the chart. Not silent.
-6. **Negative value rendering** — bar/line charts render negatives properly (bars extend below the baseline; line points dip below) when ANY point is negative. The baseline (zero) is drawn as a reference line. No clamping.
-7. **`[chart: no data]` placeholder** — empty or all-invalid CSV body shows this placeholder div instead of an empty SVG, so authors notice and fix
-8. **Skipped invalid lines** — lines with NaN values or missing comma are skipped during parse; if any lines were skipped, a visible `[N line(s) skipped — invalid format]` warning div is rendered below the chart so authors can spot and fix bad data
-9. **Unknown chart type** — `chart foo` with no recognized type (bar/line/pie) falls back to `bar` with a **visible warning row below the chart**: `⚠ unknown chart type "{requested}" — rendered as bar`. Same `slide-chart-warn` style as the truncation/skipped-lines warnings; never silent. Console warning still emitted for debugging.
-10. **Pie chart `+N more` legend** — pie charts with > 6 slices show top 5 + an aggregate "Other (N more)" wedge so the legend stays readable
-11. **Theme integration** — colors pull from current theme tokens (heading color for titles, accent for bars/lines/value-labels, warn color for the 20-point warning) so charts always match the deck's palette
-12. **Inline `<details>` quick reference** (per LESSONS advisory PLAN-escalation 2026-04-24, satisfies the port-ref `<details>` pattern KEEP rule for tools accepting structured input): in the editor's chart-block help tooltip / panel, include a `<details><summary>SUPPORTED CHART FORMATS</summary>` block listing the syntax, type names, optional title, and CSV format with one example for each chart type. Mirrors the port-ref bulk-annotate help pattern.
-
-The section should include 3 worked examples (bar / line / pie) with fenced chart blocks AND their rendered output described in prose. Total addition: ~80 lines to DECK_GUIDE.md.
+Subtask 5 — **Docs:** Update `deck_roadmap.md` (check the item, add session-log row) and the in-file help/guide text.
 
 ## File Layout
-- `markdown-deck/index.html` (only file modified)
-  - CSS block (~line 94): `.slide-chart`, `.slide-chart-warn` styles
-  - Before `renderMath` (~line 838): `parseChartData()` + `renderChart()` (~90 LOC)
-  - `md()` code block regex (~line 929): widen regex; add chart branch
-  - `complexContent()` (~line 1222): add `.slide-chart`
-  - `parseBodyLines()` (~line 1947): chart fence branch
-  - PPTX body generator (~line 2125): chart image branch
-  - Stats extraction (~line 3709): chart counter
-  - Stats display (~line 3744–3770): chart card + badge
-  - DECK_GUIDE.md section (end of file, after diagrams section)
+- `markdown-deck/index.html` (single file, all changes):
+  - CSS block (~line 260, before `</style>`): add `#sorter-modal`, `.sorter-grid`, `.sorter-card`, `.sorter-thumb`, badge/active styles.
+  - Body markup (~line 668, after `#snapshots-modal`): add `#sorter-modal` overlay element.
+  - Toolbar (~line 451): add `<button onclick="toggleSorter()">Sorter</button>`.
+  - Main keydown handler (~line 1849-1879): add `Shift+V` toggle + Esc-close branch (~line 1856).
+  - Reorder section (~line 2990-3053): extract `reorderSlideByIndex`; repoint existing drop handler.
+  - New JS section after reorder (~line 3053): `renderSorter`, `openSorter`, `closeSorter`, `toggleSorter`, sorter drag handlers.
+- `markdown-deck/deck_roadmap.md`: check Slide Sorter item; append session-log row.
+- `markdown-deck/plan.md`: this file.
 
 ## Function Map
-- `markdown-deck/index.html`
-  - **New:** `parseChartData(csvData)` → `{ title, points, skipped }`
-  - **New:** `renderChart(type, csvData)` → SVG HTML string in `.slide-chart` div
-  - **Modified:** `md()` — regex widened; chart dispatch added
-  - **Modified:** `complexContent()` — `.slide-chart` added
-  - **Modified:** `parseBodyLines()` — chart fence detection added
-  - **Modified:** PPTX body generator — chart → SVG → PNG branch
-  - **Modified:** stats extraction — chart counter
-  - **Modified:** stats display — chart card + badge
+- `markdown-deck/index.html`:
+  - **`reorderSlideByIndex(srcIdx, dropIdx)`** — NEW. Extracted shared reorder: splits `inputEl.value` on `/\n---\n/`, moves the segment, fixes `currentSlide`, `currentFragment=0`, `parseSlides()`, `renderPreview()`, `autoSave()`. Returns early on invalid/no-op indices.
+  - **`thumbsEl 'drop'` handler** — MODIFIED. Now computes `dropIdx`/`dragSrcIdx` and delegates to `reorderSlideByIndex`.
+  - **`renderSorter()`** — NEW. Rebuilds `#sorter-grid` innerHTML from `slides[]`.
+  - **`openSorter()`** — NEW. `renderSorter()` + add `.open`.
+  - **`closeSorter()`** — NEW. Remove `.open`.
+  - **`window.toggleSorter`** — NEW. Open/close based on current state.
+  - **Sorter `dragstart`/`dragover`/`dragleave`/`drop`/`dragend` handlers** — NEW, on the grid container; `drop` calls `reorderSlideByIndex(...)` then `renderSorter()`.
+  - **main keydown handler** — MODIFIED. Adds `Shift+V` and Esc-for-sorter branches.
 
 ## Security
-- Labels run through `esc()` before SVG text insertion
-- Values parsed as `parseFloat`; NaN lines skipped
-- No eval; SVG built by string concatenation with escaped values
-- Theme colors from `getThemeColors()` are internal CSS values (already trusted)
-- No external resources, no XHR; CSP unchanged (CONSTRAINTS.md)
-- `aria-label` text uses escaped title/type strings
-- **Warning div content:** `{requested}` chart-type string in `slide-chart-warn` divs is passed through `esc()` before HTML insertion; static warning strings (skipped-lines count, truncation count) are numeric/fixed and need no escaping
+- Threat model unchanged: local-only, single-file, user authors their own markdown (see `CONSTRAINTS.md`). The sorter introduces NO new external content source or injection vector.
+- Per-card previews use the same `md() + innerHTML` rendering pattern already used by the thumbnail strip, preview, presentation mode, and snapshots modal (CONSTRAINTS Constraint 2 — app-wide baseline, not a new surface). The number badge and any titles are escaped via the existing `esc()` where text is interpolated.
+- No new storage keys; reorder persists through the existing `autoSave` localStorage path (CONSTRAINTS Constraint 3). CSP/`unsafe-inline` unchanged (CONSTRAINTS Constraint 1).
 
 ## UI
-- Charts render inline at fenced block position (same as diagrams)
-- Theme-aware: colors auto-match the active slide theme (key differentiator)
-- Value labels directly on bars/points/slices — no need to read axes for simple comparisons
-- Truncated labels show `…` suffix (e.g., `Category…`)
-- Skipped lines → small warning note below chart: `[N line(s) skipped — invalid format]`
-- `aria-label` on chart container for accessibility
-- `[chart: no data]` placeholder when data is missing/all invalid
-- Stats modal shows "Charts" count card
+- Toolbar "Sorter" button + `Shift+V` toggle. Full-screen dark overlay above the editor.
+- Header: title "Slide Sorter", live "N slides" count, × close button.
+- Grid of cards (~4 cols desktop, collapses on narrow widths via `auto-fill minmax`). Each card: number badge (top-left), live slide preview, green border on the current slide, `cursor: pointer`.
+- Drag affordance reuses the strip's `dragging`/`drag-over` visual language (dashed accent border on the drop target, reduced opacity on the dragged card).
+- **Empty state:** if `slides.length === 0`, show a centered muted "No slides yet" message instead of an empty grid.
+- **Loading state:** N/A — synchronous, no async fetch.
+- **Error state:** invalid drag (drop on self / out of range) is a silent no-op via `reorderSlideByIndex` guards.
 
 ## Guide
-- Syntax: ` ```chart bar `, ` ```chart line `, ` ```chart pie `
-- Optional first line: `title: My Title`
-- Data lines: `Label, Value` (numeric value required)
-- Labels > 16 chars truncated with `…` in display
-- Unknown type → bar fallback
-- Invalid lines skipped; count shown below chart
-- Charts automatically use the current deck theme palette
+- Toolbar button label: `Sorter`, title `Slide Sorter — grid overview, click to jump, drag to reorder (Shift+V)`.
+- Header copy: `Slide Sorter`. Empty copy: `No slides yet — add content in the editor.`
+- Append a "Slide Sorter View" section to the in-file DECK help text describing Shift+V, click-to-jump, drag-to-reorder, Esc-to-close.
 
 ## Edge Cases
-- 0 valid points → `[chart: no data]` placeholder
-- 1 data point → single bar / single dot / full-circle pie
-- All values 0 → bars/line at baseline; pie shows gray circle + `[no data]`; legend shows 0% for all entries
-- Negative values → rendered below baseline (bars extend down, line dips; zero line drawn as reference)
-- Labels > 16 chars → truncated with `…`
-- Unknown chart type → bar fallback + visible warning row (`⚠ unknown chart type "{requested}" — rendered as bar`); same `slide-chart-warn` style as truncation/skipped warnings
-- > 20 data points → first 20 only
-- Missing comma → line skipped, count noted in warning
-- Value is NaN → line skipped, count noted in warning
-- Pie segment angle ≤ 15° → value label omitted (too small to fit)
-- Pie segments > 6 → top 5 by value shown + aggregate `Other (N more)` wedge (matches Subtask 2 + Subtask 8 standardized behavior)
+- Empty deck (0 slides) → empty-state message, no grid, no crash.
+- Single slide → grid of 1; drag is a no-op (guarded).
+- Drop on self or out-of-range index → no-op (existing reorder guards preserved).
+- Reorder when the moved slide is the current slide → `currentSlide` follows the move (existing index-fix logic reused).
+- Opening the sorter while presenting → guarded: `Shift+V` ignored when `presenting`.
+- Typing `V` in the textarea → guarded by `document.activeElement !== inputEl`.
+- Very long decks → grid body scrolls (`overflow-y: auto`), thumbnails are size-capped.
 
 ## Test Strategy
-- `test_project.py markdown-deck` — headless browser load, no JS errors
-- Visual: all 3 chart types with sample data → SVG renders in preview
-- Visual: presentation mode → chart visible at correct scale
-- Visual: change theme → chart colors update on re-render
-- Edge: empty chart block → `[chart: no data]`
-- Edge: invalid lines → warning shown
-- Stats panel: "Charts" card increments with chart blocks
-- PPTX export: chart appears as embedded PNG
+- `python3 test_project.py markdown-deck` — structural/HTML validity must PASS.
+- `python3 eval_bugs.py markdown-deck` — no new matches.
+- `python3 security_scan.py markdown-deck` — no new CRITICAL/HIGH.
+- Manual code-trace verification: confirm `reorderSlideByIndex` is called by both paths with identical args; confirm Shift+V toggles the overlay; confirm grid card click routes through `goSlide`.
+- Regression: existing thumbnail-strip drag reorder still works (same shared function).

@@ -89,7 +89,7 @@ Markdown Deck is a graduated YOLO project operating under Flagship rules: multi-
 - [x] Deck Statistics Panel — word counts, estimated talk time, slide breakdown, code/image counts
 - [x] Named Snapshots / Version History — Ctrl+Shift+S, 20 checkpoints, preview + restore (shipped 2026-04-13, commit 2bbcaab)
 - [x] Inline Chart Blocks — ```chart bar/line/pie with CSV data, pure SVG rendering
-- [ ] Slide Sorter View — Shift+V, 4-column grid, click to jump, drag to reorder
+- [x] Slide Sorter View — Shift+V, responsive grid, click to jump, drag to reorder (shipped 2026-06-27)
 - [ ] Keyboard Shortcut Reference — ? key, searchable modal, all shortcuts organized by category
 - [ ] Handout Print Mode — 2 or 4 slides per page with speaker notes, @media print CSS
 
@@ -175,3 +175,4 @@ These are features complex enough to prototype as standalone YOLO single-session
 | 2026-04-06 | Tock | Per-slide talk time budget: SVG ring (bottom-left), green→amber→red drain, <!-- time: 45s/2m --> per-slide override, Web Audio chime on overtime, T key toggle, localStorage persistence |
 | 2026-04-06 | Tock | Deck Statistics Panel: Stats button → modal with 8-card overview (slides, words, talk time @130wpm, notes slides, code blocks, images, tables, diagrams) + per-slide breakdown table with element badges |
 | 2026-04-25 | Tock | Inline Chart Blocks: ```chart bar/line/pie fenced blocks, pure SVG rendering, theme-aware colors (_safeHex sanitizer), CSV data input, edge cases (negatives filtered for pie, truncation warnings, unknown type fallback), PPTX export via SVG→PNG, default chart example slide, ai-prompt-content CRITICAL rule |
+| 2026-06-27 | Tock | Slide Sorter View: Shift+V full-screen responsive grid, click-to-jump, drag-to-reorder via shared reorderSlideByIndex (also repoints thumbnail-strip drop), markdown-native content badges (code/table/img/notes/chart/diagram), active-slide ring, empty-state. 6/7 council APPROVE at plan; COOL OBJECT (advisory) addressed with content-badge twist |

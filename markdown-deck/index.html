@@ -258,6 +258,31 @@ textarea:focus { outline: none; }
 /* Snapshot Toast */
 #snap-toast { display: none; position: fixed; top: 1rem; left: 50%; transform: translateX(-50%); background: #1a1a1a; border: 1px solid #333; color: #ccc; font-size: 0.55rem; padding: 0.35rem 0.85rem; border-radius: 999px; z-index: 4000; white-space: nowrap; }
 #snap-toast.visible { display: block; }
+/* Slide Sorter View (Shift+V) — full-screen grid: click to jump, drag to reorder */
+#sorter-modal { display: none; position: fixed; inset: 0; background: #080808; z-index: 3500; flex-direction: column; }
+#sorter-modal.open { display: flex; }
+.sorter-header { padding: 0.6rem 1.25rem; border-bottom: 1px solid #1a1a1a; display: flex; align-items: center; gap: 0.6rem; flex-shrink: 0; }
+.sorter-header h3 { font-size: 0.55rem; color: #555; letter-spacing: 0.2em; text-transform: uppercase; flex: 1; font-weight: 300; }
+.sorter-count { font-size: 0.6rem; color: #888; }
+.sorter-hint { font-size: 0.55rem; color: #444; }
+.sorter-close { background: none; border: none; color: #555; cursor: pointer; font-size: 1.1rem; padding: 0 4px; line-height: 1; }
+.sorter-close:hover { color: #ccc; }
+.sorter-body { flex: 1; overflow-y: auto; padding: 1rem 1.25rem; }
+.sorter-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 0.85rem; }
+.sorter-empty { color: #444; font-size: 0.65rem; text-align: center; padding: 3rem 0; }
+.sorter-card { position: relative; background: #111; border: 1px solid #222; border-radius: 5px; cursor: pointer; overflow: hidden; transition: transform 0.12s ease, border-color 0.12s ease, box-shadow 0.12s ease; }
+.sorter-card:hover { border-color: #444; transform: translateY(-2px); box-shadow: 0 4px 14px rgba(0,0,0,0.5); }
+.sorter-card.active { border-color: #4ade80; box-shadow: 0 0 0 1px #4ade80 inset; }
+.sorter-card:focus { outline: 2px solid #58a6ff; outline-offset: 1px; }
+.sorter-card:focus:not(:focus-visible) { outline: none; }
+.sorter-card.dragging { opacity: 0.3; }
+.sorter-card.drag-over { border-color: #58a6ff; border-style: dashed; }
+.sorter-num { position: absolute; top: 6px; left: 6px; z-index: 2; background: rgba(0,0,0,0.65); color: #999; font-size: 0.55rem; padding: 1px 6px; border-radius: 999px; }
+.sorter-card.active .sorter-num { color: #4ade80; }
+.sorter-badges { position: absolute; top: 6px; right: 6px; z-index: 2; display: flex; gap: 3px; }
+.sorter-badge { background: rgba(0,0,0,0.65); font-size: 0.5rem; padding: 1px 4px; border-radius: 3px; color: #888; }
+.sorter-thumb { height: 112px; padding: 8px 10px; overflow: hidden; font-size: 0.4rem; line-height: 1.35; color: #bbb; pointer-events: none; }
+.sorter-thumb * { pointer-events: none; }
 </style>
 </head>
 <body>
@@ -450,6 +475,7 @@ These are speaker notes. They won't appear in the presentation but are preserved
       <button onclick="toggleOutline()" title="Toggle slide outline panel (O)">Outline</button>
       <button onclick="openStatsPanel()" title="Deck statistics (word count, talk time, breakdown)">Stats</button>
       <button onclick="openSnapshotsPanel()" title="Named Snapshots — Ctrl+Shift+S to save checkpoint">Snapshots</button>
+      <button onclick="toggleSorter()" title="Slide Sorter — grid overview, click to jump, drag to reorder (Shift+V)">Sorter</button>
       <button onclick="openBudgetModal()" title="Per-slide talk time budget">Timer</button>
       <button onclick="openKioskConfig()" title="Kiosk auto-advance mode">Kiosk</button>
       <button onclick="copyAiPrompt()" title="Copy the slide-formatting guide as an AI prompt — paste into ChatGPT/Claude to generate a deck">AI Prompt</button>
@@ -667,6 +693,19 @@ border-radius: 8px</textarea>
   </div>
 </div>
 <div id="snap-toast"></div>
+
+<!-- Slide Sorter View -->
+<div id="sorter-modal">
+  <div class="sorter-header">
+    <h3>Slide Sorter</h3>
+    <span class="sorter-count" id="sorter-count">0 slides</span>
+    <span class="sorter-hint">click to jump · drag to reorder · Esc to close</span>
+    <button class="sorter-close" onclick="closeSorter()" title="Close (Esc)">&times;</button>
+  </div>
+  <div class="sorter-body">
+    <div id="sorter-grid" class="sorter-grid"></div>
+  </div>
+</div>
 
 <script>
 const inputEl = document.getElementById('input');
@@ -1854,6 +1893,7 @@ document.addEventListener('keydown', e => {
     if (document.getElementById('kiosk-modal').classList.contains('open')) { closeKioskModal(); return; }
     if (document.getElementById('budget-modal').classList.contains('open')) { closeBudgetModal(); return; }
     if (document.getElementById('snapshots-modal').classList.contains('open')) { closeSnapshotsPanel(); return; }
+    if (document.getElementById('sorter-modal').classList.contains('open')) { closeSorter(); return; }
     if (_kioskTimer) { stopKiosk(); stopPresent(); return; }
     stopPresent(); return;
   }
@@ -1869,6 +1909,7 @@ document.addEventListener('keydown', e => {
   if ((e.ctrlKey || e.metaKey) && e.key === 'f' && !presenting) { e.preventDefault(); openSearch(); return; }
   if ((e.ctrlKey || e.metaKey) && e.key === 'h' && !presenting) { e.preventDefault(); openFindReplace(); return; }
   if (e.key === 'o' && !presenting && document.activeElement !== inputEl) { e.preventDefault(); toggleOutline(); return; }
+  if ((e.key === 'V' || e.key === 'v') && e.shiftKey && !presenting && document.activeElement !== inputEl) { e.preventDefault(); toggleSorter(); return; }
   if (e.key === 'f' && !presenting && document.activeElement !== inputEl) { startPresent(); return; }
   if (e.key === 'ArrowRight' || e.key === ' ') {
     if (presenting || document.activeElement !== inputEl) { e.preventDefault(); nextSlide(); }
@@ -2990,6 +3031,36 @@ window.exportPDF = function() {
 // ============ SLIDE REORDER (drag thumbnails) ============
 var dragSrcIdx = -1;
 
+// Shared reorder used by both the thumbnail strip and the Slide Sorter grid.
+// Moves slide segment srcIdx to dropIdx in the textarea, keeps currentSlide
+// pointing at the same logical slide, re-parses, re-renders, and auto-saves.
+// No-op (returns false) on invalid or identical indices.
+function reorderSlideByIndex(srcIdx, dropIdx) {
+  if (srcIdx < 0 || dropIdx < 0 || srcIdx === dropIdx) return false;
+  var raw = inputEl.value;
+  var parts = raw.split(/\n---\n/);
+  if (srcIdx >= parts.length || dropIdx >= parts.length) return false;
+
+  var moved = parts.splice(srcIdx, 1)[0];
+  parts.splice(dropIdx, 0, moved);
+  inputEl.value = parts.join('\n---\n');
+
+  // Keep currentSlide pointing at the same logical slide after the move.
+  if (currentSlide === srcIdx) {
+    currentSlide = dropIdx;
+  } else if (srcIdx < currentSlide && dropIdx >= currentSlide) {
+    currentSlide--;
+  } else if (srcIdx > currentSlide && dropIdx <= currentSlide) {
+    currentSlide++;
+  }
+
+  currentFragment = 0;
+  parseSlides();
+  renderPreview();
+  autoSave();
+  return true;
+}
+
 thumbsEl.addEventListener('dragstart', function(e) {
   var thumb = e.target.closest('.thumb');
   if (!thumb) return;
@@ -3017,31 +3088,7 @@ thumbsEl.addEventListener('drop', function(e) {
   var thumb = e.target.closest('.thumb');
   if (!thumb) return;
   var dropIdx = parseInt(thumb.dataset.idx, 10);
-  if (dragSrcIdx < 0 || dragSrcIdx === dropIdx) return;
-
-  // Reorder slides in the textarea
-  var raw = inputEl.value;
-  var parts = raw.split(/\n---\n/);
-  if (dragSrcIdx >= parts.length || dropIdx >= parts.length) return;
-
-  // Remove dragged slide and insert at drop position
-  var moved = parts.splice(dragSrcIdx, 1)[0];
-  parts.splice(dropIdx, 0, moved);
-  inputEl.value = parts.join('\n---\n');
-
-  // Update current slide index
-  if (currentSlide === dragSrcIdx) {
-    currentSlide = dropIdx;
-  } else if (dragSrcIdx < currentSlide && dropIdx >= currentSlide) {
-    currentSlide--;
-  } else if (dragSrcIdx > currentSlide && dropIdx <= currentSlide) {
-    currentSlide++;
-  }
-
-  currentFragment = 0;
-  parseSlides();
-  renderPreview();
-  autoSave();
+  reorderSlideByIndex(dragSrcIdx, dropIdx);
   dragSrcIdx = -1;
 });
 
@@ -3050,6 +3097,113 @@ thumbsEl.addEventListener('dragend', function() {
     t.classList.remove('dragging', 'drag-over');
   });
   dragSrcIdx = -1;
+});
+
+// ============ SLIDE SORTER VIEW (Shift+V) ============
+// Full-screen grid overview of all slides. Click a card to jump to that slide;
+// drag a card onto another to reorder (reuses reorderSlideByIndex above).
+var sorterModalEl = document.getElementById('sorter-modal');
+var sorterGridEl = document.getElementById('sorter-grid');
+var sorterCountEl = document.getElementById('sorter-count');
+var sorterDragIdx = -1;
+
+// Cheap markdown-native content badges so the grid reads the SOURCE, not just
+// a generic thumbnail — a markdown-deck-specific twist on the standard sorter.
+function _sorterBadges(src) {
+  var b = [];
+  if (/```chart\b/.test(src)) b.push('chart');
+  else if (/```diagram\b/.test(src)) b.push('diagram');
+  else if (/```/.test(src)) b.push('code');
+  if (/^\s*\|.*\|/m.test(src)) b.push('table');
+  if (/!\[[^\]]*\]\(/.test(src)) b.push('img');
+  if (/(^|\n)\?\?\?/.test(src)) b.push('notes');
+  return b;
+}
+
+function renderSorter() {
+  var grid = sorterGridEl;
+  if (!grid) return;
+  if (sorterCountEl) sorterCountEl.textContent = slides.length + (slides.length === 1 ? ' slide' : ' slides');
+  if (!slides.length) {
+    grid.innerHTML = '<div class="sorter-empty">No slides yet — add content in the editor.</div>';
+    return;
+  }
+  var html = '';
+  for (var i = 0; i < slides.length; i++) {
+    var badges = _sorterBadges(slides[i]).map(function(b) {
+      return '<span class="sorter-badge">' + esc(b) + '</span>';
+    }).join('');
+    html += '<div class="sorter-card' + (i === currentSlide ? ' active' : '') + '" draggable="true" data-idx="' + i + '"'
+      + ' role="button" tabindex="0" aria-label="Go to slide ' + (i + 1) + '"'
+      + ' onclick="goSlide(' + i + ');closeSorter()">'
+      + '<span class="sorter-num">' + (i + 1) + '</span>'
+      + '<div class="sorter-badges">' + badges + '</div>'
+      + '<div class="sorter-thumb">' + md(slides[i]) + '</div>'
+      + '</div>';
+  }
+  grid.innerHTML = html;
+}
+
+window.openSorter = function() {
+  renderSorter();
+  sorterModalEl.classList.add('open');
+};
+
+window.closeSorter = function() {
+  sorterModalEl.classList.remove('open');
+};
+
+window.toggleSorter = function() {
+  if (sorterModalEl.classList.contains('open')) { closeSorter(); } else { openSorter(); }
+};
+
+// Keyboard activation for focusable cards (Enter / Space) — accessibility parity
+// with the click handler so keyboard-only users can jump to a slide.
+sorterGridEl.addEventListener('keydown', function(e) {
+  if (e.key !== 'Enter' && e.key !== ' ' && e.key !== 'Spacebar') return;
+  var card = e.target.closest('.sorter-card');
+  if (!card) return;
+  e.preventDefault();
+  var idx = parseInt(card.dataset.idx, 10);
+  if (idx >= 0) { goSlide(idx); closeSorter(); }
+});
+
+sorterGridEl.addEventListener('dragstart', function(e) {
+  var card = e.target.closest('.sorter-card');
+  if (!card) return;
+  sorterDragIdx = parseInt(card.dataset.idx, 10);
+  card.classList.add('dragging');
+  e.dataTransfer.effectAllowed = 'move';
+});
+
+sorterGridEl.addEventListener('dragover', function(e) {
+  e.preventDefault();
+  e.dataTransfer.dropEffect = 'move';
+  var card = e.target.closest('.sorter-card');
+  sorterGridEl.querySelectorAll('.sorter-card').forEach(function(c) { c.classList.remove('drag-over'); });
+  if (card) card.classList.add('drag-over');
+});
+
+sorterGridEl.addEventListener('dragleave', function(e) {
+  var card = e.target.closest('.sorter-card');
+  if (card) card.classList.remove('drag-over');
+});
+
+sorterGridEl.addEventListener('drop', function(e) {
+  e.preventDefault();
+  var card = e.target.closest('.sorter-card');
+  if (card) {
+    var dropIdx = parseInt(card.dataset.idx, 10);
+    if (reorderSlideByIndex(sorterDragIdx, dropIdx)) renderSorter();
+  }
+  sorterDragIdx = -1;
+});
+
+sorterGridEl.addEventListener('dragend', function() {
+  sorterGridEl.querySelectorAll('.sorter-card').forEach(function(c) {
+    c.classList.remove('dragging', 'drag-over');
+  });
+  sorterDragIdx = -1;
 });
 
 // ============ PRESENTER VIEW ============
@@ -4996,6 +5150,18 @@ Drag and drop thumbnails in the bottom strip to reorder slides. The markdown sou
 - The active slide follows the move
 - The textarea content is rewritten with the new slide order
 - Auto-saves after every reorder
+
+---
+
+## Slide Sorter View
+
+Press **Shift+V** (or click **Sorter** in the toolbar) to open a full-screen grid overview of every slide.
+
+- Each card shows the slide number, a live preview, and content badges (code, table, img, notes, chart, diagram) read straight from your markdown source
+- **Click** a card to jump to that slide and close the sorter
+- **Drag** a card onto another to reorder the deck — uses the same reorder logic as the thumbnail strip, so the markdown source updates and auto-saves
+- The current slide is highlighted with a green ring
+- Press **Esc** (or click ×) to close
 
 ---
 
