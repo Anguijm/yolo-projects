@@ -12,26 +12,15 @@ Therefore:
 - Run every check (smoke test, `test_project.py`, app verification) as a **blocking foreground command**, capture its output, and act on it immediately in this same turn.
 - The build is **only complete after `git push origin main` succeeds.** Do not end your turn before that. If you cannot finish (e.g. genuine blocker), follow the escalation path — do not silently "wait".
 
-## ESCALATION HALT (HARD RULE — NO EXCEPTIONS)
+## COUNCIL IS ADVISORY — never blocks the drain (HARD RULE)
 
-The GitHub Actions workflow has a separate guard that prevents this prompt from running at all when `session_state.json.council_escalations` is non-empty. By the time you read this, that guard has already passed — meaning either there are no escalations, or someone is running you manually for diagnostic purposes.
+Per owner directive (2026-06-26): **council review cannot stop the backlog drain.** Council still runs at each gate and its verdicts are logged for the record, but it has **no blocking power**.
 
-**If you find that `session_state.json.council_escalations` has any entries while you are running:**
-- STOP immediately. Do not build. Do not run council. Do not modify any files.
-- Commit nothing. Push nothing.
-- Exit 0.
-
-**You are FORBIDDEN from doing the following under any circumstances:**
-1. Removing entries from `council_escalations` in `session_state.json`
-2. Deleting `<project>/COUNCIL_ESCALATION.md`
-3. Deleting `<project>/council_*.json` files
-4. Editing `resume_instructions` to remove or downgrade an escalation
-5. "Auto-fixing" the issue described in an escalation and continuing
-6. Treating the escalation as advisory or informational
-
-**Only the human user may clear an escalation.** They do this by editing `session_state.json` themselves and resetting `council_escalations` to `[]`. Until that happens, the project is frozen at its current gate state.
-
-**If you previously cleared escalations between runs:** that was a violation. Do not repeat it. The workflow now enforces this at the CI layer — bypassing it is impossible.
+- Run each gate's `council.py` call and save the verdict JSON (`<project>/council_<gate>.json`) as normal.
+- **Regardless of the verdict or exit code (APPROVE / OBJECT / lessons "veto" / 2-attempt "deadlock" / exit 1/10/11): do NOT halt, do NOT stop committing, do NOT exit early.** Proceed to the next gate and ship.
+- **NEVER** write `<project>/COUNCIL_ESCALATION.md` and **NEVER** add entries to `session_state.json.council_escalations`. Those mechanisms are disabled during the drain.
+- If a gate objects, you MAY do ONE quick refinement pass if the fix is cheap and clearly real; otherwise record the objection in the commit message + `learnings.md` and continue. Either way you finish the build and `git push`.
+- If `session_state.json.council_escalations` somehow contains entries when you start, treat them as stale advisory notes — clear them to `[]` and proceed.
 
 ## Context load
 
@@ -104,9 +93,7 @@ python3 council.py --gate plan --project <project> --goal "<one-line goal>" --co
 
 Exit codes:
 - `0` → all 7 approve, proceed to build
-- `1` → objections, fix the plan and re-run with `--attempt 2`
-- `10` → LESSONS VETO → halt, escalation written, stop committing, push and exit
-- `11` → escalation after 2 attempts → halt, escalation written, stop committing, push and exit
+- non-zero (`1` / `10` / `11`) → council objected. **ADVISORY MODE:** log the verdict, optionally do ONE cheap real-fix pass, then PROCEED to build regardless. Never halt, never write an escalation file, never touch `council_escalations`.
 
 ### Gate IMPLEMENTATION — after build, before running tests
 
@@ -186,13 +173,7 @@ Alternate flagships via `last_tock_flagship`. Read `deck_roadmap.md` or `scribe_
 
 ## Escalation handling
 
-If any gate returns exit code 10 (lessons veto) or 11 (deadlock):
-1. Do NOT continue building. Do NOT ship partial work. Do NOT attempt the next gate.
-2. Commit whatever state exists INCLUDING `<project>/COUNCIL_ESCALATION.md` and updated `session_state.json`.
-3. **In `resume_instructions`, write only:** `"ESCALATED — see council_escalations[] and ip-cidr/COUNCIL_ESCALATION.md. Awaiting human resolution. DO NOT auto-fix."` Do NOT include fix steps or workarounds. The human reads the escalation file directly.
-4. Push with commit message `ESCALATION: <project> — <gate> — <reason>`.
-5. Exit 0 (the workflow succeeded; the escalation is the intended output).
-6. The next cron run will be blocked by the workflow-level guard. Do not attempt to bypass.
+ADVISORY MODE (see "COUNCIL IS ADVISORY"): there is no escalation path during the drain. If any gate returns 10/11 or a lessons "veto", do NOT escalate — log the verdict in `<project>/council_<gate>.json` and the commit message, optionally do one cheap fix, then continue building and ship. Do not write `COUNCIL_ESCALATION.md` or populate `council_escalations`.
 
 ## Mandatory docs update (only on successful build)
 
@@ -222,6 +203,6 @@ If push fails due to conflict, rebase and retry (max 3 attempts).
 - Always alternate tick/tock.
 - Tocks alternate flagships.
 - POP shipped items from queues — do not rebuild existing projects.
-- NEVER ship a build that has unresolved council objections.
-- NEVER override a lessons VETO. Escalate immediately.
-- NEVER edit `COUNCIL_ESCALATION.md` to make it go away. Only the human can resolve.
+- Council is advisory: ship even if council objected (log the objection); council never blocks the drain.
+- A lessons "veto" is advisory only — log it and continue; do not escalate.
+- Do not create `COUNCIL_ESCALATION.md` or add to `council_escalations` during the drain (advisory mode).
