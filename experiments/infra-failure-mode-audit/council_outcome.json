@@ -1,0 +1,101 @@
+{
+  "gate": "outcome",
+  "project": "experiments/infra-failure-mode-audit",
+  "timestamp": "2026-06-28T14:03:06.266748+00:00",
+  "verdicts": [
+    {
+      "angle": "bugs",
+      "verdict": "OBJECT",
+      "severity": "high",
+      "reason": "The Signal-to-Noise Ratio (SNR) calculation `accepted_fix / (accepted_fix + false_positive)` is susceptible to a division-by-zero error if both `accepted_fix` and `false_positive` are zero for a given failure mode, which would result in an undefined value (NaN) or a runtime error.",
+      "required_fix": "Modify the `audit.py` script to explicitly check if the denominator (`accepted_fix + false_positive`) is zero before calculating the SNR; if it is zero, the SNR should be represented as 'N/A' or '-' in the report instead of a numerical percentage.",
+      "evidence": "REPORT.md:20 (Method section describing SNR calculation), REPORT.md:23 (SNR column in table implies numerical percentage)",
+      "veto": false,
+      "parse_failed": false
+    },
+    {
+      "angle": "security",
+      "verdict": "OBJECT",
+      "severity": "high",
+      "reason": "The generated report embeds potentially unsanitized content from `reason` fields, which could lead to Cross-Site Scripting (XSS) if rendered in a vulnerable markdown viewer, and explicitly exposes sensitive details from past security findings, including truncated JavaScript, which constitutes data exposure.",
+      "required_fix": "Sanitize all `reason` field content (e.g., HTML/JavaScript escaping) before embedding it into `REPORT.md` to prevent XSS, and redact or anonymize sensitive data such as truncated code snippets or specific vulnerability details from the report.",
+      "evidence": "REPORT.md: Example per class section, specifically: 'LESSONS VETO \u2014 Cannot verify implementation of `saveAddr()` and `renderAddr()` as required by the `ACTIVE OVERRIDE` and `COUNCIL FOCUS` due to truncated JavaScript in the provided deliverable.' and general embedding of `reason` content.",
+      "veto": false,
+      "parse_failed": false
+    },
+    {
+      "angle": "ui",
+      "verdict": "APPROVE",
+      "severity": "low",
+      "reason": "The report is well-structured and clearly presents complex technical information for its intended technical audience, using standard markdown formatting effectively.",
+      "required_fix": "",
+      "evidence": "",
+      "veto": false,
+      "parse_failed": false
+    },
+    {
+      "angle": "guide",
+      "verdict": "APPROVE",
+      "severity": "low",
+      "reason": "The report clearly documents its methodology, provides examples, defines key terms, and even includes the regex rules used for classification, making it highly discoverable and self-documenting for both human and AI agents.",
+      "required_fix": "",
+      "evidence": "",
+      "veto": false,
+      "parse_failed": false
+    },
+    {
+      "angle": "usefulness",
+      "verdict": "APPROVE",
+      "severity": "low",
+      "reason": "This report provides actionable data to improve the effectiveness and signal-to-noise ratio of the council's escalation process, serving as a critical tool for council administrators.",
+      "required_fix": "",
+      "evidence": "The report identifies specific failure modes (e.g., 'lessons_veto', 'goalpost_move') with low SNR, providing a concrete basis for tuning council rules and reducing noise, as explicitly stated in the 'Recommendations' and 'Outcome verification' sections. This directly addresses the need for data-driven process improvement.",
+      "veto": false,
+      "parse_failed": false
+    },
+    {
+      "angle": "cool",
+      "verdict": "APPROVE",
+      "severity": "low",
+      "reason": "This project provides unique, data-driven insights into the effectiveness of internal council processes, offering a signature move for empirical process improvement.",
+      "required_fix": "",
+      "evidence": "",
+      "veto": false,
+      "parse_failed": false
+    },
+    {
+      "angle": "lessons",
+      "verdict": "APPROVE",
+      "severity": "advisory",
+      "reason": "[AUTO-DOWNGRADED: LESSONS VETO missing precondition_evidence] The generated REPORT.md embeds untrusted strings (e.g., escalation reasons, project names) without explicit sanitization, violating the lesson to sanitize all externally-sourced strings before rendering to prevent markdown/HTML injection.",
+      "required_fix": "Implement a `_sanitize()` pass on all externally-sourced strings (like escalation reasons, project names, etc.) before embedding them into the `REPORT.md` output.",
+      "evidence": "[INSIGHT] \u2014 Treat git commit subjects + escalation reasons as untrusted data: a `_sanitize()` pass (escape `<`/`>`, defang backticks, flatten newlines/NULs) applied to every string before rendering closes markdown/HTML-injection if the handoff is ever piped into a renderer. SECURITY raised this at PLAN, then again at IMPLEMENTATION for the cadence fields specifically \u2014 sanitize *all* externally-sourced strings, not just the obvious ones. (from learnings.md, 2026-06-28 \u2014 tick: adopt-session-checkpointing)",
+      "veto": false,
+      "parse_failed": false
+    }
+  ],
+  "all_approved": false,
+  "objections": [
+    {
+      "angle": "bugs",
+      "verdict": "OBJECT",
+      "severity": "high",
+      "reason": "The Signal-to-Noise Ratio (SNR) calculation `accepted_fix / (accepted_fix + false_positive)` is susceptible to a division-by-zero error if both `accepted_fix` and `false_positive` are zero for a given failure mode, which would result in an undefined value (NaN) or a runtime error.",
+      "required_fix": "Modify the `audit.py` script to explicitly check if the denominator (`accepted_fix + false_positive`) is zero before calculating the SNR; if it is zero, the SNR should be represented as 'N/A' or '-' in the report instead of a numerical percentage.",
+      "evidence": "REPORT.md:20 (Method section describing SNR calculation), REPORT.md:23 (SNR column in table implies numerical percentage)",
+      "veto": false,
+      "parse_failed": false
+    },
+    {
+      "angle": "security",
+      "verdict": "OBJECT",
+      "severity": "high",
+      "reason": "The generated report embeds potentially unsanitized content from `reason` fields, which could lead to Cross-Site Scripting (XSS) if rendered in a vulnerable markdown viewer, and explicitly exposes sensitive details from past security findings, including truncated JavaScript, which constitutes data exposure.",
+      "required_fix": "Sanitize all `reason` field content (e.g., HTML/JavaScript escaping) before embedding it into `REPORT.md` to prevent XSS, and redact or anonymize sensitive data such as truncated code snippets or specific vulnerability details from the report.",
+      "evidence": "REPORT.md: Example per class section, specifically: 'LESSONS VETO \u2014 Cannot verify implementation of `saveAddr()` and `renderAddr()` as required by the `ACTIVE OVERRIDE` and `COUNCIL FOCUS` due to truncated JavaScript in the provided deliverable.' and general embedding of `reason` content.",
+      "veto": false,
+      "parse_failed": false
+    }
+  ],
+  "vetoed": false
+}

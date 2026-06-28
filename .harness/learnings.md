@@ -3481,3 +3481,45 @@ Shipped `experiments/adopt-ai-human-gate-spec/GATE_SPEC.md` — the canonical gr
 **[IMPROVE] Specs that document the council provoke meta-objections.** Two critical OBJECTs across gates attacked the *system being documented*, not the documentation: IMPL security — *"During 'DRAIN MODE', the security council's 'OBJECT' verdict is ignored, allowing potentially vulnerable or malicious code ... without blocking security review"*; TESTS bugs — *"The `detect_bugs_hallucination` auto-downgrade mechanism in `council.py` poses a critical risk of silently bypassing valid BUGS council objections"*. Both are host-architecture/process critiques (out of scope per learnings "No host-architecture objections in per-feature reviews") of a static markdown file the same angles had already approved as inert. When a deliverable accurately documents a known owner-accepted tradeoff, expect angles to object to the tradeoff itself — log as advisory, don't chase.
 
 **[COUNCIL] Auto-downgrade fired correctly.** TESTS security was auto-downgraded — *"[AUTO-DOWNGRADED: goalpost move, 0.61 overlap vs prior security objection]"* — and again at OUTCOME (0.67 overlap), demonstrating the goalpost-move pass catching a repeated drain-policy objection. Gate tally: PLAN 7/7 APPROVE; IMPLEMENTATION 6 APPROVE + 1 advisory (security, drain policy); TESTS 6 APPROVE (security downgraded) + 1 advisory (bugs, council.py internals); OUTCOME 7/7 APPROVE (*lessons*: "No documented lessons or anti-patterns are violated by the GATE_SPEC.md deliverable"). Council advisory per active drain; all verdicts in `experiments/adopt-ai-human-gate-spec/council_*.json`.
+
+## 2026-06-28 — infra-failure-mode-audit (infrastructure tick)
+
+Shipped `experiments/infra-failure-mode-audit/{audit.py,REPORT.md}`: a read-only
+classifier over `session_state.council_escalations_resolved[]` (65 entries) on 3
+orthogonal axes — failure-mode class, objecting angle(s), resolution disposition
+(accepted_fix=signal / false_positive=noise / partial / ambiguous) — with a
+per-class signal-to-noise ratio.
+
+- **[INSIGHT]** Empirical SNR ranking validates existing enforcement: `lessons_veto`
+  (0% SNR, n=5) and `goalpost_move` (20% SNR, n=5) are the lowest-signal classes —
+  exactly the two the auto-downgrade passes (LESSONS precondition_evidence, goalpost
+  keyword-overlap) already target. `deadlock` (100%, n=2) and `two_attempt_unresolved`
+  (57%, n=44) carry real signal. Overall SNR 50% (23 signal / 23 noise). The data says
+  the council's noisiest classes are already the ones with downgrade rules — good
+  evidence the rules are aimed correctly, and a concrete basis for the next tuning tick.
+- **[KEEP]** Negated-override stripping before keyword classification. Resolutions like
+  "fixed at source ... rather than overridden" describe the ABSENCE of an override; a
+  naive `fix.*overrid` proximity regex mis-scores them as `partial`. `_NEG_OVERRIDE_RE`
+  strips "rather than / not / no / instead of / without overridden" spans first. Cut
+  `ambiguous` from 30→9 together with adding "fixed at source"/"BUGS FIXED" phrasings.
+  Caught on real entry #21 during the build.
+- **[KEEP]** Bounded-window proximity for "mixed verdict" detection. `partial` requires
+  an accept/fix and an override within `{0,60}` chars (same-clause), not anywhere in the
+  resolution. BUGS objected the window is "arbitrary" and suggested removing it — but
+  widening reintroduces false partials (validated: #0/#19 true partial, #21 not). Kept
+  the window, documented the rationale inline. A suggested "fix" that regresses validated
+  behavior is correctly logged-and-overruled under advisory mode.
+- **[COUNCIL]** All 4 gates advisory (drain mode). PLAN attempt-1 ran twice (Gemini
+  non-determinism): "✓ All 7 angles APPROVE" once, then SECURITY OBJECT (high, arbitrary
+  `--state`/`--out` paths) + GUIDE OBJECT (low, no README). Addressed cheaply where real
+  (removed arbitrary `--out` write sink). IMPL/TESTS/OUTCOME each raised advisory
+  BUGS+SECURITY. The recurring SECURITY "info-disclosure" objection ("REPORT.md exposes
+  escalation reason/SECURITY details") is a false positive in this context: the source
+  `session_state.json` with full reasons is ALREADY committed in the same repo, and
+  redacting project/gate names would gut the per-project/per-gate analysis that IS the
+  deliverable. Logged, not acted on.
+- **[INSIGHT]** Tooling path drift: `verify_build.py:18` hardcodes a repo-root
+  `yolo_log.json`, but the canonical V0.3.1 layout puts it at `.harness/yolo_log.json`
+  (no root copy). `verify_build.py --last` therefore fails with FileNotFoundError on the
+  current layout. Pre-existing, out of scope for this tick's deliverable_paths — flagged
+  here as a candidate for a future infra tick to repoint the path constant.
