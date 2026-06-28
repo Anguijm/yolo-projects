@@ -1,0 +1,111 @@
+{
+  "gate": "outcome",
+  "project": "experiments/infra-sweep-mode",
+  "timestamp": "2026-06-28T19:37:51.128730+00:00",
+  "verdicts": [
+    {
+      "angle": "bugs",
+      "verdict": "OBJECT",
+      "severity": "high",
+      "reason": "The `fcntl.flock` advisory lock, intended to prevent lost updates from concurrent `sweep_runner` executions, can silently fail to acquire (e.g., `fcntl`/`OSError`) without preventing concurrent execution, leading to a race condition where sweep entries might be lost if multiple instances write concurrently.",
+      "required_fix": "The system should explicitly fail or warn if the `fcntl.flock` cannot be acquired, rather than proceeding without the intended concurrency protection, or provide a robust alternative for environments where `fcntl` is unavailable.",
+      "evidence": "enqueue section in `changes.md`: \"BUGS (unlocked read-modify-write \u2192 lost update vs cron): `enqueue` now takes an exclusive `fcntl.flock` advisory lock across the whole read-modify-write (graceful no-op where fcntl/OSError; atomic `os.replace` still prevents corruption regardless).\"",
+      "veto": false,
+      "parse_failed": false
+    },
+    {
+      "angle": "security",
+      "verdict": "OBJECT",
+      "severity": "medium",
+      "reason": "The custom YAML parser (`_mini_yaml_load`) introduces an elevated risk of denial-of-service or unexpected parsing behavior due to its bespoke nature, despite selftests and subset limitations.",
+      "required_fix": "Replace the custom YAML parser with a well-vetted, robust library (e.g., PyYAML) or implement explicit resource limits (e.g., max file size, max nesting depth) and fuzz testing for the custom parser.",
+      "evidence": "sweep_runner.py: `_mini_yaml_load` / `_in_quote` / `_split_flow`",
+      "veto": false,
+      "parse_failed": false
+    },
+    {
+      "angle": "ui",
+      "verdict": "APPROVE",
+      "severity": "low",
+      "reason": "The CLI tool provides clear usage instructions via README, robust validation with actionable error messages, dry-run functionality, and idempotency, all contributing to a good first-use experience for its target audience.",
+      "required_fix": "",
+      "evidence": "",
+      "veto": false,
+      "parse_failed": false
+    },
+    {
+      "angle": "guide",
+      "verdict": "APPROVE",
+      "severity": "low",
+      "reason": "Comprehensive README and example spec ensure high discoverability for both human users and AI agents.",
+      "required_fix": "",
+      "evidence": "experiments/infra-sweep-mode/README.md, experiments/infra-sweep-mode/sweep_spec_example.yaml",
+      "veto": false,
+      "parse_failed": false
+    },
+    {
+      "angle": "usefulness",
+      "verdict": "APPROVE",
+      "severity": "low",
+      "reason": "This tool provides essential automation for running parameterized experiments, a core need in iterative development and research.",
+      "required_fix": "",
+      "evidence": "Automated experiment sweeps (e.g., hyperparameter tuning, model variant comparison) are a fundamental workflow in ML/AI, analogous to tools like Weights & Biases Sweeps or Optuna for managing experimental runs.",
+      "veto": false,
+      "parse_failed": false
+    },
+    {
+      "angle": "cool",
+      "verdict": "OBJECT",
+      "severity": "medium",
+      "reason": "The project lacks a user-facing signature move or unique interaction that differentiates it from other experiment sweep or hyperparameter optimization tools.",
+      "required_fix": "Identify and implement a unique, memorable user interaction, output, or conceptual angle that makes this sweep runner stand out beyond its robust internal implementation.",
+      "evidence": "Weights & Biases Sweeps, Optuna, Ray Tune",
+      "veto": false,
+      "parse_failed": false
+    },
+    {
+      "angle": "lessons",
+      "verdict": "APPROVE",
+      "severity": "advisory",
+      "reason": "[AUTO-DOWNGRADED: LESSONS VETO missing precondition_evidence] The deliverable's `sweep_runner.py` reads YAML files without explicitly specifying UTF-8 encoding, violating a documented lesson where this was a critical bug and was fixed in a prior build.",
+      "required_fix": "Add `encoding='utf-8'` to all file `open()` calls in `sweep_runner.py` that read YAML/spec files, particularly within `_mini_yaml_load` and `load_spec`'s fallback mechanism.",
+      "evidence": "[COUNCIL] Advisory-mode drain held under repeated deadlock. ... TESTS: bugs OBJECT \"reads JSON and YAML files without specifying UTF-8 encoding\" (fixed)",
+      "veto": false,
+      "parse_failed": false
+    }
+  ],
+  "all_approved": false,
+  "objections": [
+    {
+      "angle": "bugs",
+      "verdict": "OBJECT",
+      "severity": "high",
+      "reason": "The `fcntl.flock` advisory lock, intended to prevent lost updates from concurrent `sweep_runner` executions, can silently fail to acquire (e.g., `fcntl`/`OSError`) without preventing concurrent execution, leading to a race condition where sweep entries might be lost if multiple instances write concurrently.",
+      "required_fix": "The system should explicitly fail or warn if the `fcntl.flock` cannot be acquired, rather than proceeding without the intended concurrency protection, or provide a robust alternative for environments where `fcntl` is unavailable.",
+      "evidence": "enqueue section in `changes.md`: \"BUGS (unlocked read-modify-write \u2192 lost update vs cron): `enqueue` now takes an exclusive `fcntl.flock` advisory lock across the whole read-modify-write (graceful no-op where fcntl/OSError; atomic `os.replace` still prevents corruption regardless).\"",
+      "veto": false,
+      "parse_failed": false
+    },
+    {
+      "angle": "security",
+      "verdict": "OBJECT",
+      "severity": "medium",
+      "reason": "The custom YAML parser (`_mini_yaml_load`) introduces an elevated risk of denial-of-service or unexpected parsing behavior due to its bespoke nature, despite selftests and subset limitations.",
+      "required_fix": "Replace the custom YAML parser with a well-vetted, robust library (e.g., PyYAML) or implement explicit resource limits (e.g., max file size, max nesting depth) and fuzz testing for the custom parser.",
+      "evidence": "sweep_runner.py: `_mini_yaml_load` / `_in_quote` / `_split_flow`",
+      "veto": false,
+      "parse_failed": false
+    },
+    {
+      "angle": "cool",
+      "verdict": "OBJECT",
+      "severity": "medium",
+      "reason": "The project lacks a user-facing signature move or unique interaction that differentiates it from other experiment sweep or hyperparameter optimization tools.",
+      "required_fix": "Identify and implement a unique, memorable user interaction, output, or conceptual angle that makes this sweep runner stand out beyond its robust internal implementation.",
+      "evidence": "Weights & Biases Sweeps, Optuna, Ray Tune",
+      "veto": false,
+      "parse_failed": false
+    }
+  ],
+  "vetoed": false
+}

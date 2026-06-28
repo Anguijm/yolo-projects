@@ -1,0 +1,101 @@
+{
+  "gate": "plan",
+  "project": "experiments/infra-sweep-mode",
+  "timestamp": "2026-06-28T19:32:20.150060+00:00",
+  "verdicts": [
+    {
+      "angle": "bugs",
+      "verdict": "OBJECT",
+      "severity": "critical",
+      "reason": "The plan for `enqueue` does not describe how the 'sweep-level guard' for `budget_cap` will be enforced, risking unintended cost overruns for the entire sweep.",
+      "required_fix": "The `enqueue` function must be modified to sum the `budget_cap` of all already-queued entries for the current `sweep_id` and prevent enqueuing new entries if the cumulative budget would exceed the `sweep_spec.budget_cap`.",
+      "evidence": "plan.md: 'budget_cap: 5.0 # USD; recorded per entry + sweep-level guard' (in Spec schema) and 'enqueue(entries, state_path, sweep_id) -> dict \u2014 atomic, idempotent merge into tick_queue_approved.' (in Function Map), which lacks any mention of budget enforcement logic.",
+      "veto": false,
+      "parse_failed": false
+    },
+    {
+      "angle": "security",
+      "verdict": "OBJECT",
+      "severity": "high",
+      "reason": "The `sweep_runner.py` generates tick specifications with parameterized fields (`plan_summary`, `deliverable_paths`, `name`) that are later consumed by the main council loop, which includes LLM interactions and file operations; without explicit sanitization or encoding during placeholder substitution, an attacker-controlled (or buggy) parameter value could lead to prompt injection, path traversal, or command injection when the generated tick is processed downstream, relying solely on 'downstream containment' which is insufficient defense-in-depth for a content generator.",
+      "required_fix": "Implement robust sanitization and encoding within the `_subst` function and `_slug` function to prevent prompt injection, path traversal, and other injection attacks for all parameterized fields (`plan_summary`, `deliverable_paths`, `name`) before they are enqueued. This includes LLM-specific escaping for `plan_summary` and strict path validation for `deliverable_paths` and `name`.",
+      "evidence": "Approach section: 'plan_summary / deliverable_paths strings get {param} placeholders substituted from the combo.'\nApproach section: 'name = <base_tick.name>--<k1>_<v1>__<k2>_<v2> (filesystem/queue-safe slug).'\nFunction Map: '_subst(value, combo) -> value \u2014 {param} substitution in str / list-of-str.'\nFunction Map: '_slug(s) -> str \u2014 queue/fs-safe slug.'\nSecurity section: 'generated deliverable_paths are data fields (not opened/written by sweep_runner) \u2014 they are consumed later by the loop, which already has its own containment.'",
+      "veto": false,
+      "parse_failed": false
+    },
+    {
+      "angle": "ui",
+      "verdict": "APPROVE",
+      "severity": "low",
+      "reason": "The CLI tool provides clear feedback for all states (dry-run, enqueue, errors, selftest), sensible defaults, and comprehensive help documentation, ensuring a frictionless user experience.",
+      "required_fix": "",
+      "evidence": "",
+      "veto": false,
+      "parse_failed": false
+    },
+    {
+      "angle": "guide",
+      "verdict": "APPROVE",
+      "severity": "low",
+      "reason": "The plan explicitly commits to a comprehensive README, detailed CLI help text, and a realistic example spec, ensuring high discoverability for both human users and AI agents.",
+      "required_fix": "",
+      "evidence": "Guide section, Scope section (README.md, sweep_spec_example.yaml), UI section (CLI tool states)",
+      "veto": false,
+      "parse_failed": false
+    },
+    {
+      "angle": "usefulness",
+      "verdict": "APPROVE",
+      "severity": "low",
+      "reason": "This tool directly addresses the pain point of manually configuring and running numerous parameterized experiments, significantly enhancing the utility and scalability of the existing tick-tock system for researchers and developers.",
+      "required_fix": "",
+      "evidence": "It solves the problem of tedious, error-prone manual creation of experiment ticks, enabling efficient hyperparameter tuning and A/B testing within the existing infrastructure. The 'eval-opus-47-backbone' example highlights a concrete use case.",
+      "veto": false,
+      "parse_failed": false
+    },
+    {
+      "angle": "cool",
+      "verdict": "APPROVE",
+      "severity": "low",
+      "reason": "The signature move is its elegant integration with the existing 'YOLO loop' and council gate system, allowing parameterized sweeps to leverage the full pipeline without re-implementing logic, making it feel like 'N normal ticks'.",
+      "required_fix": "",
+      "evidence": "",
+      "veto": false,
+      "parse_failed": false
+    },
+    {
+      "angle": "lessons",
+      "verdict": "APPROVE",
+      "severity": "advisory",
+      "reason": "[AUTO-DOWNGRADED: LESSONS VETO missing precondition_evidence] The plan does not explicitly guarantee UTF-8 encoding for reading YAML/JSON spec files, which was a prior BUGS OBJECT and required fix.",
+      "required_fix": "Modify `load_spec` and/or `_mini_yaml_load` to explicitly specify `encoding='utf-8'` when opening the sweep spec file.",
+      "evidence": "[COUNCIL] Advisory-mode drain held under repeated deadlock. ... TESTS: bugs OBJECT \"reads JSON and YAML files without specifying UTF-8 encoding\" (fixed) \u2192 then bugs OBJECT \"regex for detecting caching ... is brittle\" (goalpost).",
+      "veto": false,
+      "parse_failed": false
+    }
+  ],
+  "all_approved": false,
+  "objections": [
+    {
+      "angle": "bugs",
+      "verdict": "OBJECT",
+      "severity": "critical",
+      "reason": "The plan for `enqueue` does not describe how the 'sweep-level guard' for `budget_cap` will be enforced, risking unintended cost overruns for the entire sweep.",
+      "required_fix": "The `enqueue` function must be modified to sum the `budget_cap` of all already-queued entries for the current `sweep_id` and prevent enqueuing new entries if the cumulative budget would exceed the `sweep_spec.budget_cap`.",
+      "evidence": "plan.md: 'budget_cap: 5.0 # USD; recorded per entry + sweep-level guard' (in Spec schema) and 'enqueue(entries, state_path, sweep_id) -> dict \u2014 atomic, idempotent merge into tick_queue_approved.' (in Function Map), which lacks any mention of budget enforcement logic.",
+      "veto": false,
+      "parse_failed": false
+    },
+    {
+      "angle": "security",
+      "verdict": "OBJECT",
+      "severity": "high",
+      "reason": "The `sweep_runner.py` generates tick specifications with parameterized fields (`plan_summary`, `deliverable_paths`, `name`) that are later consumed by the main council loop, which includes LLM interactions and file operations; without explicit sanitization or encoding during placeholder substitution, an attacker-controlled (or buggy) parameter value could lead to prompt injection, path traversal, or command injection when the generated tick is processed downstream, relying solely on 'downstream containment' which is insufficient defense-in-depth for a content generator.",
+      "required_fix": "Implement robust sanitization and encoding within the `_subst` function and `_slug` function to prevent prompt injection, path traversal, and other injection attacks for all parameterized fields (`plan_summary`, `deliverable_paths`, `name`) before they are enqueued. This includes LLM-specific escaping for `plan_summary` and strict path validation for `deliverable_paths` and `name`.",
+      "evidence": "Approach section: 'plan_summary / deliverable_paths strings get {param} placeholders substituted from the combo.'\nApproach section: 'name = <base_tick.name>--<k1>_<v1>__<k2>_<v2> (filesystem/queue-safe slug).'\nFunction Map: '_subst(value, combo) -> value \u2014 {param} substitution in str / list-of-str.'\nFunction Map: '_slug(s) -> str \u2014 queue/fs-safe slug.'\nSecurity section: 'generated deliverable_paths are data fields (not opened/written by sweep_runner) \u2014 they are consumed later by the loop, which already has its own containment.'",
+      "veto": false,
+      "parse_failed": false
+    }
+  ],
+  "vetoed": false
+}

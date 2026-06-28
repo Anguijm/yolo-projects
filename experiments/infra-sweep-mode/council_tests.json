@@ -1,0 +1,101 @@
+{
+  "gate": "tests",
+  "project": "experiments/infra-sweep-mode",
+  "timestamp": "2026-06-28T19:37:04.557505+00:00",
+  "verdicts": [
+    {
+      "angle": "bugs",
+      "verdict": "OBJECT",
+      "severity": "medium",
+      "reason": "The deliverable's description of the `enqueue` mechanism for `tick_tock.tick_queue_approved` omits the `fcntl` advisory lock, which is a critical component for preventing read-modify-write race conditions on the shared queue file, despite verification confirming its presence.",
+      "required_fix": "Update the `enqueue` description in the deliverable to explicitly mention the `fcntl` advisory lock as part of the atomic and idempotent guarantees for the shared queue file.",
+      "evidence": "Deliverable: `enqueue` \u2014 **atomic** (temp + `os.replace`) **idempotent** (skip names already queued) merge into `tick_tock.tick_queue_approved`... vs. Verification: `fcntl` advisory lock acquired + lock file created.",
+      "veto": false,
+      "parse_failed": false
+    },
+    {
+      "angle": "security",
+      "verdict": "OBJECT",
+      "severity": "high",
+      "reason": "The use of a static regex (`INJECTION_RE`) to guard against prompt injection in LLM-facing fields (`name`, `idea`, `rationale`, etc.) is an insufficient and easily bypassable defense, creating a significant prompt injection vulnerability.",
+      "required_fix": "Implement robust sanitization or escaping for all LLM-facing text fields before they are passed to an LLM, rather than relying on a blacklist regex, which is inherently weak against evolving prompt injection techniques.",
+      "evidence": "SECURITY (static LLM-facing text unvalidated): `validate_spec` now scans `name`/`idea`/`rationale`/`council_focus`/`plan_summary` against `INJECTION_RE` (common injection phrasings) and rejects matches",
+      "veto": false,
+      "parse_failed": false
+    },
+    {
+      "angle": "ui",
+      "verdict": "APPROVE",
+      "severity": "low",
+      "reason": "The CLI tool provides excellent user feedback through --dry-run, clear validation messages, and explicit warnings, significantly reducing user friction and improving first-use experience.",
+      "required_fix": "",
+      "evidence": "",
+      "veto": false,
+      "parse_failed": false
+    },
+    {
+      "angle": "guide",
+      "verdict": "APPROVE",
+      "severity": "low",
+      "reason": "Comprehensive README, example spec, and clear CLI flags ensure high discoverability for both human and AI users.",
+      "required_fix": "",
+      "evidence": "experiments/infra-sweep-mode/README.md; experiments/infra-sweep-mode/sweep_spec_example.yaml; sweep_runner.py --help (implied by CLI flags)",
+      "veto": false,
+      "parse_failed": false
+    },
+    {
+      "angle": "usefulness",
+      "verdict": "APPROVE",
+      "severity": "low",
+      "reason": "This tool automates the creation and queuing of experiment configurations, addressing a frequent need for researchers and developers to systematically run multiple variations of experiments.",
+      "required_fix": "",
+      "evidence": "Experiment sweeps are a common, recurring task in ML/AI development; the tool's safety guards and idempotency features make it a reliable utility for this purpose.",
+      "veto": false,
+      "parse_failed": false
+    },
+    {
+      "angle": "cool",
+      "verdict": "APPROVE",
+      "severity": "low",
+      "reason": "The tool is differentiated by its focus as a pure producer for parameterized sweeps, combined with a robust set of specific safety guards (param charset, path traversal, prompt injection) and atomic, idempotent enqueueing, making it 'unreasonably good' at its niche.",
+      "required_fix": "",
+      "evidence": "",
+      "veto": false,
+      "parse_failed": false
+    },
+    {
+      "angle": "lessons",
+      "verdict": "APPROVE",
+      "severity": "low",
+      "reason": "No documented lessons or anti-patterns are violated by the current deliverable, especially considering the advisory drain mode.",
+      "required_fix": "",
+      "evidence": "",
+      "veto": false,
+      "parse_failed": false
+    }
+  ],
+  "all_approved": false,
+  "objections": [
+    {
+      "angle": "bugs",
+      "verdict": "OBJECT",
+      "severity": "medium",
+      "reason": "The deliverable's description of the `enqueue` mechanism for `tick_tock.tick_queue_approved` omits the `fcntl` advisory lock, which is a critical component for preventing read-modify-write race conditions on the shared queue file, despite verification confirming its presence.",
+      "required_fix": "Update the `enqueue` description in the deliverable to explicitly mention the `fcntl` advisory lock as part of the atomic and idempotent guarantees for the shared queue file.",
+      "evidence": "Deliverable: `enqueue` \u2014 **atomic** (temp + `os.replace`) **idempotent** (skip names already queued) merge into `tick_tock.tick_queue_approved`... vs. Verification: `fcntl` advisory lock acquired + lock file created.",
+      "veto": false,
+      "parse_failed": false
+    },
+    {
+      "angle": "security",
+      "verdict": "OBJECT",
+      "severity": "high",
+      "reason": "The use of a static regex (`INJECTION_RE`) to guard against prompt injection in LLM-facing fields (`name`, `idea`, `rationale`, etc.) is an insufficient and easily bypassable defense, creating a significant prompt injection vulnerability.",
+      "required_fix": "Implement robust sanitization or escaping for all LLM-facing text fields before they are passed to an LLM, rather than relying on a blacklist regex, which is inherently weak against evolving prompt injection techniques.",
+      "evidence": "SECURITY (static LLM-facing text unvalidated): `validate_spec` now scans `name`/`idea`/`rationale`/`council_focus`/`plan_summary` against `INJECTION_RE` (common injection phrasings) and rejects matches",
+      "veto": false,
+      "parse_failed": false
+    }
+  ],
+  "vetoed": false
+}
