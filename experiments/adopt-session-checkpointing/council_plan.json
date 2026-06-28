@@ -1,0 +1,101 @@
+{
+  "gate": "plan",
+  "project": "experiments/adopt-session-checkpointing",
+  "timestamp": "2026-06-28T08:26:18.311528+00:00",
+  "verdicts": [
+    {
+      "angle": "bugs",
+      "verdict": "OBJECT",
+      "severity": "critical",
+      "reason": "The `collect_commits` function's parsing of `git log` output using `split('\\x00')` is vulnerable to data corruption if a commit subject (`%s`) itself contains a null byte, leading to incorrect commit hash, parent, or subject data being processed.",
+      "required_fix": "Modify `collect_commits` to parse the `git log` output line by line, splitting each line into exactly three parts (hash, parents, subject) by finding the first two null byte delimiters, ensuring that any subsequent null bytes within the subject are treated as part of the subject.",
+      "evidence": "`collect_commits(n: int) -> list[dict]` \u2014 run `git log` with `%H%x00%P%x00%s` format; parse hash, parent list, subject.",
+      "veto": false,
+      "parse_failed": false
+    },
+    {
+      "angle": "security",
+      "verdict": "OBJECT",
+      "severity": "high",
+      "reason": "The markdown output, which incorporates content from git commit subjects and escalation reasons, is not sanitized and could lead to markdown/HTML injection (e.g., XSS) if rendered in a client-side context that interprets active content.",
+      "required_fix": "Implement robust sanitization for all user-generated content (e.g., git commit subjects, escalation reasons, tick spec details) before including it in the markdown output to neutralize potential injection vectors like JavaScript URLs or HTML tags.",
+      "evidence": "The plan specifies `render_markdown(h: dict) -> str` which consumes `build_handoff` dict, which in turn aggregates data from `collect_commits` (subjects) and `escalations` (reasons), without mentioning any sanitization step before rendering.",
+      "veto": false,
+      "parse_failed": false
+    },
+    {
+      "angle": "ui",
+      "verdict": "APPROVE",
+      "severity": "low",
+      "reason": "The plan thoroughly addresses UI concerns for a CLI tool, including clear output formats, robust empty/error states with actionable messages, and helpful resolution hints for escalations.",
+      "required_fix": "",
+      "evidence": "",
+      "veto": false,
+      "parse_failed": false
+    },
+    {
+      "angle": "guide",
+      "verdict": "APPROVE",
+      "severity": "low",
+      "reason": "The plan explicitly details a comprehensive README, clear CLI options, and user-friendly error handling for both human and AI agent discoverability.",
+      "required_fix": "",
+      "evidence": "plan.md:README documents, UI, Council focus: PLAN",
+      "veto": false,
+      "parse_failed": false
+    },
+    {
+      "angle": "usefulness",
+      "verdict": "APPROVE",
+      "severity": "low",
+      "reason": "This tool provides a clear, recurring utility by summarizing critical project state for faster session resumption, addressing a common context management challenge.",
+      "required_fix": "",
+      "evidence": "The need to quickly grasp project status (recent commits, open issues, next tasks) is universal for developers; this automates and de-noises that process for an AI agent or human operator, similar to a well-maintained daily standup summary.",
+      "veto": false,
+      "parse_failed": false
+    },
+    {
+      "angle": "cool",
+      "verdict": "APPROVE",
+      "severity": "low",
+      "reason": "This tool carves out a unique niche by providing a highly specialized, deterministic 'session-handoff' document, tailored specifically for the YOLO session context, which no generic tool addresses.",
+      "required_fix": "",
+      "evidence": "",
+      "veto": false,
+      "parse_failed": false
+    },
+    {
+      "angle": "lessons",
+      "verdict": "APPROVE",
+      "severity": "advisory",
+      "reason": "[AUTO-DOWNGRADED: LESSONS VETO missing precondition_evidence] The plan places `compress_session.py` in the repo root, which violates the documented constraint that 'infrastructure ticks live only under experiments/<name>/'.",
+      "required_fix": "Move `compress_session.py` from the repo root to `experiments/adopt-session-checkpointing/compress_session.py`.",
+      "evidence": "From `plan.md` under 'Explicitly NOT in scope': 'Creating a root-level <name>/ project dir or index.html (infrastructure ticks live only under experiments/<name>/).' and under 'File Layout': 'compress_session.py (new, ~180 lines, repo root)'.",
+      "veto": false,
+      "parse_failed": false
+    }
+  ],
+  "all_approved": false,
+  "objections": [
+    {
+      "angle": "bugs",
+      "verdict": "OBJECT",
+      "severity": "critical",
+      "reason": "The `collect_commits` function's parsing of `git log` output using `split('\\x00')` is vulnerable to data corruption if a commit subject (`%s`) itself contains a null byte, leading to incorrect commit hash, parent, or subject data being processed.",
+      "required_fix": "Modify `collect_commits` to parse the `git log` output line by line, splitting each line into exactly three parts (hash, parents, subject) by finding the first two null byte delimiters, ensuring that any subsequent null bytes within the subject are treated as part of the subject.",
+      "evidence": "`collect_commits(n: int) -> list[dict]` \u2014 run `git log` with `%H%x00%P%x00%s` format; parse hash, parent list, subject.",
+      "veto": false,
+      "parse_failed": false
+    },
+    {
+      "angle": "security",
+      "verdict": "OBJECT",
+      "severity": "high",
+      "reason": "The markdown output, which incorporates content from git commit subjects and escalation reasons, is not sanitized and could lead to markdown/HTML injection (e.g., XSS) if rendered in a client-side context that interprets active content.",
+      "required_fix": "Implement robust sanitization for all user-generated content (e.g., git commit subjects, escalation reasons, tick spec details) before including it in the markdown output to neutralize potential injection vectors like JavaScript URLs or HTML tags.",
+      "evidence": "The plan specifies `render_markdown(h: dict) -> str` which consumes `build_handoff` dict, which in turn aggregates data from `collect_commits` (subjects) and `escalations` (reasons), without mentioning any sanitization step before rendering.",
+      "veto": false,
+      "parse_failed": false
+    }
+  ],
+  "vetoed": false
+}
