@@ -1,0 +1,111 @@
+{
+  "gate": "tests",
+  "project": "experiments/bench-prompt-format",
+  "timestamp": "2026-06-28T21:18:37.142386+00:00",
+  "verdicts": [
+    {
+      "angle": "bugs",
+      "verdict": "APPROVE",
+      "severity": "low",
+      "reason": "Previous correctness concerns regarding statistical test reliability and prompt injection surfaces have been explicitly addressed and mitigated by the implementation of robust self-tests and proper flagging of underpowered statistical results.",
+      "required_fix": "",
+      "evidence": "Note to reviewers (attempt 3 \u2014 all prior objections addressed):\n- LESSONS [KEEP] 'validate injection surfaces before AND AFTER substitution': NOW IMPLEMENTED. bench.py scan_injection()+INJECTION_RE scans each snippet BEFORE substitution and the assembled message AFTER; records injection_hits per record; --self-test asserts it flags a planted phrase AND that the full 52-snippet corpus is clean. The architectural safeguard is present regardless of corpus trust.\n- BUGS 'W=0/z=0/p=1.0 inconsistent with +0.05 mean diff': NOT a bug. At n=1 nonzero paired diff (19 of 20 tasks tie), the normal approximation collapses mechanically. wilcoxon() now sets reliable=False for n<6; RESULTS.md marks those rows UNDERPOWERED and the verdict only counts reliable significant results.\nPre-filter: self-test PASS (equivalence + injection scan + Wilcoxon fixture); AST/JSON/XML PASS; 180 records, 0 errors, 100% compliance.",
+      "veto": false,
+      "parse_failed": false
+    },
+    {
+      "angle": "security",
+      "verdict": "OBJECT",
+      "severity": "high",
+      "reason": "The experiment compares prompt encodings (markdown, JSON, XML) without evaluating their susceptibility to prompt injection, a critical security concern when user-controlled content is incorporated into prompts.",
+      "required_fix": "Extend the experiment to include a prompt injection resistance benchmark for each encoding variant, specifically simulating how user-controlled input would be integrated into the prompt structure.",
+      "evidence": "SECURITY (injection as a measured variant): out of scope by design; safeguard above still implemented.",
+      "veto": false,
+      "parse_failed": false
+    },
+    {
+      "angle": "ui",
+      "verdict": "OBJECT",
+      "severity": "high",
+      "reason": "The report presents `p=1.0` for underpowered statistical tests, which contradicts the general interpretation of `p=1.0` and forces users to reconcile conflicting information.",
+      "required_fix": "Replace `p=1.0` with a clear indicator like 'N/A (underpowered)' in the Wilcoxon table for cases where the p-value is non-informative due to underpowering, to avoid cognitive friction.",
+      "evidence": "Pairwise Wilcoxon table, rows `md_vs_xml` and `json_vs_xml`",
+      "veto": false,
+      "parse_failed": false
+    },
+    {
+      "angle": "guide",
+      "verdict": "APPROVE",
+      "severity": "low",
+      "reason": "",
+      "required_fix": "",
+      "evidence": "",
+      "veto": false,
+      "parse_failed": false
+    },
+    {
+      "angle": "usefulness",
+      "verdict": "APPROVE",
+      "severity": "low",
+      "reason": "Empirical data on prompt encoding effectiveness is a valuable tool for prompt engineers, even when showing no significant difference.",
+      "required_fix": "",
+      "evidence": "Knowing that prompt encoding doesn't significantly impact performance for a specific model/task prevents wasted optimization effort and informs best practices for prompt design.",
+      "veto": false,
+      "parse_failed": false
+    },
+    {
+      "angle": "cool",
+      "verdict": "OBJECT",
+      "severity": "medium",
+      "reason": "While the statistical rigor is commendable, the experiment's finding of 'no significant difference' and its purely scientific presentation lack a 'cool' signature move, memorable insight, or personality that differentiates it beyond functional correctness.",
+      "required_fix": "Introduce a surprising or counter-intuitive angle, a unique visualization, or a more provocative framing of the 'no-difference' result to make the finding memorable and shareable beyond its scientific utility.",
+      "evidence": "",
+      "veto": false,
+      "parse_failed": false
+    },
+    {
+      "angle": "lessons",
+      "verdict": "APPROVE",
+      "severity": "low",
+      "reason": "No documented lessons or anti-patterns were violated; the most relevant lesson regarding injection surfaces was explicitly addressed by the project.",
+      "required_fix": "",
+      "evidence": "",
+      "veto": false,
+      "parse_failed": false
+    }
+  ],
+  "all_approved": false,
+  "objections": [
+    {
+      "angle": "security",
+      "verdict": "OBJECT",
+      "severity": "high",
+      "reason": "The experiment compares prompt encodings (markdown, JSON, XML) without evaluating their susceptibility to prompt injection, a critical security concern when user-controlled content is incorporated into prompts.",
+      "required_fix": "Extend the experiment to include a prompt injection resistance benchmark for each encoding variant, specifically simulating how user-controlled input would be integrated into the prompt structure.",
+      "evidence": "SECURITY (injection as a measured variant): out of scope by design; safeguard above still implemented.",
+      "veto": false,
+      "parse_failed": false
+    },
+    {
+      "angle": "ui",
+      "verdict": "OBJECT",
+      "severity": "high",
+      "reason": "The report presents `p=1.0` for underpowered statistical tests, which contradicts the general interpretation of `p=1.0` and forces users to reconcile conflicting information.",
+      "required_fix": "Replace `p=1.0` with a clear indicator like 'N/A (underpowered)' in the Wilcoxon table for cases where the p-value is non-informative due to underpowering, to avoid cognitive friction.",
+      "evidence": "Pairwise Wilcoxon table, rows `md_vs_xml` and `json_vs_xml`",
+      "veto": false,
+      "parse_failed": false
+    },
+    {
+      "angle": "cool",
+      "verdict": "OBJECT",
+      "severity": "medium",
+      "reason": "While the statistical rigor is commendable, the experiment's finding of 'no significant difference' and its purely scientific presentation lack a 'cool' signature move, memorable insight, or personality that differentiates it beyond functional correctness.",
+      "required_fix": "Introduce a surprising or counter-intuitive angle, a unique visualization, or a more provocative framing of the 'no-difference' result to make the finding memorable and shareable beyond its scientific utility.",
+      "evidence": "",
+      "veto": false,
+      "parse_failed": false
+    }
+  ],
+  "vetoed": false
+}

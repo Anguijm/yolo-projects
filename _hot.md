@@ -1,18 +1,18 @@
 # Hot Cache — Active Context
-*Auto-updated 2026-06-28 19:39 UTC. Read this FIRST.*
+*Auto-updated 2026-06-28 21:20 UTC. Read this FIRST.*
 
 ## Current State
-- Portfolio: 243 total, 98 active
-- Tick queue: 77 approved, 0 pending
+- Portfolio: 244 total, 98 active
+- Tick queue: 76 approved, 0 pending
 - Phase 4: 300 experiments, 0 backlog
 - Next: tick
 
 ## Tick Queue
-- [approved] bench-prompt-format: Empirical A/B/C of markdown vs JSON vs XML on the BUGS angle
 - [approved] adopt-skill-creator: Install Anthropic Skill Creator plugin at user scope; bootst
 - [approved] adopt-superpowers-skill: Install the Superpowers plugin to enforce plan-then-test dis
 - [approved] skill-scope-audit: Audit existing skills (skills/*.md and .claude/commands/*.md
 - [approved] adopt-claude-design-patterns: Apply Claude-specific prompt design patterns (persona, struc
+- [approved] adopt-higgsfield-mcp: Wire Higgsfield MCP into Claude (via Settings → Connectors) 
 
 ## Recent Builds (last 5)
 - svg-fields: Drop/paste an SVG with {{placeholder}} or data-field markers

@@ -3548,3 +3548,57 @@ per-class signal-to-noise ratio.
 - **[KEEP] Validate injection surfaces before AND after substitution.** `deliverable_paths` are checked for `..`/absolute/metachars on the static template in `validate_spec` and again on the fully-substituted string in `build_entries`, so a hostile `{param}` value can't smuggle traversal past the first check. Param values are charset-restricted; static LLM-facing text (`idea`/`plan_summary`/...) is scanned by `INJECTION_RE` for common prompt-injection phrasings. *When:* a tool templates user/owner data into strings consumed downstream by a filesystem or an LLM.
 - **[INSIGHT] Advisory lock only helps if every writer cooperates.** OUTCOME BUGS correctly noted the `fcntl.flock` added to `enqueue` doesn't protect against the cron's `update_session_state.py`, which doesn't take the same lock. Accurate — the lock is best-effort defense-in-depth layered on the real discipline (run sweep_runner cron-paused, documented in README), and `os.replace` still guarantees no *corrupt* file regardless. Logged as an acknowledged limitation, not a blocker.
 - **[COUNCIL] Verdicts (all advisory, drain mode — no veto, shipped):** PLAN — BUGS(critical) "budget_cap sweep-level guard not enforced" + SECURITY(high) "{param} substitution injection surface"; both addressed in a refinement pass; LESSONS auto-downgraded advisory (missing precondition_evidence). IMPL attempt-2 — SECURITY + COOL cleared after fixes; BUGS(high) "read-modify-write not protected by a file lock" → added fcntl. TESTS — BUGS(medium) "changes.md omits the fcntl detail" (doc fixed) + SECURITY(high) "static regex injection guard is incomplete" (acknowledged defense-in-depth). OUTCOME — BUGS(high) "advisory lock can't stop a non-cooperating writer" + SECURITY(medium) "custom YAML parser DoS risk" + COOL(medium) "no signature move"; all advisory, LESSONS APPROVE. The cheap real objections (budget teeth, # parsing, injection guards, fcntl) were fixed; the inherent-limitation and subjective-COOL ones were logged and shipped.
+
+## bench-prompt-format (tick, infrastructure) — 2026-06-28
+
+- **[KEEP] Hold the OUTPUT format constant when A/B-testing PROMPT format.** To
+  isolate "does md vs JSON vs XML *prompt* encoding matter," all three variants
+  must request the SAME output (JSON here) so the verdict parser is identical and
+  answer-correctness scoring is apples-to-apples. Varying output format too
+  confounds prompt-encoding effect with output-parse fragility — report
+  compliance as a *separate* column instead. *When:* benchmarking one prompt
+  dimension, freeze every other dimension.
+- **[KEEP] Include the CLEAN counterpart of every planted bug.** Scoring a bug
+  reviewer only on buggy snippets lets an "always OBJECT" reviewer score 100%.
+  `eval_bugs.json` ships `example_bad` AND `example_fix`; using both (bad→OBJECT,
+  fix→APPROVE) penalises false positives symmetrically. *When:* evaluating a
+  classifier with an asymmetric trivial-policy escape.
+- **[KEEP] Machine-verify "semantic equivalence" claims, don't just assert them.**
+  The #1 validity risk was content drift across the three prompt files. `bench.py
+  check_equivalence()` parses the 8 focus + 3 ignore items out of md bullets /
+  json arrays / xml elements and asserts byte-identity in `--self-test`. A
+  reviewer (and the BUGS council angle) can trust the equivalence because it's
+  checked, not promised.
+- **[KEEP] Validate injection surfaces before AND after substitution** (honored a
+  prior cross-project lesson that fired as a LESSONS veto here). `scan_injection`
+  checks each snippet pre-substitution and the assembled message post-wrap;
+  `--self-test` asserts it flags a planted phrase and that the trusted 52-snippet
+  corpus is clean. The safeguard is architectural — present regardless of corpus
+  trust. This fix CLEARED the lessons veto on re-run.
+- **[INSIGHT] Report a null as a *bounded* null.** "No significant difference" is
+  a valid verdict, but at 20 tasks × 3 runs the design only detects ≈≥10pp
+  effects. The honest claim is "no effect large enough to justify migration was
+  found," not "the formats are provably identical." RESULTS.md states the power
+  bound explicitly — this is what separates a credible null from a lazy one.
+- **[INSIGHT] Tiny-n Wilcoxon collapses mechanically; flag it, don't hide it.**
+  When 19/20 tasks tie, only 1 nonzero paired diff remains → W=0, z=0, p→1. The
+  council read this as "inconsistent / a bug." It's not — but the normal
+  approximation IS invalid at n<6, so `wilcoxon()` now sets `reliable=False` and
+  RESULTS shows `n/a ⚠ UNDERPOWERED` instead of a misleading `p=1.0`. Flagging
+  the limitation defused the objection that hiding it created.
+- **[COUNCIL] Advisory drain in action.** PLAN: SECURITY(med) + GUIDE(high)
+  objected — "snippets passed to LLM without sanitization", "README written after
+  build"; both addressed in-build (data delimiter + README-with-checklist).
+  IMPLEMENTATION: 7/7 APPROVE. TESTS: attempt 1 raised 4 objections; attempt 2
+  cleared UI+GUIDE; a LESSONS injection VETO + 2-attempt deadlock (exit 11) fired
+  — **advisory mode: did NOT halt**, removed the auto-written
+  COUNCIL_ESCALATION.md, cleared council_escalations to []. attempt 3 cleared
+  BUGS+GUIDE+**LESSONS** (injection fix worked). OUTCOME: UI+GUIDE+USEFULNESS+
+  LESSONS APPROVE; residual BUGS "underpowered null" (added power caveat),
+  SECURITY "injection-as-variable" (out of scope), COOL "report aesthetics"
+  (a null result is a valid finding) — all advisory, shipped.
+- **[IMPROVE] eval_bugs.py is a REGEX scanner, not an LLM judge.** The original
+  plan assumed "eval_bugs.py already runs the angle / score function implemented."
+  It doesn't — it runs detection regexes. The bench had to build its own LLM
+  classification task on the corpus. Lesson: verify what an "existing eval"
+  actually does before planning to reuse its "score function."

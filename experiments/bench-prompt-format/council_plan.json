@@ -1,0 +1,101 @@
+{
+  "gate": "plan",
+  "project": "experiments/bench-prompt-format",
+  "timestamp": "2026-06-28T21:09:20.669039+00:00",
+  "verdicts": [
+    {
+      "angle": "bugs",
+      "verdict": "APPROVE",
+      "severity": "low",
+      "reason": "The plan thoroughly identifies and mitigates key correctness risks, including semantic drift of prompts, robust error handling for API failures and malformed model outputs, and verification of custom statistical implementations.",
+      "required_fix": "",
+      "evidence": "",
+      "veto": false,
+      "parse_failed": false
+    },
+    {
+      "angle": "security",
+      "verdict": "OBJECT",
+      "severity": "medium",
+      "reason": "The plan passes code snippets from `eval_bugs.json` directly to the LLM without specifying how they are wrapped or encoded to prevent prompt injection, violating the trust boundary between internal data and the external LLM service.",
+      "required_fix": "Explicitly define and implement robust wrapping or encoding for the `snippet` content within the prompt (e.g., using dedicated XML tags like `<user_code>` or markdown code blocks) to ensure it is always treated as data, not instructions, by the LLM.",
+      "evidence": "Function Map: `call_reviewer(system_prompt: str, snippet: str, model: str) -> str`; Security section: 'No external input parsed.' (misleading, as snippets are LLM input).",
+      "veto": false,
+      "parse_failed": false
+    },
+    {
+      "angle": "ui",
+      "verdict": "APPROVE",
+      "severity": "low",
+      "reason": "This is an internal experiment script with no user-facing UI or interaction, so UI concerns are not applicable.",
+      "required_fix": "",
+      "evidence": "",
+      "veto": false,
+      "parse_failed": false
+    },
+    {
+      "angle": "guide",
+      "verdict": "OBJECT",
+      "severity": "high",
+      "reason": "The `README.md` for the `bench.py` tool is planned to be written 'after build', meaning the tool will lack immediate self-documentation for a first-time user or AI agent at the point of implementation.",
+      "required_fix": "The `README.md` for `bench.py` must be a deliverable at the PLAN stage, outlining its content, and committed to be present before the tool is considered 'built' or ready for use. It should clearly explain the tool's purpose, how to run it, and its main arguments.",
+      "evidence": "experiments/bench-prompt-format/README.md \u2014 written after build; plan.md section 'UI' and 'Guide' stating 'Not applicable'.",
+      "veto": false,
+      "parse_failed": false
+    },
+    {
+      "angle": "usefulness",
+      "verdict": "APPROVE",
+      "severity": "low",
+      "reason": "Empirical data on prompt encoding impact for a critical, in-production prompt is a high-utility input for strategic development decisions.",
+      "required_fix": "",
+      "evidence": "This directly informs whether to invest in a wholesale prompt format migration for the most-used review prompt, preventing wasted effort or enabling significant performance gains.",
+      "veto": false,
+      "parse_failed": false
+    },
+    {
+      "angle": "cool",
+      "verdict": "APPROVE",
+      "severity": "low",
+      "reason": "The project's signature move is its rigorous, controlled experimental design tailored to a high-impact internal problem, providing a definitive, data-backed answer that differentiates it from generic prompt testing.",
+      "required_fix": "",
+      "evidence": "",
+      "veto": false,
+      "parse_failed": false
+    },
+    {
+      "angle": "lessons",
+      "verdict": "APPROVE",
+      "severity": "advisory",
+      "reason": "[AUTO-DOWNGRADED: LESSONS VETO missing precondition_evidence] The plan's `bench.py` will perform file operations (reading prompt variants, writing `runs.jsonl`) without explicitly specifying UTF-8 encoding, which has been a documented failure mode and led to prior BUGS objections that required fixing.",
+      "required_fix": "Modify the plan to explicitly state that all file `open()` calls in `bench.py` (e.g., within `load_variant` and for writing `runs.jsonl`) will specify `encoding='utf-8'` to prevent potential `UnicodeDecodeError` or silent data corruption.",
+      "evidence": "From `learnings.md` under 'COUNCIL Advisory-mode drain held under repeated deadlock': 'TESTS: bugs OBJECT \"reads JSON and YAML files without specifying UTF-8 encoding\" (fixed)'.",
+      "veto": false,
+      "parse_failed": false
+    }
+  ],
+  "all_approved": false,
+  "objections": [
+    {
+      "angle": "security",
+      "verdict": "OBJECT",
+      "severity": "medium",
+      "reason": "The plan passes code snippets from `eval_bugs.json` directly to the LLM without specifying how they are wrapped or encoded to prevent prompt injection, violating the trust boundary between internal data and the external LLM service.",
+      "required_fix": "Explicitly define and implement robust wrapping or encoding for the `snippet` content within the prompt (e.g., using dedicated XML tags like `<user_code>` or markdown code blocks) to ensure it is always treated as data, not instructions, by the LLM.",
+      "evidence": "Function Map: `call_reviewer(system_prompt: str, snippet: str, model: str) -> str`; Security section: 'No external input parsed.' (misleading, as snippets are LLM input).",
+      "veto": false,
+      "parse_failed": false
+    },
+    {
+      "angle": "guide",
+      "verdict": "OBJECT",
+      "severity": "high",
+      "reason": "The `README.md` for the `bench.py` tool is planned to be written 'after build', meaning the tool will lack immediate self-documentation for a first-time user or AI agent at the point of implementation.",
+      "required_fix": "The `README.md` for `bench.py` must be a deliverable at the PLAN stage, outlining its content, and committed to be present before the tool is considered 'built' or ready for use. It should clearly explain the tool's purpose, how to run it, and its main arguments.",
+      "evidence": "experiments/bench-prompt-format/README.md \u2014 written after build; plan.md section 'UI' and 'Guide' stating 'Not applicable'.",
+      "veto": false,
+      "parse_failed": false
+    }
+  ],
+  "vetoed": false
+}
