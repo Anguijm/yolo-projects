@@ -10333,5 +10333,509 @@
     "outcome": null,
     "verdict": "adopt",
     "notes": "Available at try.polygraph.com. Works as a CLI wrapper around existing agents \u2014 low adoption friction. The cross-developer shared memory aspect is most novel for team YOLO loop usage. Conceptually overlaps with Paul Iusztin's AI Research OS but focused on code sessions not notes. Both point to the same unsolved problem.\n\nBacklog triage 2026-06-27 (owner-preference model). Cross-session/repo memory graph surfacing relevant past sessions \u2014 compounding-memory/hot-cache family; strong fit."
+  },
+  {
+    "id": "nb-2026-06-28-glm52-harness-last-mile",
+    "source": {
+      "channel": "nb",
+      "video_title": "GLM 5.2 Is Free And Beats Claude On Most Work. So Why Can't Companies Switch?",
+      "video_url": "https://www.youtube.com/watch?v=Zp8lr6IzUnQ",
+      "published_date": "2026-06-28",
+      "ingested_date": "2026-06-28"
+    },
+    "experiment": {
+      "title": "Audit task distribution to identify center-vs-edge work before model switching",
+      "hypothesis": "If we classify our AI task load by whether tasks are center-of-distribution (familiar patterns, easy to verify) vs edge-of-distribution (novel, ambiguous, high-stakes), then we can safely route center tasks to cheaper open-source models like GLM 5.2 and preserve frontier models only for edge tasks, because model quality differences matter far less for well-trodden problem shapes.",
+      "what_they_did": "Speaker evaluated GLM 5.2 across everyday AI tasks (brochure sites, PowerPoint outlines, routine synthesis, familiar coding problems) and found it matched or exceeded Claude for center-of-distribution work. He argued that companies fail to switch because they haven't measured their task distribution and because model-switching requires rewriting the entire harness (prompts, memory, tool calls) not just swapping an API endpoint. He cited Flo Crivello's Lindy team as a case study who had to rewrite their harness from scratch to move to DeepSeek.",
+      "effort_estimate": "medium",
+      "relevance_to_yolo_loop": "Directly informs which model to wire into each stage of the YOLO loop. A task-distribution audit would let us decide which loop steps (e.g. boilerplate generation, summarisation) can be routed to a free/cheap model vs which (e.g. novel architecture decisions, ambiguous debugging) need Claude Opus."
+    },
+    "status": "backlog",
+    "status_history": [
+      {
+        "status": "backlog",
+        "date": "2026-06-28",
+        "note": "Extracted from YouTube RSS"
+      }
+    ],
+    "outcome": null,
+    "verdict": null,
+    "notes": "Speaker also warns about 'renting company brain' to frontier providers via tools like Claude Projects \u2014 worth considering for long-term context ownership strategy."
+  },
+  {
+    "id": "st-2026-06-28-agent-skills-reusable-instructions",
+    "source": {
+      "channel": "st",
+      "video_title": "How to Onboard Your AI Team with Agent Skills (AgentCon - Dallas 2026)",
+      "video_url": "https://www.youtube.com/watch?v=bHqNyGq1VGw",
+      "published_date": "2026-06-28",
+      "ingested_date": "2026-06-28"
+    },
+    "experiment": {
+      "title": "Build agent skill folders with progressive disclosure to eliminate repetitive context setup",
+      "hypothesis": "If we package reusable task instructions as skill folders (a skill.md plus references, templates, and scripts sub-folders) that agents load on demand via short descriptions at conversation start, then agents will execute recurring tasks correctly on the first attempt without back-and-forth, because the right context is injected automatically rather than relying on the user to re-explain it every session.",
+      "what_they_did": "Shaw described 'agent skills' as an open standard analogous to MCP \u2014 folder-based reusable instruction sets stored locally. Each skill has a skill.md with full instructions and optional sub-folders for reference docs, asset templates, and scripts. At conversation start, the agent sees only a short description of every skill; it pulls the full skill.md only when relevant (progressive disclosure). He demonstrated reducing a 30-minute back-and-forth marketing report workflow to a single correct first-pass by pre-defining data sources (HubSpot, Google Analytics), output format (TLDR bullets), and section structure inside a skill. He also showed skills stored in Claude's project knowledge or as local files, with YAML front matter for metadata.",
+      "effort_estimate": "low",
+      "relevance_to_yolo_loop": "Skills are a direct mechanism for encoding the YOLO loop's recurring subtasks (e.g. 'run test suite', 'generate PR description', 'summarise diff') so the agent picks them up automatically each session without prompt engineering overhead."
+    },
+    "status": "backlog",
+    "status_history": [
+      {
+        "status": "backlog",
+        "date": "2026-06-28",
+        "note": "Extracted from YouTube RSS"
+      }
+    ],
+    "outcome": null,
+    "verdict": null,
+    "notes": "Shaw recommends starting skill creation by reviewing your calendar for the last 2 weeks and targeting the highest-time-cost recurring tasks. He reports non-technical users delegating 5-10 hours/week of busy work within 90 minutes of learning the approach."
+  },
+  {
+    "id": "aie-2026-06-28-local-code-index-token-reduction",
+    "source": {
+      "channel": "aie",
+      "video_title": "We Cut 94% of AI Coding Tokens With a Local Code Index - Rajkumar Sakthivel, Tesco",
+      "video_url": "https://www.youtube.com/watch?v=dRmWYHuIJxM",
+      "published_date": "2026-06-28",
+      "ingested_date": "2026-06-28"
+    },
+    "experiment": {
+      "title": "Insert a local hybrid-search code index between codebase and AI coding tools to cut input tokens",
+      "hypothesis": "If we place a local search layer that breaks code into semantic units (functions, classes, methods) and runs simultaneous meaning-based and keyword-based search to return only the relevant ~5K tokens instead of sending full files, then we can reduce coding AI input token costs by ~60% in practice while maintaining 90% retrieval accuracy, because 90% of AI coding cost is in the input and most sent context is irrelevant to any given query.",
+      "what_they_did": "Raj and his collaborator built a local code index (open-sourced as 'CCE') that sits between the codebase and AI tools. It parses code into logical units, runs dual search (semantic + keyword) simultaneously to fix each method's blind spots, compresses results to function signatures and descriptions, tracks call graphs for connected-code retrieval, and filters low-scoring results before sending to the model. On a FastAPI benchmark (53 files, 20 real developer questions) it reduced tokens from 83K to 4.9K per question (94% reduction vs worst-case full-file baseline) with 90% recall. Across 247 real queries it saved 12.4M tokens / ~$186. A shared index also lets multiple tools (Claude Code, Cursor, Copilot) share context and persist project knowledge across sessions.",
+      "effort_estimate": "medium",
+      "relevance_to_yolo_loop": "The YOLO loop repeatedly sends codebase context to the model. Inserting this index as a retrieval middleware would cut token spend on every loop iteration and allow the loop to scale to larger repos without context-window overflow."
+    },
+    "status": "backlog",
+    "status_history": [
+      {
+        "status": "backlog",
+        "date": "2026-06-28",
+        "note": "Extracted from YouTube RSS"
+      }
+    ],
+    "outcome": null,
+    "verdict": null,
+    "notes": "Honest caveats from speaker: 94% is vs worst-case full-file sending; real savings lower. Recall drops near zero on large mixed-responsibility files. Sweet spot is codebases where each file has a single clear responsibility."
+  },
+  {
+    "id": "aie-2026-06-28-five-agent-token-optimisations",
+    "source": {
+      "channel": "aie",
+      "video_title": "Your Agent Is Wasting Tokens and You Don't Know It - Erik Hanchett, AWS",
+      "video_url": "https://www.youtube.com/watch?v=uiP88SpCi1Q",
+      "published_date": "2026-06-28",
+      "ingested_date": "2026-06-28"
+    },
+    "experiment": {
+      "title": "Apply five token-reduction techniques to agent loops: prompt caching, difficulty routing, tool-result offload, loop caps, and history trimming",
+      "hypothesis": "If we systematically apply all five techniques (cache system/tool prompts, route tasks to cheaper models by difficulty, summarise and offload large tool results, cap tool loop iterations, and use a sliding-window conversation manager), then agent token costs will drop significantly with minimal quality loss, because each technique targets a distinct source of redundant tokens that accumulates silently across multi-turn agent sessions.",
+      "what_they_did": "Erik presented five concrete techniques using AWS Strands Agents as the harness. (1) Prompt caching: set cache_prompt=default so the system prompt is only sent in full on the first call; subsequent calls use the cached version. (2) Difficulty routing: use a cheap model (e.g. Claude Haiku) for simple tasks, a mid-tier (Sonnet) for harder ones, and optionally use a cheap model to classify difficulty before routing. (3) Tool-result offloading: store large tool outputs externally, summarise them, and inject only the summary into subsequent loop iterations. (4) Cap tool loops: always set max_iterations to prevent runaway tool calls. Use observability tooling to audit tool call frequency and duration before deploying. (5) History trimming: use a sliding-window conversation manager (e.g. last 10 messages) and summarise older history into a compact context prefix.",
+      "effort_estimate": "low",
+      "relevance_to_yolo_loop": "All five techniques apply directly to the YOLO loop's agent harness. The loop already accumulates tool results and conversation history across iterations \u2014 capping, caching, and windowing are low-effort wins that compound on every loop cycle."
+    },
+    "status": "backlog",
+    "status_history": [
+      {
+        "status": "backlog",
+        "date": "2026-06-28",
+        "note": "Extracted from YouTube RSS"
+      }
+    ],
+    "outcome": null,
+    "verdict": null,
+    "notes": "Lightning-talk format \u2014 no benchmark numbers given, but techniques are well-established. Difficulty routing and sliding-window history are the highest-leverage starting points for the YOLO loop."
+  },
+  {
+    "id": "aie-2026-06-28-openclaw-physical-ai-terminal",
+    "source": {
+      "channel": "aie",
+      "video_title": "OpenClaw in Your Hand: Building a Physical AI Terminal - Lech Kalinowski, Callstack",
+      "video_url": "https://www.youtube.com/watch?v=akk6KRlcwW4",
+      "published_date": "2026-06-28",
+      "ingested_date": "2026-06-28"
+    },
+    "experiment": {
+      "title": "Build a dual-display ESP32 terminal as a dedicated offline AI interaction device",
+      "hypothesis": "If we build a microcontroller-based terminal with a dynamic OLED display and a bistable e-paper display connected to a backend that routes LLM calls through an OpenAI-compatible proxy, then we get a distraction-free, energy-efficient AI interface that works even when primary devices fail, because separating the display medium from the compute layer allows each to be optimised independently.",
+      "what_they_did": "Lech built a handheld terminal using an ESP32 dual-core MCU, a small OLED (live/dynamic surface) and an e-paper display (rendered output), a keyboard, and an encoder. The device runs an internal shell for system control, an AI assistant mode, and an RPG world-generation mode. A full backend handles agentic work via OpenClaw and proxies LLM calls through a TensorRT-served open-source 120B model exposed as an OpenAI-style API. He used fixed static buffers and pre-allocated 1-bit image pages on the MCU (no markdown engine, no malloc on device) to keep firmware tiny and fast. A shared index means context persists across sessions. The device is power-managed from a single LiPo cell and proved resilient \u2014 e-paper works if OLED fails, encoder works if keyboard fails.",
+      "effort_estimate": "high",
+      "relevance_to_yolo_loop": "Mostly exploratory hardware project \u2014 low direct relevance to the YOLO loop. However, the backend architecture (OpenAI-compatible proxy over a locally-served open-source model, OpenClaw integration) is a reusable pattern for self-hosted model routing in the loop."
+    },
+    "status": "backlog",
+    "status_history": [
+      {
+        "status": "backlog",
+        "date": "2026-06-28",
+        "note": "Extracted from YouTube RSS"
+      }
+    ],
+    "outcome": null,
+    "verdict": null,
+    "notes": "High effort for hardware build. Backend proxy pattern (TensorRT + OpenAI-style API over local model) is the extractable experiment worth revisiting independently of the physical device."
+  },
+  {
+    "id": "aie-2026-06-28-hybrid-rag-sql-rrf-telemetry",
+    "source": {
+      "channel": "aie",
+      "video_title": "Bypassing the Multimodal Tax: Hybrid RAG, SQL RRF & UI Telemetry - Abed Matini, Ogilvy",
+      "video_url": "https://www.youtube.com/watch?v=Akm1sqvWG4A",
+      "published_date": "2026-06-28",
+      "ingested_date": "2026-06-28"
+    },
+    "experiment": {
+      "title": "Pre-process documents into PostgreSQL with hybrid RRF search before LLM queries to avoid multimodal upload token tax",
+      "hypothesis": "If we convert documents to markdown via Docling at ingest time, chunk and embed them into PostgreSQL, and retrieve at query time using Reciprocal Rank Fusion over both keyword and semantic search, then we avoid spending tokens on document upload at query time and improve retrieval relevance, because pre-indexing separates the one-time parsing cost from the repeated inference cost and RRF surfaces better-ranked results than either search method alone.",
+      "what_they_did": "Abed built a framework-free FAQ chatbot (FastAPI + React + PostgreSQL + Ollama + LangFuse) for an HR employee handbook use case. Documents (PDF, PPTX, DOCX, images) are converted to markdown by Docling at ingest, chunked with multiple strategies selectable via admin UI, and embedded into PostgreSQL's vector extension. At query time, hybrid search combines keyword and semantic retrieval using SQL-based Reciprocal Rank Fusion (RRF). LangFuse provides observability over all LLM calls, latency, and tool use. Prompt injection and risky queries are filtered in Python before reaching the LLM using rule-based checks (rigid, fully testable, no reliance on LLM for safety). He ran the full stack locally on CPU only (no GPU) using a quantised Qwen 0.5B chat model and a BGE embedding model \u2014 the smallest models sufficient once data is pre-vetted.",
+      "effort_estimate": "medium",
+      "relevance_to_yolo_loop": "The ingest-once, retrieve-many pattern maps directly to providing the YOLO loop with project documentation context. Pre-indexing codebases and docs means each loop iteration pays retrieval cost rather than re-ingestion cost."
+    },
+    "status": "backlog",
+    "status_history": [
+      {
+        "status": "backlog",
+        "date": "2026-06-28",
+        "note": "Extracted from YouTube RSS"
+      }
+    ],
+    "outcome": null,
+    "verdict": null,
+    "notes": "Key finding: with well-vetted pre-processed data, the smallest quantised models produce accurate, low-hallucination answers. Rule-based safety filtering in Python before LLM is more reliable than prompting the LLM to police itself."
+  },
+  {
+    "id": "aie-2026-06-28-ai-system-design-framework",
+    "source": {
+      "channel": "aie",
+      "video_title": "AI System Design: From Idea to Production - Apoorva Joshi, MongoDB",
+      "video_url": "https://www.youtube.com/watch?v=T0HhO4YtTfE",
+      "published_date": "2026-06-28",
+      "ingested_date": "2026-06-28"
+    },
+    "experiment": {
+      "title": "Apply a four-phase design framework (requirements \u2192 architecture \u2192 evaluation \u2192 optimisation) before writing any AI system code",
+      "hypothesis": "If we define business constraints, performance requirements, and evaluation criteria before generating any code, then we ship higher-quality AI systems with fewer expensive rearchitecting cycles, because each architectural decision downstream is constrained and validated by explicit upfront requirements rather than discovered through production failures.",
+      "what_they_did": "Apoorva presented a repeatable four-phase framework for AI system design using a health insurance claims review system as the worked example. Phase 1 (Product Requirements): write a user-specific, measurable, solution-agnostic business problem statement; enumerate regulatory/data/procurement/performance constraints; classify AI's role (critical vs complementary, reactive vs proactive, augmentation vs automation). Phase 2 (System Design): choose data sources and architecture patterns that satisfy constraints; decide where human-in-the-loop is mandatory (e.g. denial decisions). Phase 3 (Evaluation & Monitoring): define offline eval metrics before building; instrument production to track implicit quality signals (e.g. human override rate, review latency). Phase 4 (Optimisation): apply prompt engineering, reranking, semantic caching, batch processing, and structured outputs only after baseline accuracy is established. She emphasised designing the simplest system that meets requirements and iterating from there.",
+      "effort_estimate": "low",
+      "relevance_to_yolo_loop": "The framework provides the planning scaffold that should precede any YOLO loop setup for a new project. Particularly the constraint enumeration (latency budget, cost ceiling, data residency) and the eval-before-build requirement directly inform what the loop's acceptance criteria should be."
+    },
+    "status": "backlog",
+    "status_history": [
+      {
+        "status": "backlog",
+        "date": "2026-06-28",
+        "note": "Extracted from YouTube RSS"
+      }
+    ],
+    "outcome": null,
+    "verdict": null,
+    "notes": "MongoDB + Voyage AI stack used in examples but framework is stack-agnostic. GenAI cookbook linked in talk for retrieval technique and agentic pattern examples."
+  },
+  {
+    "id": "aie-2026-06-28-extended-cache-augmented-generation",
+    "source": {
+      "channel": "aie",
+      "video_title": "When All Context Matters: Extended Cache Augmented Generation - Luis Romero-Sevilla, Orbis",
+      "video_url": "https://www.youtube.com/watch?v=XovaGv4f39A",
+      "published_date": "2026-06-28",
+      "ingested_date": "2026-06-28"
+    },
+    "experiment": {
+      "title": "Distribute a rapidly-changing full-corpus across parallel CAG buckets with a supervisor model for global questions",
+      "hypothesis": "If we split a large, frequently-updated document collection across multiple parallel cache-augmented generation (CAG) buckets \u2014 each pre-loading a subset of documents into KV cache \u2014 and use a supervisor model to interrogate relevant buckets and synthesise answers, then we get better recall than simple RAG and faster recomputation than GraphRAG when data changes, because each bucket can be independently refreshed and queried in parallel rather than rebuilding a global knowledge graph.",
+      "what_they_did": "Luis described a scenario where all documents in a collection are relevant to answer global questions AND the collection changes frequently. He evaluated three approaches: (1) Simple RAG \u2014 fast to update but misses cross-document relationships; (2) GraphRAG \u2014 excellent at relationships but prohibitively expensive to recompute when data changes; (3) Extended CAG \u2014 split documents into balanced buckets (no domain ordering, to prevent the supervisor ignoring seemingly irrelevant buckets), pre-load each bucket into a model's KV cache, run buckets in parallel, and have a supervisor model progressively explore buckets and ask follow-up questions before synthesising a final answer. He noted KV cache cost can be managed by optimising cache lifetime. The approach sits between RAG and GraphRAG on the cost/accuracy tradeoff curve.",
+      "effort_estimate": "high",
+      "relevance_to_yolo_loop": "Relevant if the YOLO loop needs to reason over a large project corpus where all documents are potentially relevant (e.g. full codebase + all design docs). The parallel bucket pattern with a supervisor is an architectural option for the loop's context retrieval stage when RAG recall is insufficient."
+    },
+    "status": "backlog",
+    "status_history": [
+      {
+        "status": "backlog",
+        "date": "2026-06-28",
+        "note": "Extracted from YouTube RSS"
+      }
+    ],
+    "outcome": null,
+    "verdict": null,
+    "notes": "No benchmark numbers provided. KV cache cost is a real concern \u2014 speaker acknowledges it but only gestures at lifecycle optimisation. Worth revisiting when Anthropic or other providers offer cheaper KV cache pricing."
+  },
+  {
+    "id": "aie-2026-06-28-research-to-production-rpt",
+    "source": {
+      "channel": "aie",
+      "video_title": "Research to Reality: Bringing Frontier ML Research to Production - Vaidas Razgaitis, Higharc",
+      "video_url": "https://www.youtube.com/watch?v=OXMMN-XbxwA",
+      "published_date": "2026-06-28",
+      "ingested_date": "2026-06-28"
+    },
+    "experiment": {
+      "title": "Require a Research Prototype Taxonomy document before any ML prototype enters the production mono-repo",
+      "hypothesis": "If every ML research prototype must produce a structured taxonomy document (domain context, business goal, type contracts, persistence layer, system architecture, and decomposition plan) before software engineers begin productionisation, then the handoff velocity increases and rework decreases, because ambiguity about data representations, type boundaries, and deployment topology is resolved before code review rather than discovered during it.",
+      "what_they_did": "Vaidas described Higharc's three-lever system for getting ML research into production: (1) Research Prototype Taxonomy (RPT) document \u2014 a TDD variant in Notion capturing domain-specific data representations (for a 'JP Morgan engineer' unfamiliar with architectural domain), business justification, type safety contracts between the core product repo and ML repo, persistence layer design, system architecture, and a PR decomposition plan. (2) Structured ML mono-repo \u2014 separate Python-only AI/ML repo with clear module buckets, templates, and patterns so new research concepts have obvious homes. Uses Modal for GPU compute. (3) Decomposition and stacked PR review plan \u2014 use Graphite for stacked diffs to slice monolithic prototypes into dependency-ordered PRs, enabling asynchronous parallel review by domain specialists. The RPT document's architectural layers directly inform the decomposition strategy.",
+      "effort_estimate": "medium",
+      "relevance_to_yolo_loop": "The RPT document pattern is directly applicable to any non-trivial YOLO loop extension (e.g. adding a new retrieval strategy, a new agent tool, or a custom model integration). It provides the planning artefact that makes the loop's own evolution more systematic."
+    },
+    "status": "backlog",
+    "status_history": [
+      {
+        "status": "backlog",
+        "date": "2026-06-28",
+        "note": "Extracted from YouTube RSS"
+      }
+    ],
+    "outcome": null,
+    "verdict": null,
+    "notes": "Diagnostic questions at end of talk are useful for self-assessment: Is it obvious where new code goes in the repo? Can you consistently estimate delivery timelines for research concepts? Are the right subject-matter experts identifiable for each PR slice?"
+  },
+  {
+    "id": "aie-2026-06-28-autonomous-engineering-org-maturity",
+    "source": {
+      "channel": "aie",
+      "video_title": "Building an Autonomous Engineering Org - Angie Jones, Agentic AI Foundation",
+      "video_url": "https://www.youtube.com/watch?v=whue9_YquGA",
+      "published_date": "2026-06-28",
+      "ingested_date": "2026-06-28"
+    },
+    "experiment": {
+      "title": "Use a six-stage agent maturity model and AI champions program to accelerate org-wide adoption past stage 3",
+      "hypothesis": "If we identify and invest in a small cohort of high-commitment AI champions (1% of engineers) who pioneer agentic patterns for their team's specific repositories, then the remaining 90% of engineers adopt more advanced delegation behaviours faster than they would through self-directed learning, because the 90-9-1 rule means most engineers will adopt patterns that already exist in their team context rather than discovering them independently.",
+      "what_they_did": "Angie described Block's journey to build an autonomous engineering org across 3,500 engineers. She created a six-stage maturity model: 0=no AI, 1=autocomplete only, 2=chatting with agents (no PRs), 3=delegating tasks and reviewing output, 4=running multiple agents in parallel, 5=agents produce shippable results without hand-holding. She launched an AI champions program \u2014 50 strategically selected engineers (not volunteers) who committed 30% time to AI enablement across critical repositories. Champions performed 'repo readiness' work: writing CLAUDE.md/agents.md files, building team-specific skills, creating test harnesses for agent output validation. Once at stage 4, she enabled Codex for automated PR review with an auto-fix loop (Codex finds issues \u2192 second agent commits fixes). At stage 5, she built a company world model (machine-readable map of all 25K repos and dependencies) powering an orchestrator (BuilderBot) that lets anyone in the org delegate full features via Slack.",
+      "effort_estimate": "high",
+      "relevance_to_yolo_loop": "The maturity model provides a diagnostic for where any team sits in agent adoption. The repo-readiness work (CLAUDE.md, skills, test harnesses) is directly applicable to setting up an effective YOLO loop. The world model / orchestrator pattern is the long-term target architecture the loop is evolving toward."
+    },
+    "status": "backlog",
+    "status_history": [
+      {
+        "status": "backlog",
+        "date": "2026-06-28",
+        "note": "Extracted from YouTube RSS"
+      }
+    ],
+    "outcome": null,
+    "verdict": null,
+    "notes": "Talk ends with an ethical provocation \u2014 the autonomous org resulted in layoffs and Angie questions whether building it was the right outcome. Worth holding alongside the technical learnings."
+  },
+  {
+    "id": "aie-2026-06-28-html-for-agent-graphics",
+    "source": {
+      "channel": "aie",
+      "video_title": "HTML is All You Need (for Agents to Make Graphics) - Amol Kapoor, Nori",
+      "video_url": "https://www.youtube.com/watch?v=JRTAtZ5iBkU",
+      "published_date": "2026-06-28",
+      "ingested_date": "2026-06-28"
+    },
+    "experiment": {
+      "title": "Use HTML+CSS as the agent-native format for generating slide decks, documents, and visual artifacts instead of canvas-based tools",
+      "hypothesis": "If we instruct coding agents to produce visual artifacts (slides, reports, dashboards) as HTML+CSS rather than manipulating PowerPoint, Figma, or SVG directly, then output quality and layout correctness improve dramatically, because HTML is a structured language agents have trained on billions of examples of, so they can reason about headings, grids, and charts semantically rather than placing pixel coordinates they cannot verify.",
+      "what_they_did": "Amol argued that agents fail at graphics not because of model limitations but because canvas-based tools (PowerPoint, Figma, SVG) require spatial reasoning in a pixel coordinate system foreign to language models. He demonstrated that asking models to draw a pelican in SVG produces garbage, but the same task in HTML produces coherent, readable, and editable output. His company (Nori) uses HTML+CSS exclusively for all slide decks, board decks, sales decks, docs, and even the conference video itself (built as animated HTML/CSS divs). He showed that once content is populated from company data (call transcripts, emails) by an agent with access to those sources, full board-quality decks can be built end-to-end from a phone. He recommended rendering to PDF only as a final export step if needed, keeping HTML as the canonical editing format.",
+      "effort_estimate": "low",
+      "relevance_to_yolo_loop": "Any YOLO loop step that needs to produce a human-readable report, status update, or architectural diagram can use this pattern. Replacing 'generate a PDF report' with 'generate an HTML report' is a one-line prompt change with significantly better output quality."
+    },
+    "status": "backlog",
+    "status_history": [
+      {
+        "status": "backlog",
+        "date": "2026-06-28",
+        "note": "Extracted from YouTube RSS"
+      }
+    ],
+    "outcome": null,
+    "verdict": null,
+    "notes": "The Simon Willison 'pelican in SVG' test is a quick benchmark for comparing model spatial reasoning across versions. Consider adding it to our model evaluation checklist."
+  },
+  {
+    "id": "aie-2026-06-28-turboquant-embedding-compression",
+    "source": {
+      "channel": "aie",
+      "video_title": "Turbocharge Your Agent's Retrieval with TurboQuant - Shashi Jagtap, Superagentic AI",
+      "video_url": "https://www.youtube.com/watch?v=tB9RKTrU-Ig",
+      "published_date": "2026-06-28",
+      "ingested_date": "2026-06-28"
+    },
+    "experiment": {
+      "title": "Swap the retrieval layer in agent vector search to TurboQuant 3-4 bit embedding compression for 5x memory reduction",
+      "hypothesis": "If we replace float32 vector storage in our agent's retrieval index with TurboQuant 3-4 bit compressed embeddings (using Polar Quant + QJL error correction), then we achieve ~5x reduction in index memory with retrieval quality preserved at ~90% recall, because search only needs to find the closest vector, not reconstruct it exactly, and TurboQuant's two-stage compression corrects quantisation errors sufficiently for ranking purposes.",
+      "what_they_did": "Shashi presented TurboQuant, a Google Research paper from ICLR 2026, as a practical tool for agent memory reduction. He explained the two-stage algorithm: (1) Polar Quant shuffles and scalar-quantises vectors into 3-4 bits; (2) QJL fixes remaining error with 1 bit. He demonstrated this via the open-source 'Turbo Agent' library which wraps existing agent frameworks and vector databases \u2014 only the retrieval/indexing layer is swapped. In a live demo using a 2B local Llama model and a 0.6B quantised embedding model (256 dimensions), the float32 index used 8KB vs TurboQuant's 1.6KB (5x smaller) with identical answers. He noted the library is already being adopted by llama.cpp, MLX, Ollama, and LM Studio. Recommended sweet spot is 3.5 bits; 4 bits is the practical safe choice.",
+      "effort_estimate": "low",
+      "relevance_to_yolo_loop": "The YOLO loop's vector retrieval for code and docs can directly benefit from this swap \u2014 lower RAM usage means larger indexes fit on local machines, enabling bigger codebase coverage without GPU or cloud vector DB costs."
+    },
+    "status": "backlog",
+    "status_history": [
+      {
+        "status": "backlog",
+        "date": "2026-06-28",
+        "note": "Extracted from YouTube RSS"
+      }
+    ],
+    "outcome": null,
+    "verdict": null,
+    "notes": "Cold start limitation: pure semantic search until enough usage history accumulates for utility scoring. For new projects, plan for a warm-up period. GitHub repo: TurboAgent. Also supports LanceDB and SurrealDB as vector backends."
+  },
+  {
+    "id": "aie-2026-06-28-spec-driven-development",
+    "source": {
+      "channel": "aie",
+      "video_title": "Using Spec-Driven Development for Production Workflows - Erik Hanchett, AWS",
+      "video_url": "https://www.youtube.com/watch?v=IddXPepIAS4",
+      "published_date": "2026-06-28",
+      "ingested_date": "2026-06-28"
+    },
+    "experiment": {
+      "title": "Implement spec-driven development with markdown requirements and design docs generated before any code is written",
+      "hypothesis": "If we require the agent to generate structured markdown requirements and design documents (with EARS-format user stories, mermaid architecture diagrams, and property-based test specifications) before generating any implementation code, then the resulting code better matches intent and requires fewer correction cycles, because explicit upfront specifications constrain the solution space and give the agent verifiable criteria to code against rather than inferring intent from a brief prompt.",
+      "what_they_did": "Erik described spec-driven development as writing markdown specification files before any code is written, optimised for LLM coding assistants. He demonstrated the workflow using Kiro IDE (kiro.dev): the agent first generates a design document (mermaid sequence/architecture diagrams, property-based test stubs using fast-check), then a requirements document in EARS format (user stories with 'When/shall' structure), then a task list (including an auto-generated MVP scoping pass), and only then implements the tasks. Skills (keyword-triggered instruction files) can be activated during spec creation or implementation phases. He emphasised the Goldilocks principle for agents.md/CLAUDE.md steering files \u2014 too much context is as harmful as too little \u2014 and stressed that the human must remain in the loop reviewing every generated document before implementation proceeds.",
+      "effort_estimate": "low",
+      "relevance_to_yolo_loop": "Spec-driven development is a meta-pattern for how the YOLO loop should be initialised for new features. Rather than jumping straight into code generation, adding a requirements-doc and design-doc phase at the start of each loop cycle gives the agent better-constrained implementation targets and makes progress reviewable at each step."
+    },
+    "status": "backlog",
+    "status_history": [
+      {
+        "status": "backlog",
+        "date": "2026-06-28",
+        "note": "Extracted from YouTube RSS"
+      }
+    ],
+    "outcome": null,
+    "verdict": null,
+    "notes": "Kiro IDE is purpose-built for this workflow but the pattern is implementable in any coding agent via a custom skill that sequences: requirements \u2192 design \u2192 tasks \u2192 implement. Property-based test generation (fast-check for TS/JS) during the spec phase is a strong addition to catch edge cases before implementation."
+  },
+  {
+    "id": "aie-2026-06-28-agent-rx-outcome-informed-retrieval",
+    "source": {
+      "channel": "aie",
+      "video_title": "User Signal Dies at the Retrieval Boundary - Sonam Pankaj, StarlightSearch",
+      "video_url": "https://www.youtube.com/watch?v=Jx4ZFEAq6bY",
+      "published_date": "2026-06-28",
+      "ingested_date": "2026-06-28"
+    },
+    "experiment": {
+      "title": "Add outcome-weighted utility scoring to agent retrieval so memory relevance improves from past run success/failure signals",
+      "hypothesis": "If we replace pure semantic similarity retrieval with a utility score (semantic similarity \u00d7 historical helpfulness weight) that updates based on whether retrieved memories led to successful or failed task outcomes, then agents improve at recurring tasks over time without retraining or manual prompt engineering, because the retrieval layer learns which context is actually useful for execution rather than just topically similar.",
+      "what_they_did": "Sonam identified that 73% of agent pipeline failures stem from retrieval (not generation) and that eval signals (pass/fail) die in observability dashboards rather than feeding back into agent behaviour. He built 'Agent RX' (Runtime Experience) \u2014 a retrieval layer where memories carry a utility score (50% semantic similarity + 30% keyword score + 20% recency, adjusted by historical outcome feedback) rather than raw embedding distance. Memories are treated as reasoning artifacts (e.g. 'check settlement before refunding') not just facts. When enough memories (\u224810) accumulate, their reasoning is baked into skills so the system prompt stays current without manual editing. In a product SQL agent demo, after one failure was submitted as feedback, the agent's tool-call trajectory changed \u2014 it now searches more broadly (finding 'wireless mouse' when asked for 'gaming mouse') rather than returning empty results. Benchmarks on TaLE Bench showed improvement from 66% to 76% baseline, and 80% with skills. The library is open-sourced as 'Reflect'.",
+      "effort_estimate": "medium",
+      "relevance_to_yolo_loop": "The YOLO loop currently has no feedback path from run outcomes back into retrieval. Agent RX's utility-score pattern would let the loop's memory system get smarter with each iteration \u2014 directly addressing the 'agent keeps failing at the same task' failure mode."
+    },
+    "status": "backlog",
+    "status_history": [
+      {
+        "status": "backlog",
+        "date": "2026-06-28",
+        "note": "Extracted from YouTube RSS"
+      }
+    ],
+    "outcome": null,
+    "verdict": null,
+    "notes": "Cold start limitation acknowledged \u2014 pure semantic search until sufficient outcome history. Noisy failure labels can corrupt utility scores. Lambda hyperparameter controls credit attribution in re-ranking. GitHub: Reflect library."
+  },
+  {
+    "id": "aie-2026-06-28-docling-unstructured-document-processing",
+    "source": {
+      "channel": "aie",
+      "video_title": "Structuring the Unstructured - Cedric Clyburn, Red Hat",
+      "video_url": "https://www.youtube.com/watch?v=-x5GEVnkuRw",
+      "published_date": "2026-06-28",
+      "ingested_date": "2026-06-28"
+    },
+    "experiment": {
+      "title": "Use Docling for local, GPU-free conversion of PDFs and mixed documents to structured markdown before RAG ingestion",
+      "hypothesis": "If we process all enterprise documents (PDFs, PPTX, DOCX, scanned images) through Docling's local OCR+layout-analysis pipeline to produce clean markdown or JSON before embedding, then RAG retrieval accuracy improves and hallucination risk decreases compared to naive PDF parsers or frontier-model extraction, because Docling correctly preserves table structure, image captions, and column boundaries that simple parsers merge or truncate and that LLMs non-deterministically misinterpret.",
+      "what_they_did": "Cedric demonstrated Docling (Linux Foundation open-source project) as a local document processing tool that runs on CPU without GPU. It uses a combination of OCR and layout analysis to parse PDFs and other formats into a Pydantic DoclingDocument object exportable to markdown or JSON. Key capabilities shown: table extraction preserving row/column structure, image content extraction (via annotation models), caption and heading detection. He demonstrated the contrast between a naive PDF parser (truncated/merged text, unusable table, no image content) vs frontier model extraction (good quality but expensive and non-deterministic at scale) vs Docling (deterministic, fast, cheap, local). He also showed docling-serve (run as a microservice/container) for scaling to thousands of documents, and the Docling MCP server for agentic document processing \u2014 allowing agents like Claude Code or Cursor to trigger Docling conversions via MCP tool calls. The hybrid chunker was highlighted for RAG-optimised chunking.",
+      "effort_estimate": "low",
+      "relevance_to_yolo_loop": "Any YOLO loop that ingests project documentation, design docs, or external references as context should pre-process them through Docling rather than passing raw PDFs to the LLM. One-time setup, then all future document ingestion is deterministic and cheap."
+    },
+    "status": "backlog",
+    "status_history": [
+      {
+        "status": "backlog",
+        "date": "2026-06-28",
+        "note": "Extracted from YouTube RSS"
+      }
+    ],
+    "outcome": null,
+    "verdict": null,
+    "notes": "The viral tweet about 20 scientific papers containing a hallucinated term (from AI misreading a scanned two-column PDF) is a compelling case for why deterministic document parsing matters. Docling MCP server enables agentic document workflows without custom glue code."
+  },
+  {
+    "id": "aie-2026-06-28-agents-building-agents-harness",
+    "source": {
+      "channel": "aie",
+      "video_title": "Agents Building Agents - Alfonso Graziano, Nearform",
+      "video_url": "https://www.youtube.com/watch?v=aHhB3sjGjkI",
+      "published_date": "2026-06-28",
+      "ingested_date": "2026-06-28"
+    },
+    "experiment": {
+      "title": "Build a Golden Dataset + Eval Loop to Drive Agent Improvements",
+      "hypothesis": "If we maintain a golden dataset of input/expected-output pairs and run scored evals against it after each change, then we can catch regressions and systematically improve agent accuracy because we have a quantitative baseline that makes non-deterministic behavior measurable.",
+      "what_they_did": "Alfonso described building a golden dataset (curated with subject-matter experts) that defines expected inputs and outputs\u2014including expected tool calls and call chains\u2014for an agent. They built scorers that run the dataset through the LLM and produce a pass-rate number. Starting from 18% pass rate on a bare Mastra agent, they iteratively added tools, improved system prompts, and re-ran evals. Failure modes discovered on live data were fed back into the golden dataset so regressions would be caught automatically. A coding agent (e.g., AutoAgent) was given the failure clusters plus access to the test harness so it could propose and validate its own fixes.",
+      "effort_estimate": "medium",
+      "relevance_to_yolo_loop": "Directly maps to the evaluation and regression-detection phase of the YOLO loop: golden dataset acts as the test suite, scorers act as the CI gate, and the coding agent closing the loop mirrors the automated fix-and-validate step we want in our dev loop."
+    },
+    "status": "backlog",
+    "status_history": [
+      {
+        "status": "backlog",
+        "date": "2026-06-28",
+        "note": "Extracted from YouTube RSS"
+      }
+    ],
+    "outcome": null,
+    "verdict": null,
+    "notes": ""
+  },
+  {
+    "id": "aie-2026-06-28-agents-building-agents-live-trace-clustering",
+    "source": {
+      "channel": "aie",
+      "video_title": "Agents Building Agents - Alfonso Graziano, Nearform",
+      "video_url": "https://www.youtube.com/watch?v=aHhB3sjGjkI",
+      "published_date": "2026-06-28",
+      "ingested_date": "2026-06-28"
+    },
+    "experiment": {
+      "title": "Cluster Live Agent Traces into Failure Reports and Auto-Fix with a Coding Agent",
+      "hypothesis": "If we collect production traces with user feedback, cluster them into failure categories once per sprint, and feed those clusters to a coding agent with a spec-and-harness environment, then we can close the live-data feedback loop automatically because the coding agent can validate its own fixes against existing evals before proposing a PR.",
+      "what_they_did": "Alfonso described a pipeline where production traces (with thumbs-up/thumbs-down feedback) are clustered by an LLM into failure modes. A report is generated per sprint summarizing the clusters. Human judgment is applied to filter false positives or out-of-scope clusters. Valid failure modes are converted into specs and added to the golden dataset. A coding agent (they used AutoAgent in complex cases) is given the traces and the spec, makes code changes, runs the eval suite to validate, and proposes draft PRs. The whole thing is enabled by 'Harness Engineering'\u2014providing the coding agent with constraints, quality gates (linting, unit tests, evals, LLM code review), context engineering, and observability.",
+      "effort_estimate": "high",
+      "relevance_to_yolo_loop": "This is the outer feedback loop of the YOLO loop: production signals \u2192 automated clustering \u2192 spec generation \u2192 coding agent fix \u2192 eval gate \u2192 merge. It shows how to make the entire loop self-improving with minimal human intervention beyond sprint-level review."
+    },
+    "status": "backlog",
+    "status_history": [
+      {
+        "status": "backlog",
+        "date": "2026-06-28",
+        "note": "Extracted from YouTube RSS"
+      }
+    ],
+    "outcome": null,
+    "verdict": null,
+    "notes": ""
+  },
+  {
+    "id": "aie-2026-06-28-browser-agent-compressed-dom",
+    "source": {
+      "channel": "aie",
+      "video_title": "Browser Agents Don't Need Better Models. They Need Better Eyes. - Kushan Raj, ARK",
+      "video_url": "https://www.youtube.com/watch?v=JnubYCYunk8",
+      "published_date": "2026-06-28",
+      "ingested_date": "2026-06-28"
+    },
+    "experiment": {
+      "title": "Replace Full-DOM or Screenshot-Only Input with a Compressed Markdown Page Representation for Browser Agents",
+      "hypothesis": "If we replace raw screenshots or full DOM dumps with a compressed markdown representation of the entire page (plus delta feedback on what appeared/disappeared), then browser agents will be faster, cheaper, and more reliable because the model can see the full page context in ~1,800 tokens instead of 20,000+ tokens, enabling better long-sequence planning and accurate click targeting.",
+      "what_they_did": "Kushan built a browser agent that converts each page into a compressed markdown representation (~1,800 tokens) instead of using raw screenshots (~1,100 tokens but partial view) or full DOM (~20,000 tokens). The representation lets the model see the entire page at once. He also added delta feedback: the agent is told which elements appeared, disappeared, or were unclickable after each action, giving it a lightweight state-diff. Compared to Claude using standard screenshot-based browsing (which got stuck, took 2+ minutes on simple tasks), his agent with a cheaper model completed the same tasks in seconds. He demonstrated downloading an Aadhaar card and booking a trekking date as concrete examples.",
+      "effort_estimate": "medium",
+      "relevance_to_yolo_loop": "Relevant to any YOLO loop step that involves a browser agent as a tool\u2014e.g., automated testing, scraping, or UI validation. The compressed representation pattern could also apply to how we feed UI context to coding agents doing front-end work."
+    },
+    "status": "backlog",
+    "status_history": [
+      {
+        "status": "backlog",
+        "date": "2026-06-28",
+        "note": "Extracted from YouTube RSS"
+      }
+    ],
+    "outcome": null,
+    "verdict": null,
+    "notes": ""
   }
 ]
