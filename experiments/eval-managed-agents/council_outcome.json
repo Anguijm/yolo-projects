@@ -1,0 +1,91 @@
+{
+  "gate": "outcome",
+  "project": "experiments/eval-managed-agents",
+  "timestamp": "2026-06-28T04:30:07.288674+00:00",
+  "verdicts": [
+    {
+      "angle": "bugs",
+      "verdict": "OBJECT",
+      "severity": "critical",
+      "reason": "The live benchmark mode has a resource leak risk and unreliable cleanup if API resource creation (agent, environment, session) fails.",
+      "required_fix": "In `run_live`, track which API resources (agent, environment, session) were successfully created by initializing their IDs to `None` and assigning them only upon success. The `finally` block should then only attempt to delete/archive resources whose IDs are not `None`, preventing `NameError` or `AttributeError` during cleanup and ensuring resources are not leaked if creation fails.",
+      "evidence": "```python\n    agent = client.beta.agents.create(\n        name=\"yolo-bench-agent\",\n        model=model,\n        system=\"You are a benchmark agent. Complete the task, then stop.\",\n        tools=[{\"type\": \"agent_toolset_20260401\"}],\n    )\n    env = client.beta.environments.create(\n        name=f\"yolo-bench-{int(time.time())}\",\n        config={\"type\": \"cloud\", \"networking\": {\"type\": \"limited\"}},\n    )\n    session = client.beta.sessions.create(\n        agent=agent.id, environment_id=env.id, title=\"managed-agents benchmark\"\n    )\n\n    # ... (rest of function)\n\n    finally:\n        # If agent.create, env.create, or session.create failed, \n        # agent, env, or session might not be defined or their .id attributes \n        # might not exist, leading to NameError/AttributeError during cleanup.\n        for label, fn in (\n            (\"session\", lambda: client.beta.sessions.delete(session.id)),\n            (\"environment\", lambda: client.beta.environments.delete(env.id)),\n            (\"agent\", lambda: client.beta.agents.archive(agent.id)),\n        ):\n            try:\n                fn()\n            except Exception as exc:  # best-effort cleanup; never mask the result\n                print(f\"[bench] cleanup of {label} failed: {exc}\", file=sys.stderr, flush=True)\n```",
+      "veto": false,
+      "parse_failed": false
+    },
+    {
+      "angle": "security",
+      "verdict": "APPROVE",
+      "severity": "low",
+      "reason": "The script correctly handles API keys via environment variables and uses a deny-by-default network configuration for the agent's execution environment, significantly reducing attack surface and data exfiltration risks.",
+      "required_fix": "",
+      "evidence": "client.beta.environments.create(..., config={\"type\": \"cloud\", \"networking\": {\"type\": \"limited\"}})",
+      "veto": false,
+      "parse_failed": false
+    },
+    {
+      "angle": "ui",
+      "verdict": "APPROVE",
+      "severity": "low",
+      "reason": "The script provides clear instructions, safe defaults, excellent feedback during execution, and actionable error messages, making for a frictionless user experience for its target audience.",
+      "required_fix": "",
+      "evidence": "",
+      "veto": false,
+      "parse_failed": false
+    },
+    {
+      "angle": "guide",
+      "verdict": "APPROVE",
+      "severity": "low",
+      "reason": "The script is exceptionally well-documented, providing clear instructions for both human users and AI agents.",
+      "required_fix": "",
+      "evidence": "",
+      "veto": false,
+      "parse_failed": false
+    },
+    {
+      "angle": "usefulness",
+      "verdict": "APPROVE",
+      "severity": "low",
+      "reason": "This project provides a critical, structured evaluation of a fundamental architectural decision, preventing costly missteps in agent orchestration.",
+      "required_fix": "",
+      "evidence": "The benchmark directly addresses the 'build vs. buy' dilemma for agent orchestration, quantifying trade-offs in ownership, complexity, cost, and control, which is a high-value strategic tool for engineering teams.",
+      "veto": false,
+      "parse_failed": false
+    },
+    {
+      "angle": "cool",
+      "verdict": "APPROVE",
+      "severity": "low",
+      "reason": "The benchmark introduces a unique 'orchestration-ownership delta' metric, quantifying exactly what code a repo would shed by adopting managed agents, providing a clear signature move for architectural evaluation.",
+      "required_fix": "",
+      "evidence": "",
+      "veto": false,
+      "parse_failed": false
+    },
+    {
+      "angle": "lessons",
+      "verdict": "APPROVE",
+      "severity": "low",
+      "reason": "The deliverable explicitly acknowledges and guards against violating the 'synchronous-finish rule' for its `--live` mode, making the default static mode safe for automated cron execution.",
+      "required_fix": "",
+      "evidence": "The live path is deliberately **not** run by the autonomous cron \u2014 managed sessions run for minutes and bill real tokens, which is incompatible with the synchronous one-shot tick.",
+      "veto": false,
+      "parse_failed": false
+    }
+  ],
+  "all_approved": false,
+  "objections": [
+    {
+      "angle": "bugs",
+      "verdict": "OBJECT",
+      "severity": "critical",
+      "reason": "The live benchmark mode has a resource leak risk and unreliable cleanup if API resource creation (agent, environment, session) fails.",
+      "required_fix": "In `run_live`, track which API resources (agent, environment, session) were successfully created by initializing their IDs to `None` and assigning them only upon success. The `finally` block should then only attempt to delete/archive resources whose IDs are not `None`, preventing `NameError` or `AttributeError` during cleanup and ensuring resources are not leaked if creation fails.",
+      "evidence": "```python\n    agent = client.beta.agents.create(\n        name=\"yolo-bench-agent\",\n        model=model,\n        system=\"You are a benchmark agent. Complete the task, then stop.\",\n        tools=[{\"type\": \"agent_toolset_20260401\"}],\n    )\n    env = client.beta.environments.create(\n        name=f\"yolo-bench-{int(time.time())}\",\n        config={\"type\": \"cloud\", \"networking\": {\"type\": \"limited\"}},\n    )\n    session = client.beta.sessions.create(\n        agent=agent.id, environment_id=env.id, title=\"managed-agents benchmark\"\n    )\n\n    # ... (rest of function)\n\n    finally:\n        # If agent.create, env.create, or session.create failed, \n        # agent, env, or session might not be defined or their .id attributes \n        # might not exist, leading to NameError/AttributeError during cleanup.\n        for label, fn in (\n            (\"session\", lambda: client.beta.sessions.delete(session.id)),\n            (\"environment\", lambda: client.beta.environments.delete(env.id)),\n            (\"agent\", lambda: client.beta.agents.archive(agent.id)),\n        ):\n            try:\n                fn()\n            except Exception as exc:  # best-effort cleanup; never mask the result\n                print(f\"[bench] cleanup of {label} failed: {exc}\", file=sys.stderr, flush=True)\n```",
+      "veto": false,
+      "parse_failed": false
+    }
+  ],
+  "vetoed": false
+}
