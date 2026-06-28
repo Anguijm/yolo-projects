@@ -12,6 +12,7 @@ skills/
   20-review.md       — Gemini code review sub-skill (used by Tick and Tock)
   30-phase4.md       — YouTube pipeline (fetch → summarize → extract experiments)
   40-refine.md       — Refine an existing project (review → fix → log)
+  50-skill-creator.md — Author a new skill from a plain-English description
 ```
 
 ## How to Use
