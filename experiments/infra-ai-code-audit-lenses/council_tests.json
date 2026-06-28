@@ -1,0 +1,91 @@
+{
+  "gate": "tests",
+  "project": "experiments/infra-ai-code-audit-lenses",
+  "timestamp": "2026-06-28T17:26:41.463399+00:00",
+  "verdicts": [
+    {
+      "angle": "bugs",
+      "verdict": "OBJECT",
+      "severity": "high",
+      "reason": "The script's analysis of embedded JavaScript for 'hallucinated imports', 'unused imports', and 'dead-code functions' can produce incorrect results (false positives and false negatives) because it analyzes code within HTML comments and counts references within comments/string literals as valid code references.",
+      "required_fix": "1. Modify the script extraction to ignore `<script>` tags that are enclosed within HTML comments. 2. For 'unused imports' and 'dead-code functions' checks, count identifier references against the `code` variable (which is the comment/string-stripped script content) instead of the raw `scripts` variable to ensure only executable code references are considered.",
+      "evidence": "file:ai_antipatterns.py\nLine 144: scripts = \"\\n\".join(re.findall(r'<script[^>]*>(.*?)</script>', text, re.DOTALL | re.IGNORECASE))\nLine 175: unused = sorted(n for n in names if len(re.findall(r'\\b' + re.escape(n) + r'\\b', scripts)) <= 1)\nLine 206: in_code = len(re.findall(r'\\b' + re.escape(name) + r'\\b', scripts))",
+      "veto": false,
+      "parse_failed": false
+    },
+    {
+      "angle": "security",
+      "verdict": "APPROVE",
+      "severity": "low",
+      "reason": "The script correctly implements path containment checks to prevent arbitrary file reads and uses `re.escape` to mitigate regex injection risks. Regexes are also designed to avoid catastrophic backtracking. Output is to console, minimizing injection impact.",
+      "required_fix": "",
+      "evidence": "",
+      "veto": false,
+      "parse_failed": false
+    },
+    {
+      "angle": "ui",
+      "verdict": "APPROVE",
+      "severity": "low",
+      "reason": "The command-line interface provides clear help, actionable error messages, and descriptive warnings, ensuring a good first-use experience.",
+      "required_fix": "",
+      "evidence": "",
+      "veto": false,
+      "parse_failed": false
+    },
+    {
+      "angle": "guide",
+      "verdict": "APPROVE",
+      "severity": "low",
+      "reason": "The script provides excellent self-documentation through its docstring and comprehensive --help output, clearly outlining usage, checks, and output format.",
+      "required_fix": "",
+      "evidence": "",
+      "veto": false,
+      "parse_failed": false
+    },
+    {
+      "angle": "usefulness",
+      "verdict": "APPROVE",
+      "severity": "low",
+      "reason": "This tool provides valuable, recurring checks for AI-generated code, especially the unique 'plan drift' detection, within a specific project context.",
+      "required_fix": "",
+      "evidence": "The 'mismatched-plan' check offers a novel utility for ensuring AI-generated tools align with their stated goals, a problem not well-addressed by standard linters. Other checks, while common, are useful within the specified 'YOLO single-file HTML builds' context where a full linter setup might be absent.",
+      "veto": false,
+      "parse_failed": false
+    },
+    {
+      "angle": "cool",
+      "verdict": "APPROVE",
+      "severity": "low",
+      "reason": "The 'mismatched-plan' check is a truly unique signature move, directly addressing a core problem of AI-generated code drift and providing a memorable, shareable insight.",
+      "required_fix": "",
+      "evidence": "",
+      "veto": false,
+      "parse_failed": false
+    },
+    {
+      "angle": "lessons",
+      "verdict": "APPROVE",
+      "severity": "low",
+      "reason": "The deliverable adheres to the advisory mode requirement and correctly handles file encoding, addressing past lessons.",
+      "required_fix": "",
+      "evidence": "",
+      "veto": false,
+      "parse_failed": false
+    }
+  ],
+  "all_approved": false,
+  "objections": [
+    {
+      "angle": "bugs",
+      "verdict": "OBJECT",
+      "severity": "high",
+      "reason": "The script's analysis of embedded JavaScript for 'hallucinated imports', 'unused imports', and 'dead-code functions' can produce incorrect results (false positives and false negatives) because it analyzes code within HTML comments and counts references within comments/string literals as valid code references.",
+      "required_fix": "1. Modify the script extraction to ignore `<script>` tags that are enclosed within HTML comments. 2. For 'unused imports' and 'dead-code functions' checks, count identifier references against the `code` variable (which is the comment/string-stripped script content) instead of the raw `scripts` variable to ensure only executable code references are considered.",
+      "evidence": "file:ai_antipatterns.py\nLine 144: scripts = \"\\n\".join(re.findall(r'<script[^>]*>(.*?)</script>', text, re.DOTALL | re.IGNORECASE))\nLine 175: unused = sorted(n for n in names if len(re.findall(r'\\b' + re.escape(n) + r'\\b', scripts)) <= 1)\nLine 206: in_code = len(re.findall(r'\\b' + re.escape(name) + r'\\b', scripts))",
+      "veto": false,
+      "parse_failed": false
+    }
+  ],
+  "vetoed": false
+}

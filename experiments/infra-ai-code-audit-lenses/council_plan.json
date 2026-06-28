@@ -1,0 +1,101 @@
+{
+  "gate": "plan",
+  "project": "experiments/infra-ai-code-audit-lenses",
+  "timestamp": "2026-06-28T17:19:27.391474+00:00",
+  "verdicts": [
+    {
+      "angle": "bugs",
+      "verdict": "OBJECT",
+      "severity": "high",
+      "reason": "The plan's explicit avoidance of stripping comments and strings will lead to significant false positives and negatives for code-related checks (hallucinated-imports, unused-imports, deadcode-function) and directly contradicts the stated requirement for the orphan-TODO check to target markers *only* within comments.",
+      "required_fix": "Implement robust pre-processing to strip comments and string literals from the HTML/JavaScript content before applying regexes for code analysis. Alternatively, adopt a lightweight AST parser for JavaScript to ensure accurate identification of code constructs and comment-only content.",
+      "evidence": "Approach section: 'Helpers \u2014 `_strip_comments_strings` is intentionally avoided to keep parity with the other regex-only lenses; checks use targeted regexes on raw text and de-dup via sets.' and 'The 5 checks (tuned for low false-positive rate, since advisory)' and 'orphan-TODO \u2014 `TODO`/`FIXME`/`XXX`/`HACK` markers left in shipped code (in `//`, `/* */`, or `<!-- -->`).'",
+      "veto": false,
+      "parse_failed": false
+    },
+    {
+      "angle": "security",
+      "verdict": "OBJECT",
+      "severity": "low",
+      "reason": "Regex-only processing of untrusted HTML/JS content may be vulnerable to Regular Expression Denial of Service (ReDoS) attacks, potentially leading to excessive resource consumption or script hangs.",
+      "required_fix": "Review all regexes for ReDoS vulnerabilities and implement robust mitigations, such as using atomic groups, possessive quantifiers, or a regex timeout mechanism, especially given the processing of potentially hostile user-supplied content.",
+      "evidence": "Regex-only; inputs are bounded by file size already validated by `read_html`.",
+      "veto": false,
+      "parse_failed": false
+    },
+    {
+      "angle": "ui",
+      "verdict": "APPROVE",
+      "severity": "low",
+      "reason": "The plan for this CLI tool provides clear output, helpful `--help` text, and consistent error handling, which are the primary UI considerations for a command-line interface.",
+      "required_fix": "",
+      "evidence": "",
+      "veto": false,
+      "parse_failed": false
+    },
+    {
+      "angle": "guide",
+      "verdict": "APPROVE",
+      "severity": "low",
+      "reason": "The plan explicitly details how the tool will be discoverable and self-documenting through a README, module docstring, and CLI help text.",
+      "required_fix": "",
+      "evidence": "",
+      "veto": false,
+      "parse_failed": false
+    },
+    {
+      "angle": "usefulness",
+      "verdict": "APPROVE",
+      "severity": "low",
+      "reason": "The proposed checks address specific, recurring pain points for developers building single-file HTML tools with AI assistance, particularly the 'hallucinated imports' and 'mismatched plan' checks.",
+      "required_fix": "",
+      "evidence": "The 'hallucinated-imports' check directly addresses a common AI failure mode where it assumes a build step (like a bundler) that isn't present in a single-file browser context. The 'mismatched-plan' check provides a unique, high-level utility for ensuring AI-generated output aligns with project goals, which is a common challenge when iterating with AI.",
+      "veto": false,
+      "parse_failed": false
+    },
+    {
+      "angle": "cool",
+      "verdict": "APPROVE",
+      "severity": "low",
+      "reason": "The 'mismatched-plan' check is a unique signature move that assesses project alignment, going beyond typical code linting.",
+      "required_fix": "",
+      "evidence": "",
+      "veto": false,
+      "parse_failed": false
+    },
+    {
+      "angle": "lessons",
+      "verdict": "APPROVE",
+      "severity": "low",
+      "reason": "",
+      "required_fix": "",
+      "evidence": "",
+      "veto": false,
+      "parse_failed": false
+    }
+  ],
+  "all_approved": false,
+  "objections": [
+    {
+      "angle": "bugs",
+      "verdict": "OBJECT",
+      "severity": "high",
+      "reason": "The plan's explicit avoidance of stripping comments and strings will lead to significant false positives and negatives for code-related checks (hallucinated-imports, unused-imports, deadcode-function) and directly contradicts the stated requirement for the orphan-TODO check to target markers *only* within comments.",
+      "required_fix": "Implement robust pre-processing to strip comments and string literals from the HTML/JavaScript content before applying regexes for code analysis. Alternatively, adopt a lightweight AST parser for JavaScript to ensure accurate identification of code constructs and comment-only content.",
+      "evidence": "Approach section: 'Helpers \u2014 `_strip_comments_strings` is intentionally avoided to keep parity with the other regex-only lenses; checks use targeted regexes on raw text and de-dup via sets.' and 'The 5 checks (tuned for low false-positive rate, since advisory)' and 'orphan-TODO \u2014 `TODO`/`FIXME`/`XXX`/`HACK` markers left in shipped code (in `//`, `/* */`, or `<!-- -->`).'",
+      "veto": false,
+      "parse_failed": false
+    },
+    {
+      "angle": "security",
+      "verdict": "OBJECT",
+      "severity": "low",
+      "reason": "Regex-only processing of untrusted HTML/JS content may be vulnerable to Regular Expression Denial of Service (ReDoS) attacks, potentially leading to excessive resource consumption or script hangs.",
+      "required_fix": "Review all regexes for ReDoS vulnerabilities and implement robust mitigations, such as using atomic groups, possessive quantifiers, or a regex timeout mechanism, especially given the processing of potentially hostile user-supplied content.",
+      "evidence": "Regex-only; inputs are bounded by file size already validated by `read_html`.",
+      "veto": false,
+      "parse_failed": false
+    }
+  ],
+  "vetoed": false
+}
