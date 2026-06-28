@@ -1,18 +1,18 @@
 # Hot Cache — Active Context
-*Auto-updated 2026-06-28 14:03 UTC. Read this FIRST.*
+*Auto-updated 2026-06-28 15:31 UTC. Read this FIRST.*
 
 ## Current State
-- Portfolio: 240 total, 98 active
-- Tick queue: 80 approved, 0 pending
+- Portfolio: 241 total, 98 active
+- Tick queue: 79 approved, 0 pending
 - Phase 4: 300 experiments, 0 backlog
 - Next: tick
 
 ## Tick Queue
-- [approved] infra-loop-timing: Measure wall-clock time per YOLO loop stage to find non-AI b
 - [approved] infra-ai-code-audit-lenses: Extend infra-yolo-evals lens scripts with AI-code systemic f
 - [approved] infra-sweep-mode: Parameterized experiment sweeps mode for the tick queue
 - [approved] bench-prompt-format: Empirical A/B/C of markdown vs JSON vs XML on the BUGS angle
 - [approved] adopt-skill-creator: Install Anthropic Skill Creator plugin at user scope; bootst
+- [approved] adopt-superpowers-skill: Install the Superpowers plugin to enforce plan-then-test dis
 
 ## Recent Builds (last 5)
 - svg-fields: Drop/paste an SVG with {{placeholder}} or data-field markers

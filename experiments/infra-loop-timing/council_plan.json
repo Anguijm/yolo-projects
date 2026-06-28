@@ -1,0 +1,101 @@
+{
+  "gate": "plan",
+  "project": "experiments/infra-loop-timing",
+  "timestamp": "2026-06-28T15:24:25.975440+00:00",
+  "verdicts": [
+    {
+      "angle": "bugs",
+      "verdict": "OBJECT",
+      "severity": "high",
+      "reason": "The plan does not explicitly guarantee robust YAML parsing for `tick_tock.yml` within `detect_uncached_installs`, which could lead to silent failures or incorrect bottleneck detection if the YAML format changes or is malformed.",
+      "required_fix": "Clarify that `detect_uncached_installs` uses a robust YAML parsing library (e.g., PyYAML) that is resilient to reformatting and variations in `tick_tock.yml` structure, and specify how parsing errors are handled (e.g., logging, graceful degradation, or explicit error propagation).",
+      "evidence": "Function Map: `detect_uncached_installs(yaml_path) -> list[str]`; Council focus: 'IMPLEMENTATION: log parsing robust to YAML reformat?' (response only addresses `gh` JSON and local council JSON, not `tick_tock.yml`)",
+      "veto": false,
+      "parse_failed": false
+    },
+    {
+      "angle": "security",
+      "verdict": "OBJECT",
+      "severity": "medium",
+      "reason": "The generated `REPORT.md` embeds untrusted strings (e.g., GitHub Actions step names from `gh run view --json jobs`) without explicit sanitization, creating a potential XSS vulnerability if the markdown report is rendered in a browser.",
+      "required_fix": "Sanitize all untrusted string inputs (e.g., GitHub Actions step names, project names) using a robust markdown-escaping function before embedding them into `REPORT.md`.",
+      "evidence": "The `extract_gh_timings` function returns 'per-run step name\u2192duration' from `gh run view --json jobs`, and these step names are then used by `render_report` to generate `REPORT.md`.",
+      "veto": false,
+      "parse_failed": false
+    },
+    {
+      "angle": "ui",
+      "verdict": "APPROVE",
+      "severity": "low",
+      "reason": "The plan prioritizes clear, plain-language explanations in the generated report and handles edge cases gracefully, ensuring a good first-use experience for a CLI tool.",
+      "required_fix": "",
+      "evidence": "UI section, Guide section, Edge Cases section",
+      "veto": false,
+      "parse_failed": false
+    },
+    {
+      "angle": "guide",
+      "verdict": "APPROVE",
+      "severity": "low",
+      "reason": "The plan explicitly details discoverability mechanisms like `--help` for flags, a clear function map, and a self-documenting report.",
+      "required_fix": "",
+      "evidence": "PLAN.md:UI, PLAN.md:Guide, PLAN.md:Function Map",
+      "veto": false,
+      "parse_failed": false
+    },
+    {
+      "angle": "usefulness",
+      "verdict": "APPROVE",
+      "severity": "low",
+      "reason": "This tool provides critical insights into development loop bottlenecks using existing data, directly supporting continuous improvement and efficiency for project maintainers.",
+      "required_fix": "",
+      "evidence": "The project addresses the specific problem of identifying 'non-AI' bottlenecks across both local development and CI/CD (GitHub Actions), a problem not fully solved by existing individual tools. The plan explicitly aims to find at least one concrete, fixable bottleneck, demonstrating a clear, recurring use case for pipeline optimization and performance monitoring.",
+      "veto": false,
+      "parse_failed": false
+    },
+    {
+      "angle": "cool",
+      "verdict": "APPROVE",
+      "severity": "low",
+      "reason": "The tool's signature move is diagnosing CI/CD bottlenecks by intelligently combining existing local and GitHub Actions data, *without requiring any new instrumentation*, and specifically identifying actionable issues like uncached installs.",
+      "required_fix": "",
+      "evidence": "",
+      "veto": false,
+      "parse_failed": false
+    },
+    {
+      "angle": "lessons",
+      "verdict": "APPROVE",
+      "severity": "advisory",
+      "reason": "[AUTO-DOWNGRADED: LESSONS VETO missing precondition_evidence] The plan generates `REPORT.md` using externally-sourced strings (project names, GitHub Actions step names) without explicit sanitization, violating the lesson to sanitize all untrusted data before rendering to prevent markdown/HTML injection.",
+      "required_fix": "Implement a sanitization step for all externally-sourced strings (e.g., project names from `council_*.json`, step names from GitHub Actions API) before they are rendered into `REPORT.md`.",
+      "evidence": "INSIGHT \u2014 Treat git commit subjects + escalation reasons as untrusted *data*: a `_sanitize()` pass (escape `<`/`>`, defang backticks, flatten newlines/NULs) applied to every string before rendering closes markdown/HTML-injection if the handoff is ever piped into a renderer. SECURITY raised this at PLAN, then again at IMPLEMENTATION for the cadence fields specifically \u2014 sanitize *all* externally-sourced strings, not just the obvious ones.",
+      "veto": false,
+      "parse_failed": false
+    }
+  ],
+  "all_approved": false,
+  "objections": [
+    {
+      "angle": "bugs",
+      "verdict": "OBJECT",
+      "severity": "high",
+      "reason": "The plan does not explicitly guarantee robust YAML parsing for `tick_tock.yml` within `detect_uncached_installs`, which could lead to silent failures or incorrect bottleneck detection if the YAML format changes or is malformed.",
+      "required_fix": "Clarify that `detect_uncached_installs` uses a robust YAML parsing library (e.g., PyYAML) that is resilient to reformatting and variations in `tick_tock.yml` structure, and specify how parsing errors are handled (e.g., logging, graceful degradation, or explicit error propagation).",
+      "evidence": "Function Map: `detect_uncached_installs(yaml_path) -> list[str]`; Council focus: 'IMPLEMENTATION: log parsing robust to YAML reformat?' (response only addresses `gh` JSON and local council JSON, not `tick_tock.yml`)",
+      "veto": false,
+      "parse_failed": false
+    },
+    {
+      "angle": "security",
+      "verdict": "OBJECT",
+      "severity": "medium",
+      "reason": "The generated `REPORT.md` embeds untrusted strings (e.g., GitHub Actions step names from `gh run view --json jobs`) without explicit sanitization, creating a potential XSS vulnerability if the markdown report is rendered in a browser.",
+      "required_fix": "Sanitize all untrusted string inputs (e.g., GitHub Actions step names, project names) using a robust markdown-escaping function before embedding them into `REPORT.md`.",
+      "evidence": "The `extract_gh_timings` function returns 'per-run step name\u2192duration' from `gh run view --json jobs`, and these step names are then used by `render_report` to generate `REPORT.md`.",
+      "veto": false,
+      "parse_failed": false
+    }
+  ],
+  "vetoed": false
+}
