@@ -1,3 +1,6 @@
+---
+scope: project
+---
 # Skill: Tock (Markdown Deck Flagship Session)
 
 **Description:** Work on the Markdown Deck flagship product. Pick the highest-priority item from deck_roadmap.md and implement it. Multi-session development — features may span multiple Tock sessions.

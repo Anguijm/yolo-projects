@@ -1,3 +1,6 @@
+---
+scope: global
+---
 # Skill: Code Review
 
 **Description:** Send code to Gemini for adversarial bug review and fix all identified issues. Used as a sub-skill within Tick and Tock sessions.

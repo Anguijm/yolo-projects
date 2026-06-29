@@ -1,3 +1,6 @@
+---
+scope: project
+---
 # Skill: Bootstrap
 
 **Description:** Initialize a session by reading state files and determining what to do next. This is the first skill loaded in any session. It reads session_state.json, determines Tick vs Tock, and routes to the appropriate skill chain.

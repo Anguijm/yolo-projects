@@ -1,3 +1,6 @@
+---
+scope: project
+---
 # Skill: Refine Existing Project
 
 **Description:** Take an existing survivor project, send its code to Gemini for adversarial review, fix all bugs, update learnings. Used during refinement sweeps or on-demand.

@@ -1,3 +1,6 @@
+---
+scope: project
+---
 # YOLO Skills System
 
 Agent-readable skill files that decompose the YOLO build loop into discrete, chainable units.

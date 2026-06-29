@@ -3615,3 +3615,45 @@ per-class signal-to-noise ratio.
 - **INSIGHT**: Both systems chase the same goal (no slop ships) by opposite routes — Superpowers = soft *in-context* discipline (skills loaded into the model's context, advisory), the council = hard *out-of-process* adversarial review (7 advocates in a separate runner). They overlap on plan-first and verify-before-done, so most of Superpowers is already covered here.
 - **INSIGHT**: The one genuinely missing idea is **test-FIRST** (RED→GREEN→REFACTOR). Our pipeline runs tests as a *post-build* pre-filter, never test-first. Worth grafting for **Python-touching infra ticks** (demonstrate RED→GREEN in the same commit) — filed as a follow-up tick, NOT executed in this doc-only tick (scope discipline: stayed strictly within deliverable_paths, touched no pipeline file).
 - **COUNCIL** (advisory drain): PLAN 7/7 APPROVE, IMPLEMENTATION 7/7, TESTS 7/7. OUTCOME 6/7 — cool OBJECT critical (veto=false): "lacks any unique angle… reads like generic internal documentation / wiki page", required_fix "introduce a novel/interactive/memorable framework." Declined: gilding an internal infra comparison doc into something "shareable" is out of proportion to its purpose; logged and shipped per advisory mode. No escalation file written, council_escalations kept [].
+
+---
+
+## skill-scope-audit (infrastructure tick, 2026-06-29)
+
+**[KEEP] Prepend YAML `scope:` frontmatter above the existing first line, never replace it.**
+The 13 skill/command files use a `**Description:**/**Trigger:**` (or bare `Usage:`) convention,
+not frontmatter. Prepending `---\nscope: x\n---\n` above the H1/`Usage:` line is non-destructive
+(git diff: 13 files, +39 insertions, 0 deletions) and renders cleanly on GitHub. The tagger SKIPs
+any file already starting with `---`, so re-runs can't double-stamp. Confirmed safe by precedent:
+`.claude/skills/close-session.md` already uses YAML frontmatter in this repo.
+
+**[INSIGHT] Scope criterion that actually discriminates:** a skill is `project` iff it leans on a
+repo-pipeline concept (tick/tock, council gates, phase4, yolo_log/portfolio); `global` iff the
+capability is repo-agnostic. Result: 3 global (`20-review` Gemini bug-review, `50-skill-creator`,
+`test-gen` pytest gen) / 10 project. The 3 global ones are the generic dev capabilities — the rest
+are harness glue. This is the data a future loader needs to stop pushing the whole `skills/` tree
+into every agent's context window (the source experiment's whole point).
+
+**[IMPROVE] Regression target must be an unmodified *passing* project.** `test_project.py markdown-deck`
+FAILs on a PRE-EXISTING `brace_balance: Unbalanced` (index.html untouched by this tick) — a misleading
+signal. Switched to `cron-explain` (PASS) to prove the edits caused no repo-wide regression. Next time
+pick the regression target by `git status` (must be clean) AND a known-green test, not by familiarity.
+
+**[COUNCIL] All 4 gates ran advisory; lessons (veto angle) APPROVED at every gate.**
+- PLAN: 7/7 APPROVE. lessons: *"The plan addresses prior lessons regarding validation of new data
+  structures and security implications of added metadata."*
+- IMPLEMENTATION: 6 APPROVE, 1 OBJECT. cool (high): *"This deliverable is a foundational data-tagging
+  step without a user-facing signature move or immediate differentiation."* — inherent to an infra
+  audit; logged, not fixed.
+- TESTS: 7/7 APPROVE. cool auto-downgraded: *"[AUTO-DOWNGRADED: goalpost move, 0.54 overlap vs prior
+  cool objection]"* — the goalpost-move rule correctly caught the repeated cool objection.
+- OUTCOME: 5 APPROVE, 2 OBJECT. bugs (medium): *"The audit is incomplete as one skill
+  (`.claude/skills/close-session.md`) was explicitly excluded"* — BY DESIGN (outside deliverable_paths),
+  documented as a follow-up in SCOPES.md. ui (high): *"The document uses heavy internal jargon without
+  explanation"* — addressed with one cheap pass (added a jargon→CLAUDE.md glossary note). cool
+  auto-downgraded again (0.43 overlap). Shipped per advisory drain mode.
+
+**[INSIGHT] The `bugs` "incomplete audit" objection is a recurring infra-tick tension:** strict
+`deliverable_paths` adherence (mandated) reads as "incomplete" to an angle that doesn't see the path
+constraint. Mitigation that worked: explicitly document the excluded file + reason + follow-up in the
+deliverable itself, so the limitation is auditable rather than a silent gap.

@@ -1,3 +1,6 @@
+---
+scope: project
+---
 # Skill: Tick (YOLO Build Session)
 
 **Description:** Build one new project from scratch in a single session. Follow the full build pipeline: ideate → build → test → review → fix → log → commit. Use this when session_state says next_session_type is "tick".

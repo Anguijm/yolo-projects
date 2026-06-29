@@ -1,3 +1,6 @@
+---
+scope: global
+---
 Usage: `/test-gen <path>` or `/test-gen <path>::<func_name>`
 
 Generate pytest cases for the target file or function provided in the

@@ -1,3 +1,6 @@
+---
+scope: project
+---
 # Skill: Phase 4 YouTube Pipeline
 
 **Description:** Fetch new videos from monitored channels, process them into experiment cards, and maintain the experiment backlog. Run on daily cron or on-demand.

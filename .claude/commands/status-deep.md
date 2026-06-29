@@ -1,3 +1,6 @@
+---
+scope: project
+---
 Usage: `/status-deep` (no args)
 
 Run the standard `status` report (see CLAUDE.md for the canonical shape) and

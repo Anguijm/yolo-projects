@@ -1,3 +1,6 @@
+---
+scope: project
+---
 Usage: `/review` (no args; reviews the current branch's diff against main)
 
 Review the pending diff against `main` using the council rubric without

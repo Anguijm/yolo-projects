@@ -1,3 +1,6 @@
+---
+scope: project
+---
 Usage: `/plan` (no args; operates on the current task in context)
 
 Produce a structured `plan.md` for the current task at

@@ -1,3 +1,6 @@
+---
+scope: global
+---
 # Skill: Create a New Skill (Skill Creator)
 
 **Description:** Turn a plain-English description (or a paragraph-long SOP) into

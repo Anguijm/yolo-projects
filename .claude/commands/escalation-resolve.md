@@ -1,3 +1,6 @@
+---
+scope: project
+---
 Usage: `/escalation-resolve` (no args; reads COUNCIL_ESCALATION.md if present)
 
 Walk the user through clearing an active council escalation.
