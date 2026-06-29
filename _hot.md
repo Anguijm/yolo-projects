@@ -1,18 +1,18 @@
 # Hot Cache — Active Context
-*Auto-updated 2026-06-28 23:15 UTC. Read this FIRST.*
+*Auto-updated 2026-06-29 04:20 UTC. Read this FIRST.*
 
 ## Current State
-- Portfolio: 245 total, 98 active
-- Tick queue: 75 approved, 0 pending
+- Portfolio: 246 total, 98 active
+- Tick queue: 74 approved, 0 pending
 - Phase 4: 318 experiments, 18 backlog
 - Next: tick
 
 ## Tick Queue
-- [approved] adopt-superpowers-skill: Install the Superpowers plugin to enforce plan-then-test dis
 - [approved] skill-scope-audit: Audit existing skills (skills/*.md and .claude/commands/*.md
 - [approved] adopt-claude-design-patterns: Apply Claude-specific prompt design patterns (persona, struc
 - [approved] adopt-higgsfield-mcp: Wire Higgsfield MCP into Claude (via Settings → Connectors) 
 - [approved] adopt-voice-agent: Build a knowledge-grounded voice agent (ElevenLabs voice + C
+- [approved] adopt-claude-md-memory-layering: Audit our CLAUDE.md memory patterns against the canonical fo
 
 ## Recent Builds (last 5)
 - svg-fields: Drop/paste an SVG with {{placeholder}} or data-field markers
