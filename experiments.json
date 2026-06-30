@@ -11173,5 +11173,117 @@
     "outcome": null,
     "verdict": null,
     "notes": "Framework uses synthetic data for the public benchmark; production validation is the stated next step. The core insight \u2014 risk lives between documents, not within them \u2014 applies beyond finance to any domain with multiple interdependent artifact types. The adaptive learning loop (audit outcomes feed back into risk scoring) is what makes this scale without manual rule updates."
+  },
+  {
+    "id": "aij-2026-06-30-codebase-memory-mcp-graph",
+    "source": {
+      "channel": "aij",
+      "video_title": "I was giving my coding agent context the wrong way...",
+      "video_url": "https://www.youtube.com/watch?v=iWRmtPdFbGw",
+      "published_date": "2026-06-30",
+      "ingested_date": "2026-06-30"
+    },
+    "experiment": {
+      "title": "Replace flat-file grep with codebase-memory MCP graph for agent context",
+      "hypothesis": "If we index the codebase into a relationship graph via the codebase-memory MCP and let the agent use graph-traversal tools (search_graph, trace_path, get_architecture) instead of raw ripgrep, then token consumption will drop ~50% and the agent will identify more complete blast-radius impact because it follows typed edges rather than loading full file contents.",
+      "what_they_did": "Jason installed the codebase-memory MCP (written in C/C++ for speed, no LLM pipeline) into Claude Code. It indexed his repo in seconds, extracted functions/classes/methods into a relationship graph, and exposed tools like get_architecture, search_graph, trace_path, and detect_change. He also used the pre-tool-use hook so that even when the agent defaulted to ripgrep, the hook augmented the result with graph data automatically. He compared token usage on the same codebase-investigation task: ~11k tokens with MCP vs ~38k without for the first query, and ~33k vs ~64k for a follow-up trace query.",
+      "effort_estimate": "low",
+      "relevance_to_yolo_loop": "Directly reduces context-window bloat during any agent-driven code-change task in the YOLO loop. The pre-tool-use hook pattern is a drop-in for Claude Code / Codex and would benefit PR review, dependency tracing, and refactor planning without changing the outer loop orchestration."
+    },
+    "status": "backlog",
+    "status_history": [
+      {
+        "status": "backlog",
+        "date": "2026-06-30",
+        "note": "Extracted from YouTube RSS"
+      }
+    ],
+    "outcome": null,
+    "verdict": null,
+    "notes": "GitHub: search 'AI builder club' or check video description. Install flag: --with-ui adds a graph visualisation web UI on a local port. Particularly valuable for mono-repo or multi-ripple projects."
+  },
+  {
+    "id": "aij-2026-06-30-pre-tool-use-hook-pattern",
+    "source": {
+      "channel": "aij",
+      "video_title": "I was giving my coding agent context the wrong way...",
+      "video_url": "https://www.youtube.com/watch?v=iWRmtPdFbGw",
+      "published_date": "2026-06-30",
+      "ingested_date": "2026-06-30"
+    },
+    "experiment": {
+      "title": "Use pre-tool-use hooks to silently augment default agent tool calls with richer context",
+      "hypothesis": "If we attach a pre-tool-use hook that intercepts native tool calls (e.g. ripgrep) and appends graph or semantic metadata to the result before the model sees it, then the agent will receive enriched context without requiring a deliberate MCP tool invocation, reducing the chance the agent skips the richer retrieval path.",
+      "what_they_did": "Jason highlighted that most MCP tools fail because agents forget to call them. The codebase-memory MCP solves this by registering a pre-tool-use hook in Claude Code: when the agent fires a standard grep, the hook intercepts the call, runs a parallel graph query, and merges the graph data into the grep result transparently. The agent always gets augmented output even when it never explicitly calls the MCP tools.",
+      "effort_estimate": "low",
+      "relevance_to_yolo_loop": "Generalizable design pattern for any MCP or tool wrapper in the YOLO loop. Any enrichment layer (memory lookup, project-rules injection, test-coverage data) can be silently grafted onto existing tool calls via hooks rather than requiring prompt engineering to make the agent remember to call a separate tool."
+    },
+    "status": "backlog",
+    "status_history": [
+      {
+        "status": "backlog",
+        "date": "2026-06-30",
+        "note": "Extracted from YouTube RSS"
+      }
+    ],
+    "outcome": null,
+    "verdict": null,
+    "notes": "Hook API available in Claude Code and Codex. Pattern is transferable to any agent framework that exposes pre/post tool lifecycle events."
+  },
+  {
+    "id": "mk-2026-06-30-agentic-os-five-layers",
+    "source": {
+      "channel": "mk",
+      "video_title": "Master All 5 Layers of Every Agentic OS",
+      "video_url": "https://www.youtube.com/watch?v=YjkteijEyzQ",
+      "published_date": "2026-06-30",
+      "ingested_date": "2026-06-30"
+    },
+    "experiment": {
+      "title": "Structure agent harnesses as five explicit layers with tracked rot-rates",
+      "hypothesis": "If we decompose an agentic OS into five distinct layers (identity/soul, rules/hooks, skills, crystallized agents, tools/MCPs/CLIs) and assign a rot-rate (expected staleness cadence) to each layer, then maintenance will be more systematic and context-window poisoning from outdated instructions will be reduced because each layer has a clear owner, update trigger, and expiration signal.",
+      "what_they_did": "Mark presented a mental model treating an agentic OS like the layers of the Earth: a stable inner core (identity/soul file \u2014 CLAUDE.md or soul.md) pointing to rules and skills via short pointer sentences; a rules-and-hooks layer for deterministic guardrails; a skills layer for repeatable but non-deterministic workflows surfaced as slash commands; a crystallized-agents layer for tasks that have evolved beyond skills; and an outermost tools/MCPs/CLI layer. He introduced the concept of 'rot rate' \u2014 the pace at which each layer becomes obsolete \u2014 and showed a year-long timeline where each layer needs periodic refresh. He demonstrated this with a personal-health OS: soul file \u2192 extraction rules \u2192 Supabase data layer \u2192 Whoop API sync \u2192 food-photo and voice-note intake skills.",
+      "effort_estimate": "medium",
+      "relevance_to_yolo_loop": "Provides a principled scaffold for organising the YOLO loop's own agent harness. Mapping current CLAUDE.md, skills, hooks, and MCP configs to these five layers makes it easier to audit what is stale, what is missing, and what should be promoted from a skill to a crystallized sub-agent as the loop matures."
+    },
+    "status": "backlog",
+    "status_history": [
+      {
+        "status": "backlog",
+        "date": "2026-06-30",
+        "note": "Extracted from YouTube RSS"
+      }
+    ],
+    "outcome": null,
+    "verdict": null,
+    "notes": "Mark offers a free care-package prompt download and a paid community deep-dive (links in video description). The rot-rate concept is the most novel and immediately applicable element \u2014 worth creating a simple tracking doc that lists each harness layer with its last-updated date and expected review cadence."
+  },
+  {
+    "id": "aie-2026-06-30-rl-agent-etl-remediation",
+    "source": {
+      "channel": "aie",
+      "video_title": "Using RL Agent to Detect and Remediate ETL Pipeline Failures - Anna Marie Benzon",
+      "video_url": "https://www.youtube.com/watch?v=LrGCT7G_rU8",
+      "published_date": "2026-06-30",
+      "ingested_date": "2026-06-30"
+    },
+    "experiment": {
+      "title": "Apply a reinforcement-learning agent to auto-detect and remediate ETL pipeline failures",
+      "hypothesis": "If we train a reinforcement-learning agent to observe ETL pipeline state signals (failure codes, data-quality metrics, upstream lag) and select remediation actions (retry, reroute, alert, skip), then mean-time-to-recovery for pipeline failures will decrease and on-call toil will be reduced because the agent learns which actions resolve which failure modes faster than rule-based playbooks.",
+      "what_they_did": "Talk by Anna Marie Benzon at an ai.engineer event. No transcript available; inferred from title: she described using an RL agent to monitor ETL pipelines for failures and automatically execute remediation steps, framing it as a self-healing data infrastructure problem solved via learned policy rather than hand-coded alerting logic.",
+      "effort_estimate": "high",
+      "relevance_to_yolo_loop": "Relevant if the YOLO loop runs any data ingestion or processing pipelines (e.g. RSS ingest, eval pipelines, context-sync jobs). The RL-for-remediation pattern could be applied to auto-recover stuck or failed loop stages without human intervention."
+    },
+    "status": "backlog",
+    "status_history": [
+      {
+        "status": "backlog",
+        "date": "2026-06-30",
+        "note": "Extracted from YouTube RSS"
+      }
+    ],
+    "outcome": null,
+    "verdict": null,
+    "notes": "No transcript available; card is inferred from title only. Confidence in hypothesis details is low. Recommend watching the full talk before prioritising. May be more relevant to MLOps/data-eng contexts than core agent development."
   }
 ]
