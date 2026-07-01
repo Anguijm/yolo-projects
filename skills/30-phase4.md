@@ -13,7 +13,12 @@ scope: project
 
 ### 1. Fetch
 - Run `python3 fetch_youtube_rss.py --since $(date -d '3 days ago' +%Y-%m-%d) --with-transcripts > /tmp/rss_scan.json`
-- This polls the RSS feed for every channel in `CHANNELS` (12 as of 2026-05), diffs against video_ids already in `experiments.json`, and pulls auto-captions via supadata.ai when `SUPADATA_API_KEY` is set.
+- This polls the RSS feed for every channel in `CHANNELS` (12 as of 2026-05), diffs against video_ids already in `experiments.json`, and pulls auto-caption **transcripts**. Transcript source precedence (`fetch_transcript` in `fetch_youtube_rss.py`):
+  1. Local JSON cache at `phase4_cache/transcripts/<video_id>.json`.
+  2. **supadata.ai** when `SUPADATA_API_KEY` is set — residential-IP proxy that bypasses YouTube's datacenter-IP block; this is the primary source in the cron.
+  3. **youtube-transcript-api** (pip package, installed by the workflow) as a fallback — usually blocked from datacenter IPs but cheap to try once.
+  4. Title-only generation if all fail.
+- Transcripts are cached and truncated (head 6000 / tail 4000 chars). **Captions only — no video or audio is downloaded, and there is no frame/screenshot/vision step.**
 - The cron entry point is `.github/workflows/daily_research.yml`.
 
 ### 2. Process queue
@@ -56,7 +61,8 @@ scope: project
 ## Input
 - RSS feed of each channel in `fetch_youtube_rss.py:CHANNELS` (live).
 - `experiments.json` (existing experiments for dedup against video_id).
-- `SUPADATA_API_KEY` env var (optional; enables transcript-driven cards).
+- `SUPADATA_API_KEY` env var — enables the **primary** (supadata) transcript source. Without it the pipeline falls back to `youtube-transcript-api` (installed by the workflow), then title-only.
+- Transcript cache at `phase4_cache/transcripts/` (JSON snippet lists).
 
 ## Output
 - New experiment cards appended directly to `experiments.json`.
