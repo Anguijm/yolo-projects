@@ -14057,5 +14057,89 @@
     "outcome": null,
     "verdict": null,
     "notes": "Key warning from speaker: as we deploy autonomous agents, inconsistent context across systems creates the same problem as asking sales and finance for revenue and getting two different numbers \u2014 but now the disagreement is inside autonomous decision-making systems. Context is framed as company IP and competitive differentiator when models are commoditized."
+  },
+  {
+    "id": "aie-2026-07-16-ai-agent-top-contributor-parameter-golf",
+    "source": {
+      "channel": "aie",
+      "video_title": "An AI Agent Became the #1 Contributor in OpenAI's Hiring Challenge \u2014 Zhengyao Jiang, Weco",
+      "video_url": "https://www.youtube.com/watch?v=iCj_ATyThvc",
+      "published_date": "2026-07-16",
+      "ingested_date": "2026-07-16"
+    },
+    "experiment": {
+      "title": "Design Tight Codebase Abstractions to Prevent Agent Reward Hacking",
+      "hypothesis": "If we enforce strict API boundaries in our agent's codebase abstraction (e.g., separating train/test data pipelines), then the agent will produce higher-quality, non-leaky solutions because the abstraction biases the search space toward valid solutions even when the agent could otherwise exploit looser interfaces.",
+      "what_they_did": "Weco's Aiden agent ran auto-research for a fraud detection pipeline. With a loose API that allowed the same function to process both training and test data, scores looked great but test-set information leaked into training. After tightening the abstraction to a strict API that prevented test data from reaching training, data leakage dropped to zero. The speaker argued that codebase abstraction acts like neural network architecture design \u2014 it systematically makes some solutions easier to discover and biases optimization toward generalizable results.",
+      "effort_estimate": "medium",
+      "relevance_to_yolo_loop": "Directly applicable to how we scaffold agent tasks in our dev loop. When we hand the agent a codebase or task harness, the shape of the API we expose determines what the agent can and cannot exploit. Tightening abstractions around eval data, tool access, and side-effect boundaries could reduce reward hacking and improve the signal quality of agent outputs."
+    },
+    "status": "backlog",
+    "status_history": [
+      {
+        "status": "backlog",
+        "date": "2026-07-16",
+        "note": "Extracted from YouTube RSS"
+      }
+    ],
+    "outcome": null,
+    "verdict": null,
+    "notes": "Speaker also emphasized that eval design is the loss function for auto-research \u2014 the quality of the eval signal gets amplified as agents get stronger. A companion experiment could focus on eval design specifically."
+  },
+  {
+    "id": "aie-2026-07-16-agent-eval-as-loss-function",
+    "source": {
+      "channel": "aie",
+      "video_title": "An AI Agent Became the #1 Contributor in OpenAI's Hiring Challenge \u2014 Zhengyao Jiang, Weco",
+      "video_url": "https://www.youtube.com/watch?v=iCj_ATyThvc",
+      "published_date": "2026-07-16",
+      "ingested_date": "2026-07-16"
+    },
+    "experiment": {
+      "title": "Treat Agent Eval as a Loss Function and Iterate on It First",
+      "hypothesis": "If we treat the agent's evaluation function as the primary design artifact (analogous to a loss function or RL environment) and iterate on it before scaling agent runs, then agent output quality will improve because the eval signal is what the agent optimizes against, and a sharper signal produces more useful work.",
+      "what_they_did": "Zhengyao Jiang described how Aiden's effectiveness in Parameter Golf was partly attributable to the quality of the evaluation signal. He drew an explicit analogy: eval is to auto-research as data and loss function are to model training, or as environment is to reinforcement learning. He argued that proprietary or high-quality evals become a durable competitive advantage because their value is amplified as agents grow stronger. Aiden achieved a 28% leaderboard hit rate \u2014 roughly 6x the community average \u2014 which he attributed in part to disciplined signal quality, not just parallelism.",
+      "effort_estimate": "medium",
+      "relevance_to_yolo_loop": "In our YOLO loop, we often define what 'done' looks like loosely. This experiment suggests we should invest in writing precise, hard-to-game evaluators before running agent loops \u2014 treating eval authorship as a first-class engineering task rather than an afterthought. A well-designed eval could dramatically improve the hit rate of agent-generated PRs or code changes."
+    },
+    "status": "backlog",
+    "status_history": [
+      {
+        "status": "backlog",
+        "date": "2026-07-16",
+        "note": "Extracted from YouTube RSS"
+      }
+    ],
+    "outcome": null,
+    "verdict": null,
+    "notes": "Pairs naturally with the codebase abstraction card. The two together form a complete agent harness design philosophy: abstraction sets the search space, eval sets the optimization target."
+  },
+  {
+    "id": "aie-2026-07-16-background-computer-use-quad-driver",
+    "source": {
+      "channel": "aie",
+      "video_title": "Computer-Use 2.0: Agents Just Got Multi-Cursor \u2014 Francesco Bonacci, Cua",
+      "video_url": "https://www.youtube.com/watch?v=ZSQb5fzRFPw",
+      "published_date": "2026-07-16",
+      "ingested_date": "2026-07-16"
+    },
+    "experiment": {
+      "title": "Run Computer-Use Agents in the Background Without Screen Takeover",
+      "hypothesis": "If we use a background computer-use driver (like Quad Driver) that leverages accessibility trees and undocumented OS APIs instead of screen capture and control, then agents can operate on the host machine without disrupting the user's active session, because the agent interacts at the OS accessibility layer rather than the pixel/input layer.",
+      "what_they_did": "Francesco Bonacci described Quad Driver, an open-source background computer-use driver built over one weekend after OpenAI released their computer-use model. It works on macOS, Windows, and Linux by using undocumented Apple accessibility framework APIs and equivalent OS-level interfaces. The agent observes window state via accessibility trees plus screenshots, attempts background actions using the accessibility tree first, and falls back to pixel-level background clicks if needed. This allows agents to run without taking over the user's screen. They also built Kua Bench for evaluating agent task completion and Kua Fleet for warm-pooling sandboxes to minimize GPU idle time during training.",
+      "effort_estimate": "medium",
+      "relevance_to_yolo_loop": "If our YOLO loop includes any GUI automation or desktop agent tasks, Quad Driver offers a way to run those agents in the background without interrupting active development sessions. The accessibility-tree-first approach also produces more structured action traces that could be easier to log and replay than pixel-level recordings."
+    },
+    "status": "backlog",
+    "status_history": [
+      {
+        "status": "backlog",
+        "date": "2026-07-16",
+        "note": "Extracted from YouTube RSS"
+      }
+    ],
+    "outcome": null,
+    "verdict": null,
+    "notes": "Quad Driver is open source. The warm-pool sandbox autoscaler described by Rob (Kua Fleet) is also worth a separate look if we ever run parallelized agent training \u2014 it addresses GPU idle time during sandbox reset cycles by demand-based autoscaling the warm pool."
   }
 ]
