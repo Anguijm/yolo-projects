@@ -16633,5 +16633,173 @@
     "outcome": null,
     "verdict": null,
     "notes": "Primarily relevant as a safety/capability research signal rather than an immediate YOLO loop experiment. The open-source vs closed-source framing for defensive AI is worth tracking. Hugging Face's Thomas Wolf involvement suggests potential for open post-training data release."
+  },
+  {
+    "id": "nh-2026-07-25-opus5-vs-fable5-claude-code-comparison",
+    "source": {
+      "channel": "nh",
+      "video_title": "I Tested Opus 5 vs. Fable 5. What You Need to Know.",
+      "video_url": "https://www.youtube.com/watch?v=2J3uX8iRNng",
+      "published_date": "2026-07-25",
+      "ingested_date": "2026-07-25"
+    },
+    "experiment": {
+      "title": "Benchmark Opus 5 vs Fable 5 on Real Coding Workflows Inside Claude Code",
+      "hypothesis": "If we run identical coding tasks through both Opus 5 and Fable 5 inside Claude Code and track cost, time, and token usage, then we can identify which model delivers better value per task type because Opus 5 is half the price but uses significantly more tokens, making the cost comparison non-obvious.",
+      "what_they_did": "Nate ran ~10 sessions with Opus 5 and ~8 sessions with Fable 5 inside Claude Code on identical prompts including bug-finding in large codebases. He tracked input/output tokens, total cost, and active time per session. He used Codex as an independent judge to score outputs. He found Opus 5 used ~2M output tokens vs ~832K for Fable, took longer on average (~63 min vs ~25 min per session), and despite being half the per-token price, sometimes ended up more expensive due to verbosity. On one coding task Opus scored 93/95 vs Fable's 66/95; on another Fable edged out Opus on code cleanliness. He also tested a tip of using Fable as a delegating orchestrator to preserve context window while Opus handles subagent work.",
+      "effort_estimate": "medium",
+      "relevance_to_yolo_loop": "Directly informs model selection strategy for our dev loop. The orchestrator/subagent split tip (Fable delegates, Opus executes) is immediately applicable to reduce context burn. Token and cost tracking methodology can be adopted to instrument our own loop sessions."
+    },
+    "status": "backlog",
+    "status_history": [
+      {
+        "status": "backlog",
+        "date": "2026-07-25",
+        "note": "Extracted from YouTube RSS"
+      }
+    ],
+    "outcome": null,
+    "verdict": null,
+    "notes": "Consolidated results doc offered in Nate's free School community. Key headline: Opus 5 per-token is cheaper but produces far more tokens, so real-world cost depends heavily on task verbosity and verification loop design."
+  },
+  {
+    "id": "nh-2026-07-25-fable-orchestrator-opus-subagent",
+    "source": {
+      "channel": "nh",
+      "video_title": "I Tested Opus 5 vs. Fable 5. What You Need to Know.",
+      "video_url": "https://www.youtube.com/watch?v=2J3uX8iRNng",
+      "published_date": "2026-07-25",
+      "ingested_date": "2026-07-25"
+    },
+    "experiment": {
+      "title": "Use Fable as a Delegating Orchestrator to Preserve Context Window Budget",
+      "hypothesis": "If we configure Fable 5 purely as an orchestrator that delegates execution to Opus 5 subagents without writing or executing code itself, then Fable's context window will stay well under 300-400K tokens even in multi-hour sessions because all token-heavy generation work is offloaded to cheaper Opus instances.",
+      "what_they_did": "Nate described a pattern where Fable 5 is prompted with an explicit instruction not to write or execute any code itself, only to delegate tasks to Opus. He observed that Fable sessions running this way could last multiple hours or a full day without hitting 300-400K context tokens. This preserves the Fable session for high-level reasoning and coordination while Opus handles the token-expensive implementation work at lower per-token cost.",
+      "effort_estimate": "low",
+      "relevance_to_yolo_loop": "Directly applicable to our YOLO loop architecture: framing the top-level agent as a pure planner/delegator is a concrete prompt engineering change we can test immediately to extend effective session length and reduce cost per loop iteration."
+    },
+    "status": "backlog",
+    "status_history": [
+      {
+        "status": "backlog",
+        "date": "2026-07-25",
+        "note": "Extracted from YouTube RSS"
+      }
+    ],
+    "outcome": null,
+    "verdict": null,
+    "notes": "Simple prompt constraint to test: add 'You should not write any code or execute anything; only delegate to subagents' to Fable system prompt and measure context growth rate over a long session."
+  },
+  {
+    "id": "aie-2026-07-25-control-loop-pr-flow-control",
+    "source": {
+      "channel": "aie",
+      "video_title": "Loop Engineering from First Principles \u2014 Kyle Mistele, HumanLayer",
+      "video_url": "https://www.youtube.com/watch?v=xIt_mTQp6mY",
+      "published_date": "2026-07-25",
+      "ingested_date": "2026-07-25"
+    },
+    "experiment": {
+      "title": "Implement Adaptive Flow Control to Prevent PR Stack-Up in Agentic Loops",
+      "hypothesis": "If we add a pre-flight check to each loop workflow that halts execution when a previous PR from that loop is still open, then we prevent duplicate and conflicting work from accumulating because it enforces the invariant that a human must review each loop output before the next iteration runs.",
+      "what_they_did": "Kyle described a control-loop architecture for agentic coding in large codebases. Each loop workflow is labeled; before checking out code and running sense-control-actuate steps, the workflow checks whether any open PR with the loop's label already exists. If so, the workflow shuts down immediately. This ensures at most one open PR per loop at any time, eliminating stacking, duplication, and merge conflicts that arise when loops run unattended for days. He also described a version-controlled markdown feedback file and a slash-iterate comment trigger that lets humans steer the loop on the fly without high friction.",
+      "effort_estimate": "medium",
+      "relevance_to_yolo_loop": "Directly addresses a failure mode in our YOLO loop: unchecked iterations producing conflicting outputs. The label-based PR gate and the version-controlled feedback file are concrete mechanisms we can bolt onto our existing GitHub Actions workflow to add human-in-the-loop steering without blocking velocity."
+    },
+    "status": "backlog",
+    "status_history": [
+      {
+        "status": "backlog",
+        "date": "2026-07-25",
+        "note": "Extracted from YouTube RSS"
+      }
+    ],
+    "outcome": null,
+    "verdict": null,
+    "notes": "Kyle also mentioned velocity scaling options once the loop is stable: controller picks 3-5 items per run, each gets its own context window, or workflow runs in parallel across team members. HumanLayer published a skill to try this pattern."
+  },
+  {
+    "id": "aie-2026-07-25-tiny-model-finetune-voice-function-calling",
+    "source": {
+      "channel": "aie",
+      "video_title": "Why Large? Tiny LMs & Agents on Edge/Robotics \u2014 Cormac Brick, Google",
+      "video_url": "https://www.youtube.com/watch?v=hacEQHHhu2Q",
+      "published_date": "2026-07-25",
+      "ingested_date": "2026-07-25"
+    },
+    "experiment": {
+      "title": "Fine-Tune a Sub-4B Parameter Model on Synthetic Data for Robust Voice-to-Function-Calling",
+      "hypothesis": "If we generate a synthetic dataset for a specific agentic task and fine-tune a tiny model (hundreds of millions to low-single-digit billions of parameters) on it, then we can match or exceed the quality of a much larger general model on that task because task-specific fine-tuning concentrates model capacity on the exact distribution needed.",
+      "what_they_did": "Cormac described Google's AI Edge team playbook for deploying tiny Gemma-based models on consumer devices and entry-level robotics. Key finding: for a single well-defined task (e.g. voice dictation with text cleanup and personalization), fine-tuning a tiny model on a curated synthetic dataset produces the same or better quality than a much larger base model, while running fully on-device with very low latency. They shipped a production iOS voice dictation app using two fine-tuned tiny Gemma models (hundreds of millions of parameters each) with no server calls. He noted that voice-to-function-calling is now achievable robustly with tiny models given sufficient synthetic data, and that agents can be used to generate that synthetic data to lower the barrier.",
+      "effort_estimate": "high",
+      "relevance_to_yolo_loop": "Relevant if our loop needs fast, cheap, local inference for a narrow subtask (e.g. routing, tool-call classification, prompt compression). The synthetic-data-generation-via-agent approach is directly usable: we can have our existing loop generate training pairs for a distilled router model."
+    },
+    "status": "backlog",
+    "status_history": [
+      {
+        "status": "backlog",
+        "date": "2026-07-25",
+        "note": "Extracted from YouTube RSS"
+      }
+    ],
+    "outcome": null,
+    "verdict": null,
+    "notes": "DRAM cost on edge devices is a significant constraint (Raspberry Pi 3 6GB up 2.5x in cost). For server-side loop use the constraint is less acute, but the synthetic-data + fine-tune playbook is the transferable insight."
+  },
+  {
+    "id": "aie-2026-07-25-agent-simulation-benchmark-from-traces",
+    "source": {
+      "channel": "aie",
+      "video_title": "From Agent Traces to Agent Simulations \u2014 Rustem Feyzkhanov, Snorkel AI",
+      "video_url": "https://www.youtube.com/watch?v=Ib5t2RLtxvM",
+      "published_date": "2026-07-25",
+      "ingested_date": "2026-07-25"
+    },
+    "experiment": {
+      "title": "Build a Private Agent Benchmark from Production Traces for Repeatable Offline Evaluation",
+      "hypothesis": "If we convert production agent traces into a private simulation benchmark with deterministic environments, then we can compare agent configurations (model, prompt, tool set) on cost, latency, and success rate in a repeatable apples-to-apples way because offline simulation removes the non-determinism of live tool state and database versions.",
+      "what_they_did": "Rustem described Snorkel AI's approach to agent evaluation. They run millions of agent simulations per month. The workflow: capture production traces (input prompt, actions taken, output), construct benchmark tasks from those traces with mocked environments that replicate real tools, APIs, policies, and DB state, then run the agent under different configurations offline. Verifiers (LLM-based and human SMEs) score outputs on pass rate, cost, latency, and retries. The benchmark serves three purposes: initial release gate, regression test on every config change, and training data for fine-tuning a smaller model to match a larger one. He recommended an 80/20 train/validation split, coverage of both happy-path and edge cases, and connecting the observability and experimentation systems so traces continuously repopulate the benchmark dataset.",
+      "effort_estimate": "high",
+      "relevance_to_yolo_loop": "Core infrastructure for our loop: we need exactly this to confidently swap models, change prompts, or modify tool sets without regressions. The trace-to-task pipeline is the missing piece between our current ad-hoc testing and a reliable release gate. Start small: instrument one loop, capture 20-30 traces, hand-craft 5 simulation tasks, add one LLM verifier."
+    },
+    "status": "backlog",
+    "status_history": [
+      {
+        "status": "backlog",
+        "date": "2026-07-25",
+        "note": "Extracted from YouTube RSS"
+      }
+    ],
+    "outcome": null,
+    "verdict": null,
+    "notes": "Rustem noted SME review should focus on disagreement cases between agent and verifier, not blanket review of everything. Fine-tuning a small planner model using simulation-generated traces was mentioned as a concrete outcome; link to Snorkel website example shared in talk."
+  },
+  {
+    "id": "aie-2026-07-25-video-eval-small-vlm-judge",
+    "source": {
+      "channel": "aie",
+      "video_title": "Evaling Video Slop \u2014 Maor Bril, Character.ai",
+      "video_url": "https://www.youtube.com/watch?v=b_PmGocP4rc",
+      "published_date": "2026-07-25",
+      "ingested_date": "2026-07-25"
+    },
+    "experiment": {
+      "title": "Fine-Tune a Small VLM as a Fast Video Quality Judge Calibrated by Periodic Human Annotation",
+      "hypothesis": "If we fine-tune a small VLM (e.g. Qwen-based) on human-annotated video quality labels and use it as an inline judge during generation, then we can catch quality failures earlier and cheaper in the pipeline because correcting drift at the frame or short-clip stage costs far less than regenerating full multi-minute videos.",
+      "what_they_did": "Maor described Character.ai's iterative approach to evaluating generated video quality. Classical metrics (CLIP score, LPIPS) only assess individual frames or prompt alignment, not narrative coherence, physics plausibility, character consistency, or audio sync. Their first iteration built a repeatable benchmark harness combining frame-level metrics with LLM-as-judge, calibrated by periodic human annotation sessions (10-15 min, random axes per annotator). The human feedback was fed back into the LLM judge prompt and used as training data for the next model version. To scale and move evaluation earlier in the pipeline, they fine-tuned a small Qwen-based VLM as a specialized video judge that can run at high throughput on a single GPU instance. They catch character drift between shot starting frames before generating the full video, saving significant compute. The open-source harness accepts any LLM/agent as the judge backend.",
+      "effort_estimate": "high",
+      "relevance_to_yolo_loop": "Pattern is transferable beyond video: the principle of fine-tuning a small specialist judge model, calibrated by human annotation on disagreement cases, and inserting it early in the generation pipeline applies to any expensive multi-step agentic output. For our loop, consider a small classifier judge on intermediate artifacts before committing to expensive downstream steps."
+    },
+    "status": "backlog",
+    "status_history": [
+      {
+        "status": "backlog",
+        "date": "2026-07-25",
+        "note": "Extracted from YouTube RSS"
+      }
+    ],
+    "outcome": null,
+    "verdict": null,
+    "notes": "Maor chose Qwen due to prior successful post-training experience. At small scale (<1000 videos/day) a cohort of frontier model judges plus human experts is sufficient; the fine-tuned small VLM becomes worthwhile at thousands+ per day for unit economics. Repo is open source; telemetry export is a noted gap, accepted as feature request."
   }
 ]
