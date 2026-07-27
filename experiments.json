@@ -16941,5 +16941,145 @@
     "outcome": null,
     "verdict": null,
     "notes": "Open-source datasets available via QR code in video. Key calibration insight: prefer false negatives over false positives in sensitive domains (wrong to block > wrong to allow). For our loop, the inverse may apply depending on task\u2014worth explicitly deciding the false positive / false negative trade-off per guardrail type before deploying."
+  },
+  {
+    "id": "nb-2026-07-27-chinese-model-specialist-routing",
+    "source": {
+      "channel": "nb",
+      "video_title": "US AI Dominance Is Over: Here's Why",
+      "video_url": "https://www.youtube.com/watch?v=JBzz53HqMEs",
+      "published_date": "2026-07-27",
+      "ingested_date": "2026-07-27"
+    },
+    "experiment": {
+      "title": "Route agent swarm tasks to cheap Chinese models by task type",
+      "hypothesis": "If we assign bounded, high-volume, reviewable subtasks (classification, extraction, test generation, first-pass research) to low-cost Chinese model APIs like DeepSeek or Qwen within a multi-agent swarm, then we reduce per-result cost significantly while maintaining acceptable quality because these tasks are verifiable and retryable, making the low error rate tolerable.",
+      "what_they_did": "Nate tested Qwen as a participant in a multi-agent swarm (his 'Ringer' system) where a more capable orchestrator model (Fable) directs cheaper models to do the bulk work. He found Qwen was effective for many swarm subtasks, cutting cost substantially compared to using frontier models throughout. He recommends separating the task decision, model selection, and deployment path decisions rather than conflating them under 'Chinese model' as a single choice.",
+      "effort_estimate": "medium",
+      "relevance_to_yolo_loop": "Directly applicable to our agent loop: we can tier model selection per node \u2014 orchestrator uses frontier, leaf/worker nodes use DeepSeek or Qwen for extractive or generative subtasks, with a cost-per-accepted-result metric gating the tradeoff."
+    },
+    "status": "backlog",
+    "status_history": [
+      {
+        "status": "backlog",
+        "date": "2026-07-27",
+        "note": "Extracted from YouTube RSS"
+      }
+    ],
+    "outcome": null,
+    "verdict": null,
+    "notes": "Nate emphasizes measuring cost per accepted result including retries, tool calls, and latency \u2014 not just token price. Data-path risk (where prompts go) must be assessed before routing sensitive workloads."
+  },
+  {
+    "id": "do-2026-07-27-agent-to-agent-parallel-bug-fixing",
+    "source": {
+      "channel": "do",
+      "video_title": "Agentic Engineering, explained by a 10x developer",
+      "video_url": "https://www.youtube.com/watch?v=FU5_kpTAVDo",
+      "published_date": "2026-07-27",
+      "ingested_date": "2026-07-27"
+    },
+    "experiment": {
+      "title": "Spawn child agents from a running agent to handle discovered bugs in parallel",
+      "hypothesis": "If a primary coding agent can spawn a secondary agent on a separate branch when it discovers a secondary bug during its main task, then overall throughput increases and context pollution decreases because each agent maintains focused context on a single well-scoped problem rather than context-switching mid-task.",
+      "what_they_did": "Torsten Ball described AMP's agent-to-agent communication feature where a running agent, upon discovering an additional bug, can be instructed to launch a new 'orb' (agent instance) in a separate checkout on a separate branch to fix that bug independently, while the primary agent continues its original work. He described this as a recent release that meaningfully increased their shipping velocity.",
+      "effort_estimate": "high",
+      "relevance_to_yolo_loop": "Extends our YOLO loop from linear agent sessions to a tree-structured execution model \u2014 the main session can delegate newly discovered issues to sub-sessions, keeping the critical path unblocked and enabling parallelism within a single logical task."
+    },
+    "status": "backlog",
+    "status_history": [
+      {
+        "status": "backlog",
+        "date": "2026-07-27",
+        "note": "Extracted from YouTube RSS"
+      }
+    ],
+    "outcome": null,
+    "verdict": null,
+    "notes": "AMP also uses separate git checkouts per agent to avoid workspace conflicts. The pattern requires a branch-per-agent convention and a way to surface child agent results back to the orchestrating developer for spot-check and merge."
+  },
+  {
+    "id": "do-2026-07-27-kill-features-to-stay-on-frontier",
+    "source": {
+      "channel": "do",
+      "video_title": "Agentic Engineering, explained by a 10x developer",
+      "video_url": "https://www.youtube.com/watch?v=FU5_kpTAVDo",
+      "published_date": "2026-07-27",
+      "ingested_date": "2026-07-27"
+    },
+    "experiment": {
+      "title": "Audit and prune agent tooling features that model capability improvements have made redundant",
+      "hypothesis": "If we periodically audit our agent scaffolding and remove features that newer model capabilities now handle natively, then the system becomes simpler and faster to iterate on because accumulated scaffolding complexity compounds maintenance cost and slows adaptation to model frontier shifts.",
+      "what_they_did": "Torsten described AMP's explicit policy of killing features when the frontier moves past them \u2014 they removed their VS Code extension when editor-centric workflows became obsolete, and continuously delete features visible on amcode.com/news. He frames this as optimizing the company, codebase, and product to shed weight quickly rather than accumulating technical debt from legacy UX assumptions.",
+      "effort_estimate": "low",
+      "relevance_to_yolo_loop": "Applies directly to our dev loop scaffolding: we should schedule a recurring review of prompt engineering workarounds, custom parsers, and tool wrappers that exist only because an older model needed them \u2014 and remove them when a current model handles the case natively."
+    },
+    "status": "backlog",
+    "status_history": [
+      {
+        "status": "backlog",
+        "date": "2026-07-27",
+        "note": "Extracted from YouTube RSS"
+      }
+    ],
+    "outcome": null,
+    "verdict": null,
+    "notes": "Torsten's framing: retaining legacy features keeps users who resist change, creating an echo chamber that slows frontier adoption. The cost of deletion is short-term churn; the benefit is long-term agility."
+  },
+  {
+    "id": "aie-2026-07-27-type1-vs-type2-data-pipeline-audit",
+    "source": {
+      "channel": "aie",
+      "video_title": "State of Data \u2014 Sean Cai, Independent / State of Data",
+      "video_url": "https://www.youtube.com/watch?v=ZyIoTOAbRfs",
+      "published_date": "2026-07-27",
+      "ingested_date": "2026-07-27"
+    },
+    "experiment": {
+      "title": "Classify training and eval data as Type 1 (real workflow capture) vs Type 2 (contrived) and prefer Type 1 for fine-tuning",
+      "hypothesis": "If we source fine-tuning and eval data from real captured work trajectories (Type 1) rather than expert-manufactured examples (Type 2), then model performance on production tasks improves more efficiently because Type 1 data inherits realism from actual work structure, whereas Type 2 data biases the model toward idealized scenarios that diverge from messy real inputs.",
+      "what_they_did": "Sean Cai distinguished Type 1 data (pure capture of real workflows like GitHub commits or session replays, minimally shaped by non-experts) from Type 2 data (contrived examples manufactured by hired experts in artificial settings). He argued Type 2 is appropriate for bootstrapping low-capability models but Type 1 is required to push from 20% to 80% on domain tasks. He noted the industry dirty secret is that most vendors sell Type 2 while billing it as Type 1.",
+      "effort_estimate": "medium",
+      "relevance_to_yolo_loop": "When we build evals or fine-tuning sets for our agent loop, we should capture real session traces (inputs, tool calls, reasoning steps, outputs) from actual usage rather than constructing synthetic ideal examples \u2014 the loop itself is a Type 1 data source we are currently not harvesting."
+    },
+    "status": "backlog",
+    "status_history": [
+      {
+        "status": "backlog",
+        "date": "2026-07-27",
+        "note": "Extracted from YouTube RSS"
+      }
+    ],
+    "outcome": null,
+    "verdict": null,
+    "notes": "Sean's Antikythera mechanism concept \u2014 bespoke systems that translate messy business context into evals \u2014 is the infrastructure piece needed to make Type 1 data usable. The durable supply of Type 1 data is a live business process, not a static dataset."
+  },
+  {
+    "id": "aie-2026-07-27-synthetic-data-rephrasing-for-token-uniqueness",
+    "source": {
+      "channel": "aie",
+      "video_title": "The Messy Reality of Scale: Synthetic Data and Pre-Training \u2014 Marah Abdin & Robert McHardy, poolside",
+      "video_url": "https://www.youtube.com/watch?v=KhYifX22yhE",
+      "published_date": "2026-07-27",
+      "ingested_date": "2026-07-27"
+    },
+    "experiment": {
+      "title": "Apply synthetic rephrasing to high-quality repeated data to prevent early saturation in fine-tuning",
+      "hypothesis": "If we rephrase repeated high-quality seed examples into semantically equivalent variants before including them in a fine-tuning corpus, then model saturation on those examples is delayed and downstream eval performance improves because the model sees diverse surface forms of the same underlying knowledge rather than memorizing a fixed token sequence.",
+      "what_they_did": "Marah Abdin described poolside's finding that when scaling their Laguna models, high-quality data subsets hit repetition limits that caused the model to saturate too early. They implemented a rephrasing pipeline (multi-mode rephrasing plus specialized pipelines for STEM and code-to-text conversions) to replace repeated tokens with rephrasings, showing consistent eval improvement over the repeated-seed baseline in ablations. Synthetic data comprised 13% of their pre-training mix for Laguna XS point two.",
+      "effort_estimate": "medium",
+      "relevance_to_yolo_loop": "If we fine-tune or do continued pre-training on domain-specific examples (e.g., our agent's successful task traces), we should apply rephrasing augmentation to high-frequency patterns before training to avoid overfitting to surface form while preserving the underlying behavioral signal."
+    },
+    "status": "backlog",
+    "status_history": [
+      {
+        "status": "backlog",
+        "date": "2026-07-27",
+        "note": "Extracted from YouTube RSS"
+      }
+    ],
+    "outcome": null,
+    "verdict": null,
+    "notes": "Poolside frames all synthetic pipelines as composed of six components: seeds, primary inputs, metadata, secondary inputs, a generator function, and supplementary filters/validators. Using this modular framing helps scope pipeline complexity to the value of the target data type."
   }
 ]
