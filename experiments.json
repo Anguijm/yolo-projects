@@ -20917,5 +20917,313 @@
     "outcome": null,
     "verdict": null,
     "notes": ""
+  },
+  {
+    "id": "mlops-2026-08-18-json-schema-2020-12-mcp-tools",
+    "source": {
+      "channel": "mlops",
+      "video_title": "JSON Schema 2020-12 and the Contract for Context | \u200bOla Hungerford | MCP Release Party - Seattle",
+      "video_url": "https://www.youtube.com/watch?v=MGfCarfwsUk",
+      "published_date": "2026-08-18",
+      "ingested_date": "2026-08-18"
+    },
+    "experiment": {
+      "title": "Rewrite MCP Tool Schemas Using JSON Schema 2020-12 Conditional Keywords",
+      "hypothesis": "If we replace prose-heavy tool descriptions with structured JSON Schema 2020-12 conditionals (allOf, if/then/else, $ref), then models will populate tool parameters more accurately because the constraints are machine-readable schema rather than natural-language instructions that must be interpreted.",
+      "what_they_did": "Ola Hungerford, MCP maintainer at Nordstrom, described SEP 2106 which upgraded MCP's input and output schema support to full JSON Schema 2020-12 dialect. She showed real examples from the GitHub MCP server where tool descriptions contained ALL-CAPS prose like 'ALWAYS provide this field' and 'mutually exclusive' because the old schema keywords were too limited. With 2020-12 support, those constraints can now be expressed as allOf conditions, references ($ref), and conditional keywords so the model sees structured constraints rather than freeform instructions.",
+      "effort_estimate": "medium",
+      "relevance_to_yolo_loop": "Any MCP tools we expose in the dev loop can be hardened by migrating their input schemas to 2020-12 conditionals, reducing the prompt engineering needed to make models call tools correctly and shrinking the gap between intended and actual tool invocations."
+    },
+    "status": "backlog",
+    "status_history": [
+      {
+        "status": "backlog",
+        "date": "2026-08-18",
+        "note": "Extracted from YouTube RSS"
+      }
+    ],
+    "outcome": null,
+    "verdict": null,
+    "notes": "SEP 2106 is the reference proposal. Check SDK compatibility first\u2014Pydantic/FastMCP historically translated schemas to a limited subset, so verify the SDK version actually passes 2020-12 keywords through to the wire."
+  },
+  {
+    "id": "mlops-2026-08-18-stateless-mcp-horizontal-scale",
+    "source": {
+      "channel": "mlops",
+      "video_title": "MCP Goes Stateless | \u200bJohn Dellenbaugh & Pankaj Kumar | MCP Release Party - Seattle",
+      "video_url": "https://www.youtube.com/watch?v=banffxk7EqQ",
+      "published_date": "2026-08-18",
+      "ingested_date": "2026-08-18"
+    },
+    "experiment": {
+      "title": "Deploy MCP Servers Behind a Load Balancer Using Stateless Protocol + DB-Backed Session Tokens",
+      "hypothesis": "If we run multiple stateless MCP server instances behind a standard load balancer and store all session state in a shared database keyed by a token passed in each request, then any instance can handle any request without sticky routing, because the protocol no longer maintains in-process session memory.",
+      "what_they_did": "John Dellenbaugh and Pankaj Kumar demonstrated the new stateless MCP spec (released 2026-07-28) using a shopping-cart agent scenario. Under the old protocol, session state lived in each server instance's local memory, so requests routed to a different instance returned 'session not found' errors. Their demo ran two MCP server instances behind a load balancer with a shared Postgres database holding cart state. Each tool call included a token identifying the cart; any instance could look up the state from the DB. They showed the old protocol failing on scale-out and the new stateless approach succeeding with no sticky routing required.",
+      "effort_estimate": "medium",
+      "relevance_to_yolo_loop": "If our dev loop MCP servers need to scale beyond a single process or survive restarts, this pattern is the baseline architecture. Migrating to stateless transport + shared DB eliminates the single-process bottleneck and makes deployments restartable without losing agent context."
+    },
+    "status": "backlog",
+    "status_history": [
+      {
+        "status": "backlog",
+        "date": "2026-08-18",
+        "note": "Extracted from YouTube RSS"
+      }
+    ],
+    "outcome": null,
+    "verdict": null,
+    "notes": "The spec change removes protocol-level sessions entirely\u2014no handshake, no session ID negotiation. Application-level state (like cart ID) still needs an explicit token passed by the client. New MCP Inspector now supports both legacy and modern protocol eras for testing."
+  },
+  {
+    "id": "mlops-2026-08-18-mcp-event-subscriptions",
+    "source": {
+      "channel": "mlops",
+      "video_title": "Events Notifications in MCP | \u200bAman Singh | MCP Release Party - Seattle",
+      "video_url": "https://www.youtube.com/watch?v=XptRJZzPsdw",
+      "published_date": "2026-08-18",
+      "ingested_date": "2026-08-18"
+    },
+    "experiment": {
+      "title": "Prototype MCP Event Subscriptions Using the Proposed Poll Delivery Mode",
+      "hypothesis": "If we implement the proposed MCP events extension using polling delivery mode, then agents can be triggered by real-world events (incidents, emails, Slack messages) without holding a persistent connection open, because the poll mode works with serverless and firewall-constrained clients that cannot receive inbound webhooks.",
+      "what_they_did": "Aman Singh (Microsoft Azure CTO office) presented a design sketch from the MCP 'triggers and events' working group (led by Peter Alexander at Anthropic and Claire Liuri at AWS). The proposal adds a first-class events primitive where MCP servers declare event types with name, input schema for subscription parameters, payload schema, and supported delivery modes. Agents subscribe with filtered parameters (e.g., emails only from a specific domain). Three delivery modes are proposed: (1) poll\u2014client sends name+arguments+cursor, gets back events+new cursor, works serverless/behind firewalls; (2) push\u2014long-lived connection for low-latency local servers; (3) webhook\u2014server POSTs to a client-provided URL, with signed deliveries and SSRF hardening. Payloads are intentionally minimal (triage-sized) to reduce prompt injection surface.",
+      "effort_estimate": "high",
+      "relevance_to_yolo_loop": "Enables event-driven agent triggers in the dev loop\u2014e.g., agents that wake on CI failures, PR events, or monitoring alerts without requiring the agent harness to poll continuously. The poll mode is the safest starting point given it requires no inbound network exposure."
+    },
+    "status": "backlog",
+    "status_history": [
+      {
+        "status": "backlog",
+        "date": "2026-08-18",
+        "note": "Extracted from YouTube RSS"
+      }
+    ],
+    "outcome": null,
+    "verdict": null,
+    "notes": "This is still a design sketch / GitHub PR as of 2026-07-28\u2014nothing is in the spec yet. The working group has public weekly meetings. Implement against the PR draft, not a stable spec. Watch for SSRF hardening requirements on webhook mode before using that delivery path in production."
+  },
+  {
+    "id": "mlops-2026-08-18-tamper-evident-audit-mcp",
+    "source": {
+      "channel": "mlops",
+      "video_title": "Policy Enforcement and Tamper-Evident Audit Chains | \u200bImran Siddique | MCP Release Party - Seattle",
+      "video_url": "https://www.youtube.com/watch?v=ynodEQABIJk",
+      "published_date": "2026-08-18",
+      "ingested_date": "2026-08-18"
+    },
+    "experiment": {
+      "title": "Add Tamper-Evident Trace Reports to MCP Agent Sessions Using Hardware Attestation",
+      "hypothesis": "If we record each MCP agent session as a cryptographically stamped trace (model ID, policy hash, actions taken, machine state measurements) attested by an external service, then we can prove post-hoc that policies were enforced and were not silently modified, because the hash chain makes undetected tampering computationally infeasible.",
+      "what_they_did": "Imran Siddique (Opaque Systems, formerly Microsoft 18 years) described the agent-trust.io initiative which goes beyond policy governance to tamper-evident audit trails. The system records a TRACE format report covering model ID, policy hash, actions taken, and machine state for each agent session. The report is then stamped by an external attestation service (e.g., Azure, Google, or Nvidia attestation). The attestation can be verified by third parties without the attester. They are working to standardize the TRACE format with partners including Anthropic, Nvidia, Intel, and AMD rather than keeping it proprietary. The motivation is that deployed policies can be silently changed, and without cryptographic evidence you can only claim\u2014not prove\u2014that governance was enforced.",
+      "effort_estimate": "high",
+      "relevance_to_yolo_loop": "If the dev loop runs agents with access to production tools, adding an attestable audit chain provides verifiable evidence for compliance and debugging\u2014especially relevant when agents take irreversible actions. Start by logging structured TRACE-compatible records even before integrating hardware attestation."
+    },
+    "status": "backlog",
+    "status_history": [
+      {
+        "status": "backlog",
+        "date": "2026-08-18",
+        "note": "Extracted from YouTube RSS"
+      }
+    ],
+    "outcome": null,
+    "verdict": null,
+    "notes": "TRACE format is being standardized\u2014not yet finalized. The project is open source at agent-trust.io. Hardware TEE/enclave integration is the long-term goal; software-only structured logging with hash chaining is a viable near-term approximation to evaluate the pattern."
+  },
+  {
+    "id": "nh-2026-08-18-become-inhouse-ai-person",
+    "source": {
+      "channel": "nh",
+      "video_title": "How to Sell Claude Workflows (Without Starting an Agency)",
+      "video_url": "https://www.youtube.com/watch?v=zpS6JGJNaGg",
+      "published_date": "2026-08-18",
+      "ingested_date": "2026-08-18"
+    },
+    "experiment": {
+      "title": "Apply the Constraint-Attack Framework to Prioritize Which AI Automations to Build Next",
+      "hypothesis": "If we identify whether our project is supply-constrained or demand-constrained and then build the AI system that attacks that specific bottleneck, then AI investments will produce measurable growth impact rather than incremental time savings, because growth is capped by the single largest bottleneck and removing it directly unlocks the next stage.",
+      "what_they_did": "Nate Herk laid out a three-phase roadmap for becoming an in-house AI person. Phase 1 is positioning (pick one team, make work visible by asking what wastes the most time). Phase 2 is proving value (start with the most expensive, most repeatable, lowest-risk task\u2014reports, inbox sorting, data cleaning\u2014and attach real numbers to each win). Phase 3 is constraint-attack: diagnose whether the organization is supply-constrained (can't deliver fast enough) or demand-constrained (not enough customers), then build the AI system that attacks that bottleneck specifically. He argued that shaving hours off tasks is useful but doesn't grow a business; attacking the binding constraint does, and doing it repeatedly is what makes the role irreplaceable.",
+      "effort_estimate": "low",
+      "relevance_to_yolo_loop": "Applies directly to deciding which automations to build in the dev loop. Instead of building whatever is easiest, use the supply/demand constraint diagnostic to prioritize the automation that unblocks the actual growth ceiling."
+    },
+    "status": "backlog",
+    "status_history": [
+      {
+        "status": "backlog",
+        "date": "2026-08-18",
+        "note": "Extracted from YouTube RSS"
+      }
+    ],
+    "outcome": null,
+    "verdict": null,
+    "notes": "The constraint-attack framing is derived from Theory of Constraints. The quick diagnostic: ask 'what breaks if we doubled customers tomorrow?' If everything falls over = supply constrained. If we can handle it fine = demand constrained. Simple to run as a pre-build exercise."
+  },
+  {
+    "id": "aie-2026-08-18-realtime-interactive-video-integration",
+    "source": {
+      "channel": "aie",
+      "video_title": "The Next Medium: Why Real-Time Interactive Video Changes Everything \u2014 Ahmed Ahres, Reactor",
+      "video_url": "https://www.youtube.com/watch?v=5dCAmSDOAjI",
+      "published_date": "2026-08-18",
+      "ingested_date": "2026-08-18"
+    },
+    "experiment": {
+      "title": "Integrate a Real-Time Interactive Video World Model via Reactor API for Controllable Visual Agents",
+      "hypothesis": "If we connect an agent harness to a real-time interactive video model API (sub-100ms latency, infinite generation, promptable mid-stream), then we can build visual agent interfaces where the agent can observe and steer a rendered environment in real time, because the video stream is programmable rather than a fixed recording.",
+      "what_they_did": "Ahmed Ahres (Reactor, head of GTM) described real-time interactive video models\u2014distinct from batch generators like Sora\u2014that produce infinite, interactive, real-time video streams that can be conditioned mid-generation. He demonstrated a dog video where a cat was prompted to appear mid-stream. The Reactor platform provides a developer API (~10 lines of code with an API key) and handles global GPU routing for sub-100ms latency. He drew analogies to GPS enabling Uber and digital cameras enabling Instagram/TikTok: real-time changes the medium entirely rather than just speeding up the old workflow. Three model categories: world models (infinite, interactive), avatar models, and video-to-video transformation.",
+      "effort_estimate": "medium",
+      "relevance_to_yolo_loop": "Enables a new class of agent observation space: instead of text or static screenshots, agents could perceive and act within a continuously rendered world model. Relevant for any dev loop component that needs visual grounding or simulation."
+    },
+    "status": "backlog",
+    "status_history": [
+      {
+        "status": "backlog",
+        "date": "2026-08-18",
+        "note": "Extracted from YouTube RSS"
+      }
+    ],
+    "outcome": null,
+    "verdict": null,
+    "notes": "Promo code AIE2026 for $75 in Reactor credits. Current limitation: 16 FPS output; 30 FPS requires multi-GPU and quantization. Memory/consistency over long horizons is still an unsolved research problem across all vendors including DeepMind. Evaluation metrics for real-time models are also unsolved\u2014human judgment only today."
+  },
+  {
+    "id": "aie-2026-08-18-large-scale-training-infra-metrics",
+    "source": {
+      "channel": "aie",
+      "video_title": "Infra behind Krea 2: How to train and serve at scale \u2014 Gabriel Jorge Menezes, Krea.ai",
+      "video_url": "https://www.youtube.com/watch?v=byn9PURoBNY",
+      "published_date": "2026-08-18",
+      "ingested_date": "2026-08-18"
+    },
+    "experiment": {
+      "title": "Replace GPU Utilization Metrics with Tensor Core Utilization as the Primary Training Health Signal",
+      "hypothesis": "If we monitor tensor core utilization instead of (or in addition to) GPU utilization during training runs, then we will detect true compute efficiency problems earlier, because GPU utilization reports 100% even when the GPU is not doing productive work, while tensor core utilization reveals actual throughput.",
+      "what_they_did": "Gabriel Menezes (Krea.ai infra) described the infrastructure behind training Krea 2, a diffusion transformer trained from scratch on thousands of Infiniband-connected GPUs. Key lessons: (1) GPU utilization is a lie\u2014it reports 100% even during inefficient operations; tensor core utilization is the real efficiency proxy. (2) GPU temperature above ~78\u00b0C causes throttling and training instability; remove hot GPUs immediately rather than debugging. (3) Invest heavily in metrics visibility\u2014going blind during large-scale pre-training causes compounding problems. (4) Let crashes happen and retry rather than always swapping nodes; sometimes runs stabilize after repeated crashes on the same hardware. (5) They built a Kubernetes-based dynamic scheduling system using taints and a descheduler to automatically migrate inference pods off GPUs when training jobs start, preventing GPU waste without manual intervention.",
+      "effort_estimate": "medium",
+      "relevance_to_yolo_loop": "If the dev loop includes any fine-tuning or training jobs, tensor core utilization monitoring should be the first metric added to detect GPU misuse. The Kubernetes taint-based GPU arbitration pattern is also reusable for sharing a cluster between training and serving workloads."
+    },
+    "status": "backlog",
+    "status_history": [
+      {
+        "status": "backlog",
+        "date": "2026-08-18",
+        "note": "Extracted from YouTube RSS"
+      }
+    ],
+    "outcome": null,
+    "verdict": null,
+    "notes": "Tensor core utilization is typically exposed via DCGM (Data Center GPU Manager) or vendor-specific Prometheus exporters. The descheduler pattern uses Kubernetes taints + tolerations + a custom Prometheus metric to trigger pod migration rather than hard eviction, preserving production uptime during training scale-out."
+  },
+  {
+    "id": "aie-2026-08-18-agentic-video-editor-remotion",
+    "source": {
+      "channel": "aie",
+      "video_title": "Building an Agentic Video Editor for Mass Consumer \u2014 Ekaterina Deyneka, Reelful",
+      "video_url": "https://www.youtube.com/watch?v=pPj_tjlvYjA",
+      "published_date": "2026-08-18",
+      "ingested_date": "2026-08-18"
+    },
+    "experiment": {
+      "title": "Use Remotion (Video-as-React-Code) as the Agent Output Format for Programmatic Video Composition",
+      "hypothesis": "If we have an agent write Remotion compositions (React-based video-as-code) rather than directly manipulating video files, then the agent can reliably assemble multi-track video edits with captions, music, and b-rolls, because agents are already strong code writers and Remotion reduces video composition to structured, verifiable code that can be linted and iterated.",
+      "what_they_did": "Ekaterina Deyneka (Reelful CEO) described an agentic video editing pipeline where users drop in raw footage and the agent produces a polished clip. The key architectural choice: the agent writes Remotion compositions (React code representing the video timeline) rather than manipulating video files directly. The pipeline runs in a sandboxed remote machine; the agent uses skills (cut rules, font pairs, b-roll generation, voiceover, image animation) to assemble the composition. A verification layer checks the composition for errors before rendering and sends it back to the agent for correction if needed. She noted agents are good at writing code, making Remotion a natural fit. The pipeline concludes with a rendered video export.",
+      "effort_estimate": "medium",
+      "relevance_to_yolo_loop": "If the dev loop needs to produce video outputs (demos, documentation clips, generated content), using Remotion as the intermediate representation lets an agent author, verify, and iterate on video compositions the same way it would iterate on any code artifact."
+    },
+    "status": "backlog",
+    "status_history": [
+      {
+        "status": "backlog",
+        "date": "2026-08-18",
+        "note": "Extracted from YouTube RSS"
+      }
+    ],
+    "outcome": null,
+    "verdict": null,
+    "notes": "Remotion is open source (remotion.dev). The verification layer is critical\u2014without it, malformed compositions cause silent render failures. Reelful received A16Z Speed Run funding. The sandboxed execution environment pattern mirrors agentic code sandbox approaches (e.g., E2B), so existing sandbox tooling may be reusable."
+  },
+  {
+    "id": "aie-2026-08-18-lod-context-assembly-game-engine-agent",
+    "source": {
+      "channel": "aie",
+      "video_title": "The Next Game Engine Won't Have a Manual \u2014 Arturo Nunez, Nereu",
+      "video_url": "https://www.youtube.com/watch?v=VBCDhRrvlYo",
+      "published_date": "2026-08-18",
+      "ingested_date": "2026-08-18"
+    },
+    "experiment": {
+      "title": "Apply Level-of-Detail (LOD) Context Pruning to Manage Large Scene Graphs in Agent Prompts",
+      "hypothesis": "If we assemble agent context using a level-of-detail strategy\u2014sending full detail for objects near the user's focus and only summary tags for distant/irrelevant objects\u2014then we can keep large scene or codebase graphs within context limits without losing actionable detail, because the same spatial-relevance heuristic that drives GPU rendering efficiency can drive LLM context efficiency.",
+      "what_they_did": "Arturo Nunez (Nereu, formerly Unity 10 years) built a natural-language game engine where users describe what they want and an LLM agent configures scene objects, physics, cameras, and particle systems without coding. The core context management challenge: a scene with 100+ objects would overflow the LLM context if sent in full. His solution: borrow the Level of Detail (LOD) concept from 3D rendering. Objects near the user's current focus (e.g., the selected object and its neighbors) are included in full detail with all tag values. Objects farther away are summarized as 'there is a player-tagged object at position X' with no attribute detail. As the user moves focus or edits different parts of the scene, the context window is resampled. This keeps context size manageable while preserving precision where the agent needs to act.",
+      "effort_estimate": "medium",
+      "relevance_to_yolo_loop": "Directly applicable to any agent that operates over a large structured artifact (codebase, knowledge graph, scene, database schema). Instead of truncating arbitrarily or embedding everything, use proximity/relevance to the current task to allocate context budget\u2014a principled alternative to naive RAG chunking."
+    },
+    "status": "backlog",
+    "status_history": [
+      {
+        "status": "backlog",
+        "date": "2026-08-18",
+        "note": "Extracted from YouTube RSS"
+      }
+    ],
+    "outcome": null,
+    "verdict": null,
+    "notes": "The LOD analogy maps to: high-detail = recently edited files or directly referenced modules; medium-detail = files in the same directory; low-detail = distant modules summarized by signature only. Could be combined with embedding-based relevance scoring to make the 'distance' metric semantic rather than purely spatial."
+  },
+  {
+    "id": "aie-2026-08-18-stylistic-diversity-data-curation",
+    "source": {
+      "channel": "aie",
+      "video_title": "Training Krea 2: What matters in generative model training \u2014 Sangwu Lee, Krea.ai",
+      "video_url": "https://www.youtube.com/watch?v=-tviRdpmHvs",
+      "published_date": "2026-08-18",
+      "ingested_date": "2026-08-18"
+    },
+    "experiment": {
+      "title": "Audit training data curation pipeline for unintentional stylistic diversity loss",
+      "hypothesis": "If we audit and adjust data filtering steps to avoid unintentionally removing stylistically diverse samples, then output diversity across generated images will improve because mode collapse in generative models is often caused by overcleaning data toward a narrow aesthetic rather than model architecture choices.",
+      "what_they_did": "Sangwu Lee described how Krea prioritized stylistic diversity when training Krea 2, noting that a major risk during data curation is inadvertently filtering out stylistically diverse data. He emphasized that after locking in architecture, the vast majority of impactful work is in data curation, and that data is 'quite everything' \u2014 more durable and impactful than code or hyperparameter changes. He contrasted Krea's approach against production models like ChatGPT image gen and Ideogram which trade diversity for reliability, leading to mode-collapsed outputs (e.g., always rendering a 'boring average person centered in frame').",
+      "effort_estimate": "medium",
+      "relevance_to_yolo_loop": "Directly relevant if we are fine-tuning or training any generative model in the loop. Applies as a checkpoint: review what our data filtering removes and whether it biases outputs toward a narrow style, especially if we care about creative or diverse generation outputs."
+    },
+    "status": "backlog",
+    "status_history": [
+      {
+        "status": "backlog",
+        "date": "2026-08-18",
+        "note": "Extracted from YouTube RSS"
+      }
+    ],
+    "outcome": null,
+    "verdict": null,
+    "notes": "Speaker also noted that data quality/curation is more eternal and valuable than code, since code is easy to change but good curated datasets retain value across training paradigms."
+  },
+  {
+    "id": "aie-2026-08-18-prompt-expander-llm-distillation",
+    "source": {
+      "channel": "aie",
+      "video_title": "Training Krea 2: What matters in generative model training \u2014 Sangwu Lee, Krea.ai",
+      "video_url": "https://www.youtube.com/watch?v=-tviRdpmHvs",
+      "published_date": "2026-08-18",
+      "ingested_date": "2026-08-18"
+    },
+    "experiment": {
+      "title": "Add a small LLM prompt expander before image generation to improve output quality",
+      "hypothesis": "If we prepend a small LLM that expands short user prompts into long, detailed prompts before passing them to a diffusion model, then image quality will improve because longer detailed prompts are more in-distribution with the model's training data, which typically consisted of verbose captions.",
+      "what_they_did": "Sangwu Lee described training a small LLM as a 'prompt expander' that takes a short user prompt and outputs a longer, detailed prompt to feed into the image diffusion model. He noted this is necessary because diffusion models are trained on verbose captions, so short user inputs are out-of-distribution. He also described a next step: multi-expert positive distillation, where specialist models (e.g., photography expert, text rendering expert) are trained separately and then merged into a single student model that matches each expert's capability in its domain.",
+      "effort_estimate": "medium",
+      "relevance_to_yolo_loop": "Highly relevant for any pipeline that calls image generation models. We can implement a lightweight prompt expansion step using an existing small LLM (e.g., a local model or API call) before invoking image generation, potentially improving output quality with minimal architectural change."
+    },
+    "status": "backlog",
+    "status_history": [
+      {
+        "status": "backlog",
+        "date": "2026-08-18",
+        "note": "Extracted from YouTube RSS"
+      }
+    ],
+    "outcome": null,
+    "verdict": null,
+    "notes": "Speaker drew analogy to DALL-E 2's conditioning pipeline. Multi-expert distillation noted as a future direction worth tracking. Prompt expansion is the immediately actionable piece."
   }
 ]
