@@ -22373,5 +22373,145 @@
     "outcome": null,
     "verdict": null,
     "notes": "Braintrust provides: evals, observability, production data harvesting, Topics (cluster analysis for novel failure discovery). The SRE agent example progression: single prompt \u2192 RAG \u2192 tool-calling \u2192 multi-agent orchestration, with each step requiring eval suite expansion. Key failure pattern to avoid: dropping in a new model expecting the old system to work \u2014 old system was built around old model limitations and cannot tap new capabilities without rearchitecting. The 'architecture follows model, evals follow architecture' chain is the core discipline."
+  },
+  {
+    "id": "nb-2026-08-21-glm53-in-claude-code-cost-routing",
+    "source": {
+      "channel": "nb",
+      "video_title": "GLM 5.3 in Claude Code Is A Game Changer!",
+      "video_url": "https://www.youtube.com/watch?v=4HvFqhtCb-A",
+      "published_date": "2026-08-21",
+      "ingested_date": "2026-08-21"
+    },
+    "experiment": {
+      "title": "Route bounded coding tasks to GLM 5.3 inside Claude Code to reduce model costs",
+      "hypothesis": "If we configure Claude Code (or Codex) to use GLM 5.3 via the Z.ai API endpoint for clearly scoped, bounded coding tasks, then we can meaningfully reduce per-task model spend without sacrificing output quality on those tasks, because cheaper models perform adequately on well-defined work that does not require frontier reasoning.",
+      "what_they_did": "Speaker walked through how to swap the model provider inside Claude Code from Anthropic to Z.ai's GLM 5.3 ($18/month plan) by changing the API endpoint and key, keeping all project context files (CLAUDE.md, hooks, rules) intact. He categorized coding work into four buckets and recommended reserving the stronger model for complex reasoning while dispatching bounded, clearly-described tasks to GLM 5.3. He also warned that late mid-session model switches cause expensive context reloads, so he advocated starting new sessions with the cheaper model rather than switching mid-flight.",
+      "effort_estimate": "low",
+      "relevance_to_yolo_loop": "Directly applicable to our dev loop: we can define a task-routing heuristic in our agent orchestration layer that sends well-specified subtasks (e.g. boilerplate generation, test writing, lint fixes) to a cheaper model endpoint while keeping the main planning and review steps on a frontier model, reducing API burn rate per loop iteration."
+    },
+    "status": "backlog",
+    "status_history": [
+      {
+        "status": "backlog",
+        "date": "2026-08-21",
+        "note": "Extracted from YouTube RSS"
+      }
+    ],
+    "outcome": null,
+    "verdict": null,
+    "notes": "Speaker references a companion Substack guide with Claude launcher, Codex profile, handoff templates, and comparison scorecards. Key risk flagged: fully-loaded cost must account for retries and review cycles, not just token price."
+  },
+  {
+    "id": "nh-2026-08-21-claude-marketing-team-higsfield",
+    "source": {
+      "channel": "nh",
+      "video_title": "Turn Claude Into a One Person Marketing Team in 38 Mins",
+      "video_url": "https://www.youtube.com/watch?v=yCACmFTiCto",
+      "published_date": "2026-08-21",
+      "ingested_date": "2026-08-21"
+    },
+    "experiment": {
+      "title": "Build a Claude Code project with brand guidelines and reusable skill files to generate consistent marketing assets via Higsfield",
+      "hypothesis": "If we encode brand guidelines (color palette, typography, the three Ps: pain, person, promise) and reusable workflow recipes ('skills') into a Claude Code project context, then AI-generated marketing assets will be consistently on-brand and repeatable without manual re-prompting each session, because the persistent project files act as a standing system prompt that constrains every generation.",
+      "what_they_did": "Speaker set up a Claude Code project for a fictional brand (Perk Form) containing brand guidelines, a three-Ps positioning document, and reusable skill files defining how each asset type (Instagram carousel, UGC ad, sizzle reel, BOGO creative) should always be produced. He connected Claude Code to Higsfield (a multi-model image/video platform with GPT Image 2, Kling, Sora, Cance 2.5, etc.) and had Claude orchestrate generation requests to Higsfield. After four rounds of asset generation he prompted Claude to auto-produce a branded Excel analytics tracker logging generation type, model used, credits spent, dollar cost, and campaign angle, enabling future performance analysis of which angles and copy worked best.",
+      "effort_estimate": "medium",
+      "relevance_to_yolo_loop": "Demonstrates the pattern of encoding persistent project context plus reusable skill/recipe files to make multi-step agentic workflows repeatable and auditable. The analytics tracker pattern (auto-logging each agent run's type, model, cost, and output) is directly transferable to our YOLO loop for tracking experiment runs and model spend per task type."
+    },
+    "status": "backlog",
+    "status_history": [
+      {
+        "status": "backlog",
+        "date": "2026-08-21",
+        "note": "Extracted from YouTube RSS"
+      }
+    ],
+    "outcome": null,
+    "verdict": null,
+    "notes": "Speaker released a free six-hour Claude Code course for non-coders. The auto-generated branded Excel tracker (color scheme, tabs matching brand guidelines) is a notable emergent behavior worth reproducing in our own run-logging setup."
+  },
+  {
+    "id": "aie-2026-08-21-context-engine-over-mcp",
+    "source": {
+      "channel": "aie",
+      "video_title": "Building Agents Is Trivial Now, Context Is the Next Frontier \u2014 Jeff Ng, Unblocked",
+      "video_url": "https://www.youtube.com/watch?v=HvMyYLTfvhg",
+      "published_date": "2026-08-21",
+      "ingested_date": "2026-08-21"
+    },
+    "experiment": {
+      "title": "Add a pre-synthesis context layer between raw MCP data sources and the agent to reduce hallucinations from missing organizational knowledge",
+      "hypothesis": "If we insert a context engine that retrieves, reconciles, and summarizes task-relevant information (Slack threads, postmortems, tickets, docs) before passing it to the coding agent\u2014rather than giving the agent raw MCP tool access\u2014then the agent will make fewer confidently-wrong recommendations, because conflicts across data sources are resolved and irrelevant data is filtered before the agent reasons over it, keeping context windows focused and grounded.",
+      "what_they_did": "Speaker (founding engineer at Unblocked) demonstrated a Linear issue-enrichment agent that, without a context layer, incorrectly recommended re-enabling an async dispatch flag that had already caused an outage\u2014because the agent lacked the subsequent Slack discussion and postmortem ticket. He then reran the same agent with Unblocked's context engine, which fetched and summarized the relevant postmortem and Slack thread before the agent reasoned over them. The agent's recommendation flipped from harmful to correct. He argued that naive MCP chaining gives agents raw access but not understanding, floods context windows with irrelevant data, and leaves conflict resolution to the agent ad hoc. A context engine instead builds an organization model, scopes data to access roles, reconciles conflicts, and delivers a synthesized slice to the agent.",
+      "effort_estimate": "high",
+      "relevance_to_yolo_loop": "Directly relevant: our YOLO loop agents currently pull raw context from whichever files are in scope. Adding a lightweight pre-retrieval step that summarizes and reconciles relevant prior decisions, closed issues, and architecture notes before the main agent prompt could reduce confident wrong outputs and wasted retry loops."
+    },
+    "status": "backlog",
+    "status_history": [
+      {
+        "status": "backlog",
+        "date": "2026-08-21",
+        "note": "Extracted from YouTube RSS"
+      }
+    ],
+    "outcome": null,
+    "verdict": null,
+    "notes": "Speaker's key framing: 'The gap isn't intelligence, it's context.' MCP provides access; a context engine provides understanding. Simpler near-term proxy: add a mandatory 'retrieve and summarize prior decisions' tool call as the first step of any agent task plan before code generation begins."
+  },
+  {
+    "id": "aie-2026-08-21-hallmark-slop-gates-design-skill",
+    "source": {
+      "channel": "aie",
+      "video_title": "The Missing Layer: Design Taste in AI Agents \u2014 Hassan El Mghari, Together AI",
+      "video_url": "https://www.youtube.com/watch?v=7GMKdpLsxwU",
+      "published_date": "2026-08-21",
+      "ingested_date": "2026-08-21"
+    },
+    "experiment": {
+      "title": "Encode an anti-slop design ruleset and curated visual references into agents.md to improve AI-generated UI quality",
+      "hypothesis": "If we add an explicit list of anti-patterns to avoid (purple gradients, italic headers, emoji overuse, pill components with all-caps letter-spaced text, 'scroll to explore' banners) plus a curated set of reference screenshot themes into our agent instruction files, then AI-generated UIs will be meaningfully more distinct and professional, because models given negative constraints and positive visual references produce outputs that deviate from the statistical center of vibe-coded defaults.",
+      "what_they_did": "Speaker built a design skill called Hallmark that codifies common AI-generated UI slop patterns as explicit prohibitions ('slop gates') and pairs them with a library of curated design themes fed as context. He reported 10,000+ users tried it within six weeks of launch. He also advocated for: pasting reference screenshots into every new app prompt ('inspiration vault'), writing 2-3 paragraph voice-note-style prompts instead of one-liners, breaking feature builds into sequential prompts rather than one-shotting, iterating with faster open-source models for UI polish loops, and maintaining a growing agents.md with accumulated design constraints discovered through iteration.",
+      "effort_estimate": "low",
+      "relevance_to_yolo_loop": "We generate UI components and agent output renderers in our loop. Adding a Hallmark-style anti-pattern block and a small reference image set to our CLAUDE.md / agents.md is a low-effort change that could immediately raise the baseline quality of any frontend work produced by our agents without changing the core loop architecture."
+    },
+    "status": "backlog",
+    "status_history": [
+      {
+        "status": "backlog",
+        "date": "2026-08-21",
+        "note": "Extracted from YouTube RSS"
+      }
+    ],
+    "outcome": null,
+    "verdict": null,
+    "notes": "Hallmark is open and available to test directly. Speaker's 'inspiration vault' habit (saving screenshots of admired UIs and pasting them into prompts) is immediately actionable as a personal workflow change independent of any tooling build."
+  },
+  {
+    "id": "aie-2026-08-21-uber-agentic-sdlc-inner-outer-loop",
+    "source": {
+      "channel": "aie",
+      "video_title": "Agentic SDLC at Uber \u2014 Uday Kiran Medisetty & Adam Huda, Uber",
+      "video_url": "https://www.youtube.com/watch?v=17-YSUHo6Lk",
+      "published_date": "2026-08-21",
+      "ingested_date": "2026-08-21"
+    },
+    "experiment": {
+      "title": "Implement inner-loop vs outer-loop agent quality checks with a PR-attached evidence table to build reviewer confidence in autonomous diffs",
+      "hypothesis": "If we separate fast lightweight checks (smaller model static analysis, visual screenshot vs Figma diff, integration smoke test) into an inner loop that runs before commit, and reserve deep reasoning code review for the outer loop CI stage, then autonomous PRs will arrive at human review already self-improved and with an attached evidence table of which checks passed, reducing review friction and the rate of CI failures requiring human intervention, because reviewers can trust the diff has already gone through a structured self-healing process.",
+      "what_they_did": "Uber's engineering team (thousands of engineers, 70%+ of PRs now touched by local or cloud agents, 2x lines of code per engineer YoY, 250+ automated migrations covering 9M lines) described a six-building-block agentic SDLC: model gateway (PII redaction, attribution, spend guardrails, <100ms overhead), MCP gateway (Omni MCP + CLI projection to cut token tax, 40% fleet-wide token savings), pre-provisioned Kubernetes agent sandboxes with snapshotted repos, an inner/outer loop quality framework, self-healing CI, and scheduled maintenance skills (feature flag cleanup, etc.). The inner loop runs a smaller/medium model for fast checks; the outer loop uses a powerful reasoning model for deep review. Every autonomous PR gets an attached table listing every check it passed (including simulator screenshots vs Figma specs). Maintenance loops are managed centrally with rate limits on Monday diff volume to avoid overwhelming engineers.",
+      "effort_estimate": "high",
+      "relevance_to_yolo_loop": "The inner/outer loop split and the PR evidence table are directly applicable to our YOLO loop: we can add a post-generation checklist step that runs cheap fast checks (lint, type check, unit tests, screenshot diff) before surfacing output for review, and append a structured summary of what passed to every agent-produced diff, increasing trust and reducing manual re-checking."
+    },
+    "status": "backlog",
+    "status_history": [
+      {
+        "status": "backlog",
+        "date": "2026-08-21",
+        "note": "Extracted from YouTube RSS"
+      }
+    ],
+    "outcome": null,
+    "verdict": null,
+    "notes": "Most actionable near-term takeaway: the PR evidence table (listing checks the agent ran on its own output) is a low-effort addition to our current loop output format. The Omni MCP pattern (one install point that discovers and invokes all downstream MCPs) and CLI projection to avoid context-window token tax are also worth prototyping separately."
   }
 ]
