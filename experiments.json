@@ -24809,5 +24809,229 @@
     "outcome": null,
     "verdict": null,
     "notes": "Mark also notes Anthropic's prompt now includes proactive skill/plugin suggestion \u2014 the model can identify that a current skill is insufficient and propose installing a better one mid-session. Worth testing whether Fable 5.1 actually surfaces this behavior in Claude Code."
+  },
+  {
+    "id": "aie-2026-09-03-composio-knowledge-work-six-primitives",
+    "source": {
+      "channel": "aie",
+      "video_title": "From coding to Knowledge work agents \u2014 Karan Vaidya, Composio",
+      "video_url": "https://www.youtube.com/watch?v=xxfMT-bPEmU",
+      "published_date": "2026-09-03",
+      "ingested_date": "2026-09-03"
+    },
+    "experiment": {
+      "title": "Audit your agent stack against the six knowledge-work primitives",
+      "hypothesis": "If we evaluate our agent infrastructure against the six primitives (centralization, history/record, context, guardrails, governance, reversibility), then we will identify the specific gaps causing knowledge-work agents to underperform compared to coding agents, because coding agents succeeded precisely because all six were present in the code ecosystem by default.",
+      "what_they_did": "Karan Vaidya argued that coding agents succeeded because the surrounding infrastructure (repo, git history, CI/CD, linters, revert) provided six primitives for free: centralization of truth, a record of past actions, two types of context (architectural and business), guardrails, governance over what the agent can reach, and reversibility. He then described how Composio is building each of these primitives for knowledge-work domains (e.g., a unified connection layer for centralization, action logs for history, sandbox environments for irreversible actions).",
+      "effort_estimate": "medium",
+      "relevance_to_yolo_loop": "Directly maps to how we instrument our dev loop agents: we can score our current YOLO loop against each primitive and prioritize which missing infrastructure to build first, especially reversibility (sandboxed dry-runs before mutations) and record-keeping (action logs per agent run)."
+    },
+    "status": "backlog",
+    "status_history": [
+      {
+        "status": "backlog",
+        "date": "2026-09-03",
+        "note": "Extracted from YouTube RSS"
+      }
+    ],
+    "outcome": null,
+    "verdict": null,
+    "notes": ""
+  },
+  {
+    "id": "aie-2026-09-03-composio-sandbox-reversibility",
+    "source": {
+      "channel": "aie",
+      "video_title": "From coding to Knowledge work agents \u2014 Karan Vaidya, Composio",
+      "video_url": "https://www.youtube.com/watch?v=xxfMT-bPEmU",
+      "published_date": "2026-09-03",
+      "ingested_date": "2026-09-03"
+    },
+    "experiment": {
+      "title": "Add a sandbox dry-run gate before irreversible agent actions",
+      "hypothesis": "If we route all agent tool calls through a reversibility classifier that either provides an undo function or routes the action to a sandbox for human review before execution, then we will reduce catastrophic irreversible mistakes without blocking agent autonomy on safe actions, because the blast radius of irreversible knowledge-work actions (sent emails, deleted records, wires) is permanently damaging whereas code mistakes can be reverted.",
+      "what_they_did": "Karan described building a reversibility layer where actions that can be undone (e.g., adding a label) get an explicit undo button, while actions that cannot (e.g., hard-deleting emails, sending messages) are first executed in a sandbox and the user is shown a preview and asked to confirm before the action touches the real environment.",
+      "effort_estimate": "high",
+      "relevance_to_yolo_loop": "Applicable to any agent in our loop that writes to external systems (GitHub PRs, API calls, file deletions). We could wrap our tool-call layer with a reversibility classifier and add a confirmation step for flagged actions, reducing the risk of agents making unrecoverable changes during automated runs."
+    },
+    "status": "backlog",
+    "status_history": [
+      {
+        "status": "backlog",
+        "date": "2026-09-03",
+        "note": "Extracted from YouTube RSS"
+      }
+    ],
+    "outcome": null,
+    "verdict": null,
+    "notes": ""
+  },
+  {
+    "id": "aie-2026-09-03-promptql-no-stored-credentials",
+    "source": {
+      "channel": "aie",
+      "video_title": "Your company brain will leak secrets: how we stopped it for big banks \u2014 Tanmai Gopal, PromptQL",
+      "video_url": "https://www.youtube.com/watch?v=0uC6u0lJJl4",
+      "published_date": "2026-09-03",
+      "ingested_date": "2026-09-03"
+    },
+    "experiment": {
+      "title": "Inject user credentials at the HTTP/SQL layer instead of storing them in the agent sandbox",
+      "hypothesis": "If we never store user credentials inside the agent sandbox and instead proxy all data interactions by injecting the requesting user's credentials at the HTTP and SQL layers at runtime, then we will prevent privilege escalation and credential leakage from the company brain, because the agent will only ever be able to act with the permissions of the specific human initiating the interaction rather than with a super-credential.",
+      "what_they_did": "Tanmai Gopal described a two-rule architecture for preventing company-brain secret leaks: (1) never store credentials in the cloud sandbox, and (2) virtualize all interactions with real data by proxying at the HTTP/SQL layer and injecting the calling user's credentials, so the AI behaves as that human for that specific interaction. He said you can derive the entire secure architecture by working backwards from just these two rules.",
+      "effort_estimate": "high",
+      "relevance_to_yolo_loop": "If our YOLO loop agents access databases, APIs, or internal tools, we should audit whether agent credentials are stored statically in the sandbox vs. injected per-user per-call. Implementing per-call credential injection would let us safely expand agent access without creating a single high-privilege attack surface."
+    },
+    "status": "backlog",
+    "status_history": [
+      {
+        "status": "backlog",
+        "date": "2026-09-03",
+        "note": "Extracted from YouTube RSS"
+      }
+    ],
+    "outcome": null,
+    "verdict": null,
+    "notes": ""
+  },
+  {
+    "id": "aie-2026-09-03-promptql-company-brain-update-rate",
+    "source": {
+      "channel": "aie",
+      "video_title": "Your company brain will leak secrets: how we stopped it for big banks \u2014 Tanmai Gopal, PromptQL",
+      "video_url": "https://www.youtube.com/watch?v=0uC6u0lJJl4",
+      "published_date": "2026-09-03",
+      "ingested_date": "2026-09-03"
+    },
+    "experiment": {
+      "title": "Track daily update rate of your shared knowledge base as a health metric",
+      "hypothesis": "If we instrument our shared skills/knowledge repo to emit a daily update-count metric and plot it over time, then we will be able to detect whether our company brain is healthy (gently increasing curve) vs. abandoned (sharp drop after initial enthusiasm), because Tanmai found that a working company brain sees continuously increasing updates as agents and humans teach it progressively more skills.",
+      "what_they_did": "Tanmai plotted the daily number of updates to PromptQL's own internal company brain (a 5,000-page wiki) and found a gently but continuously increasing curve rather than a spike-and-decay pattern. He concluded that a healthy company brain attracts more teaching over time because each working skill unlocks adjacent skills users want to add, creating a compounding loop.",
+      "effort_estimate": "low",
+      "relevance_to_yolo_loop": "We can apply this to our own prompt library, system-prompt repo, or shared agent context files. Tracking commit/update frequency per day gives us an early signal of whether our shared knowledge infrastructure is being actively maintained or silently rotting."
+    },
+    "status": "backlog",
+    "status_history": [
+      {
+        "status": "backlog",
+        "date": "2026-09-03",
+        "note": "Extracted from YouTube RSS"
+      }
+    ],
+    "outcome": null,
+    "verdict": null,
+    "notes": ""
+  },
+  {
+    "id": "aie-2026-09-03-town-low-sensitivity-auto-zone",
+    "source": {
+      "channel": "aie",
+      "video_title": "Agents' next frontier: agent-to-agent and network effects \u2014 Jean-Denis Greze, Town",
+      "video_url": "https://www.youtube.com/watch?v=REascnFlq_8",
+      "published_date": "2026-09-03",
+      "ingested_date": "2026-09-03"
+    },
+    "experiment": {
+      "title": "Define an explicit low-sensitivity data zone where agents can share context without human approval",
+      "hypothesis": "If we explicitly classify our data into a low-sensitivity zone where the agent can autonomously pull and share context across silos, and a high-sensitivity zone requiring human approval, then our cross-agent system will safely improve over time as models get better, because the auto zone scales with model capability while the guarded zone prevents catastrophic disclosure, mirroring how Claude's auto-mode selectively decides when to involve the human.",
+      "what_they_did": "Jean-Denis Greze framed multi-agent systems as an approximation of a hypothetical single agent with access to all world data. He described five strategies for getting the right data into a context window across trust boundaries and advocated for defining a low-sensitivity auto zone where agents can make their own disclosure decisions without human review, arguing this approach naturally scales as LLMs improve and will gradually expand, similar to how Claude's auto mode evolved.",
+      "effort_estimate": "medium",
+      "relevance_to_yolo_loop": "In our dev loop, different data sources (public docs, internal specs, private keys, customer data) have different sensitivity levels. Explicitly tagging data with a sensitivity tier and configuring agents to auto-retrieve only low-sensitivity context would let us expand agent autonomy safely without a blanket human-in-the-loop requirement on every cross-system fetch."
+    },
+    "status": "backlog",
+    "status_history": [
+      {
+        "status": "backlog",
+        "date": "2026-09-03",
+        "note": "Extracted from YouTube RSS"
+      }
+    ],
+    "outcome": null,
+    "verdict": null,
+    "notes": ""
+  },
+  {
+    "id": "aie-2026-09-03-twosigma-agent-runs-as-user-identity",
+    "source": {
+      "channel": "aie",
+      "video_title": "Tethered: Our Agents Are Us \u2014 Shu Fang, Two Sigma",
+      "video_url": "https://www.youtube.com/watch?v=wCIYViPd4SU",
+      "published_date": "2026-09-03",
+      "ingested_date": "2026-09-03"
+    },
+    "experiment": {
+      "title": "Run agents as the requesting user's identity via per-user Kubernetes namespaces and a sidecar credential injector",
+      "hypothesis": "If we provision per-user namespaces in our compute cluster where every container mounts the user's own identity via a sidecar credential service, then agents will automatically inherit correct permissions without requiring a separate machine identity to be kept in sync, because the agent is literally running as the user and every downstream system enforces that user's existing ACLs.",
+      "what_they_did": "Shu Fang described how Two Sigma runs agents as the exact user identity (not a machine identity) by leveraging per-user Kubernetes namespaces that already existed for automated jobs and research notebooks. A controller spins up compute, a sidecar pulls down credentials from an identity service, and the container mounts and runs as that user. They add an X-LLM-Agent HTTP header for auditability to distinguish human vs. agent actions in logs without requiring a separate identity.",
+      "effort_estimate": "high",
+      "relevance_to_yolo_loop": "If our YOLO loop agents act on behalf of specific developers (e.g., opening PRs, making API calls), running them under the developer's identity rather than a shared service account would eliminate permission-sync overhead and make audit logs automatically attributable. The X-LLM-Agent header pattern is a low-effort quick win we could add immediately."
+    },
+    "status": "backlog",
+    "status_history": [
+      {
+        "status": "backlog",
+        "date": "2026-09-03",
+        "note": "Extracted from YouTube RSS"
+      }
+    ],
+    "outcome": null,
+    "verdict": null,
+    "notes": ""
+  },
+  {
+    "id": "aie-2026-09-03-twosigma-xlm-agent-header-attribution",
+    "source": {
+      "channel": "aie",
+      "video_title": "Tethered: Our Agents Are Us \u2014 Shu Fang, Two Sigma",
+      "video_url": "https://www.youtube.com/watch?v=wCIYViPd4SU",
+      "published_date": "2026-09-03",
+      "ingested_date": "2026-09-03"
+    },
+    "experiment": {
+      "title": "Add an X-LLM-Agent HTTP header to all agent-initiated requests for audit attribution",
+      "hypothesis": "If we inject a standard X-LLM-Agent header on every HTTP request made by an agent (while keeping the underlying user identity unchanged), then we can attribute any downstream action to either a human or an agent in logs and audit trails without needing a separate identity system, because the header is propagated through spans and trace IDs alongside the originating user identity.",
+      "what_they_did": "Two Sigma adds an X-LLM-Agent header to every RPC/HTTP call originating from an agent session. The header is not the sole identity signal (the underlying user identity still authenticates the request) but it allows their logging and audit systems to distinguish agent-initiated actions from human-initiated ones, enabling targeted review, blocking rules, and attribution without a full dual-identity architecture.",
+      "effort_estimate": "low",
+      "relevance_to_yolo_loop": "This is an immediately actionable quick win: we can add this header to our agent HTTP client wrapper today. Any external API calls, webhook triggers, or internal service calls made during a YOLO loop run would be instantly distinguishable in server logs, making debugging and incident response dramatically faster."
+    },
+    "status": "backlog",
+    "status_history": [
+      {
+        "status": "backlog",
+        "date": "2026-09-03",
+        "note": "Extracted from YouTube RSS"
+      }
+    ],
+    "outcome": null,
+    "verdict": null,
+    "notes": ""
+  },
+  {
+    "id": "aie-2026-09-03-zo-personal-cloud-agent-hosting",
+    "source": {
+      "channel": "aie",
+      "video_title": "Everyone Gets A Software Company \u2014 Benjamin Guo, Zo Computer",
+      "video_url": "https://www.youtube.com/watch?v=Qr15lGAGKpo",
+      "published_date": "2026-09-03",
+      "ingested_date": "2026-09-03"
+    },
+    "experiment": {
+      "title": "Host your personal agent and its dependent services on a single self-owned cloud node",
+      "hypothesis": "If we co-locate a personal agent, its skill integrations, and the web services it manages on a single user-owned cloud compute node (personal server), then the agent will have lower-latency access to context and tools, avoid depending on third-party SaaS credential chains, and allow services the agent builds to be immediately hostable without a separate deployment pipeline, because everything runs in one place under one identity with no middlemen.",
+      "what_they_did": "Ben Guo demonstrated Zo Computer, a personal cloud server with a built-in AI agent, browser automation, scheduled tasks, a skill library, and web hosting all on the same node. He showed the agent buying things on Amazon, hosting personal websites (including a Calendly replacement), and managing invoices \u2014 all from a single persistent personal cloud that the user owns and controls rather than renting from SaaS providers.",
+      "effort_estimate": "medium",
+      "relevance_to_yolo_loop": "We could experiment with running our YOLO loop agent on a dedicated personal VPS (e.g., a Hetzner node) that also hosts the web services it generates, giving the agent direct filesystem and service access with no credential-passing overhead and making every generated artifact immediately live-testable."
+    },
+    "status": "backlog",
+    "status_history": [
+      {
+        "status": "backlog",
+        "date": "2026-09-03",
+        "note": "Extracted from YouTube RSS"
+      }
+    ],
+    "outcome": null,
+    "verdict": null,
+    "notes": ""
   }
 ]
