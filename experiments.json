@@ -26181,5 +26181,61 @@
     "outcome": null,
     "verdict": null,
     "notes": ""
+  },
+  {
+    "id": "do-2026-09-12-bash-first-agentic-harness",
+    "source": {
+      "channel": "do",
+      "video_title": "Pi Agent dev reveals his Agentic Engineering Workflow",
+      "video_url": "https://www.youtube.com/watch?v=SxuQs9GGYbk",
+      "published_date": "2026-09-12",
+      "ingested_date": "2026-09-12"
+    },
+    "experiment": {
+      "title": "Replace Custom Tool Calls with Bash-First Agent Harness",
+      "hypothesis": "If we reduce our agent harness to primarily expose bash as the core tool instead of custom-built file/search/read tools, then context efficiency will improve and the agent will produce more creative, pipelined solutions because bash lets the model chain commands and add its own separation markers without pulling intermediate results into context.",
+      "what_they_did": "Armen (creator of Pi agent / Flask, founder of Arendelle) explained that Pi agent's winning approach is giving the model essentially just bash rather than a rich set of bespoke tools. He noted that even Codex has converged on this pattern \u2014 when Codex 'discovers files' it is actually calling ripgrep via bash. The key insight is that bash lets the model pipeline commands together (e.g. find files AND add separation markers in one shell invocation) so intermediate data never needs to be injected into the context window. He also mentioned that interleaved system messages in newer models now enable deferred tool loading, a pattern that was previously impossible and can further trim context overhead.",
+      "effort_estimate": "medium",
+      "relevance_to_yolo_loop": "Directly impacts the tool-layer of the YOLO loop. If our loop currently wraps file reads, searches, and edits in typed tool functions, stripping those back to a single bash tool could shrink prompt size per turn and let the model self-optimize its own command pipelines."
+    },
+    "status": "backlog",
+    "status_history": [
+      {
+        "status": "backlog",
+        "date": "2026-09-12",
+        "note": "Extracted from YouTube RSS"
+      }
+    ],
+    "outcome": null,
+    "verdict": null,
+    "notes": "Armen also flagged interleaved system messages as an enabling primitive for deferred tool loading \u2014 worth pairing this experiment with a second card or follow-up once we validate the bash-first baseline."
+  },
+  {
+    "id": "do-2026-09-12-deferred-tool-loading",
+    "source": {
+      "channel": "do",
+      "video_title": "Pi Agent dev reveals his Agentic Engineering Workflow",
+      "video_url": "https://www.youtube.com/watch?v=SxuQs9GGYbk",
+      "published_date": "2026-09-12",
+      "ingested_date": "2026-09-12"
+    },
+    "experiment": {
+      "title": "Implement Deferred Tool Loading via Interleaved System Messages",
+      "hypothesis": "If we use interleaved system messages to inject tool definitions only at the point in the conversation where they become relevant rather than front-loading all tools in the initial system prompt, then total token usage per session will decrease and model attention on active tools will improve because unused tool schemas are never present in context.",
+      "what_they_did": "Armen noted that state-of-the-art models now support interleaved system messages within the conversation thread (not just a single opening system prompt). This unlocks 'deferred tool loading' \u2014 a pattern where tool definitions are inserted mid-conversation as the agent enters a new phase of work, rather than being declared upfront. He described this as a meaningful architectural change that makes certain patterns possible that were previously not possible, though he acknowledged the overall delta to harness design is modest.",
+      "effort_estimate": "medium",
+      "relevance_to_yolo_loop": "The YOLO loop currently sends the full tool schema at the start of every run. Deferred loading could shrink the initial prompt and scope the model's tool awareness to whichever phase (plan / edit / test / commit) it is currently executing."
+    },
+    "status": "backlog",
+    "status_history": [
+      {
+        "status": "backlog",
+        "date": "2026-09-12",
+        "note": "Extracted from YouTube RSS"
+      }
+    ],
+    "outcome": null,
+    "verdict": null,
+    "notes": "Depends on model support for interleaved system messages \u2014 verify which providers in our stack support this before scheduling. Pairs naturally with the bash-first harness experiment."
   }
 ]
