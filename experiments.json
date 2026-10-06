@@ -31081,5 +31081,61 @@
     "outcome": null,
     "verdict": null,
     "notes": "Key diagnostic questions from the talk: (1) Is this knowledge small, stable, and about behavior? \u2192 prompt. (2) Is this current, large, and needs citation? \u2192 memory. (3) Has this pattern stabilized, humans converged, and is the motivation cost reduction not capability? \u2192 fine-tune. The 'lost in the middle' problem is cited as the failure mode for over-stuffed prompts."
+  },
+  {
+    "id": "nh-2026-10-06-karpathy-wiki-agent",
+    "source": {
+      "channel": "nh",
+      "video_title": "I Built Another Andrej Karpathy Using Claude",
+      "video_url": "https://www.youtube.com/watch?v=bvGptCLDhyo",
+      "published_date": "2026-10-06",
+      "ingested_date": "2026-10-06"
+    },
+    "experiment": {
+      "title": "Build a Domain-Expert Agent by Crawling Public Sources into a Structured Wiki",
+      "hypothesis": "If we crawl all public writing, transcripts, and posts from a domain expert and compile them into a linked wiki (not a raw dump), then a Claude agent grounded in that wiki will explain and teach that expert's domain more accurately and in their style, because structured relationships in the wiki allow the model to retrieve and reason over the knowledge more effectively than a flat folder of text.",
+      "what_they_did": "The speaker used Claude Code to run parallel agents that scraped Andrej Karpathy's YouTube captions (via youtube-transcript-api and yt-dlp), X/Twitter posts (via twitterapi.io at ~$1), blogs, and GitHub repos into a raw folder totalling 700k+ words. A second prompt had an LLM compile those raw sources into a navigable wiki with pages, an index, a hot-topics page, and a change log \u2014 mirroring a technique Karpathy himself posted about. A third prompt extracted Karpathy's teaching rules (e.g. 'build the smallest version first', 'predict before you run', 'show the broken version') with supporting quotes. A fourth prompt encoded those rules as agent behaviors in a Claude system prompt. The resulting agent was tested by asking it to build a byte-pair tokenizer: it wrote a success definition before coding, built the smallest working version, predicted output before running, showed the real output, showed a breaking version, fixed it, and logged which rule governed each step. A /karpathy-ingest slash command was also built to add new links and auto-update the wiki without manual edits.",
+      "effort_estimate": "high",
+      "relevance_to_yolo_loop": "Directly addresses the knowledge-grounding problem in our dev loop: instead of relying on Claude's base training for domain expertise, we pre-load curated expert knowledge into a structured wiki and wire it into the system prompt, giving every agent invocation a richer, more accurate context. The wiki-update slash command also maps to our loop's continuous-improvement step \u2014 new sources keep the agent current without rebuilding from scratch."
+    },
+    "status": "backlog",
+    "status_history": [
+      {
+        "status": "backlog",
+        "date": "2026-10-06",
+        "note": "Extracted from YouTube RSS"
+      }
+    ],
+    "outcome": null,
+    "verdict": null,
+    "notes": "Key tooling: youtube-transcript-api, yt-dlp, twitterapi.io. The two-stage pipeline (raw crawl \u2192 LLM-compiled wiki) is the core insight \u2014 skipping the wiki step leaves a needle-in-haystack retrieval problem. Parallel agents per source kept crawl time to ~45-60 min. Rule extraction with supporting quotes is reusable for any domain expert or methodology author."
+  },
+  {
+    "id": "nh-2026-10-06-teaching-rules-system-prompt",
+    "source": {
+      "channel": "nh",
+      "video_title": "I Built Another Andrej Karpathy Using Claude",
+      "video_url": "https://www.youtube.com/watch?v=bvGptCLDhyo",
+      "published_date": "2026-10-06",
+      "ingested_date": "2026-10-06"
+    },
+    "experiment": {
+      "title": "Encode Expert Teaching Rules as Mandatory Agent Behaviors to Fix AI's Explain-vs-Code Imbalance",
+      "hypothesis": "If we extract an expert's explicit pedagogical rules from their own writing and encode them as hard behavioral constraints in a Claude system prompt (e.g. 'define done before touching code', 'run code before showing it', 'show a breaking version'), then the agent will explain and verify its work step-by-step rather than silently shipping untested code, because the rules override Claude's default bias toward generating code over generating understanding.",
+      "what_they_did": "After building the Karpathy wiki, the speaker prompted Claude to extract Karpathy's teaching principles as discrete numbered rules, each backed by a direct quote from his writing or talks. These rules (including 'build smallest version first', 'predict output before running', 'show the broken version', 'never hand over code you haven't run yourself') were then translated into agent behaviors in a system prompt. The agent was tested against a real coding task (byte-pair tokenizer) and a code-review task (a YouTube comment scraper that crashed on emoji in Windows terminals). In both cases the agent followed the rule sequence visibly and logged which rule governed each action. The speaker noted this pattern directly solves the problem Karpathy himself publicly complained about \u2014 that Claude Code 'just wants to write code' rather than teach alongside it.",
+      "effort_estimate": "medium",
+      "relevance_to_yolo_loop": "Maps to the review and verification gates in our dev loop. Encoding 'run before you show' and 'show the breaking version' as system-prompt rules could be applied to any of our coding agents to reduce silent failures and untested code reaching production or clients. The rule-logging behavior also produces an audit trail that fits naturally into our loop's output-inspection step."
+    },
+    "status": "backlog",
+    "status_history": [
+      {
+        "status": "backlog",
+        "date": "2026-10-06",
+        "note": "Extracted from YouTube RSS"
+      }
+    ],
+    "outcome": null,
+    "verdict": null,
+    "notes": "Low-cost subset experiment: the rule-encoding step alone (without the full wiki crawl) could be tested quickly by manually writing 5-7 teaching rules into a system prompt and measuring whether code-explanation quality improves on a benchmark task. This decouples the wiki-building effort from the behavioral-constraint hypothesis."
   }
 ]
