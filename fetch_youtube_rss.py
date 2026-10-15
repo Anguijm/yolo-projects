@@ -43,6 +43,13 @@ CHANNELS = {
     "@LatentSpacePod": "UCxBcwypKK-W3GHd_RZ9FZrQ",   # where @swyx actually publishes; ~21 videos/month
     "@anthropic-ai": "UCrDwWp7EBBv4NwvScIpBDOA",     # primary source; ~2 videos/month
     "@LangChain": "UCC-lyoTfSrcJzA1ab3APAgw",        # ~50 videos/month during conferences; watch the card counts
+    # Group B: the operator's other projects. Added 2026-10-15 by the operator's ruling, together
+    # with the second relevance field (OPERATOR_PROJECTS in scripts/process_experiments.py).
+    "@donatocapitella": "UCP0QFok6EimQYTMj5qOLNow",  # llama.cpp on Strix Halo
+    "@AZisk": "UCajiMK_CY9icRhLepS8_3ug",            # local AI hardware comparisons
+    "@AliElZoheiry": "UCrrZx9bh7RMYhXvaN8BrbNg",     # UE5 gameplay systems
+    "@PhilippLackner": "UCKNTZMRHPLXfqlbdOI7mCkg",   # Android + agent-assisted app dev
+    "@PixelArtistry_": "UCRGb8yCnI5-upL3hT4oiOZw",   # local text-to-3D for printing
 }
 # Dropped 2026-10-15 after zero cards across 171 runs: @swyx
 # (UC50YKpKY_2Y86Qo4DZY3mMQ) and @GregKamradt (UC7mHKIdjuKTJVamHqR5JTRg),

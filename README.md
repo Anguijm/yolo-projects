@@ -63,7 +63,7 @@ Full 7-angle council on every survivor. Score 5+ on usefulness or get culled.
 Final pass — anything still not genuinely useful gets cut.
 
 ### Phase 4: YouTube Research
-Daily cron (~07:00 JST) auto-discovers new videos from 17 monitored YouTube channels via RSS (the feeds are read on the MS-S1 at home twice a day by `scripts/snapshot_feeds.sh` and pushed to the branch `feeds/snapshot`; the runner fetches live only when that snapshot is missing or over 8 hours old, because YouTube refuses GitHub's runners), pulls auto-captions through supadata.ai, generates experiment proposals, runs them through council cull, and promotes adopted items into the tick queue. Live lifetime counts: see `phase4_run.json`. Per-experiment narrative: `experiments.json` is the source of truth; `experiments/FINAL_REPORT.md` has the most recent comprehensive write-up.
+Daily cron (~07:00 JST) auto-discovers new videos from 22 monitored YouTube channels via RSS (the feeds are read on the MS-S1 at home twice a day by `scripts/snapshot_feeds.sh` and pushed to the branch `feeds/snapshot`; the runner fetches live only when that snapshot is missing or over 8 hours old, because YouTube refuses GitHub's runners), pulls auto-captions through supadata.ai, generates experiment proposals (since 2026-10-15 each card carries `relevance_to_yolo_loop` and `relevance_to_operator_projects`, both scored high, medium or none; a card is in scope when either is high), runs them through council cull, and promotes adopted items into the tick queue. Live lifetime counts: see `phase4_run.json`. Per-experiment narrative: `experiments.json` is the source of truth; `experiments/FINAL_REPORT.md` has the most recent comprehensive write-up.
 
 ### Security Scanning
 22-rule regex scanner (`security_scan.py`) runs on every build. Full portfolio triaged: 0 real vulnerabilities. CSP meta tag in design.md boilerplate.
@@ -95,12 +95,12 @@ Key process improvements from Phase 4 research:
 | Trigger | Schedule | What |
 |---------|----------|------|
 | Tick-Tock Builder | Hourly | Proposes ideas (tick) or implements flagship features (tock). Builds only approved items. |
-| Phase 4 Research | Daily ~07:00 JST | YouTube RSS scan across 17 channels (feed snapshot from the MS-S1, live fallback), experiment extraction, always commits run report, fails red when zero feeds were read |
+| Phase 4 Research | Daily ~07:00 JST | YouTube RSS scan across 22 channels (feed snapshot from the MS-S1, live fallback), experiment extraction, always commits run report, fails red when zero feeds were read |
 
-## Monitored YouTube Channels (17; authoritative roster in `fetch_youtube_rss.py:CHANNELS`)
-@NateBJones, @MLOps, @DavidOndrej, [un]prompted, @NateHerk, @AIJasonZ, @echohive, @ShawTalebi, @Mark_Kashef, @aiDotEngineer, @mattpocockuk, @indydevdan, @ColeMedin, @AILABS-393, @LatentSpacePod, @anthropic-ai, @LangChain
+## Monitored YouTube Channels (22; authoritative roster in `fetch_youtube_rss.py:CHANNELS`)
+@NateBJones, @MLOps, @DavidOndrej, [un]prompted, @NateHerk, @AIJasonZ, @echohive, @ShawTalebi, @Mark_Kashef, @aiDotEngineer, @mattpocockuk, @indydevdan, @ColeMedin, @AILABS-393, @LatentSpacePod, @anthropic-ai, @LangChain, @donatocapitella, @AZisk, @AliElZoheiry, @PhilippLackner, @PixelArtistry_
 
-Added 2026-10-15: the seven from @mattpocockuk on, scouted from the approval evidence (which channels' cards the triage already approves; record in the brain vault, `10_staging/yolo-channels/synthesis.md`).
+Added 2026-10-15: the seven from @mattpocockuk to @LangChain, scouted from the approval evidence (which channels' cards the triage already approves; record in the brain vault, `10_staging/yolo-channels/synthesis.md`); then the five from @donatocapitella on, which cover the operator's other projects (local inference on Strix Halo, Unreal Engine 5, Android, text-to-3D printing) and only make sense with the widened card prompt.
 
 Dropped 2026-10-15: @swyx, @GregKamradt, @AndrejKarpathy (zero cards across 171 runs; their existing cards and wiki pages stay).
 

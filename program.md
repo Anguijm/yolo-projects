@@ -283,7 +283,8 @@ For each distinct actionable idea, create an experiment card:
     "hypothesis": "If we [do X], then [outcome Y] because [reason Z].",
     "what_they_did": "What the speaker described doing or recommending.",
     "effort_estimate": "low | medium | high",
-    "relevance_to_yolo_loop": "How this maps to our dev loop specifically."
+    "relevance_to_yolo_loop": "<high|medium|none>: how this maps to our dev loop specifically.",
+    "relevance_to_operator_projects": "<high|medium|none>: which of the operator's projects this serves, and how."
   },
   "status": "backlog",
   "status_history": [],
@@ -292,6 +293,8 @@ For each distinct actionable idea, create an experiment card:
   "notes": ""
 }
 ```
+
+**Scope (widened 2026-10-15 by the operator's ruling)**: a card is in scope when EITHER relevance field is high. `relevance_to_yolo_loop` is the original test (agent workflows, harnesses, Claude Code practice). `relevance_to_operator_projects` is judged against the operator's projects, listed in `OPERATOR_PROJECTS` in `scripts/process_experiments.py`: Claude Code agent workflows and harnesses; Push to Talk (Android dictation, whisper.cpp and llama.cpp on a 128 GB AMD Strix Halo box, Vulkan and ROCm); a Flutter family calendar app; a Firebase road-trip planner; Ghosts with Guns (an Unreal Engine 5.8 port); mini-forge (text to 3D to Bambu X1C miniature printing); a Markdown knowledge vault with a Quartz garden and a newsletter. Both fields start with high, medium or none, then one sentence. Cards ingested before 2026-10-15 carry only the first field, without the level word.
 
 **Step 3 — Output**: Return summary + experiment cards as JSON. Prefer fewer, higher-quality cards over quantity.
 
@@ -321,7 +324,7 @@ When done, fill in:
 | status | Meaning | Equivalent long-form |
 |--------|---------|----------------------|
 | `adopted` | Card was promoted directly into the tick queue or portfolio without a measurement step | `done` + `verdict: adopt` |
-| `discarded` | Card was rejected on sight (duplicate, out-of-scope, obsoleted by later video) | `done` + `verdict: discard` |
+| `discarded` | Card was rejected on sight (duplicate, high on neither relevance field, obsoleted by later video) | `done` + `verdict: discard` |
 | `deferred` | Evaluated but not worth the effort this cycle — remains eligible for future re-review | Distinct terminal-ish state; not `backlog` (backlog = unprocessed) |
 | `skipped` | Source video was news/commentary with no actionable experiment; card exists for traceability only | `done` + `verdict: discard` with `notes: "no experiments extracted"` |
 

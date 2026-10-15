@@ -21,6 +21,20 @@ ROOT = Path(__file__).resolve().parent.parent
 # cards/video × ~270 tokens/card, 15 videos = ~8K output tokens worst case.
 BATCH_SIZE = 15
 
+# The operator's projects, judged by the second relevance field of each card.
+# Widened 2026-10-15 by the operator's ruling: until then the prompt asked only
+# for ideas for "an AI development system" and the June 2026 triage rubric
+# (experiments/backlog-triage-2026-06-24.md) discarded local-model, hardware,
+# game-engine and app-development items as off-domain.
+OPERATOR_PROJECTS = """\
+- Claude Code agent workflows and harnesses (skills, hooks, councils, memory, verification loops)
+- Push to Talk: an Android dictation bubble and keyboard backed by whisper.cpp and llama.cpp on a 128 GB AMD Strix Halo box (Ryzen AI Max+ 395, Radeon 8060S, Vulkan and ROCm); local inference, quantization and serving on that hardware count
+- A Flutter family calendar app (Android, self-hosted backend)
+- A Firebase road-trip planner (web app on Firebase App Hosting)
+- Ghosts with Guns: an Unreal Engine 5.8 port of an action game (gameplay systems, Blueprints and C++, asset pipelines)
+- mini-forge: text to 3D to Bambu Lab X1C miniature printing (TRELLIS, Hunyuan3D, mesh cleanup, slicing)
+- A Markdown knowledge vault with a Quartz digital garden and a weekly newsletter (capture, verify, publish pipeline)"""
+
 # Valid channel-shortcode pattern. The id prefix (e.g., "aie" in
 # "aie-2026-06-11-foo") is the catalog's canonical channel identifier;
 # source.channel is purely cosmetic and was previously inconsistent
@@ -87,7 +101,12 @@ def generate_cards_via_api(videos, existing_count):
 Videos to process:
 {video_list}
 
-For each video, create 1-2 experiment cards IF the video contains an actionable idea for an AI development system. Skip pure news/commentary with no actionable experiment. Skip YouTube Shorts.
+For each video, create 1-2 experiment cards IF the video contains an actionable idea for EITHER (a) an AI development system (agent workflows, harnesses, Claude Code practice) OR (b) one of the operator's projects listed below. Skip pure news/commentary with no actionable experiment. Skip YouTube Shorts.
+
+The operator's projects (judge relevance_to_operator_projects against these):
+{OPERATOR_PROJECTS}
+
+Score both relevance fields the same way: start the field with high, medium or none, then a colon and one sentence saying what it maps to (for the projects field, name the project). A card is in scope when either field is high; a video that is high on neither gets no card.
 
 Output a JSON array. Each card must have this exact structure:
 {{
@@ -104,7 +123,8 @@ Output a JSON array. Each card must have this exact structure:
     "hypothesis": "If we [do X], then [outcome Y] because [reason Z].",
     "what_they_did": "What the speaker described.",
     "effort_estimate": "low | medium | high",
-    "relevance_to_yolo_loop": "How this maps to our dev loop."
+    "relevance_to_yolo_loop": "<high|medium|none>: how this maps to our dev loop.",
+    "relevance_to_operator_projects": "<high|medium|none>: which operator project and how, or none."
   }},
   "status": "backlog",
   "status_history": [{{"status": "backlog", "date": "{datetime.now(timezone.utc).strftime('%Y-%m-%d')}", "note": "Extracted from YouTube RSS"}}],
@@ -113,7 +133,7 @@ Output a JSON array. Each card must have this exact structure:
   "notes": ""
 }}
 
-Channel shortcodes: @NateBJones=nb, @MLOps=mlops, @DavidOndrej=do, [un]prompted=up, @NateHerk=nh, @AIJasonZ=aij, @echohive=eh, @ShawTalebi=st, @Mark_Kashef=mk, @aiDotEngineer=aie, @mattpocockuk=mp, @indydevdan=idd, @ColeMedin=cm, @AILABS-393=ail, @LatentSpacePod=ls, @anthropic-ai=ant, @LangChain=lc
+Channel shortcodes: @NateBJones=nb, @MLOps=mlops, @DavidOndrej=do, [un]prompted=up, @NateHerk=nh, @AIJasonZ=aij, @echohive=eh, @ShawTalebi=st, @Mark_Kashef=mk, @aiDotEngineer=aie, @mattpocockuk=mp, @indydevdan=idd, @ColeMedin=cm, @AILABS-393=ail, @LatentSpacePod=ls, @anthropic-ai=ant, @LangChain=lc, @donatocapitella=dc, @AZisk=az, @AliElZoheiry=aez, @PhilippLackner=pl, @PixelArtistry_=pa
 
 Output ONLY the JSON array. No markdown, no explanation."""
 

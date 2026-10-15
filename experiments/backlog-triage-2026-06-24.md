@@ -23,6 +23,23 @@ directly YOLO-buildable artifacts (generative art, dashboards).
 pipelines, heavyweight multi-agent OSes, vendor harness swaps, media/voice/brand
 pipelines, off-domain career/policy items, plus expired and duplicate cards.
 
+### Rubric update, 2026-10-15 (operator's ruling)
+
+The discard list above treated local and open-source models, GPU infrastructure and anything
+outside the Claude harness as off-domain. From 2026-10-15 every new card carries a second field,
+`relevance_to_operator_projects`, scored like `relevance_to_yolo_loop` (high, medium or none,
+then one sentence naming the project), against the operator's projects: Claude Code agent
+workflows and harnesses; Push to Talk (Android dictation, whisper.cpp and llama.cpp on a 128 GB
+AMD Strix Halo box, Vulkan and ROCm); a Flutter family calendar app; a Firebase road-trip
+planner; Ghosts with Guns (an Unreal Engine 5.8 port); mini-forge (text to 3D to Bambu X1C
+miniature printing); a Markdown knowledge vault with a Quartz garden and a newsletter. **A card
+is in scope when either field is high.** Local inference, Unreal Engine, Android and Flutter
+apps, and text-to-3D printing are therefore no longer off-domain; the other discard reasons
+(enterprise and org-scale pipelines, media, voice and brand pipelines, career and policy items,
+expired and duplicate cards) stand. Cards ingested before 2026-10-15 have only the first field
+and no level word. The list the model sees is `OPERATOR_PROJECTS` in
+`scripts/process_experiments.py`; the schema is in `program.md` and `skills/30-phase4.md`.
+
 ## Adopted (67)
 
 | ID | Title | Effort | Why |

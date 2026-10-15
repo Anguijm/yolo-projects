@@ -24,7 +24,7 @@ scope: project
 ### 2. Process queue
 - Run `python3 scripts/process_experiments.py /tmp/rss_scan.json`
 - The script calls Anthropic to generate 1-2 experiment cards per video. Cards include the transcript when present (otherwise title-only).
-- Skip rules: pure news/commentary, YouTube Shorts.
+- Skip rules: pure news/commentary, YouTube Shorts, and videos that are high on neither relevance field. Since 2026-10-15 a card is in scope when `relevance_to_yolo_loop` OR `relevance_to_operator_projects` is high; the operator's project list the model judges against is `OPERATOR_PROJECTS` in `scripts/process_experiments.py`.
 - Cards are appended directly to `experiments.json` (not a queue file).
 
 ### 3. Experiment Card Schema
@@ -39,7 +39,8 @@ scope: project
     "actionable_steps": ["Step 1", "Step 2"],
     "success_metric": "How we know it worked",
     "effort_estimate": "low | medium | high",
-    "relevance_to_yolo_loop": "How this maps to our system",
+    "relevance_to_yolo_loop": "<high|medium|none>: how this maps to our system",
+    "relevance_to_operator_projects": "<high|medium|none>: which operator project and how",
     "target_project_ids": ["project-name"]
   },
   "status": "backlog"
