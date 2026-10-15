@@ -32,6 +32,17 @@ CHANNELS = {
     # Hosts talks from Anthropic, DeepMind, ElevenLabs, Supabase, etc.
     # Verified ID via /channel/ redirect from /@aiDotEngineer.
     "@aiDotEngineer": "UCLKPca3kwwd-B59HNr-_lvA",
+    # Added 2026-10-15 after the roster scout (brain/10_staging/yolo-channels/synthesis.md).
+    # IDs verified via the canonical <link> on each /@handle page; feeds fetched the same day,
+    # all HTTP 200 with 15 entries and a newest upload within 22 days.
+    # Group A: agent engineering and Claude Code practice (matches what the triage rewards).
+    "@mattpocockuk": "UCswG6FSbgZjbWtdf_hMLaow",
+    "@indydevdan": "UC_x36zCEGilGpB1m-V4gmjg",
+    "@ColeMedin": "UCMwVTLZIRRUyyVrkjDpn4pA",
+    "@AILABS-393": "UCelfWQr9sXVMTvBzviPGlFw",
+    "@LatentSpacePod": "UCxBcwypKK-W3GHd_RZ9FZrQ",   # where @swyx actually publishes; ~21 videos/month
+    "@anthropic-ai": "UCrDwWp7EBBv4NwvScIpBDOA",     # primary source; ~2 videos/month
+    "@LangChain": "UCC-lyoTfSrcJzA1ab3APAgw",        # ~50 videos/month during conferences; watch the card counts
 }
 # Dropped 2026-10-15 after zero cards across 171 runs: @swyx
 # (UC50YKpKY_2Y86Qo4DZY3mMQ) and @GregKamradt (UC7mHKIdjuKTJVamHqR5JTRg),

@@ -113,7 +113,7 @@ Output a JSON array. Each card must have this exact structure:
   "notes": ""
 }}
 
-Channel shortcodes: @NateBJones=nb, @MLOps=mlops, @DavidOndrej=do, [un]prompted=up, @NateHerk=nh, @AIJasonZ=aij, @echohive=eh, @ShawTalebi=st, @Mark_Kashef=mk, @aiDotEngineer=aie
+Channel shortcodes: @NateBJones=nb, @MLOps=mlops, @DavidOndrej=do, [un]prompted=up, @NateHerk=nh, @AIJasonZ=aij, @echohive=eh, @ShawTalebi=st, @Mark_Kashef=mk, @aiDotEngineer=aie, @mattpocockuk=mp, @indydevdan=idd, @ColeMedin=cm, @AILABS-393=ail, @LatentSpacePod=ls, @anthropic-ai=ant, @LangChain=lc
 
 Output ONLY the JSON array. No markdown, no explanation."""
 
