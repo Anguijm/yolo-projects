@@ -32929,5 +32929,649 @@
     "outcome": null,
     "verdict": null,
     "notes": "The KForge agent-generates-kernels pattern (brute-force search over hardware/workload profiles) is a low-overhead experiment to try on local vLLM/SGLang deployments. Start by profiling actual KV cache usage per agent run before investing in paged KV cache infrastructure."
+  },
+  {
+    "id": "mlops-2026-10-15-domain-specific-agent-standards",
+    "source": {
+      "channel": "mlops",
+      "video_title": "Bridging the Gap Between AI Builders and Domain Experts",
+      "video_url": "https://www.youtube.com/watch?v=QnrIyf48MvU",
+      "published_date": "2026-10-15",
+      "ingested_date": "2026-10-15"
+    },
+    "experiment": {
+      "title": "Pin agent efficacy metadata (model + prompt + provider) as a deployable spec",
+      "hypothesis": "If we attach a versioned spec (exact prompt, model, hosting provider, harness) to each narrowly-scoped agent, then we can share and reproduce identical efficacy across team members because the relationship between prompt, model, and harness is fragile and non-transferable without explicit pinning.",
+      "what_they_did": "Justin argued that domain-specific agents fail to be reusable because there are no standards pinning the exact prompt version, model, and provider together. He described the need for a runtime spec that bundles these into a shareable, reproducible artifact\u2014analogous to a package.json or lockfile\u2014so that sharing an agent guarantees the same performance. He also noted that swapping models without re-validating the full harness silently degrades quality.",
+      "effort_estimate": "medium",
+      "relevance_to_yolo_loop": "Directly maps to agent reproducibility in our dev loop: any agent we ship should have a pinned spec so CI can verify it runs with identical efficacy on every deploy, preventing silent regressions from model or provider changes."
+    },
+    "status": "backlog",
+    "status_history": [
+      {
+        "status": "backlog",
+        "date": "2026-10-15",
+        "note": "Extracted from YouTube RSS"
+      }
+    ],
+    "outcome": null,
+    "verdict": null,
+    "notes": ""
+  },
+  {
+    "id": "mlops-2026-10-15-domain-expert-agent-authoring",
+    "source": {
+      "channel": "mlops",
+      "video_title": "Bridging the Gap Between AI Builders and Domain Experts",
+      "video_url": "https://www.youtube.com/watch?v=QnrIyf48MvU",
+      "published_date": "2026-10-15",
+      "ingested_date": "2026-10-15"
+    },
+    "experiment": {
+      "title": "Let domain experts author their own narrow agents via a no-code harness scaffold",
+      "hypothesis": "If we give domain experts (e.g., nurses, finance analysts) a structured scaffold to define a single narrow task agent without writing code, then adoption and use-case quality will improve because domain experts know the real use cases while builders know what's technically possible\u2014bridging that gap removes the bottleneck.",
+      "what_they_did": "Justin described a recurring failure mode: tech builders don't have the domain use cases, and domain experts don't know what AI can do. He proposed that domain experts need a lightweight authoring path to create their own hyper-scoped agents (e.g., a transcription agent for a nurse), with the standards problem solved so those agents can be shared and composed.",
+      "effort_estimate": "high",
+      "relevance_to_yolo_loop": "Maps to the intake/scoping phase of our loop: rather than builders guessing requirements, domain users could self-serve agent creation, reducing spec-translation errors and expanding the agent library without linear engineering effort."
+    },
+    "status": "backlog",
+    "status_history": [
+      {
+        "status": "backlog",
+        "date": "2026-10-15",
+        "note": "Extracted from YouTube RSS"
+      }
+    ],
+    "outcome": null,
+    "verdict": null,
+    "notes": ""
+  },
+  {
+    "id": "do-2026-10-15-isolated-sandbox-per-agent",
+    "source": {
+      "channel": "do",
+      "video_title": "Cloudroom just destroyed all AI coding apps (fully open-source)",
+      "video_url": "https://www.youtube.com/watch?v=FbKXvab-0yQ",
+      "published_date": "2026-10-15",
+      "ingested_date": "2026-10-15"
+    },
+    "experiment": {
+      "title": "Run each coding agent in its own isolated cloud VM rather than a shared environment",
+      "hypothesis": "If we provision one isolated Linux sandbox per agent thread, then we can scale to tens or hundreds of parallel agents without resource contention or cross-contamination because each agent's filesystem and process space is fully independent.",
+      "what_they_did": "David launched 25 sub-agents simultaneously, each in its own isolated cloud VM via Cloudroom. He demonstrated that agents kept running even when the local laptop was closed, and showed 38 concurrent agents visible in the dashboard. He argued that squeezing multiple agents onto a single VPS or Mac Mini caps scalability and causes interference, whereas per-agent VMs enable infinite horizontal scaling.",
+      "effort_estimate": "medium",
+      "relevance_to_yolo_loop": "Maps to our parallel agent execution strategy: isolating each agent run in its own sandbox would prevent one failing agent from corrupting another's state and would let us scale speculative parallel builds without shared-state bugs."
+    },
+    "status": "backlog",
+    "status_history": [
+      {
+        "status": "backlog",
+        "date": "2026-10-15",
+        "note": "Extracted from YouTube RSS"
+      }
+    ],
+    "outcome": null,
+    "verdict": null,
+    "notes": ""
+  },
+  {
+    "id": "do-2026-10-15-agent-feedback-tool-to-founder",
+    "source": {
+      "channel": "do",
+      "video_title": "Cloudroom just destroyed all AI coding apps (fully open-source)",
+      "video_url": "https://www.youtube.com/watch?v=FbKXvab-0yQ",
+      "published_date": "2026-10-15",
+      "ingested_date": "2026-10-15"
+    },
+    "experiment": {
+      "title": "Give agents a built-in feedback tool that routes user-observed issues directly to a dev triage queue",
+      "hypothesis": "If we expose a structured feedback tool within the agent harness that users can invoke in natural language, then bug and UX reports will arrive in a developer-accessible database automatically because the agent translates freeform observations into structured records without requiring the user to switch context.",
+      "what_they_did": "David showed a 'report feedback' tool embedded in the Cloudroom CLI. A user can instruct their agent to 'send this feedback to David' in plain English; the agent calls the tool, writes to a Postgres table, and a cloud automation runs every 10 minutes to spin up a new investigation thread. He demonstrated this as a model for agentic product telemetry loops.",
+      "effort_estimate": "low",
+      "relevance_to_yolo_loop": "Directly applicable to our YOLO loop's observability layer: adding a feedback tool to our agent harness would close the loop between runtime agent behavior and developer triage without requiring manual reporting steps."
+    },
+    "status": "backlog",
+    "status_history": [
+      {
+        "status": "backlog",
+        "date": "2026-10-15",
+        "note": "Extracted from YouTube RSS"
+      }
+    ],
+    "outcome": null,
+    "verdict": null,
+    "notes": ""
+  },
+  {
+    "id": "nh-2026-10-15-reverse-engineer-existing-app-as-prd",
+    "source": {
+      "channel": "nh",
+      "video_title": "I Tested the Viral Reverse Engineer Anything Skill. What You Need to Know.",
+      "video_url": "https://www.youtube.com/watch?v=rL5tw6h78zo",
+      "published_date": "2026-10-15",
+      "ingested_date": "2026-10-15"
+    },
+    "experiment": {
+      "title": "Use an existing app or artifact as a living PRD instead of writing one from scratch",
+      "hypothesis": "If we point a coding agent at a working app or example output and instruct it to analyze and replicate the functionality, then the resulting build will be more specific and higher quality than builds driven by a written PRD because the agent receives unambiguous, concrete specification rather than a prose description subject to interpretation.",
+      "what_they_did": "Nate tested the Reverse Engineer Anything (REA) GitHub repo, which uses an MCP server and Ghidra to decompile apps and extract their functional structure. He compared agent outputs with and without the REA repo and found that REA-augmented runs finished slower but produced significantly better results. He also showed prior personal examples: feeding 30 Instagram reels to an agent to extract an editing style, cloning Loom's bubble-recording functionality (not its UI), and replicating app features from SandCastle. He framed the core insight as 'the app is the PRD.'",
+      "effort_estimate": "low",
+      "relevance_to_yolo_loop": "Directly applicable to feature scoping in our loop: instead of writing feature specs, we can feed reference implementations to the agent, reducing ambiguity and spec-writing overhead while improving output fidelity."
+    },
+    "status": "backlog",
+    "status_history": [
+      {
+        "status": "backlog",
+        "date": "2026-10-15",
+        "note": "Extracted from YouTube RSS"
+      }
+    ],
+    "outcome": null,
+    "verdict": null,
+    "notes": ""
+  },
+  {
+    "id": "nh-2026-10-15-roast-room-multi-persona-decision-council",
+    "source": {
+      "channel": "nh",
+      "video_title": "This ONE Claude Skill Helps You Think Clearer Than 99% of People",
+      "video_url": "https://www.youtube.com/watch?v=nRXHWckVxoM",
+      "published_date": "2026-10-15",
+      "ingested_date": "2026-10-15"
+    },
+    "experiment": {
+      "title": "Build a multi-persona debate council skill (Roast Room) for high-stakes decisions",
+      "hypothesis": "If we run a structured multi-round debate among specialized AI personas (each with a single core decision lens) before making a key product or business decision, then decision quality will improve because diverse expert perspectives surface blind spots and prevent the model from simply agreeing with the user's initial framing.",
+      "what_they_did": "Nate built a Claude Code skill called 'Roast Room' that instantiates 7 advisor personas (Bezos, Graham, Hormozi, Gary Vee, Martell, Wickman, Buffett), each with a distinct single-question evaluation lens. The skill runs 3 rounds: each advisor states a position with a scored option, they read each other's positions and debate, and in round 2 dissenting advisors are forced to argue for the minority option. A chair sub-agent facilitates. Final verdicts include scores, rationale, and a consensus recommendation. He also generalized the pattern to any specialized agent pair (e.g., security agent vs. CTO agent) debating a technical question.",
+      "effort_estimate": "medium",
+      "relevance_to_yolo_loop": "Maps to our architecture review and prioritization gates: running a roast room before committing to a technical approach or feature set would surface tradeoffs we'd otherwise miss and reduce costly late-stage pivots."
+    },
+    "status": "backlog",
+    "status_history": [
+      {
+        "status": "backlog",
+        "date": "2026-10-15",
+        "note": "Extracted from YouTube RSS"
+      }
+    ],
+    "outcome": null,
+    "verdict": null,
+    "notes": ""
+  },
+  {
+    "id": "eh-2026-10-15-altitude-goal-behind-the-goal",
+    "source": {
+      "channel": "eh",
+      "video_title": "Stop giving AI tasks. Give it the goal behind the goal.",
+      "video_url": "https://www.youtube.com/watch?v=Gj_GlrTxIWQ",
+      "published_date": "2026-10-15",
+      "ingested_date": "2026-10-15"
+    },
+    "experiment": {
+      "title": "Prompt Claude with the outcome goal rather than the task, backed by groundwork infrastructure",
+      "hypothesis": "If we hand Claude the high-level outcome goal (e.g., 'keep the app crash-free') instead of individual sub-tasks, then throughput and output quality will increase because the model can plan its own task decomposition\u2014provided we supply the necessary groundwork (crash reports, test environments, playbooks) that makes goal-level delegation safe.",
+      "what_they_did": "Drawing on Felix Riesberg's article and his own Foundry app builds, the speaker described four ambition levels: speed, altitude, depth, and range. For altitude, he showed prompts like 'build a system that can generate any app' and 'the world's easiest way to build complex machines just by painting' rather than step-by-step instructions. He emphasized that goal delegation requires groundwork: a release script that tests real downloads, a review page for section-by-section film review, and a playbook of rules baked into Claude's memory so they never need to be repeated. He also showed depth tactics: setting unreasonable targets as reasonable ('exactly 2 minutes, not about two'), using an external judge (Whisper STT) to catch errors the model can't self-detect, and asking for the deeper version rather than the bigger version.",
+      "effort_estimate": "medium",
+      "relevance_to_yolo_loop": "Core to our YOLO loop prompt design: shifting from task-level to goal-level prompts, combined with a playbook and test harness as groundwork, would let agents self-organize work and reduce round-trip iteration on sub-tasks."
+    },
+    "status": "backlog",
+    "status_history": [
+      {
+        "status": "backlog",
+        "date": "2026-10-15",
+        "note": "Extracted from YouTube RSS"
+      }
+    ],
+    "outcome": null,
+    "verdict": null,
+    "notes": ""
+  },
+  {
+    "id": "eh-2026-10-15-external-judge-for-model-output",
+    "source": {
+      "channel": "eh",
+      "video_title": "Stop giving AI tasks. Give it the goal behind the goal.",
+      "video_url": "https://www.youtube.com/watch?v=Gj_GlrTxIWQ",
+      "published_date": "2026-10-15",
+      "ingested_date": "2026-10-15"
+    },
+    "experiment": {
+      "title": "Route agent output through an independent external judge before accepting it",
+      "hypothesis": "If we pipe agent-produced artifacts through a separate evaluator model or tool (e.g., a speech-to-text model reviewing audio, a linter reviewing code) rather than letting the producing model self-evaluate, then error detection will improve because self-evaluation has a structural blind spot\u2014the model cannot perceive what it cannot generate.",
+      "what_they_did": "The speaker described using Whisper (a speech-to-text model) as an independent judge on a finished video mix. Whisper misheard 'bolt on' as 'hold on' because the music was masking the word onset. No amount of re-reading the script would have caught this. Claude then adjusted the music dip timing by 100ms and re-ran Whisper to confirm. He generalized this as Felix's principle: never let a model grade its own work\u2014bring in an outside judge.",
+      "effort_estimate": "low",
+      "relevance_to_yolo_loop": "Directly maps to our eval pipeline: adding an independent judge step (a different model, a static analyzer, or a domain-specific tool) after each agent output would catch errors the producing agent is structurally unable to self-detect."
+    },
+    "status": "backlog",
+    "status_history": [
+      {
+        "status": "backlog",
+        "date": "2026-10-15",
+        "note": "Extracted from YouTube RSS"
+      }
+    ],
+    "outcome": null,
+    "verdict": null,
+    "notes": ""
+  },
+  {
+    "id": "eh-2026-10-15-five-habits-for-ai-collaboration",
+    "source": {
+      "channel": "eh",
+      "video_title": "4 years of talking to AI, distilled into insights you can use today",
+      "video_url": "https://www.youtube.com/watch?v=GC32QW-r5Mg",
+      "published_date": "2026-10-15",
+      "ingested_date": "2026-10-15"
+    },
+    "experiment": {
+      "title": "Encode five interaction habits into a team AI usage protocol and test against default prompting",
+      "hypothesis": "If we adopt five structured interaction habits (raise the bar out loud, react immediately with felt observations, describe what you see not how to fix it, ask the model how confident it is, and protect working code by experimenting in isolated copies), then agent output quality and iteration speed will improve over default prompting because each habit addresses a specific failure mode of model drift toward safe mediocrity.",
+      "what_they_did": "The speaker distilled four years of near-daily AI use into five habits demonstrated through building Instant 3D Models. (1) Raise the bar out loud: first message said 'this will take all your creativity, not just the surface level stuff.' (2) React immediately: sent micro-feedback while Claude was still working rather than writing a spec first. (3) Say what you see: at 2am a mech looked like a toy; instead of prescribing a fix he said 'this is about something else\u2014the shape' and Claude found real proportions. (4) Ask how sure it is: when a turntable stuttered he asked 'are you confidently able to identify why?' and Claude found 3 causes; one fix ran 40x faster. (5) Protect what works: the main app stayed untouched; every experiment got its own copy and server so a bad idea could never break it.",
+      "effort_estimate": "low",
+      "relevance_to_yolo_loop": "Directly codifiable as a team prompting protocol for our YOLO loop: each habit addresses a known failure mode (model conservatism, late feedback, over-prescription, overconfidence, state pollution) and can be embedded in our agent interaction guidelines."
+    },
+    "status": "backlog",
+    "status_history": [
+      {
+        "status": "backlog",
+        "date": "2026-10-15",
+        "note": "Extracted from YouTube RSS"
+      }
+    ],
+    "outcome": null,
+    "verdict": null,
+    "notes": ""
+  },
+  {
+    "id": "mk-2026-10-15-uncensored-model-with-rea-for-app-cloning",
+    "source": {
+      "channel": "mk",
+      "video_title": "Uncensored AI + REA Can Reverse Engineer Anything",
+      "video_url": "https://www.youtube.com/watch?v=ScSDVV5xhww",
+      "published_date": "2026-10-15",
+      "ingested_date": "2026-10-15"
+    },
+    "experiment": {
+      "title": "Substitute an uncensored model in the REA harness to reduce guardrail friction on app decompilation tasks",
+      "hypothesis": "If we route REA (Reverse Engineer Anything) tasks through an uncensored or less-restricted model (e.g., GLM uncensored via Obliteration AI) instead of a frontier model with content guardrails, then the agent will complete more of the decompilation and reconstruction workflow without refusals because frontier models sometimes decline to execute certain reverse-engineering steps that uncensored models will attempt.",
+      "what_they_did": "Mark used the DeepSeek harness (open-source, model-agnostic workbench) with GLM 5.2 uncensored (via Obliteration AI cloud endpoint) plus the REA MCP server backed by Ghidra. He targeted QuickTime Player, wanting a clone with continuous speed control. GLM one-shotted roughly 80% of the app including a new name and icon; additional prompts added font, export formats, and UI polish. Total cost was ~$9-10. He noted that frontier models (Claude, Codex, Gemini) sometimes push back on reverse-engineering certain app types, whereas uncensored models proceed without friction.",
+      "effort_estimate": "low",
+      "relevance_to_yolo_loop": "Relevant to our agent harness model-selection strategy: for internal tooling cloning or competitive analysis tasks where guardrails cause friction, routing through an uncensored model on a pay-as-you-go endpoint could unblock workflows at low cost."
+    },
+    "status": "backlog",
+    "status_history": [
+      {
+        "status": "backlog",
+        "date": "2026-10-15",
+        "note": "Extracted from YouTube RSS"
+      }
+    ],
+    "outcome": null,
+    "verdict": null,
+    "notes": ""
+  },
+  {
+    "id": "aie-2026-10-15-ceiling-test-for-prompt-optimization",
+    "source": {
+      "channel": "aie",
+      "video_title": "How to Actually Tokenmaxx and Save Millions \u2014 Alvin Pane, OutRival",
+      "video_url": "https://www.youtube.com/watch?v=8g1N_a3h9H0",
+      "published_date": "2026-10-15",
+      "ingested_date": "2026-10-15"
+    },
+    "experiment": {
+      "title": "Run a ceiling test (AA test on prod model) before evaluating any prompt optimization candidate",
+      "hypothesis": "If we measure the production model's self-disagreement rate (AA test) before comparing it to a cheaper candidate, then we will avoid falsely rejecting good optimizations because we will know how much variance is inherent to the baseline, making the comparison statistically honest.",
+      "what_they_did": "Alvin's team at OutRival ran their expensive production model three times on the same inputs and found it disagreed with itself ~7% of the time (93% self-agreement). When they then tested a cheaper candidate model, it disagreed with prod ~18% of the time. Without the ceiling test, they would have rejected the candidate as too inaccurate\u2014but 7 of those 18 disagreement points were just baseline model variance, not candidate error. They then used DSPy with a Jeepa optimizer to shrink a 5,000-token classification prompt by 51% in instruction tokens, validated with a shadow deployment, and measured net improvements vs. regressions with a paired confidence interval, requiring the lower bound to be above zero before shipping.",
+      "effort_estimate": "medium",
+      "relevance_to_yolo_loop": "Directly applicable to our prompt optimization and model-swap decisions in the loop: before accepting or rejecting a cheaper/faster model, we should run a ceiling test on the incumbent to establish honest comparison baselines and avoid rejecting valid optimizations."
+    },
+    "status": "backlog",
+    "status_history": [
+      {
+        "status": "backlog",
+        "date": "2026-10-15",
+        "note": "Extracted from YouTube RSS"
+      }
+    ],
+    "outcome": null,
+    "verdict": null,
+    "notes": ""
+  },
+  {
+    "id": "aie-2026-10-15-mcp-gateway-with-pii-blocking-and-context-optimizer",
+    "source": {
+      "channel": "aie",
+      "video_title": "Paving the Road to Production: Governed Enterprise AI Agents \u2014 Harish Gaggar, Credit Karma",
+      "video_url": "https://www.youtube.com/watch?v=tZycGA_Fbfo",
+      "published_date": "2026-10-15",
+      "ingested_date": "2026-10-15"
+    },
+    "experiment": {
+      "title": "Add a centralized MCP gateway with PII blocking and context optimizer to reduce token cost 70-90%",
+      "hypothesis": "If we route all agent tool calls through a centralized MCP gateway that strips PII before LLM submission and compresses context via relevance ranking and deduplication, then token costs will drop 70-90% per query and sensitive data leakage to LLMs will be prevented, because most production queries contain redundant and sensitive payload that can be trimmed without losing task-relevant information.",
+      "what_they_did": "Harish described the full framework at Intuit Credit Karma: a LangGraph agent registers with a dev portal that scaffolds memory, tracking/eval, context optimizer, and PII-blocking frameworks into the repo automatically. The MCP gateway authenticates every tool call and routes it to the right MCP server. The context optimizer selects payload by token limit, re-ranks for relevance, deduplicates, and compresses before sending to the LLM. He demoed the same JFrog Artifactory query going from 24,000 tokens to 2,400 tokens (90% reduction) with the optimizer enabled, and a Slack bot query going from 24,000 to 1,500 tokens. In most cases they observed 70-78% savings.",
+      "effort_estimate": "high",
+      "relevance_to_yolo_loop": "Maps to our agent infrastructure layer: adding a gateway with context optimization would directly reduce our per-run LLM costs at scale, and the PII blocking layer addresses compliance requirements for any enterprise customer use cases we support."
+    },
+    "status": "backlog",
+    "status_history": [
+      {
+        "status": "backlog",
+        "date": "2026-10-15",
+        "note": "Extracted from YouTube RSS"
+      }
+    ],
+    "outcome": null,
+    "verdict": null,
+    "notes": ""
+  },
+  {
+    "id": "aie-2026-10-15-agent-infrastructure-controls-lethal-trifecta",
+    "source": {
+      "channel": "aie",
+      "video_title": "Your AI Isn't the Problem. Your Infrastructure Is. \u2014 Jiachen Jiang, Coder",
+      "video_url": "https://www.youtube.com/watch?v=Wb2v9Phhnns",
+      "published_date": "2026-10-15",
+      "ingested_date": "2026-10-15"
+    },
+    "experiment": {
+      "title": "Audit agent permissions against the lethal trifecta (private data + untrusted content + external comms) and add sandboxing and a model proxy layer",
+      "hypothesis": "If we audit which agents simultaneously have access to all three lethal trifecta capabilities and add a model proxy layer plus agent sandboxing, then the blast radius of agent misbehavior will be contained because infrastructure controls are more reliable than model-level guardrails for preventing non-deterministic agents from exfiltrating data or destroying state.",
+      "what_they_did": "Jiachen described three real incidents: an agent that deleted a month of work despite being told not to change anything; a prompt injection via external content that caused an agent to exfiltrate credentials; and a Copilot incident where an agent answered questions about bypassing internal DLP. He introduced the lethal trifecta concept (private data access + exposure to untrusted content + external communication ability) and argued that having all three simultaneously is never acceptable. Mitigations in priority order: ephemeral short-lived credentials per task (not persistent tokens on laptops), identity-aligned access control inheriting the human's IdP, a model proxy layer that strips injected instructions from external content before the agent reads it, agent sandboxing with filesystem and network restrictions, and audit logging outside the agent's reach with real-time alerting.",
+      "effort_estimate": "medium",
+      "relevance_to_yolo_loop": "Critical to our production agent deployment checklist: before any agent touches production systems, we should run a trifecta audit and verify sandboxing and proxy layer are in place\u2014this is especially relevant as we expand agent permissions in the YOLO loop."
+    },
+    "status": "backlog",
+    "status_history": [
+      {
+        "status": "backlog",
+        "date": "2026-10-15",
+        "note": "Extracted from YouTube RSS"
+      }
+    ],
+    "outcome": null,
+    "verdict": null,
+    "notes": ""
+  },
+  {
+    "id": "aie-2026-10-15-parallel-merge-queue-for-ai-commit-volume",
+    "source": {
+      "channel": "aie",
+      "video_title": "Rebuilding CI for AI-Scale Commit Volume \u2014 Gautam Korlam, SonarSource",
+      "video_url": "https://www.youtube.com/watch?v=7b9tov5Uc5s",
+      "published_date": "2026-10-15",
+      "ingested_date": "2026-10-15"
+    },
+    "experiment": {
+      "title": "Replace serialized CI merge queues with speculative parallel combination testing for agent-generated PRs",
+      "hypothesis": "If we test likely combinations of incoming agent-generated PRs in parallel (rather than serializing them through a single merge queue), then trunk stability will be maintained at 10x commit volume because conflicts between PRs that individually pass CI are caught before merge, preventing red-trunk states that block all downstream agents.",
+      "what_they_did": "Gautam described a 10x increase in commit rate with the same team size, driven by coding agents. He showed that existing CI and review queues built for human-speed commits become bottlenecks: PRs pile up, queues stall, and agents don't wait their turn. He referenced the Summit Queue system built at Uber that tested all likely commit combinations in parallel, predicted which PRs would conflict, removed failing PRs from the queue with author notification, and only allowed PRs that passed combined testing to land on trunk. He also emphasized recording agent trajectory data (which agent, which session, who prompted it, why a failing test was accepted) as a compliance artifact before CI logs expire.",
+      "effort_estimate": "high",
+      "relevance_to_yolo_loop": "Directly relevant to our software factory design: as we scale agent-generated PR volume, our current serialized CI will become the bottleneck. Speculative parallel combination testing is the architectural pattern needed to keep trunk green at agent scale."
+    },
+    "status": "backlog",
+    "status_history": [
+      {
+        "status": "backlog",
+        "date": "2026-10-15",
+        "note": "Extracted from YouTube RSS"
+      }
+    ],
+    "outcome": null,
+    "verdict": null,
+    "notes": ""
+  },
+  {
+    "id": "aie-2026-10-15-accessibility-skill-reduces-agent-cost",
+    "source": {
+      "channel": "aie",
+      "video_title": "The Cost of Accessibility in AI \u2014 Jemima Abu, CAIS",
+      "video_url": "https://www.youtube.com/watch?v=ZccJsdOE54M",
+      "published_date": "2026-10-15",
+      "ingested_date": "2026-10-15"
+    },
+    "experiment": {
+      "title": "Add a mandatory accessibility skill to UI-generating agents",
+      "hypothesis": "If we provide an explicit accessibility skill (semantic HTML, ARIA guidance, keyboard operability, labeling rules) to an agent generating UI from Figma, then token cost and time-to-completion will decrease because the agent spends less time backtracking from inaccessible implementations.",
+      "what_they_did": "Jemima Abu ran a coding agent twice against the same Figma-to-code prompt: once with no accessibility guidance and once with a purpose-built accessibility skill. The version with the skill finished in roughly one-third of the time and at 58% lower cost. She attributed the gap to the agent avoiding dead-end paths caused by inaccessible defaults absorbed from the existing codebase. She also recommends a lightweight skill baseline: semantic HTML first, ARIA only when HTML is insufficient, keyboard operability for every interactive element, proper labeling, and a pre-commit accessibility audit step.",
+      "effort_estimate": "low",
+      "relevance_to_yolo_loop": "Any step in the YOLO loop that uses an agent to scaffold or generate UI components can attach this skill document. Low effort to add a system-prompt or skill file; directly reduces agent token spend and rework on accessibility retrofits."
+    },
+    "status": "backlog",
+    "status_history": [
+      {
+        "status": "backlog",
+        "date": "2026-10-15",
+        "note": "Extracted from YouTube RSS"
+      }
+    ],
+    "outcome": null,
+    "verdict": null,
+    "notes": "One-off experiment, not controlled; treat the 58% cost reduction as directional signal only. Pair with automated accessibility audit tool (e.g., axe) as a post-generation gate to verify quality."
+  },
+  {
+    "id": "aie-2026-10-15-rag-table-csv-chunking",
+    "source": {
+      "channel": "aie",
+      "video_title": "Your Fridge Is a Valid Payment Device \u2014 Eleonora Drykina & Nina \u017di\u017eaki\u0107, In The Pocket",
+      "video_url": "https://www.youtube.com/watch?v=gonAewBZxfU",
+      "published_date": "2026-10-15",
+      "ingested_date": "2026-10-15"
+    },
+    "experiment": {
+      "title": "Convert PDF tables to CSV chunks with preserved row/column context for RAG",
+      "hypothesis": "If we detect tables in PDFs and convert them to CSV format (rather than extracting raw text) before chunking, then the RAG agent will retrieve correct cell values\u2014especially for merged-cell tables\u2014because structured CSV preserves row-column relationships that plain-text extraction destroys.",
+      "what_they_did": "Nina and Eleonora built a RAG system over ~270 PDF rulebooks (~6,000 pages, ~3,000 tables) for a Belgian fintech. Their initial pipeline extracted plain text from PDFs, which mangled merged-cell tables and caused the agent to return wrong fee or rule values. They switched to detecting tables and converting them to CSV format, storing each as a separate chunk with metadata (rulebook name, page number, section path, chunk index). Section paths were extracted via regex on heading patterns, enabling the agent to fetch entire sections when more context was needed. They also generated LLM-produced summaries per rulebook at index time, attached to every chunk, so the agent could identify which document a chunk came from. Evaluation used ~86 Promptfoo tests including citation correctness checks.",
+      "effort_estimate": "medium",
+      "relevance_to_yolo_loop": "Directly applicable when the YOLO loop indexes structured documents (specs, changelogs, financial docs). The table-to-CSV conversion step and section-path metadata pattern can be dropped into any PDF ingestion pipeline to improve retrieval precision."
+    },
+    "status": "backlog",
+    "status_history": [
+      {
+        "status": "backlog",
+        "date": "2026-10-15",
+        "note": "Extracted from YouTube RSS"
+      }
+    ],
+    "outcome": null,
+    "verdict": null,
+    "notes": "They also noted that LLM-based evaluation has significant noise\u20145 of 12 observed changes did not reproduce on re-run. Recommend running evals multiple times before trusting any delta. Promptfoo used for test harness."
+  },
+  {
+    "id": "aie-2026-10-15-rag-agentic-retrieval-zoom-levels",
+    "source": {
+      "channel": "aie",
+      "video_title": "Your Fridge Is a Valid Payment Device \u2014 Eleonora Drykina & Nina \u017di\u017eaki\u0107, In The Pocket",
+      "video_url": "https://www.youtube.com/watch?v=gonAewBZxfU",
+      "published_date": "2026-10-15",
+      "ingested_date": "2026-10-15"
+    },
+    "experiment": {
+      "title": "Give a RAG agent multiple zoom levels (chunk \u2192 section \u2192 full document) via metadata-driven tool calls",
+      "hypothesis": "If we equip the RAG agent with tools to fetch at chunk, section, or full-document granularity using indexed metadata (chunk index, section path, rulebook ID), then answer quality will improve over single-call retrieval because the agent can gather more context when a narrow chunk is insufficient.",
+      "what_they_did": "Eleonora described switching from a single LLM call with retrieved chunks to an agentic retrieval loop. The agent could call a vector search tool for initial chunks, then use section-path metadata to fetch the entire section, or use rulebook ID to list all available rulebooks. Non-overlapping chunks were intentional so that reassembling a section from its chunk index produced the original text exactly. They observed meaningful eval score increases after this architectural change. Streaming was also highlighted as critical for perceived usability.",
+      "effort_estimate": "medium",
+      "relevance_to_yolo_loop": "Maps to any retrieval step in the YOLO loop where a single-shot vector search leaves the agent without enough context. Adding section-fetch and document-list tools to the agent's tool registry is a concrete upgrade path."
+    },
+    "status": "backlog",
+    "status_history": [
+      {
+        "status": "backlog",
+        "date": "2026-10-15",
+        "note": "Extracted from YouTube RSS"
+      }
+    ],
+    "outcome": null,
+    "verdict": null,
+    "notes": "Hybrid embeddings used: dense + BM25. Non-overlapping chunks are a prerequisite for clean section reassembly. Conversation history intentionally capped at last 20 messages to control context size."
+  },
+  {
+    "id": "aie-2026-10-15-ai-automation-due-diligence-checks",
+    "source": {
+      "channel": "aie",
+      "video_title": "What Technical Due Diligence Finds When the Deck Says \"70% Automated\" \u2014 Souka\u00efna Abelhad",
+      "video_url": "https://www.youtube.com/watch?v=gDRCpTMCqEU",
+      "published_date": "2026-10-15",
+      "ingested_date": "2026-10-15"
+    },
+    "experiment": {
+      "title": "Apply a three-check diligence card to any AI automation claim before trusting the metric",
+      "hypothesis": "If we apply three structured checks\u2014arithmetic (workload volume vs. fully loaded human labor), definition (AI-attributed vs. straight-through autonomous rate within a named boundary), and evaluation maturity (expert-validated ground truth, escape rate)\u2014then misleading automation metrics will be caught before influencing build or investment decisions, because each check targets a distinct failure mode where genuine measurements are carried into conclusions they cannot support.",
+      "what_they_did": "Souka\u00efna Abelhad outlined three diligence checks for AI automation claims: (1) Arithmetic\u2014compare workload volume to fully loaded human labor including operators, reviewers, trainers, and rework staff; if human labor tracks volume, the system is assistance not replacement. (2) Definition\u2014distinguish 'AI attributed' from 'autonomous straight-through processing' within an explicitly named workflow boundary (draft, PR approval, or production deploy). (3) Evaluation maturity\u2014ask who labeled ground truth, whether domain experts agree with automated graders, and what bad output escaped; she cited a Meta study showing a 24-point gap between automated grader and human maintainer merge decisions on 296 AI-generated PRs. She also recommended translating surviving claims into unit economics: cost per accepted autonomous task, subtracting AI cost, human review, escalation, and rework.",
+      "effort_estimate": "low",
+      "relevance_to_yolo_loop": "Directly applicable when evaluating whether an agent step in the YOLO loop is genuinely autonomous vs. human-assisted. The straight-through rate definition and cost-per-accepted-task metric can be instrumented as part of loop telemetry."
+    },
+    "status": "backlog",
+    "status_history": [
+      {
+        "status": "backlog",
+        "date": "2026-10-15",
+        "note": "Extracted from YouTube RSS"
+      }
+    ],
+    "outcome": null,
+    "verdict": null,
+    "notes": "Speaker provides a printable reference card via QR code in the talk. The builder.ai case is used as a warning: automation claims that survive narrative scrutiny still need to survive unit economics before deployment decisions."
+  },
+  {
+    "id": "aie-2026-10-15-cost-per-merged-pr-as-ai-spend-metric",
+    "source": {
+      "channel": "aie",
+      "video_title": "Tokens Are the Cheap Part \u2014 Steve Jamison, Jellyfish",
+      "video_url": "https://www.youtube.com/watch?v=U7ZYBCcdJPg",
+      "published_date": "2026-10-15",
+      "ingested_date": "2026-10-15"
+    },
+    "experiment": {
+      "title": "Track cost-per-merged-PR (salary + AI spend) as the primary AI investment metric instead of token bill",
+      "hypothesis": "If we combine developer salary and AI spend into a single 'intelligence cost per merged PR' metric and track it monthly, then we will make better decisions about AI investment levels because this composite metric reveals whether throughput gains are outpacing cost increases, which token spend alone cannot show.",
+      "what_they_did": "Steve Jameson analyzed the Jellyfish platform's engineering workflow and AI telemetry dataset. Key findings: AI spend rose 60x YoY while merged PRs per engineer rose 43%. When salary is included, AI is only ~2.5% of the total cost to produce a merged PR (under 10% even for the heaviest spenders). The dollar cost per merged PR fell 26% over the same period across 83% of companies studied. Heavy AI spenders (top quintile, ~2.5B tokens/dev/month) saw 67% PR throughput gains and 32% cost-per-PR reduction vs ~40% throughput and ~25% cost reduction for lower spenders. There are diminishing returns at very high token volumes. He recommended tracking: AI spend per PR, PRs per engineer, and cost per merged PR monthly, alongside quality/revert metrics as a counterweight.",
+      "effort_estimate": "low",
+      "relevance_to_yolo_loop": "The YOLO loop can instrument this metric by logging AI API costs per PR/task alongside cycle time. Reframes the loop's cost accounting from 'how much did we spend on tokens' to 'what did it cost to ship a unit of work'."
+    },
+    "status": "backlog",
+    "status_history": [
+      {
+        "status": "backlog",
+        "date": "2026-10-15",
+        "note": "Extracted from YouTube RSS"
+      }
+    ],
+    "outcome": null,
+    "verdict": null,
+    "notes": "Data from Jellyfish platform (proprietary dataset). The diminishing-returns curve at high token volumes is an important counterpoint\u2014more spend keeps paying until it doesn't. Monitor revert rate and quality metrics alongside throughput to avoid AI slop inflating PR counts."
+  },
+  {
+    "id": "aie-2026-10-15-agent-trust-autonomy-scorecard",
+    "source": {
+      "channel": "aie",
+      "video_title": "The Agent Works. Does Anyone Trust It? \u2014 Michele Grant, Leading at Scale",
+      "video_url": "https://www.youtube.com/watch?v=-a2oTS9J67U",
+      "published_date": "2026-10-15",
+      "ingested_date": "2026-10-15"
+    },
+    "experiment": {
+      "title": "Gate agent autonomy expansion with a four-stage scorecard tied to pre-defined value and control metrics",
+      "hypothesis": "If we deploy agents through four explicit autonomy stages (shadow mode \u2192 supervised draft \u2192 exception ensemble \u2192 exceptions only) gated by a scorecard combining value metrics and control metrics, then agents will earn expanded autonomy only when evidence supports it, because each stage surfaces failure modes before they cause unreviewed consequences in production.",
+      "what_they_did": "Michele Grant described an M&A integration scenario with an agent automating a weekly synergy reporting deck. She defined three required value metrics with pre-deployment baselines: cycle time (target: 5 days \u2192 2 days), analyst capacity recovered (80 hrs/week, counted only when redeployed to lagging workstreams, net of compute and review cost), and detection time (lag from data slip to steering committee visibility). She applied a three-lines accountability model: management owns output, risk/compliance oversees, internal audit plans based on materiality. A one-page 'human work standard' maps every decision fork to an authorized human role, required evidence, and escalation path. The autonomy scorecard moves the agent through four stages, tracking override rate and independent sampling at stage four specifically\u2014because a falling override rate can indicate shallower review rather than improved agent accuracy. Core math runs in deterministic code, not LLM prose; the LLM summary is explanation, not proof.",
+      "effort_estimate": "medium",
+      "relevance_to_yolo_loop": "The four-stage autonomy gate is directly applicable to any agentic step in the YOLO loop that touches consequential outputs. Instrumenting override rate and running periodic independent sampling are concrete telemetry additions. The 'human work standard' one-pager can serve as a per-agent policy document."
+    },
+    "status": "backlog",
+    "status_history": [
+      {
+        "status": "backlog",
+        "date": "2026-10-15",
+        "note": "Extracted from YouTube RSS"
+      }
+    ],
+    "outcome": null,
+    "verdict": null,
+    "notes": "Key insight: a falling override rate is ambiguous\u2014it can mean the agent improved OR that review depth has slipped. Independent sampling at the exceptions-only stage is the diagnostic. Pre-deployment baseline is a hard prerequisite; if baseline is unknown, do not deploy."
+  },
+  {
+    "id": "aie-2026-10-15-bank-ai-discovery-week-one",
+    "source": {
+      "channel": "aie",
+      "video_title": "Deploying AI Inside a Bank Is Not an Engineering Problem \u2014 Paden Gayle, Applied AI Engineers",
+      "video_url": "https://www.youtube.com/watch?v=3ZlQk4-knWM",
+      "published_date": "2026-10-15",
+      "ingested_date": "2026-10-15"
+    },
+    "experiment": {
+      "title": "Run a week-one discovery checklist to surface deployment blockers before building in regulated environments",
+      "hypothesis": "If we answer five specific ownership questions in week one (data owner engaged, production environment named, sponsor can describe workflow without saying 'AI', smallest useful scope fits existing controls, risk signer identified), then we will avoid building systems that cannot ship because stakeholder and compliance dependencies become visible while the design is still cheap to change.",
+      "what_they_did": "Paden Gayle described a pattern where AI demos succeed technically but fail to ship because security, data owners, and risk teams surface blocking questions after the system is already designed. He proposed treating discovery as the engineering. His week-one checklist: (1) Is the data owner engaged and aware? (2) Is the production environment and its administrators named? (3) Can the sponsor describe the workflow without the word 'AI'? (4) Does the smallest useful scope fit existing controls confirmed with owners? (5) Is the risk signer known and what did they approve last? Scoring: 4-5 yeses = credible path; 3 = assign owners and dates to unresolved decisions; 0-2 = shrink or redefine scope before committing to delivery. He also recommended an evidence pack of five files: intended use, data lineage with approvals, failure modes with fallbacks, results by segment (leading with weakest), and controls with thresholds and owners. Evaluation runs should preserve input prompts, model version, config, output, and reviewer action for reconstructability.",
+      "effort_estimate": "low",
+      "relevance_to_yolo_loop": "Before any YOLO loop iteration that touches production data or regulated workflows, this checklist can be run as a pre-flight gate. The five-file evidence pack maps directly to documentation artifacts that should accompany any agent deployment."
+    },
+    "status": "backlog",
+    "status_history": [
+      {
+        "status": "backlog",
+        "date": "2026-10-15",
+        "note": "Extracted from YouTube RSS"
+      }
+    ],
+    "outcome": null,
+    "verdict": null,
+    "notes": "Speaker is writing a book on 'for-deploy engineering' with O'Reilly. The checklist score is a planning heuristic, not a predictor of approval. Key principle: 'the demo worked, the model was fine, it still did not ship\u2014go find the people.'"
+  },
+  {
+    "id": "aie-2026-10-15-spatial-graph-building-memory",
+    "source": {
+      "channel": "aie",
+      "video_title": "Every Building Is a Balance Sheet: Spatial Memory for Real-World Assets \u2014 Jordi Spranger, Spranic",
+      "video_url": "https://www.youtube.com/watch?v=Fe4aSMXsOZ4",
+      "published_date": "2026-10-15",
+      "ingested_date": "2026-10-15"
+    },
+    "experiment": {
+      "title": "Store multi-temporal spatial scans as a graph to enable change-detection queries over physical environments",
+      "hypothesis": "If we store successive lidar/sensor scans of a physical space as aligned graph snapshots in a graph database, then we can answer ledger-style change-detection queries (what changed, when, who needs to know) in milliseconds instead of requiring a site visit, because the graph structure preserves object identity and spatial relationships across time.",
+      "what_they_did": "Jordi Spranger described Spranic's system built on Neo4j. An off-the-shelf sensor scans a space while walking; the scan produces a map in about one minute. Objects in the map are recognized and stored as nodes with edges representing spatial relationships. Repeated scans of the same space are aligned on a time axis, so the graph holds the full evolution of the space. Users can chat with the asset to ask spatial questions ('where can I heat myself?', 'is there a mug in the kitchen?') and get answers grounded in the map. Change detection compares two scans object-by-object and returns deltas with references to the actual capture as proof. Downstream use cases discussed: maintenance scheduling, compliance checks (e.g., expired fire extinguishers), insurance policy personalization based on verified building state at policy start and renewal, and digital twin input for robotics.",
+      "effort_estimate": "high",
+      "relevance_to_yolo_loop": "Conceptually relevant if the YOLO loop needs to reason about physical environment state or asset inventories. The core pattern\u2014temporal graph snapshots enabling diff queries\u2014is transferable to any domain where state changes over time and queries need provenance."
+    },
+    "status": "backlog",
+    "status_history": [
+      {
+        "status": "backlog",
+        "date": "2026-10-15",
+        "note": "Extracted from YouTube RSS"
+      }
+    ],
+    "outcome": null,
+    "verdict": null,
+    "notes": "Spranic founded June 2026; very early stage. The graph+temporal-alignment pattern is the transferable insight; the specific hardware pipeline is domain-specific. Neo4j used as graph backend."
+  },
+  {
+    "id": "aie-2026-10-15-gnn-graph-fraud-detection",
+    "source": {
+      "channel": "aie",
+      "video_title": "Judge a Transaction by the Company It Keeps \u2014 Somya Rai & MD Sharique, EXL",
+      "video_url": "https://www.youtube.com/watch?v=SHvwutPSeZg",
+      "published_date": "2026-10-15",
+      "ingested_date": "2026-10-15"
+    },
+    "experiment": {
+      "title": "Feed GNN neighborhood embeddings into an existing gradient-boosted model rather than replacing it",
+      "hypothesis": "If we train a two-layer GNN to produce transaction neighborhood embeddings and feed those embeddings as additional features into an existing XGBoost model (rather than replacing XGBoost), then fraud detection true-positive rate at a fixed alert budget will increase significantly because the GNN captures cross-row signals (shared devices, merchant velocity, linked transaction chains) that row-level feature engineering cannot express.",
+      "what_they_did": "Somya Rai and MD Sharique built a GNN-augmented fraud detection system for card-present and online transaction portfolios. Key decisions: (1) Sampling\u2014downsampling without breaking graph connectivity required soft fraud-rate targets rather than naive row dropping. (2) Graph construction\u201432 derived graph features built without leakage (timestamps on edges enforced temporal discipline). (3) GNN architecture\u2014two-layer message passing with gather/aggregate/update; aggregation function choice (permutation-invariant) was noted as having outsized impact. (4) Serving at 3ms P99\u2014pre-compute user and merchant embeddings only (not per-transaction), storing in a ring buffer of last 5 transactions per user; this collapsed the embedding store from 60GB to 2-3GB. At inference, only the new transaction's two-layer forward pass runs. Three micro-optimizations: pin math library thread pools to 1 before heavy library load (30ms \u2192 1ms), warm model at startup, single in-memory process with distributed cache interface. Results: 27-33% lift in TPR at fixed alert rate, ~$65M projected annualized incremental fraud capture, 3ms P99. Explainability via subgraph attribution; transaction-to-transaction velocity edges carried 0.94 mean importance in card-present cases.",
+      "effort_estimate": "high",
+      "relevance_to_yolo_loop": "The pattern of using a GNN to generate embeddings that augment an existing model (rather than replacing it) is broadly applicable to any YOLO loop step where relational context between items matters. The serving architecture decisions (edge-level prediction, cached user/merchant embeddings, ring buffer) are reusable patterns for latency-constrained agentic tools."
+    },
+    "status": "backlog",
+    "status_history": [
+      {
+        "status": "backlog",
+        "date": "2026-10-15",
+        "note": "Extracted from YouTube RSS"
+      }
+    ],
+    "outcome": null,
+    "verdict": null,
+    "notes": "Two separate models for card-present vs online due to different base fraud rates (0.05% vs 0.6%) and different signal geometry. Explainability is a hard requirement in regulated contexts\u2014subgraph attribution was the solution. Thread-pool pinning trick is a low-effort latency win worth testing independently."
   }
 ]
