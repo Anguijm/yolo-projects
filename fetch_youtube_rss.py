@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Fetch YouTube RSS feeds for Phase 4 channels and output new videos as JSON.
 
-Usage: python3 fetch_youtube_rss.py [--since YYYY-MM-DD]
+Usage: python3 fetch_youtube_rss.py [--since YYYY-MM-DD] [--with-transcripts] [--no-snapshot]
 
 Outputs JSON array of new videos to stdout. Compares against experiments.json
 to skip already-processed videos.
@@ -10,7 +10,8 @@ import json
 import os
 import sys
 import re
-from datetime import datetime, timedelta
+import time
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from urllib.request import urlopen, Request
 from urllib.error import URLError, HTTPError
@@ -23,22 +24,37 @@ CHANNELS = {
     "[un]prompted": "UC5GCrYGsm7EHQzQZj65A-5w",
     "@NateHerk": "UC2ojq-nuP8ceeHqiroeKhBA",
     # Added — council-evaluated, signal 8-10/10
-    "@swyx": "UC50YKpKY_2Y86Qo4DZY3mMQ",
-    "@GregKamradt": "UC7mHKIdjuKTJVamHqR5JTRg",
     "@AIJasonZ": "UCrXSVX9a1mj8l0CMLwKgMVw",
     "@echohive": "UCL7przoMtZTmiQMhc9ifIww",
     "@ShawTalebi": "UCa9gErQ9AE5jT2DZLjXBIdA",
     "@Mark_Kashef": "UCHkzp52CldSPZqU5T49mOnA",
-    # Added 2026-04-30 — primary source instead of reactor commentary.
-    # Verified ID via /channel/ redirect from /@AndrejKarpathy.
-    "@AndrejKarpathy": "UCXUPKJO5MZQN11PqgIvyuvQ",
     # Added 2026-05-05 — AI Engineer conference channel (Summit, World's Fair).
     # Hosts talks from Anthropic, DeepMind, ElevenLabs, Supabase, etc.
     # Verified ID via /channel/ redirect from /@aiDotEngineer.
     "@aiDotEngineer": "UCLKPca3kwwd-B59HNr-_lvA",
 }
+# Dropped 2026-10-15 after zero cards across 171 runs: @swyx
+# (UC50YKpKY_2Y86Qo4DZY3mMQ) and @GregKamradt (UC7mHKIdjuKTJVamHqR5JTRg),
+# whose feeds are valid but empty, and @AndrejKarpathy
+# (UCXUPKJO5MZQN11PqgIvyuvQ), no upload since 2025-02-27. Their existing
+# cards and wiki pages stay.
 
 RSS_URL = "https://www.youtube.com/feeds/videos.xml?channel_id={}"
+
+# Browser-like User-Agent for the feed requests (used here and by
+# scripts/fetch_feeds_snapshot.py).
+FEED_USER_AGENT = (
+    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
+    "(KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36"
+)
+
+# Snapshot of the feeds taken on the MS-S1 (home network) by
+# scripts/fetch_feeds_snapshot.py and pushed to the branch feeds/snapshot;
+# the workflow fetches it to this path before running this script. It is
+# used when younger than SNAPSHOT_MAX_AGE_HOURS; any channel it does not
+# cover is fetched live from the runner (fetch_feed).
+SNAPSHOT_FILE = Path(__file__).parent / "data" / "feeds" / "snapshot.json"
+SNAPSHOT_MAX_AGE_HOURS = 8
 
 TRANSCRIPT_CACHE = Path(__file__).parent / "phase4_cache" / "transcripts"
 TRANSCRIPT_HEAD_CHARS = 6000
@@ -240,16 +256,73 @@ def fetch_transcript(video_id: str, timeout: int = 30) -> str | None:
     return _snippets_to_text([s["text"] for s in snippets])
 
 
-def fetch_feed(channel_id):
-    """Fetch RSS feed XML, return as string or None on failure."""
+FEED_RETRIES = 3
+FEED_RETRY_DELAYS = (5, 20)  # seconds between attempts 1->2 and 2->3
+
+
+def fetch_feed(channel_id, retries=FEED_RETRIES, delays=FEED_RETRY_DELAYS):
+    """Fetch RSS feed XML live, return as string or None on failure.
+
+    YouTube intermittently answers GitHub-hosted runners with HTTP 404 or 500
+    for feeds that return 200 from a residential address (seen on 2026-08-28,
+    08-29, and on 7 of the 10 runs from 2026-10-06 to 10-15, with the set of
+    failing channels changing run to run). Those are per-request rejections of
+    the runner, not bad channel IDs, so retry a couple of times with a pause
+    and log the first 200 bytes of the error body so the next reader can see
+    what YouTube actually sent. The normal path is the snapshot (see
+    load_snapshot); this is the fallback.
+    """
     url = RSS_URL.format(channel_id)
-    try:
-        req = Request(url, headers={"User-Agent": "Mozilla/5.0"})
-        with urlopen(req, timeout=15) as resp:
-            return resp.read().decode("utf-8", errors="replace")
-    except (URLError, TimeoutError, Exception) as e:
-        print(f"  WARN: Failed to fetch {channel_id}: {e}", file=sys.stderr)
+    last_err = None
+    for attempt in range(1, retries + 1):
+        try:
+            req = Request(url, headers={"User-Agent": FEED_USER_AGENT})
+            with urlopen(req, timeout=15) as resp:
+                return resp.read().decode("utf-8", errors="replace")
+        except HTTPError as e:
+            body = ""
+            try:
+                body = e.read().decode("utf-8", errors="replace")[:200].replace("\n", " ")
+            except Exception:
+                pass
+            last_err = f"HTTP {e.code} {e.reason}; body[:200]={body!r}"
+        except Exception as e:
+            last_err = f"{type(e).__name__}: {e}"
+        if attempt < retries:
+            delay = delays[min(attempt - 1, len(delays) - 1)]
+            print(f"  WARN: attempt {attempt}/{retries} for {channel_id} failed ({last_err}); retrying in {delay}s", file=sys.stderr)
+            time.sleep(delay)
+    print(f"  WARN: Failed to fetch {channel_id} after {retries} attempts: {last_err}", file=sys.stderr)
+    return None
+
+
+def load_snapshot(path=SNAPSHOT_FILE, max_age_hours=SNAPSHOT_MAX_AGE_HOURS):
+    """Return the feed snapshot written by scripts/fetch_feeds_snapshot.py, or
+    None when it is missing, unreadable or older than max_age_hours. Says why
+    on stderr either way."""
+    path = Path(path)
+    if not path.exists():
+        print(f"snapshot: {path} not found; feeds will be fetched live", file=sys.stderr)
         return None
+    try:
+        snap = json.loads(path.read_text(encoding="utf-8"))
+        taken = datetime.fromisoformat(snap["snapshot_time_utc"].replace("Z", "+00:00"))
+    except (OSError, ValueError, KeyError, TypeError) as e:
+        print(f"snapshot: unreadable ({type(e).__name__}: {e}); feeds will be fetched live", file=sys.stderr)
+        return None
+    age_h = (datetime.now(timezone.utc) - taken).total_seconds() / 3600
+    if age_h > max_age_hours:
+        print(f"snapshot: stale ({age_h:.1f}h old, limit {max_age_hours}h); feeds will be fetched live", file=sys.stderr)
+        return None
+    chans = snap.get("channels", {})
+    ok = sum(1 for c in chans.values() if c.get("http_status") == 200 and not c.get("error"))
+    print(
+        f"snapshot: using {path.name} taken {snap['snapshot_time_utc']} ({age_h:.1f}h old) "
+        f"from {snap.get('fetched_from', '?')}: {ok}/{len(chans)} channels ok",
+        file=sys.stderr,
+    )
+    snap["_age_hours"] = round(age_h, 2)
+    return snap
 
 
 def parse_entries(xml_text):
@@ -302,12 +375,16 @@ def main():
     with_transcripts = "--with-transcripts" in sys.argv
 
     known_ids = get_known_video_ids()
+    snapshot = None if "--no-snapshot" in sys.argv else load_snapshot()
     results = {
         "scan_time_utc": datetime.utcnow().isoformat() + "Z",
         "since": since,
         "channels_scanned": len(CHANNELS),
         "feeds_successful": 0,
         "feeds_failed": 0,
+        "feeds_from_snapshot": 0,
+        "feeds_live": 0,
+        "snapshot_age_hours": snapshot["_age_hours"] if snapshot else None,
         "with_transcripts": with_transcripts,
         "transcripts_fetched": 0,
         "transcripts_missing": 0,
@@ -315,13 +392,25 @@ def main():
     }
 
     for channel_name, channel_id in CHANNELS.items():
-        xml = fetch_feed(channel_id)
-        if xml is None:
-            results["feeds_failed"] += 1
-            continue
+        snap_ch = (snapshot or {}).get("channels", {}).get(channel_name)
+        if snap_ch and snap_ch.get("http_status") == 200 and not snap_ch.get("error"):
+            entries = snap_ch.get("entries", [])
+            results["feeds_from_snapshot"] += 1
+        else:
+            if snapshot is not None:
+                if snap_ch is None:
+                    why = "not in snapshot"
+                else:
+                    why = snap_ch.get("error") or f"HTTP {snap_ch.get('http_status')}"
+                print(f"  snapshot has no usable feed for {channel_name} ({why}); fetching live", file=sys.stderr)
+            xml = fetch_feed(channel_id)
+            if xml is None:
+                results["feeds_failed"] += 1
+                continue
+            results["feeds_live"] += 1
+            entries = parse_entries(xml)
         results["feeds_successful"] += 1
 
-        entries = parse_entries(xml)
         for entry in entries:
             if entry["published"] < since:
                 continue
@@ -339,6 +428,12 @@ def main():
                     results["transcripts_missing"] += 1
             results["new_videos"].append(entry)
 
+    print(
+        f"feeds read: {results['feeds_successful']} of {results['channels_scanned']} "
+        f"({results['feeds_from_snapshot']} from snapshot, {results['feeds_live']} live, "
+        f"{results['feeds_failed']} failed); {len(results['new_videos'])} new videos since {since}",
+        file=sys.stderr,
+    )
     print(json.dumps(results, indent=2))
 
 

@@ -47,9 +47,14 @@ jobs:
               run = json.load(open('phase4_run.json'))
               last = datetime.fromisoformat(run['last_run_utc'].replace('Z', '+00:00'))
               age = datetime.now(timezone.utc) - last
-              if age < timedelta(hours=12):
+              # A run that reached no feed at all ('empty') is not worth
+              # de-duplicating against: let the backup trigger 4 hours later
+              # try again (fresh snapshot at 10:00 JST, different runner).
+              if age < timedelta(hours=12) and run.get('status') != 'empty':
                   print(f'Last run was {age.total_seconds()/3600:.1f}h ago — skipping (de-dup window: 12h)')
                   open('/tmp/skip_run', 'w').write('yes')
+              elif age < timedelta(hours=12):
+                  print(f'Last run was {age.total_seconds()/3600:.1f}h ago but reached 0 feeds, retrying')
               else:
                   print(f'Last run was {age.total_seconds()/3600:.1f}h ago — proceeding')
           except Exception as e:
@@ -65,6 +70,27 @@ jobs:
       - name: Install dependencies
         if: steps.skip.outputs.skip != 'true'
         run: pip install anthropic 'youtube-transcript-api>=0.6.2'
+
+      # The feeds are read on the MS-S1 (home network) twice a day by
+      # scripts/snapshot_feeds.sh and pushed to the branch feeds/snapshot,
+      # because YouTube answers GitHub-hosted runners with HTTP 404/500 on most
+      # nights since 2026-10-06. fetch_youtube_rss.py uses the snapshot when it
+      # is under 8 hours old and fetches live (with retries) for anything it
+      # does not cover.
+      - name: Load feed snapshot from branch feeds/snapshot
+        if: steps.skip.outputs.skip != 'true'
+        run: |
+          mkdir -p data/feeds
+          if git fetch -q --depth 1 origin feeds/snapshot && git show FETCH_HEAD:data/feeds/snapshot.json > data/feeds/snapshot.json; then
+            python3 -c "
+          import json
+          s = json.load(open('data/feeds/snapshot.json'))
+          print(f\"snapshot {s.get('snapshot_time_utc')} from {s.get('fetched_from')}: {s.get('channels_ok')}/{s.get('channels_total')} channels ok, {s.get('entries_total')} entries\")
+          "
+          else
+            echo "::warning::no snapshot on branch feeds/snapshot; feeds will be fetched live from this runner"
+            rm -f data/feeds/snapshot.json
+          fi
 
       - name: Fetch YouTube RSS feeds (with transcripts)
         if: steps.skip.outputs.skip != 'true'
@@ -116,6 +142,9 @@ jobs:
               'with_transcripts': scan.get('with_transcripts', False),
               'transcripts_fetched': scan.get('transcripts_fetched', 0),
               'transcripts_missing': scan.get('transcripts_missing', 0),
+              'feeds_from_snapshot': scan.get('feeds_from_snapshot', 0),
+              'feeds_live': scan.get('feeds_live', 0),
+              'snapshot_age_hours': scan.get('snapshot_age_hours'),
               'status': status
           }
           json.dump(run, open('phase4_run.json', 'w'), indent=2)
@@ -128,3 +157,21 @@ jobs:
         with:
           commit_message: "cron(phase4): daily scan - automated via GitHub Actions"
           file_pattern: 'phase4_run.json experiments.json'
+
+      # Runs after the report is committed so the record is kept either way.
+      # Until 2026-10-15 a night on which every feed returned HTTP 404 still
+      # showed as a green "success" (200 of 200 runs since 2026-07-07 were
+      # green, including 6 nights with 0 feeds). A red run is visible in the
+      # Actions tab and triggers GitHub's failed-workflow email to the owner.
+      - name: Fail the run when no feed could be read
+        if: steps.skip.outputs.skip != 'true'
+        run: |
+          python3 -c "
+          import json, sys
+          run = json.load(open('phase4_run.json'))
+          if run.get('feeds_successful', 0) == 0:
+              print(f\"ERROR: 0 of {run.get('channels_scanned')} feeds returned data (status={run.get('status')}); see the WARN lines above\")
+              sys.exit(1)
+          if run.get('status') == 'degraded':
+              print(f\"::warning::only {run['feeds_successful']} of {run['channels_scanned']} feeds returned data\")
+          "
