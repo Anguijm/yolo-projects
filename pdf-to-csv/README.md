@@ -18,7 +18,8 @@ choose the same folder and press Start, finished files are skipped.
   test harness also blocks and records any request the page attempts (expected: none).
 - Reads only files you choose through the browser's folder picker; writes only through normal downloads.
 - No `eval`; pdf.js runs with `isEvalSupported: false`.
-- CSV cells that start with `= + - @` are prefixed with `'` so Excel cannot run them as formulas.
+- CSV cells that start with `= + - @` are prefixed with `'` so Excel cannot run them as formulas (plain numbers such as `-12.5` are left alone).
+- Values with commas, quote marks or line breaks are quoted the standard way (RFC 4180, as Excel expects); `dev/check_csv.py` verifies this with Python's own CSV reader.
 - The template (field map) holds labels and box positions only, never record content.
 
 ## How it reads a record

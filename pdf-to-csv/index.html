@@ -23234,7 +23234,7 @@ ZXI7c2VsZi5wZGZqc1dvcmtlcj17V29ya2VyTWVzc2FnZUhhbmRsZXI6UWd9Ow==</script>
 // PDF to CSV. Single file, no network. Build: dev/build.py
 // ======================================================================
 const $ = id => document.getElementById(id);
-const VERSION = "v0.3";
+const VERSION = "v0.3.1";
 
 // ---------- pdf.js bootstrap (embedded, base64, loaded via blob URLs) ----------
 let pdfjsLib = null, workerUrl = null;
@@ -24005,7 +24005,8 @@ async function runAll() {
 // ---------- output ----------
 function csvCell(v) {
   let s = v == null ? "" : String(v);
-  if (/^[=+\-@\t\r]/.test(s)) s = "'" + s;       // stop Excel treating a value as a formula
+  // stop Excel treating a value as a formula; a plain number such as -12.5 or -1,234 is left alone
+  if (/^[=+\-@\t\r]/.test(s) && !/^[-+]?\d[\d,]*(\.\d+)?$/.test(s)) s = "'" + s;
   return /[",\r\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
 }
 function csv(rows) { return "﻿" + rows.map(r => r.map(csvCell).join(",")).join("\r\n") + "\r\n"; }
