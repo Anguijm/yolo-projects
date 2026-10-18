@@ -2,6 +2,21 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
+<!--
+  Content-Security-Policy, enforced by the browser on this page:
+    default-src 'none'    nothing may be loaded from anywhere unless listed below
+    script-src  'unsafe-inline' blob:   the script in this file, plus the embedded PDF reader (served to
+                                        itself through a blob: URL, see section 1 of the script)
+    worker-src  blob:     the PDF reader's background thread, same source
+    style-src   'unsafe-inline'         the stylesheet in this file
+    img-src     blob: data:             the rendered sample page (a canvas), nothing remote
+    font-src    data:     harmless allowance for pdf.js internals; fonts from a PDF are never installed
+                          (openPdf sets disableFontFace), so in practice nothing is loaded under it
+    connect-src 'none'    NO network requests of any kind (fetch, XHR, WebSocket, beacon)
+    object-src  'none'    no plugins
+    base-uri    'none'    the document base cannot be redirected
+    form-action 'none'    no form may submit anywhere
+-->
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline' blob:; worker-src blob:; style-src 'unsafe-inline'; img-src blob: data:; font-src data:; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>PDF to CSV</title>
@@ -22,14 +37,15 @@ section.tab { display:none; } section.tab.on { display:block; }
 .row { display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
 .grid2 { display:grid; grid-template-columns: minmax(0,3fr) minmax(320px,2fr); gap:14px; }
 @media (max-width: 900px) { .grid2 { grid-template-columns: 1fr; } }
+/* sample page viewer: a canvas with an absolutely positioned overlay of clickable text boxes */
 #pageWrap { position:relative; display:inline-block; border:1px solid var(--line); background:#fff; max-width:100%; overflow:auto; }
 #pageCanvas { display:block; }
 #overlay { position:absolute; left:0; top:0; }
-.ti { position:absolute; border:1px solid rgba(31,95,139,.25); cursor:pointer; }
+.ti { position:absolute; border:1px solid rgba(31,95,139,.25); cursor:pointer; }   /* one text item on the page */
 .ti:hover { background:rgba(31,95,139,.15); }
-.ti.anchor { border:2px solid var(--warn); background:rgba(178,106,0,.12); }
-.ti.label { border:1px solid var(--ok); background:rgba(46,125,50,.10); }
-.fbox { position:absolute; border:2px dashed var(--acc); background:rgba(31,95,139,.08); pointer-events:none; }
+.ti.anchor { border:2px solid var(--warn); background:rgba(178,106,0,.12); }       /* ...that holds the form's anchor text */
+.ti.label { border:1px solid var(--ok); background:rgba(46,125,50,.10); }           /* ...that starts with a listed label */
+.fbox { position:absolute; border:2px dashed var(--acc); background:rgba(31,95,139,.08); pointer-events:none; }  /* a box field */
 .fbox span { position:absolute; top:-17px; left:0; font-size:11px; background:var(--acc); color:#fff; padding:0 4px; border-radius:3px; white-space:nowrap; }
 table.list { border-collapse:collapse; width:100%; font-size:13px; }
 table.list th, table.list td { border-bottom:1px solid var(--line); padding:4px 6px; text-align:left; vertical-align:top; }
@@ -40,11 +56,12 @@ table.list input[type=text] { width:100%; padding:2px 5px; }
 .ok { color:var(--ok); } .warn { color:var(--warn); } .bad { color:var(--bad); }
 #log { font:12px ui-monospace, monospace; max-height:220px; overflow:auto; background:#fafaf7; border:1px solid var(--line); padding:6px 8px; white-space:pre-wrap; }
 .note { background:#fff8e6; border:1px solid #f0d9a0; border-radius:6px; padding:8px 10px; font-size:13px; }
-details summary { cursor:pointer; color:var(--acc); }
+#incomplete { background:#b3261e; color:#fff; padding:12px 16px; font:15px/1.4 system-ui, sans-serif; }
 </style>
 </head>
 <body>
-<div id="incomplete" style="background:#b3261e;color:#fff;padding:12px 16px;font:15px/1.4 system-ui,sans-serif">
+<!-- Shown until the script proves the file is complete and the embedded PDF reader started (section 1). -->
+<div id="incomplete">
   <b>This copy of PDF to CSV did not load completely.</b> If it was copied and pasted by hand, part of the file is
   probably missing: copy the whole file again (it ends with <code>&lt;/html&gt;</code>), save it with a <code>.html</code> name, and reopen it.
 </div>
@@ -59,14 +76,14 @@ details summary { cursor:pointer; color:var(--acc); }
 </header>
 <main>
 
-<!-- ============ 1. MAP ============ -->
+<!-- ============ TAB 1: FIELDS (define the template; optionally check it on a sample PDF) ============ -->
 <section class="tab on" id="tab-map">
   <div class="card">
     <h2>Template</h2>
     <div class="row">
       <label>Sample PDF <input type="file" id="sampleFile" accept="application/pdf,.pdf"></label>
       <button id="tplExport">Save template file</button>
-      <label><button id="tplImportBtn" type="button">Load template file</button><input type="file" id="tplImport" accept=".json,application/json" hidden></label>
+      <button id="tplImportBtn" type="button">Load template file</button><input type="file" id="tplImport" accept=".json,application/json" hidden>
       <button id="tplClear">Start new template</button>
       <span class="mute small" id="tplStatus"></span>
     </div>
@@ -125,12 +142,12 @@ details summary { cursor:pointer; color:var(--acc); }
   </div>
 </section>
 
-<!-- ============ 2. RUN ============ -->
+<!-- ============ TAB 2: RUN (choose a folder, read every PDF in it) ============ -->
 <section class="tab" id="tab-run">
   <div class="card">
     <h2>Folder</h2>
     <div class="row">
-      <label><button id="pickBtn" type="button" class="primary">Choose folder</button><input type="file" id="folder" webkitdirectory multiple hidden></label>
+      <button id="pickBtn" type="button" class="primary">Choose folder</button><input type="file" id="folder" webkitdirectory multiple hidden>
       <span id="folderInfo" class="mute">No folder chosen. Subfolders are included.</span>
     </div>
     <div class="row" style="margin-top:10px">
@@ -156,7 +173,7 @@ details summary { cursor:pointer; color:var(--acc); }
   <div class="card"><h2>Log</h2><div id="log"></div></div>
 </section>
 
-<!-- ============ 3. RESULTS ============ -->
+<!-- ============ TAB 3: RESULTS (downloads; saved progress) ============ -->
 <section class="tab" id="tab-out">
   <div class="card">
     <h2>Download</h2>
@@ -181,6 +198,9 @@ details summary { cursor:pointer; color:var(--acc); }
 </section>
 </main>
 
+<!-- The PDF reader (Mozilla pdf.js 4.10.38, unmodified apart from the worker's export line, see dev/build.py)
+     embedded as base64 text. It is decoded at start-up, checked against the sizes recorded by the build, and
+     handed to the browser through blob: URLs. These two blocks are the only third-party code in the file. -->
 <script id="pdfjs-b64" type="text/plain">LyoqCiAqIEBsaWNzdGFydCBUaGUgZm9sbG93aW5nIGlzIHRoZSBlbnRpcmUgbGljZW5zZSBub3RpY2UgZm9yIHRoZQogKiBKYXZh
 U2NyaXB0IGNvZGUgaW4gdGhpcyBwYWdlCiAqCiAqIENvcHlyaWdodCAyMDI0IE1vemlsbGEgRm91bmRhdGlvbgogKgogKiBMaWNl
 bnNlZCB1bmRlciB0aGUgQXBhY2hlIExpY2Vuc2UsIFZlcnNpb24gMi4wICh0aGUgIkxpY2Vuc2UiKTsKICogeW91IG1heSBub3Qg
@@ -23230,89 +23250,229 @@ dXAodCxlKTt0LnNlbmQoInJlYWR5IixudWxsKX19dmFyIFFnPV9fd2VicGFja19leHBvcnRzX18uV29y
 ZXI7c2VsZi5wZGZqc1dvcmtlcj17V29ya2VyTWVzc2FnZUhhbmRsZXI6UWd9Ow==</script>
 <script>
 "use strict";
-// ======================================================================
-// PDF to CSV. Single file, no network. Build: dev/build.py
-// ======================================================================
-const $ = id => document.getElementById(id);
-const VERSION = "v0.3.1";
+/* =====================================================================================================
+   PDF to CSV, version v0.5.2.  Single file, no network.  Built by dev/build.py from src/app.html.
 
-// ---------- pdf.js bootstrap (embedded, base64, loaded via blob URLs) ----------
-let pdfjsLib = null, workerUrl = null;
+   WHAT IT DOES
+     1. The user types field names (and may open one sample PDF to check what each field reads).
+     2. The user chooses a folder. Every PDF in it (subfolders included) is opened in the browser and its
+        existing TEXT LAYER is read with pdf.js. There is no OCR here: a file with no text layer is reported.
+     3. Each listed label is found on the pages of the form, and the value beside or below it is read.
+     4. One CSV row per record, plus a list of files that could not be read and why, as downloads.
+
+   READING GUIDE FOR A CODE REVIEWER
+     Section 1  start-up: decode the embedded PDF reader, verify it, start it.
+     Section 2  tuning constants: the thresholds the text analysis uses, named and explained. (A few
+                small position slacks of 1-2 points and fixed regex repeat counts stay inline, commented.)
+     Section 3  text geometry: PDF text items -> lines; the characters that separate words and columns.
+     Section 4  labels: how a typed field name becomes a pattern that matches the label on the page.
+     Section 5  values: the text beside/below a label, across wrapped lines, columns, paragraphs and pages.
+     Section 6  one PDF: open, read every page, find the forms, decide a status for the file.
+     Section 7  storage: IndexedDB for resumable results; localStorage for the template.
+     Section 8  the Fields tab (template editor and sample viewer).
+     Section 9  the Run tab (folder reading with a small worker pool).
+     Section 10 the Results tab (CSV writing and downloads).
+     Section 11 start-up wiring and test hooks.
+
+   SECURITY PROPERTIES (please verify these rather than take them on trust)
+     - Network: the Content-Security-Policy in <head> sets connect-src 'none' and default-src 'none'. Search
+       this file: there is no fetch(), XMLHttpRequest, WebSocket, sendBeacon, <img src=http...>, or <link>.
+     - Disk: files are read only when the user picks them in a file/folder dialog (the browser's File API);
+       writes happen only as ordinary downloads (section 10, download()). No File System Access API.
+     - Code execution: no eval(), no new Function(), no innerHTML with content. The three innerHTML uses in
+       this file set "" to clear a container; every piece of text shown on screen goes through textContent.
+       pdf.js is started with isEvalSupported:false, so it cannot compile PDF JavaScript either.
+     - What is stored, and where (both are per browser profile, per computer):
+         localStorage  "pdf-to-csv-template": the template (field names, labels, box positions). No record text.
+         IndexedDB     "pdf-to-csv" / "results": one object per PDF read, INCLUDING THE EXTRACTED FIELD VALUES
+                       and the main form's text. This is what makes a run resumable and what the downloads
+                       are built from. The Results tab has an "Erase" button; it should be used when a run is
+                       finished if the browser profile is not itself protected.
+     - CSV output: cells that begin with = + - @, a TAB or a carriage return get a leading apostrophe so a
+       spreadsheet will not run them as formulas (plain numbers such as -12.5 or +1,234 are exempt); values
+       with commas, quotes or line breaks are quoted per RFC 4180.
+     - Third-party code: pdf.js only (the two base64 blocks above). dev/build.py records their decoded
+       sizes in EXPECTED_BYTES; a copy of this file whose embedded reader differs in size refuses to start.
+       This catches a truncated or damaged copy. It is a length check, not tamper-proofing: someone who
+       edits the reader and the recorded size together is not detected.
+
+   KNOWN LIMITATIONS (documented, not hidden)
+     - An anchor is matched as a substring of the page text, so an anchor "FORM 1" also matches "FORM 12".
+       Use a distinctive anchor (the full form number).
+     - records.csv is laid out from the template in the editor at download time. If fields are renamed or
+       removed after a run, the columns for the old names are empty; re-run with "Re-read files" ticked.
+     - A field named exactly "file", "pages", "main_form_page" or "status" duplicates a fixed CSV column.
+     - Paragraph breaks that fall exactly on a page break are sometimes joined; text is never lost.
+     - A value that runs off the bottom of a page may be followed for up to 30 pages, even past the
+       form's declared page count. It stops at the first page that does not continue it (a new label,
+       a heading, a different column), so in practice it stops at the next copy of the form.
+     - Cost: each listed label is tried at every text item on every page of the form. 100 fields on a
+       70-page record is a few million short regular-expression tests; expect tens of files per second.
+   ===================================================================================================== */
+
+const $ = id => document.getElementById(id);
+const VERSION = "v0.5.2";
+
+/* =====================================================================================================
+   SECTION 1. START-UP: decode the embedded PDF reader, verify it, start it
+   ===================================================================================================== */
+
+// Decoded byte counts of the two embedded files, written in by dev/build.py. A hand-copied page that lost
+// or gained characters inside the base64 will decode to a different length and must not run.
 const EXPECTED_BYTES = { "pdfjs-b64": 352645, "pdfjs-worker-b64": 1375846 };
-function b64Blob(id, type) {
+
+let pdfjsLib = null;   // the pdf.js module, once imported
+let workerUrl = null;  // blob: URL of the parser script, used to start one thread per reader
+let workerMode = "?";  // "thread" (parser runs in Web Workers) or "main-thread" (fallback)
+
+// Turn one of the base64 <script type="text/plain"> blocks into a blob: URL the browser can load.
+function embeddedScriptUrl(id, mimeType) {
   let bin;
   try { bin = atob($(id).textContent.replace(/\s+/g, "")); }
   catch (e) { throw new Error("the embedded PDF reader is damaged (" + id + "): the copy is incomplete or altered"); }
-  if (bin.length !== EXPECTED_BYTES[id]) throw new Error(`the embedded PDF reader is the wrong size (${id}: ${bin.length} of ${EXPECTED_BYTES[id]} bytes): the copy is incomplete or altered`);
-  const u8 = new Uint8Array(bin.length);
-  for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
-  return URL.createObjectURL(new Blob([u8], { type }));
+  if (bin.length !== EXPECTED_BYTES[id]) {
+    throw new Error(`the embedded PDF reader is the wrong size (${id}: ${bin.length} of ${EXPECTED_BYTES[id]} bytes): the copy is incomplete or altered`);
+  }
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  return URL.createObjectURL(new Blob([bytes], { type: mimeType }));
 }
+
+// Resolves to the pdf.js module once the reader is usable; rejects if the page is incomplete.
 const pdfReady = (async () => {
-  const libUrl = b64Blob("pdfjs-b64", "text/javascript");
-  workerUrl = b64Blob("pdfjs-worker-b64", "text/javascript");
+  const libUrl = embeddedScriptUrl("pdfjs-b64", "text/javascript");
+  workerUrl = embeddedScriptUrl("pdfjs-worker-b64", "text/javascript");
   pdfjsLib = await import(libUrl);
-  // The worker is built as a classic script (see dev/build.py): Chrome refuses module workers on
-  // file:// pages. Prove a thread really starts (it says "ready") before relying on threads.
-  const started = await new Promise(ok => {
+  // pdf.js parses PDFs in a Web Worker. The worker script is built as a classic script (dev/build.py)
+  // because Chrome refuses module workers on a page opened from disk. Prove that a thread really starts
+  // (it posts a "ready" message) before relying on threads; otherwise parse on the main thread.
+  const threadStarts = await new Promise(resolve => {
     let w;
-    try { w = new Worker(workerUrl); } catch (e) { ok(false); return; }
-    const done = v => { clearTimeout(t); w.terminate(); ok(v); };
-    const t = setTimeout(() => done(false), 5000);
-    w.onmessage = () => done(true);
-    w.onerror = () => done(false);
+    try { w = new Worker(workerUrl); } catch (e) { resolve(false); return; }
+    const finish = ok => { clearTimeout(timer); w.terminate(); resolve(ok); };
+    const timer = setTimeout(() => finish(false), 5000);
+    w.onmessage = () => finish(true);
+    w.onerror = () => finish(false);
   });
-  if (started) workerMode = "thread";
-  else {
-    // Fallback: run the parser on the main thread. Slower, same results.
-    await new Promise((ok, bad) => { const s = document.createElement("script"); s.src = workerUrl; s.onload = ok; s.onerror = () => bad(new Error("PDF parser failed to load")); document.head.appendChild(s); });
+  if (threadStarts) {
+    workerMode = "thread";
+  } else {
+    await new Promise((resolve, reject) => {
+      const s = document.createElement("script");
+      s.src = workerUrl;
+      s.onload = resolve;
+      s.onerror = () => reject(new Error("PDF parser failed to load"));
+      document.head.appendChild(s);
+    });
     workerMode = "main-thread";
   }
   return pdfjsLib;
 })();
-let workerMode = "?";
 
-// One PDF parser thread per lane. They must not be shared: destroying a document that was opened
-// on a shared port tears the port down under any other document opening at the same moment.
+// One parser thread per concurrent reader. Threads must not be shared: closing a document that was opened
+// on a shared thread tears the thread down under any other document that is opening at the same moment
+// (observed as random "could not open" results in v0.1).
 function makeParser() {
   if (workerMode !== "thread") return null;
   return new pdfjsLib.PDFWorker({ port: new Worker(workerUrl) });
 }
-const editorParser = pdfReady.then(makeParser);
+const editorParser = pdfReady.then(makeParser);   // the thread used by the sample viewer
 
-async function openPdf(data, parser) {
+async function openPdf(bytes, parser) {
   await pdfReady;
-  const opts = { data, isEvalSupported: false, disableFontFace: true, useSystemFonts: false, stopAtErrors: false, verbosity: 0 };
-  if (parser) opts.worker = parser;
-  return pdfjsLib.getDocument(opts).promise;
+  const options = {
+    data: bytes,
+    isEvalSupported: false,   // never compile JavaScript found inside a PDF
+    disableFontFace: true,    // never install fonts from a PDF into the page
+    useSystemFonts: false,
+    stopAtErrors: false,      // read what can be read of a damaged file
+    verbosity: 0,
+  };
+  if (parser) options.worker = parser;
+  return pdfjsLib.getDocument(options).promise;
 }
 
-// ---------- text model ----------
-// Each page -> { w, h, items:[{s, x0,y0,x1,y1}] } in page units, y measured from the TOP.
+/* =====================================================================================================
+   SECTION 2. TUNING CONSTANTS
+   Distances are in PDF points (1/72 inch). "Line height" means the height of the text on that line, which
+   is a good proxy for its type size. Each constant is named where it is used; change them here only.
+   ===================================================================================================== */
+const T = Object.freeze({
+  // Grouping text items into lines
+  SAME_LINE_FRACTION: 0.4,   // two items are on one line if their baselines differ by less than this \u00d7 height
+  SAME_LINE_MIN: 2,          // ...or by less than 2 points, whichever is larger
+  WORD_GAP: 0.15,            // a horizontal gap wider than this \u00d7 height is a space between words
+  CELL_GAP: 0.9,             // a gap wider than this \u00d7 height is a column or field boundary (kept as a TAB)
+
+  // Deciding whether two lines belong to the same block of text
+  SAME_SIZE: 0.18,           // heights within \u00b118% are the same type size
+  SECTION_GAP: 4,            // a vertical gap over 4 \u00d7 line height ends the field
+  PARAGRAPH_GAP_FIRST: 1.2,  // before the block's own line spacing is known: a gap over 1.2 \u00d7 height is a paragraph
+  PARAGRAPH_GAP_RATIO: 1.8,  // once known: a gap over 1.8 \u00d7 that spacing...
+  PARAGRAPH_GAP_EXTRA: 0.35, // ...and over spacing + 0.35 \u00d7 height, is a paragraph break
+  X_TOLERANCE: 3,            // points of slack when comparing horizontal positions
+
+  // Running text (OCR output often has no table structure)
+  WRAP_RIGHT_SLACK: 3,       // a line reaching within 3 \u00d7 height of the page's rightmost text "ran to the edge"
+  LAST_LINE_SHORT: 0.85,     // a block's last line shorter than 85% of its width ended a paragraph
+
+  // Continuing a value on the next page
+  PAGE_BOTTOM: 0.8,          // a block ending below 80% of the page height may continue overleaf
+  HEADER_LINES_MAX: 8,       // the first 8 lines of a continuation page are examined (so at most 7 skipped as header)
+  HEADER_SAMPLE_LINES: 4,    // the top 4 lines of the previous page define what "the header" looks like
+  CONTINUATION_PAGES_MAX: 30,
+
+  // Labels that wrap inside a grid cell
+  LABEL_WRAP_LINES: 3,       // a label may be split over at most 3 lines in its cell
+  LABEL_WRAP_GAP: 0.8,       // ...with less than 0.8 \u00d7 height between them
+  GRID_EMPTY_ROWS: 2,        // in a grid, up to 2 rows with nothing in this column before the field ends
+
+  // Safety limits
+  BLOCK_LINES_MAX: 5000,
+  MIN_CHARS_PER_PAGE: 25,    // a page with fewer characters of text than this counts as having no text layer
+  OCR_PAGE_FRACTION: 0.5,    // main form not found and text on under half the pages: the file needs OCR
+  EXCEL_CELL_MAX: 32767,     // Excel shows at most this many characters in one cell (the CSV keeps all)
+  SAMPLE_PAGES_MAX: 80,      // the sample viewer reads at most this many pages of a sample for the preview
+  AUTO_LABEL_MAX_CHARS: 60,  // "Auto-detect labels" accepts a "Label:" of at most this length
+});
+
+/* =====================================================================================================
+   SECTION 3. TEXT GEOMETRY: PDF text items -> lines
+   pdf.js gives each page as a list of positioned strings ("items"). Nothing here knows about forms.
+   ===================================================================================================== */
+
+// Read one page. Result: { w, h, items: [{ s, x0, y0, x1, y1 }] } in page units, y measured from the TOP.
+// NOTE y1 is the BASELINE of the text, not the bottom of its box, and y0 is baseline minus font size. So an
+// item's "height" (y1 - y0) is its type size, descenders excluded, and a "gap" between two lines
+// (next.y0 - this.y1) is measured from one baseline to the top of the next line's letters.
 async function pageText(page) {
   const vp = page.getViewport({ scale: 1 });
-  const tc = await page.getTextContent({ disableNormalization: false });
+  const content = await page.getTextContent({ disableNormalization: false });
   const items = [];
-  for (const it of tc.items) {
+  for (const it of content.items) {
     if (!it.str || !it.str.trim()) continue;
-    const t = pdfjsLib.Util.transform(vp.transform, it.transform);
-    const fh = Math.hypot(t[2], t[3]) || it.height || 8;
-    const x0 = t[4], yb = t[5];
-    items.push({ s: it.str, x0, y0: yb - fh, x1: x0 + (it.width * vp.scale || fh * it.str.length * 0.5), y1: yb });
+    const m = pdfjsLib.Util.transform(vp.transform, it.transform);   // text matrix -> page coordinates
+    const height = Math.hypot(m[2], m[3]) || it.height || 8;
+    const x0 = m[4], baseline = m[5];
+    const width = it.width * vp.scale || height * it.str.length * 0.5;   // estimate if pdf.js gives none
+    items.push({ s: it.str, x0, y0: baseline - height, x1: x0 + width, y1: baseline });
   }
   return { w: vp.width, h: vp.height, items };
 }
 
-function norm(s) { return s.replace(/\s+/g, " ").trim().toLowerCase(); }
+// Case, spacing and width-insensitive form of a string, for anchor matching. NFKC folds full-width
+// letters and digits (common in Japanese documents) onto their ordinary forms.
+function norm(s) { return s.normalize("NFKC").replace(/\s+/g, " ").trim().toLowerCase(); }
 
-// Group items into visual lines (same baseline within tolerance), left to right.
+// Group a page's items into visual lines (same baseline within tolerance), each sorted left to right.
+// A line: { y0, y1, x0, items, text }.
 function lines(pt) {
-  const its = pt.items.slice().sort((a, b) => a.y1 - b.y1 || a.x0 - b.x0);
+  const sorted = pt.items.slice().sort((a, b) => a.y1 - b.y1 || a.x0 - b.x0);
   const out = [];
-  for (const it of its) {
-    const h = it.y1 - it.y0;
-    const L = out.find(l => Math.abs(l.y1 - it.y1) < Math.max(2, h * 0.4));
-    if (L) { L.items.push(it); L.y0 = Math.min(L.y0, it.y0); }
+  for (const it of sorted) {
+    const height = it.y1 - it.y0;
+    const line = out.find(l => Math.abs(l.y1 - it.y1) < Math.max(T.SAME_LINE_MIN, height * T.SAME_LINE_FRACTION));
+    if (line) { line.items.push(it); line.y0 = Math.min(line.y0, it.y0); }
     else out.push({ y0: it.y0, y1: it.y1, items: [it] });
   }
   for (const l of out) {
@@ -23322,252 +23482,525 @@ function lines(pt) {
   }
   return out.sort((a, b) => a.y1 - b.y1);
 }
+
+// The text of a run of items, with a space wherever the horizontal gap says there was one.
 function joinItems(items) {
   let s = "", prev = null;
   for (const it of items) {
     if (prev) {
-      const gap = it.x0 - prev.x1, h = prev.y1 - prev.y0;
-      if (gap > h * 0.15 && !s.endsWith(" ") && !it.s.startsWith(" ")) s += " ";
+      const gap = it.x0 - prev.x1, height = prev.y1 - prev.y0;
+      if (gap > height * T.WORD_GAP && !s.endsWith(" ") && !it.s.startsWith(" ")) s += " ";
     }
-    s += it.s; prev = it;
+    s += it.s;
+    prev = it;
   }
   return s.replace(/\s+/g, " ").trim();
 }
 
-// ---------- extraction ----------
-// A label is matched word by word, ignoring case, spacing and punctuation, so "Work Item No." in the
-// list finds "WORK ITEM NO:" on the page. "A | B" gives alternate spellings.
-const ALNUM = "\\p{L}\\p{N}";
-const escRe = s => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-function labelTokens(label) { return label.normalize("NFKC").split(new RegExp(`[^${ALNUM}]+`, "u")).filter(Boolean).map(escRe); }
-function aliasesOf(label) { return String(label).split("|").map(s => s.trim()).filter(Boolean); }
-function compileLabel(label) {
-  return aliasesOf(label).map(a => {
-    const body = labelTokens(a).join(`[^${ALNUM}\\n]*`);
-    return { len: a.length,
-             at: new RegExp(`^${body}[)\\]）」』"'’]*(?![${ALNUM}])[ \\t]*[:：#.\\-–]?[ \\t]*`, "iu"),     // label at this spot
-             any: new RegExp(`(?<![${ALNUM}])${body}[)\\]）」』"'’]*(?![${ALNUM}])[ \\t]*[:：#]`, "iu") }; // another label inside a value
-  }).filter(c => c.len);
-}
-const compiledForms = new WeakMap();
-function compiledForm(f) {
-  let c = compiledForms.get(f);
-  if (!c) {
-    c = new Map();
-    for (const x of f.fields) if (x.method !== "box") c.set(x.name, compileLabel(x.label || x.name));
-    compiledForms.set(f, c);
-  }
-  return c;
-}
-// Line text plus where each item starts in it, so a match can be checked against item boundaries.
-function lineBounds(L) {
-  if (L.jb) return L.jb;
-  let s = "", prev = null; const starts = [];
-  for (const it of L.items) {
+// Like joinItems, but keeps a TAB where the gap is wide enough to be a column or field boundary, and
+// records where each item starts in the string so a match can be checked against item boundaries.
+// Cached on the line object: { s, starts: [offset of item k], lens: [length of item k] }.
+function lineBounds(line) {
+  if (line._bounds) return line._bounds;
+  let s = "", prev = null;
+  const starts = [], lens = [];
+  for (const it of line.items) {
+    // Normalize each piece before measuring it: NFKC can lengthen a string (the ligature "\ufb01" becomes "fi"),
+    // and the offsets below must point into the same string the label patterns search.
+    const piece = it.s.normalize("NFKC");
     if (prev) {
-      const gap = it.x0 - prev.x1, h = prev.y1 - prev.y0;
-      if (gap > h * 1.5) s += "\t";                     // wide gap: likely the next column or field
-      else if (gap > h * 0.15 && !/\s$/.test(s) && !/^\s/.test(it.s)) s += " ";
+      const gap = it.x0 - prev.x1, height = prev.y1 - prev.y0;
+      if (gap > height * T.CELL_GAP) s += "\t";
+      else if (gap > height * T.WORD_GAP && !/\s$/.test(s) && !/^\s/.test(piece)) s += " ";
     }
-    starts.push(s.length); s += it.s; prev = it;
+    starts.push(s.length);
+    lens.push(piece.length);
+    s += piece;
+    prev = it;
   }
-  return (L.jb = { s: s.normalize("NFKC"), starts });
+  return (line._bounds = { s, starts, lens });
 }
-// Does a label from this form start this line? (Used to know where a value stops.)
-function startsWithLabel(text, comp) {
+
+// The part of a line that lies between two x positions (one column of a grid), or null if nothing does.
+function sliceLine(line, xFrom, xTo) {
+  const items = line.items.filter(it => it.x0 >= xFrom && it.x0 < xTo);
+  if (!items.length) return null;
+  return { items, x0: items[0].x0, y0: Math.min(...items.map(i => i.y0)), y1: Math.max(...items.map(i => i.y1)), text: joinItems(items) };
+}
+
+// The most common line height on a page: its body text size.
+function bodyHeight(pageLines) {
+  const counts = new Map();
+  for (const l of pageLines) { const k = Math.round(l.y1 - l.y0); counts.set(k, (counts.get(k) || 0) + 1); }
+  let best = 0, height = 0;
+  for (const [k, c] of counts) if (c > best) { best = c; height = k; }
+  return height;
+}
+
+/* =====================================================================================================
+   SECTION 4. LABELS: from a typed field name to a pattern that finds the label on the page
+   "Work Item No." in the list must find "WORK ITEM NO:", "12. Work Item No.", "Work Item No ......" and
+   "Work Item No" sitting alone in a grid cell. Matching is word by word, ignoring case, spacing and
+   punctuation. "A | B" in the list gives alternate spellings.
+   ===================================================================================================== */
+
+const ALNUM = "\\p{L}\\p{N}";                                          // any letter or digit, any script
+const escapeRegex = s => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+function labelWords(label) { return label.normalize("NFKC").split(new RegExp(`[^${ALNUM}]+`, "u")).filter(Boolean).map(escapeRegex); }
+function aliasesOf(label) { return String(label).split("|").map(s => s.trim()).filter(Boolean); }
+
+// An item number that may precede a label: "12.", "12)", "(12)", "3a.", "b)".
+const ITEM_NUMBER = `(?:\\(?\\d{1,3}[a-z]?[.)]|\\(?[a-z][.)])?[ \\t]*`;
+// What may sit between a label and its value: a colon (or "\uff1a" or "#"); a run of dot/underscore leaders;
+// or a single ".", "-" or "\u2013" (so "No." and "Item -" work).
+const LABEL_SEPARATOR = `[ \\t]*(?:[:\uff1a#]|[.\u2026\u00b7_][ \\t.\u2026\u00b7_]+|[.\\-\u2013])?[ \\t]*`;
+// Closing punctuation a label may end with, then "not followed by another letter or digit".
+const LABEL_CLOSE = `[)\\]\uff09\u300d\u300f"'\u2019]*(?![${ALNUM}])`;
+
+// For one field: a list of compiled spellings, each with three regular expressions.
+function compileLabel(label) {
+  return aliasesOf(label).map(alias => {
+    const words = labelWords(alias);
+    if (!words.length) return null;   // a spelling with no letters or digits (e.g. "--") would match anywhere
+    // Between the words: anything except letters, digits and line breaks. That allows spaces, punctuation
+    // and TABs, so "Work-Item No." matches "WORK ITEM NO" and a label split across two cells still matches.
+    const body = words.join(`[^${ALNUM}\\n]*`);
+    return {
+      // The label at the start of a string (used at each item boundary of a line).
+      at: new RegExp(`^${ITEM_NUMBER}${body}${LABEL_CLOSE}${LABEL_SEPARATOR}`, "iu"),
+      // The label appearing INSIDE a value, followed by a colon or leaders: the value stops there.
+      any: new RegExp(`(?<![${ALNUM}])${ITEM_NUMBER}${body}${LABEL_CLOSE}[ \\t]*(?:[:\uff1a#]|[.\u2026\u00b7_]{2,})`, "iu"),
+      // The label after a wide gap (a TAB), with no colon at all: a grid cell. The value stops there too.
+      anyGap: new RegExp(`\\t[ ]*${ITEM_NUMBER}${body}${LABEL_CLOSE}`, "iu"),
+    };
+  }).filter(Boolean);
+}
+
+// Compiled labels for a whole form, cached per form object (saveTemplate() drops the cache on any edit).
+const compiledForms = new WeakMap();
+function compiledForm(form) {
+  let compiled = compiledForms.get(form);
+  if (!compiled) {
+    compiled = new Map();   // field name -> compiled spellings
+    for (const field of form.fields) if (field.method !== "box") compiled.set(field.name, compileLabel(field.label || field.name));
+    compiledForms.set(form, compiled);
+  }
+  return compiled;
+}
+
+// Does a line start with one of the form's labels? Used to know where a value stops.
+function startsWithLabel(text, compiled) {
   const t = text.normalize("NFKC").trimStart();
-  for (const cs of comp.values()) for (const c of cs) { const m = c.at.exec(t); if (m && (/[:：#]/.test(m[0]) || m[0].length >= t.length - 1)) return true; }
+  for (const spellings of compiled.values()) {
+    for (const c of spellings) {
+      const m = c.at.exec(t);
+      // Accept when the label is followed by a separator, or is the whole line (a bare label in a cell).
+      if (m && (/[:\uff1a#\t]|[.\u2026\u00b7_]{2}/.test(m[0]) || m[0].length >= t.length - 1)) return true;
+    }
+  }
   return false;
 }
-// Gather the lines that continue a value, starting at line j0. prev is the line just above (null at the top
-// of a continuation page). Stops at the next label, a section gap, a change of type size, or text that
-// wanders out of the field's column. A clearly bigger gap than the block's own line spacing is a paragraph.
-function collectBlock(ls, j0, st, comp, prev) {
-  const out = [];
-  let j = j0, last = prev;
-  for (; j < ls.length && out.length < 5000; j++) {
-    const N = ls[j];
-    const gap = last ? N.y0 - last.y1 : 0, lh = last ? last.y1 - last.y0 : (st.refH || (N.y1 - N.y0));
-    if (last && gap > lh * 4) break;                       // section gap: the field is over
-    if (startsWithLabel(N.text, comp)) break;              // next field
-    if (st.hasValue && N.x0 < st.labelX0 - 3) break;       // wandered left of the field
-    if (st.labelColumn && N.x0 <= st.labelX0 + 3) break;   // next row of a label column
-    const nh = N.y1 - N.y0, refH = out.length ? lh : st.refH;
-    if (refH && Math.abs(nh - refH) > refH * 0.18) break;  // type size changed: probably an unlisted label
-    const para = !!last && (st.lead !== null ? gap > Math.max(st.lead * 1.8, st.lead + lh * 0.35) : gap > lh * 1.2);
-    if (para) {
-      if (st.blockX === null || Math.abs(N.x0 - st.blockX) > lh) break;  // a paragraph must start where the block does
-      out.push("\n\n");
-    } else if (last && out.length) st.lead = st.lead === null ? gap : Math.min(st.lead, gap);
-    if (st.blockX === null) st.blockX = N.x0;
-    out.push(N.text); last = N; st.hasValue = true;
-    const x1 = N.items[N.items.length - 1].x1;
-    st.lastX1 = x1; st.maxX1 = Math.max(st.maxX1 || 0, x1);
-  }
-  return { parts: out, ranOff: j >= ls.length, last: out.length ? last : null };
-}
-// A value that ran off the bottom of a page picks up at the top of the next one, after skipping a
-// repeated header, but only if that page starts with text in the same column at the same type size.
-const headerKey = t => t.toLowerCase().replace(/[0-9]+/g, "#").replace(/\s+/g, " ").trim();
-// The most common line height on a page: its body text size.
-function bodyHeight(ls) {
-  const n = new Map();
-  for (const l of ls) { const k = Math.round(l.y1 - l.y0); n.set(k, (n.get(k) || 0) + 1); }
-  let best = 0, h = 0; for (const [k, c] of n) if (c > best) { best = c; h = k; }
-  return h;
-}
-function continueOnPage(ls, pt, st, comp, prevTop) {
-  let k = 0;
-  const body = bodyHeight(ls);
-  for (; k < ls.length && k < 8; k++) {
-    const N = ls[k], nh = N.y1 - N.y0;
-    if (startsWithLabel(N.text, comp)) return { text: "", open: false };
-    const okX = st.blockX === null ? Math.abs(N.x0 - st.labelX0) <= Math.max(3, nh) * 2 : Math.abs(N.x0 - st.blockX) <= Math.max(3, nh);
-    // size to match: the value's own size, or, when nothing has been read yet, the page's body text size
-    const okH = st.refH ? Math.abs(nh - st.refH) <= st.refH * 0.18 : Math.abs(nh - body) <= body * 0.18;
-    const isLabelish = /^[\p{L}][\p{L}\p{N} ()\/&.\-]{0,40}?[)）]?\s*[:：]/u.test(N.text);
-    if (okX && okH && !isLabelish) break;
-    // Anything skipped must look like a page header: repeated from the top of the previous page
-    // (page numbers ignored) or a page/continued marker. Otherwise this page is something else.
-    const key = headerKey(N.text);
-    if (!prevTop.has(key) && !/\b(page|cont(inued|'d|\.)?)\b/i.test(N.text)) return { text: "", open: false };
-  }
-  if (k >= ls.length || k >= 8) return { text: "", open: false };
-  // the last line on the previous page stopped well short of the block's right edge: its paragraph ended there
-  const para = st.maxX1 && st.blockX !== null && st.lastX1 < st.blockX + (st.maxX1 - st.blockX) * 0.85;
-  const r = collectBlock(ls, k, st, comp, null);
-  if (para && r.parts.length) r.parts.unshift("\n\n");
-  if (r.last) st.refH = r.last.y1 - r.last.y0;
-  return { text: joinValue(r.parts), open: r.ranOff && !!r.last && r.last.y1 > pt.h * 0.8 };
-}
-function joinValue(parts) { return parts.join(" ").replace(/[ \t]+/g, " ").replace(/ ?\n\n ?/g, "\n\n").trim(); }
 
-// Where a value stops on its own line: at another listed label, or at an unlisted "Label:" after a
-// wide gap ("\t" or 3+ spaces).
-function cutAtLabel(text, name, comp) {
+// Does `text` begin with a label of some OTHER field of this form (followed by a separator, or alone)?
+function otherLabelAtStart(text, fieldName, compiled) {
+  const t = text.trimStart();
+  for (const [otherName, spellings] of compiled) {
+    if (otherName === fieldName) continue;
+    for (const c of spellings) {
+      const m = c.at.exec(t);
+      if (m && (/[:\uff1a#\t]|[.\u2026\u00b7_]{2}/.test(m[0]) || m[0].length >= t.length - 1)) return true;
+    }
+  }
+  return false;
+}
+
+// Labels NOBODY listed still end a value when they clearly look like labels:
+//   after a wide gap:            "Word words:", "12. Word words:", "Word words ....."
+//   at the start of a new line:  only the strong shapes (numbered with a colon, or leaders), so that a
+//                                narrative line such as "Note: seal replaced" stays part of its field.
+const UNLISTED_NUMBER = String.raw`(?:\(?\d{1,3}[a-z]?[.)][ \t]*)?`;
+const UNLISTED_WORDS = String.raw`[\p{L}][\p{L}\p{N} ()\/&'\-]{0,40}?[)\uff09]?`;
+const UNLISTED_AFTER_GAP = new RegExp(String.raw`(?:\t|[ \u00a0]{3,})\s*` + UNLISTED_NUMBER + UNLISTED_WORDS + String.raw`\s*(?:[:\uff1a]|[.\u2026\u00b7_]{3,})`, "u");
+const UNLISTED_LINE_START = new RegExp(String.raw`^\s*(?:\(?\d{1,3}[a-z]?[.)][ \t]*` + UNLISTED_WORDS + String.raw`\s*[:\uff1a]|` + UNLISTED_WORDS + String.raw`\s*[.\u2026\u00b7_]{3,})`, "u");
+// The plain shape "Word words:" at the start of a line (weaker: used only where a line is being considered
+// as the continuation of running text, where a colon almost always means a new field).
+const PLAIN_LABEL_START = /^[\p{L}][\p{L}\p{N} ()\/&.\-]{0,40}?[)\uff09]?\s*[:\uff1a]/u;
+
+// Where a value stops on its own line: at another listed label, or at an unlisted label after a wide gap.
+// The field's own label is skipped so that a value which repeats its label ("Title: Title page missing")
+// is not cut to nothing.
+function cutAtLabel(text, fieldName, compiled) {
   let cut = text.length;
-  for (const [n2, cs] of comp) { if (n2 === name) continue; for (const c of cs) { const m = c.any.exec(text); if (m && m.index < cut) cut = m.index; } }
-  const unl = /(?:\t|[ \u00a0]{3,})\s*[\p{L}][\p{L}\p{N} ()\/&.\-]{0,40}?[)）]?\s*[:：]/u.exec(text);
-  if (unl && unl.index < cut) cut = unl.index;
+  for (const [otherName, spellings] of compiled) {
+    if (otherName === fieldName) continue;
+    for (const c of spellings) {
+      for (const re of [c.any, c.anyGap]) { const m = re.exec(text); if (m && m.index < cut) cut = m.index; }
+    }
+  }
+  const unlisted = UNLISTED_AFTER_GAP.exec(text);
+  if (unlisted && unlisted.index < cut) cut = unlisted.index;
   return cut;
 }
 
-// Value = text after the label on its line, cut where another known label begins, plus wrapped lines
-// below it. If nothing follows the label on its line, the value is on the line(s) underneath.
-function extractLabel(pt, name, comp, ctx) {
-  const mine = comp.get(name) || [];
-  const ls = ctx.lines || (ctx.lines = lines(pt));
-  for (let i = 0; i < ls.length; i++) {
-    const L = ls[i], J = lineBounds(L);
-    for (let a = 0; a < L.items.length; a++) {
-      const sub = J.s.slice(J.starts[a]), lead = sub.length - sub.trimStart().length, tail = sub.slice(lead);
-      let best = null;
-      for (const c of mine) { const m = c.at.exec(tail); if (m && (!best || m[0].length > best.length)) best = m[0]; }
+/* =====================================================================================================
+   SECTION 5. VALUES: the text beside or below a label
+   extractLabel() finds a field's label on one page and returns its value, or null if the label is not on
+   that page. The value may be: the rest of the label's line; wrapped lines under it; one column of a grid;
+   several paragraphs; and (handled by readForm) the top of the following page(s).
+   ===================================================================================================== */
+
+// TERMS USED BELOW
+//   item          one positioned string from pdf.js (section 3). A line is a row of items.
+//   label line    the line on which a field's label was found.
+//   block         the lines that make up one value: the rest of the label line, then lines below it.
+//   columnar      the label is separated from its value by a TAB (a wide gap), i.e. the form is a grid of
+//                 cells. Then the value stops at the next cell and is continued only within its own column.
+//   label column  the strip of the page between the label's left edge and its value's left edge. Anything
+//                 new appearing there means the next row of the form has started.
+//   running text  label and value inside ordinary flowing text ("Title: X   Building: Y"), as produced
+//                 when a scanned form was OCR'd by another program before it reached this tool.
+//   unlisted      a label the user did not type, recognised only by its shape (section 4).
+//   ranOff        the block reached the last line of the page without hitting a stop rule.
+//   open          ranOff AND the last line is in the bottom 20% of the page: the value may continue on the
+//                 next page. readForm() then calls continueOnPage() with the saved block state.
+//
+// BLOCK STATE `st` (created in extractLabel, step 3; updated by collectBlock and continueOnPage)
+//   blockX       left edge of the value's text (null until the first value text is seen)
+//   refH         the value's type size (line height), null while nothing has been read
+//   lineGap      the block's normal gap between lines (null until two lines have been seen)
+//   labelX0      left edge of the label
+//   hasValue     some value text has been read
+//   labelColumn  the label starts its line, has a value beside it, and is not alone on the line: lines that
+//                start at the label's x are then the next row, not more value
+//   cols         grid mode only: { left, right } x range of this field's value column
+//   labelLines   grid mode only: lines that hold wrapped pieces of this field's own label
+//   lastX1, maxX1  right end of the last line read, and the widest line so far (to spot a short last
+//                line, i.e. a paragraph that ended at a page break)
+//
+// Values are tidied by cleanValue() at the end.
+const BOX_ON = "\u2612\u2611\u2714\u2713\u25a0\u25a3\u22a0", BOX_OFF = "\u2610\u25a1\u25a2";   // checkbox glyphs, ticked and empty
+
+// Final tidy of a value:
+//  - Leaders: a run of TWO OR MORE dots, middle dots or underscores at the start is the rest of a
+//    "Label ........ value" leader and is removed; so is a run of FOUR OR MORE at the end. Single
+//    characters are left alone, so ".5 mm", "Code A_" and "Wait for parts\u2026" survive. A value that is
+//    nothing but leaders becomes empty.
+//  - Checkboxes: a value made only of boxes and their captions becomes the ticked caption(s),
+//    e.g. "\u2612 Yes \u2610 No" or "[X] Yes [ ] No" -> "Yes".
+function cleanValue(v) {
+  if (/^[\s.\u2026\u00b7_]+$/.test(v) && /[.\u2026\u00b7_]{2}/.test(v)) return "";
+  v = v.replace(/^(?:[.\u2026\u00b7_]\s*){2,}(?=\S)/, "").replace(/(?:\s*[.\u2026\u00b7_]){4,}\s*$/, "").trim();
+  const boxRe = new RegExp(`([${BOX_ON}${BOX_OFF}]|\\[\\s*[xX\u2713\u2714]?\\s*\\]|\\(\\s*[xX]?\\s*\\))\\s*([^${BOX_ON}${BOX_OFF}\\[\\(]*)`, "gu");
+  const boxes = [...v.matchAll(boxRe)];
+  const wholeValueIsBoxes = boxes.length >= 2 && boxes.map(m => m[0]).join("").replace(/\s+/g, "") === v.replace(/\s+/g, "");
+  if (wholeValueIsBoxes) {
+    const ticked = boxes.filter(m => BOX_ON.includes(m[1]) || /[xX\u2713\u2714]/.test(m[1])).map(m => m[2].trim()).filter(Boolean);
+    return ticked.join("; ");
+  }
+  return v;
+}
+function joinValue(parts) {
+  return cleanValue(parts.join(" ").replace(/[ \t]+/g, " ").replace(/ ?\n\n ?/g, "\n\n").trim());
+}
+
+// Gather the lines that continue a value, starting at line index j0 of pageLines. `prev` is the line just
+// above (null at the top of a continuation page). `st` is the block state described above, updated in place.
+// Stops at the first of:
+//   - a new row in the label column (grid mode); more than GRID_EMPTY_ROWS rows empty in this column
+//   - a section gap (over SECTION_GAP line heights)
+//   - a line starting with a label, listed or unlisted
+//   - text left of the label (only once value text exists: before that, a value may start anywhere below)
+//   - a line starting at the label's x when the label begins its line (labelColumn: the next row)
+//   - a change of type size (usually a label in a different font)
+//   - a paragraph break whose first line does not start at blockX (it is a different block)
+//   - BLOCK_LINES_MAX lines
+// A gap clearly larger than the block's own line spacing is kept as a paragraph break ("\n\n").
+function collectBlock(pageLines, j0, st, compiled, prev) {
+  const parts = [];
+  let j = j0, last = prev, emptyRows = 0;
+  for (; j < pageLines.length && parts.length < T.BLOCK_LINES_MAX; j++) {
+    let line = pageLines[j];
+    if (st.cols) {
+      // Grid: only this field's column counts. Anything new in the label column starts the next row,
+      // unless it is a wrapped piece of this field's own label.
+      const inLabelColumn = line.items.some(it => it.x0 >= st.labelX0 - T.X_TOLERANCE && it.x0 < st.cols.left - 2);
+      if (inLabelColumn && !(st.labelLines && st.labelLines.has(j))) break;
+      line = sliceLine(line, st.cols.left - 2, st.cols.right - 2);
+      if (!line) { if (++emptyRows > T.GRID_EMPTY_ROWS) break; continue; }
+      emptyRows = 0;
+    }
+    const gap = last ? line.y0 - last.y1 : 0;
+    const lineH = last ? last.y1 - last.y0 : (st.refH || (line.y1 - line.y0));
+    if (last && gap > lineH * T.SECTION_GAP) break;
+    if (startsWithLabel(line.text, compiled) || UNLISTED_LINE_START.test(line.text)) break;
+    if (st.hasValue && line.x0 < st.labelX0 - T.X_TOLERANCE) break;      // wandered left of the field
+    if (st.labelColumn && line.x0 <= st.labelX0 + T.X_TOLERANCE) break;  // next row of a label column
+    const thisH = line.y1 - line.y0, refH = parts.length ? lineH : st.refH;
+    if (refH && Math.abs(thisH - refH) > refH * T.SAME_SIZE) break;      // type size changed: an unlisted label, most likely
+    // Before anything is collected (an empty label line), the first gap is just the space between a label
+    // and its value, however wide (up to SECTION_GAP), not a paragraph break.
+    const paragraph = !!last && (parts.length > 0 || st.hasValue) && (st.lineGap !== null
+      ? gap > Math.max(st.lineGap * T.PARAGRAPH_GAP_RATIO, st.lineGap + lineH * T.PARAGRAPH_GAP_EXTRA)
+      : gap > lineH * T.PARAGRAPH_GAP_FIRST);
+    if (paragraph) {
+      if (st.blockX === null || Math.abs(line.x0 - st.blockX) > lineH) break;   // a paragraph starts where the block does
+      parts.push("\n\n");
+    } else if (last && parts.length) {
+      // Learn the block's normal gap between lines. The MINIMUM is kept because a block's ordinary
+      // lines are its tightest; any larger gap seen first may already have been a paragraph break.
+      st.lineGap = st.lineGap === null ? gap : Math.min(st.lineGap, gap);
+    }
+    if (st.blockX === null) st.blockX = line.x0;
+    parts.push(line.text);
+    last = line;
+    st.hasValue = true;
+    const rightEnd = line.items[line.items.length - 1].x1;
+    st.lastX1 = rightEnd;
+    st.maxX1 = Math.max(st.maxX1 || 0, rightEnd);
+  }
+  return { parts, ranOff: j >= pageLines.length, last: parts.length ? last : null };
+}
+
+// A page header line, compared with digits removed so "Page 3 of 40" equals "Page 4 of 40".
+const headerKey = t => t.toLowerCase().replace(/[0-9]+/g, "#").replace(/\s+/g, " ").trim();
+
+// A value that ran off the bottom of a page picks up at the top of the next one, after skipping a repeated
+// page header, but only if that page starts with text in the same column at the same type size.
+// prevTop: headerKeys of the top lines of the previous page.
+function continueOnPage(pageLines, pt, st, compiled, prevTop) {
+  const body = bodyHeight(pageLines);
+  let k = 0;
+  for (; k < pageLines.length && k < T.HEADER_LINES_MAX; k++) {
+    const line = pageLines[k], lineH = line.y1 - line.y0;
+    if (startsWithLabel(line.text, compiled)) return { text: "", open: false };
+    const sameColumn = st.blockX === null
+      ? Math.abs(line.x0 - st.labelX0) <= Math.max(T.X_TOLERANCE, lineH) * 2
+      : Math.abs(line.x0 - st.blockX) <= Math.max(T.X_TOLERANCE, lineH);
+    // Size to match: the value's own, or, when nothing has been read yet, the page's body text size.
+    const sameSize = st.refH ? Math.abs(lineH - st.refH) <= st.refH * T.SAME_SIZE : Math.abs(lineH - body) <= body * T.SAME_SIZE;
+    if (sameColumn && sameSize && !PLAIN_LABEL_START.test(line.text)) break;
+    // Anything skipped must look like a page header: repeated from the top of the previous page, or a
+    // page/continued marker. Otherwise this page is something else and the value ended.
+    if (!prevTop.has(headerKey(line.text)) && !/\b(page|cont(inued|'d|\.)?)\b/i.test(line.text)) return { text: "", open: false };
+  }
+  if (k >= pageLines.length || k >= T.HEADER_LINES_MAX) return { text: "", open: false };
+  // If the last line on the previous page stopped well short of the block's right edge, its paragraph ended there.
+  const paragraphEnded = st.maxX1 && st.blockX !== null && st.lastX1 < st.blockX + (st.maxX1 - st.blockX) * T.LAST_LINE_SHORT;
+  const r = collectBlock(pageLines, k, st, compiled, null);
+  if (paragraphEnded && r.parts.length) r.parts.unshift("\n\n");
+  if (r.last) st.refH = r.last.y1 - r.last.y0;
+  return { text: joinValue(r.parts), open: r.ranOff && !!r.last && r.last.y1 > pt.h * T.PAGE_BOTTOM };
+}
+
+// A label may wrap over two or three lines inside its grid cell ("Requesting" / "Activity"). Starting from
+// item `a` of line `i` (whose text is followed by a TAB), see whether the pieces directly beneath it complete
+// one of this field's spellings. Returns the indexes of the lines used, or null.
+function wrappedCellLabel(pageLines, i, a, spellings) {
+  const line = pageLines[i], first = line.items[a], nextCellX = line.items[a + 1].x0;
+  const used = [];
+  let candidate = first.s.trim(), prev = line;
+  for (let q = i + 1; q < pageLines.length && used.length < T.LABEL_WRAP_LINES; q++) {
+    const below = pageLines[q];
+    if (below.y0 - prev.y1 > (line.y1 - line.y0) * T.LABEL_WRAP_GAP) break;
+    const piece = below.items.find(it => Math.abs(it.x0 - first.x0) < T.X_TOLERANCE && it.x1 <= nextCellX + 1);
+    if (!piece) break;
+    candidate += " " + piece.s.trim();
+    used.push(q);
+    prev = below;
+    const wanted = candidate.replace(/[:\uff1a\s]+$/, "").length;
+    if (spellings.some(c => { const m = c.at.exec(candidate); return m && m[0].trimEnd().length >= wanted; })) return used;
+  }
+  return null;
+}
+
+// Running text (see TERMS): if the label line reaches close to the rightmost text on the page, and the next
+// line starts where the label line starts (x within one line height), the next line is the value wrapping
+// round. It is taken up to the next label. A next line that itself starts with a label is never a wrap.
+// Returns { text, cutShort } for the extra text, or null if the next line is not a wrap.
+function runningTextWrap(pageLines, i, fieldName, compiled) {
+  const line = pageLines[i], next = pageLines[i + 1], lineH = line.y1 - line.y0;
+  if (!next) return null;
+  const lastX = line.items[line.items.length - 1].x1;
+  const rightEdge = Math.max(...pageLines.map(l => l.items[l.items.length - 1].x1));
+  const nextIsLabel = PLAIN_LABEL_START.test(next.text) || UNLISTED_LINE_START.test(next.text) || startsWithLabel(next.text, compiled);
+  const wraps = Math.abs(next.x0 - line.x0) < lineH && lastX > rightEdge - lineH * T.WRAP_RIGHT_SLACK && next.y0 - line.y1 < lineH && !nextIsLabel;
+  if (!wraps) return null;
+  const nextText = lineBounds(next).s, cut = cutAtLabel(nextText, fieldName, compiled);
+  return { text: nextText.slice(0, cut), cutShort: cut < nextText.length };
+}
+
+// Find field `fieldName` on page `pt` and return its value, or null if its label is not on this page.
+// ctx is per page: { lines, open }. If the value runs off the bottom of the page, ctx.open records the block
+// state so readForm() can continue it on the next page.
+function extractLabel(pt, fieldName, compiled, ctx) {
+  const spellings = compiled.get(fieldName) || [];
+  const pageLines = ctx.lines || (ctx.lines = lines(pt));
+  for (let i = 0; i < pageLines.length; i++) {
+    const line = pageLines[i], bounds = lineBounds(line);
+    for (let a = 0; a < line.items.length; a++) {
+      // ---- 1. does one of this field's spellings start at item a? ----
+      const fromItem = bounds.s.slice(bounds.starts[a]);
+      const leadingSpaces = fromItem.length - fromItem.trimStart().length;
+      const tail = fromItem.slice(leadingSpaces);
+      let best = null;        // the matched label text, including its separator
+      let wrapped = null;     // line indexes of a label that wraps inside its cell
+      for (const c of spellings) { const m = c.at.exec(tail); if (m && (!best || m[0].length > best.length)) best = m[0]; }
+      if (!best && a + 1 < line.items.length && bounds.s[bounds.starts[a] + bounds.lens[a]] === "\t") {
+        wrapped = wrappedCellLabel(pageLines, i, a, spellings);
+        if (wrapped) best = line.items[a].s.trimStart() + "\t";
+      }
       if (!best) continue;
-      const end = J.starts[a] + lead + best.length;
-      // the label must end at a colon, an item boundary, or the end of the line ("Date" must not eat "Date Received")
-      const atBoundary = /[:：#]/.test(best) || end >= J.s.trimEnd().length || J.starts.includes(end) || J.starts.includes(end + 1);
+      const end = wrapped ? bounds.starts[a] + bounds.lens[a] + 1 : bounds.starts[a] + leadingSpaces + best.length;
+
+      // The label must end at a separator, an item boundary, or the end of the line, so that "Date" does
+      // not match the first half of "Date Received".
+      const atBoundary = /[:\uff1a#]|[.\u2026\u00b7_]{2}/.test(best) || end >= bounds.s.trimEnd().length
+        || bounds.starts.includes(end) || bounds.starts.includes(end + 1) || /^\t/.test(bounds.s.slice(end - 1));
       if (!atBoundary) continue;
-      // a longer label of another field matching at the same spot wins ("Date Received" over "Date")
-      let beaten = false;
-      for (const [n2, cs] of comp) { if (n2 === name) continue; for (const c of cs) { const m = c.at.exec(tail); if (m && m[0].trimEnd().length > best.trimEnd().length) beaten = true; } }
-      if (beaten) continue;
-      let value = J.s.slice(end);
-      const cut = cutAtLabel(value, name, comp);
-      value = value.slice(0, cut).trim();
-      let cutShort = cut < J.s.slice(end).length;            // another field follows on this same line
-      const labelX0 = L.items[a].x0, h = L.y1 - L.y0;
-      let from = i + 1;
-      // Running text (as OCR often produces): a value that ends at the right edge and wraps back to the
-      // start of the next line continues there, up to the next label.
-      if (!cutShort && value && a > 0 && from < ls.length) {
-        const N = ls[from], lastX = L.items[L.items.length - 1].x1;
-        const rightEdge = Math.max(...ls.map(l => l.items[l.items.length - 1].x1));
-        const looksLikeLabel = /^[\p{L}][\p{L}\p{N} ()\/&.\-]{0,40}?[)）]?\s*[:：]/u.test(N.text);  // an unlisted "Label:" starts the line
-        if (Math.abs(N.x0 - L.x0) < h && lastX > rightEdge - h * 3 && N.y0 - L.y1 < h && !startsWithLabel(N.text, comp) && !looksLikeLabel) {
-          const nt = lineBounds(N).s, c2 = cutAtLabel(nt, name, comp);
-          value = (value + " " + nt.slice(0, c2)).trim();
-          if (c2 < nt.length) cutShort = true;
-          from++;
+      // A longer label of ANOTHER field matching at the same spot wins ("Date Received" over "Date").
+      if (!wrapped) {
+        let beaten = false;
+        for (const [otherName, others] of compiled) {
+          if (otherName === fieldName) continue;
+          for (const c of others) { const m = c.at.exec(tail); if (m && m[0].trimEnd().length > best.trimEnd().length) beaten = true; }
+        }
+        if (beaten) continue;
+      }
+
+      // ---- 2. the value on the label's own line ----
+      // A wide gap (TAB) between label and value means a grid of cells: the value stops at the next cell.
+      const columnar = /\t/.test(best) || wrapped !== null;
+      const rest = bounds.s.slice(end);
+      let cut = cutAtLabel(rest, fieldName, compiled), columnRight = Infinity;
+      if (columnar) {
+        // An empty cell: what follows the TAB is already another field's label, so this value is empty.
+        if (otherLabelAtStart(rest, fieldName, compiled)) cut = 0;
+        const tab = rest.indexOf("\t");
+        if (tab >= 0 && tab < cut) cut = tab;
+        if (cut < rest.length) {
+          const k = line.items.findIndex((it, q) => bounds.starts[q] >= end + cut);
+          if (k >= 0) columnRight = line.items[k].x0;
         }
       }
-      // carry-on state: shared by the rest of this page and, if the value runs off the bottom, the next page
-      const vItem = L.items.find((it, k) => k > a && J.starts[k] >= end - 1);
-      const st = { blockX: value && vItem ? vItem.x0 : null, refH: value ? h : null, lead: null, labelX0,
-                   hasValue: !!value, labelColumn: !!value && L.items.length > 1 && a === 0 };
-      let below = [], open = false;
-      if (!cutShort) {
-        const r = collectBlock(ls, from, st, comp, ls[from - 1]);
-        below = r.parts;
-        const lastLine = r.last || L;
-        open = r.ranOff && lastLine.y1 > pt.h * 0.8;           // ran to the bottom of the page
-        st.refH = value || below.length ? lastLine.y1 - lastLine.y0 : null;  // nothing read yet: size unknown
+      let value = rest.slice(0, cut).trim();
+      // Running text with another field later on this same line: the lines below belong to that later
+      // field (or to the next row), so this value takes nothing from them.
+      let cutShort = !columnar && cut < rest.length;
+      const labelX0 = line.items[a].x0, lineH = line.y1 - line.y0;
+      let from = i + 1;                                 // first line that may continue the value
+      // Only a label that is NOT first on its line can wrap this way: when the label starts the line, a next
+      // line starting at the same x is the next row of the form, not a continuation.
+      if (!columnar && !cutShort && value && a > 0) {
+        const wrap = runningTextWrap(pageLines, i, fieldName, compiled);
+        if (wrap) { value = (value + " " + wrap.text).trim(); if (wrap.cutShort) cutShort = true; from++; }
       }
-      if (open) ctx.open = { name, st };
+
+      // ---- 3. the lines below, and possibly the next page ----
+      const valueItem = line.items.find((it, k) => k > a && bounds.starts[k] >= end - 1);   // first item of the value
+      const st = {
+        blockX: value && valueItem ? valueItem.x0 : null,   // left edge of the value's text block
+        refH: value ? lineH : null,                          // the value's type size, once known
+        lineGap: null,                                       // the block's normal gap between lines, once known
+        labelX0,
+        hasValue: !!value,
+        labelColumn: !!value && line.items.length > 1 && a === 0,              // see BLOCK STATE above
+        cols: columnar && valueItem ? { left: valueItem.x0, right: columnRight } : null,
+        labelLines: wrapped ? new Set(wrapped) : null,
+      };
+      let below = [], runsOffPage = false;
+      if (!cutShort) {
+        const r = collectBlock(pageLines, from, st, compiled, pageLines[from - 1]);
+        below = r.parts;
+        const lastLine = r.last || line;
+        runsOffPage = r.ranOff && lastLine.y1 > pt.h * T.PAGE_BOTTOM;
+        st.refH = value || below.length ? lastLine.y1 - lastLine.y0 : null;
+      }
+      if (runsOffPage) ctx.open = { name: fieldName, st };
       return joinValue([value, ...below]);
     }
   }
-  return null; // label not on this page
+  return null;
 }
+
+// A box field: everything inside a rectangle drawn on the sample, as fractions of the page (top-left origin).
 function extractBox(pt, box) {
-  const [bx0, by0, bx1, by1] = box; // normalised 0..1, top-left origin
-  const sel = { items: pt.items.filter(it => {
+  const [bx0, by0, bx1, by1] = box;
+  const inside = { items: pt.items.filter(it => {
     const cx = (it.x0 + it.x1) / 2 / pt.w, cy = (it.y0 + it.y1) / 2 / pt.h;
     return cx >= bx0 && cx <= bx1 && cy >= by0 && cy <= by1;
   }) };
-  return lines(sel).map(l => l.text).join(" ").trim();
+  return lines(inside).map(l => l.text).join(" ").trim();
 }
 
-// Find every copy of every form in a document's page texts.
-function findForms(tpl, pts) {
-  const found = {}; // formId -> [startPageIdx]
-  for (const f of tpl.forms) {
-    found[f.id] = [];
-    if (!f.anchor) { if (f.kind === "main" && pts.length) found[f.id].push(0); continue; } // no anchor: the whole record
-
-    const a = norm(f.anchor);
+// Where each form of the template starts in a record: formId -> [page index, ...].
+// A form with an anchor starts on every page whose text contains the anchor (each copy then covers
+// `pages` pages). The main form without an anchor is the whole record, starting at page 0.
+function findForms(template, pts) {
+  const found = {};
+  for (const form of template.forms) {
+    found[form.id] = [];
+    if (!form.anchor) { if (form.kind === "main" && pts.length) found[form.id].push(0); continue; }
+    const anchor = norm(form.anchor);
     let skipUntil = -1;
     pts.forEach((pt, i) => {
       if (i <= skipUntil) return;
-      const txt = norm(pt.items.map(it => it.s).join(" "));
-      if (txt.includes(a)) { found[f.id].push(i); skipUntil = i + (f.pages || 1) - 1; }
+      if (norm(pt.items.map(it => it.s).join(" ")).includes(anchor)) { found[form.id].push(i); skipUntil = i + (form.pages || 1) - 1; }
     });
   }
   return found;
 }
-// Pages one copy of a form covers: its declared page count, or the whole record when it has no anchor.
-function formSpan(f, pts, start) { return f.anchor ? Math.min(f.pages || 1, pts.length - start) : pts.length - start; }
-function readForm(f, pts, start, used) {
-  const vals = {}, ctxs = {}, comp = compiledForm(f), span = formSpan(f, pts, start);
-  for (const fld of f.fields) {
-    const pages = fld.page === "any" || fld.page == null
-      ? Array.from({ length: span }, (_, k) => start + k) : [start + fld.page];
-    vals[fld.name] = null;
-    for (const pi of pages) {
-      const pt = pts[pi]; if (!pt) continue;
-      const ctx = ctxs[pi] || (ctxs[pi] = {});
-      let v = fld.method === "box" ? extractBox(pt, fld.box) : extractLabel(pt, fld.name, comp, ctx);
-      if (v !== null && ctx.open && ctx.open.name === fld.name) {
-        // the value runs on to the following page(s)
-        const st = ctx.open.st; delete ctx.open;
-        for (let q = pi + 1; q < pts.length && q <= pi + 30; q++) {
-          const c1 = ctxs[q - 1] || (ctxs[q - 1] = {}), c2 = ctxs[q] || (ctxs[q] = {});
-          const prevTop = new Set((c1.lines || (c1.lines = lines(pts[q - 1]))).slice(0, 4).map(l => headerKey(l.text)));
-          const r = continueOnPage(c2.lines || (c2.lines = lines(pts[q])), pts[q], st, comp, prevTop);
+// Pages one copy of a form covers: its declared page count, or the rest of the record when it has no anchor.
+function formSpan(form, pts, start) { return form.anchor ? Math.min(form.pages || 1, pts.length - start) : pts.length - start; }
+
+// Read every field of one copy of a form that starts at page `start`. Returns { fieldName: value|null }.
+// `used`, if given, collects the page indexes that contributed a value.
+function readForm(form, pts, start, used) {
+  const values = {}, contexts = {}, compiled = compiledForm(form), span = formSpan(form, pts, start);
+  for (const field of form.fields) {
+    // field.page: "any" (or absent) = search every page of this copy of the form, first hit wins;
+    // a number = only that page, counted from the form's first page (0 = first). Box fields always have one.
+    const candidatePages = field.page === "any" || field.page == null
+      ? Array.from({ length: span }, (_, k) => start + k)
+      : [start + field.page];
+    values[field.name] = null;
+    for (const pi of candidatePages) {
+      const pt = pts[pi];
+      if (!pt) continue;
+      const ctx = contexts[pi] || (contexts[pi] = {});
+      let v = field.method === "box" ? extractBox(pt, field.box) : extractLabel(pt, field.name, compiled, ctx);
+      if (v !== null && ctx.open && ctx.open.name === field.name) {
+        // The value ran off the bottom of its page: follow it onto the next page(s).
+        const st = ctx.open.st;
+        delete ctx.open;
+        for (let q = pi + 1; q < pts.length && q <= pi + T.CONTINUATION_PAGES_MAX; q++) {
+          const prevCtx = contexts[q - 1] || (contexts[q - 1] = {}), thisCtx = contexts[q] || (contexts[q] = {});
+          const prevLines = prevCtx.lines || (prevCtx.lines = lines(pts[q - 1]));
+          const prevTop = new Set(prevLines.slice(0, T.HEADER_SAMPLE_LINES).map(l => headerKey(l.text)));
+          st.labelLines = null;   // a label's wrapped pieces belong to the page it started on
+          const r = continueOnPage(thisCtx.lines || (thisCtx.lines = lines(pts[q])), pts[q], st, compiled, prevTop);
           if (r.text) { v = joinValue([v, r.text]); if (used) used.add(q); }
           if (!r.open) break;
         }
       }
-      if (v !== null) { vals[fld.name] = v; if (used) used.add(pi); break; }
+      // A label found with an EMPTY value ("") still ends the search: the field is on this page and is
+      // blank, and looking further would pick up the same label on a later page (an attachment, a copy).
+      if (v !== null) { values[field.name] = v; if (used) used.add(pi); break; }
     }
   }
-  return vals;
+  return values;
 }
 
-// Whole-document processing. Returns a result object stored in IndexedDB.
-const MIN_CHARS_PER_PAGE = 25;
-const EXCEL_CELL_MAX = 32767;   // Excel cuts a cell off at this many characters; the CSV keeps the full text
-async function processFile(file, path, tpl, parser) {
+/* =====================================================================================================
+   SECTION 6. ONE PDF: open it, read every page, find the forms, decide a status
+   Result statuses:
+     ok            main form found, required fields present
+     incomplete    main form found, a required field is empty
+     no_main_form  text was read but the main form (anchor, or any listed label) was not found
+     needs_ocr     no text layer (or text on under half the pages and no main form): OCR it, read again
+     unreadable    the file could not be opened at all (corrupt, empty, password)
+     tool_error    the file opened but THIS TOOL failed while reading it (a bug to report, not a bad file)
+   ===================================================================================================== */
+async function processFile(file, path, template, parser) {
   const res = { path, size: file.size, mtime: file.lastModified, status: "ok", reason: "", pages: 0,
                 textPages: 0, main: null, extras: {}, missing: [], mainText: "" };
   let doc = null;
@@ -23578,8 +24011,8 @@ async function processFile(file, path, tpl, parser) {
     try { doc = await openPdf(new Uint8Array(buf.slice(0)), parser); }
     catch (e) {
       if (e && e.name === "PasswordException") throw e;
-      try { doc = await openPdf(new Uint8Array(buf.slice(0)), parser); } // one retry before calling it unreadable
-      catch (e2) { throw e; }                                            // report the first error, not the retry's
+      try { doc = await openPdf(new Uint8Array(buf.slice(0)), parser); }   // one retry before giving up
+      catch (e2) { throw e; }                                              // report the first error, not the retry's
     }
   } catch (e) {
     res.status = "unreadable";
@@ -23591,79 +24024,119 @@ async function processFile(file, path, tpl, parser) {
     const pts = [];
     for (let i = 1; i <= doc.numPages; i++) {
       try {
-        const pg = await doc.getPage(i);
-        pts.push(await pageText(pg));
-        pg.cleanup();
+        const page = await doc.getPage(i);
+        pts.push(await pageText(page));
+        page.cleanup();
       } catch (e) { pts.push({ w: 1, h: 1, items: [], err: String(e.message || e) }); }
     }
-    res.textPages = pts.filter(p => p.items.reduce((n, it) => n + it.s.length, 0) >= MIN_CHARS_PER_PAGE).length;
-    const where = findForms(tpl, pts);
-    const mainF = tpl.forms.find(f => f.kind === "main");
-    for (const f of tpl.forms) {
-      const starts = where[f.id];
-      if (f.kind === "main") {
-        if (starts.length) {
-          const used = new Set();
-          res.main = readForm(f, pts, starts[0], used);
-          const textPages = f.anchor ? Array.from({ length: formSpan(f, pts, starts[0]) }, (_, k) => starts[0] + k) : [...used].sort((x, y) => x - y);
-          res.mainPage = (f.anchor ? starts[0] : (textPages[0] ?? 0)) + 1;
-          res.mainText = textPages.map(i => lines(pts[i]).map(l => l.text).join("\n")).join("\n\n");
-          if (!f.anchor && !used.size) res.main = null;  // no anchor and not one label found: not this kind of record
-          if (res.main) res.missing = f.fields.filter(x => x.required && !(res.main[x.name] || "").trim()).map(x => x.name);
-          if (res.main) res.longFields = Object.keys(res.main).filter(k => (res.main[k] || "").length > EXCEL_CELL_MAX);
-        }
+    res.textPages = pts.filter(p => p.items.reduce((n, it) => n + it.s.length, 0) >= T.MIN_CHARS_PER_PAGE).length;
+
+    const starts = findForms(template, pts);
+    const mainForm = template.forms.find(f => f.kind === "main");
+    for (const form of template.forms) {
+      if (form.kind === "main") {
+        if (!starts[form.id].length) continue;
+        const used = new Set();
+        res.main = readForm(form, pts, starts[form.id][0], used);
+        if (!form.anchor && !used.size) { res.main = null; continue; }   // no anchor and not one label found: not this kind of record
+        const textPages = form.anchor
+          ? Array.from({ length: formSpan(form, pts, starts[form.id][0]) }, (_, k) => starts[form.id][0] + k)
+          : [...used].sort((x, y) => x - y);
+        res.mainPage = (form.anchor ? starts[form.id][0] : (textPages[0] ?? 0)) + 1;
+        res.mainText = textPages.map(i => lines(pts[i]).map(l => l.text).join("\n")).join("\n\n");
+        res.missing = form.fields.filter(x => x.required && !(res.main[x.name] || "").trim()).map(x => x.name);
+        res.longFields = Object.keys(res.main).filter(k => (res.main[k] || "").length > T.EXCEL_CELL_MAX);
       } else {
-        res.extras[f.id] = starts.map(s => ({ page: s + 1, vals: readForm(f, pts, s) }));
+        res.extras[form.id] = starts[form.id].map(s => ({ page: s + 1, vals: readForm(form, pts, s) }));
       }
     }
-    if (res.textPages === 0) { res.status = "needs_ocr"; res.reason = "no text layer on any page"; }
-    else if (mainF && !res.main) {
-      if (res.textPages < res.pages * 0.5) { res.status = "needs_ocr"; res.reason = `text on only ${res.textPages} of ${res.pages} pages; main form not found`; }
-      else { res.status = "no_main_form"; res.reason = mainF.anchor ? `anchor "${mainF.anchor}" not found` : "none of the field labels were found"; }
-    } else if (res.missing.length) { res.status = "incomplete"; res.reason = "required fields empty: " + res.missing.join("; "); }
+    if (res.textPages === 0) {
+      res.status = "needs_ocr"; res.reason = "no text layer on any page";
+    } else if (mainForm && !res.main) {
+      if (res.textPages < res.pages * T.OCR_PAGE_FRACTION) { res.status = "needs_ocr"; res.reason = `text on only ${res.textPages} of ${res.pages} pages; main form not found`; }
+      else { res.status = "no_main_form"; res.reason = mainForm.anchor ? `anchor "${mainForm.anchor}" not found` : "none of the field labels were found"; }
+    } else if (res.missing.length) {
+      res.status = "incomplete"; res.reason = "required fields empty: " + res.missing.join("; ");
+    }
   } catch (e) {
-    res.status = "tool_error"; res.reason = "the file opened, but this tool failed while reading it: " + String(e && e.message || e).slice(0, 200);
+    res.status = "tool_error";
+    res.reason = "the file opened, but this tool failed while reading it: " + String(e && e.message || e).slice(0, 200);
   } finally {
-    try { await doc.destroy(); } catch (e) {}
+    if (doc) { try { await doc.destroy(); } catch (e) { /* already gone */ } }
   }
   return res;
 }
 
-// ---------- IndexedDB (resumable results) ----------
+/* =====================================================================================================
+   SECTION 7. STORAGE
+   Results: IndexedDB, one object per file keyed by its path, so a run can resume. A copy of this session's
+   results is also kept in memory, so downloads still work if IndexedDB is unavailable (some browser
+   policies disable it); in that case progress does not survive the tab.
+   Template: localStorage, as JSON.
+   ===================================================================================================== */
 const DB_NAME = "pdf-to-csv", STORE = "results";
-const dbp = new Promise((ok, bad) => {
-  const r = indexedDB.open(DB_NAME, 1);
-  r.onupgradeneeded = () => r.result.createObjectStore(STORE, { keyPath: "path" });
-  r.onsuccess = () => ok(r.result); r.onerror = () => bad(r.error);
+const dbReady = new Promise((resolve, reject) => {
+  let req;
+  try { req = indexedDB.open(DB_NAME, 1); } catch (e) { reject(e); return; }
+  req.onupgradeneeded = () => req.result.createObjectStore(STORE, { keyPath: "path" });
+  req.onsuccess = () => resolve(req.result);
+  req.onerror = () => reject(req.error || new Error("IndexedDB unavailable"));
 });
-async function dbPut(obj) { const db = await dbp; return new Promise((ok, bad) => { const tx = db.transaction(STORE, "readwrite"); tx.objectStore(STORE).put(obj); tx.oncomplete = ok; tx.onerror = () => bad(tx.error); }); }
-async function dbAll() { const db = await dbp; return new Promise((ok, bad) => { const q = db.transaction(STORE).objectStore(STORE).getAll(); q.onsuccess = () => ok(q.result); q.onerror = () => bad(q.error); }); }
-async function dbKeysMeta() { const all = await dbAll(); const m = new Map(); for (const r of all) m.set(r.path, r); return m; }
-async function dbClear() { const db = await dbp; return new Promise(ok => { const tx = db.transaction(STORE, "readwrite"); tx.objectStore(STORE).clear(); tx.oncomplete = ok; }); }
+dbReady.catch(() => {});   // reported where it matters (refreshDbInfo, runAll), not as an unhandled rejection
+const sessionResults = new Map();   // path -> result, this tab only
 
-// ---------- template state ----------
-const TPL_KEY = "pdf-to-csv-template";
+async function dbPut(result) {
+  sessionResults.set(result.path, result);
+  const db = await dbReady;
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE, "readwrite");
+    tx.objectStore(STORE).put(result);
+    tx.oncomplete = resolve;
+    tx.onerror = () => reject(tx.error);
+  });
+}
+async function dbAll() {
+  const db = await dbReady;
+  return new Promise((resolve, reject) => {
+    const q = db.transaction(STORE).objectStore(STORE).getAll();
+    q.onsuccess = () => resolve(q.result);
+    q.onerror = () => reject(q.error);
+  });
+}
+async function dbClear() {
+  sessionResults.clear();
+  const db = await dbReady;
+  return new Promise(resolve => { const tx = db.transaction(STORE, "readwrite"); tx.objectStore(STORE).clear(); tx.oncomplete = resolve; });
+}
+// Every result known: the database's, overlaid with this session's (identical when the database works).
+async function allResults() {
+  const byPath = new Map();
+  try { for (const r of await dbAll()) byPath.set(r.path, r); } catch (e) { /* database unavailable: session copy only */ }
+  for (const [p, r] of sessionResults) byPath.set(p, r);
+  return [...byPath.values()].sort((a, b) => a.path.localeCompare(b.path));
+}
+
+const TEMPLATE_KEY = "pdf-to-csv-template";
 function newTemplate() {
   return { version: 1, name: "untitled", forms: [{ id: "main", name: "Main form", kind: "main", anchor: "", pages: 1, maxCopies: 1, fields: [] }] };
 }
-let tpl = loadTpl();
-let curForm = tpl.forms[0].id;
-function loadTpl() {
-  try { const t = JSON.parse(localStorage.getItem(TPL_KEY)); if (t && Array.isArray(t.forms) && t.forms.length) return t; } catch (e) {}
-  return newTemplate();
-}
-function saveTpl() { for (const f of tpl.forms) compiledForms.delete(f); try { localStorage.setItem(TPL_KEY, JSON.stringify(tpl)); } catch (e) {} refreshFormPanel(); refreshRunReady(); }
-function form() { return tpl.forms.find(f => f.id === curForm) || tpl.forms[0]; }
-function validateTpl(t) {
+// Check a template's shape (it may come from a file the user picked). Throws a plain-English message.
+function validateTemplate(t) {
   if (!t || !Array.isArray(t.forms) || !t.forms.length) throw new Error("no forms in template");
   if (t.forms.filter(f => f.kind === "main").length !== 1) throw new Error("template needs exactly one main form");
   const ids = new Set();
   for (const f of t.forms) {
-    if (typeof f.id !== "string" || ids.has(f.id)) throw new Error("form ids must be unique strings");
+    if (typeof f.id !== "string" || !f.id || ids.has(f.id)) throw new Error("form ids must be unique strings");
     ids.add(f.id);
+    if (!(f.kind === "main" || f.kind === "extra")) throw new Error(`form ${f.id}: kind must be main or extra`);
+    if (typeof f.name !== "string") throw new Error(`form ${f.id}: name missing`);
+    if (f.anchor != null && typeof f.anchor !== "string") throw new Error(`form ${f.id}: anchor must be text`);
+    if (f.pages != null && !(Number.isInteger(f.pages) && f.pages >= 1)) throw new Error(`form ${f.id}: pages must be a whole number`);
+    if (f.maxCopies != null && !(Number.isInteger(f.maxCopies) && f.maxCopies >= 1)) throw new Error(`form ${f.id}: max copies must be a whole number`);
     if (!Array.isArray(f.fields)) throw new Error(`form ${f.id}: fields missing`);
     for (const x of f.fields) {
       if (typeof x.name !== "string" || !x.name) throw new Error(`form ${f.id}: a field has no name`);
+      if (!(x.method === "label" || x.method === "box")) throw new Error(`field ${x.name}: method must be label or box`);
       if (x.method === "box" && !(Array.isArray(x.box) && x.box.length === 4 && x.box.every(n => typeof n === "number"))) throw new Error(`field ${x.name}: bad box`);
       if (x.method === "label" && typeof x.label !== "string") throw new Error(`field ${x.name}: no label`);
       if (!(x.page === "any" || x.page == null || (Number.isInteger(x.page) && x.page >= 0))) throw new Error(`field ${x.name}: bad page`);
@@ -23671,71 +24144,102 @@ function validateTpl(t) {
   }
   return t;
 }
+function loadTemplate() {
+  try {
+    const t = JSON.parse(localStorage.getItem(TEMPLATE_KEY));
+    if (t && Array.isArray(t.forms) && t.forms.length) return validateTemplate(t);
+  } catch (e) { /* missing or unusable: start fresh */ }
+  return newTemplate();
+}
+let template = loadTemplate();
+let currentFormId = template.forms[0].id;
+function currentForm() { return template.forms.find(f => f.id === currentFormId) || template.forms[0]; }
+function saveTemplate() {
+  for (const f of template.forms) compiledForms.delete(f);   // labels may have changed
+  try { localStorage.setItem(TEMPLATE_KEY, JSON.stringify(template)); } catch (e) { /* storage full or disabled: the editor still works */ }
+  refreshFormPanel();
+  refreshRunReady();
+}
 
-// ---------- sample viewer / editor ----------
-let sample = null; // { doc, pts:[], pageIdx }
+/* =====================================================================================================
+   SECTION 8. THE FIELDS TAB: template editor and sample viewer
+   ===================================================================================================== */
+let sample = null;   // { doc, pts: [page text or undefined], pageIdx, name }
+
 async function loadSample(file) {
-  if (sample && sample.doc) { try { await sample.doc.destroy(); } catch (e) {} }
+  if (sample && sample.doc) { try { await sample.doc.destroy(); } catch (e) { /* ignore */ } }
   const doc = await openPdf(new Uint8Array(await file.arrayBuffer()), await editorParser);
   sample = { doc, pts: new Array(doc.numPages), pageIdx: 0, name: file.name };
   await showPage(0);
 }
-async function samplePt(i) {
-  if (!sample.pts[i]) { const pg = await sample.doc.getPage(i + 1); sample.pts[i] = await pageText(pg); }
+async function samplePageText(i) {
+  if (!sample.pts[i]) { const page = await sample.doc.getPage(i + 1); sample.pts[i] = await pageText(page); }
   return sample.pts[i];
 }
-async function showPage(i) {
+// Page turns are queued: pdf.js cannot render two pages onto one canvas at the same time.
+let pageTurn = Promise.resolve();
+function showPage(i) {
+  pageTurn = pageTurn.then(() => renderSamplePage(i)).catch(e => flash("Could not show that page: " + e.message));
+  return pageTurn;
+}
+async function renderSamplePage(i) {
   if (!sample) return;
   i = Math.max(0, Math.min(sample.doc.numPages - 1, i));
   sample.pageIdx = i;
   const zoom = parseFloat($("zoom").value);
   const page = await sample.doc.getPage(i + 1);
   const vp = page.getViewport({ scale: zoom });
-  const cv = $("pageCanvas");
-  cv.width = vp.width; cv.height = vp.height;
-  await page.render({ canvasContext: cv.getContext("2d"), viewport: vp }).promise;
-  const pt = await samplePt(i);
+  const canvas = $("pageCanvas");
+  canvas.width = vp.width; canvas.height = vp.height;
+  await page.render({ canvasContext: canvas.getContext("2d"), viewport: vp }).promise;
+  const pt = await samplePageText(i);
   $("pgInfo").textContent = `page ${i + 1} of ${sample.doc.numPages}` + (pt.items.length ? "" : " (no text layer on this page)");
   drawOverlay();
   refreshFieldTable();
 }
-// Which form start page does the sample's current page belong to, and at what offset?
+// The page index where the copy of form `f` that contains the sample's current page starts, or null.
 async function sampleFormStart(f) {
   if (!sample) return null;
   if (!f.anchor) return f.kind === "main" ? 0 : null;
-  const a = norm(f.anchor);
+  const anchor = norm(f.anchor);
   for (let i = sample.pageIdx; i >= 0 && i > sample.pageIdx - (f.pages || 1); i--) {
-    const pt = await samplePt(i);
-    if (norm(pt.items.map(it => it.s).join(" ")).includes(a)) return i;
+    const pt = await samplePageText(i);
+    if (norm(pt.items.map(it => it.s).join(" ")).includes(anchor)) return i;
   }
   return null;
 }
+async function currentOffset(f) {
+  const start = await sampleFormStart(f);
+  return start === null ? null : sample.pageIdx - start;
+}
+// Draw one clickable box per text item over the rendered page, plus the box fields of the current form.
 async function drawOverlay() {
-  const ov = $("overlay"); ov.innerHTML = "";
+  const overlay = $("overlay");
+  overlay.innerHTML = "";   // clear only; children are built with createElement below
   if (!sample) return;
   const zoom = parseFloat($("zoom").value);
   const pt = sample.pts[sample.pageIdx];
-  ov.style.width = (pt.w * zoom) + "px"; ov.style.height = (pt.h * zoom) + "px";
-  const f = form();
+  overlay.style.width = (pt.w * zoom) + "px"; overlay.style.height = (pt.h * zoom) + "px";
+  const f = currentForm();
   const start = await sampleFormStart(f);
-  const off = start === null ? 0 : sample.pageIdx - start;
-  const comp = compiledForm(f);
+  const offset = start === null ? 0 : sample.pageIdx - start;
+  const compiled = compiledForm(f);
   pt.items.forEach((it, k) => {
     const d = document.createElement("div");
     d.className = "ti";
     if (f.anchor && norm(it.s).includes(norm(f.anchor))) d.classList.add("anchor");
-    if (startsWithLabel(it.s, comp)) d.classList.add("label");
+    if (startsWithLabel(it.s, compiled)) d.classList.add("label");
     Object.assign(d.style, { left: it.x0 * zoom + "px", top: it.y0 * zoom + "px", width: Math.max(3, (it.x1 - it.x0) * zoom) + "px", height: Math.max(3, (it.y1 - it.y0) * zoom) + "px" });
     d.title = it.s;
     d.dataset.k = k;
-    ov.appendChild(d);
+    overlay.appendChild(d);
   });
   for (const x of f.fields) {
-    if (x.method !== "box" || (x.page || 0) !== off) continue;
+    if (x.method !== "box" || (x.page || 0) !== offset) continue;
     const b = document.createElement("div"); b.className = "fbox";
     Object.assign(b.style, { left: x.box[0] * pt.w * zoom + "px", top: x.box[1] * pt.h * zoom + "px", width: (x.box[2] - x.box[0]) * pt.w * zoom + "px", height: (x.box[3] - x.box[1]) * pt.h * zoom + "px" });
     const s = document.createElement("span"); s.textContent = x.name; b.appendChild(s);
-    ov.appendChild(b);
+    overlay.appendChild(b);
   }
 }
 function uniqueName(f, base) {
@@ -23743,26 +24247,24 @@ function uniqueName(f, base) {
   while (f.fields.some(x => x.name === n)) n = `${base} (${k++})`;
   return n;
 }
-async function currentOffset(f) {
-  const start = await sampleFormStart(f);
-  return start === null ? null : sample.pageIdx - start;
-}
-// Clicking a text item
+function refreshEditor() { saveTemplate(); drawOverlay(); refreshFieldTable(); }
+
+// Clicking a text item: set the anchor, or add that text as a label field.
 $("overlay").addEventListener("click", async ev => {
-  const d = ev.target.closest(".ti"); if (!d || !sample) return;
+  const d = ev.target.closest(".ti");
+  if (!d || !sample) return;
   const it = sample.pts[sample.pageIdx].items[+d.dataset.k];
-  const f = form(), mode = $("clickMode").value;
+  const f = currentForm(), mode = $("clickMode").value;
   if (mode === "anchor") {
     f.anchor = it.s.trim(); $("formAnchor").value = f.anchor;
   } else if (mode === "label") {
-    const off = await currentOffset(f);
-    if (off === null) { flash("Set this form's anchor first (it must be on this page or the pages just before)."); return; }
+    if (await currentOffset(f) === null) { flash("Set this form's anchor first (it must be on this page or the pages just before)."); return; }
     const label = it.s.trim().replace(/:$/, "");
     f.fields.push({ name: uniqueName(f, label), method: "label", label, page: "any", required: false, fromList: true });
   }
-  saveTpl(); drawOverlay(); refreshFieldTable();
+  refreshEditor();
 });
-// Dragging a box
+// Dragging a rectangle: add a box field.
 let drag = null;
 $("overlay").addEventListener("mousedown", ev => {
   if ($("clickMode").value !== "box" || !sample) return;
@@ -23779,20 +24281,24 @@ window.addEventListener("mousemove", ev => {
 window.addEventListener("mouseup", async ev => {
   if (!drag) return;
   const r = $("overlay").getBoundingClientRect();
-  const x = ev.clientX - r.left, y = ev.clientY - r.top, W = r.width, H = r.height;
-  const box = [Math.min(x, drag.x) / W, Math.min(y, drag.y) / H, Math.max(x, drag.x) / W, Math.max(y, drag.y) / H].map(v => +Math.max(0, Math.min(1, v)).toFixed(4));
+  const x = ev.clientX - r.left, y = ev.clientY - r.top;
+  const box = [Math.min(x, drag.x) / r.width, Math.min(y, drag.y) / r.height, Math.max(x, drag.x) / r.width, Math.max(y, drag.y) / r.height]
+    .map(v => +Math.max(0, Math.min(1, v)).toFixed(4));
   drag.el.remove(); drag = null;
-  if (box[2] - box[0] < 0.005 || box[3] - box[1] < 0.003) return;
-  const f = form(), off = await currentOffset(f);
-  if (off === null) { flash("Set this form's anchor first."); return; }
-  f.fields.push({ name: uniqueName(f, "Box field " + (f.fields.length + 1)), method: "box", box, page: off, required: false });
-  saveTpl(); drawOverlay(); refreshFieldTable();
+  if (box[2] - box[0] < 0.005 || box[3] - box[1] < 0.003) return;   // a click, not a drag
+  const f = currentForm(), offset = await currentOffset(f);
+  if (offset === null) { flash("Set this form's anchor first."); return; }
+  f.fields.push({ name: uniqueName(f, "Box field " + (f.fields.length + 1)), method: "box", box, page: offset, required: false });
+  refreshEditor();
 });
-// Field names typed as a list (the main way to define fields)
+
+// Field names typed as a list: the main way to define fields. One per line; "A | B" alternates; "*" required;
+// lines starting with # are ignored.
 function parseNameList(text) {
   const out = [], seen = new Set();
   for (let line of text.split(/\r?\n/)) {
-    line = line.trim(); if (!line || line.startsWith("#")) continue;
+    line = line.trim();
+    if (!line || line.startsWith("#")) continue;
     const required = /\*\s*$/.test(line);
     const label = aliasesOf(line.replace(/\*\s*$/, "")).join(" | ");
     const name = aliasesOf(label)[0];
@@ -23806,211 +24312,273 @@ function nameListText(f) {
   return f.fields.filter(x => x.fromList).map(x => x.label + (x.required ? " *" : "")).join("\n");
 }
 $("nameApply").addEventListener("click", () => {
-  const f = form(), list = parseNameList($("nameList").value);
-  const kept = f.fields.filter(x => !x.fromList && !list.some(y => y.name === x.name));
+  const f = currentForm(), list = parseNameList($("nameList").value);
+  const kept = f.fields.filter(x => !x.fromList && !list.some(y => y.name === x.name));   // box fields survive
   f.fields = [...list, ...kept];
-  compiledForms.delete(f);
   $("nameMsg").textContent = `${list.length} field name(s) in use` + (kept.length ? `, plus ${kept.length} picked on the sample` : "");
-  saveTpl(); drawOverlay(); refreshFieldTable();
+  refreshEditor();
 });
 
-// Auto-detect "Label:" items on this page
+// Auto-detect: every "Label:" at the start of a line on the current sample page becomes a field.
 $("autoLabels").addEventListener("click", async () => {
   if (!sample) { flash("Open a sample PDF first."); return; }
-  const f = form(), off = await currentOffset(f);
-  if (off === null) { flash("Set this form's anchor first (click the form number in anchor mode)."); return; }
+  const f = currentForm();
+  if (await currentOffset(f) === null) { flash("Set this form's anchor first (click the form number in anchor mode)."); return; }
   const pt = sample.pts[sample.pageIdx];
   const have = new Set(f.fields.filter(x => x.method === "label").map(x => norm(x.label)));
   let added = 0;
-  for (const L of lines(pt)) {
-    // a label is a run of items at the start of a line ending with ':'
-    for (let b = 0; b < L.items.length; b++) {
-      const t = joinItems(L.items.slice(0, b + 1));
-      if (/:\s*$/.test(t) && t.length <= 60) {
+  for (const line of lines(pt)) {
+    for (let b = 0; b < line.items.length; b++) {
+      const t = joinItems(line.items.slice(0, b + 1));
+      if (/:\s*$/.test(t) && t.length <= T.AUTO_LABEL_MAX_CHARS) {
         const label = t.replace(/:\s*$/, "").trim();
-        if (label && !have.has(norm(label))) { f.fields.push({ name: uniqueName(f, label), method: "label", label, page: "any", required: false, fromList: true }); have.add(norm(label)); added++; }
+        if (label && !have.has(norm(label))) {
+          f.fields.push({ name: uniqueName(f, label), method: "label", label, page: "any", required: false, fromList: true });
+          have.add(norm(label)); added++;
+        }
         break;
       }
-      if (t.length > 60) break;
+      if (t.length > T.AUTO_LABEL_MAX_CHARS) break;
     }
   }
   $("autoMsg").textContent = `added ${added} field(s)`;
-  saveTpl(); drawOverlay(); refreshFieldTable();
+  refreshEditor();
 });
-let fieldTableGen = 0;
+
+// The field table, with the value each field reads from the sample (if one is open).
+let fieldTableGeneration = 0;
 async function refreshFieldTable() {
-  const gen = ++fieldTableGen;      // overlapping refreshes: only the newest one draws
-  const f = form(), tb = $("fieldTable").querySelector("tbody");
+  const generation = ++fieldTableGeneration;   // overlapping refreshes: only the newest one draws
+  const f = currentForm(), tbody = $("fieldTable").querySelector("tbody");
   $("fieldCount").textContent = `(${f.fields.length} in "${f.name}")`;
-  let vals = {};
+  let values = {};
   if (sample) {
     const start = await sampleFormStart(f);
     if (start !== null) {
-      const span = f.anchor ? (f.pages || 1) : Math.min(80, sample.doc.numPages);
+      const span = f.anchor ? (f.pages || 1) : Math.min(T.SAMPLE_PAGES_MAX, sample.doc.numPages);
       const need = Math.max(span - 1, ...f.fields.map(x => Number.isInteger(x.page) ? x.page : 0));
-      for (let i = start; i <= start + need && i < sample.doc.numPages; i++) await samplePt(i);
+      for (let i = start; i <= start + need && i < sample.doc.numPages; i++) await samplePageText(i);
       const pts = sample.pts.slice(0, start + need + 1).map(p => p || { w: 1, h: 1, items: [] });
-      vals = readForm(f, pts, start);
+      values = readForm(f, pts, start);
     }
   }
-  if (gen !== fieldTableGen) return;
-  tb.innerHTML = "";
+  if (generation !== fieldTableGeneration) return;
+  tbody.innerHTML = "";   // clear only
   f.fields.forEach((x, idx) => {
     const tr = document.createElement("tr");
-    const nm = document.createElement("input"); nm.type = "text"; nm.value = x.name;
-    nm.addEventListener("change", () => { const v = nm.value.trim(); if (v && !f.fields.some((y, j) => j !== idx && y.name === v)) { x.name = v; saveTpl(); } else nm.value = x.name; });
-    const req = document.createElement("input"); req.type = "checkbox"; req.checked = !!x.required;
-    req.addEventListener("change", () => { x.required = req.checked; saveTpl(); });
-    const del = document.createElement("button"); del.textContent = "x"; del.title = "Remove field";
-    del.addEventListener("click", () => { f.fields.splice(idx, 1); saveTpl(); drawOverlay(); refreshFieldTable(); });
-    const cells = [nm, x.method === "box" ? "box" : "label", Number.isInteger(x.page) ? String(x.page + 1) : "any", req, null, del];
+    const nameInput = document.createElement("input"); nameInput.type = "text"; nameInput.value = x.name;
+    nameInput.addEventListener("change", () => {
+      const v = nameInput.value.trim();
+      if (v && !f.fields.some((y, j) => j !== idx && y.name === v)) { x.name = v; saveTemplate(); } else nameInput.value = x.name;
+    });
+    const required = document.createElement("input"); required.type = "checkbox"; required.checked = !!x.required;
+    required.addEventListener("change", () => { x.required = required.checked; saveTemplate(); });
+    const remove = document.createElement("button"); remove.textContent = "x"; remove.title = "Remove field";
+    remove.addEventListener("click", () => { f.fields.splice(idx, 1); refreshEditor(); });
+    const cells = [nameInput, x.method === "box" ? "box" : "label", Number.isInteger(x.page) ? String(x.page + 1) : "any", required, null, remove];
     cells.forEach((c, ci) => {
       const td = document.createElement("td");
-      if (ci === 4) { td.className = "v"; const v = vals[x.name]; td.textContent = v == null ? (sample ? "(not found)" : "") : (v || "(empty)"); }
-      else if (typeof c === "string") td.textContent = c; else td.appendChild(c);
+      if (ci === 4) { td.className = "v"; const v = values[x.name]; td.textContent = v == null ? (sample ? "(not found)" : "") : (v || "(empty)"); }
+      else if (typeof c === "string") td.textContent = c;
+      else td.appendChild(c);
       tr.appendChild(td);
     });
-    tb.appendChild(tr);
+    tbody.appendChild(tr);
   });
 }
 function refreshFormPanel() {
-  const sel = $("formSel"); sel.innerHTML = "";
-  for (const f of tpl.forms) { const o = document.createElement("option"); o.value = f.id; o.textContent = `${f.name} (${f.kind}, ${f.fields.length} fields)`; sel.appendChild(o); }
-  sel.value = curForm;
-  const f = form();
+  const sel = $("formSel");
+  sel.innerHTML = "";   // clear only
+  for (const f of template.forms) { const o = document.createElement("option"); o.value = f.id; o.textContent = `${f.name} (${f.kind}, ${f.fields.length} fields)`; sel.appendChild(o); }
+  sel.value = currentFormId;
+  const f = currentForm();
   $("formName").value = f.name; $("formAnchor").value = f.anchor; $("formPages").value = f.pages || 1;
   $("formKind").value = f.kind; $("formMax").value = f.maxCopies || 3;
   if (document.activeElement !== $("nameList")) $("nameList").value = nameListText(f);
   $("nameFor").textContent = `for "${f.name}"`;
-  $("tplStatus").textContent = `${tpl.forms.length} form type(s), ${tpl.forms.reduce((n, f) => n + f.fields.length, 0)} fields`;
+  $("tplStatus").textContent = `${template.forms.length} form type(s), ${template.forms.reduce((n, f) => n + f.fields.length, 0)} fields`;
 }
-$("formSel").addEventListener("change", () => { curForm = $("formSel").value; refreshFormPanel(); drawOverlay(); refreshFieldTable(); });
-for (const [id, key, conv] of [["formName", "name", String], ["formAnchor", "anchor", s => String(s).trim()], ["formPages", "pages", s => Math.max(1, parseInt(s) || 1)], ["formMax", "maxCopies", s => Math.max(1, parseInt(s) || 1)]]) {
-  $(id).addEventListener("change", () => { form()[key] = conv($(id).value); saveTpl(); refreshFormPanel(); drawOverlay(); refreshFieldTable(); });
+$("formSel").addEventListener("change", () => { currentFormId = $("formSel").value; refreshFormPanel(); drawOverlay(); refreshFieldTable(); });
+for (const [id, key, convert] of [["formName", "name", String], ["formAnchor", "anchor", s => String(s).trim()],
+                                  ["formPages", "pages", s => Math.max(1, parseInt(s) || 1)], ["formMax", "maxCopies", s => Math.max(1, parseInt(s) || 1)]]) {
+  $(id).addEventListener("change", () => { currentForm()[key] = convert($(id).value); refreshEditor(); });
 }
 $("formKind").addEventListener("change", () => {
-  const v = $("formKind").value;
-  if (v === "main") tpl.forms.forEach(f => { if (f.kind === "main") f.kind = "extra"; });
-  form().kind = v;
-  if (!tpl.forms.some(f => f.kind === "main")) { flash("One form must be the main form."); form().kind = "main"; }
-  saveTpl(); refreshFormPanel();
+  const kind = $("formKind").value;
+  if (kind === "main") template.forms.forEach(f => { if (f.kind === "main") f.kind = "extra"; });   // only one main form
+  currentForm().kind = kind;
+  if (!template.forms.some(f => f.kind === "main")) { flash("One form must be the main form."); currentForm().kind = "main"; }
+  saveTemplate();
 });
 $("formAdd").addEventListener("click", () => {
-  let k = tpl.forms.length + 1; while (tpl.forms.some(f => f.id === "form" + k)) k++;
-  tpl.forms.push({ id: "form" + k, name: "Extra form " + k, kind: "extra", anchor: "", pages: 1, maxCopies: 3, fields: [] });
-  curForm = "form" + k; saveTpl(); refreshFormPanel(); drawOverlay(); refreshFieldTable();
+  let k = template.forms.length + 1;
+  while (template.forms.some(f => f.id === "form" + k)) k++;
+  template.forms.push({ id: "form" + k, name: "Extra form " + k, kind: "extra", anchor: "", pages: 1, maxCopies: 3, fields: [] });
+  currentFormId = "form" + k;
+  refreshEditor();
 });
 $("formDel").addEventListener("click", () => {
-  if (form().kind === "main") { flash("The main form cannot be removed. Start a new template instead."); return; }
-  tpl.forms = tpl.forms.filter(f => f.id !== curForm); curForm = tpl.forms[0].id;
-  saveTpl(); refreshFormPanel(); drawOverlay(); refreshFieldTable();
+  if (currentForm().kind === "main") { flash("The main form cannot be removed. Start a new template instead."); return; }
+  template.forms = template.forms.filter(f => f.id !== currentFormId);
+  currentFormId = template.forms[0].id;
+  refreshEditor();
 });
-$("tplClear").addEventListener("click", () => {
-  if ($("tplClear").dataset.armed !== "1") { $("tplClear").dataset.armed = "1"; $("tplClear").textContent = "Click again to discard the current template"; setTimeout(() => { $("tplClear").dataset.armed = ""; $("tplClear").textContent = "Start new template"; }, 4000); return; }
-  tpl = newTemplate(); curForm = "main"; $("tplClear").dataset.armed = ""; $("tplClear").textContent = "Start new template";
-  saveTpl(); refreshFormPanel(); drawOverlay(); refreshFieldTable();
+// Two-click confirmation for destructive buttons: first click arms it for 4 seconds, second click acts.
+function armThen(button, armedText, idleText, action) {
+  button.addEventListener("click", async () => {
+    if (button.dataset.armed !== "1") {
+      button.dataset.armed = "1"; button.textContent = armedText;
+      setTimeout(() => { button.dataset.armed = ""; button.textContent = idleText; }, 4000);
+      return;
+    }
+    button.dataset.armed = ""; button.textContent = idleText;
+    await action();
+  });
+}
+armThen($("tplClear"), "Click again to discard the current template", "Start new template", () => {
+  template = newTemplate(); currentFormId = "main"; refreshEditor();
 });
-$("tplExport").addEventListener("click", () => download("pdf-to-csv-template.json", JSON.stringify(tpl, null, 1), "application/json"));
+$("tplExport").addEventListener("click", () => download("pdf-to-csv-template.json", JSON.stringify(template, null, 1), "application/json"));
 $("tplImportBtn").addEventListener("click", () => $("tplImport").click());
 $("tplImport").addEventListener("change", async () => {
-  const fl = $("tplImport").files[0]; if (!fl) return;
-  try { tpl = validateTpl(JSON.parse(await fl.text())); curForm = tpl.forms[0].id; saveTpl(); refreshFormPanel(); drawOverlay(); refreshFieldTable(); flash("Template loaded."); }
-  catch (e) { flash("That template file could not be used: " + e.message); }
+  const file = $("tplImport").files[0];
+  if (!file) return;
+  try {
+    template = validateTemplate(JSON.parse(await file.text()));
+    currentFormId = template.forms[0].id;
+    refreshEditor();
+    flash("Template loaded.");
+  } catch (e) { flash("That template file could not be used: " + e.message); }
   $("tplImport").value = "";
 });
 $("sampleFile").addEventListener("change", async () => {
-  const fl = $("sampleFile").files[0]; if (!fl) return;
-  try { await loadSample(fl); } catch (e) { flash("Could not open that PDF: " + e.message); }
+  const file = $("sampleFile").files[0];
+  if (!file) return;
+  try { await loadSample(file); } catch (e) { flash("Could not open that PDF: " + e.message); }
 });
 $("pgPrev").addEventListener("click", () => showPage(sample ? sample.pageIdx - 1 : 0));
 $("pgNext").addEventListener("click", () => showPage(sample ? sample.pageIdx + 1 : 0));
 $("zoom").addEventListener("change", () => showPage(sample ? sample.pageIdx : 0));
 
-// ---------- run ----------
-let files = [];      // [{file, path}]
+/* =====================================================================================================
+   SECTION 9. THE RUN TAB: read a folder with a small pool of concurrent readers
+   ===================================================================================================== */
+let files = [];                  // [{ file, path }] from the folder picker, PDFs only, sorted by path
 let running = false, paused = false;
 const counts = { done: 0, ok: 0, warn: 0, ocr: 0, bad: 0 };
+
 $("pickBtn").addEventListener("click", () => $("folder").click());
 $("folder").addEventListener("change", () => {
   const all = Array.from($("folder").files);
   files = all.filter(f => /\.pdf$/i.test(f.name)).map(f => ({ file: f, path: f.webkitRelativePath || f.name }));
   files.sort((a, b) => a.path.localeCompare(b.path));
   const other = all.length - files.length;
-  $("folderInfo").textContent = `${files.length.toLocaleString()} PDF file(s)` + (other ? `, ${other} other file(s) ignored` : "");
+  $("folderInfo").dataset.base = `${files.length.toLocaleString()} PDF file(s)` + (other ? `, ${other} other file(s) ignored` : "");
   refreshRunReady();
 });
 function refreshRunReady() {
-  const main = tpl.forms.find(f => f.kind === "main");
-  const ready = files.length && main && main.fields.length;
-  $("runBtn").disabled = !ready || running;
-  if (files.length && !(main && main.fields.length)) $("folderInfo").textContent += " (add field names on the Fields tab first)";
+  const main = template.forms.find(f => f.kind === "main");
+  const hasFields = !!(main && main.fields.length);
+  $("runBtn").disabled = !(files.length && hasFields) || running;
+  const info = $("folderInfo");
+  if (info.dataset.base) info.textContent = info.dataset.base + (hasFields ? "" : " (add field names on the Fields tab first)");
 }
-function log(s) { const l = $("log"); l.textContent += s + "\n"; if (l.textContent.length > 60000) l.textContent = l.textContent.slice(-40000); l.scrollTop = l.scrollHeight; }
-function bump(st) { counts.done++; if (st === "ok") counts.ok++; else if (st === "incomplete" || st === "no_main_form") counts.warn++; else if (st === "needs_ocr") counts.ocr++; else counts.bad++; }
-function showCounts(total, t0, nNew) {
+function log(s) {
+  const el = $("log");
+  el.textContent += s + "\n";
+  if (el.textContent.length > 60000) el.textContent = el.textContent.slice(-40000);
+  el.scrollTop = el.scrollHeight;
+}
+function countStatus(status) {
+  counts.done++;
+  if (status === "ok") counts.ok++;
+  else if (status === "incomplete" || status === "no_main_form") counts.warn++;
+  else if (status === "needs_ocr") counts.ocr++;
+  else counts.bad++;   // unreadable, tool_error
+}
+function showCounts(total, startedAt, readThisRun) {
   $("sDone").textContent = counts.done.toLocaleString(); $("sTotal").textContent = total.toLocaleString();
   $("sOk").textContent = counts.ok.toLocaleString(); $("sWarn").textContent = counts.warn.toLocaleString();
   $("sOcr").textContent = counts.ocr.toLocaleString(); $("sBad").textContent = counts.bad.toLocaleString();
   $("barFill").style.width = (total ? 100 * counts.done / total : 0) + "%";
-  const mins = (performance.now() - t0) / 60000;
-  if (nNew > 0 && mins > 0.05) {
-    const rate = nNew / mins; $("sRate").textContent = rate.toFixed(rate < 10 ? 1 : 0);
-    const left = (total - counts.done) / rate; $("sEta").textContent = left < 1 ? "<1 min" : left < 120 ? Math.round(left) + " min" : (left / 60).toFixed(1) + " h";
+  const minutes = (performance.now() - startedAt) / 60000;
+  if (readThisRun > 0 && minutes > 0.05) {
+    const rate = readThisRun / minutes;
+    $("sRate").textContent = rate.toFixed(rate < 10 ? 1 : 0);
+    const left = (total - counts.done) / rate;
+    $("sEta").textContent = left < 1 ? "<1 min" : left < 120 ? Math.round(left) + " min" : (left / 60).toFixed(1) + " h";
   }
 }
 $("runBtn").addEventListener("click", runAll);
 $("pauseBtn").addEventListener("click", () => { paused = !paused; $("pauseBtn").textContent = paused ? "Resume" : "Pause"; log(paused ? "paused" : "resumed"); });
+
 async function runAll() {
   if (running) return;
   running = true; paused = false; $("runBtn").disabled = true; $("pauseBtn").disabled = false;
   Object.keys(counts).forEach(k => counts[k] = 0);
-  const runTpl = JSON.parse(JSON.stringify(tpl));
-  const prior = $("redo").checked ? new Map() : await dbKeysMeta();
+  const runTemplate = JSON.parse(JSON.stringify(template));   // frozen for this run; editor edits do not leak in
+  // Files already read (same path, size and modification time) are skipped unless "Re-read" is ticked.
+  let prior = new Map();
+  if (!$("redo").checked) {
+    try { for (const r of await allResults()) prior.set(r.path, r); } catch (e) { /* none */ }
+  }
+  let dbWarned = false;
+  try { await dbReady; } catch (e) { dbWarned = true; log("note: saved progress is not available in this browser (" + (e && e.message || e) + "); download the results before closing this tab"); }
   const todo = [];
   for (const f of files) {
     const p = prior.get(f.path);
-    if (p && p.size === f.file.size && p.mtime === f.file.lastModified) bump(p.status); else todo.push(f);
+    if (p && p.size === f.file.size && p.mtime === f.file.lastModified) countStatus(p.status); else todo.push(f);
   }
-  const total = files.length, t0 = performance.now();
+  const total = files.length, startedAt = performance.now();
   log(`start: ${total} PDFs, ${total - todo.length} already done, ${todo.length} to read (pdf engine: ${workerMode})`);
-  let next = 0, nNew = 0;
-  showCounts(total, t0, 0);
-  const conc = parseInt($("conc").value) || 3;
+  let next = 0, readThisRun = 0;
+  showCounts(total, startedAt, 0);
+  const concurrency = parseInt($("conc").value) || 3;
+
+  // Each lane owns one parser thread and takes the next file from the shared queue until it is empty.
   async function lane() {
     const parser = makeParser();
-    try { await laneLoop(parser); } finally { if (parser) parser.destroy(); }
+    try {
+      while (next < todo.length) {
+        while (paused) await new Promise(r => setTimeout(r, 300));
+        const f = todo[next++];
+        let res;
+        try { res = await processFile(f.file, f.path, runTemplate, parser); }
+        catch (e) { res = { path: f.path, size: f.file.size, mtime: f.file.lastModified, status: "tool_error", reason: "this tool failed while reading it: " + String(e.message || e) }; }
+        res.tplName = runTemplate.name; res.readAt = new Date().toISOString();
+        try { await dbPut(res); }
+        catch (e) { if (!dbWarned) { dbWarned = true; log("could not save progress (" + e.message + "); results are kept in this tab only"); } }
+        countStatus(res.status); readThisRun++;
+        if (res.status !== "ok") log(`${res.status.padEnd(12)} ${f.path}  ${res.reason}`);
+        if (readThisRun % 5 === 0 || next >= todo.length) showCounts(total, startedAt, readThisRun);
+      }
+    } finally { if (parser) parser.destroy(); }
   }
-  async function laneLoop(parser) {
-    while (next < todo.length) {
-      while (paused) await new Promise(r => setTimeout(r, 300));
-      const f = todo[next++];
-      let res;
-      try { res = await processFile(f.file, f.path, runTpl, parser); }
-      catch (e) { res = { path: f.path, size: f.file.size, mtime: f.file.lastModified, status: "unreadable", reason: String(e.message || e) }; }
-      res.tplName = runTpl.name; res.readAt = new Date().toISOString();
-      try { await dbPut(res); } catch (e) { log("could not save progress for " + f.path + ": " + e.message); }
-      bump(res.status); nNew++;
-      if (res.status !== "ok") log(`${res.status.padEnd(12)} ${f.path}  ${res.reason}`);
-      if (nNew % 5 === 0 || next >= todo.length) showCounts(total, t0, nNew);
-    }
-  }
-  await Promise.all(Array.from({ length: conc }, lane));
-  showCounts(total, t0, nNew);
-  log(`finished: ${counts.ok} clean, ${counts.warn} with gaps, ${counts.ocr} need OCR, ${counts.bad} unreadable`);
+  await Promise.all(Array.from({ length: concurrency }, lane));
+  showCounts(total, startedAt, readThisRun);
+  log(`finished: ${counts.ok} clean, ${counts.warn} with gaps, ${counts.ocr} need OCR, ${counts.bad} could not be read`);
   running = false; $("runBtn").disabled = false; $("pauseBtn").disabled = true; $("pauseBtn").textContent = "Pause";
   refreshDbInfo();
-  window.__rhDone = true;
+  window.__rhDone = true;   // test hook
 }
 
-// ---------- output ----------
+/* =====================================================================================================
+   SECTION 10. THE RESULTS TAB: CSV writing and downloads
+   ===================================================================================================== */
+
+// One CSV cell, RFC 4180: quote when the value holds a comma, quote or line break; double inner quotes.
+// A leading = + - @ (or tab/CR) would make a spreadsheet treat the cell as a formula, so it gets a leading
+// apostrophe; a plain number such as -12.5 or -1,234 is left alone.
 function csvCell(v) {
   let s = v == null ? "" : String(v);
-  // stop Excel treating a value as a formula; a plain number such as -12.5 or -1,234 is left alone
   if (/^[=+\-@\t\r]/.test(s) && !/^[-+]?\d[\d,]*(\.\d+)?$/.test(s)) s = "'" + s;
   return /[",\r\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
 }
-function csv(rows) { return "﻿" + rows.map(r => r.map(csvCell).join(",")).join("\r\n") + "\r\n"; }
-function recordsCsv(all, t) {
+// Byte-order mark (U+FEFF) first, so Excel reads non-Latin text correctly; CRLF line ends. Written as a
+// character code on purpose: an invisible literal in the source was silently dropped once already.
+function csv(rows) { return String.fromCharCode(0xFEFF) + rows.map(r => r.map(csvCell).join(",")).join("\r\n") + "\r\n"; }
+
+function recordsCsv(results, t) {
   const main = t.forms.find(f => f.kind === "main"), extras = t.forms.filter(f => f.kind !== "main");
   const head = ["file", "pages", "main_form_page", "status"];
   for (const x of main.fields) head.push(x.name);
@@ -24019,68 +24587,90 @@ function recordsCsv(all, t) {
     for (let c = 1; c <= (f.maxCopies || 3); c++) for (const x of f.fields) head.push(`${f.name} ${c}: ${x.name}`);
   }
   const rows = [head];
-  for (const r of all) {
+  for (const r of results) {
     if (!r.main) continue;
     const row = [r.path, r.pages, r.mainPage, r.status];
     for (const x of main.fields) row.push(r.main[x.name] ?? "");
     for (const f of extras) {
-      const cp = (r.extras && r.extras[f.id]) || [];
-      row.push(cp.length);
-      for (let c = 0; c < (f.maxCopies || 3); c++) for (const x of f.fields) row.push(cp[c] ? cp[c].vals[x.name] ?? "" : "");
+      const copies = (r.extras && r.extras[f.id]) || [];
+      row.push(copies.length);
+      for (let c = 0; c < (f.maxCopies || 3); c++) for (const x of f.fields) row.push(copies[c] ? copies[c].vals[x.name] ?? "" : "");
     }
     rows.push(row);
   }
   return csv(rows);
 }
-function problemsCsv(all) {
+const STATUS_TEXT = { unreadable: "could not open", needs_ocr: "no text layer (needs OCR)", no_main_form: "main form not found",
+                      incomplete: "required fields empty", tool_error: "tool error while reading (report it)" };
+function problemsCsv(results) {
   const rows = [["file", "problem", "detail", "pages", "pages_with_text"]];
-  const label = { unreadable: "could not open", needs_ocr: "no text layer (needs OCR)", no_main_form: "main form not found", incomplete: "required fields empty", tool_error: "tool error while reading (report it)" };
-  for (const r of all) {
-    if (r.status !== "ok") rows.push([r.path, label[r.status] || r.status, r.reason, r.pages ?? "", r.textPages ?? ""]);
-    if (r.longFields && r.longFields.length) rows.push([r.path, "field too long for one Excel cell", `over ${EXCEL_CELL_MAX.toLocaleString()} characters: ${r.longFields.join("; ")}. The CSV holds it all; Excel will show it cut off.`, r.pages ?? "", r.textPages ?? ""]);
+  for (const r of results) {
+    if (r.status !== "ok") rows.push([r.path, STATUS_TEXT[r.status] || r.status, r.reason, r.pages ?? "", r.textPages ?? ""]);
+    if (r.longFields && r.longFields.length) {
+      rows.push([r.path, "field too long for one Excel cell",
+                 `over ${T.EXCEL_CELL_MAX.toLocaleString()} characters: ${r.longFields.join("; ")}. The CSV holds it all; Excel will show it cut off.`,
+                 r.pages ?? "", r.textPages ?? ""]);
+    }
   }
   return csv(rows);
 }
+// The only way this page writes anything: an ordinary browser download of text it built itself.
 function download(name, text, type) {
   const a = document.createElement("a");
   a.href = URL.createObjectURL(new Blob([text], { type: type || "text/csv;charset=utf-8" }));
-  a.download = name; document.body.appendChild(a); a.click(); a.remove();
+  a.download = name;
+  document.body.appendChild(a); a.click(); a.remove();
   setTimeout(() => URL.revokeObjectURL(a.href), 5000);
 }
-const sortedAll = async () => (await dbAll()).sort((a, b) => a.path.localeCompare(b.path));
-$("dlRecords").addEventListener("click", async () => download("records.csv", recordsCsv(await sortedAll(), tpl)));
-$("dlProblems").addEventListener("click", async () => download("problems.csv", problemsCsv(await sortedAll())));
-$("dlOcr").addEventListener("click", async () => download("needs-ocr.txt", (await sortedAll()).filter(r => r.status === "needs_ocr").map(r => r.path).join("\r\n") + "\r\n", "text/plain;charset=utf-8"));
-$("dlText").addEventListener("click", async () => download("record-text.jsonl", (await sortedAll()).filter(r => r.main).map(r => JSON.stringify({ file: r.path, fields: r.main, text: r.mainText })).join("\n") + "\n", "application/x-ndjson"));
-async function refreshDbInfo() { const all = await dbAll(); $("dbInfo").textContent = `${all.length.toLocaleString()} file result(s) saved in this browser.`; }
-$("dbClear").addEventListener("click", async () => {
-  const b = $("dbClear");
-  if (b.dataset.armed !== "1") { b.dataset.armed = "1"; b.textContent = "Click again to erase"; setTimeout(() => { b.dataset.armed = ""; b.textContent = "Erase saved results from this browser"; }, 4000); return; }
-  await dbClear(); b.dataset.armed = ""; b.textContent = "Erase saved results from this browser"; refreshDbInfo();
+$("dlRecords").addEventListener("click", async () => download("records.csv", recordsCsv(await allResults(), template)));
+$("dlProblems").addEventListener("click", async () => download("problems.csv", problemsCsv(await allResults())));
+$("dlOcr").addEventListener("click", async () => download("needs-ocr.txt", (await allResults()).filter(r => r.status === "needs_ocr").map(r => r.path).join("\r\n") + "\r\n", "text/plain;charset=utf-8"));
+$("dlText").addEventListener("click", async () => download("record-text.jsonl", (await allResults()).filter(r => r.main).map(r => JSON.stringify({ file: r.path, fields: r.main, text: r.mainText })).join("\n") + "\n", "application/x-ndjson"));
+async function refreshDbInfo() {
+  try { await dbReady; $("dbInfo").textContent = `${(await allResults()).length.toLocaleString()} file result(s) saved in this browser.`; }
+  catch (e) { $("dbInfo").textContent = "Saved progress is not available in this browser; results of a run must be downloaded before this tab closes."; }
+}
+armThen($("dbClear"), "Click again to erase", "Erase saved results from this browser", async () => {
+  try { await dbClear(); } catch (e) { /* nothing to clear */ }
+  refreshDbInfo();
 });
 
-// ---------- misc ----------
-let flashT = null;
-function flash(msg) {
+/* =====================================================================================================
+   SECTION 11. START-UP WIRING
+   ===================================================================================================== */
+let flashTimer = null;
+function flash(msg) {   // a short notice at the bottom of the window
   let n = $("flash");
-  if (!n) { n = document.createElement("div"); n.id = "flash"; n.className = "note"; Object.assign(n.style, { position: "fixed", bottom: "16px", left: "16px", right: "16px", maxWidth: "560px", zIndex: 9 }); document.body.appendChild(n); }
-  n.textContent = msg; n.style.display = "block"; clearTimeout(flashT); flashT = setTimeout(() => n.style.display = "none", 5000);
+  if (!n) {
+    n = document.createElement("div"); n.id = "flash"; n.className = "note";
+    Object.assign(n.style, { position: "fixed", bottom: "16px", left: "16px", right: "16px", maxWidth: "560px", zIndex: 9 });
+    document.body.appendChild(n);
+  }
+  n.textContent = msg; n.style.display = "block";
+  clearTimeout(flashTimer); flashTimer = setTimeout(() => n.style.display = "none", 5000);
 }
 document.querySelectorAll("nav button").forEach(b => b.addEventListener("click", () => {
   document.querySelectorAll("nav button").forEach(x => x.classList.toggle("on", x === b));
   document.querySelectorAll("section.tab").forEach(s => s.classList.toggle("on", s.id === "tab-" + b.dataset.tab));
   if (b.dataset.tab === "out") refreshDbInfo();
 }));
-refreshFormPanel(); refreshDbInfo();
-pdfReady.then(() => { const n = $("incomplete"); if (n) n.remove(); },
-              e => { const n = $("incomplete"); n.querySelector("b").textContent = "PDF to CSV cannot start: " + e.message + "."; });
+refreshFormPanel();
+refreshDbInfo();
+// The red notice stays until the embedded reader has started; if it cannot, the notice says why.
+pdfReady.then(
+  () => { const n = $("incomplete"); if (n) n.remove(); },
+  e => { $("incomplete").querySelector("b").textContent = "PDF to CSV cannot start: " + e.message + "."; });
 
-// Test hooks (used by dev/test_run.js; harmless in normal use)
-window.__rh = { setTemplate: t => { tpl = validateTpl(t); curForm = tpl.forms[0].id; saveTpl(); refreshFormPanel(); },
-  recordsCsv: async () => recordsCsv(await sortedAll(), tpl), problemsCsv: async () => problemsCsv(await sortedAll()),
-  all: sortedAll, clear: dbClear, mode: () => workerMode, ready: () => pdfReady.then(() => true), version: VERSION,
-  useNames: async (formId, text) => { curForm = formId; refreshFormPanel(); $("nameList").value = text; $("nameApply").click(); return form().fields.length; },
-  autoDetectCount: async () => { $("autoLabels").click(); await new Promise(r => setTimeout(r, 300)); return form().fields.length; } };
+// Test hooks, used by dev/test_run.js to drive the page from a script. They expose nothing that the buttons
+// do not, and do nothing unless called.
+window.__rh = {
+  setTemplate: t => { template = validateTemplate(t); currentFormId = template.forms[0].id; saveTemplate(); refreshFormPanel(); },
+  useNames: async (formId, text) => { currentFormId = formId; refreshFormPanel(); $("nameList").value = text; $("nameApply").click(); return currentForm().fields.length; },
+  autoDetectCount: async () => { $("autoLabels").click(); await new Promise(r => setTimeout(r, 300)); return currentForm().fields.length; },
+  recordsCsv: async () => recordsCsv(await allResults(), template),
+  problemsCsv: async () => problemsCsv(await allResults()),
+  all: allResults, clear: dbClear, mode: () => workerMode, ready: () => pdfReady.then(() => true), version: VERSION,
+};
 </script>
 </body>
 </html>
