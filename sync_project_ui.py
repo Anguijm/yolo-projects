@@ -18,7 +18,8 @@ Both injections are wrapped in sentinel comments so the script is idempotent
 and future edits to the template are picked up automatically on re-run.
 
 Skips:
-  - Flagships (naval-scribe, markdown-deck) — they have their own AI Prompt button
+  - Flagships (naval-scribe, markdown-deck, record-harvest) — they have their own AI Prompt button
+    (record-harvest: injected UI would break its no-network single-file build)
   - Projects with no index.html
   - Projects with no README.md (can't link a Guide)
 
@@ -33,7 +34,7 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
-FLAGSHIPS = {"naval-scribe", "markdown-deck"}
+FLAGSHIPS = {"naval-scribe", "markdown-deck", "record-harvest"}
 
 # Sentinel markers so re-runs replace cleanly
 STYLE_START = "/* UI-UPGRADE:START */"

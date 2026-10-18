@@ -501,7 +501,7 @@ render();
 </html>'''
 
 
-FLAGSHIPS = {'markdown-deck', 'naval-scribe'}  # flagships have their own pages, excluded from tool grid
+FLAGSHIPS = {'markdown-deck', 'naval-scribe', 'record-harvest'}  # flagships have their own pages, excluded from tool grid
 
 
 def get_refined_projects():
@@ -590,6 +590,11 @@ FLAGSHIP_META = {
         'icon': '📑',
         'name': 'Markdown Deck',
         'path': 'markdown-deck',
+    },
+    'record-harvest': {
+        'icon': '🗂️',
+        'name': 'Record Harvest',
+        'path': 'record-harvest',
     },
 }
 
