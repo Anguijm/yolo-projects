@@ -501,7 +501,7 @@ render();
 </html>'''
 
 
-FLAGSHIPS = {'markdown-deck', 'naval-scribe', 'record-harvest'}  # flagships have their own pages, excluded from tool grid
+FLAGSHIPS = {'markdown-deck', 'naval-scribe', 'pdf-to-csv'}  # flagships have their own pages, excluded from tool grid
 
 
 def get_refined_projects():
@@ -591,10 +591,10 @@ FLAGSHIP_META = {
         'name': 'Markdown Deck',
         'path': 'markdown-deck',
     },
-    'record-harvest': {
+    'pdf-to-csv': {
         'icon': '🗂️',
-        'name': 'Record Harvest',
-        'path': 'record-harvest',
+        'name': 'PDF to CSV',
+        'path': 'pdf-to-csv',
     },
 }
 
