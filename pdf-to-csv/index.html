@@ -192,12 +192,14 @@ table.list input[type=text] { width:100%; padding:2px 5px; }
       <button id="dlProblems">problems.csv</button>
       <button id="dlOcr">needs-ocr.txt</button>
       <button id="dlText">record-text.jsonl</button>
+      <button id="dlChunks">record-chunks.jsonl</button>
     </div>
     <ul class="small mute">
       <li><b>records.csv</b>: one row per record that held the main form. Opens in Excel (UTF-8, Japanese safe).</li>
       <li><b>problems.csv</b>: every file that could not be read, had no text layer, lacked the main form, or is missing required fields, with the reason.</li>
       <li><b>needs-ocr.txt</b>: paths of files with no text layer. Run these through Acrobat Pro (Scan &amp; OCR, Recognize Text, batch) and read them again.</li>
       <li><b>record-text.jsonl</b>: optional, one line per record with the main form's text only, for a retrieval index.</li>
+      <li><b>record-chunks.jsonl</b>: optional, the same records cut for a retrieval index at three zoom levels: the whole record, one line per field, and paragraph-sized chunks of long fields. Each line names its file, form, field and pages, and points to the level above it.</li>
     </ul>
   </div>
   <div class="card">
@@ -23261,7 +23263,7 @@ ZXI7c2VsZi5wZGZqc1dvcmtlcj17V29ya2VyTWVzc2FnZUhhbmRsZXI6UWd9Ow==</script>
 <script>
 "use strict";
 /* =====================================================================================================
-   PDF to CSV, version v0.7.  Single file, no network.  Built by dev/build.py from src/app.html.
+   PDF to CSV, version v0.7.1.  Single file, no network.  Built by dev/build.py from src/app.html.
 
    WHAT IT DOES
      1. The user types field names (and may open one sample PDF to check what each field reads). On a boxed
@@ -23284,12 +23286,14 @@ ZXI7c2VsZi5wZGZqc1dvcmtlcj17V29ya2VyTWVzc2FnZUhhbmRsZXI6UWd9Ow==</script>
      Section 3c page furniture: running headers and footers, recognised by repetition, ignored.
      Section 4  labels: how a typed field name becomes a pattern that matches the label on the page.
      Section 5  values: the text beside/below a label, across wrapped lines, columns, cells, paragraphs and
-                pages (including "(cont.)" pages).
+                pages (including "(cont.)" pages); "CONTAINER > LABEL" and "LABEL #n" fields.
      Section 6  one PDF: open, read every page, find the forms, decide a status for the file.
      Section 7  storage: IndexedDB for resumable results; localStorage for the template.
-     Section 8  the Fields tab (template editor and sample viewer).
+     Section 8  the Fields tab (template editor and sample viewer; comparing the sample with more records of
+                the same form to tell labels from values; auto-detect).
      Section 9  the Run tab (folder reading with a small worker pool).
-     Section 10 the Results tab (CSV writing and downloads).
+     Section 10 the Results tab (CSV writing and downloads; record-chunks.jsonl, the records cut for a
+                retrieval index at three zoom levels).
      Section 11 start-up wiring and test hooks.
 
    SECURITY PROPERTIES (please verify these rather than take them on trust)
@@ -23301,7 +23305,9 @@ ZXI7c2VsZi5wZGZqc1dvcmtlcj17V29ya2VyTWVzc2FnZUhhbmRsZXI6UWd9Ow==</script>
        this file set "" to clear a container; every piece of text shown on screen goes through textContent.
        pdf.js is started with isEvalSupported:false, so it cannot compile PDF JavaScript either.
      - What is stored, and where (both are per browser profile, per computer):
-         localStorage  "pdf-to-csv-template": the template (field names, labels, box positions). No record text.
+         localStorage  "pdf-to-csv-template": the template (field names, labels, box positions, the sample's
+                       drawn lines as page fractions and the first words of each cell's label). No record
+                       values. Records opened for comparison are held in memory only, for the session.
          IndexedDB     "pdf-to-csv" / "results": one object per PDF read, INCLUDING THE EXTRACTED FIELD VALUES
                        and the main form's text. This is what makes a run resumable and what the downloads
                        are built from. The Results tab has an "Erase" button; it should be used when a run is
@@ -23336,10 +23342,16 @@ ZXI7c2VsZi5wZGZqc1dvcmtlcj17V29ya2VyTWVzc2FnZUhhbmRsZXI6UWd9Ow==</script>
        ignored too; the switch "Ignore repeated page headers and footers" turns this off.
      - The "(cont.)" continuation is recognised by the marker's spelling (CONT_MARK: cont, cont., cont'd,
        continued, continuation, in brackets or not). Another wording is not recognised.
+     - "CONTAINER > LABEL" looks for the label from the container's line downwards within the container's
+       cell (or, without lines, its column) and takes the first match; it has no lower bound, so a block
+       that lacks the label may yield the same label from the block below it in that column.
+     - Comparing records (section 8) assumes the compared files are the same form as the sample; pages are
+       matched by their first line. With one compared record, a value that happens to read the same in
+       both ("Yes", a repeated date) counts as a label; more records make that unlikely. Up to 4 are read.
    ===================================================================================================== */
 
 const $ = id => document.getElementById(id);
-const VERSION = "v0.7";
+const VERSION = "v0.7.1";
 
 /* =====================================================================================================
    SECTION 1. START-UP: decode the embedded PDF reader, verify it, start it
@@ -23488,7 +23500,8 @@ const T = Object.freeze({
   BLOCK_LINES_MAX: 5000,
   MIN_CHARS_PER_PAGE: 25,    // a page with fewer characters of text than this counts as having no text layer
   OCR_PAGE_FRACTION: 0.5,    // main form not found and text on under half the pages: the file needs OCR
-  EXCEL_CELL_MAX: 32767,     // Excel shows at most this many characters in one cell (the CSV keeps all)
+  EXCEL_CELL_MAX: 32767,
+  CHUNK_CHARS: 1200,         // record-chunks.jsonl: a chunk holds at most about this many characters of a value     // Excel shows at most this many characters in one cell (the CSV keeps all)
   SAMPLE_PAGES_MAX: 80,      // the sample viewer reads at most this many pages of a sample for the preview
   SAMPLE_PRELOAD_PAGES: 8,   // pages of a sample read as soon as it opens (to recognise headers and footers)
   AUTO_LABEL_MAX_CHARS: 60,  // "Auto-detect labels" accepts a label of at most this length
@@ -24545,8 +24558,9 @@ function followValue(v, field, compiled, pts, pi, contexts, used) {
 }
 
 // Read every field of one copy of a form that starts at page `start`. Returns { fieldName: value|null }.
-// `used`, if given, collects the page indexes that contributed a value.
-function readForm(form, pts, start, used) {
+// `used`, if given, collects the page indexes that contributed a value. `pagesOut`, if given, receives
+// { fieldName: [page numbers, 1-based] } for each field found (used by the retrieval chunks, section 10).
+function readForm(form, pts, start, used, pagesOut) {
   const values = {}, contexts = {}, compiled = compiledForm(form), span = formSpan(form, pts, start);
   // A boxed form: lay the grids the sample provided onto this copy's pages (section 3b).
   if (form.grids) for (let k = 0; k < span; k++) { if (form.grids[k] && pts[start + k]) applyGrid(pts[start + k], form.grids[k]); }
@@ -24558,6 +24572,7 @@ function readForm(form, pts, start, used) {
       : [start + field.page];
     values[field.name] = null;
     const opts = { skip: (field.occurrence || 1) - 1 };   // "LABEL #3": pass over two matches, counting across pages
+    const fieldUsed = new Set();                           // pages this field's value came from
     for (const pi of candidatePages) {
       const pt = pts[pi];
       if (!pt) continue;
@@ -24570,10 +24585,16 @@ function readForm(form, pts, start, used) {
         if (hit) { opts.region = containerRegion(pt, { ...hit, line: ctx.lines[hit.i] }); v = extractLabel(pt, field.name, compiled, ctx, false, opts); delete opts.region; }
         else v = null;
       } else v = extractLabel(pt, field.name, compiled, ctx, false, opts);
-      if (v !== null && field.method !== "box") v = followValue(v, field, compiled, pts, pi, contexts, used);
+      if (v !== null && field.method !== "box") v = followValue(v, field, compiled, pts, pi, contexts, fieldUsed);
       // A label found with an EMPTY value ("") still ends the search: the field is on this page and is
       // blank, and looking further would pick up the same label on a later page (an attachment, a copy).
-      if (v !== null) { values[field.name] = v; if (used) used.add(pi); break; }
+      if (v !== null) {
+        values[field.name] = v;
+        fieldUsed.add(pi);
+        if (used) for (const p of fieldUsed) used.add(p);
+        if (pagesOut) pagesOut[field.name] = [...fieldUsed].sort((a, b) => a - b).map(p => p + 1);
+        break;
+      }
     }
   }
   return values;
@@ -24591,7 +24612,7 @@ function readForm(form, pts, start, used) {
    ===================================================================================================== */
 async function processFile(file, path, template, parser) {
   const res = { path, size: file.size, mtime: file.lastModified, status: "ok", reason: "", pages: 0,
-                textPages: 0, main: null, extras: {}, missing: [], mainText: "" };
+                textPages: 0, main: null, mainPages: {}, extras: {}, missing: [], mainText: "" };
   let doc = null;
   try {
     const buf = await file.arrayBuffer();
@@ -24627,7 +24648,7 @@ async function processFile(file, path, template, parser) {
       if (form.kind === "main") {
         if (!starts[form.id].length) continue;
         const used = new Set();
-        res.main = readForm(form, pts, starts[form.id][0], used);
+        res.main = readForm(form, pts, starts[form.id][0], used, res.mainPages);
         if (!form.anchor && !used.size) { res.main = null; continue; }   // no anchor and not one label found: not this kind of record
         const textPages = form.anchor
           ? Array.from({ length: formSpan(form, pts, starts[form.id][0]) }, (_, k) => starts[form.id][0] + k)
@@ -24637,7 +24658,7 @@ async function processFile(file, path, template, parser) {
         res.missing = form.fields.filter(x => x.required && !(res.main[x.name] || "").trim()).map(x => x.name);
         res.longFields = Object.keys(res.main).filter(k => (res.main[k] || "").length > T.EXCEL_CELL_MAX);
       } else {
-        res.extras[form.id] = starts[form.id].map(s => ({ page: s + 1, vals: readForm(form, pts, s) }));
+        res.extras[form.id] = starts[form.id].map(s => { const fieldPages = {}; return { page: s + 1, vals: readForm(form, pts, s, null, fieldPages), fieldPages }; });
       }
     }
     if (res.textPages === 0) {
@@ -25494,6 +25515,63 @@ function problemsCsv(results) {
   }
   return csv(rows);
 }
+// ---- record-chunks.jsonl: the records cut for a retrieval index, at three zoom levels ----
+// A retrieval system (an assistant that searches the records before answering) works best when it can find
+// a small passage and then widen to its context. Each record gives:
+//   level "document"  the whole main form: all field values plus its text;               id = file
+//   level "section"   one field's whole value, with the pages it came from;              id = file#field
+//   level "chunk"     paragraph-sized pieces of that value (at most about CHUNK_CHARS);   id = file#field#n
+// Every line has `parent` (the id one level up), and the text of sections and chunks starts with a context
+// header (file, form, field, part) so a chunk found alone still says where it is from. Extra forms give
+// sections and chunks named "<form> <copy>: <field>". Empty fields give no section.
+function splitChunks(text, max) {
+  const pieces = [];
+  for (const para of text.split(/\n\n+/).map(p => p.trim()).filter(Boolean)) {
+    if (para.length <= max) { pieces.push(para); continue; }
+    let cur = "";
+    for (const sentence of para.split(/(?<=[.!?;:])\s+/)) {
+      if (sentence.length > max) {   // one very long sentence: cut at spaces
+        if (cur) { pieces.push(cur); cur = ""; }
+        let rest = sentence;
+        while (rest.length > max) { const cut = rest.lastIndexOf(" ", max) > max / 2 ? rest.lastIndexOf(" ", max) : max; pieces.push(rest.slice(0, cut).trim()); rest = rest.slice(cut).trim(); }
+        cur = rest;
+      } else if (cur && cur.length + 1 + sentence.length > max) { pieces.push(cur); cur = sentence; }
+      else cur = cur ? cur + " " + sentence : sentence;
+    }
+    if (cur) pieces.push(cur);
+  }
+  // pack short neighbouring paragraphs together up to the limit
+  const packed = [];
+  for (const p of pieces) {
+    const last = packed.length ? packed[packed.length - 1] : null;
+    if (last !== null && last.length + 2 + p.length <= max) packed[packed.length - 1] = last + "\n\n" + p; else packed.push(p);
+  }
+  return packed;
+}
+function recordChunks(r, t) {
+  const out = [], main = t.forms.find(f => f.kind === "main");
+  out.push({ id: r.path, level: "document", file: r.path, form: main ? main.name : "", pages: r.pages, main_form_page: r.mainPage ?? null,
+             status: r.status, fields: r.main, text: r.mainText || "" });
+  const addField = (formName, fieldLabel, value, pages) => {
+    if (!value || !String(value).trim()) return;
+    const sid = `${r.path}#${fieldLabel}`, head = `File: ${r.path} | Form: ${formName} | Field: ${fieldLabel}`;
+    out.push({ id: sid, level: "section", parent: r.path, file: r.path, form: formName, field: fieldLabel, pages: pages || [], text: `${head}\n${value}` });
+    const parts = splitChunks(String(value), T.CHUNK_CHARS);
+    parts.forEach((piece, k) => out.push({ id: `${sid}#${k + 1}`, level: "chunk", parent: sid, file: r.path, form: formName, field: fieldLabel,
+      part: k + 1, parts: parts.length, pages: pages || [], text: `${head}${parts.length > 1 ? ` (part ${k + 1} of ${parts.length})` : ""}\n${piece}` }));
+  };
+  if (main) for (const x of main.fields) addField(main.name, x.name, r.main[x.name], (r.mainPages || {})[x.name]);
+  for (const f of t.forms.filter(f => f.kind !== "main")) {
+    ((r.extras && r.extras[f.id]) || []).forEach((copy, c) => {
+      for (const x of f.fields) addField(f.name, `${f.name} ${c + 1}: ${x.name}`, copy.vals[x.name], (copy.fieldPages || {})[x.name]);
+    });
+  }
+  return out;
+}
+function chunksJsonl(results, t) {
+  return results.filter(r => r.main).flatMap(r => recordChunks(r, t)).map(o => JSON.stringify(o)).join("\n") + "\n";
+}
+
 // The only way this page writes anything: an ordinary browser download of text it built itself.
 function download(name, text, type) {
   const a = document.createElement("a");
@@ -25505,6 +25583,7 @@ function download(name, text, type) {
 $("dlRecords").addEventListener("click", async () => download("records.csv", recordsCsv(await allResults(), template)));
 $("dlProblems").addEventListener("click", async () => download("problems.csv", problemsCsv(await allResults())));
 $("dlOcr").addEventListener("click", async () => download("needs-ocr.txt", (await allResults()).filter(r => r.status === "needs_ocr").map(r => r.path).join("\r\n") + "\r\n", "text/plain;charset=utf-8"));
+$("dlChunks").addEventListener("click", async () => download("record-chunks.jsonl", chunksJsonl(await allResults(), template), "application/x-ndjson"));
 $("dlText").addEventListener("click", async () => download("record-text.jsonl", (await allResults()).filter(r => r.main).map(r => JSON.stringify({ file: r.path, fields: r.main, text: r.mainText })).join("\n") + "\n", "application/x-ndjson"));
 async function refreshDbInfo() {
   try { await dbReady; $("dbInfo").textContent = `${(await allResults()).length.toLocaleString()} file result(s) saved in this browser.`; }
@@ -25576,6 +25655,7 @@ window.__rh = {
     return readForm(f, sample.pts.slice(0, start + span).map(p => p || { w: 1, h: 1, items: [] }), start);
   },
   recordsCsv: async () => recordsCsv(await allResults(), template),
+  chunksJsonl: async () => chunksJsonl(await allResults(), template),
   problemsCsv: async () => problemsCsv(await allResults()),
   all: allResults, clear: dbClear, mode: () => workerMode, ready: () => pdfReady.then(() => true), version: VERSION,
 };

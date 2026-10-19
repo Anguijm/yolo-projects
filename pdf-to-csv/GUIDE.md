@@ -117,6 +117,11 @@ On the **3. Results** tab:
 - **needs-ocr.txt**: the paths of files with no text layer. Run them through Acrobat Pro (Scan & OCR,
   Recognize Text, in a batch action), then run the folder again: only those files will be re-read.
 - **record-text.jsonl**: optional, the main form's text per record, for a search index.
+- **record-chunks.jsonl**: optional, the records cut up for an AI assistant's search index (retrieval) at
+  three zoom levels: the whole record, each field, and paragraph-sized pieces of long fields. Every line says
+  which file, form, field and pages it came from, and points to the level above it, so an assistant that
+  finds one paragraph of a description can widen to the whole field or the whole record. Give this file,
+  not the CSV, to a retrieval tool.
 
 When you have downloaded what you need, press **Erase saved results from this browser**. The downloaded
 files are not affected.
