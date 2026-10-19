@@ -1,5 +1,25 @@
 # Repo conventions for Claude
 
+## Operating mode (John's ruling, 2026-10-19)
+
+"We're not doing ticks and tocks any longer." The hourly tick-tock cron has been paused since 2026-06-28 and
+stays off. The work here is now two things:
+
+1. **Keep up with the flagships**: Markdown Deck, Naval Scribe and PDF to CSV (PDF to CSV is developed by
+   hand; its source is `~/projects/pdf-to-csv`). When a flagship or repo state changes, update the README,
+   this file and the project's status.md in the same commit.
+2. **Monitor the new cards** (`experiments.json`, written daily at 05:50 JST by `scripts/daily_cards.sh`,
+   which opens a PR and then nudges this session). For each new card, judge it against John's WHOLE
+   ecosystem of projects (the flagships, every project in `~/ops/RUNBOOK.md`: mini-forge 3D printing on the
+   Strix Halo box, push-to-talk dictation, polymarket paper trading, clipper, thoughts, the brain vault,
+   editor training, router, and so on), not just this repo. Record every verdict in
+   `.harness/card_reviews.md` (one line per card: date, id, verdict, project it bears on, why). When a card
+   is useful or fun for one of those projects, tell John and propose the work; build nothing until he says
+   go. Most cards are noise: say so in one line and move on. Heavy work (downloads, model runs, builds,
+   anything over 5 minutes) checks in with the MS-S1 ops session first.
+
+The tick/tock material below is kept for history and for the paused workflow files.
+
 ## Responding to "status"
 
 When the user asks for `status` (or a close variant), reply with a live report
@@ -84,10 +104,11 @@ Always read these at response time — never recall from prior context:
 
 ### Glossary
 
-- **tick** — YOLO session: one new prototype from scratch this sitting.
-  *Opposite of tock.* Alternates every session.
-- **tock** — Flagship session: multi-session work on Markdown Deck or
-  Naval-Scribe; higher quality bar.
+- **tick** — (retired 2026-10-19) YOLO session: one new prototype from scratch this sitting.
+  *Opposite of tock.* Alternated every session while the cron ran.
+- **tock** — (retired 2026-10-19) Flagship session: multi-session work on the two cron-maintained
+  flagships, Markdown Deck or Naval-Scribe. PDF to CSV, the third flagship, is developed by hand outside
+  the cron. Flagship work continues without the tick/tock rhythm (see Operating mode).
 - **Experiment status** (`experiments.json`): `backlog` → `in_progress` →
   `done`. Canonical definitions and the four terminal shortcuts
   (`adopted`, `discarded`, `deferred`, `skipped`) are documented in
