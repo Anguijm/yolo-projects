@@ -11,7 +11,7 @@ An hourly cron trigger fires a Claude Code remote agent that alternates between 
 2. **If queue is empty** — brainstorms 1 idea, adds to pending queue, does NOT build. Human approves or denies at next check-in.
 
 ### Tock (Flagship Features)
-Alternates between two flagship projects, implementing approved features or brainstorming 2 new proposals for approval.
+Alternates between the two cron-maintained flagships (Markdown Deck and Naval Scribe), implementing approved features or brainstorming 2 new proposals for approval. The third flagship, PDF to CSV, is developed by hand outside the cron and published here as a built file.
 
 ### Build Pipeline (when approved)
 1. **Plan** — boring-but-high-ROI filter, vertical outline, Gemini critique
@@ -38,7 +38,7 @@ Alternates between two flagship projects, implementing approved features or brai
 ### Categories
 - **Dev Tools** — jwt-decode, json-explorer, regex-playground, ssl-check, dns-lookup, diff-painter, shader-forge, yaml-fmt, etc.
 - **Creative Tools** — beat-haus, note-lab, sonic-sight, palette-pull, sprite-forge, haiku-gen, etc.
-- **Productivity** — markdown-deck, naval-scribe, kanban-board, pomodoro-flow, flash-cards, etc.
+- **Productivity** — markdown-deck, naval-scribe, pdf-to-csv, kanban-board, pomodoro-flow, flash-cards, etc.
 - **Games** — picross, sudoku, neon-tetra, dungeon-descent, regex-quest, etc.
 - **Generators & Utilities** — entropy-forge, qr-forge, prose-xray, curl-converter, etc.
 - **Education** — neural-playground, circuit-sim, automata-lab, etc.
@@ -50,6 +50,9 @@ Markdown-to-slide-deck editor with live preview, fullscreen presentation, PPTX e
 
 ### Naval Scribe
 Naval correspondence formatter per SECNAV M-5216.5. 7 document types (standard letter, memo, endorsement, business letter, point paper, action memo, MOA with multiple signers). Classification markings, SSIC autocomplete, signature block builder, letterhead presets, saved drafts library, print-to-PDF. Exports .docx via hand-rolled OOXML ZIP.
+
+### PDF to CSV
+Offline converter from a folder of PDF records (scanned with an OCR text layer, or born digital) to one CSV: one row per record, one column per named field, plus a list of the files it could not read and why. Reads boxed forms by their drawn lines, follows long text across pages and "(cont.)" boxes, ignores running headers and footers, scopes repeated labels by block ("Approved By > Date"), and can compare several records to tell labels from values. One HTML file with pdf.js embedded; the page cannot make network requests. [Open it](https://anguijm.github.io/yolo-projects/pdf-to-csv/index.html) · [Usage guide](pdf-to-csv/GUIDE.md) · [Prompts for studying packets](pdf-to-csv/GENAI-PROMPTS.md)
 
 ## Quality Pipeline
 
