@@ -170,6 +170,7 @@ const FLAGSHIPS = __FLAGSHIPS_DATA__;
       <div class="flagship-meta">${f.features_count} features shipped${f.last_update ? ' · last ' + f.last_update : ''}</div>
       <div class="flagship-actions">
         <a class="flagship-launch" href="${f.path}/index.html" target="_blank">▶ Open ${f.name}</a>
+        ${f.guide ? `<a class="flagship-launch" href="${f.guide}" target="_blank">📖 Guide</a>` : ''}
       </div>
     </div>
   `).join('');
@@ -595,6 +596,7 @@ FLAGSHIP_META = {
         'icon': '🗂️',
         'name': 'PDF to CSV',
         'path': 'pdf-to-csv',
+        'guide': 'https://github.com/Anguijm/yolo-projects/blob/main/pdf-to-csv/GUIDE.md',  # step-by-step usage guide
     },
 }
 
@@ -612,6 +614,7 @@ def build_flagships_data(log):
             'icon': meta['icon'],
             'name': meta['name'],
             'path': meta['path'],
+            'guide': meta.get('guide'),
             'description': desc,
             'features_count': len(entries),
             'last_update': last_update,
