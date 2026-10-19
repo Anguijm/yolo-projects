@@ -47,4 +47,7 @@ URL=$(gh pr create -R Anguijm/yolo-projects --base main --head "$B" --title "Car
   --body "New cards from the YOLO Watch Log sheet, written on the Claude subscription by scripts/cards_from_sheet.py. Not merged automatically.")
 git checkout -q main
 "$HOME/.config/job-guard/notify" "New YOLO cards ready to review: $URL" 2>/dev/null || true
+# Nudge the always-on yolo Claude session (tmux socket "yolo") to review the new cards against the whole
+# project ecosystem (CLAUDE.md "Operating mode"). Typed into its prompt; harmless if the session is down.
+timeout 5 tmux -L yolo send-keys -t yolo "[automated, daily_cards.sh] New cards in $URL: review them per CLAUDE.md Operating mode, log verdicts in .harness/card_reviews.md, and tell John only about the ones worth doing." Enter 2>/dev/null || true
 echo "$URL"
