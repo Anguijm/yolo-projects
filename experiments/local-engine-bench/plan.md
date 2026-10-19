@@ -1,7 +1,7 @@
 # Plan: local inference engine benchmark on the MS-S1 (cards dc-2026-10-18-dwarfstar-deepseek-strix-halo,
 # dc-2026-10-16-specialized-inference-engine-per-gpu-model, dc-2026-10-18-terminal-bench-mini-token-efficiency)
 
-Written 2026-10-20 (JST). Status: PLAN ONLY, nothing downloaded or run. Needs the ops session's go and John's.
+Written 2026-10-20 (JST). Status: PARKED by John 2026-10-20 ("skip the benchmark for now, keep it in todo"). Ops had approved the schedule (fresh build any time, CPU only; GPU runs in the 22:00-03:45 window, port 1254, MemoryMax=32G, memguard 20). Re-check in with ops before running.
 
 ## Finding: the cards as written do not fit this machine
 - FACT (antirez/deepseek-v4.1-flash-gguf on Hugging Face): DeepSeek V4.1 Flash for DwarfStar is 340.60 GiB to
