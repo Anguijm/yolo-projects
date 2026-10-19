@@ -27,13 +27,8 @@ Alternates between the two cron-maintained flagships (Markdown Deck and Naval Sc
 
 ## Portfolio
 
-| Metric | Count |
-|--------|-------|
-| Total built | 232 |
-| Active (passed council) | 98 |
-| Culled (duplicates, visual toys, low utility) | 121+ |
-
-*Live numbers: read from `_hot.md` "Current State" section.*
+Counts change every hour, so they are not copied here: the live numbers (total built, active, culled) are in
+[`_hot.md`](_hot.md), and the dashboard shows the active tools: https://anguijm.github.io/yolo-projects/dashboard.html
 
 ### Categories
 - **Dev Tools** — jwt-decode, json-explorer, regex-playground, ssl-check, dns-lookup, diff-painter, shader-forge, yaml-fmt, etc.
