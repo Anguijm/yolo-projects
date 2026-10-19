@@ -1,6 +1,7 @@
 # PDF to CSV
 
 **Usage guide, step by step: [GUIDE.md](GUIDE.md).** This file is the overview and the reviewer's notes.
+Prompts for studying packets with an AI assistant inside the environment: [GENAI-PROMPTS.md](GENAI-PROMPTS.md).
 
 A scanned-document-library to CSV converter that runs as one HTML file, offline. Type the names of the fields you want, choose a folder, and it reads every PDF in it (subfolders included) into one CSV row per record, with a separate list of the files it could not read and why.
 
