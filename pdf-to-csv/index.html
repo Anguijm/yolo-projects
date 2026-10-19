@@ -45,6 +45,9 @@ section.tab { display:none; } section.tab.on { display:block; }
 .ti:hover { background:rgba(31,95,139,.15); }
 .ti.anchor { border:2px solid var(--warn); background:rgba(178,106,0,.12); }       /* ...that holds the form's anchor text */
 .ti.label { border:1px solid var(--ok); background:rgba(46,125,50,.10); }           /* ...that starts with a listed label */
+.ti.furn { border:1px dotted #999; background:repeating-linear-gradient(45deg, rgba(0,0,0,.08) 0 3px, transparent 3px 6px); }  /* ...running header/footer, ignored */
+.ti.var { border:1px solid rgba(31,95,139,.7); background:rgba(31,95,139,.18); }    /* ...that differs between the compared records: a value */
+.gl { position:absolute; background:rgba(200,30,30,.75); pointer-events:none; }                  /* a drawn line the reader found */
 .fbox { position:absolute; border:2px dashed var(--acc); background:rgba(31,95,139,.08); pointer-events:none; }  /* a box field */
 .fbox span { position:absolute; top:-17px; left:0; font-size:11px; background:var(--acc); color:#fff; padding:0 4px; border-radius:3px; white-space:nowrap; }
 table.list { border-collapse:collapse; width:100%; font-size:13px; }
@@ -82,12 +85,14 @@ table.list input[type=text] { width:100%; padding:2px 5px; }
     <h2>Template</h2>
     <div class="row">
       <label>Sample PDF <input type="file" id="sampleFile" accept="application/pdf,.pdf"></label>
+      <button id="cmpBtn" type="button" title="Open 1 to 4 more records of the same form. Text that reads the same in every record at the same place is a label; text that differs is a value. Auto-detect uses that, and the values are tinted blue on the page.">Compare with more records</button><input type="file" id="cmpFiles" accept="application/pdf,.pdf" multiple hidden>
       <button id="tplExport">Save template file</button>
       <button id="tplImportBtn" type="button">Load template file</button><input type="file" id="tplImport" accept=".json,application/json" hidden>
       <button id="tplClear">Start new template</button>
       <span class="mute small" id="tplStatus"></span>
     </div>
-    <p class="mute small">Type the field names in <b>Fields by name</b>: that is all a run needs. A sample PDF is optional: open one to see what each field reads before running a whole folder, or to drag a box around a value that has no label. The template holds field names, labels and box positions only, never record content.</p>
+    <p class="mute small">Type the field names in <b>Fields by name</b>: that is all a run needs. A sample PDF is optional: open one to see what each field reads before running a whole folder, to have the labels detected, or to drag a box around a value that has no label. Comparing a few more records of the same form makes the detection surer. The template holds field names, labels, box positions and the sample's drawn lines only, never record content.</p>
+    <p class="mute small" id="cmpMsg" style="margin:4px 0 0"></p>
   </div>
 
   <div class="grid2">
@@ -101,6 +106,7 @@ table.list input[type=text] { width:100%; padding:2px 5px; }
             <option value="box">Drag = add box field</option>
           </select></label>
         <label>Zoom <select id="zoom"><option>1</option><option selected>1.4</option><option>2</option></select></label>
+        <label class="small" title="Red: drawn lines the reader found (cells). Hatched: repeated page headers and footers, which are ignored."><input type="checkbox" id="showGeom" checked> Show lines and headers/footers</label>
       </div>
       <div id="pageWrap"><canvas id="pageCanvas" width="10" height="10"></canvas><div id="overlay"></div></div>
     </div>
@@ -108,7 +114,7 @@ table.list input[type=text] { width:100%; padding:2px 5px; }
     <div>
       <div class="card">
         <h2>Fields by name <span class="mute small" id="nameFor"></span></h2>
-        <p class="small mute" style="margin-top:0">One field per line, written the way its label appears on the form. Case, spacing and punctuation do not matter. Alternate spellings: <code>Work Item No | WI Number</code>. Required: end the line with <code>*</code>. Each label is looked for on every page of the form, and the value is read beside it or just below it.</p>
+        <p class="small mute" style="margin-top:0">One field per line, written the way its label appears on the form. Case, spacing and punctuation do not matter. Alternate spellings: <code>Work Item No | WI Number</code>. Required: end the line with <code>*</code>. A label that appears in several blocks: <code>Approved By &gt; Date</code> reads the Date inside the Approved By block; <code>Date #3</code> reads the third Date on the form. Each label is looked for on every page of the form, and the value is read beside it or just below it.</p>
         <textarea id="nameList" rows="10" style="width:100%;font:13px ui-monospace,monospace;padding:6px" placeholder="Work Item Number *&#10;Title&#10;Date Completed | Completion Date&#10;Lead Technician"></textarea>
         <div class="row" style="margin-top:6px"><button id="nameApply" class="primary">Use these field names</button><span class="small mute" id="nameMsg"></span></div>
       </div>
@@ -130,6 +136,10 @@ table.list input[type=text] { width:100%; padding:2px 5px; }
           <button id="autoLabels" class="primary">Auto-detect labels on this page</button>
           <span class="small mute" id="autoMsg"></span>
         </div>
+        <div class="row" style="margin-top:6px">
+          <label class="small"><input type="checkbox" id="ignoreFurn" checked> Ignore repeated page headers and footers</label>
+        </div>
+        <p class="small mute" style="margin:6px 0 0">On a boxed form the drawn lines on each sample page you look at are remembered in the template, so the run reads each value from its own box. Red lines on the page show what was found.</p>
       </div>
       <div class="card">
         <h2>Fields <span class="mute small" id="fieldCount"></span></h2>
@@ -23251,13 +23261,17 @@ ZXI7c2VsZi5wZGZqc1dvcmtlcj17V29ya2VyTWVzc2FnZUhhbmRsZXI6UWd9Ow==</script>
 <script>
 "use strict";
 /* =====================================================================================================
-   PDF to CSV, version v0.5.2.  Single file, no network.  Built by dev/build.py from src/app.html.
+   PDF to CSV, version v0.7.  Single file, no network.  Built by dev/build.py from src/app.html.
 
    WHAT IT DOES
-     1. The user types field names (and may open one sample PDF to check what each field reads).
+     1. The user types field names (and may open one sample PDF to check what each field reads). On a boxed
+        form, the drawn lines of each sample page the user looks at are remembered in the template.
      2. The user chooses a folder. Every PDF in it (subfolders included) is opened in the browser and its
         existing TEXT LAYER is read with pdf.js. There is no OCR here: a file with no text layer is reported.
-     3. Each listed label is found on the pages of the form, and the value beside or below it is read.
+     3. Each listed label is found on the pages of the form, and the value beside or below it is read: from
+        the label's own box when the form is a grid of drawn cells, otherwise by the gaps between texts.
+        Running headers and footers are recognised and left out. A box that goes on under its title with
+        "(cont.)" on later pages is read whole.
      4. One CSV row per record, plus a list of files that could not be read and why, as downloads.
 
    READING GUIDE FOR A CODE REVIEWER
@@ -23265,8 +23279,12 @@ ZXI7c2VsZi5wZGZqc1dvcmtlcj17V29ya2VyTWVzc2FnZUhhbmRsZXI6UWd9Ow==</script>
      Section 2  tuning constants: the thresholds the text analysis uses, named and explained. (A few
                 small position slacks of 1-2 points and fixed regex repeat counts stay inline, commented.)
      Section 3  text geometry: PDF text items -> lines; the characters that separate words and columns.
+     Section 3b drawn lines and cells: from the PDF's drawing commands or from the rendered page image
+                (scans), stored in the template, laid onto each record's pages, giving each text its cell.
+     Section 3c page furniture: running headers and footers, recognised by repetition, ignored.
      Section 4  labels: how a typed field name becomes a pattern that matches the label on the page.
-     Section 5  values: the text beside/below a label, across wrapped lines, columns, paragraphs and pages.
+     Section 5  values: the text beside/below a label, across wrapped lines, columns, cells, paragraphs and
+                pages (including "(cont.)" pages).
      Section 6  one PDF: open, read every page, find the forms, decide a status for the file.
      Section 7  storage: IndexedDB for resumable results; localStorage for the template.
      Section 8  the Fields tab (template editor and sample viewer).
@@ -23308,10 +23326,20 @@ ZXI7c2VsZi5wZGZqc1dvcmtlcj17V29ya2VyTWVzc2FnZUhhbmRsZXI6UWd9Ow==</script>
        a heading, a different column), so in practice it stops at the next copy of the form.
      - Cost: each listed label is tried at every text item on every page of the form. 100 fields on a
        70-page record is a few million short regular-expression tests; expect tens of files per second.
+     - Drawn lines are read from the SAMPLE only (section 3b) and laid onto each record by a plain shift,
+       found from the words both pages share. A record whose page is rotated, scaled or laid out
+       differently from the sample gets no grid for that page and is read by gaps alone. Lines in a scanned
+       image must be reasonably dark (INK) and solid (LINE_SOLID) to be found; faint 1-pixel rules may be
+       missed, and the field table shows the effect.
+     - Running headers and footers are recognised only in records of 3 or more pages, and only when they
+       repeat on at least half the pages (section 3c). A field printed inside the running header is then
+       ignored too; the switch "Ignore repeated page headers and footers" turns this off.
+     - The "(cont.)" continuation is recognised by the marker's spelling (CONT_MARK: cont, cont., cont'd,
+       continued, continuation, in brackets or not). Another wording is not recognised.
    ===================================================================================================== */
 
 const $ = id => document.getElementById(id);
-const VERSION = "v0.5.2";
+const VERSION = "v0.7";
 
 /* =====================================================================================================
    SECTION 1. START-UP: decode the embedded PDF reader, verify it, start it
@@ -23427,13 +23455,44 @@ const T = Object.freeze({
   LABEL_WRAP_GAP: 0.8,       // ...with less than 0.8 \u00d7 height between them
   GRID_EMPTY_ROWS: 2,        // in a grid, up to 2 rows with nothing in this column before the field ends
 
+  // Unlisted "12. Word words:" shapes inside a value (section 5, collectBlock)
+  NARRATIVE_MIN_CHARS: 40,   // a numbered line whose text after the colon is this long and reaches the right edge is narrative
+
+  // Drawn lines and cells (section 3b)
+  LINE_MIN_H: 0.05,          // a horizontal line must span at least 5% of the page width
+  LINE_MIN_V: 14,            // a vertical line must be at least 14 points tall (one grid row)
+  LINE_GAP_PX: 2,            // in a rendered page, a break of up to 2 pixels does not end a line (scan noise)
+  LINE_THICK_MAX: 4,         // ...and a dark band thicker than 4 points is text or a filled area, not a line
+  LINE_SOLID: 0.9,           // a line is dark along at least 90% of its length (text rows are patchier)
+  LINE_MERGE: 2.5,           // segments within 2.5 points on the same axis are one line
+  INK: 150,                  // a rendered pixel darker than this (0 black - 255 white) is ink
+  CELL_SLACK: 2,             // points by which text may cross a cell border and still belong to the cell
+  GRID_ALIGN_MIN: 2,         // a stored grid is laid on a page only if at least 2 of its anchor texts are found
+  GRID_ALIGN_MAX: 40,        // ...within 40 points of where the sample had them (a scan shifts a few points)
+  GRID_ANCHORS_MAX: 60,      // anchor texts kept with a stored grid
+  GRID_ANCHOR_WORDS: 3,      // an anchor is the first (up to) 3 words of a cell's first line
+
+  // Page furniture: running headers and footers (section 3c)
+  FURNITURE_BAND: 0.12,      // text in the top or bottom 12% of a page may be a running header or footer...
+  FURNITURE_SHARE: 0.5,      // ...if the same text (digits ignored) is there on at least half of the pages,
+  FURNITURE_MIN_PAGES: 3,    // ...on at least 3 pages,
+  FURNITURE_MAX_SIZE: 1.15,  // ...and it is not a heading (no larger than 1.15 \u00d7 the record's body text)
+
+  // Comparing sample records (section 8, compareItems)
+  COMPARE_MAX: 4,            // up to 4 further records are compared with the sample
+  COMPARE_X: 6,              // a text is "at the same place" in another record within 6 points across...
+  COMPARE_Y: 12,             // ...and 12 points down (one extra line in a cell above moves it that much)
+  COMPARE_STATIC_SHARE: 0.8, // a text is a label when it reads the same in at least 80% of the compared records
+
   // Safety limits
   BLOCK_LINES_MAX: 5000,
   MIN_CHARS_PER_PAGE: 25,    // a page with fewer characters of text than this counts as having no text layer
   OCR_PAGE_FRACTION: 0.5,    // main form not found and text on under half the pages: the file needs OCR
   EXCEL_CELL_MAX: 32767,     // Excel shows at most this many characters in one cell (the CSV keeps all)
   SAMPLE_PAGES_MAX: 80,      // the sample viewer reads at most this many pages of a sample for the preview
-  AUTO_LABEL_MAX_CHARS: 60,  // "Auto-detect labels" accepts a "Label:" of at most this length
+  SAMPLE_PRELOAD_PAGES: 8,   // pages of a sample read as soon as it opens (to recognise headers and footers)
+  AUTO_LABEL_MAX_CHARS: 60,  // "Auto-detect labels" accepts a label of at most this length
+  AUTO_LABEL_LINES: 3,       // ...wrapped over at most 3 lines in its cell
 });
 
 /* =====================================================================================================
@@ -23465,9 +23524,10 @@ async function pageText(page) {
 function norm(s) { return s.normalize("NFKC").replace(/\s+/g, " ").trim().toLowerCase(); }
 
 // Group a page's items into visual lines (same baseline within tolerance), each sorted left to right.
-// A line: { y0, y1, x0, items, text }.
-function lines(pt) {
-  const sorted = pt.items.slice().sort((a, b) => a.y1 - b.y1 || a.x0 - b.x0);
+// A line: { y0, y1, x0, items, text }. Items marked as page furniture (section 3c) are left out unless
+// `all` is set.
+function lines(pt, all) {
+  const sorted = pt.items.filter(it => all || !it.furn).sort((a, b) => a.y1 - b.y1 || a.x0 - b.x0);
   const out = [];
   for (const it of sorted) {
     const height = it.y1 - it.y0;
@@ -23483,13 +23543,17 @@ function lines(pt) {
   return out.sort((a, b) => a.y1 - b.y1);
 }
 
-// The text of a run of items, with a space wherever the horizontal gap says there was one.
+// Two neighbouring items on a line sit in different drawn cells (section 3b). A drawn line between them is
+// a field boundary however small the white gap is.
+function cellBoundary(prev, it) { return !!(prev.cell && it.cell && prev.cell.key !== it.cell.key && it.cell.x0 >= prev.cell.x1 - T.CELL_SLACK); }
+
+// The text of a run of items, with a space wherever the horizontal gap (or a cell border) says there was one.
 function joinItems(items) {
   let s = "", prev = null;
   for (const it of items) {
     if (prev) {
       const gap = it.x0 - prev.x1, height = prev.y1 - prev.y0;
-      if (gap > height * T.WORD_GAP && !s.endsWith(" ") && !it.s.startsWith(" ")) s += " ";
+      if ((gap > height * T.WORD_GAP || cellBoundary(prev, it)) && !s.endsWith(" ") && !it.s.startsWith(" ")) s += " ";
     }
     s += it.s;
     prev = it;
@@ -23497,9 +23561,9 @@ function joinItems(items) {
   return s.replace(/\s+/g, " ").trim();
 }
 
-// Like joinItems, but keeps a TAB where the gap is wide enough to be a column or field boundary, and
-// records where each item starts in the string so a match can be checked against item boundaries.
-// Cached on the line object: { s, starts: [offset of item k], lens: [length of item k] }.
+// Like joinItems, but keeps a TAB where the gap is wide enough to be a column or field boundary (or a cell
+// border lies between the items), and records where each item starts in the string so a match can be
+// checked against item boundaries. Cached on the line object: { s, starts: [offset of item k], lens: [...] }.
 function lineBounds(line) {
   if (line._bounds) return line._bounds;
   let s = "", prev = null;
@@ -23510,7 +23574,7 @@ function lineBounds(line) {
     const piece = it.s.normalize("NFKC");
     if (prev) {
       const gap = it.x0 - prev.x1, height = prev.y1 - prev.y0;
-      if (gap > height * T.CELL_GAP) s += "\t";
+      if (gap > height * T.CELL_GAP || cellBoundary(prev, it)) s += "\t";
       else if (gap > height * T.WORD_GAP && !/\s$/.test(s) && !/^\s/.test(piece)) s += " ";
     }
     starts.push(s.length);
@@ -23538,6 +23602,338 @@ function bodyHeight(pageLines) {
 }
 
 /* =====================================================================================================
+   SECTION 3b. DRAWN LINES AND CELLS
+   Boxed forms separate fields with drawn lines, and the gap between two cells' texts can be narrower than
+   a word space. The lines come from two places, both read in the editor from the SAMPLE only:
+     - the PDF's own drawing commands (a born-digital form): vectorLines();
+     - the rendered page image (a scanned form, where the lines are pixels): rasterLines().
+   Either way the result is a GRID: { h: [{ y, x0, x1 }], v: [{ x, y0, y1 }] } in page points, y from the
+   top. The editor stores each sample page's grid in the template as fractions of the page, and at run time
+   applyGrid() lays the stored grid on the matching page of every record, shifted to where that record's
+   text is (a scan sits a few points off from the sample). With a grid on a page every text item knows its
+   CELL, the rectangle of drawn lines around it, and:
+     - lineBounds() puts a TAB between items in different cells, however small the gap (section 3);
+     - extractLabel() reads a value from the label's own cell, the cell to its right or the cell below it
+       (section 5, cellValue), so numbered paragraphs inside a box stay in the box;
+     - auto-detect offers the first text of each cell as a field (section 8).
+   No grid (a plain text PDF, or a page the sample never showed): everything works as before, by gaps.
+   ===================================================================================================== */
+
+// Drawn lines from the PDF's path commands. Paths that are only clipping regions are ignored. Coordinates
+// go through the current transformation matrix (ctm), which `transform`, `save`/`restore` and form
+// XObjects change, then through the viewport so they match pageText()'s coordinates.
+async function vectorLines(page) {
+  const vp = page.getViewport({ scale: 1 });
+  const ops = await page.getOperatorList();
+  const O = pdfjsLib.OPS, U = pdfjsLib.Util;
+  const grid = { h: [], v: [] };
+  const stack = [];
+  let ctm = vp.transform;
+  const paintedNext = i => {   // is the path built at op i then painted (stroked or filled), or only clipped?
+    for (let k = i + 1; k < ops.fnArray.length; k++) {
+      const f = ops.fnArray[k];
+      if (f >= O.stroke && f <= O.closeEOFillStroke) return true;
+      if (f === O.endPath) return false;
+    }
+    return false;
+  };
+  const addEdge = (ax, ay, bx, by) => {
+    const [x0, y0] = U.applyTransform([ax, ay], ctm), [x1, y1] = U.applyTransform([bx, by], ctm);
+    if (Math.abs(y1 - y0) <= 1.5 && Math.abs(x1 - x0) >= vp.width * T.LINE_MIN_H) grid.h.push({ y: (y0 + y1) / 2, x0: Math.min(x0, x1), x1: Math.max(x0, x1) });
+    else if (Math.abs(x1 - x0) <= 1.5 && Math.abs(y1 - y0) >= T.LINE_MIN_V) grid.v.push({ x: (x0 + x1) / 2, y0: Math.min(y0, y1), y1: Math.max(y0, y1) });
+  };
+  for (let i = 0; i < ops.fnArray.length; i++) {
+    const f = ops.fnArray[i], a = ops.argsArray[i];
+    if (f === O.save) stack.push(ctm);
+    else if (f === O.restore) ctm = stack.pop() || vp.transform;
+    else if (f === O.transform) ctm = U.transform(ctm, a);
+    else if (f === O.paintFormXObjectBegin) { stack.push(ctm); if (a && a[0]) ctm = U.transform(ctm, a[0]); }
+    else if (f === O.paintFormXObjectEnd) ctm = stack.pop() || vp.transform;
+    else if (f === O.constructPath && paintedNext(i)) {
+      const [codes, c] = a;
+      let k = 0, px = 0, py = 0;
+      for (const code of codes) {
+        if (code === O.rectangle) {
+          const x = c[k++], y = c[k++], w = c[k++], h = c[k++];
+          // A thin rectangle IS a line (that is how most borders are drawn); a wide one contributes its edges.
+          addEdge(x, y, x + w, y); addEdge(x, y + h, x + w, y + h); addEdge(x, y, x, y + h); addEdge(x + w, y, x + w, y + h);
+          if (Math.abs(U.applyTransform([x, y], ctm)[1] - U.applyTransform([x, y + h], ctm)[1]) <= 3) addEdge(x, y + h / 2, x + w, y + h / 2);
+          if (Math.abs(U.applyTransform([x, y], ctm)[0] - U.applyTransform([x + w, y], ctm)[0]) <= 3) addEdge(x + w / 2, y, x + w / 2, y + h);
+          px = x; py = y;
+        } else if (code === O.moveTo) { px = c[k++]; py = c[k++]; }
+        else if (code === O.lineTo) { const x = c[k++], y = c[k++]; addEdge(px, py, x, y); px = x; py = y; }
+        else if (code === O.curveTo) { k += 6; px = c[k - 2]; py = c[k - 1]; }
+        else if (code === O.curveTo2 || code === O.curveTo3) { k += 4; px = c[k - 2]; py = c[k - 1]; }
+      }
+    }
+  }
+  return mergeGrid(grid);
+}
+
+// Drawn lines from a rendered page: long runs of dark pixels along a row (horizontal) or a column
+// (vertical). `img` is the canvas ImageData, `scale` its pixels per page point. Scan noise may break a
+// line for a pixel or two, so short breaks are bridged; a run of rows that overlap is one (thick) line.
+function rasterLines(img, scale) {
+  const w = img.width, h = img.height, d = img.data;
+  const ink = new Uint8Array(w * h);
+  for (let p = 0, q = 0; p < d.length; p += 4, q++) ink[q] = (d[p] * 0.3 + d[p + 1] * 0.59 + d[p + 2] * 0.11) < T.INK ? 1 : 0;
+  // runs along one axis: at(i, j) reads pixel j of row/column i; n rows/columns of length len
+  const runs = (n, len, at, minLen) => {
+    const out = [];   // [i, j0, j1]
+    for (let i = 0; i < n; i++) {
+      let start = -1, gap = 0;
+      for (let j = 0; j <= len; j++) {
+        const on = j < len && at(i, j);
+        if (on) { if (start < 0) start = j; gap = 0; }
+        else if (start >= 0 && ++gap > T.LINE_GAP_PX) { if (j - gap - start >= minLen) out.push([i, start, j - gap]); start = -1; gap = 0; }
+      }
+    }
+    return out;
+  };
+  // Merge runs on neighbouring rows (columns) that overlap into one segment. A drawn line is thin and solid;
+  // a row of small bold text can also form a long dark run, but it is thicker (the letters' whole height)
+  // and full of small gaps, so bands that are too thick or too sparse are dropped.
+  const merge = (runList, at) => {
+    const segs = [];
+    for (const [i, a, b] of runList) {
+      const s = segs.find(s => s.open && i - s.iLast <= 1 && Math.min(b, s.b) - Math.max(a, s.a) > 0.7 * Math.min(b - a, s.b - s.a));
+      if (s) { s.iLast = i; s.iSum += i; s.n++; s.a = Math.min(s.a, a); s.b = Math.max(s.b, b); }
+      else segs.push({ iFirst: i, iLast: i, iSum: i, n: 1, a, b, open: true });
+      for (const t of segs) if (i - t.iLast > 1) t.open = false;
+    }
+    return segs.filter(s => {
+      if ((s.iLast - s.iFirst + 1) / scale > T.LINE_THICK_MAX) return false;
+      const mid = Math.round(s.iSum / s.n);   // solidity along the segment's middle row/column
+      let dark = 0;
+      for (let j = s.a; j < s.b; j++) dark += at(mid, j);
+      return dark >= (s.b - s.a) * T.LINE_SOLID;
+    });
+  };
+  const atH = (y, x) => ink[y * w + x], atV = (x, y) => ink[y * w + x];
+  const hs = merge(runs(h, w, atH, Math.round(w * T.LINE_MIN_H)), atH);
+  const vs = merge(runs(w, h, atV, Math.round(T.LINE_MIN_V * scale)), atV);
+  return mergeGrid({
+    h: hs.map(s => ({ y: s.iSum / s.n / scale, x0: s.a / scale, x1: s.b / scale })),
+    v: vs.map(s => ({ x: s.iSum / s.n / scale, y0: s.a / scale, y1: s.b / scale })),
+  });
+}
+// Drop horizontal "lines" that run through a line of text (a dense row of bold letters can look like one):
+// a segment lying within an item's own height and overlapping it by half the segment's length.
+function dropTextLines(grid, pt) {
+  const h = grid.h.filter(s => !pt.items.some(it => s.y >= it.y0 - 0.5 && s.y <= it.y1 + 0.5
+    && Math.min(s.x1, it.x1) - Math.max(s.x0, it.x0) >= 0.5 * (s.x1 - s.x0)));
+  return { h, v: grid.v };
+}
+
+// Join segments that lie on the same line (within LINE_MERGE) and overlap or nearly touch, from either source.
+function mergeGrid(grid) {
+  const along = (list, pos, a, b) => {
+    const out = [];
+    for (const s of list.slice().sort((p, q) => p[pos] - q[pos] || p[a] - q[a])) {
+      const t = out.find(t => Math.abs(t[pos] - s[pos]) <= T.LINE_MERGE && s[a] <= t[b] + 3 && s[b] >= t[a] - 3);
+      if (t) { t[pos] = (t[pos] + s[pos]) / 2; t[a] = Math.min(t[a], s[a]); t[b] = Math.max(t[b], s[b]); }
+      else out.push({ ...s });
+    }
+    return out;
+  };
+  return { h: along(grid.h, "y", "x0", "x1"), v: along(grid.v, "x", "y0", "y1") };
+}
+function unionGrid(a, b) { return mergeGrid({ h: [...a.h, ...b.h], v: [...a.v, ...b.v] }); }
+
+// The cell around an item: the nearest drawn line on each side of the item's centre (or the page edge).
+// At least two sides must be drawn lines, otherwise the item is not in a cell. Returns null or
+// { x0, y0, x1, y1, key } where key identifies the cell.
+function cellOf(it, grid, w, h) {
+  const cx = (it.x0 + it.x1) / 2, cy = (it.y0 + it.y1) / 2, k = T.CELL_SLACK;
+  let x0 = 0, x1 = w, y0 = 0, y1 = h, sides = 0;
+  for (const s of grid.v) {
+    if (cy < s.y0 - k || cy > s.y1 + k) continue;
+    if (s.x <= cx && s.x > x0) { x0 = s.x; }
+    else if (s.x > cx && s.x < x1) { x1 = s.x; }
+  }
+  for (const s of grid.h) {
+    if (cx < s.x0 - k || cx > s.x1 + k) continue;
+    if (s.y <= cy && s.y > y0) { y0 = s.y; }
+    else if (s.y > cy && s.y < y1) { y1 = s.y; }
+  }
+  sides = (x0 > 0) + (x1 < w) + (y0 > 0) + (y1 < h);
+  if (sides < 2) return null;
+  return { x0, y0, x1, y1, key: `${Math.round(x0)},${Math.round(y0)},${Math.round(x1)},${Math.round(y1)}` };
+}
+
+// The words of one line with their positions: [{ w, x, y }], x estimated inside an item from the word's
+// character offset. One PDF gives "1. Control Number" as one item, an OCR layer gives three items; both
+// yield the same words.
+function lineWords(line) {
+  const out = [];
+  for (const it of line.items) {
+    const s = norm(it.s), n = s.length || 1;
+    let off = 0;
+    for (const w of s.split(" ")) {
+      if (w) out.push({ w, x: it.x0 + (it.x1 - it.x0) * off / n, y: it.y0 });
+      off += w.length + 1;
+    }
+  }
+  return out;
+}
+// Every run of one to three consecutive words on a page, as anchor candidates: [{ w: "1. control number",
+// x, y }] at the position of the run's first word. Cached on the page.
+function pageWords(pt) {
+  if (pt._words) return pt._words;
+  const out = [];
+  for (const line of lines(pt)) {
+    const words = lineWords(line);
+    for (let k = 0; k < words.length; k++) {
+      for (let n = 1; n <= T.GRID_ANCHOR_WORDS && k + n <= words.length; n++) {
+        out.push({ w: words.slice(k, k + n).map(x => x.w).join(" "), x: words[k].x, y: words[k].y });
+      }
+    }
+  }
+  return (pt._words = out);
+}
+
+// A grid as stored in the template: fractions of the page, so it does not depend on the page size, plus
+// anchors (the first few words of each cell's first line, mostly labels) with their positions, used to
+// line the grid up on a record. Several words together, so that a common word in a value does not match
+// by chance somewhere else on another record's page.
+function gridToStored(grid, pt) {
+  const r4 = n => Math.round(n * 1e4) / 1e4;
+  const byCell = new Map();
+  for (const it of pt.items) {
+    if (it.furn) continue;
+    const cell = cellOf(it, grid, pt.w, pt.h);
+    if (!cell) continue;
+    if (!byCell.has(cell.key)) byCell.set(cell.key, { cell, items: [] });
+    byCell.get(cell.key).items.push(it);
+  }
+  const anchors = [];
+  for (const { items } of [...byCell.values()].sort((a, b) => a.cell.y0 - b.cell.y0 || a.cell.x0 - b.cell.x0)) {
+    const first = lines({ items })[0];
+    if (!first) continue;
+    const words = lineWords(first).slice(0, T.GRID_ANCHOR_WORDS);
+    const text = words.map(x => x.w).join(" ");
+    if (text.length < 4 || !/\p{L}/u.test(text)) continue;
+    anchors.push([text, r4(words[0].x / pt.w), r4(words[0].y / pt.h)]);
+    if (anchors.length >= T.GRID_ANCHORS_MAX) break;
+  }
+  return {
+    h: grid.h.map(s => [r4(s.y / pt.h), r4(s.x0 / pt.w), r4(s.x1 / pt.w)]),
+    v: grid.v.map(s => [r4(s.x / pt.w), r4(s.y0 / pt.h), r4(s.y1 / pt.h)]),
+    anchors,
+  };
+}
+
+// Lay a stored grid on a page: find the anchor words, measure how far each sits from where the sample had
+// it, shift the lines accordingly and give every item its cell. Columns get one shift (the median). Rows
+// are shifted individually: a cell whose value runs to an extra line pushes everything below it down, so
+// each horizontal line takes the vertical offset of the nearest anchor word BELOW it (the label of the next
+// row, which has moved with it). Leaves the page without a grid (returns false) when too few anchors are
+// found or none is within GRID_ALIGN_MAX: then this is not the page the grid describes.
+function applyGrid(pt, stored) {
+  pt.grid = null; pt.gridShift = null;
+  for (const it of pt.items) it.cell = null;
+  if (!stored || !pt.items.length) return false;
+  const words = pageWords(pt), matched = [];
+  for (const [text, fx, fy] of stored.anchors || []) {
+    const ex = fx * pt.w, ey = fy * pt.h;
+    let best = null;
+    for (const wd of words) {
+      if (wd.w !== text) continue;
+      const d = Math.hypot(wd.x - ex, wd.y - ey);
+      if (d <= T.GRID_ALIGN_MAX && (!best || d < best.d)) best = { d, fx, fy, dx: wd.x - ex, dy: wd.y - ey };
+    }
+    if (best) matched.push(best);
+  }
+  if (matched.length < T.GRID_ALIGN_MIN) return false;
+  matched.sort((a, b) => a.fy - b.fy);
+  const median = a => { const s = a.slice().sort((p, q) => p - q); return s[Math.floor(s.length / 2)]; };
+  const dx = median(matched.map(m => m.dx));
+  // The vertical offset for a line at fraction fy spanning fx0..fx1: that of the nearest anchor below it
+  // within its horizontal extent (side-by-side blocks grow independently), else the nearest below anywhere.
+  const dyAt = (fy, fx0, fx1) => {
+    const below = matched.find(m => m.fy >= fy - 0.003 && m.fx >= fx0 - 0.01 && m.fx <= fx1 + 0.01) || matched.find(m => m.fy >= fy - 0.003);
+    return (below || matched[matched.length - 1]).dy;
+  };
+  const hShift = stored.h.map(([y, x0, x1]) => dyAt(y, x0, x1));
+  // A vertical line's ends move with the horizontal lines they meet (its corners), so cells stay closed.
+  const endShift = (x, y) => {
+    let best = -1, bestD = 0.004;
+    stored.h.forEach(([hy, x0, x1], k) => { const d = Math.abs(hy - y); if (d <= bestD && x >= x0 - 0.01 && x <= x1 + 0.01) { bestD = d; best = k; } });
+    return best >= 0 ? hShift[best] : dyAt(y, x - 0.1, x + 0.1);
+  };
+  const grid = {
+    h: stored.h.map(([y, x0, x1], k) => ({ y: y * pt.h + hShift[k], x0: x0 * pt.w + dx, x1: x1 * pt.w + dx })),
+    v: stored.v.map(([x, y0, y1]) => ({ x: x * pt.w + dx, y0: y0 * pt.h + endShift(x, y0), y1: y1 * pt.h + endShift(x, y1) })),
+  };
+  pt.grid = grid; pt.gridShift = { dx, dy: median(matched.map(m => m.dy)), anchors: matched.length };
+  for (const it of pt.items) it.cell = cellOf(it, grid, pt.w, pt.h);
+  return true;
+}
+// Items of a page whose centre lies inside a cell (not page furniture).
+function itemsInCell(pt, cell) {
+  return pt.items.filter(it => !it.furn && (it.x0 + it.x1) / 2 >= cell.x0 && (it.x0 + it.x1) / 2 <= cell.x1
+    && (it.y0 + it.y1) / 2 >= cell.y0 && (it.y0 + it.y1) / 2 <= cell.y1);
+}
+// The cell immediately to the right of `cell` (sharing its top edge), or directly below it (sharing its
+// left edge or overlapping it by more than half), found through the items that sit in it. Null if none.
+function neighbourCell(pt, cell, side) {
+  const k = T.CELL_SLACK * 2;
+  for (const it of pt.items) {
+    const c = it.cell;
+    if (!c || c.key === cell.key || it.furn) continue;
+    if (side === "right" && Math.abs(c.x0 - cell.x1) <= k && Math.abs(c.y0 - cell.y0) <= k) return c;
+    if (side === "below" && Math.abs(c.y0 - cell.y1) <= k && Math.min(c.x1, cell.x1) - Math.max(c.x0, cell.x0) > 0.5 * (cell.x1 - cell.x0)) return c;
+  }
+  return null;
+}
+
+/* =====================================================================================================
+   SECTION 3c. PAGE FURNITURE: running headers and footers
+   A line of small text near the top or bottom edge that reads the same (digits ignored, so "Page 3 of 40"
+   equals "Page 4 of 40") on most pages of a record is a running header or footer: a form title, a software
+   version, a print timestamp. It is marked on every page and left out of values and of auto-detect. A line
+   that begins with one of the template's labels is never furniture, so a box title repeated on
+   continuation pages ("Description of Work (cont.)") stays. The template's ignoreFurniture switch turns
+   this off.
+   ===================================================================================================== */
+function markFurniture(pts, template) {
+  for (const pt of pts) { pt._words = null; for (const it of pt.items) it.furn = false; }
+  if (template && template.ignoreFurniture === false) return;
+  const withText = pts.filter(p => p && p.items.length);
+  if (withText.length < T.FURNITURE_MIN_PAGES) return;
+  const compiledAll = template ? template.forms.map(compiledForm) : [];
+  const sizes = new Map();
+  const perPage = withText.map(pt => {
+    const ls = lines(pt, true);
+    for (const l of ls) { const k = Math.round(l.y1 - l.y0); sizes.set(k, (sizes.get(k) || 0) + 1); }
+    return ls;
+  });
+  let body = 0, best = 0;
+  for (const [k, c] of sizes) if (c > best) { best = c; body = k; }
+  const band = (pt, l) => l.y1 < pt.h * T.FURNITURE_BAND ? "top" : l.y0 > pt.h * (1 - T.FURNITURE_BAND) ? "bottom" : null;
+  const pagesWith = new Map();   // key -> Set of page indexes
+  perPage.forEach((ls, i) => {
+    for (const l of ls) {
+      const b = band(withText[i], l);
+      if (!b) continue;
+      const key = b + "|" + headerKey(l.text);
+      if (!pagesWith.has(key)) pagesWith.set(key, new Set());
+      pagesWith.get(key).add(i);
+    }
+  });
+  const needed = Math.max(T.FURNITURE_MIN_PAGES, Math.ceil(withText.length * T.FURNITURE_SHARE));
+  perPage.forEach((ls, i) => {
+    for (const l of ls) {
+      const b = band(withText[i], l);
+      if (!b || l.y1 - l.y0 > body * T.FURNITURE_MAX_SIZE) continue;
+      if ((pagesWith.get(b + "|" + headerKey(l.text)) || new Set()).size < needed) continue;
+      if (compiledAll.some(c => startsWithLabel(l.text, c) || startsWithLabel(l.text, c, true))) continue;
+      for (const it of l.items) it.furn = true;
+    }
+  });
+}
+
+/* =====================================================================================================
    SECTION 4. LABELS: from a typed field name to a pattern that finds the label on the page
    "Work Item No." in the list must find "WORK ITEM NO:", "12. Work Item No.", "Work Item No ......" and
    "Work Item No" sitting alone in a grid cell. Matching is word by word, ignoring case, spacing and
@@ -23556,8 +23952,10 @@ const ITEM_NUMBER = `(?:\\(?\\d{1,3}[a-z]?[.)]|\\(?[a-z][.)])?[ \\t]*`;
 const LABEL_SEPARATOR = `[ \\t]*(?:[:\uff1a#]|[.\u2026\u00b7_][ \\t.\u2026\u00b7_]+|[.\\-\u2013])?[ \\t]*`;
 // Closing punctuation a label may end with, then "not followed by another letter or digit".
 const LABEL_CLOSE = `[)\\]\uff09\u300d\u300f"'\u2019]*(?![${ALNUM}])`;
+// A continuation marker beside a box title on a later page: "(cont.)", "cont'd", "CONTINUED", "(continuation)".
+const CONT_MARK = `[(\\[]?\\s*(?:cont(?:'d|\u2019d|inued|inuation|d)?\\.?)\\s*[)\\]]?\\.?`;
 
-// For one field: a list of compiled spellings, each with three regular expressions.
+// For one field: a list of compiled spellings, each with four regular expressions.
 function compileLabel(label) {
   return aliasesOf(label).map(alias => {
     const words = labelWords(alias);
@@ -23568,6 +23966,8 @@ function compileLabel(label) {
     return {
       // The label at the start of a string (used at each item boundary of a line).
       at: new RegExp(`^${ITEM_NUMBER}${body}${LABEL_CLOSE}${LABEL_SEPARATOR}`, "iu"),
+      // The label with a continuation marker before or after it: the box continues here from an earlier page.
+      cont: new RegExp(`^(?:${CONT_MARK}[ \\t]*)?${ITEM_NUMBER}${body}${LABEL_CLOSE}[ \\t]*${CONT_MARK}${LABEL_SEPARATOR}|^${CONT_MARK}[ \\t]*${ITEM_NUMBER}${body}${LABEL_CLOSE}${LABEL_SEPARATOR}`, "iu"),
       // The label appearing INSIDE a value, followed by a colon or leaders: the value stops there.
       any: new RegExp(`(?<![${ALNUM}])${ITEM_NUMBER}${body}${LABEL_CLOSE}[ \\t]*(?:[:\uff1a#]|[.\u2026\u00b7_]{2,})`, "iu"),
       // The label after a wide gap (a TAB), with no colon at all: a grid cell. The value stops there too.
@@ -23577,23 +23977,31 @@ function compileLabel(label) {
 }
 
 // Compiled labels for a whole form, cached per form object (saveTemplate() drops the cache on any edit).
+// The Map is field name -> compiled spellings of the field's label; its `containers` property holds, for
+// fields written "CONTAINER > LABEL", the compiled spellings of the container (section 5, containerRegion).
 const compiledForms = new WeakMap();
 function compiledForm(form) {
   let compiled = compiledForms.get(form);
   if (!compiled) {
     compiled = new Map();   // field name -> compiled spellings
-    for (const field of form.fields) if (field.method !== "box") compiled.set(field.name, compileLabel(field.label || field.name));
+    compiled.containers = new Map();
+    for (const field of form.fields) {
+      if (field.method === "box") continue;
+      compiled.set(field.name, compileLabel(field.label || field.name));
+      if (field.container) compiled.containers.set(field.name, compileLabel(field.container));
+    }
     compiledForms.set(form, compiled);
   }
   return compiled;
 }
 
-// Does a line start with one of the form's labels? Used to know where a value stops.
-function startsWithLabel(text, compiled) {
+// Does a line start with one of the form's labels? Used to know where a value stops. With `cont`, the
+// label must carry a continuation marker ("Description of Work (cont.)").
+function startsWithLabel(text, compiled, cont) {
   const t = text.normalize("NFKC").trimStart();
   for (const spellings of compiled.values()) {
     for (const c of spellings) {
-      const m = c.at.exec(t);
+      const m = (cont ? c.cont : c.at).exec(t);
       // Accept when the label is followed by a separator, or is the whole line (a bare label in a cell).
       if (m && (/[:\uff1a#\t]|[.\u2026\u00b7_]{2}/.test(m[0]) || m[0].length >= t.length - 1)) return true;
     }
@@ -23732,7 +24140,7 @@ function collectBlock(pageLines, j0, st, compiled, prev) {
     const gap = last ? line.y0 - last.y1 : 0;
     const lineH = last ? last.y1 - last.y0 : (st.refH || (line.y1 - line.y0));
     if (last && gap > lineH * T.SECTION_GAP) break;
-    if (startsWithLabel(line.text, compiled) || UNLISTED_LINE_START.test(line.text)) break;
+    if (startsWithLabel(line.text, compiled) || (UNLISTED_LINE_START.test(line.text) && !isNarrativeLine(line, pageLines))) break;
     if (st.hasValue && line.x0 < st.labelX0 - T.X_TOLERANCE) break;      // wandered left of the field
     if (st.labelColumn && line.x0 <= st.labelX0 + T.X_TOLERANCE) break;  // next row of a label column
     const thisH = line.y1 - line.y0, refH = parts.length ? lineH : st.refH;
@@ -23761,6 +24169,22 @@ function collectBlock(pageLines, j0, st, compiled, prev) {
   return { parts, ranOff: j >= pageLines.length, last: parts.length ? last : null };
 }
 
+// The rightmost text position on a page (cached on the lines array).
+function rightEdgeOf(pageLines) {
+  if (pageLines._right === undefined) pageLines._right = Math.max(0, ...pageLines.map(l => l.items[l.items.length - 1].x1));
+  return pageLines._right;
+}
+// A numbered line such as "2.1 Location: The pump was found ..." inside a narrative looks like an unlisted
+// label but is a paragraph: its text after the colon is long, it has no column break, and it reaches the
+// right edge of the text. A real form line ("12. Date Started: 2024-01-01") has a short value.
+function isNarrativeLine(line, pageLines) {
+  const s = lineBounds(line).s, m = UNLISTED_LINE_START.exec(s);
+  // Only the numbered-with-colon shape can be narrative; "Title ........ value" (leaders) is always a field.
+  if (!m || /\t/.test(s) || /[.\u2026\u00b7_]{3,}/.test(m[0]) || !/^\s*\(?\d/.test(m[0])) return false;
+  const lineH = line.y1 - line.y0, lastX = line.items[line.items.length - 1].x1;
+  return s.length - m[0].length >= T.NARRATIVE_MIN_CHARS && lastX > rightEdgeOf(pageLines) - lineH * T.WRAP_RIGHT_SLACK;
+}
+
 // A page header line, compared with digits removed so "Page 3 of 40" equals "Page 4 of 40".
 const headerKey = t => t.toLowerCase().replace(/[0-9]+/g, "#").replace(/\s+/g, " ").trim();
 
@@ -23772,7 +24196,8 @@ function continueOnPage(pageLines, pt, st, compiled, prevTop) {
   let k = 0;
   for (; k < pageLines.length && k < T.HEADER_LINES_MAX; k++) {
     const line = pageLines[k], lineH = line.y1 - line.y0;
-    if (startsWithLabel(line.text, compiled)) return { text: "", open: false };
+    // A label ends it; a label with a continuation marker is read by followValue() instead, not here.
+    if (startsWithLabel(line.text, compiled) || startsWithLabel(line.text, compiled, true)) return { text: "", open: false };
     const sameColumn = st.blockX === null
       ? Math.abs(line.x0 - st.labelX0) <= Math.max(T.X_TOLERANCE, lineH) * 2
       : Math.abs(line.x0 - st.blockX) <= Math.max(T.X_TOLERANCE, lineH);
@@ -23792,25 +24217,100 @@ function continueOnPage(pageLines, pt, st, compiled, prevTop) {
   return { text: joinValue(r.parts), open: r.ranOff && !!r.last && r.last.y1 > pt.h * T.PAGE_BOTTOM };
 }
 
-// A label may wrap over two or three lines inside its grid cell ("Requesting" / "Activity"). Starting from
-// item `a` of line `i` (whose text is followed by a TAB), see whether the pieces directly beneath it complete
-// one of this field's spellings. Returns the indexes of the lines used, or null.
+// A label may wrap over two or three lines inside its grid cell ("Requesting" / "Activity", or "11. TOTAL" /
+// "HOURS"). Starting from item `a` of line `i`, take the rest of that line up to the next column break (TAB)
+// as the first piece, then see whether the lines directly beneath it, in the same cell and the same type
+// size, complete one of this field's spellings. Returns { used: [line indexes], items: Set of the pieces'
+// items, end: offset in the line's bounds string just after the first piece }, or null.
 function wrappedCellLabel(pageLines, i, a, spellings) {
-  const line = pageLines[i], first = line.items[a], nextCellX = line.items[a + 1].x0;
-  const used = [];
-  let candidate = first.s.trim(), prev = line;
+  const line = pageLines[i], first = line.items[a], bounds = lineBounds(line);
+  const from = bounds.starts[a], tabAt = bounds.s.indexOf("\t", from);
+  const end = tabAt < 0 ? bounds.s.length : tabAt;
+  const firstText = bounds.s.slice(from, end).trim();
+  const nextIdx = line.items.findIndex((it, k) => k > a && bounds.starts[k] >= end);
+  const cellRight = nextIdx >= 0 ? line.items[nextIdx].x0 : (first.cell ? first.cell.x1 : Infinity);
+  const firstH = first.y1 - first.y0;
+  const used = [], items = new Set(line.items.filter((it, k) => k >= a && (nextIdx < 0 || k < nextIdx)));
+  let candidate = firstText, prev = line;
   for (let q = i + 1; q < pageLines.length && used.length < T.LABEL_WRAP_LINES; q++) {
     const below = pageLines[q];
-    if (below.y0 - prev.y1 > (line.y1 - line.y0) * T.LABEL_WRAP_GAP) break;
-    const piece = below.items.find(it => Math.abs(it.x0 - first.x0) < T.X_TOLERANCE && it.x1 <= nextCellX + 1);
-    if (!piece) break;
-    candidate += " " + piece.s.trim();
+    if (below.y0 - prev.y1 > firstH * T.LABEL_WRAP_GAP) break;
+    const pieces = below.items.filter(it => it.x0 >= first.x0 - T.X_TOLERANCE && it.x1 <= cellRight + 1
+      && (!first.cell || !it.cell || it.cell.key === first.cell.key));
+    if (!pieces.length || Math.abs(pieces[0].x0 - first.x0) >= T.X_TOLERANCE * 2) break;
+    if (Math.abs((pieces[0].y1 - pieces[0].y0) - firstH) > firstH * T.SAME_SIZE) break;   // a value, not more label
+    candidate += " " + joinItems(pieces);
     used.push(q);
+    pieces.forEach(it => items.add(it));
     prev = below;
     const wanted = candidate.replace(/[:\uff1a\s]+$/, "").length;
-    if (spellings.some(c => { const m = c.at.exec(candidate); return m && m[0].trimEnd().length >= wanted; })) return used;
+    if (spellings.some(c => { const m = c.at.exec(candidate); return m && m[0].trimEnd().length >= wanted; })) return { used, items, end };
   }
   return null;
+}
+
+// Does this cell hold a label (with or without its value) rather than a bare value? Used to decide whether a
+// label that is alone in its cell has its value in the next cell, or whether that next cell is the next
+// field. A listed label, or the shape "12. Word words" / "Word words:" with no other digits, in a short
+// first line, counts as a label.
+function looksLikeLabelCell(pt, cell, compiled) {
+  const cl = lines({ items: itemsInCell(pt, cell) });
+  if (!cl.length) return false;
+  const first = cl[0].text.normalize("NFKC");
+  if (startsWithLabel(first, compiled)) return true;
+  const shape = new RegExp(String.raw`^${UNLISTED_NUMBER}[\p{L}][\p{L} ()\/&'\-.]{1,40}[:\uff1a]?$`, "u");
+  return first.length <= T.AUTO_LABEL_MAX_CHARS && shape.test(first) && (cl.length >= 2 || /[:\uff1a]$/.test(first));
+}
+
+// Lines of one cell joined into a value, with a paragraph break ("\n\n") wherever the gap between two lines
+// is clearly larger than the cell's own line spacing (same rule as collectBlock).
+function joinCellLines(cl) {
+  const parts = [];
+  let lineGap = null, prev = null;
+  for (const l of cl) {
+    if (prev) {
+      const gap = l.y0 - prev.y1, h = prev.y1 - prev.y0;
+      const paragraph = lineGap !== null ? gap > Math.max(lineGap * T.PARAGRAPH_GAP_RATIO, lineGap + h * T.PARAGRAPH_GAP_EXTRA) : gap > h * T.PARAGRAPH_GAP_FIRST;
+      if (paragraph) parts.push("\n\n"); else lineGap = lineGap === null ? gap : Math.min(lineGap, gap);
+    }
+    parts.push(l.text);
+    prev = l;
+  }
+  return { parts, lineGap };
+}
+
+// A boxed form: the value of the label found at item `a` of line `i`, read from the drawn cells.
+//   - the label's own cell holds more text than the label: that text is the value (so a box whose title
+//     sits inside it, with numbered paragraphs below, is read whole);
+//   - the label is alone in its cell: the value is the cell to the right (a "Label | value" row) or, failing
+//     that, the cell below (a title row over a body cell), unless that cell holds the next label, in which
+//     case this field is empty.
+// `labelEnd` is the offset in the line's bounds string just after the label and its separator; `wrapped`
+// is wrappedCellLabel()'s result when the label wraps. Returns { text, open, st } or null when the cells do
+// not settle it (then the gap-based reading in extractLabel is used).
+function cellValue(pt, pageLines, i, a, labelEnd, wrapped, fieldName, compiled) {
+  const line = pageLines[i], labelItem = line.items[a], cell = labelItem.cell, bounds = lineBounds(line);
+  const labelItems = new Set(line.items.filter((it, k) => k >= a && bounds.starts[k] < labelEnd));
+  if (wrapped) wrapped.items.forEach(it => labelItems.add(it));
+  let target = cell, valueItems = itemsInCell(pt, cell).filter(it => !labelItems.has(it));
+  if (!valueItems.length) {
+    const right = neighbourCell(pt, cell, "right"), below = neighbourCell(pt, cell, "below");
+    if (right && !looksLikeLabelCell(pt, right, compiled)) target = right;
+    else if (below && !looksLikeLabelCell(pt, below, compiled)) target = below;
+    else return { text: "", open: false, st: null };
+    valueItems = itemsInCell(pt, target);
+  }
+  const cl = lines({ items: valueItems });
+  if (!cl.length) return { text: "", open: false, st: null };
+  const { parts, lineGap } = joinCellLines(cl);
+  const last = cl[cl.length - 1], lastH = last.y1 - last.y0;
+  // The cell reaches the bottom of the page: the box may go on overleaf (continueOnPage decides).
+  const open = target.y1 >= pt.h * (1 - T.FURNITURE_BAND) && last.y1 > pt.h * T.PAGE_BOTTOM;
+  const st = {
+    blockX: cl[0].x0, refH: lastH, lineGap, labelX0: labelItem.x0, hasValue: true, labelColumn: false, cols: null, labelLines: null,
+    lastX1: last.items[last.items.length - 1].x1, maxX1: Math.max(...cl.map(l => l.items[l.items.length - 1].x1)),
+  };
+  return { text: joinValue(parts), open, st };
 }
 
 // Running text (see TERMS): if the label line reaches close to the rightmost text on the page, and the next
@@ -23829,28 +24329,68 @@ function runningTextWrap(pageLines, i, fieldName, compiled) {
   return { text: nextText.slice(0, cut), cutShort: cut < nextText.length };
 }
 
-// Find field `fieldName` on page `pt` and return its value, or null if its label is not on this page.
-// ctx is per page: { lines, open }. If the value runs off the bottom of the page, ctx.open records the block
-// state so readForm() can continue it on the next page.
-function extractLabel(pt, fieldName, compiled, ctx) {
-  const spellings = compiled.get(fieldName) || [];
-  const pageLines = ctx.lines || (ctx.lines = lines(pt));
+// The first place on a page where one of `spellings` starts at an item and ends at a boundary (a plain
+// match, without the value logic of extractLabel). Used to locate a field's CONTAINER ("APPROVED BY").
+// Returns { i, a, item } or null.
+function findLabel(pageLines, spellings) {
   for (let i = 0; i < pageLines.length; i++) {
     const line = pageLines[i], bounds = lineBounds(line);
     for (let a = 0; a < line.items.length; a++) {
+      const tail = bounds.s.slice(bounds.starts[a]).trimStart();
+      let best = null;
+      for (const c of spellings) { const m = c.at.exec(tail); if (m && (!best || m[0].length > best.length)) best = m[0]; }
+      if (!best) continue;
+      const end = bounds.s.length - tail.length + best.length;
+      if (/[:\uff1a#]|[.\u2026\u00b7_]{2}/.test(best) || end >= bounds.s.trimEnd().length || bounds.starts.includes(end) || bounds.starts.includes(end + 1)) return { i, a, item: line.items[a] };
+    }
+  }
+  return null;
+}
+// The part of the page a container's sub-labels may be in: from the container's line downwards, between
+// the container cell's sides (or, without cells, from the container's left edge to the next text on its
+// line). "APPROVED BY > DATE" then finds the DATE inside that block rather than the first DATE on the page.
+function containerRegion(pt, hit) {
+  const item = hit.item;
+  let x0 = item.x0 - T.X_TOLERANCE, x1 = pt.w;
+  if (item.cell) { x0 = item.cell.x0 - T.CELL_SLACK; x1 = item.cell.x1 + T.CELL_SLACK; }
+  else {
+    const pageLine = hit.line, h = item.y1 - item.y0;
+    const next = pageLine.items.find((it, k) => k > hit.a && it.x0 > item.x1 + h);
+    if (next) x1 = next.x0 - 1;
+  }
+  return { x0, x1, yFrom: item.y0 - 1 };
+}
+
+// Find field `fieldName` on page `pt` and return its value, or null if its label is not on this page.
+// ctx is per page: { lines, open }. If the value runs off the bottom of the page, ctx.open records the block
+// state so readForm() can continue it on the next page. With `cont`, only the label WITH a continuation
+// marker is looked for ("Description of Work (cont.)" on a later page). `opts.region` limits the search to
+// part of the page (a container's block); `opts.skip` passes over that many matches first (a field written
+// "DATE #3" wants the third DATE), and is decremented for each match passed over.
+function extractLabel(pt, fieldName, compiled, ctx, cont, opts) {
+  const spellings = compiled.get(fieldName) || [];
+  const pageLines = ctx.lines || (ctx.lines = lines(pt));
+  const re = cont ? "cont" : "at", region = opts && opts.region;
+  for (let i = 0; i < pageLines.length; i++) {
+    const line = pageLines[i], bounds = lineBounds(line);
+    if (region && line.y1 <= region.yFrom) continue;
+    for (let a = 0; a < line.items.length; a++) {
+      if (region && (line.items[a].x0 < region.x0 || line.items[a].x0 > region.x1)) continue;
       // ---- 1. does one of this field's spellings start at item a? ----
       const fromItem = bounds.s.slice(bounds.starts[a]);
       const leadingSpaces = fromItem.length - fromItem.trimStart().length;
       const tail = fromItem.slice(leadingSpaces);
       let best = null;        // the matched label text, including its separator
-      let wrapped = null;     // line indexes of a label that wraps inside its cell
-      for (const c of spellings) { const m = c.at.exec(tail); if (m && (!best || m[0].length > best.length)) best = m[0]; }
-      if (!best && a + 1 < line.items.length && bounds.s[bounds.starts[a] + bounds.lens[a]] === "\t") {
+      let wrapped = null;     // a label that wraps inside its cell: { used, items, end }
+      for (const c of spellings) { const m = c[re].exec(tail); if (m && (!best || m[0].length > best.length)) best = m[0]; }
+      // No match on this line alone: the label may wrap onto the next line inside its cell (the item is
+      // followed by a column break, is the last on its line, or sits in a drawn cell).
+      if (!best && !cont && (a + 1 === line.items.length || bounds.s[bounds.starts[a] + bounds.lens[a]] === "\t" || line.items[a].cell)) {
         wrapped = wrappedCellLabel(pageLines, i, a, spellings);
-        if (wrapped) best = line.items[a].s.trimStart() + "\t";
+        if (wrapped) best = bounds.s.slice(bounds.starts[a], wrapped.end).trim() + "\t";
       }
       if (!best) continue;
-      const end = wrapped ? bounds.starts[a] + bounds.lens[a] + 1 : bounds.starts[a] + leadingSpaces + best.length;
+      const end = wrapped ? wrapped.end + 1 : bounds.starts[a] + leadingSpaces + best.length;
 
       // The label must end at a separator, an item boundary, or the end of the line, so that "Date" does
       // not match the first half of "Date Received".
@@ -23862,9 +24402,16 @@ function extractLabel(pt, fieldName, compiled, ctx) {
         let beaten = false;
         for (const [otherName, others] of compiled) {
           if (otherName === fieldName) continue;
-          for (const c of others) { const m = c.at.exec(tail); if (m && m[0].trimEnd().length > best.trimEnd().length) beaten = true; }
+          for (const c of others) { const m = c[re].exec(tail); if (m && m[0].trimEnd().length > best.trimEnd().length) beaten = true; }
         }
         if (beaten) continue;
+      }
+      if (opts && opts.skip > 0) { opts.skip--; continue; }   // "LABEL #n": not this one yet
+
+      // ---- 2a. a boxed form with drawn cells: the cells decide what the value is (section 3b) ----
+      if (line.items[a].cell) {
+        const r = cellValue(pt, pageLines, i, a, Math.min(end, bounds.s.length), wrapped, fieldName, compiled);
+        if (r) { if (r.open && r.st) ctx.open = { name: fieldName, st: r.st }; return r.text; }
       }
 
       // ---- 2. the value on the label's own line ----
@@ -23882,10 +24429,15 @@ function extractLabel(pt, fieldName, compiled, ctx) {
           if (k >= 0) columnRight = line.items[k].x0;
         }
       }
+      // Inside a container's block, the value stops at the block's right edge.
+      if (region) {
+        const k = line.items.findIndex((it, q) => q > a && it.x0 > region.x1);
+        if (k >= 0 && bounds.starts[k] - end < cut) { cut = Math.max(0, bounds.starts[k] - end); if (columnRight === Infinity) columnRight = line.items[k].x0; }
+      }
       let value = rest.slice(0, cut).trim();
       // Running text with another field later on this same line: the lines below belong to that later
       // field (or to the next row), so this value takes nothing from them.
-      let cutShort = !columnar && cut < rest.length;
+      let cutShort = !columnar && cut < rest.length && !region;
       const labelX0 = line.items[a].x0, lineH = line.y1 - line.y0;
       let from = i + 1;                                 // first line that may continue the value
       // Only a label that is NOT first on its line can wrap this way: when the label starts the line, a next
@@ -23897,6 +24449,16 @@ function extractLabel(pt, fieldName, compiled, ctx) {
 
       // ---- 3. the lines below, and possibly the next page ----
       const valueItem = line.items.find((it, k) => k > a && bounds.starts[k] >= end - 1);   // first item of the value
+      // A grid without drawn lines, label OVER value: the cell to the right already holds the next label, and
+      // the text under this label is in another type size (a small label over a larger value). Then the value
+      // column is the label's own column, not the neighbour's.
+      let cols = columnar && valueItem ? { left: valueItem.x0, right: columnRight } : null;
+      if (columnar && !value && valueItem && pageLines[i + 1]) {
+        const under = sliceLine(pageLines[i + 1], labelX0 - T.X_TOLERANCE, valueItem.x0 - 2);
+        if (under && Math.abs((under.y1 - under.y0) - lineH) > lineH * T.SAME_SIZE) cols = { left: labelX0 - T.X_TOLERANCE, right: valueItem.x0 };
+      }
+      // Inside a container's block, the lines below are read within the block's width only.
+      if (region && !cols) cols = { left: region.x0 + 2, right: region.x1 + 2 };
       const st = {
         blockX: value && valueItem ? valueItem.x0 : null,   // left edge of the value's text block
         refH: value ? lineH : null,                          // the value's type size, once known
@@ -23904,8 +24466,8 @@ function extractLabel(pt, fieldName, compiled, ctx) {
         labelX0,
         hasValue: !!value,
         labelColumn: !!value && line.items.length > 1 && a === 0,              // see BLOCK STATE above
-        cols: columnar && valueItem ? { left: valueItem.x0, right: columnRight } : null,
-        labelLines: wrapped ? new Set(wrapped) : null,
+        cols,
+        labelLines: wrapped ? new Set(wrapped.used) : null,
       };
       let below = [], runsOffPage = false;
       if (!cutShort) {
@@ -23926,6 +24488,7 @@ function extractLabel(pt, fieldName, compiled, ctx) {
 function extractBox(pt, box) {
   const [bx0, by0, bx1, by1] = box;
   const inside = { items: pt.items.filter(it => {
+    if (it.furn) return false;
     const cx = (it.x0 + it.x1) / 2 / pt.w, cy = (it.y0 + it.y1) / 2 / pt.h;
     return cx >= bx0 && cx <= bx1 && cy >= by0 && cy <= by1;
   }) };
@@ -23952,10 +24515,41 @@ function findForms(template, pts) {
 // Pages one copy of a form covers: its declared page count, or the rest of the record when it has no anchor.
 function formSpan(form, pts, start) { return form.anchor ? Math.min(form.pages || 1, pts.length - start) : pts.length - start; }
 
+// A value found on page `pi` may go on: on the next page under its label with a continuation marker
+// ("Description of Work (cont.)"), or, when it ran off the bottom of the page (ctx.open), at the top of
+// the next page after its running header. Both are followed page by page until neither applies.
+// Returns the completed value; `used` collects the page indexes that contributed.
+function followValue(v, field, compiled, pts, pi, contexts, used) {
+  const ctx = contexts[pi];
+  let open = ctx.open && ctx.open.name === field.name ? ctx.open.st : null;
+  if (ctx.open && ctx.open.name === field.name) delete ctx.open;
+  for (let q = pi + 1; q < pts.length && q <= pi + T.CONTINUATION_PAGES_MAX; q++) {
+    const thisCtx = contexts[q] || (contexts[q] = {});
+    const more = extractLabel(pts[q], field.name, compiled, thisCtx, true);
+    if (more !== null) {
+      if (more) { v = joinValue([v, "\n\n", more]); if (used) used.add(q); }
+      open = thisCtx.open && thisCtx.open.name === field.name ? thisCtx.open.st : null;
+      if (thisCtx.open && thisCtx.open.name === field.name) delete thisCtx.open;
+      continue;
+    }
+    if (!open) break;
+    const prevCtx = contexts[q - 1] || (contexts[q - 1] = {});
+    const prevLines = prevCtx.lines || (prevCtx.lines = lines(pts[q - 1]));
+    const prevTop = new Set(prevLines.slice(0, T.HEADER_SAMPLE_LINES).map(l => headerKey(l.text)));
+    open.labelLines = null;   // a label's wrapped pieces belong to the page it started on
+    const r = continueOnPage(thisCtx.lines || (thisCtx.lines = lines(pts[q])), pts[q], open, compiled, prevTop);
+    if (r.text) { v = joinValue([v, r.text]); if (used) used.add(q); }
+    if (!r.open) open = null;
+  }
+  return v;
+}
+
 // Read every field of one copy of a form that starts at page `start`. Returns { fieldName: value|null }.
 // `used`, if given, collects the page indexes that contributed a value.
 function readForm(form, pts, start, used) {
   const values = {}, contexts = {}, compiled = compiledForm(form), span = formSpan(form, pts, start);
+  // A boxed form: lay the grids the sample provided onto this copy's pages (section 3b).
+  if (form.grids) for (let k = 0; k < span; k++) { if (form.grids[k] && pts[start + k]) applyGrid(pts[start + k], form.grids[k]); }
   for (const field of form.fields) {
     // field.page: "any" (or absent) = search every page of this copy of the form, first hit wins;
     // a number = only that page, counted from the form's first page (0 = first). Box fields always have one.
@@ -23963,25 +24557,20 @@ function readForm(form, pts, start, used) {
       ? Array.from({ length: span }, (_, k) => start + k)
       : [start + field.page];
     values[field.name] = null;
+    const opts = { skip: (field.occurrence || 1) - 1 };   // "LABEL #3": pass over two matches, counting across pages
     for (const pi of candidatePages) {
       const pt = pts[pi];
       if (!pt) continue;
       const ctx = contexts[pi] || (contexts[pi] = {});
-      let v = field.method === "box" ? extractBox(pt, field.box) : extractLabel(pt, field.name, compiled, ctx);
-      if (v !== null && ctx.open && ctx.open.name === field.name) {
-        // The value ran off the bottom of its page: follow it onto the next page(s).
-        const st = ctx.open.st;
-        delete ctx.open;
-        for (let q = pi + 1; q < pts.length && q <= pi + T.CONTINUATION_PAGES_MAX; q++) {
-          const prevCtx = contexts[q - 1] || (contexts[q - 1] = {}), thisCtx = contexts[q] || (contexts[q] = {});
-          const prevLines = prevCtx.lines || (prevCtx.lines = lines(pts[q - 1]));
-          const prevTop = new Set(prevLines.slice(0, T.HEADER_SAMPLE_LINES).map(l => headerKey(l.text)));
-          st.labelLines = null;   // a label's wrapped pieces belong to the page it started on
-          const r = continueOnPage(thisCtx.lines || (thisCtx.lines = lines(pts[q])), pts[q], st, compiled, prevTop);
-          if (r.text) { v = joinValue([v, r.text]); if (used) used.add(q); }
-          if (!r.open) break;
-        }
-      }
+      let v;
+      if (field.method === "box") v = extractBox(pt, field.box);
+      else if (field.container) {
+        // "CONTAINER > LABEL": the label is looked for only inside the container's block on this page.
+        const hit = findLabel(ctx.lines || (ctx.lines = lines(pt)), compiled.containers.get(field.name) || []);
+        if (hit) { opts.region = containerRegion(pt, { ...hit, line: ctx.lines[hit.i] }); v = extractLabel(pt, field.name, compiled, ctx, false, opts); delete opts.region; }
+        else v = null;
+      } else v = extractLabel(pt, field.name, compiled, ctx, false, opts);
+      if (v !== null && field.method !== "box") v = followValue(v, field, compiled, pts, pi, contexts, used);
       // A label found with an EMPTY value ("") still ends the search: the field is on this page and is
       // blank, and looking further would pick up the same label on a later page (an attachment, a copy).
       if (v !== null) { values[field.name] = v; if (used) used.add(pi); break; }
@@ -24030,6 +24619,7 @@ async function processFile(file, path, template, parser) {
       } catch (e) { pts.push({ w: 1, h: 1, items: [], err: String(e.message || e) }); }
     }
     res.textPages = pts.filter(p => p.items.reduce((n, it) => n + it.s.length, 0) >= T.MIN_CHARS_PER_PAGE).length;
+    markFurniture(pts, template);   // running headers and footers, left out of values (section 3c)
 
     const starts = findForms(template, pts);
     const mainForm = template.forms.find(f => f.kind === "main");
@@ -24117,14 +24707,19 @@ async function allResults() {
 }
 
 const TEMPLATE_KEY = "pdf-to-csv-template";
+// Template version 2 (v0.6) adds ignoreFurniture and, per form, the optional `grids` of drawn lines read
+// from the sample (section 3b). Version 1 templates load unchanged.
 function newTemplate() {
-  return { version: 1, name: "untitled", forms: [{ id: "main", name: "Main form", kind: "main", anchor: "", pages: 1, maxCopies: 1, fields: [] }] };
+  return { version: 2, name: "untitled", ignoreFurniture: true,
+           forms: [{ id: "main", name: "Main form", kind: "main", anchor: "", pages: 1, maxCopies: 1, fields: [] }] };
 }
 // Check a template's shape (it may come from a file the user picked). Throws a plain-English message.
 function validateTemplate(t) {
   if (!t || !Array.isArray(t.forms) || !t.forms.length) throw new Error("no forms in template");
   if (t.forms.filter(f => f.kind === "main").length !== 1) throw new Error("template needs exactly one main form");
+  if (t.ignoreFurniture != null && typeof t.ignoreFurniture !== "boolean") throw new Error("ignoreFurniture must be true or false");
   const ids = new Set();
+  const numbers = (a, n) => Array.isArray(a) && a.every(s => Array.isArray(s) && s.length === n && s.every(x => typeof x === "number" && isFinite(x)));
   for (const f of t.forms) {
     if (typeof f.id !== "string" || !f.id || ids.has(f.id)) throw new Error("form ids must be unique strings");
     ids.add(f.id);
@@ -24133,12 +24728,21 @@ function validateTemplate(t) {
     if (f.anchor != null && typeof f.anchor !== "string") throw new Error(`form ${f.id}: anchor must be text`);
     if (f.pages != null && !(Number.isInteger(f.pages) && f.pages >= 1)) throw new Error(`form ${f.id}: pages must be a whole number`);
     if (f.maxCopies != null && !(Number.isInteger(f.maxCopies) && f.maxCopies >= 1)) throw new Error(`form ${f.id}: max copies must be a whole number`);
+    if (f.grids != null) {
+      if (typeof f.grids !== "object" || Array.isArray(f.grids)) throw new Error(`form ${f.id}: grids must be an object keyed by page offset`);
+      for (const [k, g] of Object.entries(f.grids)) {
+        if (!/^\d+$/.test(k) || !g || !numbers(g.h, 3) || !numbers(g.v, 3)) throw new Error(`form ${f.id}: bad grid for page ${k}`);
+        if (!Array.isArray(g.anchors) || !g.anchors.every(a => Array.isArray(a) && a.length === 3 && typeof a[0] === "string" && typeof a[1] === "number" && typeof a[2] === "number")) throw new Error(`form ${f.id}: bad grid anchors for page ${k}`);
+      }
+    }
     if (!Array.isArray(f.fields)) throw new Error(`form ${f.id}: fields missing`);
     for (const x of f.fields) {
       if (typeof x.name !== "string" || !x.name) throw new Error(`form ${f.id}: a field has no name`);
       if (!(x.method === "label" || x.method === "box")) throw new Error(`field ${x.name}: method must be label or box`);
       if (x.method === "box" && !(Array.isArray(x.box) && x.box.length === 4 && x.box.every(n => typeof n === "number"))) throw new Error(`field ${x.name}: bad box`);
       if (x.method === "label" && typeof x.label !== "string") throw new Error(`field ${x.name}: no label`);
+      if (x.container != null && (typeof x.container !== "string" || !x.container.trim())) throw new Error(`field ${x.name}: container must be text`);
+      if (x.occurrence != null && !(Number.isInteger(x.occurrence) && x.occurrence >= 1)) throw new Error(`field ${x.name}: occurrence must be a whole number from 1`);
       if (!(x.page === "any" || x.page == null || (Number.isInteger(x.page) && x.page >= 0))) throw new Error(`field ${x.name}: bad page`);
     }
   }
@@ -24170,11 +24774,142 @@ async function loadSample(file) {
   if (sample && sample.doc) { try { await sample.doc.destroy(); } catch (e) { /* ignore */ } }
   const doc = await openPdf(new Uint8Array(await file.arrayBuffer()), await editorParser);
   sample = { doc, pts: new Array(doc.numPages), pageIdx: 0, name: file.name };
+  // Read the first pages up front, so running headers and footers are known before the first page shows.
+  for (let i = 0; i < Math.min(doc.numPages, T.SAMPLE_PRELOAD_PAGES); i++) await samplePageText(i);
   await showPage(0);
 }
 async function samplePageText(i) {
-  if (!sample.pts[i]) { const page = await sample.doc.getPage(i + 1); sample.pts[i] = await pageText(page); }
+  if (!sample.pts[i]) {
+    const page = await sample.doc.getPage(i + 1);
+    sample.pts[i] = await pageText(page);
+    markFurniture(sample.pts.filter(Boolean), template);   // over the pages read so far
+  }
   return sample.pts[i];
+}
+// ---- Comparing the sample with more records of the same form ----
+// A single filled form cannot always tell a label from a value by type size alone. Two or more records
+// can: text that reads the same in every record at the same place is part of the form (a label); text
+// that differs is a value. The other records are read for text only and kept in memory for this session.
+async function loadOthers(files) {
+  const others = [];
+  for (const file of files.slice(0, T.COMPARE_MAX)) {
+    const doc = await openPdf(new Uint8Array(await file.arrayBuffer()), await editorParser);
+    const pts = [];
+    for (let i = 1; i <= Math.min(doc.numPages, T.SAMPLE_PAGES_MAX); i++) { const page = await doc.getPage(i); pts.push(await pageText(page)); page.cleanup(); }
+    try { await doc.destroy(); } catch (e) { /* ignore */ }
+    markFurniture(pts, template);
+    others.push({ name: file.name, pts });
+  }
+  sample.others = others;
+  for (const pt of sample.pts) if (pt) pt.cmp = null;
+}
+// A page's role, for matching pages between records whose page counts differ: the first line of text (a
+// title or the first label row), digits ignored. A page that opens with running text has no role.
+function pageRole(pt) {
+  const first = lines(pt)[0];
+  return first && first.text.length <= 60 ? headerKey(first.text) : "~";
+}
+// The page of another record that corresponds to sample page `idx`: the k-th page with the same role,
+// where the sample page is the k-th of its role; a page without a role matches by position.
+function alignedPage(other, idx) {
+  const role = pageRole(sample.pts[idx]);
+  if (role === "~") return other.pts[idx] || null;
+  let k = 0;
+  for (let i = 0; i < idx; i++) if (sample.pts[i] && pageRole(sample.pts[i]) === role) k++;
+  let seen = 0;
+  for (const pt of other.pts) if (pageRole(pt) === role && seen++ === k) return pt;
+  return null;
+}
+// The longest common start of `s` and every other text, cut back to a colon or to a word end:
+// "Case No.: 12345" against "Case No.: 67890" gives "Case No.:". Null when there is no such label part.
+function sharedPrefix(s, others) {
+  let p = s.normalize("NFKC");
+  for (const o of others) {
+    const t = o.normalize("NFKC");
+    let k = 0;
+    while (k < p.length && k < t.length && p[k].toLowerCase() === t[k].toLowerCase()) k++;
+    p = p.slice(0, k);
+  }
+  const m = /^(.*?[:\uff1a#])\s*/.exec(p) || /^(.{3,}?)\s+\S*$/.exec(p);
+  if (!m) return null;
+  const label = m[1].trim();
+  return /\p{L}/u.test(label) && label.length >= 3 && label.length < s.normalize("NFKC").length ? label : null;
+}
+// Classify every text item of sample page `idx` against the other records: Map(item -> { cls, prefix }),
+// cls "static" (same text at the same place in enough records: a label), "variable" (different text at
+// the same place: a value; `prefix` is the label part when the item is "Label: value" in one piece), or
+// "unknown" (nothing at that place, or too few records). Cached on the page; null when nothing to compare.
+function compareItems(pt, idx) {
+  if (pt.cmp !== undefined && pt.cmp !== null) return pt.cmp;
+  if (!sample || !sample.others || !sample.others.length) return (pt.cmp = null);
+  const mine = pt.items.filter(it => !it.furn);
+  const votes = new Map(mine.map(it => [it, { s: 0, v: 0, texts: [] }]));
+  let compared = 0;
+  const median = a => a.length ? a.slice().sort((p, q) => p - q)[Math.floor(a.length / 2)] : 0;
+  for (const other of sample.others) {
+    const opt = alignedPage(other, idx);
+    if (!opt) continue;
+    compared++;
+    const theirs = opt.items.filter(it => !it.furn);
+    // The shift between the two pages: the median offset of texts that occur once on each page.
+    const byText = new Map();
+    for (const it of theirs) { const t = norm(it.s); if (t.length >= 4) byText.set(t, byText.has(t) ? null : it); }
+    const dxs = [], dys = [];
+    for (const it of mine) { const t = norm(it.s); const o = t.length >= 4 ? byText.get(t) : null; if (o) { dxs.push(o.x0 - it.x0); dys.push(o.y0 - it.y0); } }
+    const dx = median(dxs), dy = median(dys);
+    for (const it of mine) {
+      const ex = it.x0 + dx, ey = it.y0 + dy;
+      let same = null, near = null, nearD = Infinity;
+      for (const o of theirs) {
+        if (Math.abs(o.x0 - ex) > T.COMPARE_X || Math.abs(o.y0 - ey) > T.COMPARE_Y) continue;
+        if (norm(o.s) === norm(it.s)) { same = o; break; }
+        const d = Math.hypot(o.x0 - ex, o.y0 - ey);
+        if (d < nearD) { nearD = d; near = o; }
+      }
+      const v = votes.get(it);
+      if (same) v.s++; else if (near) { v.v++; v.texts.push(near.s); }
+    }
+  }
+  const cmp = new Map();
+  for (const [it, v] of votes) {
+    let cls = "unknown", prefix = null;
+    if (v.s > 0 && v.s >= Math.ceil(compared * T.COMPARE_STATIC_SHARE)) cls = "static";
+    else if (v.v > 0 && v.s === 0) { cls = "variable"; prefix = sharedPrefix(it.s, v.texts); }
+    cmp.set(it, { cls, prefix });
+  }
+  cmp.compared = compared;
+  return (pt.cmp = cmp);
+}
+$("cmpBtn").addEventListener("click", () => { if (!sample) { flash("Open a sample PDF first."); return; } $("cmpFiles").click(); });
+$("cmpFiles").addEventListener("change", async () => {
+  const files = Array.from($("cmpFiles").files);
+  $("cmpFiles").value = "";
+  if (!files.length || !sample) return;
+  $("cmpMsg").textContent = "Reading " + files.length + " record(s) for comparison...";
+  try {
+    await loadOthers(files);
+    $("cmpMsg").textContent = `Comparing with ${sample.others.length} record(s): text that reads the same in every record is taken as a label, text that differs as a value (tinted blue on the page). Auto-detect uses this.`;
+  } catch (e) { $("cmpMsg").textContent = ""; flash("Could not read those PDFs: " + e.message); }
+  refreshEditor();
+});
+
+// The drawn lines of the sample page just rendered: from the PDF's path commands and from the rendered
+// image (scans). Remembered in the current form's template for this page of the form.
+let gridsLocked = false;   // test hook: keep the template's grids as they are while other samples are viewed
+async function rememberGrid(page, canvas, zoom, pt) {
+  const f = currentForm(), offset = await currentOffset(f);
+  if (offset === null || gridsLocked) return;
+  let grid = { h: [], v: [] };
+  try { grid = await vectorLines(page); } catch (e) { /* no path commands readable: the image may still show lines */ }
+  try {
+    const img = canvas.getContext("2d").getImageData(0, 0, canvas.width, canvas.height);
+    grid = unionGrid(grid, dropTextLines(rasterLines(img, zoom), pt));
+  } catch (e) { /* canvas unreadable */ }
+  if (grid.h.length + grid.v.length >= 3) {
+    f.grids = f.grids || {};
+    f.grids[offset] = gridToStored(grid, pt);
+    saveTemplate();
+  }
 }
 // Page turns are queued: pdf.js cannot render two pages onto one canvas at the same time.
 let pageTurn = Promise.resolve();
@@ -24193,20 +24928,21 @@ async function renderSamplePage(i) {
   canvas.width = vp.width; canvas.height = vp.height;
   await page.render({ canvasContext: canvas.getContext("2d"), viewport: vp }).promise;
   const pt = await samplePageText(i);
+  await rememberGrid(page, canvas, zoom, pt);
   $("pgInfo").textContent = `page ${i + 1} of ${sample.doc.numPages}` + (pt.items.length ? "" : " (no text layer on this page)");
-  drawOverlay();
+  await drawOverlay();
   refreshFieldTable();
 }
 // The page index where the copy of form `f` that contains the sample's current page starts, or null.
+// Uses findForms(), the same rule as a run, so an anchor that is printed on every page of the form (a form
+// number in the running header) still starts a copy only every `pages` pages.
 async function sampleFormStart(f) {
   if (!sample) return null;
   if (!f.anchor) return f.kind === "main" ? 0 : null;
-  const anchor = norm(f.anchor);
-  for (let i = sample.pageIdx; i >= 0 && i > sample.pageIdx - (f.pages || 1); i--) {
-    const pt = await samplePageText(i);
-    if (norm(pt.items.map(it => it.s).join(" ")).includes(anchor)) return i;
-  }
-  return null;
+  for (let i = 0; i <= sample.pageIdx; i++) await samplePageText(i);
+  const starts = findForms({ forms: [f] }, sample.pts.slice(0, sample.pageIdx + 1))[f.id];
+  const start = starts.filter(s => s <= sample.pageIdx && sample.pageIdx < s + (f.pages || 1)).pop();
+  return start === undefined ? null : start;
 }
 async function currentOffset(f) {
   const start = await sampleFormStart(f);
@@ -24224,16 +24960,35 @@ async function drawOverlay() {
   const start = await sampleFormStart(f);
   const offset = start === null ? 0 : sample.pageIdx - start;
   const compiled = compiledForm(f);
+  const showGeom = $("showGeom").checked;
+  // The grid this page gets at run time (the stored one, laid on by its anchors), drawn as red lines.
+  pt.grid = null;
+  const stored = start !== null && f.grids ? f.grids[offset] : null;
+  if (stored) applyGrid(pt, stored); else for (const it of pt.items) it.cell = null;
+  let cells = 0;
+  if (pt.grid) {
+    cells = new Set(pt.items.filter(it => it.cell).map(it => it.cell.key)).size;
+    if (showGeom) {
+      for (const s of pt.grid.h) { const d = document.createElement("div"); d.className = "gl"; Object.assign(d.style, { left: s.x0 * zoom + "px", top: (s.y * zoom - 1) + "px", width: Math.max(1, (s.x1 - s.x0) * zoom) + "px", height: "2px" }); overlay.appendChild(d); }
+      for (const s of pt.grid.v) { const d = document.createElement("div"); d.className = "gl"; Object.assign(d.style, { left: (s.x * zoom - 1) + "px", top: s.y0 * zoom + "px", width: "2px", height: Math.max(1, (s.y1 - s.y0) * zoom) + "px" }); overlay.appendChild(d); }
+    }
+  }
+  let furn = 0;
+  const cmp = compareItems(pt, sample.pageIdx);
   pt.items.forEach((it, k) => {
     const d = document.createElement("div");
     d.className = "ti";
     if (f.anchor && norm(it.s).includes(norm(f.anchor))) d.classList.add("anchor");
     if (startsWithLabel(it.s, compiled)) d.classList.add("label");
+    if (cmp && showGeom && cmp.get(it) && cmp.get(it).cls === "variable") d.classList.add("var");
+    if (it.furn) { furn++; if (showGeom) d.classList.add("furn"); }
     Object.assign(d.style, { left: it.x0 * zoom + "px", top: it.y0 * zoom + "px", width: Math.max(3, (it.x1 - it.x0) * zoom) + "px", height: Math.max(3, (it.y1 - it.y0) * zoom) + "px" });
-    d.title = it.s;
+    d.title = it.s + (it.furn ? "  (page header/footer, ignored)" : "");
     d.dataset.k = k;
     overlay.appendChild(d);
   });
+  const info = $("pgInfo");
+  info.textContent = info.textContent.replace(/ \u00b7.*$/, "") + (pt.grid ? ` \u00b7 ${cells} cells from ${pt.grid.h.length + pt.grid.v.length} drawn lines` : "") + (furn ? ` \u00b7 ${furn} header/footer items ignored` : "");
   for (const x of f.fields) {
     if (x.method !== "box" || (x.page || 0) !== offset) continue;
     const b = document.createElement("div"); b.className = "fbox";
@@ -24293,23 +25048,41 @@ window.addEventListener("mouseup", async ev => {
 });
 
 // Field names typed as a list: the main way to define fields. One per line; "A | B" alternates; "*" required;
-// lines starting with # are ignored.
+// "APPROVED BY > DATE" the DATE inside the APPROVED BY block; "DATE #3" the third DATE on the form; lines
+// starting with # are ignored.
+function parseFieldSpec(line) {
+  line = line.trim();
+  if (!line || line.startsWith("#")) return null;
+  const required = /\*\s*$/.test(line);
+  line = line.replace(/\*\s*$/, "").trim();
+  let container = null, occurrence = null;
+  const gt = line.indexOf(">");
+  if (gt > 0) { container = aliasesOf(line.slice(0, gt)).join(" | "); line = line.slice(gt + 1).trim(); }
+  const occ = /\s#(\d{1,2})$/.exec(line);
+  if (occ && +occ[1] >= 1) { occurrence = +occ[1]; line = line.slice(0, occ.index).trim(); }
+  const label = aliasesOf(line).join(" | ");
+  if (!label || (container !== null && !container)) return null;
+  const name = (container ? aliasesOf(container)[0] + " > " : "") + aliasesOf(label)[0] + (occurrence ? " #" + occurrence : "");
+  const field = { name, method: "label", label, page: "any", required, fromList: true };
+  if (container) field.container = container;
+  if (occurrence) field.occurrence = occurrence;
+  return field;
+}
 function parseNameList(text) {
   const out = [], seen = new Set();
-  for (let line of text.split(/\r?\n/)) {
-    line = line.trim();
-    if (!line || line.startsWith("#")) continue;
-    const required = /\*\s*$/.test(line);
-    const label = aliasesOf(line.replace(/\*\s*$/, "")).join(" | ");
-    const name = aliasesOf(label)[0];
-    if (!name || seen.has(name.toLowerCase())) continue;
-    seen.add(name.toLowerCase());
-    out.push({ name, method: "label", label, page: "any", required, fromList: true });
+  for (const line of text.split(/\r?\n/)) {
+    const field = parseFieldSpec(line);
+    if (!field || seen.has(field.name.toLowerCase())) continue;
+    seen.add(field.name.toLowerCase());
+    out.push(field);
   }
   return out;
 }
+function fieldSpecText(x) {
+  return (x.container ? x.container + " > " : "") + x.label + (x.occurrence ? " #" + x.occurrence : "") + (x.required ? " *" : "");
+}
 function nameListText(f) {
-  return f.fields.filter(x => x.fromList).map(x => x.label + (x.required ? " *" : "")).join("\n");
+  return f.fields.filter(x => x.fromList).map(fieldSpecText).join("\n");
 }
 $("nameApply").addEventListener("click", () => {
   const f = currentForm(), list = parseNameList($("nameList").value);
@@ -24319,31 +25092,136 @@ $("nameApply").addEventListener("click", () => {
   refreshEditor();
 });
 
-// Auto-detect: every "Label:" at the start of a line on the current sample page becomes a field.
+// Auto-detect: the labels on the current sample page, as a list of label texts (item numbers removed).
+//   In drawn cells: the first line of text in each cell is the label when the cell has larger text below
+//   it (label over value), when it ends with a colon, or when it is short and the cell to the right or
+//   below holds text (a bare label with its value in the next cell). A label may wrap over a few lines of
+//   the same small type. Cells whose first line is long are values (the body of a box), not labels.
+//   Outside cells: each "Label:" is taken from the start of its column (after the previous TAB), so a value
+//   earlier on the line is never glued onto it, and a line with several "Label:" pairs yields them all.
+//   With compared records (compareItems): a first line that differs between records is a value, not a
+//   label, unless it is "Label: value" in one piece, in which case the shared label part is offered; a
+//   first line that reads the same in every record is a label even when the type size does not show it.
+// Page furniture is skipped. Repeated labels (the same text in several cells) are offered once.
+function detectLabels(pt) {
+  const found = [], seen = new Set();
+  const cmp = sample ? compareItems(pt, sample.pts.indexOf(pt)) : null;
+  const clsOf = items => {   // the comparison verdict for a run of items: static, variable, mixed or unknown
+    if (!cmp) return "unknown";
+    const c = new Set(items.map(it => (cmp.get(it) || { cls: "unknown" }).cls));
+    return c.size === 1 ? [...c][0] : c.has("variable") && !c.has("static") ? "variable" : c.has("static") && !c.has("variable") ? "static" : "mixed";
+  };
+  const prefixOf = items => { for (const it of items) { const r = cmp && cmp.get(it); if (r && r.prefix) return r.prefix; } return null; };
+  const offer = text => {
+    let label = text.normalize("NFKC").replace(/\s+/g, " ").trim();
+    label = label.replace(new RegExp(`^${UNLISTED_NUMBER}`, "u"), "").replace(/[:\uff1a]\s*$/, "").replace(/[:\uff1a]\s*(?= > )/, "").trim();
+    if (!label || label.length > T.AUTO_LABEL_MAX_CHARS * 2 || !/\p{L}/u.test(label) || seen.has(norm(label))) return;
+    seen.add(norm(label)); found.push(label);
+  };
+  const byCell = new Map();
+  const loose = [];
+  for (const it of pt.items) {
+    if (it.furn) continue;
+    if (it.cell) { if (!byCell.has(it.cell.key)) byCell.set(it.cell.key, { cell: it.cell, items: [] }); byCell.get(it.cell.key).items.push(it); }
+    else loose.push(it);
+  }
+  const ordered = [...byCell.values()].sort((a, b) => a.cell.y0 - b.cell.y0 || a.cell.x0 - b.cell.x0);
+  const judged = ordered.map(({ cell, items }) => {
+    const cl = lines({ items });
+    if (!cl.length) return null;
+    const h0 = cl[0].y1 - cl[0].y0;
+    // the label: the first line, plus following lines of the same type size while larger text is still to come
+    let n = 1;
+    const larger = k => cl.slice(k).some(l => (l.y1 - l.y0) > h0 * (1 + T.SAME_SIZE));
+    while (n < cl.length && n < T.AUTO_LABEL_LINES && Math.abs((cl[n].y1 - cl[n].y0) - h0) <= h0 * T.SAME_SIZE && larger(n) && !/[:\uff1a]$/.test(cl[n - 1].text)) n++;
+    const text = cl.slice(0, n).map(l => l.text).join(" ");
+    let colon = /[:\uff1a]\s*\S/.test(text) ? text.slice(0, text.search(/[:\uff1a]/) + 1) : null;   // "Label: value" on one line
+    const firstItems = cl.slice(0, n).flatMap(l => l.items), cls = clsOf(firstItems);
+    if (cls === "variable" && !colon) colon = prefixOf(firstItems);   // "ID 12345" in one piece: the shared part is the label
+    const compared = cmp ? (cls === "static" && (cl.length > 1 || !!(neighbourCell(pt, cell, "right") || neighbourCell(pt, cell, "below")))) : false;
+    const rejected = cmp ? (cls === "variable" && !colon) : false;
+    return { cell, cl, h0, text, colon, overValue: larger(n), endsColon: /[:\uff1a]$/.test(text), compared, rejected };
+  }).filter(Boolean);
+  // The type size of the labels on this page: that of the cells where a label sits over larger text. A cell
+  // holding one short line of that size, with a cell beside or below it, is a bare label ("Name" next to a
+  // name). Without such cells to learn from, a bare line counts only when it carries an item number.
+  const labelSizes = judged.filter(j => j.overValue).map(j => j.h0).sort((a, b) => a - b);
+  const labelH = labelSizes.length >= 2 ? labelSizes[Math.floor(labelSizes.length / 2)] : null;
+  const cellLabels = [];   // { text, cell, bare }
+  for (const j of judged) {
+    const bare = j.cl.length === 1 && j.text.length <= 40 && !/\d/.test(j.text.replace(new RegExp(`^${UNLISTED_NUMBER}`, "u"), ""))
+      && (neighbourCell(pt, j.cell, "right") || neighbourCell(pt, j.cell, "below"))
+      && (labelH !== null ? Math.abs(j.h0 - labelH) <= labelH * T.SAME_SIZE : new RegExp(`^\\(?\\d{1,3}[a-z]?[.)]`).test(j.text));
+    if (j.rejected) continue;
+    if ((j.overValue || j.endsColon || j.colon || bare || j.compared) && j.text.length <= T.AUTO_LABEL_MAX_CHARS) cellLabels.push({ text: j.colon || j.text, cell: j.cell, bare: !!bare && j.cl.length === 1 });
+  }
+  // The same label in several cells (Name, Date, Phone in four signature blocks): offer each as
+  // "PARENT > LABEL", the parent being the nearest bare-label cell above that is wider than the label's own
+  // cell (the block's heading). Without a parent, "LABEL", "LABEL #2", ... in reading order.
+  const groups = new Map();
+  for (const l of cellLabels) { const k = norm(l.text.replace(new RegExp(`^${UNLISTED_NUMBER}`, "u"), "")); if (!groups.has(k)) groups.set(k, []); groups.get(k).push(l); }
+  const parentOf = l => {
+    let best = null;
+    for (const p of cellLabels) {
+      if (!p.bare || p === l) continue;
+      const c = p.cell, k = T.CELL_SLACK * 2;
+      const contains = c.x0 <= l.cell.x0 + k && c.x1 >= l.cell.x1 - k, wider = c.x0 < l.cell.x0 - k || c.x1 > l.cell.x1 + k;
+      if (contains && wider && c.y1 <= l.cell.y0 + k && (!best || c.y1 > best.cell.y1)) best = p;
+    }
+    return best;
+  };
+  for (const l of cellLabels) {
+    const group = groups.get(norm(l.text.replace(new RegExp(`^${UNLISTED_NUMBER}`, "u"), "")));
+    if (group.length === 1) { offer(l.text); continue; }
+    const parent = parentOf(l);
+    if (parent) offer(parent.text.replace(new RegExp(`^${UNLISTED_NUMBER}`, "u"), "").replace(/[:\uff1a]\s*$/, "") + " > " + l.text);
+    else { const n = group.filter(g => !parentOf(g)).indexOf(l) + 1; offer(l.text + (n > 1 ? " #" + n : "")); }
+  }
+  for (const line of lines({ items: loose })) {
+    if (cmp) {
+      // A run of unchanging text followed by changing text is a label and its value; a single changing
+      // piece with a shared start ("Ref# 12345") yields that start.
+      let run = [];
+      for (const it of line.items) {
+        const r = cmp.get(it) || { cls: "unknown" };
+        if (r.cls === "static") { run.push(it); continue; }
+        if (r.cls === "variable") {
+          if (run.length) { const t = joinItems(run); offer(/[:\uff1a]/.test(t) ? t.slice(0, t.search(/[:\uff1a]/) + 1) : t); }
+          else if (r.prefix) offer(r.prefix);
+        }
+        run = [];
+      }
+    }
+    for (const column of lineBounds(line).s.split("\t")) {
+      const m = /^\s*([^:\uff1a]{1,60}?)\s*[:\uff1a](?=\s|$)/.exec(column);
+      if (m && (!cmp || clsOf(line.items.filter(it => column.includes(it.s.normalize("NFKC").trim().slice(0, 12)))) !== "variable")) offer(m[1]);
+    }
+  }
+  return found;
+}
 $("autoLabels").addEventListener("click", async () => {
   if (!sample) { flash("Open a sample PDF first."); return; }
   const f = currentForm();
   if (await currentOffset(f) === null) { flash("Set this form's anchor first (click the form number in anchor mode)."); return; }
   const pt = sample.pts[sample.pageIdx];
-  const have = new Set(f.fields.filter(x => x.method === "label").map(x => norm(x.label)));
+  const have = new Set(f.fields.filter(x => x.method === "label").map(x => norm(x.name)));
   let added = 0;
-  for (const line of lines(pt)) {
-    for (let b = 0; b < line.items.length; b++) {
-      const t = joinItems(line.items.slice(0, b + 1));
-      if (/:\s*$/.test(t) && t.length <= T.AUTO_LABEL_MAX_CHARS) {
-        const label = t.replace(/:\s*$/, "").trim();
-        if (label && !have.has(norm(label))) {
-          f.fields.push({ name: uniqueName(f, label), method: "label", label, page: "any", required: false, fromList: true });
-          have.add(norm(label)); added++;
-        }
-        break;
-      }
-      if (t.length > T.AUTO_LABEL_MAX_CHARS) break;
-    }
+  for (const spec of detectLabels(pt)) {
+    const field = parseFieldSpec(spec);   // "PARENT > LABEL" and "LABEL #2" are read the same way as typed names
+    if (!field || have.has(norm(field.name))) continue;
+    field.name = uniqueName(f, field.name);
+    f.fields.push(field);
+    have.add(norm(field.name)); added++;
   }
   $("autoMsg").textContent = `added ${added} field(s)`;
   refreshEditor();
 });
+$("ignoreFurn").addEventListener("change", () => {
+  template.ignoreFurniture = $("ignoreFurn").checked;
+  if (sample) markFurniture(sample.pts.filter(Boolean), template);
+  refreshEditor();
+});
+$("showGeom").addEventListener("change", () => drawOverlay());
 
 // The field table, with the value each field reads from the sample (if one is open).
 let fieldTableGeneration = 0;
@@ -24375,7 +25253,8 @@ async function refreshFieldTable() {
     required.addEventListener("change", () => { x.required = required.checked; saveTemplate(); });
     const remove = document.createElement("button"); remove.textContent = "x"; remove.title = "Remove field";
     remove.addEventListener("click", () => { f.fields.splice(idx, 1); refreshEditor(); });
-    const cells = [nameInput, x.method === "box" ? "box" : "label", Number.isInteger(x.page) ? String(x.page + 1) : "any", required, null, remove];
+    const how = x.method === "box" ? "box" : x.container ? `label in "${x.container}"` : x.occurrence ? `label, match #${x.occurrence}` : "label";
+    const cells = [nameInput, how, Number.isInteger(x.page) ? String(x.page + 1) : "any", required, null, remove];
     cells.forEach((c, ci) => {
       const td = document.createElement("td");
       if (ci === 4) { td.className = "v"; const v = values[x.name]; td.textContent = v == null ? (sample ? "(not found)" : "") : (v || "(empty)"); }
@@ -24394,6 +25273,7 @@ function refreshFormPanel() {
   const f = currentForm();
   $("formName").value = f.name; $("formAnchor").value = f.anchor; $("formPages").value = f.pages || 1;
   $("formKind").value = f.kind; $("formMax").value = f.maxCopies || 3;
+  $("ignoreFurn").checked = template.ignoreFurniture !== false;
   if (document.activeElement !== $("nameList")) $("nameList").value = nameListText(f);
   $("nameFor").textContent = `for "${f.name}"`;
   $("tplStatus").textContent = `${template.forms.length} form type(s), ${template.forms.reduce((n, f) => n + f.fields.length, 0)} fields`;
@@ -24665,8 +25545,36 @@ pdfReady.then(
 // do not, and do nothing unless called.
 window.__rh = {
   setTemplate: t => { template = validateTemplate(t); currentFormId = template.forms[0].id; saveTemplate(); refreshFormPanel(); },
+  getTemplate: () => JSON.parse(JSON.stringify(template)),
+  lockGrids: on => { gridsLocked = !!on; },
   useNames: async (formId, text) => { currentFormId = formId; refreshFormPanel(); $("nameList").value = text; $("nameApply").click(); return currentForm().fields.length; },
   autoDetectCount: async () => { $("autoLabels").click(); await new Promise(r => setTimeout(r, 300)); return currentForm().fields.length; },
+  detectLabels: () => sample ? detectLabels(sample.pts[sample.pageIdx]) : [],
+  // how the compared records classify the current page's texts
+  compareStats: () => {
+    const pt = sample.pts[sample.pageIdx], cmp = compareItems(pt, sample.pageIdx);
+    if (!cmp) return null;
+    const out = { compared: cmp.compared, static: 0, variable: 0, unknown: 0, prefixes: [] };
+    for (const [it, r] of cmp) { out[r.cls]++; if (r.prefix) out.prefixes.push(r.prefix); }
+    return out;
+  },
+  // show sample page i (0-based) and report what the reader sees on it
+  showPage: async i => {
+    await showPage(i);
+    const pt = sample.pts[sample.pageIdx], f = currentForm(), offset = await currentOffset(f);
+    const g = offset !== null && f.grids ? f.grids[offset] : null;
+    return { page: sample.pageIdx, items: pt.items.length, furniture: pt.items.filter(it => it.furn).length,
+             grid: g ? { h: g.h.length, v: g.v.length, anchors: g.anchors.length } : null,
+             cells: pt.grid ? new Set(pt.items.filter(it => it.cell).map(it => it.cell.key)).size : 0, shift: pt.gridShift || null };
+  },
+  // the values the current form reads from the sample, as the field table shows them
+  sampleValues: async () => {
+    const f = currentForm(), start = await sampleFormStart(f);
+    if (start === null) return null;
+    const span = f.anchor ? (f.pages || 1) : Math.min(T.SAMPLE_PAGES_MAX, sample.doc.numPages);
+    for (let i = start; i < start + span && i < sample.doc.numPages; i++) await samplePageText(i);
+    return readForm(f, sample.pts.slice(0, start + span).map(p => p || { w: 1, h: 1, items: [] }), start);
+  },
   recordsCsv: async () => recordsCsv(await allResults(), template),
   problemsCsv: async () => problemsCsv(await allResults()),
   all: allResults, clear: dbClear, mode: () => workerMode, ready: () => pdfReady.then(() => true), version: VERSION,
