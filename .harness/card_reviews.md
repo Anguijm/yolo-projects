@@ -52,3 +52,7 @@ touching that project), **pass** (noise or already covered). Rule: CLAUDE.md "Op
 - 2026-10-19 | nb-2026-10-15-narrow-superintelligence-skill-framing | pass | |
 - 2026-10-19 | idd-2026-10-15-pi-durable-proactive-agents | pass | |
 - 2026-10-19 | ls-2026-10-15-leash-bio-dell-ml-pipeline | pass | |
+
+## 2026-10-20 (John: "2 - both things in a sensible sequence")
+- 2026-10-20 | aie-2026-10-15-rag-table-csv-chunking + aie-2026-10-15-rag-agentic-retrieval-zoom-levels | built (zoom levels) | pdf-to-csv | v0.7.1 record-chunks.jsonl, PR #40; tables wait for v0.8 table sections
+- 2026-10-20 | dc-2026-10-18-dwarfstar-deepseek-strix-halo | does not fit | MS-S1 | Q2 is a 340.6 GiB download, 151.8 GiB main weights > 128 GB; DwarfStar needs ROCm, not installed. Substitute plan: experiments/local-engine-bench/plan.md (ops approved schedule; waiting on John)
