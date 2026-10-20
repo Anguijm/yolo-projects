@@ -59,3 +59,4 @@ touching that project), **pass** (noise or already covered). Rule: CLAUDE.md "Op
 
 ## To do (parked, not dropped)
 - (done: un-parked the same day, John "ok for the model test") Local engine benchmark: experiments/local-engine-bench/plan.md.
+- Local engine benchmark GPU runs: ops said WAIT on 2026-10-21 (the 22:00-03:45 window went to editor training); waiting for ops to name the first free night.
