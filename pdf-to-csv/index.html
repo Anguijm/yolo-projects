@@ -114,7 +114,7 @@ table.list input[type=text] { width:100%; padding:2px 5px; }
     <div>
       <div class="card">
         <h2>Fields by name <span class="mute small" id="nameFor"></span></h2>
-        <p class="small mute" style="margin-top:0">One field per line, written the way its label appears on the form. Case, spacing and punctuation do not matter. Alternate spellings: <code>Work Item No | WI Number</code>. Required: end the line with <code>*</code>. A label that appears in several blocks: <code>Approved By &gt; Date</code> reads the Date inside the Approved By block; <code>Date #3</code> reads the third Date on the form. Each label is looked for on every page of the form, and the value is read beside it or just below it.</p>
+        <p class="small mute" style="margin-top:0">One field per line, written the way its label appears on the form. Case, spacing and punctuation do not matter. Alternate spellings: <code>Work Item No | WI Number</code>. Required: end the line with <code>*</code>. A column name for this label: <code>Job Number = Job Control Number</code>. A table: <code>table Material List: Item; Part Number; Qty</code>. A label that appears in several blocks: <code>Approved By &gt; Date</code> reads the Date inside the Approved By block; <code>Date #3</code> reads the third Date on the form. Each label is looked for on every page of the form, and the value is read beside it or just below it.</p>
         <textarea id="nameList" rows="10" style="width:100%;font:13px ui-monospace,monospace;padding:6px" placeholder="Work Item Number *&#10;Title&#10;Date Completed | Completion Date&#10;Lead Technician"></textarea>
         <div class="row" style="margin-top:6px"><button id="nameApply" class="primary">Use these field names</button><span class="small mute" id="nameMsg"></span></div>
       </div>
@@ -128,12 +128,18 @@ table.list input[type=text] { width:100%; padding:2px 5px; }
         <table class="list" style="margin-top:8px"><tbody>
           <tr><th>Name</th><td><input type="text" id="formName"></td></tr>
           <tr><th>Anchor text</th><td><input type="text" id="formAnchor" placeholder="optional for the main form, e.g. FORM WCR-1"> <div class="small mute">Text that marks where this form starts. Leave blank on the main form to search the whole record. Extra forms need one, so each copy can be told apart.</div></td></tr>
-          <tr><th>Pages per form</th><td><input type="number" id="formPages" min="1" max="20" value="1" style="width:70px"> <span class="small mute">pages that belong to one copy of this form</span></td></tr>
+          <tr><th>Pages per form</th><td><input type="number" id="formPages" min="1" max="20" value="1" style="width:70px"> <span class="small mute" id="formPagesNote">pages that belong to one copy of this form</span></td></tr>
           <tr><th>Kind</th><td><select id="formKind"><option value="main">Main form (one per record; with several main forms, page 1 decides which)</option><option value="extra">Extra form (zero or more per record)</option></select></td></tr>
-          <tr><th>Form ends</th><td><select id="formSpan"><option value="pages">after "Pages per form" pages</option><option value="counter">where its page counter stops counting on (restarts, changes style, or reaches its total)</option></select></td></tr>
+          <tr><th>Form ends</th><td><select id="formSpan"><option value="pages">after "Pages per form" pages</option><option value="counter">when its page counter restarts, changes style or reaches its total (forms whose length varies)</option></select></td></tr>
           <tr><th>Last page from</th><td><input type="text" id="formLastPage" placeholder="optional: a field that states the last page, e.g. Effective Pages"> <div class="small mute">Cross-check only: a record where this disagrees with the counter is listed in problems.csv.</div></td></tr>
           <tr><th>Max copies in CSV</th><td><input type="number" id="formMax" min="1" max="10" value="3" style="width:70px"> <span class="small mute">extra forms only</span></td></tr>
         </tbody></table>
+        <div class="note" id="formWarn" style="display:none;margin-top:8px"></div>
+        <p class="small mute" id="page1Info" style="margin:6px 0 0"></p>
+        <div class="row" style="margin-top:8px">
+          <button id="formEnd" type="button">Where does this form end?</button>
+          <span class="small" id="formEndMsg"></span>
+        </div>
         <div class="row" style="margin-top:8px">
           <button id="autoLabels" class="primary">Auto-detect labels on this page</button>
           <span class="small mute" id="autoMsg"></span>
@@ -195,12 +201,14 @@ table.list input[type=text] { width:100%; padding:2px 5px; }
       <button id="dlOcr">needs-ocr.txt</button>
       <button id="dlText">record-text.jsonl</button>
       <button id="dlChunks">record-chunks.jsonl</button>
+      <button id="dlTables">tables.csv</button>
     </div>
     <ul class="small mute">
       <li><b>records.csv</b>: one row per record that held the main form. Opens in Excel (UTF-8, Japanese safe).</li>
-      <li><b>problems.csv</b>: every file that could not be read, had no text layer, lacked the main form, or is missing required fields, with the reason.</li>
+      <li><b>problems.csv</b>: every file that could not be read, had no text layer, lacked the main form, or is missing required fields, with the reason; also fields too long for one Excel cell, and packet notes (form type unclear, page counter inferred, bridged or stopped, form end unclear, table may continue). The usage guide lists them all.</li>
       <li><b>needs-ocr.txt</b>: paths of files with no text layer. Run these through Acrobat Pro (Scan &amp; OCR, Recognize Text, batch) and read them again.</li>
       <li><b>record-text.jsonl</b>: optional, one line per record with the main form's text only, for a retrieval index.</li>
+      <li><b>tables.csv</b>: one row per table row, for forms with table fields (<code>table Material List: Item; Part Number; Qty</code>), with columns file, form, copy (the extra form's copy number; blank for the main form), table, row and page, then the table's columns.</li>
       <li><b>record-chunks.jsonl</b>: optional, the same records cut for a retrieval index at three zoom levels: the whole record, one line per field, and paragraph-sized chunks of long fields. Each line names its file, form, field and pages, and points to the level above it.</li>
     </ul>
   </div>
@@ -23265,7 +23273,7 @@ ZXI7c2VsZi5wZGZqc1dvcmtlcj17V29ya2VyTWVzc2FnZUhhbmRsZXI6UWd9Ow==</script>
 <script>
 "use strict";
 /* =====================================================================================================
-   PDF to CSV, version v0.8.  Single file, no network.  Built by dev/build.py from src/app.html.
+   PDF to CSV, version v0.8.11.  Single file, no network.  Built by dev/build.py from src/app.html.
 
    WHAT IT DOES
      1. The user types field names (and may open one sample PDF to check what each field reads). On a boxed
@@ -23323,15 +23331,15 @@ ZXI7c2VsZi5wZGZqc1dvcmtlcj17V29ya2VyTWVzc2FnZUhhbmRsZXI6UWd9Ow==</script>
        edits the reader and the recorded size together is not detected.
 
    KNOWN LIMITATIONS (documented, not hidden)
-     - An anchor is matched as a substring of the page text, so an anchor "FORM 1" also matches "FORM 12".
-       Use a distinctive anchor (the full form number).
      - records.csv is laid out from the template in the editor at download time. If fields are renamed or
        removed after a run, the columns for the old names are empty; re-run with "Re-read files" ticked.
      - A field named exactly "file", "pages", "main_form_page" or "status" duplicates a fixed CSV column.
      - Paragraph breaks that fall exactly on a page break are sometimes joined; text is never lost.
-     - A value that runs off the bottom of a page may be followed for up to 30 pages, even past the
-       form's declared page count. It stops at the first page that does not continue it (a new label,
-       a heading, a different column), so in practice it stops at the next copy of the form.
+     - Under the pages rule (v0.7), a value that runs off the bottom of a page may be followed for up to 30
+       pages, even past Pages per form. It stops at the first page that does not continue it (a new label, a
+       heading, a different column). Two copies of a one-page form in a row can therefore join when the second
+       starts with text in the value's column. Under the counter rule it stops at the form's last page, with a
+       "value continues past the form" note.
      - Cost: each listed label is tried at every text item on every page of the form. 100 fields on a
        70-page record is a few million short regular-expression tests; expect tens of files per second.
      - Drawn lines are read from the SAMPLE only (section 3b) and laid onto each record by a plain shift,
@@ -23344,16 +23352,41 @@ ZXI7c2VsZi5wZGZqc1dvcmtlcj17V29ya2VyTWVzc2FnZUhhbmRsZXI6UWd9Ow==</script>
        ignored too; the switch "Ignore repeated page headers and footers" turns this off.
      - The "(cont.)" continuation is recognised by the marker's spelling (CONT_MARK: cont, cont., cont'd,
        continued, continuation, in brackets or not). Another wording is not recognised.
+     - One main form under the pages rule still starts at the first page its anchor is read on (v0.7); only
+       the counter rule takes page 1 when its anchor was lost there and page 2 reads 2.
+     - Anchors: in a template from before v0.8 (one main form, no counter rule) an anchor matches as a substring
+       (v0.7); in a v0.8 template it matches as a whole (anchorIn).
+     - A form number printed near the top or bottom edge ("SF-12") can be read as a letter-number page counter when
+       the page's real counter cannot be read; two adjacent pages numbered SF-12 and SF-13 then count as one
+       document. The page line shows such a counter as "(letter-number ...)".
+     - When a main form's counter is never read, its span follows its anchor (spanOf): page by page while the anchor
+       is printed in the same band (top or bottom fifth) and, when no count total is known, on a line like the first
+       page's: within GRID_ALIGN_MAX points of where it starts there, with at most ANCHOR_LINE_NEW_MAX of that line's
+       other words new (anchorState). A page that prints the anchor only on another line (a citation such as
+       "Attachment to FORM SF-12", or another document's title) ends the run and is never bridged. A following
+       document that prints the same anchor line in the same place (a stamp on every page) and has no readable counter
+       is still taken in, for up to ANCHOR_RUN_MAX pages; problems.csv's "span followed the anchor" lists the pages,
+       and "values from the anchor run" lists the fields read from them. With a count total ("2 of 4") only the band
+       is checked, and the total caps the run. One page without the anchor between two that carry it is taken as the
+       form's (the research: the main form is never interrupted); an extra form found there is reported as "extra form
+       inside the anchor run". A bridged page's "n of N" counter can set the run's total and so cap it. A first page
+       whose anchor is split over two lines gives no reference line, and the run then takes nothing.
+     - An extra form starting inside pages the main form's counter gave is not read and not noted, because the
+       main form's own labels and form numbers recur there.
+     - The anchor-run fallback (spanOf) is for main forms only: adjacent one-page extra forms with the same anchor
+       and unreadable counters stay one copy per page, with a "page counter not read" note.
      - "CONTAINER > LABEL" looks for the label from the container's line downwards within the container's
        cell (or, without lines, its column) and takes the first match; it has no lower bound, so a block
        that lacks the label may yield the same label from the block below it in that column.
      - Comparing records (section 8) assumes the compared files are the same form as the sample; pages are
-       matched by their first line. With one compared record, a value that happens to read the same in
-       both ("Yes", a repeated date) counts as a label; more records make that unlikely. Up to 4 are read.
+       matched by their first line, or by most of its words (ROLE_MATCH_MIN). A value that reads the same in
+       every compared record ("Supply", one person's name) still counts as part of the form; records from
+       different offices and dates make that unlikely. Up to 4 are read. A label is left out only with two or
+       more compared records, and the Auto-detect message names what was left out and what was added.
    ===================================================================================================== */
 
 const $ = id => document.getElementById(id);
-const VERSION = "v0.8";
+const VERSION = "v0.8.11";
 
 /* =====================================================================================================
    SECTION 1. START-UP: decode the embedded PDF reader, verify it, start it
@@ -23491,16 +23524,22 @@ const T = Object.freeze({
   FURNITURE_SHARE: 0.5,      // ...if the same text (digits ignored) is there on at least half of the pages,
   FURNITURE_MIN_PAGES: 3,    // ...on at least 3 pages,
   FURNITURE_MAX_SIZE: 1.15,  // ...and it is not a heading (no larger than 1.15 \u00d7 the record's body text)
+  CELL_FOOT_BAND: 0.12,      // a cell reaching the bottom 12% of the page may go on overleaf (cellValue)
 
   // Comparing sample records (section 8, compareItems)
   COMPARE_MAX: 4,            // up to 4 further records are compared with the sample
   COMPARE_X: 6,              // a text is "at the same place" in another record within 6 points across...
   COMPARE_Y: 12,             // ...and 12 points down (one extra line in a cell above moves it that much)
-  COMPARE_STATIC_SHARE: 0.8, // a text is a label when it reads the same in at least 80% of the compared records
+  ROLE_MATCH_MIN: 0.6,       // pages pair across records by their first line; failing an exact match, one sharing 60% of its words
+  COMPARE_STATIC_SHARE: 1,   // a text is part of the form only when it reads the same in every compared record whose
+                             // page lines up; one that is not unanimous gets no verdict, and the page's own rules decide
 
   // Page counters and packets (section 3d)
   COUNTER_BAND: 0.12,        // a page counter is looked for in the top and bottom 12% of the page
   FORM_TYPE_MARGIN: 0.15,    // two main form types scoring within this of each other on page 1: "form type unclear"
+  ANCHOR_BAND: 0.2,          // a main form's anchor printed in the top or bottom fifth of each page can carry its span
+  ANCHOR_RUN_MAX: 30,        // ...for at most 30 pages beyond what its counter gave
+  ANCHOR_LINE_NEW_MAX: 0.5,  // ...and, with no total stated, only on pages whose anchor line has at most half its other words new
 
   // Safety limits
   BLOCK_LINES_MAX: 5000,
@@ -23509,7 +23548,8 @@ const T = Object.freeze({
   EXCEL_CELL_MAX: 32767,
   CHUNK_CHARS: 1200,         // record-chunks.jsonl: a chunk holds at most about this many characters of a value     // Excel shows at most this many characters in one cell (the CSV keeps all)
   SAMPLE_PAGES_MAX: 80,      // the sample viewer reads at most this many pages of a sample for the preview
-  SAMPLE_PRELOAD_PAGES: 8,   // pages of a sample read as soon as it opens (to recognise headers and footers)
+  SAMPLE_PRELOAD_PAGES: 8,
+  SAMPLE_PLAN_PAGES: 60,     // "Where does this form end?" reads at most this many sample pages   // pages of a sample read as soon as it opens (to recognise headers and footers)
   AUTO_LABEL_MAX_CHARS: 60,  // "Auto-detect labels" accepts a label of at most this length
   AUTO_LABEL_LINES: 3,       // ...wrapped over at most 3 lines in its cell
 });
@@ -23797,10 +23837,12 @@ function lineWords(line) {
 }
 // Every run of one to three consecutive words on a page, as anchor candidates: [{ w: "1. control number",
 // x, y }] at the position of the run's first word. Cached on the page.
-function pageWords(pt) {
-  if (pt._words) return pt._words;
+// `all`: include page furniture (a v0.8 template lines its grid up on header labels too).
+function pageWords(pt, all) {
+  const cacheKey = all ? "_wordsAll" : "_words";
+  if (pt[cacheKey]) return pt[cacheKey];
   const out = [];
-  for (const line of lines(pt)) {
+  for (const line of lines(pt, all)) {
     const words = lineWords(line);
     for (let k = 0; k < words.length; k++) {
       for (let n = 1; n <= T.GRID_ANCHOR_WORDS && k + n <= words.length; n++) {
@@ -23808,18 +23850,18 @@ function pageWords(pt) {
       }
     }
   }
-  return (pt._words = out);
+  return (pt[cacheKey] = out);
 }
 
 // A grid as stored in the template: fractions of the page, so it does not depend on the page size, plus
 // anchors (the first few words of each cell's first line, mostly labels) with their positions, used to
 // line the grid up on a record. Several words together, so that a common word in a value does not match
 // by chance somewhere else on another record's page.
-function gridToStored(grid, pt) {
+function gridToStored(grid, pt, all) {
   const r4 = n => Math.round(n * 1e4) / 1e4;
   const byCell = new Map();
   for (const it of pt.items) {
-    if (it.furn) continue;
+    if (it.furn && !all) continue;
     const cell = cellOf(it, grid, pt.w, pt.h);
     if (!cell) continue;
     if (!byCell.has(cell.key)) byCell.set(cell.key, { cell, items: [] });
@@ -23827,7 +23869,7 @@ function gridToStored(grid, pt) {
   }
   const anchors = [];
   for (const { items } of [...byCell.values()].sort((a, b) => a.cell.y0 - b.cell.y0 || a.cell.x0 - b.cell.x0)) {
-    const first = lines({ items })[0];
+    const first = lines({ items }, all)[0];
     if (!first) continue;
     const words = lineWords(first).slice(0, T.GRID_ANCHOR_WORDS);
     const text = words.map(x => x.w).join(" ");
@@ -23848,11 +23890,11 @@ function gridToStored(grid, pt) {
 // each horizontal line takes the vertical offset of the nearest anchor word BELOW it (the label of the next
 // row, which has moved with it). Leaves the page without a grid (returns false) when too few anchors are
 // found or none is within GRID_ALIGN_MAX: then this is not the page the grid describes.
-function applyGrid(pt, stored) {
+function applyGrid(pt, stored, all) {
   pt.grid = null; pt.gridShift = null;
   for (const it of pt.items) it.cell = null;
   if (!stored || !pt.items.length) return false;
-  const words = pageWords(pt), matched = [];
+  const words = pageWords(pt, all), matched = [];
   for (const [text, fx, fy] of stored.anchors || []) {
     const ex = fx * pt.w, ey = fy * pt.h;
     let best = null;
@@ -23889,18 +23931,20 @@ function applyGrid(pt, stored) {
   return true;
 }
 // Items of a page whose centre lies inside a cell (not page furniture).
-function itemsInCell(pt, cell) {
-  return pt.items.filter(it => !it.furn && (it.x0 + it.x1) / 2 >= cell.x0 && (it.x0 + it.x1) / 2 <= cell.x1
+// `all`: include page furniture (the second reading of a blank field, readForm).
+function itemsInCell(pt, cell, all) {
+  return pt.items.filter(it => (all || !it.furn) && (it.x0 + it.x1) / 2 >= cell.x0 && (it.x0 + it.x1) / 2 <= cell.x1
     && (it.y0 + it.y1) / 2 >= cell.y0 && (it.y0 + it.y1) / 2 <= cell.y1);
 }
 // The cell immediately to the right of `cell` (sharing its top edge), or directly below it (sharing its
 // left edge or overlapping it by more than half), found through the items that sit in it. Null if none.
-function neighbourCell(pt, cell, side) {
+function neighbourCell(pt, cell, side, all) {
   const k = T.CELL_SLACK * 2;
   for (const it of pt.items) {
     const c = it.cell;
-    if (!c || c.key === cell.key || it.furn) continue;
+    if (!c || c.key === cell.key || (it.furn && !all)) continue;
     if (side === "right" && Math.abs(c.x0 - cell.x1) <= k && Math.abs(c.y0 - cell.y0) <= k) return c;
+    if (side === "left" && Math.abs(c.x1 - cell.x0) <= k && Math.abs(c.y0 - cell.y0) <= k) return c;
     if (side === "below" && Math.abs(c.y0 - cell.y1) <= k && Math.min(c.x1, cell.x1) - Math.max(c.x0, cell.x0) > 0.5 * (cell.x1 - cell.x0)) return c;
   }
   return null;
@@ -23916,11 +23960,33 @@ function neighbourCell(pt, cell, side) {
    this off.
    ===================================================================================================== */
 function markFurniture(pts, template) {
-  for (const pt of pts) { pt._words = null; for (const it of pt.items) it.furn = false; }
+  for (const pt of pts) { if (!pt) continue; pt._words = null; pt._wordsAll = null; for (const it of pt.items) { it.furn = false; it.head = false; it.foot = false; } }
+  // v0.8 templates: a line in the top (bottom) band that reads the same, digits ignored, in the same band of the
+  // page before or after is a local header (footer). It never stops a value at a page break (collectBlock,
+  // continueOnPage). pts may have holes (pages not read yet), so neighbours are real neighbouring pages.
+  if (template && packetTemplate(template)) {
+    const keysOf = pt => {
+      const k = { top: new Set(), bottom: new Set() };
+      if (pt) for (const l of lines(pt, true)) { if (l.y1 < pt.h * T.FURNITURE_BAND) k.top.add(headerKey(l.text)); else if (l.y0 > pt.h * (1 - T.FURNITURE_BAND)) k.bottom.add(headerKey(l.text)); }
+      return k;
+    };
+    const keys = pts.map(keysOf);
+    pts.forEach((pt, i) => {
+      if (!pt) return;
+      for (const l of lines(pt, true)) {
+        const b = l.y1 < pt.h * T.FURNITURE_BAND ? "top" : l.y0 > pt.h * (1 - T.FURNITURE_BAND) ? "bottom" : null;
+        if (!b) continue;
+        const key = headerKey(l.text);
+        if ((keys[i - 1] && keys[i - 1][b].has(key)) || (keys[i + 1] && keys[i + 1][b].has(key))) for (const it of l.items) it[b === "top" ? "head" : "foot"] = true;
+      }
+    });
+  }
   if (template && template.ignoreFurniture === false) return;
   const withText = pts.filter(p => p && p.items.length);
   if (withText.length < T.FURNITURE_MIN_PAGES) return;
   const compiledAll = template ? template.forms.map(compiledForm) : [];
+  // table headings the template names are never furniture (a heading repeated at the top of each page)
+  const heads = template ? template.forms.flatMap(f => f.fields.filter(x => x.method === "table").map(x => x.columns.map(c => ({ name: c.name, compiled: compileLabel(c.label || c.name) })))) : [];
   const sizes = new Map();
   const perPage = withText.map(pt => {
     const ls = lines(pt, true);
@@ -23947,6 +24013,7 @@ function markFurniture(pts, template) {
       if (!b || l.y1 - l.y0 > body * T.FURNITURE_MAX_SIZE) continue;
       if ((pagesWith.get(b + "|" + headerKey(l.text)) || new Set()).size < needed) continue;
       if (compiledAll.some(c => startsWithLabel(l.text, c) || startsWithLabel(l.text, c, true))) continue;
+      if (heads.some(cols => findTableHeader([l], cols))) continue;
       for (const it of l.items) it.furn = true;
     }
   });
@@ -23969,40 +24036,69 @@ function markFurniture(pts, template) {
 const COUNTER_PATTERNS = [
   ["word-of", /(?:^|[^\p{L}])(?:page|pg|p|sheet|sht)\.?\s*(\d{1,4})\s*(?:of|\/)\s*(\d{1,4})(?![\p{L}\p{N}])/iu],
   ["of", /(?:^|[^\p{L}\p{N}.\/-])(\d{1,4})\s+of\s+(\d{1,4})(?![\p{L}\p{N}.\/-])/iu],
-  ["slash", /(?:^|[^\p{L}\p{N}.\/-])(\d{1,3})\s*\/\s*(\d{1,3})(?![\p{L}\p{N}.\/-])/u],
+  // a Latin letter next to it blocks it ("Rev1/2"); a CJK, kana or Hangul one does not ("\u7b2c3/4\u9875")
+  ["slash", /(?:^|[^\p{Script=Latin}\p{N}.\/-])(\d{1,3})\s*\/\s*(\d{1,3})(?![\p{Script=Latin}\p{N}.\/-])/u],
   ["letter", /(?:^|[^\p{L}\p{N}-])([A-Z]{1,2})\s?-\s?(\d{1,3})(?![\p{L}\p{N}-])/u],
 ];
+// Unicode decimal digits from other scripts (Arabic-Indic, extended Arabic-Indic, Devanagari, Bengali, Thai) as
+// ASCII, so their counters read; full-width digits are already folded by NFKC.
+const DIGIT_ZEROS = [0x0660, 0x06F0, 0x0966, 0x09E6, 0x0E50];
+function foldDigits(t) {
+  return t.replace(/[\u0660-\u0669\u06F0-\u06F9\u0966-\u096F\u09E6-\u09EF\u0E50-\u0E59]/g, ch => {
+    const c = ch.charCodeAt(0), z = DIGIT_ZEROS.find(z0 => c >= z0 && c <= z0 + 9);
+    return String(c - z);
+  });
+}
 const BLANK_COUNTER = /(?:page|sheet|pg)\s*_{2,}\s*of\s*_{2,}/i;
 const BARE_COUNTER = /^\s*-?\s*(\d{1,3})\s*-?\s*$/;
-function pageCounter(pt) {
-  if (pt._counter !== undefined) return pt._counter;
-  let found = null;
-  const all = lines(pt, true);
-  // bottom band first (where counters usually are), then top band; within a band, the strongest kind wins
+// Every candidate counter on a page, both bands (bottom first), each band sorted by strength. Cached.
+function pageCounters(pt) {
+  if (pt._counters !== undefined) return pt._counters;
+  const all = lines(pt, true), out = [];
   for (const band of ["bottom", "top"]) {
     const inBand = all.filter(l => band === "bottom" ? l.y0 > pt.h * (1 - T.COUNTER_BAND) : l.y1 < pt.h * T.COUNTER_BAND);
     const candidates = [];
     for (const l of inBand) {
-      const t = l.text.normalize("NFKC");
+      const t = foldDigits(l.text.normalize("NFKC"));
       COUNTER_PATTERNS.forEach(([kind, re], rank) => {
         const m = re.exec(t);
         if (m) candidates.push({ rank, kind, n: kind === "letter" ? +m[2] : +m[1], N: kind === "letter" ? null : +m[2], letter: kind === "letter" ? m[1] : null, line: l, text: m[0].trim() });
       });
       if (BLANK_COUNTER.test(t)) candidates.push({ rank: 5, kind: "blank", n: null, N: null, letter: null, line: l, text: "___ of ___" });
       for (const it of l.items) {
-        const m = BARE_COUNTER.exec(it.s);
+        const m = BARE_COUNTER.exec(foldDigits(it.s.normalize("NFKC")));
         if (m && +m[1] >= 1) candidates.push({ rank: 4, kind: "bare", n: +m[1], N: null, letter: null, line: { ...l, items: [it] }, text: it.s.trim() });
       }
     }
     const ok = candidates.filter(c => c.kind === "blank" || c.kind === "letter" || c.kind === "bare" || (c.n >= 1 && c.N >= c.n));
-    if (ok.length) {
-      ok.sort((a, b) => a.rank - b.rank);
-      const c = ok[0], it = c.line.items[0], cx = (it.x0 + c.line.items[c.line.items.length - 1].x1) / 2 / pt.w;
-      found = { kind: c.kind, n: c.n, N: c.N, letter: c.letter, band, hpos: cx < 0.36 ? "left" : cx > 0.64 ? "right" : "centre", text: c.text };
-      break;
+    ok.sort((a, b) => a.rank - b.rank || a.line.y0 - b.line.y0);   // stable: strongest kind, then topmost
+    for (const c of ok) {
+      const it = c.line.items[0], cx = (it.x0 + c.line.items[c.line.items.length - 1].x1) / 2 / pt.w;
+      out.push({ rank: c.rank, kind: c.kind, n: c.n, N: c.N, letter: c.letter, band, hpos: cx < 0.36 ? "left" : cx > 0.64 ? "right" : "centre", text: c.text });
     }
   }
-  return (pt._counter = found);
+  return (pt._counters = out);
+}
+// The page's counter as the editor shows it: its strongest candidate.
+function pageCounter(pt) {
+  if (pt._counter !== undefined) return pt._counter;
+  const c = pageCounters(pt)[0];
+  return (pt._counter = c ? { kind: c.kind, n: c.n, N: c.N, letter: c.letter, band: c.band, hpos: c.hpos, text: c.text } : null);
+}
+const sameCandidate = (a, b) => a.kind === b.kind && a.letter === b.letter && a.n === b.n && a.N === b.N && norm(a.text) === norm(b.text);
+// The counter of page i for following a run. Text that repeats unchanged on the page before or after (a
+// document code, a revision digit in a footer box, a date) is not a counter. Of what remains, the strongest
+// candidate wins, except that another candidate OF THE SAME KIND that continues `prev` is preferred. A weaker
+// kind is never preferred over the strongest: on an appendix page "A-1", a stray "10" must not continue a bare "9".
+function counterAt(pts, i, prev) {
+  const pt = pts[i];
+  if (!pt) return null;
+  const near = [pts[i - 1], pts[i + 1]].filter(Boolean).flatMap(pageCounters);
+  const left = pageCounters(pt).filter(c => !near.some(o => sameCandidate(c, o)));
+  if (!left.length) return null;
+  const top = left[0];
+  if (prev) { const better = left.find(c => c.kind === top.kind && continuesCounter(prev, c)); if (better) return better; }
+  return top;
 }
 // Does page b's counter continue page a's?
 function continuesCounter(a, b) {
@@ -24011,28 +24107,187 @@ function continuesCounter(a, b) {
   if (a.N != null && a.N !== b.N) return false;
   return b.n === a.n + 1;
 }
-// Runs of pages counting on from `start`: the indexes of the pages that belong to the same counted document.
-// Returns { pages: [index...], reachedTotal: bool, kind }.
+// The pages of one counted document, starting at page `start`. Returns { pages: [index...], reachedTotal, kind,
+// notes, stop: { page, why } }. It follows the counter page by page and:
+//   - stops when an "n of N" count has reached N;
+//   - takes a first page with no readable counter as page 1 when the next page reads 2, or when the next page is
+//     unreadable too and the one after reads 3;
+//   - bridges one or two pages whose counter is missing or misread when the page after them continues the count;
+//   - takes a page with no readable counter as the last page when the count stood at N-1, unless that page
+//     starts a count of its own (the next document);
+//   - notes a count that stops short of its total.
+// Each inference adds a note (problems.csv) so it is visible. stop.why: "total", "end of file", "style" (a
+// counter of another kind, letter or total), "restart" (same kind, not counting on), "no counter", or
+// "unread start"; stop.page is the first page not taken (the last page taken, for "total").
 function counterRun(pts, start) {
-  const first = pageCounter(pts[start]);
-  const pages = [start];
-  if (!first || first.n == null) return { pages, reachedTotal: false, kind: first ? first.kind : null };
-  let prev = first, i = start + 1;
-  while (i < pts.length) {
-    const c = pageCounter(pts[i]);
-    if (continuesCounter(prev, c)) { pages.push(i); prev = c; i++; continue; }
-    // an OCR dropout: no counter here, but the next page continues two on
-    const next = i + 1 < pts.length ? pageCounter(pts[i + 1]) : null;
-    if (!c && next && prev.kind === next.kind && next.n === prev.n + 2 && (prev.N == null || prev.N === next.N) && prev.letter === next.letter) {
-      pages.push(i, i + 1); prev = next; i += 2; continue;
+  const notes = [], pages = [start];
+  const usable = c => c && c.n != null;
+  let first = counterAt(pts, start, null);
+  const startOptions = pageCounters(pts[start] || { items: [] }).filter(c => usable(c) && first && c.kind === first.kind);
+  if (startOptions.length > 1) {
+    const length = c => { let prev = c, n = 0; for (let i = start + 1; i < pts.length; i++) { const x = counterAt(pts, i, prev); if (!continuesCounter(prev, x)) break; prev = x; n++; } return n; };
+    let best = first, bestLen = length(first);
+    for (const c of startOptions) { const L = length(c); if (L > bestLen) { best = c; bestLen = L; } }
+    first = best;
+  }
+  // A letter-number on the first page (often a form number, "SF-12") that the next page does not continue, while
+  // the next page reads a strong 2 of another kind: the count starts here, and the form number hid it.
+  if (first && first.kind === "letter" && !continuesCounter(first, counterAt(pts, start + 1, first)) && lostFirstPage(pts, start + 1)) {
+    const next = counterAt(pts, start + 1, null);
+    if (next.kind !== "letter") {
+      notes.push(`page counter inferred: page ${start + 1} reads only "${first.text}" (a letter-number, often a form number), which page ${start + 2} does not continue; taken as 1 from page ${start + 2}, which reads "${next.text}"`);
+      first = { ...next, n: 1, text: "(inferred)" };
     }
+  }
+  if (!usable(first)) {
+    const next = counterAt(pts, start + 1, null), after = counterAt(pts, start + 2, null);
+    if (usable(next) && next.n === 2) {
+      first = { ...next, n: 1, text: "(inferred)" };
+      notes.push(`page counter inferred: page ${start + 1} had no readable counter; taken as 1 from page ${start + 2}`);
+    } else if (!usable(next) && usable(after) && after.n === 3) {
+      first = { ...after, n: 1, text: "(inferred)" };
+      notes.push(`page counter inferred: page ${start + 1} had no readable counter; taken as 1 from page ${start + 3}`);
+    } else return { pages, reachedTotal: false, kind: first ? first.kind : null, notes, stop: { page: start, why: "unread start" }, total: null, lastN: null };
+  }
+  let prev = first, i = start + 1, stop = null, next = null;   // next: the counter on the first page not taken
+  while (i < pts.length) {
+    if (prev.N != null && prev.n >= prev.N) { stop = { page: i - 1, why: "total" }; break; }
+    const c = counterAt(pts, i, prev);
+    if (continuesCounter(prev, c)) { pages.push(i); prev = c; i++; continue; }
+    let bridged = false;
+    for (const g of [1, 2]) {
+      const after = counterAt(pts, i + g, { ...prev, n: prev.n + g });   // prefer the candidate the run expects there
+      const fits = after && after.kind === prev.kind && after.letter === prev.letter && after.N === prev.N && after.n === prev.n + g + 1;
+      if (fits) {
+        for (let k = 0; k <= g; k++) pages.push(i + k);
+        notes.push(`page counter bridged: page${g > 1 ? "s" : ""} ${Array.from({ length: g }, (_, k) => i + k + 1).join(", ")} had no readable counter or a misread one`);
+        prev = after; i += g + 1; bridged = true; break;
+      }
+    }
+    if (bridged) continue;
+    // the last page of an "n of N" count whose counter was not read, unless page i begins a count of its own
+    const startsOwn = usable(c) && continuesCounter(c, counterAt(pts, i + 1, c));
+    if (prev.N != null && prev.n === prev.N - 1 && !startsOwn && (!usable(c) || (c.kind === prev.kind && c.N === prev.N && c.n !== prev.n + 1))) {
+      pages.push(i);
+      notes.push(`page counter inferred: page ${i + 1} had no readable counter; taken as the last page (${prev.N} of ${prev.N})`);
+      prev = { ...prev, n: prev.N };
+      stop = { page: i, why: "total" };
+      break;
+    }
+    next = usable(c) ? c : null;
+    stop = { page: i, why: !usable(c) ? "no counter" : (c.kind !== prev.kind || c.letter !== prev.letter || c.N !== prev.N) ? "style" : "restart" };
     break;
   }
-  return { pages, reachedTotal: prev.N != null && prev.n === prev.N, kind: first.kind };
+  if (!stop) stop = prev.N != null && prev.n >= prev.N ? { page: pts.length - 1, why: "total" } : { page: pts.length, why: "end of file" };
+  if (prev.N != null && prev.n < prev.N) {
+    const last = pages[pages.length - 1];
+    notes.push(stop.why === "end of file"
+      ? `page counter stopped: page ${last + 1} reads ${prev.n} of ${prev.N} and is the end of the file`
+      : `page counter stopped: page ${last + 1} reads ${prev.n} of ${prev.N} but page ${last + 2} does not continue it, so the form may be cut short`);
+  }
+  return { pages, reachedTotal: prev.N != null && prev.n === prev.N, kind: first.kind, notes, stop, total: prev.N, lastN: prev.n, next };
 }
+// Notes for a counter-ruled MAIN form (spanOf's own, plus): a run that followed a counter without a total and
+// then lost it (unless `declared`, the form's stated page count, agrees with what was read), a main form read as
+// only one page when its first page's counter is not a complete count, and a form that starts mid-count.
+function mainRunNotes(form, pts, start, declared) {
+  const sp = spanOf(form, pts, start), out = [...sp.notes];
+  const raw = pageCounter(pts[start] || { items: [] }), first = counterAt(pts, start, null);
+  if (first && first.n != null && first.N != null && first.n > 1)
+    out.push(`main form starts mid-count: page ${start + 1} reads ${first.n} of ${first.N}, so the form's earlier pages may be missing or were not recognised`);
+  if (sp.via === "anchor") return out;
+  const last = sp.pages[sp.pages.length - 1];
+  const followed = sp.pages.length > 1 ? counterAt(pts, last, null) : first;
+  // (a run of one page is left to the "main form read as one page" note below, which says more)
+  if (sp.run && sp.pages.length > 1 && sp.run.total == null && (sp.stop.why === "restart" || sp.stop.why === "style") && sp.run.next && sp.run.next.n !== 1 && declared !== sp.pages.length)
+    out.push(`page counter stopped: page ${sp.stop.page + 1} reads "${sp.run.next.text}", not ${sp.run.lastN + 1} and not a new count from 1, so ${form.name} may continue past page ${sp.stop.page}`);
+  if (sp.stop.why === "no counter" && followed && followed.n != null && followed.N == null && declared !== sp.pages.length)
+    out.push(`page counter stopped: page ${sp.stop.page + 1} has no readable counter, so ${form.name} may continue past page ${sp.stop.page}`);
+  if (sp.pages.length === 1 && !out.some(n => n.startsWith("page counter stopped")) && !(raw && raw.N != null && raw.n === raw.N))
+    out.push(raw ? `main form read as one page: page ${start + 1}'s counter is not continued on page ${start + 2}; check both on the sample's page line`
+                 : `main form read as one page: page ${start + 1} has no readable counter; check it on the sample's page line`);
+  return out;
+}
+// All notes about the main form's span: mainRunNotes plus the "Last page from" cross-check (counter rule only).
+function mainFormNotes(form, pts, start, values, tables) {
+  if (form.spanRule !== "counter") return [];
+  const declared = form.lastPageField ? declaredLastPage(form, values, tables, pts.length - start) : null;
+  const out = mainRunNotes(form, pts, start, declared);
+  const counted = formSpan(form, pts, start);
+  // The index states the last page exactly, so any difference is reported.
+  if (declared !== null && declared !== counted) out.push(`form end unclear: the page counter gives ${counted} pages, "${form.lastPageField}" says ${declared}`);
+  return out;
+}
+// What was set aside as page furniture on these pages, in counts only (never the text), for the page_furniture
+// column: "top: K line(s) on P of N pages; bottom: ...", or "none"; plus "; read for A, B" (fields read from it).
+function furnitureSummary(pts, pages, readFor) {
+  const parts = [];
+  for (const band of ["top", "bottom"]) {
+    const keys = new Set(); let onPages = 0;
+    for (const i of pages) {
+      const pt = pts[i]; if (!pt) continue;
+      let here = false;
+      for (const l of lines(pt, true)) {
+        const inBand = band === "top" ? l.y1 < pt.h * T.FURNITURE_BAND : l.y0 > pt.h * (1 - T.FURNITURE_BAND);
+        if (inBand && l.items.length && l.items.every(it => it.furn)) { keys.add(headerKey(l.text)); here = true; }
+      }
+      if (here) onPages++;
+    }
+    if (keys.size) parts.push(`${band}: ${keys.size} line${keys.size > 1 ? "s" : ""} on ${onPages} of ${pages.length} pages`);
+  }
+  return (parts.length ? parts.join("; ") : "none") + (readFor && readFor.length ? `; read for ${readFor.join(", ")}` : "");
+}
+// What confirms a counter-ruled main form's end, for records.csv's form_end_check column: "agrees" / "differs:
+// counter N, stated M" (Last page from), "stated pages not read", "followed anchor", "count complete" (an n of N
+// count reached N), "counter not read", or "counter only" (nothing else confirms it). "" for other forms.
+function formEndCheck(form, pts, start, values, tables) {
+  if (form.spanRule !== "counter") return "";
+  const sp = spanOf(form, pts, start), counted = Math.max(1, sp.pages.length);
+  const declared = form.lastPageField ? declaredLastPage(form, values, tables, pts.length - start) : null;
+  if (declared !== null) return declared === counted ? "agrees" : `differs: counter ${counted}, stated ${declared}`;
+  if (form.lastPageField && resolveLastPageField(form)) return "stated pages not read";
+  if (sp.via === "anchor") return "followed anchor";
+  if (sp.run && sp.run.reachedTotal) return "count complete";
+  if (sp.stop.why === "unread start") return "counter not read";
+  return "counter only";
+}
+// An extra form's title at the TOP of a page inside a main form's count that has no total: the count may have
+// run on past the form's end (a late cut). Short forms with an n of N count legitimately carry their tables inside.
+function extraInsideCount(form, starts, mainForm, pts, mainStart) {
+  if (!mainForm || mainForm.spanRule !== "counter" || !form.anchor) return [];
+  const sp = spanOf(mainForm, pts, mainStart);
+  if (sp.via !== "counter" || !sp.run || sp.run.total != null) return [];
+  const inside = starts.filter(x => x !== mainStart && sp.pages.includes(x) && anchorBand(pts[x], form.anchor) === "top");
+  if (!inside.length) return [];
+  const x = inside[0];
+  return [`extra form inside the main form: ${form.name}'s anchor "${form.anchor}" is printed at the top of page ${x + 1}, inside pages ${sp.pages[0] + 1}-${sp.pages[sp.pages.length - 1] + 1} that ${mainForm.name}'s page counter gave, so the form may run on past its end; check page ${x + 1} on the sample`];
+}
+// At most two notes per extra form per record: copies whose counter could not be followed (each read as one
+// page), and copies beyond Max copies (records.csv holds only the first ones).
+function extraSummaryNotes(form, pts, starts) {
+  const out = [];
+  if (form.spanRule === "counter") {
+    const ones = starts.filter(st => {
+      const sp = spanOf(form, pts, st), raw = pageCounter(pts[st] || { items: [] });
+      // a one-page copy whose counter reads 1 (an "A-1" appendix, a bare "1") is a whole document, not an unread count
+      return sp.pages.length === 1 && !sp.notes.some(n => n.startsWith("page counter stopped")) && !(raw && raw.N != null && raw.n === raw.N) && !(raw && raw.N == null && raw.n === 1);
+    });
+    if (ones.length) out.push(`page counter not read: ${form.name} on page${ones.length > 1 ? "s" : ""} ${ones.map(x => x + 1).join(", ")}: no counter continues from the first page, so each copy was read as one page; check one on the sample's page line`);
+  }
+  const max = form.maxCopies || 3;
+  if (starts.length > max) out.push(`copies not written: ${starts.length} copies of ${form.name} found; records.csv holds the first ${max} (raise Max copies on the Forms tab); tables.csv has them all`);
+  return out;
+}
+// Notes for one copy of an extra form starting at page s: its counter notes (counter rule only) and its table
+// notes, each with the form and page put AFTER the note's kind, so problems.csv's "problem" column stays the kind.
+function extraNotes(form, pts, s, tableNotes) {
+  const notes = [...(form.spanRule === "counter" ? counterRun(pts, s).notes : []), ...(tableNotes || [])];
+  return notes.map(n => n.replace(/^([^:]+):/, `$1: ${form.name} on page ${s + 1}:`));
+}
+const COUNTER_WORDS = { "word-of": "page n of N", of: "n of N", slash: "n / N", letter: "letter-number", bare: "number only", blank: "blank" };
 function counterLabel(c) {
   if (!c) return "no counter";
-  return c.kind === "blank" ? "blank counter" : `${c.text} (${c.kind}, ${c.band} ${c.hpos})`;
+  return c.kind === "blank" ? "blank counter" : `"${c.text}" (${COUNTER_WORDS[c.kind] || c.kind}, ${c.band} ${c.hpos})`;
 }
 // Decimal outline items ("1.1", "2.3.1") at the start of lines: the long form of a work package has none on
 // page 1, the short form has several. A form type can carry page1Outline: true/false, learned from the sample.
@@ -24093,7 +24348,7 @@ function compiledForm(form) {
     compiled = new Map();   // field name -> compiled spellings
     compiled.containers = new Map();
     for (const field of form.fields) {
-      if (field.method === "box") continue;
+      if (field.method === "box" || field.method === "table") continue;
       compiled.set(field.name, compileLabel(field.label || field.name));
       if (field.container) compiled.containers.set(field.name, compileLabel(field.container));
     }
@@ -24274,7 +24529,8 @@ function collectBlock(pageLines, j0, st, compiled, prev) {
     st.lastX1 = rightEnd;
     st.maxX1 = Math.max(st.maxX1 || 0, rightEnd);
   }
-  return { parts, ranOff: j >= pageLines.length, last: parts.length ? last : null };
+  // ranOff: the block reached the end of the page, or only lines of a local footer follow it (v0.8 templates)
+  return { parts, ranOff: j >= pageLines.length || pageLines.slice(j).every(l => l.items.every(it => it.foot)), last: parts.length ? last : null };
 }
 
 // The rightmost text position on a page (cached on the lines array).
@@ -24304,6 +24560,7 @@ function continueOnPage(pageLines, pt, st, compiled, prevTop) {
   let k = 0;
   for (; k < pageLines.length && k < T.HEADER_LINES_MAX; k++) {
     const line = pageLines[k], lineH = line.y1 - line.y0;
+    if (line.items.every(it => it.head)) continue;   // a local header (v0.8 templates): skipped like the page's own header
     // A label ends it; a label with a continuation marker is read by followValue() instead, not here.
     if (startsWithLabel(line.text, compiled) || startsWithLabel(line.text, compiled, true)) return { text: "", open: false };
     const sameColumn = st.blockX === null
@@ -24361,8 +24618,8 @@ function wrappedCellLabel(pageLines, i, a, spellings) {
 // label that is alone in its cell has its value in the next cell, or whether that next cell is the next
 // field. A listed label, or the shape "12. Word words" / "Word words:" with no other digits, in a short
 // first line, counts as a label.
-function looksLikeLabelCell(pt, cell, compiled) {
-  const cl = lines({ items: itemsInCell(pt, cell) });
+function looksLikeLabelCell(pt, cell, compiled, all) {
+  const cl = lines({ items: itemsInCell(pt, cell, all) }, all);
   if (!cl.length) return false;
   const first = cl[0].text.normalize("NFKC");
   if (startsWithLabel(first, compiled)) return true;
@@ -24396,24 +24653,24 @@ function joinCellLines(cl) {
 // `labelEnd` is the offset in the line's bounds string just after the label and its separator; `wrapped`
 // is wrappedCellLabel()'s result when the label wraps. Returns { text, open, st } or null when the cells do
 // not settle it (then the gap-based reading in extractLabel is used).
-function cellValue(pt, pageLines, i, a, labelEnd, wrapped, fieldName, compiled) {
+function cellValue(pt, pageLines, i, a, labelEnd, wrapped, fieldName, compiled, all) {
   const line = pageLines[i], labelItem = line.items[a], cell = labelItem.cell, bounds = lineBounds(line);
   const labelItems = new Set(line.items.filter((it, k) => k >= a && bounds.starts[k] < labelEnd));
   if (wrapped) wrapped.items.forEach(it => labelItems.add(it));
-  let target = cell, valueItems = itemsInCell(pt, cell).filter(it => !labelItems.has(it));
+  let target = cell, valueItems = itemsInCell(pt, cell, all).filter(it => !labelItems.has(it));
   if (!valueItems.length) {
-    const right = neighbourCell(pt, cell, "right"), below = neighbourCell(pt, cell, "below");
-    if (right && !looksLikeLabelCell(pt, right, compiled)) target = right;
-    else if (below && !looksLikeLabelCell(pt, below, compiled)) target = below;
+    const right = neighbourCell(pt, cell, "right", all), below = neighbourCell(pt, cell, "below", all);
+    if (right && !looksLikeLabelCell(pt, right, compiled, all)) target = right;
+    else if (below && !looksLikeLabelCell(pt, below, compiled, all)) target = below;
     else return { text: "", open: false, st: null };
-    valueItems = itemsInCell(pt, target);
+    valueItems = itemsInCell(pt, target, all);
   }
-  const cl = lines({ items: valueItems });
+  const cl = lines({ items: valueItems }, all);
   if (!cl.length) return { text: "", open: false, st: null };
   const { parts, lineGap } = joinCellLines(cl);
   const last = cl[cl.length - 1], lastH = last.y1 - last.y0;
   // The cell reaches the bottom of the page: the box may go on overleaf (continueOnPage decides).
-  const open = target.y1 >= pt.h * (1 - T.FURNITURE_BAND) && last.y1 > pt.h * T.PAGE_BOTTOM;
+  const open = target.y1 >= pt.h * (1 - T.CELL_FOOT_BAND) && last.y1 > pt.h * T.PAGE_BOTTOM;
   const st = {
     blockX: cl[0].x0, refH: lastH, lineGap, labelX0: labelItem.x0, hasValue: true, labelColumn: false, cols: null, labelLines: null,
     lastX1: last.items[last.items.length - 1].x1, maxX1: Math.max(...cl.map(l => l.items[l.items.length - 1].x1)),
@@ -24477,7 +24734,7 @@ function containerRegion(pt, hit) {
 // "DATE #3" wants the third DATE), and is decremented for each match passed over.
 function extractLabel(pt, fieldName, compiled, ctx, cont, opts) {
   const spellings = compiled.get(fieldName) || [];
-  const pageLines = ctx.lines || (ctx.lines = lines(pt));
+  const pageLines = ctx.lines || (ctx.lines = lines(pt, ctx.all));
   const re = cont ? "cont" : "at", region = opts && opts.region;
   for (let i = 0; i < pageLines.length; i++) {
     const line = pageLines[i], bounds = lineBounds(line);
@@ -24518,8 +24775,8 @@ function extractLabel(pt, fieldName, compiled, ctx, cont, opts) {
 
       // ---- 2a. a boxed form with drawn cells: the cells decide what the value is (section 3b) ----
       if (line.items[a].cell) {
-        const r = cellValue(pt, pageLines, i, a, Math.min(end, bounds.s.length), wrapped, fieldName, compiled);
-        if (r) { if (r.open && r.st) ctx.open = { name: fieldName, st: r.st }; return r.text; }
+        const r = cellValue(pt, pageLines, i, a, Math.min(end, bounds.s.length), wrapped, fieldName, compiled, ctx.all);
+        if (r) { if (r.open && r.st) ctx.open = { name: fieldName, st: r.st }; ctx.hit = { y0: line.y0, y1: line.y1 }; return r.text; }
       }
 
       // ---- 2. the value on the label's own line ----
@@ -24594,28 +24851,110 @@ function extractLabel(pt, fieldName, compiled, ctx, cont, opts) {
         st.refH = value || below.length ? lastLine.y1 - lastLine.y0 : null;
       }
       if (runsOffPage) ctx.open = { name: fieldName, st };
+      ctx.hit = { y0: line.y0, y1: line.y1 };
       return joinValue([value, ...below]);
     }
   }
   return null;
 }
 
+// ---- Table fields (v0.8.1) ----
+// A table is named by its column headings: `table Material List: Item; Part Number; Qty; Description`. On each
+// page of the form, the heading row is the first line on which every column's heading starts an item, left to
+// right. Each column then covers from its heading's left edge to the next heading's left edge. The lines under
+// the heading are its rows:
+//   - with drawn cells (section 3b), lines whose items share a row of cells are one row;
+//   - without, a line with text in the FIRST column starts a row, and a line with the first column empty adds
+//     to the row above (a cell that wraps onto a second line).
+// The table ends at a section gap, at a line that starts with one of the form's labels, at text left of the
+// table, or at the end of the page; it continues on any later page of the form where the heading repeats.
+// Rows that are only blanks or underlines (an unfilled template) are dropped.
+// Returns [{ page, cells: { columnName: text } }].
+function findTableHeader(pageLines, cols) {
+  for (let i = 0; i < pageLines.length; i++) {
+    const line = pageLines[i], bounds = lineBounds(line), xs = [];
+    let from = 0;
+    for (const c of cols) {
+      let hit = -1;
+      for (let a = from; a < line.items.length && hit < 0; a++) {
+        const tail = bounds.s.slice(bounds.starts[a]).trimStart();
+        if (c.compiled.some(sp => sp.at.test(tail))) hit = a;
+      }
+      if (hit < 0) break;
+      xs.push(line.items[hit].x0); from = hit + 1;
+    }
+    if (xs.length === cols.length) return { i, xs };
+  }
+  return null;
+}
+function readTable(field, pts, pages, compiled, notes) {
+  const cols = field.columns.map(c => ({ name: c.name, compiled: compileLabel(c.label || c.name) }));
+  const rows = [];
+  for (const pi of pages) {
+    const pt = pts[pi];
+    if (!pt) continue;
+    const pageLines = lines(pt), head = findTableHeader(pageLines, cols);
+    if (!head) continue;
+    const hLine = pageLines[head.i], h = hLine.y1 - hLine.y0;
+    const left = head.xs[0] - Math.max(T.X_TOLERANCE, h);
+    const colOf = it => { const cx = it.x0 + Math.min(2, (it.x1 - it.x0) / 2); let k = 0; while (k + 1 < head.xs.length && cx >= head.xs[k + 1] - T.X_TOLERANCE) k++; return k; };
+    let cur = null, last = hLine, ended = false;
+    // A cell's text: each line's pieces joined by the gaps between them (so a word pdf.js split at a ligature,
+    // "fi" + "lter", is one word again), then the lines joined with spaces.
+    const flush = () => {
+      if (!cur) return;
+      const cells = Object.fromEntries(cols.map(c => [c.name, cleanValue(cur.parts[c.name].map(joinItems).join(" ").replace(/\s+/g, " ").trim())]));
+      if (Object.values(cells).some(v => v && !/^[\s_.\-]*$/.test(v))) rows.push({ page: pi + 1, cells });
+      cur = null;
+    };
+    for (let j = head.i + 1; j < pageLines.length; j++) {
+      const line = pageLines[j], lh = line.y1 - line.y0;
+      if (line.y0 - last.y1 > Math.max(lh, h) * T.SECTION_GAP) { ended = true; break; }
+      if (line.x0 < left - T.X_TOLERANCE) { ended = true; break; }      // text left of the table: something else
+      if (findTableHeader([line], cols)) continue;                       // a repeated heading on the same page
+      const rowKey = line.items[0].cell ? Math.round(line.items[0].cell.y0) : null;
+      // A form label starting in the first column ends the table, unless it is inside the open row's own drawn cell.
+      if (startsWithLabel(line.text, compiled) && colOf(line.items[0]) === 0 && !(rowKey !== null && cur && rowKey === cur.key)) { ended = true; break; }
+      const firstColText = line.items.some(it => colOf(it) === 0);
+      const sameRow = cur && (rowKey !== null ? rowKey === cur.key : !firstColText);
+      if (!sameRow) { flush(); cur = { key: rowKey, parts: Object.fromEntries(cols.map(c => [c.name, []])) }; }
+      const byCol = new Map();
+      for (const it of line.items) { const c = cols[colOf(it)].name; if (!byCol.has(c)) byCol.set(c, []); byCol.get(c).push(it); }
+      for (const [c, items] of byCol) cur.parts[c].push(items);
+      last = line;
+    }
+    flush();
+    // The table ran to the foot of the page and the next page of the form has no heading row: rows there are not
+    // read (a heading that does not repeat is not followed), so say so.
+    const nextPi = pages[pages.indexOf(pi) + 1], after = pi + 1, lastRead = nextPi === undefined;
+    // After the last page read for this table (the form's last page, or a table fixed to one page): the page after
+    // it, unless that page starts a count of its own (its counter reads 1), which is another document.
+    const c1 = lastRead && pts[after] ? counterAt(pts, after, null) : null;
+    if (notes && !ended && rows.some(r => r.page === pi + 1) && last.y1 > pt.h * T.PAGE_BOTTOM && pts[after]
+        && (nextPi === after || (lastRead && !(c1 && c1.n === 1))) && !findTableHeader(lines(pts[after]), cols))
+      notes.push(lastRead
+        ? `table may continue: "${field.name}" runs to the foot of page ${pi + 1}, the last page read for it; page ${pi + 2} has no heading row and is outside it, so rows there were not read`
+        : `table may continue: "${field.name}" runs to the foot of page ${pi + 1}; page ${pi + 2} has no heading row, so rows there were not read`);
+  }
+  return rows;
+}
+
 // A box field: everything inside a rectangle drawn on the sample, as fractions of the page (top-left origin).
-function extractBox(pt, box) {
+function extractBox(pt, box, all) {
   const [bx0, by0, bx1, by1] = box;
   const inside = { items: pt.items.filter(it => {
-    if (it.furn) return false;
+    if (it.furn && !all) return false;
     const cx = (it.x0 + it.x1) / 2 / pt.w, cy = (it.y0 + it.y1) / 2 / pt.h;
     return cx >= bx0 && cx <= bx1 && cy >= by0 && cy <= by1;
   }) };
-  return lines(inside).map(l => l.text).join(" ").trim();
+  return lines(inside, all).map(l => l.text).join(" ").trim();
 }
 
 // Where each form of the template starts in a record: formId -> [page index, ...].
 // A form with an anchor starts on every page whose text contains the anchor (each copy then covers
 // `pages` pages). The main form without an anchor is the whole record, starting at page 0.
 function findForms(template, pts) {
-  const found = {};
+  const found = {}, whole = packetTemplate(template);
   for (const form of template.forms) {
     found[form.id] = [];
     if (!form.anchor) { if (form.kind === "main" && pts.length) found[form.id].push(0); continue; }
@@ -24623,7 +24962,7 @@ function findForms(template, pts) {
     let skipUntil = -1;
     pts.forEach((pt, i) => {
       if (i <= skipUntil) return;
-      if (norm(pt.items.map(it => it.s).join(" ")).includes(anchor)) { found[form.id].push(i); skipUntil = i + formSpan(form, pts, i) - 1; }
+      if (anchorIn(norm(pt.items.map(it => it.s).join(" ")), form.anchor, whole)) { found[form.id].push(i); skipUntil = i + formSpan(form, pts, i) - 1; }
     });
   }
   return found;
@@ -24632,23 +24971,195 @@ function findForms(template, pts) {
 //   "pages" (or absent)  its declared page count, or the rest of the record when it has no anchor (v0.7);
 //   "counter"            the pages its page counter keeps counting on from its first page (section 3d): it
 //                        ends where the counter restarts, changes style, or (for "n of N") reaches its total.
-function formSpan(form, pts, start) {
-  if (form.spanRule === "counter") return Math.max(1, counterRun(pts, start).pages.length);
-  return form.anchor ? Math.min(form.pages || 1, pts.length - start) : pts.length - start;
+function formSpan(form, pts, start) { return Math.max(1, spanOf(form, pts, start).pages.length); }
+// Is the anchor in this (already norm'ed) text? Older templates: as a substring (v0.7). v0.8 templates (`whole`):
+// as a whole, so a letter may not touch a letter and a digit may not touch a digit at either end ("FORM SF-1" does
+// not match "FORM SF-12"; "FORM SF" still matches "FORM SF-12", and "FORM SF-12" matches an OCR run-on "FORM SF-12SHORT").
+const anchorRes = new Map();
+function anchorIn(text, anchor, whole) {
+  const a = norm(anchor);
+  if (!whole) return text.includes(a);
+  let re = anchorRes.get(a);
+  if (!re) {
+    const cls = ch => /\p{L}/u.test(ch) ? "\\p{L}" : /\p{N}/u.test(ch) ? "\\p{N}" : null;
+    const c1 = cls(a[0]), c2 = cls(a[a.length - 1]);
+    re = new RegExp((c1 ? `(?<!${c1})` : "") + escapeRegex(a) + (c2 ? `(?!${c2})` : ""), "u");
+    anchorRes.set(a, re);
+  }
+  return re.test(text);
+}
+// Where the form's anchor is printed on a page: "top" (top fifth), "bottom" (bottom fifth) or null.
+function anchorBand(pt, anchor) {
+  if (!pt || !anchor) return null;
+  const all = lines(pt, true), want = norm(anchor);
+  if (anchorIn(norm(all.filter(l => l.y1 < pt.h * T.ANCHOR_BAND).map(l => l.text).join(" ")), anchor, true)) return "top";
+  if (anchorIn(norm(all.filter(l => l.y0 > pt.h * (1 - T.ANCHOR_BAND)).map(l => l.text).join(" ")), anchor, true)) return "bottom";
+  return null;
+}
+// The lines in one band ("top" or "bottom" fifth) of a page that hold the anchor whole: [{ x, y, words }], x where the
+// anchor starts, y the line's baseline, words the line's other words (digit runs read as #, one-letter OCR debris out).
+function anchorLines(pt, anchor, band) {
+  const out = [];
+  if (!pt || !anchor) return out;
+  for (const l of lines(pt, true)) {
+    if (band === "top" ? !(l.y1 < pt.h * T.ANCHOR_BAND) : !(l.y0 > pt.h * (1 - T.ANCHOR_BAND))) continue;
+    const t = norm(l.text);
+    if (!anchorIn(t, anchor, true)) continue;
+    let k = l.items.length - 1;   // the item the anchor starts in: the shortest tail of the line that still holds it
+    while (k > 0 && !anchorIn(norm(l.items.slice(k).map(x => x.s).join(" ")), anchor, true)) k--;
+    const words = t.replace(anchorRes.get(norm(anchor)), " ").split(" ")
+      .map(w => w.replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, "").replace(/\p{N}+/gu, "#"))
+      .filter(w => w && !/^\p{L}$/u.test(w));
+    out.push({ x: l.items[k].x0, y: l.y1, words: new Set(words) });
+  }
+  return out;
+}
+// How page pt prints the anchor against the first page's anchor lines `refs`: "same" (a line within GRID_ALIGN_MAX
+// points of one of them, with at most ANCHOR_LINE_NEW_MAX of its other words new: OCR drops and garbles words, a
+// citation such as "Attachment to FORM SF-12" adds them), "other" (in the band, but on no such line) or null (not in
+// the band). loose (a count's total bounds the run): the band alone decides, as before.
+function anchorState(pt, anchor, band, refs, loose) {
+  if (loose) return anchorBand(pt, anchor) === band ? "same" : null;
+  const here = anchorLines(pt, anchor, band);
+  if (!here.length) return null;
+  const like = (l, ref) => Math.abs(l.x - ref.x) <= T.GRID_ALIGN_MAX && Math.abs(l.y - ref.y) <= T.GRID_ALIGN_MAX
+    && [...l.words].filter(w => !ref.words.has(w)).length <= l.words.size * T.ANCHOR_LINE_NEW_MAX;
+  return here.some(l => refs.some(ref => like(l, ref))) ? "same" : "other";
+}
+// The one span rule used by the run, the preview and the editor: { pages, notes, stop: { page, why }, via }.
+//   pages rule:   "Pages per form" pages (an anchored form) or the rest of the record (an anchorless main form).
+//   counter rule: counterRun(). When that gives no trustworthy end for a MAIN form whose anchor is printed in
+//                 the top or bottom fifth of its first page, the run follows the anchor instead: page by page
+//                 while the anchor is in the same band and, without a count total, on a line like the first page's
+//                 (anchorState), bridging one page that lost it, never one that prints it on another line
+//                 ("anchor elsewhere"), ending at a page whose
+//                 counter reads 1 (a new document), at an "n of n" that completes the count, or where two pages
+//                 lack it; at most ANCHOR_RUN_MAX pages; always with a "span followed the anchor" note. A complete
+//                 count, a count that runs to the end of the file, and a count without a total that stops at a
+//                 change of style or a restart (the long form's normal end) are trusted and never overridden.
+//                 Extra forms never follow the anchor: adjacent one-page sheets would merge.
+function spanOf(form, pts, start) {
+  if (form.spanRule !== "counter") {
+    const n = form.anchor ? Math.min(form.pages || 1, pts.length - start) : pts.length - start;
+    return { pages: Array.from({ length: Math.max(0, n) }, (_, k) => start + k), notes: [], stop: { page: start + n, why: form.anchor ? "pages per form" : "whole record" }, via: "pages" };
+  }
+  const r = counterRun(pts, start), counted = { pages: r.pages, notes: r.notes, stop: r.stop, via: "counter", run: r };
+  // A count without a total is trusted to end only where the next page starts a count of its own (reads 1).
+  const trusted = r.stop.why === "end of file" || (r.total == null && (r.stop.why === "style" || r.stop.why === "restart") && r.next && r.next.n === 1);
+  const band = form.kind === "main" && form.anchor && !r.reachedTotal && !trusted ? anchorBand(pts[start], form.anchor) : null;
+  if (!band) return counted;
+  const refs = anchorLines(pts[start], form.anchor, band);
+  const pages = r.pages.slice(), usable = c => c && c.n != null;
+  let total = r.total, i = pages[pages.length - 1] + 1, stop = null, lost = null, added = 0;
+  // the last page index the count allows: a count that read n of N stops N-n pages on
+  let cap = r.total != null && r.lastN != null ? r.pages[r.pages.length - 1] + (r.total - r.lastN) : null;
+  while (i < pts.length) {
+    if (added >= T.ANCHOR_RUN_MAX) { stop = { page: i, why: "anchor limit" }; break; }
+    if (cap !== null && i > cap) { stop = { page: i, why: "count total" }; break; }
+    const c = counterAt(pts, i, null);
+    if (usable(c) && c.n === 1) { stop = { page: i, why: "restart" }; break; }
+    if (usable(c) && c.N != null && total == null) { total = c.N; cap = i + (c.N - c.n); }
+    const ends = usable(c) && c.N != null && c.n === c.N && c.N === total;
+    const loose = cap !== null, here = anchorState(pts[i], form.anchor, band, refs, loose);
+    if (here !== "same") {
+      if (ends) { pages.push(i); added++; stop = { page: i, why: "total" }; break; }
+      const nc = counterAt(pts, i + 1, null);
+      if (here === null && pts[i + 1] && anchorState(pts[i + 1], form.anchor, band, refs, loose) === "same" && !(usable(nc) && nc.n === 1)) { pages.push(i); added++; lost = lost === null ? i : lost; i++; continue; }
+      stop = { page: i, why: here === "other" ? "anchor elsewhere" : "anchor" }; break;
+    }
+    pages.push(i); added++;
+    if (ends) { stop = { page: i, why: "total" }; break; }
+    i++;
+  }
+  if (!added) return counted;
+  if (!stop) stop = { page: pts.length, why: "end of file" };
+  const from = r.pages.length > 1 ? `stopped after page ${r.pages[r.pages.length - 1] + 1}` : `was not read on page ${start + 1}`;
+  const how = { restart: `page ${stop.page + 1} starts a count of its own`, anchor: `page ${stop.page + 1} does not carry it`,
+    "anchor elsewhere": `page ${stop.page + 1} prints it, but not on a line like page ${start + 1}'s`,
+    total: `page ${stop.page + 1} reads ${total} of ${total}`, "end of file": "the file ends", "anchor limit": `the ${T.ANCHOR_RUN_MAX}-page limit`,
+    "count total": `page ${stop.page} is the last of the ${total} pages its counter states` }[stop.why];
+  const note = `span followed the anchor: ${form.name}'s page counter ${from}; pages ${start + 1}-${pages[pages.length - 1] + 1} were taken because "${form.anchor}" is printed at the ${band} of each${lost !== null ? ` (page ${lost + 1} without it)` : ""}, ending where ${how}`;
+  return { pages, notes: r.notes.filter(n => !n.startsWith("page counter stopped")).concat([note]), stop, via: "anchor", run: r };
+}
+// An extra form whose start lies inside pages a main form took by following its anchor (not the pages its counter
+// gave) is not read: say so. One note per extra form per record, or none.
+function anchorRunDrops(form, starts, mainForm, pts, mainStart) {
+  if (!mainForm || mainForm.spanRule !== "counter") return [];
+  const sp = spanOf(mainForm, pts, mainStart);
+  if (sp.via !== "anchor") return [];
+  const inside = starts.filter(x => sp.pages.includes(x) && !sp.run.pages.includes(x));
+  if (!inside.length) return [];
+  const P = inside.map(x => x + 1).join(", ");
+  return [`extra form inside the anchor run: ${form.name} found on page${inside.length > 1 ? "s" : ""} ${P}, inside pages ${sp.pages[0] + 1}-${sp.pages[sp.pages.length - 1] + 1} that ${mainForm.name} took by following its anchor, so it was not read; check page ${inside[0] + 1} on the sample`];
+}
+// The fields of a main form whose span followed its anchor that were read, wholly or in part, from the pages the run
+// added (not from pages its counter gave): one note naming each with its pages, or none.
+function anchorRunValues(form, pts, start, fieldPages) {
+  if (form.spanRule !== "counter") return [];
+  const sp = spanOf(form, pts, start);
+  if (sp.via !== "anchor") return [];
+  const added = sp.pages.filter(p => !sp.run.pages.includes(p)).map(p => p + 1);
+  const hits = form.fields.map(f => [f.name, ((fieldPages || {})[f.name] || []).filter(p => added.includes(p))]).filter(([, ps]) => ps.length);
+  if (!hits.length) return [];
+  const list = hits.map(([name, ps]) => `${name} (page${ps.length > 1 ? "s" : ""} ${ps.join(", ")})`).join("; ");
+  const range = added.length > 1 ? `pages ${added[0]}-${added[added.length - 1]}` : `page ${added[0]}`;
+  return [`values from the anchor run: ${list}, on pages that ${form.name} took by following its anchor (${range}), not by its page counter; check ${hits.length > 1 ? "them" : "it"} on the sample`];
+}
+// The plan of a record: where each form starts, with the main form type chosen on page 1 applied.
+function recordPlan(template, pts) {
+  const starts = findForms(template, pts), mains = template.forms.filter(f => f.kind === "main");
+  const choice = chooseMainForm(mains, pts, starts);
+  if (choice.form && choice.start !== null && choice.start !== undefined) starts[choice.form.id] = [choice.start];
+  return { starts, choice };
+}
+// Extra-form starts outside a counter-ruled main form's pages (their labels are often the main form's own). A
+// main form without that rule may span the whole record, so then nothing is excluded (v0.7 behaviour).
+function outsideMain(starts, mainSpan, mainForm) {
+  const bounded = mainSpan && mainForm && mainForm.spanRule === "counter";
+  return starts.filter(s => !bounded || s + 1 < mainSpan[0] || s + 1 > mainSpan[1]);
+}
+// Every copy of form f the run would read on these pages: [{ start, pages, notes, stop, via }], or { none }.
+function formCopies(template, pts, f) {
+  const { starts, choice } = recordPlan(template, pts), chosen = choice.form ? choice.form.name : null;
+  if (f.kind !== "main" && !(f.anchor || "").trim()) return { none: formWarnings(template, f)[0] || "no anchor text", chosen, choice };
+  if (f.kind === "main") {
+    const st = choice.form === f && choice.start !== null && choice.start !== undefined ? choice.start : (starts[f.id] || [])[0];
+    if (st === undefined) return { none: `"${f.anchor}" not found on the pages read`, chosen, choice };
+    return { copies: [{ start: st, ...spanOf(f, pts, st) }], chosen, choice };
+  }
+  const main = choice.form, ms = main && starts[main.id] && starts[main.id].length ? starts[main.id][0] : null;
+  const mainSpan = ms !== null ? [ms + 1, ms + formSpan(main, pts, ms)] : null;
+  const dropped = main && ms !== null ? anchorRunDrops(f, starts[f.id] || [], main, pts, ms).concat(extraInsideCount(f, starts[f.id] || [], main, pts, ms)) : [];
+  const keep = outsideMain(starts[f.id] || [], mainSpan, main);
+  if (!keep.length) return { none: `"${f.anchor}" not found on the pages read`, chosen, choice, dropped };
+  return { copies: keep.map(st => ({ start: st, ...spanOf(f, pts, st) })), chosen, choice, dropped };
+}
+// The copy of f that holds page i, and whether enough pages after it were read to trust its end (counterRun
+// looks up to 4 pages past its last page). Or { none }.
+function copyAt(template, pts, f, i, numPages) {
+  const r = formCopies(template, pts, f);
+  if (r.none) return { none: r.none };
+  const c = r.copies.find(x => x.pages.includes(i)) || null;
+  if (!c) return { none: `page ${i + 1} is not inside a copy of "${f.name}" on the pages read` };
+  return { ...c, enough: c.pages[c.pages.length - 1] + 5 <= pts.length || pts.length >= numPages };
 }
 
 // A value found on page `pi` may go on: on the next page under its label with a continuation marker
 // ("Description of Work (cont.)"), or, when it ran off the bottom of the page (ctx.open), at the top of
 // the next page after its running header. Both are followed page by page until neither applies.
 // Returns the completed value; `used` collects the page indexes that contributed.
-function followValue(v, field, compiled, pts, pi, contexts, used) {
+// `last` (counter rule only): the form's last page; text past it is not added, and `notes` says so. Older
+// templates pass Infinity and keep v0.7's following.
+function followValue(v, field, compiled, pts, pi, contexts, used, last = Infinity, notes = null) {
   const ctx = contexts[pi];
   let open = ctx.open && ctx.open.name === field.name ? ctx.open.st : null;
   if (ctx.open && ctx.open.name === field.name) delete ctx.open;
+  const outside = q => `value continues past the form: "${field.name}" goes on at page ${q + 1}, after the form's last page (page ${last + 1}), so text there was not added; check page ${q + 1} on the sample`;
   for (let q = pi + 1; q < pts.length && q <= pi + T.CONTINUATION_PAGES_MAX; q++) {
-    const thisCtx = contexts[q] || (contexts[q] = {});
+    const past = q > last, thisCtx = past ? {} : (contexts[q] || (contexts[q] = {}));   // a scratch context outside the form
     const more = extractLabel(pts[q], field.name, compiled, thisCtx, true);
     if (more !== null) {
+      if (past) { if (more && notes) notes.push(outside(q)); break; }
       if (more) { v = joinValue([v, "\n\n", more]); if (used) used.add(q); }
       open = thisCtx.open && thisCtx.open.name === field.name ? thisCtx.open.st : null;
       if (thisCtx.open && thisCtx.open.name === field.name) delete thisCtx.open;
@@ -24660,6 +25171,7 @@ function followValue(v, field, compiled, pts, pi, contexts, used) {
     const prevTop = new Set(prevLines.slice(0, T.HEADER_SAMPLE_LINES).map(l => headerKey(l.text)));
     open.labelLines = null;   // a label's wrapped pieces belong to the page it started on
     const r = continueOnPage(thisCtx.lines || (thisCtx.lines = lines(pts[q])), pts[q], open, compiled, prevTop);
+    if (past) { if (r.text && notes) notes.push(outside(q)); break; }
     if (r.text) { v = joinValue([v, r.text]); if (used) used.add(q); }
     if (!r.open) open = null;
   }
@@ -24669,10 +25181,11 @@ function followValue(v, field, compiled, pts, pi, contexts, used) {
 // Read every field of one copy of a form that starts at page `start`. Returns { fieldName: value|null }.
 // `used`, if given, collects the page indexes that contributed a value. `pagesOut`, if given, receives
 // { fieldName: [page numbers, 1-based] } for each field found (used by the retrieval chunks, section 10).
-function readForm(form, pts, start, used, pagesOut) {
+// `furnOut`, if given, receives the names of fields read from page furniture (the second reading below).
+function readForm(form, pts, start, used, pagesOut, tablesOut, notesOut, furnOut) {
   const values = {}, contexts = {}, compiled = compiledForm(form), span = formSpan(form, pts, start);
   // A boxed form: lay the grids the sample provided onto this copy's pages (section 3b).
-  if (form.grids) for (let k = 0; k < span; k++) { if (form.grids[k] && pts[start + k]) applyGrid(pts[start + k], form.grids[k]); }
+  if (form.grids) for (let k = 0; k < span; k++) { if (form.grids[k] && pts[start + k]) applyGrid(pts[start + k], form.grids[k], form.spanRule === "counter"); }
   for (const field of form.fields) {
     // field.page: "any" (or absent) = search every page of this copy of the form, first hit wins;
     // a number = only that page, counted from the form's first page (0 = first). Box fields always have one.
@@ -24680,6 +25193,15 @@ function readForm(form, pts, start, used, pagesOut) {
       ? Array.from({ length: span }, (_, k) => start + k)
       : [start + field.page];
     values[field.name] = null;
+    if (field.method === "table") {
+      // A table: its rows go to tablesOut (tables.csv); the form's own column holds the number of rows.
+      const rows = readTable(field, pts, candidatePages, compiled, notesOut);
+      if (tablesOut) tablesOut[field.name] = rows;
+      values[field.name] = rows.length ? String(rows.length) : null;
+      if (rows.length && used) for (const r of rows) used.add(r.page - 1);
+      if (rows.length && pagesOut) pagesOut[field.name] = [...new Set(rows.map(r => r.page))];
+      continue;
+    }
     const opts = { skip: (field.occurrence || 1) - 1 };   // "LABEL #3": pass over two matches, counting across pages
     const fieldUsed = new Set();                           // pages this field's value came from
     for (const pi of candidatePages) {
@@ -24694,7 +25216,7 @@ function readForm(form, pts, start, used, pagesOut) {
         if (hit) { opts.region = containerRegion(pt, { ...hit, line: ctx.lines[hit.i] }); v = extractLabel(pt, field.name, compiled, ctx, false, opts); delete opts.region; }
         else v = null;
       } else v = extractLabel(pt, field.name, compiled, ctx, false, opts);
-      if (v !== null && field.method !== "box") v = followValue(v, field, compiled, pts, pi, contexts, fieldUsed);
+      if (v !== null && field.method !== "box") v = followValue(v, field, compiled, pts, pi, contexts, fieldUsed, form.spanRule === "counter" ? Math.max(start + span - 1, pi) : Infinity, notesOut);
       // A label found with an EMPTY value ("") still ends the search: the field is on this page and is
       // blank, and looking further would pick up the same label on a later page (an attachment, a copy).
       if (v !== null) {
@@ -24702,6 +25224,27 @@ function readForm(form, pts, start, used, pagesOut) {
         fieldUsed.add(pi);
         if (used) for (const p of fieldUsed) used.add(p);
         if (pagesOut) pagesOut[field.name] = [...fieldUsed].sort((a, b) => a - b).map(p => p + 1);
+        break;
+      }
+    }
+    // A second reading, counter rule only: a label field (no container) or box field that read nothing or blank,
+    // read again with page furniture included, page by page where furniture was set aside. A label value is kept
+    // only when the label itself is printed in the top or bottom band (so a blank field in the body never takes a
+    // footer printed below it); a box keeps what it encloses. The template named this text, so it is not furniture.
+    if (form.spanRule === "counter" && (field.method === "box" || !field.container) && !(values[field.name] || "").trim()) {
+      for (const pi of candidatePages) {
+        const pt = pts[pi];
+        if (!pt || !pt.items.some(it => it.furn)) continue;
+        const c2 = { all: true };
+        const v2 = field.method === "box" ? extractBox(pt, field.box, true) : extractLabel(pt, field.name, compiled, c2, false, { skip: (field.occurrence || 1) - 1 });
+        if (v2 === null) continue;
+        const inBand = c2.hit && (c2.hit.y1 < pt.h * T.FURNITURE_BAND || c2.hit.y0 > pt.h * (1 - T.FURNITURE_BAND));
+        if (v2.trim() && (field.method === "box" || inBand)) {
+          values[field.name] = v2;
+          if (used) used.add(pi);
+          if (pagesOut) pagesOut[field.name] = [pi + 1];
+          if (furnOut) furnOut.push(field.name);
+        }
         break;
       }
     }
@@ -24719,26 +25262,96 @@ function readForm(form, pts, start, used, pagesOut) {
      unreadable    the file could not be opened at all (corrupt, empty, password)
      tool_error    the file opened but THIS TOOL failed while reading it (a bug to report, not a bad file)
    ===================================================================================================== */
+// The last page number stated by an "effective pages" value such as "1 through 9" or "1-14; A-1 to A-3": letter-
+// number codes and dates are removed, then the largest remaining number that is at most `maxPages` is taken.
+function lastPageNumber(value, maxPages) {
+  const v = String(value).replace(/[A-Za-z]{1,2}\s?-\s?\d+/g, " ").replace(/\d{1,4}[\/.-]\d{1,2}[\/.-]\d{1,4}/g, " ");
+  const nums = (v.match(/\d{1,4}/g) || []).map(Number).filter(n => n >= 1 && n <= maxPages);
+  return nums.length ? Math.max(...nums) : null;
+}
+// The field "Last page from" names, matched regardless of case; "Table > Column" names a table column. Returns
+// { field, column } or null.
+function resolveLastPageField(form) {
+  const want = norm(form.lastPageField || "");
+  if (!want) return null;
+  let field = form.fields.find(x => norm(x.name) === want), column = null;
+  if (!field && want.includes(">")) {
+    const [t, c] = want.split(/\s*>\s*/);
+    field = form.fields.find(x => x.method === "table" && norm(x.name) === t.trim());
+    if (field) { const col = field.columns.find(k => norm(k.name) === c.trim()); if (!col) return null; column = col.name; }
+  }
+  return field ? { field, column } : null;
+}
+// The last page that form's "Last page from" field states: a label field's value, or a table's named column
+// (else its first column) from every row. null when the name does not resolve or no number fits.
+function declaredLastPage(form, values, tables, maxPages) {
+  const r = resolveLastPageField(form);
+  if (!r) return null;
+  let value;
+  if (r.field.method === "table") {
+    const col = r.column || r.field.columns[0].name;
+    value = ((tables || {})[r.field.name] || []).map(row => row.cells[col] || "").join("; ");
+  } else value = (values || {})[r.field.name];
+  return value ? lastPageNumber(value, maxPages) : null;
+}
 // Which main form type a record holds, decided on its first page. One main form: that one (v0.7 behaviour).
 // Several: each scores on page 1 by its anchor (2 points), the share of its page-1 labels found there (up to 1),
 // and whether page 1 has decimal outline items as its page1Outline says (half a point either way). The
 // highest wins; when the top two are within FORM_TYPE_MARGIN, the record is noted "form type unclear".
+// Page i looks like the second page of a form whose first page lost its anchor: it reads "2 of N", or a bare or
+// letter "2" that the next page continues. A lone bare "2" is not enough.
+function lostFirstPage(pts, i) {
+  const c = counterAt(pts, i, null);
+  return !!(c && c.n === 2 && (c.N != null || continuesCounter(c, counterAt(pts, i + 1, c))));
+}
 function chooseMainForm(mainForms, pts, starts) {
-  if (mainForms.length <= 1) return { form: mainForms[0] || null, unclear: null };
+  const movedNote = f => `anchor not read on page 1: "${f.anchor}" found on page 2, whose counter reads 2, so page 1 is taken as the form's first page`;
+  if (mainForms.length <= 1) {
+    const f = mainForms[0] || null;
+    if (f && f.anchor && f.spanRule === "counter" && starts[f.id] && starts[f.id][0] === 1 && lostFirstPage(pts, 1)) return { form: f, unclear: null, start: 0, note: movedNote(f) };
+    return { form: f, unclear: null, start: null };
+  }
+  // The record's first page: page 1 when some main form has no anchor, else the first page any anchor was read on.
+  const anchorPages = mainForms.filter(f => f.anchor && starts[f.id] && starts[f.id].length).map(f => starts[f.id][0]);
+  let p = mainForms.some(f => !f.anchor) ? 0 : (anchorPages.length ? Math.min(...anchorPages) : 0);
+  // The anchor was first read on page 2, but page 2's counter reads 2: page 1 is the form's own first page, whose
+  // anchor the scan lost. (A cover sheet before the form leaves page 2 reading 1, or nothing.)
+  let moved = false;
+  if (p === 1 && lostFirstPage(pts, 1)) { p = 0; moved = true; }
+  const textOf = pt => pt ? norm(pt.items.map(it => it.s).join(" ")) : "";
+  // Every form gets: tier (anchor evidence: 2 printed at the top or foot of page 1, 1 mid-page on it or only on the
+  // next page, 0 for a form without an anchor, null when its anchor is on neither page: ruled out), e (the rest of
+  // page 1: the share of its page-1 labels found, plus or minus 0.5 for the outline) and ev (what was seen).
   const scores = mainForms.map(form => {
-    const at = starts[form.id] && starts[form.id].length ? starts[form.id][0] : (form.anchor ? null : 0);
-    if (at === null || !pts[at]) return { form, score: -Infinity };
-    let score = form.anchor ? 2 : 0;
+    if (!pts[p]) return { form, score: -Infinity, e: -Infinity, ev: {} };
+    let tier = 0, where = "none", viaNext = false;
+    if (form.anchor) {
+      if (anchorIn(textOf(pts[p]), form.anchor, true)) { const b = anchorBand(pts[p], form.anchor); where = b === "top" ? "top" : b === "bottom" ? "foot" : "mid"; tier = b ? 2 : 1; }
+      else if (anchorIn(textOf(pts[p + 1]), form.anchor, true)) { where = "next"; tier = 1; viaNext = true; }
+      else { where = "absent"; tier = null; }
+    }
     const compiled = compiledForm(form), ctx = {};
     const onFirst = form.fields.filter(x => x.method === "label" && !x.container && (x.page === "any" || x.page == null || x.page === 0));
-    if (onFirst.length) score += onFirst.filter(x => extractLabel(pts[at], x.name, compiled, ctx) !== null).length / onFirst.length;
-    if (typeof form.page1Outline === "boolean") score += hasOutline(pts[at]) === form.page1Outline ? 0.5 : -0.5;
-    return { form, score };
+    const found = onFirst.filter(x => extractLabel(pts[p], x.name, compiled, ctx) !== null).length, outline = hasOutline(pts[p]);
+    let e = onFirst.length ? found / onFirst.length : 0;
+    if (typeof form.page1Outline === "boolean") e += outline === form.page1Outline ? 0.5 : -0.5;
+    return { form, score: tier === null ? -Infinity : tier + e, e, viaNext, ev: { where, found, of: onFirst.length, outline } };
   }).sort((a, b) => b.score - a.score);
-  if (!isFinite(scores[0].score)) return { form: mainForms[0], unclear: null };   // none found: reported as no_main_form
-  const unclear = scores.length > 1 && isFinite(scores[1].score) && scores[0].score - scores[1].score < T.FORM_TYPE_MARGIN
-    ? `form type unclear: ${scores[0].form.name} ${scores[0].score.toFixed(2)} against ${scores[1].form.name} ${scores[1].score.toFixed(2)}` : null;
-  return { form: scores[0].form, unclear };
+  if (!isFinite(scores[0].score)) return { form: mainForms[0], unclear: null, start: null };   // none found: reported as no_main_form
+  const N = p + 1;
+  const anchorWords = { none: "no anchor", top: `anchor at the top of p${N}`, foot: `anchor at the foot of p${N}`, mid: `anchor mid-page on p${N}`, next: `anchor on p${N + 1} only`, absent: `anchor not on p${N} or p${N + 1}` };
+  const basis = scores.map(x => `${x.form.name}: ${anchorWords[x.ev.where] || "?"}, labels ${x.ev.found}/${x.ev.of}, outline ${x.ev.outline ? "yes" : "no"} (sample ${typeof x.form.page1Outline === "boolean" ? (x.form.page1Outline ? "yes" : "no") : "not learned"})`).join(" | ");
+  const W = scores[0], R = scores.slice(1).filter(x => isFinite(x.e)).sort((a, b) => b.e - a.e)[0];
+  let unclear = null;
+  if (R && R.e - W.e > T.FORM_TYPE_MARGIN) {
+    const printed = { top: "at the top of", foot: "at the foot of", mid: "mid-page on", next: "on" }[W.ev.where];
+    const because = W.form.anchor ? `"${W.form.anchor}" is printed ${printed} page ${W.ev.where === "next" ? N + 1 : N}` : `${R.form.name}'s anchor "${R.form.anchor}" is not on page ${N} or ${N + 1}`;
+    unclear = `form type unclear: read as ${W.form.name} because ${because}, but the rest of page ${N} fits ${R.form.name} better: ${basis}`;
+  } else if (scores.length > 1 && isFinite(scores[1].score) && W.score - scores[1].score < T.FORM_TYPE_MARGIN) {
+    unclear = `form type unclear: ${W.form.name} and ${scores[1].form.name} are close on page ${N}: ${basis}`;
+  }
+  const note = W.viaNext ? (moved ? movedNote(W.form) : `anchor not read on page ${N}: "${W.form.anchor}" found on page ${N + 1}`) : null;
+  return { form: W.form, unclear, start: p, note, basis };
 }
 // The page map: which pages of the packet were read as what, e.g. "1-14 Long form; 15-17 Appendix 1; 18-40 other".
 function pageMap(template, pts, starts, res) {
@@ -24755,7 +25368,7 @@ function pageMap(template, pts, starts, res) {
 
 async function processFile(file, path, template, parser) {
   const res = { path, size: file.size, mtime: file.lastModified, status: "ok", reason: "", pages: 0,
-                textPages: 0, main: null, mainPages: {}, extras: {}, missing: [], mainText: "" };
+                textPages: 0, main: null, mainPages: {}, mainTables: {}, extras: {}, missing: [], mainText: "" };
   let doc = null;
   try {
     const buf = await file.arrayBuffer();
@@ -24785,18 +25398,26 @@ async function processFile(file, path, template, parser) {
     res.textPages = pts.filter(p => p.items.reduce((n, it) => n + it.s.length, 0) >= T.MIN_CHARS_PER_PAGE).length;
     markFurniture(pts, template);   // running headers and footers, left out of values (section 3c)
 
-    const starts = findForms(template, pts);
     const mainForms = template.forms.filter(f => f.kind === "main");
-    // Several main form types (short form, long form): page 1 decides which one this record holds.
-    const choice = chooseMainForm(mainForms, pts, starts);
+    // Where each form starts; with several main form types (short form, long form), page 1 decides which one this
+    // record holds, and the chosen form is read from the record's first page.
+    const { starts, choice } = recordPlan(template, pts);
     const mainForm = choice.form;
-    if (mainForms.length > 1) { res.formType = mainForm ? mainForm.name : ""; if (choice.unclear) res.notes = (res.notes || []).concat([choice.unclear]); }
+    if (mainForms.length > 1) {
+      res.formType = mainForm ? mainForm.name : "";
+      if (choice.unclear) res.notes = (res.notes || []).concat([choice.unclear]);
+      res.formBasis = choice.basis || "";
+    }
+    if (choice.note) res.notes = (res.notes || []).concat([choice.note]);
     // The chosen main form first (its pages are needed to keep extra forms out of them), then the extra forms.
     for (const form of [mainForm, ...template.forms.filter(f => f.kind !== "main")].filter(Boolean)) {
       if (form.kind === "main") {
         if (!starts[form.id].length) continue;
         const used = new Set();
-        res.main = readForm(form, pts, starts[form.id][0], used, res.mainPages);
+        const tableNotes = [];
+        res.furnRead = [];
+        res.main = readForm(form, pts, starts[form.id][0], used, res.mainPages, res.mainTables, tableNotes, res.furnRead);
+        if (tableNotes.length) res.notes = (res.notes || []).concat(tableNotes);
         if (!form.anchor && !used.size) { res.main = null; continue; }   // no anchor and not one label found: not this kind of record
         const textPages = form.anchor
           ? Array.from({ length: formSpan(form, pts, starts[form.id][0]) }, (_, k) => starts[form.id][0] + k)
@@ -24806,20 +25427,29 @@ async function processFile(file, path, template, parser) {
         res.missing = form.fields.filter(x => x.required && !(res.main[x.name] || "").trim()).map(x => x.name);
         res.longFields = Object.keys(res.main).filter(k => (res.main[k] || "").length > T.EXCEL_CELL_MAX);
         res.mainSpan = [starts[form.id][0] + 1, starts[form.id][0] + formSpan(form, pts, starts[form.id][0])];
-        // A field that declares the form's last page (an "effective pages" table): cross-check the counter.
-        if (form.lastPageField && res.main[form.lastPageField]) {
-          const nums = String(res.main[form.lastPageField]).match(/\d{1,4}/g);
-          const declared = nums ? +nums[nums.length - 1] : null, counted = res.mainSpan[1] - res.mainSpan[0] + 1;
-          if (declared && Math.abs(declared - counted) > 0) res.notes = (res.notes || []).concat([`form end unclear: the page counter gives ${counted} pages, "${form.lastPageField}" says ${declared}`]);
-        }
+        res.notes = (res.notes || []).concat(mainFormNotes(form, pts, starts[form.id][0], res.main, res.mainTables));
+        res.notes = res.notes.concat(anchorRunValues(form, pts, starts[form.id][0], res.mainPages));
+        res.endCheck = formEndCheck(form, pts, starts[form.id][0], res.main, res.mainTables);
+        if (packetTemplate(template)) res.furnInfo = furnitureSummary(pts, Array.from({ length: res.mainSpan[1] - res.mainSpan[0] + 1 }, (_, k) => res.mainSpan[0] - 1 + k), res.furnRead);
       } else {
         // When the main form's end comes from its page counter, extra forms are read only outside its pages (their
         // labels are often the main form's own). A main form without that rule may span the whole record, so then
         // nothing is excluded (v0.7 behaviour).
-        const bounded = res.mainSpan && mainForm && mainForm.spanRule === "counter";
-        const outside = starts[form.id].filter(s => !bounded || s + 1 < res.mainSpan[0] || s + 1 > res.mainSpan[1]);
+        if (mainForm && res.mainSpan) {
+          const drops = anchorRunDrops(form, starts[form.id], mainForm, pts, res.mainSpan[0] - 1).concat(extraInsideCount(form, starts[form.id], mainForm, pts, res.mainSpan[0] - 1));
+          if (drops.length) res.notes = (res.notes || []).concat(drops);
+        }
+        const outside = outsideMain(starts[form.id], res.mainSpan, mainForm);
         starts[form.id] = outside;
-        res.extras[form.id] = outside.map(s => { const fieldPages = {}; return { page: s + 1, vals: readForm(form, pts, s, null, fieldPages), fieldPages }; });
+        res.extras[form.id] = outside.map(s => {
+          const fieldPages = {}, tables = {}, tableNotes = [];
+          const vals = readForm(form, pts, s, null, fieldPages, tables, tableNotes);
+          const notes = extraNotes(form, pts, s, tableNotes);
+          if (notes.length) res.notes = (res.notes || []).concat(notes);
+          return { page: s + 1, vals, fieldPages, tables };
+        });
+        const summary = extraSummaryNotes(form, pts, outside);
+        if (summary.length) res.notes = (res.notes || []).concat(summary);
       }
     }
     if (mainForms.length > 1 || template.forms.some(f => f.spanRule === "counter")) res.pageMap = pageMap(template, pts, starts, res);
@@ -24924,9 +25554,11 @@ function validateTemplate(t) {
     if (!Array.isArray(f.fields)) throw new Error(`form ${f.id}: fields missing`);
     for (const x of f.fields) {
       if (typeof x.name !== "string" || !x.name) throw new Error(`form ${f.id}: a field has no name`);
-      if (!(x.method === "label" || x.method === "box")) throw new Error(`field ${x.name}: method must be label or box`);
+      if (!(x.method === "label" || x.method === "box" || x.method === "table")) throw new Error(`field ${x.name}: method must be label, box or table`);
+      if (x.method === "table" && !(Array.isArray(x.columns) && x.columns.length >= 2 && x.columns.every(c => c && typeof c.name === "string" && c.name && (c.label == null || typeof c.label === "string")))) throw new Error(`field ${x.name}: a table needs at least two named columns`);
       if (x.method === "box" && !(Array.isArray(x.box) && x.box.length === 4 && x.box.every(n => typeof n === "number"))) throw new Error(`field ${x.name}: bad box`);
       if (x.method === "label" && typeof x.label !== "string") throw new Error(`field ${x.name}: no label`);
+      if (x.method === "table" && x.page == null) x.page = "any";
       if (x.container != null && (typeof x.container !== "string" || !x.container.trim())) throw new Error(`field ${x.name}: container must be text`);
       if (x.occurrence != null && !(Number.isInteger(x.occurrence) && x.occurrence >= 1)) throw new Error(`field ${x.name}: occurrence must be a whole number from 1`);
       if (!(x.page === "any" || x.page == null || (Number.isInteger(x.page) && x.page >= 0))) throw new Error(`field ${x.name}: bad page`);
@@ -24960,15 +25592,19 @@ async function loadSample(file) {
   if (sample && sample.doc) { try { await sample.doc.destroy(); } catch (e) { /* ignore */ } }
   const doc = await openPdf(new Uint8Array(await file.arrayBuffer()), await editorParser);
   sample = { doc, pts: new Array(doc.numPages), pageIdx: 0, name: file.name };
+  $("formEndMsg").textContent = ""; $("formEndMsg").dataset.key = "";
   // Read the first pages up front, so running headers and footers are known before the first page shows.
-  for (let i = 0; i < Math.min(doc.numPages, T.SAMPLE_PRELOAD_PAGES); i++) await samplePageText(i);
+  for (let i = 0; i < Math.min(doc.numPages, T.SAMPLE_PRELOAD_PAGES); i++) await samplePageText(i, false);
+  markFurniture(sample.pts, template);
   await showPage(0);
 }
-async function samplePageText(i) {
+// mark = false: the caller reads a batch of pages and marks headers and footers once afterwards (the marks over
+// the pages read are the same either way; per page, the cost grows with the square of the pages read).
+async function samplePageText(i, mark = true) {
   if (!sample.pts[i]) {
     const page = await sample.doc.getPage(i + 1);
     sample.pts[i] = await pageText(page);
-    markFurniture(sample.pts.filter(Boolean), template);   // over the pages read so far
+    if (mark) markFurniture(sample.pts, template);   // over the pages read so far
   }
   return sample.pts[i];
 }
@@ -25004,7 +25640,18 @@ function alignedPage(other, idx) {
   for (let i = 0; i < idx; i++) if (sample.pts[i] && pageRole(sample.pts[i]) === role) k++;
   let seen = 0;
   for (const pt of other.pts) if (pageRole(pt) === role && seen++ === k) return pt;
-  return null;
+  // No page with the same first line: one misread word ("Slte Code") would lose the whole page. Take the page whose
+  // first line shares most of its words with this one (at least ROLE_MATCH_MIN), preferring the same page number.
+  const words = r => new Set(r.split(/\s+/).filter(Boolean)), mine = words(role);
+  const share = r => { const w = words(r); let both = 0; for (const x of w) if (mine.has(x)) both++; return both / Math.max(1, Math.max(w.size, mine.size)); };
+  let best = null, bestShare = T.ROLE_MATCH_MIN - 1e-9;
+  other.pts.forEach((pt, i) => {
+    const r = pageRole(pt);
+    if (r === "~") return;
+    const sh = share(r) + (i === idx ? 1e-6 : 0);
+    if (sh > bestShare) { bestShare = sh; best = pt; }
+  });
+  return best;
 }
 // The longest common start of `s` and every other text, cut back to a colon or to a word end:
 // "Case No.: 12345" against "Case No.: 67890" gives "Case No.:". Null when there is no such label part.
@@ -25016,9 +25663,17 @@ function sharedPrefix(s, others) {
     while (k < p.length && k < t.length && p[k].toLowerCase() === t[k].toLowerCase()) k++;
     p = p.slice(0, k);
   }
-  const m = /^(.*?[:\uff1a#])\s*/.exec(p) || /^(.{3,}?)\s+\S*$/.exec(p);
-  if (!m) return null;
-  const label = m[1].trim();
+  // "Label: value" or "Ref# value"; or a word-led label followed by a NUMBER in every text ("Serial 12345").
+  // A misreading ("Unit Narne"), values sharing a first word ("Port Operations") and dates lose their cut.
+  let m = /^(.*?[:\uff1a#])\s*/.exec(p), label = m ? m[1].trim() : null;
+  if (!label) {
+    const w = /^(.{3,}?)\s+\S*$/.exec(p);
+    if (w && !/\d/.test(w[1])) {
+      const cut = w[1].trim(), after = t => t.normalize("NFKC").slice(cut.length).trim();
+      if ([s, ...others].every(t => /^\d/.test(after(t)))) label = cut;
+    }
+  }
+  if (!label) return null;
   return /\p{L}/u.test(label) && label.length >= 3 && label.length < s.normalize("NFKC").length ? label : null;
 }
 // Classify every text item of sample page `idx` against the other records: Map(item -> { cls, prefix }),
@@ -25032,26 +25687,48 @@ function compareItems(pt, idx) {
   const votes = new Map(mine.map(it => [it, { s: 0, v: 0, texts: [] }]));
   let compared = 0;
   const median = a => a.length ? a.slice().sort((p, q) => p - q)[Math.floor(a.length / 2)] : 0;
+  const many = new Map(); for (const it of mine) many.set(norm(it.s), (many.get(norm(it.s)) || 0) + 1);
   for (const other of sample.others) {
     const opt = alignedPage(other, idx);
-    if (!opt) continue;
-    compared++;
+    // A page that is turned the other way, or shares no text with this one, is not compared: no verdict, rather
+    // than calling every text on it a value.
+    if (!opt || (opt.w > opt.h) !== (pt.w > pt.h)) continue;
     const theirs = opt.items.filter(it => !it.furn);
-    // The shift between the two pages: the median offset of texts that occur once on each page.
+    // The texts that occur once on each page, paired: their offsets say how this record's page moved.
     const byText = new Map();
     for (const it of theirs) { const t = norm(it.s); if (t.length >= 4) byText.set(t, byText.has(t) ? null : it); }
-    const dxs = [], dys = [];
-    for (const it of mine) { const t = norm(it.s); const o = t.length >= 4 ? byText.get(t) : null; if (o) { dxs.push(o.x0 - it.x0); dys.push(o.y0 - it.y0); } }
-    const dx = median(dxs), dy = median(dys);
+    const pairs = [];
+    for (const it of mine) { const t = norm(it.s); const o = t.length >= 4 && many.get(t) === 1 ? byText.get(t) : null; if (o) pairs.push({ it, dx: o.x0 - it.x0, dy: o.y0 - it.y0 }); }
+    if (!pairs.length) continue;
+    compared++;
+    const dx0 = median(pairs.map(q => q.dx)), dy0 = median(pairs.map(q => q.dy));
+    // A pair is usable when another pair moved the same way (a value that recurs elsewhere moves alone).
+    const usable = pairs.filter(q => pairs.some(r => r !== q && Math.abs(r.dx - q.dx) <= T.COMPARE_X && Math.abs(r.dy - q.dy) <= T.COMPARE_Y));
+    // Each text is looked for where its own neighbours moved: pairs on its line (nearest in x), else above it
+    // (nearest in y, then x), else the page's median shift.
+    const shiftFor = it => {
+      const h = it.y1 - it.y0, cand = usable.filter(q => q.it !== it);
+      const onLine = cand.filter(q => Math.abs(q.it.y1 - it.y1) < Math.max(T.SAME_LINE_MIN, h * T.SAME_LINE_FRACTION));
+      if (onLine.length) { const q = onLine.sort((a, b) => Math.abs(a.it.x0 - it.x0) - Math.abs(b.it.x0 - it.x0))[0]; return [q.dx, q.dy]; }
+      const above = cand.filter(q => q.it.y1 < it.y1);
+      if (above.length) { const q = above.sort((a, b) => (it.y1 - a.it.y1) - (it.y1 - b.it.y1) || Math.abs(a.it.x0 - it.x0) - Math.abs(b.it.x0 - it.x0))[0]; return [q.dx, q.dy]; }
+      return [dx0, dy0];
+    };
     for (const it of mine) {
-      const ex = it.x0 + dx, ey = it.y0 + dy;
+      const [dx, dy] = shiftFor(it), ex = it.x0 + dx, ey = it.y0 + dy;
+      const repeated = many.get(norm(it.s)) > 1;
       let same = null, near = null, nearD = Infinity;
       for (const o of theirs) {
         if (Math.abs(o.x0 - ex) > T.COMPARE_X || Math.abs(o.y0 - ey) > T.COMPARE_Y) continue;
-        if (norm(o.s) === norm(it.s)) { same = o; break; }
         const d = Math.hypot(o.x0 - ex, o.y0 - ey);
+        // A unique text matches any identical text in the window; a text repeated on this page must be the nearest.
+        if (!repeated && norm(o.s) === norm(it.s)) { same = o; break; }
         if (d < nearD) { nearD = d; near = o; }
       }
+      if (repeated && near && norm(near.s) === norm(it.s)) { same = near; near = null; }
+      // A text found once on each page whose own match sits in the same column, within GRID_ALIGN_MAX of where its
+      // neighbours say it should be: rows below a growing row move further than the rows above them.
+      if (!same && !repeated) { const own = pairs.find(q => q.it === it); if (own && Math.abs(own.dx - dx) <= T.COMPARE_X && Math.abs(own.dy - dy) <= T.GRID_ALIGN_MAX) { same = true; near = null; } }
       const v = votes.get(it);
       if (same) v.s++; else if (near) { v.v++; v.texts.push(near.s); }
     }
@@ -25061,10 +25738,19 @@ function compareItems(pt, idx) {
     let cls = "unknown", prefix = null;
     if (v.s > 0 && v.s >= Math.ceil(compared * T.COMPARE_STATIC_SHARE)) cls = "static";
     else if (v.v > 0 && v.s === 0) { cls = "variable"; prefix = sharedPrefix(it.s, v.texts); }
-    cmp.set(it, { cls, prefix });
+    cmp.set(it, { cls, prefix, texts: v.texts });
   }
   cmp.compared = compared;
   return (pt.cmp = cmp);
+}
+// The page line's comparison part.
+function compareLine(cmp, n) {
+  return cmp.compared ? `compared with ${cmp.compared} of ${n} record(s)` : "no compared record has a page that lines up with this one";
+}
+// The Auto-detect message: how many fields were added, which only the comparison proved, and which it left out.
+function autoNote(added, vote, dropped) {
+  return `added ${added} field(s)` + (vote.length ? `. Added only because the text reads the same in every compared record (check them): ${vote.join(", ")}` : "")
+    + (dropped.length ? `. Left out because the text reads differently in the compared records: ${dropped.join("; ")}` : "");
 }
 $("cmpBtn").addEventListener("click", () => { if (!sample) { flash("Open a sample PDF first."); return; } $("cmpFiles").click(); });
 $("cmpFiles").addEventListener("change", async () => {
@@ -25074,7 +25760,7 @@ $("cmpFiles").addEventListener("change", async () => {
   $("cmpMsg").textContent = "Reading " + files.length + " record(s) for comparison...";
   try {
     await loadOthers(files);
-    $("cmpMsg").textContent = `Comparing with ${sample.others.length} record(s): text that reads the same in every record is taken as a label, text that differs as a value (tinted blue on the page). Auto-detect uses this.`;
+    $("cmpMsg").textContent = `Comparing with ${sample.others.length} record(s): text that reads the same in every record is taken as a label, text that differs as a value (tinted blue on the page). Auto-detect uses this.${sample.others.length < 2 ? " With one record Auto-detect leaves no label out; choose two or more." : ""} Choose records that differ from each other (other offices, dates, people).`;
   } catch (e) { $("cmpMsg").textContent = ""; flash("Could not read those PDFs: " + e.message); }
   refreshEditor();
 });
@@ -25085,6 +25771,10 @@ let gridsLocked = false;   // test hook: keep the template's grids as they are w
 async function rememberGrid(page, canvas, zoom, pt) {
   const f = currentForm(), offset = await currentOffset(f);
   if (offset === null || gridsLocked) return;
+  // Learn nothing for a main form from a sample the run reads as another form type (it would teach the wrong form).
+  const lead = []; for (const x of sample.pts) { if (!x) break; lead.push(x); }
+  if (!sampleReadsAs(template, f, lead)) { const c = recordPlan(template, lead).choice.form; sample.learnNote = `This sample is read as ${c ? c.name : "another form"}, so nothing was learned from it for ${f.name}.`; refreshFormPanel(); return; }
+  sample.learnNote = null;
   if (offset === 0 && f.kind === "main") f.page1Outline = hasOutline(pt);   // used to tell main form types apart
   let grid = { h: [], v: [] };
   try { grid = await vectorLines(page); } catch (e) { /* no path commands readable: the image may still show lines */ }
@@ -25094,7 +25784,7 @@ async function rememberGrid(page, canvas, zoom, pt) {
   } catch (e) { /* canvas unreadable */ }
   if (grid.h.length + grid.v.length >= 3) {
     f.grids = f.grids || {};
-    f.grids[offset] = gridToStored(grid, pt);
+    f.grids[offset] = gridToStored(grid, pt, packetTemplate(template));
     saveTemplate();
   }
 }
@@ -25123,9 +25813,30 @@ async function renderSamplePage(i) {
 // The page index where the copy of form `f` that contains the sample's current page starts, or null.
 // Uses findForms(), the same rule as a run, so an anchor that is printed on every page of the form (a form
 // number in the running header) still starts a copy only every `pages` pages.
+// A v0.8 template (two main forms, or any form ended by its page counter): the editor uses the run's own start
+// and span rule (copyAt), so a counter-ruled form works on its page 2 onwards too. Older templates keep v0.7's.
+const packetTemplate = t => t.forms.filter(f => f.kind === "main").length > 1 || t.forms.some(f => f.spanRule === "counter");
+// The copy of f that holds the sample's current page, reading pages until its end can be trusted.
+async function sampleCopy(f, progress) {
+  const N = sample.doc.numPages, cap = Math.min(N, Math.max(T.SAMPLE_PAGES_MAX, sample.pageIdx + 5));
+  let upto = Math.min(N, Math.max(sample.pageIdx + 5, T.SAMPLE_PRELOAD_PAGES));
+  for (;;) {
+    for (let i = 0; i < upto; i++) { if (progress) progress(i + 1, upto); await samplePageText(i, false); }
+    markFurniture(sample.pts, template);
+    const c = copyAt(template, sample.pts.slice(0, upto), f, sample.pageIdx, N);
+    if (c.none || c.enough || upto >= cap) return c;
+    upto = Math.min(cap, upto + 8);
+  }
+}
 async function sampleFormStart(f) {
   if (!sample) return null;
+  sample.why = null;
   if (!f.anchor) return f.kind === "main" ? 0 : null;
+  if (packetTemplate(template)) {
+    const c = await sampleCopy(f);
+    if (c.none) { sample.why = c.none; return null; }
+    return c.start;
+  }
   for (let i = 0; i <= sample.pageIdx; i++) await samplePageText(i);
   const starts = findForms({ forms: [f] }, sample.pts.slice(0, sample.pageIdx + 1))[f.id];
   const start = starts.filter(s => s <= sample.pageIdx && sample.pageIdx < s + (f.pages || 1)).pop();
@@ -25151,7 +25862,7 @@ async function drawOverlay() {
   // The grid this page gets at run time (the stored one, laid on by its anchors), drawn as red lines.
   pt.grid = null;
   const stored = start !== null && f.grids ? f.grids[offset] : null;
-  if (stored) applyGrid(pt, stored); else for (const it of pt.items) it.cell = null;
+  if (stored) applyGrid(pt, stored, packetTemplate(template)); else for (const it of pt.items) it.cell = null;
   let cells = 0;
   if (pt.grid) {
     cells = new Set(pt.items.filter(it => it.cell).map(it => it.cell.key)).size;
@@ -25165,7 +25876,7 @@ async function drawOverlay() {
   pt.items.forEach((it, k) => {
     const d = document.createElement("div");
     d.className = "ti";
-    if (f.anchor && norm(it.s).includes(norm(f.anchor))) d.classList.add("anchor");
+    if (f.anchor && anchorIn(norm(it.s), f.anchor, packetTemplate(template))) d.classList.add("anchor");
     if (startsWithLabel(it.s, compiled)) d.classList.add("label");
     if (cmp && showGeom && cmp.get(it) && cmp.get(it).cls === "variable") d.classList.add("var");
     if (it.furn) { furn++; if (showGeom) d.classList.add("furn"); }
@@ -25175,7 +25886,7 @@ async function drawOverlay() {
     overlay.appendChild(d);
   });
   const info = $("pgInfo");
-  info.textContent = info.textContent.replace(/ \u00b7.*$/, "") + ` \u00b7 counter: ${counterLabel(pageCounter(pt))}` + (pt.grid ? ` \u00b7 ${cells} cells from ${pt.grid.h.length + pt.grid.v.length} drawn lines` : "") + (furn ? ` \u00b7 ${furn} header/footer items ignored` : "");
+  info.textContent = info.textContent.replace(/ \u00b7.*$/, "") + ` \u00b7 counter: ${counterLabel(counterAt(sample.pts, sample.pageIdx, null))}${!sample.pts[sample.pageIdx - 1] && sample.pageIdx > 0 || !sample.pts[sample.pageIdx + 1] && sample.pageIdx + 1 < sample.doc.numPages ? " (neighbouring pages not read yet)" : ""}` + (pt.grid ? ` \u00b7 ${cells} cells from ${pt.grid.h.length + pt.grid.v.length} drawn lines` : "") + (furn ? ` \u00b7 ${furn} header/footer items ignored` : "") + (cmp ? " \u00b7 " + compareLine(cmp, sample.others.length) : "");
   for (const x of f.fields) {
     if (x.method !== "box" || (x.page || 0) !== offset) continue;
     const b = document.createElement("div"); b.className = "fbox";
@@ -25200,7 +25911,7 @@ $("overlay").addEventListener("click", async ev => {
   if (mode === "anchor") {
     f.anchor = it.s.trim(); $("formAnchor").value = f.anchor;
   } else if (mode === "label") {
-    if (await currentOffset(f) === null) { flash("Set this form's anchor first (it must be on this page or the pages just before)."); return; }
+    if (await currentOffset(f) === null) { flash(sample.why || "Set this form's anchor first (it must be on this page or the pages just before)."); return; }
     const label = it.s.trim().replace(/:$/, "");
     f.fields.push({ name: uniqueName(f, label), method: "label", label, page: "any", required: false, fromList: true });
   }
@@ -25229,7 +25940,7 @@ window.addEventListener("mouseup", async ev => {
   drag.el.remove(); drag = null;
   if (box[2] - box[0] < 0.005 || box[3] - box[1] < 0.003) return;   // a click, not a drag
   const f = currentForm(), offset = await currentOffset(f);
-  if (offset === null) { flash("Set this form's anchor first."); return; }
+  if (offset === null) { flash(sample.why || "Set this form's anchor first."); return; }
   f.fields.push({ name: uniqueName(f, "Box field " + (f.fields.length + 1)), method: "box", box, page: offset, required: false });
   refreshEditor();
 });
@@ -25242,6 +25953,16 @@ function parseFieldSpec(line) {
   if (!line || line.startsWith("#")) return null;
   const required = /\*\s*$/.test(line);
   line = line.replace(/\*\s*$/, "").trim();
+  // "table Name: Column; Column = printed heading; Column": a table read by its column headings
+  const tm = /^table\s+(.+?)\s*:\s*(.+)$/i.exec(line);
+  if (tm) {
+    const columns = tm[2].split(";").map(c => c.trim()).filter(Boolean).map(c => {
+      const eq = c.indexOf(" = ");
+      return eq > 0 ? { name: c.slice(0, eq).trim(), label: aliasesOf(c.slice(eq + 3)).join(" | ") } : { name: aliasesOf(c)[0], label: aliasesOf(c).join(" | ") };
+    });
+    if (columns.length < 2) return null;
+    return { name: tm[1].trim(), method: "table", columns, page: "any", required, fromList: true };
+  }
   let container = null, occurrence = null, column = null;
   // "Column = label | label": the CSV column name, then the label(s) as printed on this form type
   const eq = line.indexOf(" = ");
@@ -25259,10 +25980,19 @@ function parseFieldSpec(line) {
   if (occurrence) field.occurrence = occurrence;
   return field;
 }
-function parseNameList(text) {
+// `report`, if given, receives one plain sentence per line that was dropped or read differently from how it may
+// have been meant; what is returned does not depend on it.
+function parseNameList(text, report) {
   const out = [], seen = new Set();
   for (const line of text.split(/\r?\n/)) {
-    const field = parseFieldSpec(line);
+    const field = parseFieldSpec(line), t = line.trim();
+    if (report && t) {
+      if (t.startsWith("#")) report.push(`"${t}": ignored, a comment`);
+      else if (/^table\s/i.test(t) && !t.includes(":")) report.push(`"${t}": read as a label; a table needs "table Name: Column; Column"`);
+      else if (/^table\s/i.test(t) && !field) report.push(`"${t}": ignored, a table needs at least two columns separated by ";"`);
+      else if (field && /[^ ]=|=[^ ]/.test(t) && !t.includes(" = ")) report.push(`"${t}": read as a label; use " = " (spaces both sides) to name a column`);
+      else if (field && seen.has(field.name.toLowerCase())) report.push(`"${t}": ignored, the name "${field.name}" is already in the list`);
+    }
     if (!field || seen.has(field.name.toLowerCase())) continue;
     seen.add(field.name.toLowerCase());
     out.push(field);
@@ -25270,16 +26000,17 @@ function parseNameList(text) {
   return out;
 }
 function fieldSpecText(x) {
+  if (x.method === "table") return `table ${x.name}: ` + x.columns.map(c => c.label && c.label !== c.name ? `${c.name} = ${c.label}` : c.name).join("; ") + (x.required ? " *" : "");
   return (x.column ? x.name + " = " : "") + (x.container ? x.container + " > " : "") + x.label + (x.occurrence ? " #" + x.occurrence : "") + (x.required ? " *" : "");
 }
 function nameListText(f) {
   return f.fields.filter(x => x.fromList).map(fieldSpecText).join("\n");
 }
 $("nameApply").addEventListener("click", () => {
-  const f = currentForm(), list = parseNameList($("nameList").value);
+  const report = [], f = currentForm(), list = parseNameList($("nameList").value, report);
   const kept = f.fields.filter(x => !x.fromList && !list.some(y => y.name === x.name));   // box fields survive
   f.fields = [...list, ...kept];
-  $("nameMsg").textContent = `${list.length} field name(s) in use` + (kept.length ? `, plus ${kept.length} picked on the sample` : "");
+  $("nameMsg").textContent = `${list.length} field name(s) in use` + (kept.length ? `, plus ${kept.length} picked on the sample` : "") + (report.length ? `. Check: ${report.join(" ")}` : "");
   refreshEditor();
 });
 
@@ -25296,18 +26027,23 @@ $("nameApply").addEventListener("click", () => {
 // Page furniture is skipped. Repeated labels (the same text in several cells) are offered once.
 function detectLabels(pt) {
   const found = [], seen = new Set();
+  found.byVote = []; found.dropped = [];   // names Auto-detect's message reports (autoNote)
   const cmp = sample ? compareItems(pt, sample.pts.indexOf(pt)) : null;
+  const firm = !!cmp && cmp.compared >= 2;   // the comparison leaves a label out only on two or more records
+  const changes = items => !!cmp && items.some(it => (cmp.get(it) || {}).cls === "variable");
+  const clean = text => text.normalize("NFKC").replace(/\s+/g, " ").trim().replace(new RegExp(`^${UNLISTED_NUMBER}`, "u"), "").replace(/[:\uff1a]\s*$/, "").trim();
   const clsOf = items => {   // the comparison verdict for a run of items: static, variable, mixed or unknown
     if (!cmp) return "unknown";
     const c = new Set(items.map(it => (cmp.get(it) || { cls: "unknown" }).cls));
     return c.size === 1 ? [...c][0] : c.has("variable") && !c.has("static") ? "variable" : c.has("static") && !c.has("variable") ? "static" : "mixed";
   };
   const prefixOf = items => { for (const it of items) { const r = cmp && cmp.get(it); if (r && r.prefix) return r.prefix; } return null; };
-  const offer = text => {
+  const offer = (text, vote) => {
     let label = text.normalize("NFKC").replace(/\s+/g, " ").trim();
     label = label.replace(new RegExp(`^${UNLISTED_NUMBER}`, "u"), "").replace(/[:\uff1a]\s*$/, "").replace(/[:\uff1a]\s*(?= > )/, "").trim();
     if (!label || label.length > T.AUTO_LABEL_MAX_CHARS * 2 || !/\p{L}/u.test(label) || seen.has(norm(label))) return;
     seen.add(norm(label)); found.push(label);
+    if (vote) found.byVote.push(label);
   };
   const byCell = new Map();
   const loose = [];
@@ -25327,24 +26063,40 @@ function detectLabels(pt) {
     while (n < cl.length && n < T.AUTO_LABEL_LINES && Math.abs((cl[n].y1 - cl[n].y0) - h0) <= h0 * T.SAME_SIZE && larger(n) && !/[:\uff1a]$/.test(cl[n - 1].text)) n++;
     const text = cl.slice(0, n).map(l => l.text).join(" ");
     let colon = /[:\uff1a]\s*\S/.test(text) ? text.slice(0, text.search(/[:\uff1a]/) + 1) : null;   // "Label: value" on one line
+    const ownColon = !!colon;
     const firstItems = cl.slice(0, n).flatMap(l => l.items), cls = clsOf(firstItems);
     if (cls === "variable" && !colon) colon = prefixOf(firstItems);   // "ID 12345" in one piece: the shared part is the label
-    const compared = cmp ? (cls === "static" && (cl.length > 1 || !!(neighbourCell(pt, cell, "right") || neighbourCell(pt, cell, "below")))) : false;
-    const rejected = cmp ? (cls === "variable" && !colon) : false;
-    return { cell, cl, h0, text, colon, overValue: larger(n), endsColon: /[:\uff1a]$/.test(text), compared, rejected };
+    // The vote promotes a cell to a label only when the text it labels changes between records (its own lines
+    // after it, else the cell to its right or below) and no label sits to its left (a constant value beside a
+    // label is that label's value, not another label).
+    const after = cl.length > n ? cl.slice(n).flatMap(l => l.items) : (c => c ? itemsInCell(pt, c) : [])(neighbourCell(pt, cell, "right") || neighbourCell(pt, cell, "below"));
+    const left = cmp ? neighbourCell(pt, cell, "left") : null;
+    const compared = cmp ? cls === "static" && changes(after) && !(left && clsOf(itemsInCell(pt, left)) === "static") : false;
+    const rejected = firm && cls === "variable" && !colon;
+    return { cell, cl, n, h0, text, colon, ownColon, overValue: larger(n), endsColon: /[:\uff1a]$/.test(text), compared, rejected };
   }).filter(Boolean);
   // The type size of the labels on this page: that of the cells where a label sits over larger text. A cell
   // holding one short line of that size, with a cell beside or below it, is a bare label ("Name" next to a
   // name). Without such cells to learn from, a bare line counts only when it carries an item number.
   const labelSizes = judged.filter(j => j.overValue).map(j => j.h0).sort((a, b) => a - b);
   const labelH = labelSizes.length >= 2 ? labelSizes[Math.floor(labelSizes.length / 2)] : null;
-  const cellLabels = [];   // { text, cell, bare }
+  const cellLabels = [];   // { text, cell, bare, vote }
   for (const j of judged) {
     const bare = j.cl.length === 1 && j.text.length <= 40 && !/\d/.test(j.text.replace(new RegExp(`^${UNLISTED_NUMBER}`, "u"), ""))
       && (neighbourCell(pt, j.cell, "right") || neighbourCell(pt, j.cell, "below"))
       && (labelH !== null ? Math.abs(j.h0 - labelH) <= labelH * T.SAME_SIZE : new RegExp(`^\\(?\\d{1,3}[a-z]?[.)]`).test(j.text));
-    if (j.rejected) continue;
-    if ((j.overValue || j.endsColon || j.colon || bare || j.compared) && j.text.length <= T.AUTO_LABEL_MAX_CHARS) cellLabels.push({ text: j.colon || j.text, cell: j.cell, bare: !!bare && j.cl.length === 1 });
+    if (j.rejected) {
+      // left out by the vote although the page's own rules would offer it: Auto-detect's message names it
+      if ((j.overValue || j.endsColon || bare) && j.text.length <= T.AUTO_LABEL_MAX_CHARS) {
+        const firstLine = j.cl[0], r = firstLine.items.length === 1 && cmp.get(firstLine.items[0]);
+        const texts = r && r.texts ? r.texts.map(t => norm(t)) : [];
+        const reads = texts.length >= 2 && texts.every(t => t === texts[0]) ? ` (reads "${clean(r.texts[0])}" in the other records)` : "";
+        found.dropped.push(clean(j.text) + reads);
+      }
+      continue;
+    }
+    if ((j.overValue || j.endsColon || j.colon || bare || j.compared) && j.text.length <= T.AUTO_LABEL_MAX_CHARS)
+      cellLabels.push({ text: j.colon || j.text, cell: j.cell, bare: !!bare && j.cl.length === 1, vote: !(j.overValue || j.endsColon || j.ownColon || bare) });
   }
   // The same label in several cells (Name, Date, Phone in four signature blocks): offer each as
   // "PARENT > LABEL", the parent being the nearest bare-label cell above that is wider than the label's own
@@ -25363,10 +26115,10 @@ function detectLabels(pt) {
   };
   for (const l of cellLabels) {
     const group = groups.get(norm(l.text.replace(new RegExp(`^${UNLISTED_NUMBER}`, "u"), "")));
-    if (group.length === 1) { offer(l.text); continue; }
+    if (group.length === 1) { offer(l.text, l.vote); continue; }
     const parent = parentOf(l);
-    if (parent) offer(parent.text.replace(new RegExp(`^${UNLISTED_NUMBER}`, "u"), "").replace(/[:\uff1a]\s*$/, "") + " > " + l.text);
-    else { const n = group.filter(g => !parentOf(g)).indexOf(l) + 1; offer(l.text + (n > 1 ? " #" + n : "")); }
+    if (parent) offer(parent.text.replace(new RegExp(`^${UNLISTED_NUMBER}`, "u"), "").replace(/[:\uff1a]\s*$/, "") + " > " + l.text, l.vote);
+    else { const n = group.filter(g => !parentOf(g)).indexOf(l) + 1; offer(l.text + (n > 1 ? " #" + n : ""), l.vote); }
   }
   for (const line of lines({ items: loose })) {
     if (cmp) {
@@ -25377,15 +26129,17 @@ function detectLabels(pt) {
         const r = cmp.get(it) || { cls: "unknown" };
         if (r.cls === "static") { run.push(it); continue; }
         if (r.cls === "variable") {
-          if (run.length) { const t = joinItems(run); offer(/[:\uff1a]/.test(t) ? t.slice(0, t.search(/[:\uff1a]/) + 1) : t); }
-          else if (r.prefix) offer(r.prefix);
+          if (run.length) { const t = joinItems(run); offer(/[:\uff1a]/.test(t) ? t.slice(0, t.search(/[:\uff1a]/) + 1) : t, true); }
+          else if (r.prefix) offer(r.prefix, true);
         }
         run = [];
       }
     }
     for (const column of lineBounds(line).s.split("\t")) {
       const m = /^\s*([^:\uff1a]{1,60}?)\s*[:\uff1a](?=\s|$)/.exec(column);
-      if (m && (!cmp || clsOf(line.items.filter(it => column.includes(it.s.normalize("NFKC").trim().slice(0, 12)))) !== "variable")) offer(m[1]);
+      if (!m) continue;
+      if (!firm || clsOf(line.items.filter(it => column.includes(it.s.normalize("NFKC").trim().slice(0, 12)))) !== "variable") offer(m[1], false);
+      else found.dropped.push(clean(m[1]));
     }
   }
   return found;
@@ -25393,23 +26147,25 @@ function detectLabels(pt) {
 $("autoLabels").addEventListener("click", async () => {
   if (!sample) { flash("Open a sample PDF first."); return; }
   const f = currentForm();
-  if (await currentOffset(f) === null) { flash("Set this form's anchor first (click the form number in anchor mode)."); return; }
+  if (await currentOffset(f) === null) { flash(sample.why || "Set this form's anchor first (click the form number in anchor mode)."); return; }
   const pt = sample.pts[sample.pageIdx];
   const have = new Set(f.fields.filter(x => x.method === "label").map(x => norm(x.name)));
   let added = 0;
-  for (const spec of detectLabels(pt)) {
+  const specs = detectLabels(pt), byVote = [];
+  for (const spec of specs) {
     const field = parseFieldSpec(spec);   // "PARENT > LABEL" and "LABEL #2" are read the same way as typed names
     if (!field || have.has(norm(field.name))) continue;
     field.name = uniqueName(f, field.name);
     f.fields.push(field);
     have.add(norm(field.name)); added++;
+    if ((specs.byVote || []).includes(spec)) byVote.push(field.name);
   }
-  $("autoMsg").textContent = `added ${added} field(s)`;
+  $("autoMsg").textContent = autoNote(added, byVote, specs.dropped || []);
   refreshEditor();
 });
 $("ignoreFurn").addEventListener("change", () => {
   template.ignoreFurniture = $("ignoreFurn").checked;
-  if (sample) markFurniture(sample.pts.filter(Boolean), template);
+  if (sample) markFurniture(sample.pts, template);
   refreshEditor();
 });
 $("showGeom").addEventListener("change", () => drawOverlay());
@@ -25423,7 +26179,10 @@ async function refreshFieldTable() {
   let values = {};
   if (sample) {
     const start = await sampleFormStart(f);
-    if (start !== null) {
+    if (start !== null && packetTemplate(template) && f.anchor) {
+      const upto = sample.pts.findIndex(p => !p), pts = sample.pts.slice(0, upto < 0 ? sample.pts.length : upto);
+      values = readForm(f, pts, start);
+    } else if (start !== null) {
       const span = f.anchor ? (f.pages || 1) : Math.min(T.SAMPLE_PAGES_MAX, sample.doc.numPages);
       const need = Math.max(span - 1, ...f.fields.map(x => Number.isInteger(x.page) ? x.page : 0));
       for (let i = start; i <= start + need && i < sample.doc.numPages; i++) await samplePageText(i);
@@ -25444,7 +26203,7 @@ async function refreshFieldTable() {
     required.addEventListener("change", () => { x.required = required.checked; saveTemplate(); });
     const remove = document.createElement("button"); remove.textContent = "x"; remove.title = "Remove field";
     remove.addEventListener("click", () => { f.fields.splice(idx, 1); refreshEditor(); });
-    const how = x.method === "box" ? "box" : x.container ? `label in "${x.container}"` : x.occurrence ? `label, match #${x.occurrence}` : "label";
+    const how = x.method === "box" ? "box" : x.method === "table" ? `table, ${x.columns.length} columns` : x.container ? `label in "${x.container}"` : x.occurrence ? `label, match #${x.occurrence}` : "label";
     const cells = [nameInput, how, Number.isInteger(x.page) ? String(x.page + 1) : "any", required, null, remove];
     cells.forEach((c, ci) => {
       const td = document.createElement("td");
@@ -25456,13 +26215,101 @@ async function refreshFieldTable() {
     tbody.appendChild(tr);
   });
 }
+// Does the run read this sample as form f? Always true for an extra form or a one-main template; for a main form,
+// true when page 1 chooses f, or chooses a form that has no anchor yet (so building the long form first works).
+function sampleReadsAs(t, f, pts) {
+  if (f.kind !== "main" || t.forms.filter(x => x.kind === "main").length < 2) return true;
+  const c = recordPlan(t, pts).choice.form;
+  return !c || c === f || !c.anchor;
+}
+// What the editor has learned about a main form's page 1, for a template with two or more main forms.
+function page1Text(t, f) {
+  if (f.kind !== "main" || t.forms.filter(x => x.kind === "main").length < 2) return "";
+  if (typeof f.page1Outline === "boolean") return `Page 1, learned from this form type's sample: numbered outline items (1.1, 1.2) ${f.page1Outline ? "yes" : "no"}.`;
+  return "Page 1: not learned yet. View page 1 of a sample of this form type; until then the outline is not used for it.";
+}
+// Plain-English warnings about one form's settings, shown under the Forms table and written to the run log.
+function formWarnings(t, f) {
+  const w = [];
+  if (f.kind !== "main" && !(f.anchor || "").trim()) w.push(`"${f.name}" has no anchor text, so it is never looked for. Type its form number in Anchor text, or set Kind to Main form.`);
+  if (f.lastPageField) {
+    if (f.spanRule !== "counter") w.push(`Last page from is only checked when Form ends is set to the page counter.`);
+    else {
+      const r = resolveLastPageField(f), parts = f.lastPageField.split(/\s*>\s*/);
+      const tableOnly = !r && parts.length === 2 ? f.fields.find(x => x.method === "table" && norm(x.name) === norm(parts[0])) : null;
+      if (tableOnly) w.push(`Table "${tableOnly.name}" has no column named "${parts[1]}" (its columns: ${tableOnly.columns.map(c => c.name).join(", ")}).`);
+      else if (!r) w.push(`No field named "${f.lastPageField}" in this form.`);
+      else if (r.field.method === "table" && !r.column) w.push(`"${r.field.name}" is a table: its first column (${r.field.columns[0].name}) is read for the last page. To use another column, write "${r.field.name} > Column".`);
+    }
+  }
+  return w;
+}
+// Where a form ends on the sample's pages read so far, and why: { start, end, notes, stop } or { none }.
+// Where a form ends on the sample's pages read so far, and why, with the notes the run would write:
+// { start, end, stop, via, notes, copies, chosen } (start, end and stop of the first copy), or { none }.
+function formEndPreview(t, f, pts) {
+  const r = formCopies(t, pts, f);
+  if (r.none) return { none: r.none, chosen: r.chosen, dropped: r.dropped || [] };
+  const copies = r.copies.map(c => {
+    let notes;
+    if (f.kind === "main") {
+      const values = {}, tables = {}, at = {};
+      Object.assign(values, readForm(f, pts, c.start, null, at, tables));
+      notes = [...(r.choice && r.choice.form === f ? [r.choice.unclear, r.choice.note].filter(Boolean) : []), ...mainFormNotes(f, pts, c.start, values, tables), ...anchorRunValues(f, pts, c.start, at)];
+      c.endCheck = formEndCheck(f, pts, c.start, values, tables);
+    } else notes = extraNotes(f, pts, c.start, []);
+    return { ...c, end: c.pages[c.pages.length - 1], notes };
+  });
+  const first = copies[0];
+  return { start: first.start, end: first.end, stop: first.stop, via: first.via, notes: first.notes, copies, chosen: r.chosen, dropped: r.dropped || [], endCheck: first.endCheck || "", basis: f.kind === "main" && r.choice ? r.choice.basis || "" : "" };
+}
+const STOP_TEXT = { total: "its page counter reached its total", "end of file": "the file ends", style: "the next page's counter is of another style",
+  restart: "the next page's counter starts again", "no counter": "the next page has no readable counter", "unread start": "its first page has no readable counter",
+  "pages per form": "Pages per form says so", "whole record": "this main form has no anchor, so it covers the whole record",
+  anchor: "the next page does not carry its anchor", "anchor elsewhere": "the next page prints its anchor, but not on a line like the form's first page", "anchor limit": "it reached the limit for following the anchor",
+  "count total": "it reached the number of pages its counter states" };
+const STOP_NEXT = { "unread start": p => `look at page ${p}'s counter on the page line; if this form prints no counter, set Form ends to Pages per form`,
+  "no counter": p => `look at page ${p} on the page line: if it belongs to the form, its counter could not be read`,
+  style: () => "", restart: () => "", total: () => "", "end of file": () => "", "pages per form": () => "change Pages per form if the form is longer or shorter",
+  "whole record": () => "type its form number in Anchor text to bound it", anchor: p => `look at page ${p}: if it belongs to the form, its anchor could not be read there`,
+  "anchor elsewhere": p => `look at page ${p}: if it belongs to the form, its anchor line reads differently there than on the form's first page`, "anchor limit": () => "", "count total": () => "" };
+// The preview line. pagesRead < numPages means the preview did not read the whole sample.
+function formEndText(r, pagesRead, numPages, f) {
+  if (r.none) return `On this sample: ${r.none}.` + ((r.dropped || []).length ? " " + r.dropped.join(" ") : "");
+  const stopPage = r.stop.page + 1;
+  let why = STOP_TEXT[r.stop.why] || r.stop.why;
+  if (r.stop.why === "end of file" && pagesRead < numPages) why = `the preview read only the first ${pagesRead} pages, so the form may go on`;
+  let text;
+  if (f.kind === "main" || r.copies.length === 1) text = `On this sample: pages ${r.start + 1}-${r.end + 1}. It stops because ${why}.`;
+  else text = `On this sample: copies on pages ${r.copies.map(c => c.start === c.end ? `${c.start + 1}` : `${c.start + 1}-${c.end + 1}`).join(", ")}.`;
+  const next = (STOP_NEXT[r.stop.why] || (() => ""))(stopPage);
+  if (next && !(r.stop.why === "end of file")) text += ` Next step: ${next}.`;
+  if (f.kind !== "main" && r.copies.length > (f.maxCopies || 3)) text += ` ${r.copies.length} copies; Max copies is ${f.maxCopies || 3}.`;
+  if (f.kind === "main" && r.chosen && r.chosen !== f.name) text += ` On this sample the run reads the ${r.chosen} (page 1 decides).`;
+  if (r.endCheck === "counter only") text += " Nothing else confirms this end; if the form states its last page, name that field in Last page from.";
+  if (r.basis) text += ` Page 1: ${r.basis}.`;
+  let notes = r.copies.flatMap(c => c.notes).concat(r.dropped || []);
+  if (pagesRead < numPages) notes = notes.map(n => n.replace("and is the end of the file", `and is the last page the preview read (${pagesRead} of ${numPages})`));
+  if (notes.length) text += " " + notes.join(" ");
+  return text;
+}
+// What the preview line depends on, so it can be cleared when any of it changes.
+function formEndKey(t, f, sampleName) {
+  return JSON.stringify([sampleName, f.id, f.anchor, f.spanRule, f.pages, f.kind, f.lastPageField, t.forms.filter(x => x.kind === "main").map(x => [x.anchor, x.page1Outline])]);
+}
 function refreshFormPanel() {
   const sel = $("formSel");
   sel.innerHTML = "";   // clear only
-  for (const f of template.forms) { const o = document.createElement("option"); o.value = f.id; o.textContent = `${f.name} (${f.kind}, ${f.fields.length} fields)`; sel.appendChild(o); }
+  for (const f of template.forms) { const o = document.createElement("option"); o.value = f.id; o.textContent = `${f.name} (${f.kind}${f.kind !== "main" && !(f.anchor || "").trim() ? ", no anchor" : ""}, ${f.fields.length} fields)`; sel.appendChild(o); }
   sel.value = currentFormId;
   const f = currentForm();
   $("formName").value = f.name; $("formAnchor").value = f.anchor; $("formPages").value = f.pages || 1;
+  // Pages per form is not used under the counter rule, nor by a main form without an anchor (it covers the record)
+  const pagesUnused = f.spanRule === "counter" ? "not used: the page counter decides" : (f.kind === "main" && !(f.anchor || "").trim()) ? "not used: this form covers the whole record" : "";
+  $("formPages").disabled = !!pagesUnused; $("formPagesNote").textContent = pagesUnused || "pages that belong to one copy of this form";
+  const warn = $("formWarn"); warn.textContent = formWarnings(template, f).join(" "); warn.style.display = warn.textContent ? "block" : "none";
+  $("page1Info").textContent = [page1Text(template, f), sample && sample.learnNote ? sample.learnNote : ""].filter(Boolean).join(" ");
+  const fe = $("formEndMsg"); if (fe.dataset.key && fe.dataset.key !== formEndKey(template, f, sample ? sample.name : "")) { fe.textContent = ""; fe.dataset.key = ""; }
   $("formKind").value = f.kind; $("formMax").value = f.maxCopies || 3;
   $("formSpan").value = f.spanRule || "pages"; $("formLastPage").value = f.lastPageField || "";
   $("ignoreFurn").checked = template.ignoreFurniture !== false;
@@ -25476,11 +26323,22 @@ for (const [id, key, convert] of [["formSpan", "spanRule", String], ["formLastPa
                                   ["formPages", "pages", s => Math.max(1, parseInt(s) || 1)], ["formMax", "maxCopies", s => Math.max(1, parseInt(s) || 1)]]) {
   $(id).addEventListener("change", () => { currentForm()[key] = convert($(id).value); refreshEditor(); });
 }
+$("formEnd").addEventListener("click", async () => {
+  if (!sample) { flash("Open a sample PDF first."); return; }
+  const f = currentForm(), msg = $("formEndMsg");
+  let r, n;
+  if (f.kind === "main") { await sampleCopy(f, (k, N) => { msg.textContent = `reading page ${k} of ${N}`; }); n = sample.pts.findIndex(p => !p); n = n < 0 ? sample.doc.numPages : n; }
+  else { n = Math.min(sample.doc.numPages, T.SAMPLE_PLAN_PAGES); for (let i = 0; i < n; i++) { msg.textContent = `reading page ${i + 1} of ${n}`; await samplePageText(i, false); } markFurniture(sample.pts, template); }
+  r = formEndPreview(template, f, sample.pts.slice(0, n));
+  msg.textContent = formEndText(r, n, sample.doc.numPages, f);
+  msg.dataset.key = formEndKey(template, f, sample.name);
+  window.__rhFormEnd = r;   // test hook
+});
 $("formKind").addEventListener("change", () => {
   const kind = $("formKind").value;   // several main form types are allowed: page 1 decides which one a record holds
   currentForm().kind = kind;
   if (!template.forms.some(f => f.kind === "main")) { flash("One form must be the main form."); currentForm().kind = "main"; }
-  saveTemplate();
+  refreshEditor();
 });
 $("formAdd").addEventListener("click", () => {
   let k = template.forms.length + 1;
@@ -25603,6 +26461,7 @@ async function runAll() {
   }
   const total = files.length, startedAt = performance.now();
   log(`start: ${total} PDFs, ${total - todo.length} already done, ${todo.length} to read (pdf engine: ${workerMode})`);
+  for (const f of runTemplate.forms) for (const w of formWarnings(runTemplate, f)) log(`check the template (${f.name}): ${w}`);
   let next = 0, readThisRun = 0;
   showCounts(total, startedAt, 0);
   const concurrency = parseInt($("conc").value) || 3;
@@ -25658,7 +26517,7 @@ function recordsCsv(results, t) {
   const main = { fields: mainNames.map(name => ({ name })) };
   const packets = mains.length > 1 || t.forms.some(f => f.spanRule === "counter");   // v0.8 columns only then
   const head = ["file", "pages", "main_form_page", "status"];
-  if (packets) head.push("form_type", "main_form_pages", "page_map");
+  if (packets) head.push("form_type", "main_form_pages", "page_map", "form_end_check", "form_type_basis", "page_furniture");
   for (const x of main.fields) head.push(x.name);
   for (const f of extras) {
     head.push(`${f.name}: count`);
@@ -25668,7 +26527,7 @@ function recordsCsv(results, t) {
   for (const r of results) {
     if (!r.main) continue;
     const row = [r.path, r.pages, r.mainPage, r.status];
-    if (packets) row.push(r.formType || (mains[0] && mains[0].name) || "", r.mainSpan ? `${r.mainSpan[0]}-${r.mainSpan[1]}` : "", r.pageMap || "");
+    if (packets) row.push(r.formType || (mains[0] && mains[0].name) || "", r.mainSpan ? `${r.mainSpan[0]}-${r.mainSpan[1]}` : "", r.pageMap || "", r.endCheck || "", r.formBasis || "", r.furnInfo || "");
     for (const x of main.fields) row.push(r.main[x.name] ?? "");
     for (const f of extras) {
       const copies = (r.extras && r.extras[f.id]) || [];
@@ -25676,6 +26535,19 @@ function recordsCsv(results, t) {
       for (let c = 0; c < (f.maxCopies || 3); c++) for (const x of f.fields) row.push(copies[c] ? copies[c].vals[x.name] ?? "" : "");
     }
     rows.push(row);
+  }
+  return csv(rows);
+}
+// tables.csv: one row per table row, every table of every form: file, form, copy (extra forms), table, row,
+// page, then one column per column name used by any table in the template.
+function tablesCsv(results, t) {
+  const tableFields = t.forms.flatMap(f => f.fields.filter(x => x.method === "table").map(x => ({ f, x })));
+  const colNames = [...new Set(tableFields.flatMap(({ x }) => x.columns.map(c => c.name)))];
+  const rows = [["file", "form", "copy", "table", "row", "page", ...colNames]];
+  for (const r of results) {
+    const emit = (form, copy, tables) => { for (const [name, list] of Object.entries(tables || {})) (list || []).forEach((row, k) => rows.push([r.path, form, copy, name, k + 1, row.page, ...colNames.map(c => row.cells[c] ?? "")])); };
+    if (r.main) emit(r.formType || (t.forms.find(f => f.kind === "main") || {}).name || "", "", r.mainTables);
+    for (const f of t.forms.filter(f => f.kind !== "main")) ((r.extras && r.extras[f.id]) || []).forEach((c, k) => emit(f.name, k + 1, c.tables));
   }
   return csv(rows);
 }
@@ -25740,10 +26612,17 @@ function recordChunks(r, t) {
     parts.forEach((piece, k) => out.push({ id: `${sid}#${k + 1}`, level: "chunk", parent: sid, file: r.path, form: formName, field: fieldLabel,
       part: k + 1, parts: parts.length, pages: pages || [], text: `${head}${parts.length > 1 ? ` (part ${k + 1} of ${parts.length})` : ""}\n${piece}` }));
   };
-  if (main) for (const x of main.fields) addField(main.name, x.name, r.main[x.name], (r.mainPages || {})[x.name]);
+  const tableText = rows => (rows || []).map((row, k) => `Row ${k + 1}: ` + Object.entries(row.cells).filter(([, v]) => v).map(([c, v]) => `${c}: ${v}`).join("; ")).join("\n\n");
+  if (main) for (const x of main.fields) {
+    if (x.method === "table") addField(main.name, `${x.name} (table)`, tableText((r.mainTables || {})[x.name]), (r.mainPages || {})[x.name]);
+    else addField(main.name, x.name, r.main[x.name], (r.mainPages || {})[x.name]);
+  }
   for (const f of t.forms.filter(f => f.kind !== "main")) {
     ((r.extras && r.extras[f.id]) || []).forEach((copy, c) => {
-      for (const x of f.fields) addField(f.name, `${f.name} ${c + 1}: ${x.name}`, copy.vals[x.name], (copy.fieldPages || {})[x.name]);
+      for (const x of f.fields) {
+        if (x.method === "table") addField(f.name, `${f.name} ${c + 1}: ${x.name} (table)`, tableText((copy.tables || {})[x.name]), (copy.fieldPages || {})[x.name]);
+        else addField(f.name, `${f.name} ${c + 1}: ${x.name}`, copy.vals[x.name], (copy.fieldPages || {})[x.name]);
+      }
     });
   }
   return out;
@@ -25763,6 +26642,7 @@ function download(name, text, type) {
 $("dlRecords").addEventListener("click", async () => download("records.csv", recordsCsv(await allResults(), template)));
 $("dlProblems").addEventListener("click", async () => download("problems.csv", problemsCsv(await allResults())));
 $("dlOcr").addEventListener("click", async () => download("needs-ocr.txt", (await allResults()).filter(r => r.status === "needs_ocr").map(r => r.path).join("\r\n") + "\r\n", "text/plain;charset=utf-8"));
+$("dlTables").addEventListener("click", async () => download("tables.csv", tablesCsv(await allResults(), template)));
 $("dlChunks").addEventListener("click", async () => download("record-chunks.jsonl", chunksJsonl(await allResults(), template), "application/x-ndjson"));
 $("dlText").addEventListener("click", async () => download("record-text.jsonl", (await allResults()).filter(r => r.main).map(r => JSON.stringify({ file: r.path, fields: r.main, text: r.mainText })).join("\n") + "\n", "application/x-ndjson"));
 async function refreshDbInfo() {
@@ -25807,11 +26687,16 @@ window.__rh = {
   getTemplate: () => JSON.parse(JSON.stringify(template)),
   lockGrids: on => { gridsLocked = !!on; },
   useForm: id => { currentFormId = id; refreshFormPanel(); },
+  furnAgrees: () => { const read = sample.pts.filter(Boolean), before = read.map(p => p.items.map(it => !!it.furn)); markFurniture(sample.pts, template); return JSON.stringify(before) === JSON.stringify(read.map(p => p.items.map(it => !!it.furn))); },
+  formEnd: async () => { $("formEnd").click(); for (let k = 0; k < 600 && !/^On this sample/.test($("formEndMsg").textContent); k++) await new Promise(r => setTimeout(r, 50)); const r = window.__rhFormEnd; return r ? { start: r.start, end: r.end, stop: r.stop, via: r.via, notes: r.notes, text: $("formEndMsg").textContent } : null; },
   // index of the first sample page whose text contains `text` (0 if none)
   findPage: async text => { for (let i = 0; i < sample.doc.numPages; i++) { const pt = await samplePageText(i); if (norm(pt.items.map(it => it.s).join(" ")).includes(norm(text))) return i; } return 0; },
   useNames: async (formId, text) => { currentFormId = formId; refreshFormPanel(); $("nameList").value = text; $("nameApply").click(); return currentForm().fields.length; },
   autoDetectCount: async () => { $("autoLabels").click(); await new Promise(r => setTimeout(r, 300)); return currentForm().fields.length; },
   detectLabels: () => sample ? detectLabels(sample.pts[sample.pageIdx]) : [],
+  // labels plus what the comparison added and left out, and each text's verdict, on the current page
+  detectDetail: () => { const pt = sample.pts[sample.pageIdx], f = detectLabels(pt), c = compareItems(pt, sample.pageIdx);
+    return { labels: f.slice(), byVote: f.byVote || [], dropped: f.dropped || [], compared: c ? c.compared : 0, items: c ? [...c].map(([it, r]) => ({ s: it.s, cls: r.cls })) : [] }; },
   // how the compared records classify the current page's texts
   compareStats: () => {
     const pt = sample.pts[sample.pageIdx], cmp = compareItems(pt, sample.pageIdx);
@@ -25833,12 +26718,14 @@ window.__rh = {
   sampleValues: async () => {
     const f = currentForm(), start = await sampleFormStart(f);
     if (start === null) return null;
+    if (packetTemplate(template) && f.anchor) { const upto = sample.pts.findIndex(p => !p); return readForm(f, sample.pts.slice(0, upto < 0 ? sample.pts.length : upto), start); }
     const span = f.anchor ? (f.pages || 1) : Math.min(T.SAMPLE_PAGES_MAX, sample.doc.numPages);
     for (let i = start; i < start + span && i < sample.doc.numPages; i++) await samplePageText(i);
     return readForm(f, sample.pts.slice(0, start + span).map(p => p || { w: 1, h: 1, items: [] }), start);
   },
   recordsCsv: async () => recordsCsv(await allResults(), template),
   chunksJsonl: async () => chunksJsonl(await allResults(), template),
+  tablesCsv: async () => tablesCsv(await allResults(), template),
   problemsCsv: async () => problemsCsv(await allResults()),
   all: allResults, clear: dbClear, mode: () => workerMode, ready: () => pdfReady.then(() => true), version: VERSION,
 };
