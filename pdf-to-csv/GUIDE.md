@@ -74,6 +74,22 @@ On the **1. Fields** tab:
    template file" brings everything back, drawn lines included. The template holds field names, labels,
    box positions and the sample's line positions, never any record content.
 
+**Packets with two kinds of main form (v0.8).** When a record's main form is sometimes one form and sometimes
+another (a short form or a long form), make both, each with Kind "Main form". Page 1 decides which one a record
+holds: its anchor, how many of its labels are on page 1, and whether page 1 has numbered outline items
+("1.1", "1.2"), which the tool notes when you view each form's first page on its sample. Give fields that mean
+the same thing the same column name with `Column = label as printed`, for example `Job Number = Job Control
+Number` on the long form and plain `Job Number` on the short form: both fill one CSV column.
+
+**Where a form ends (v0.8).** Set "Form ends" to "where its page counter stops counting on" for forms whose
+length varies. The tool reads the page counter at the top or bottom of every page ("Pg 3 of 12", "3 of 12",
+"3 / 12", a bare "3", "A-3") and the form ends where the counter restarts, changes style (a bare number
+becoming "A-1"), or reaches its total. The page line on the sample shows the counter it found. If the form
+states its own last page (an effective-pages table), name that field in "Last page from": a record where the
+two disagree is listed in problems.csv as "form end unclear". Fields are read only inside the form's pages, so
+labels that come back in attachments are never picked up. Leave it on "after Pages per form pages" for forms
+of a fixed length.
+
 **Extra forms.** If a record may contain a second form type (a supplementary sheet that appears zero or
 more times), press "Add another form type", give it its own anchor text and page count, set Kind to
 "Extra form", and define its fields the same way. Its columns appear in the CSV after the main form's,
@@ -107,7 +123,10 @@ the tool reads the text layer, not the image.
 On the **3. Results** tab:
 
 - **records.csv**: one row per record that held the main form, plus the columns `file`, `pages`,
-  `main_form_page` and `status`. It opens in Excel directly and shows non-English text correctly. A long
+  `main_form_page` and `status`. With two main form types, or a counter-ended form, three more:
+  `form_type` (which main form page 1 matched), `main_form_pages` (for example `1-14`) and `page_map`, which
+  says what every page of the packet was read as, for example `1-14 Long form; 15-17 other; 18 Deficiency 1;
+  19-40 other`. A wrong cut shows up there without opening the PDF. It opens in Excel directly and shows non-English text correctly. A long
   field keeps its paragraph breaks inside the cell. Excel shows at most 32,767 characters in one cell; the
   CSV holds the whole text, and any record with a longer field is listed in problems.csv.
 - **problems.csv**: every file that was not read cleanly, with the problem and the detail. Problems are:
@@ -139,6 +158,7 @@ finds "WORK ITEM NO.", "12. Work Item No:" and "Work Item No ........".
 | `Contract No \| Contract Number` | either spelling |
 | `Control Number *` | required: a record without it is listed in problems.csv |
 | `Approved By > Date` | the Date inside the Approved By block (the block is the heading's drawn cell, or its column) |
+| `Job Number = Job Control Number` | CSV column "Job Number", read from the label "Job Control Number" on this form type |
 | `Date #3` | the third Date on the form, counting across its pages |
 | `# anything` | a comment line, ignored |
 
@@ -174,6 +194,8 @@ including everything on the continuation pages.
 | Header or footer text appears inside a value | Tick "Ignore repeated page headers and footers" (on by default). It needs the header to repeat on at least half of the pages of a record of three or more pages. |
 | A field in the page header is ignored | Untick "Ignore repeated page headers and footers". |
 | Date reads from the wrong signature block | Use `Approved By > Date`, or `Date #3`. |
+| A record is read as the wrong main form type | problems.csv says "form type unclear" when it was close. View each form's page 1 on its sample again, and add a label only that form has on page 1. |
+| The main form is cut too early or too late | Check the counter on the sample's page line for the last page and the next page. "form end unclear" in problems.csv means the counter and the "Last page from" field disagree. |
 | A label is cut short ("TOT" for "TOTAL HOURS") | On a boxed form the lines fix this; without lines, add the printed first line as an alternate spelling (`Total Hours \| TOTAL`). |
 | needs-ocr for a file that has text | The text layer is on fewer than half the pages. OCR the file anyway, or report it. |
 | "tool error while reading" | A bug. Note the file's page count and layout in general terms and report it. |

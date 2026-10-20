@@ -129,7 +129,9 @@ table.list input[type=text] { width:100%; padding:2px 5px; }
           <tr><th>Name</th><td><input type="text" id="formName"></td></tr>
           <tr><th>Anchor text</th><td><input type="text" id="formAnchor" placeholder="optional for the main form, e.g. FORM WCR-1"> <div class="small mute">Text that marks where this form starts. Leave blank on the main form to search the whole record. Extra forms need one, so each copy can be told apart.</div></td></tr>
           <tr><th>Pages per form</th><td><input type="number" id="formPages" min="1" max="20" value="1" style="width:70px"> <span class="small mute">pages that belong to one copy of this form</span></td></tr>
-          <tr><th>Kind</th><td><select id="formKind"><option value="main">Main form (one per record, required)</option><option value="extra">Extra form (zero or more per record)</option></select></td></tr>
+          <tr><th>Kind</th><td><select id="formKind"><option value="main">Main form (one per record; with several main forms, page 1 decides which)</option><option value="extra">Extra form (zero or more per record)</option></select></td></tr>
+          <tr><th>Form ends</th><td><select id="formSpan"><option value="pages">after "Pages per form" pages</option><option value="counter">where its page counter stops counting on (restarts, changes style, or reaches its total)</option></select></td></tr>
+          <tr><th>Last page from</th><td><input type="text" id="formLastPage" placeholder="optional: a field that states the last page, e.g. Effective Pages"> <div class="small mute">Cross-check only: a record where this disagrees with the counter is listed in problems.csv.</div></td></tr>
           <tr><th>Max copies in CSV</th><td><input type="number" id="formMax" min="1" max="10" value="3" style="width:70px"> <span class="small mute">extra forms only</span></td></tr>
         </tbody></table>
         <div class="row" style="margin-top:8px">
@@ -23263,7 +23265,7 @@ ZXI7c2VsZi5wZGZqc1dvcmtlcj17V29ya2VyTWVzc2FnZUhhbmRsZXI6UWd9Ow==</script>
 <script>
 "use strict";
 /* =====================================================================================================
-   PDF to CSV, version v0.7.1.  Single file, no network.  Built by dev/build.py from src/app.html.
+   PDF to CSV, version v0.8.  Single file, no network.  Built by dev/build.py from src/app.html.
 
    WHAT IT DOES
      1. The user types field names (and may open one sample PDF to check what each field reads). On a boxed
@@ -23351,7 +23353,7 @@ ZXI7c2VsZi5wZGZqc1dvcmtlcj17V29ya2VyTWVzc2FnZUhhbmRsZXI6UWd9Ow==</script>
    ===================================================================================================== */
 
 const $ = id => document.getElementById(id);
-const VERSION = "v0.7.1";
+const VERSION = "v0.8";
 
 /* =====================================================================================================
    SECTION 1. START-UP: decode the embedded PDF reader, verify it, start it
@@ -23495,6 +23497,10 @@ const T = Object.freeze({
   COMPARE_X: 6,              // a text is "at the same place" in another record within 6 points across...
   COMPARE_Y: 12,             // ...and 12 points down (one extra line in a cell above moves it that much)
   COMPARE_STATIC_SHARE: 0.8, // a text is a label when it reads the same in at least 80% of the compared records
+
+  // Page counters and packets (section 3d)
+  COUNTER_BAND: 0.12,        // a page counter is looked for in the top and bottom 12% of the page
+  FORM_TYPE_MARGIN: 0.15,    // two main form types scoring within this of each other on page 1: "form type unclear"
 
   // Safety limits
   BLOCK_LINES_MAX: 5000,
@@ -23947,6 +23953,94 @@ function markFurniture(pts, template) {
 }
 
 /* =====================================================================================================
+   SECTION 3d. PAGE COUNTERS AND THE PAGE MAP
+   A packet is several documents stapled together, and in scanned work packages the page counter is the
+   dependable boundary: a form's pages count 1, 2, ... N in one style, and the next document restarts or
+   changes style ("Pg 4 of 4" then "Page 1 of 2"; "12" then "A-1"). How a page LOOKS (footer, margins, amount
+   of text) is not dependable: one form's footer can carry on unchanged into its appendices.
+   pageCounter() reads one page's counter: { kind, n, N, letter, band, hpos, text }, kind one of
+     "word-of"  "Page 3 of 12", "Pg 3 of 12", "Sheet 3 of 12"     "of"     "3 of 12"
+     "slash"    "3 / 12"                                          "letter" "A-3", "B-12"
+     "bare"     a number alone ("3", "- 3 -")                     "blank"  "Sheet ___ of ___" (no value)
+   counterRuns() groups consecutive pages whose counters continue each other (same kind, and letter, and
+   total; n up by one). One page with no counter between two that continue each other (an OCR dropout) is
+   bridged.
+   ===================================================================================================== */
+const COUNTER_PATTERNS = [
+  ["word-of", /(?:^|[^\p{L}])(?:page|pg|p|sheet|sht)\.?\s*(\d{1,4})\s*(?:of|\/)\s*(\d{1,4})(?![\p{L}\p{N}])/iu],
+  ["of", /(?:^|[^\p{L}\p{N}.\/-])(\d{1,4})\s+of\s+(\d{1,4})(?![\p{L}\p{N}.\/-])/iu],
+  ["slash", /(?:^|[^\p{L}\p{N}.\/-])(\d{1,3})\s*\/\s*(\d{1,3})(?![\p{L}\p{N}.\/-])/u],
+  ["letter", /(?:^|[^\p{L}\p{N}-])([A-Z]{1,2})\s?-\s?(\d{1,3})(?![\p{L}\p{N}-])/u],
+];
+const BLANK_COUNTER = /(?:page|sheet|pg)\s*_{2,}\s*of\s*_{2,}/i;
+const BARE_COUNTER = /^\s*-?\s*(\d{1,3})\s*-?\s*$/;
+function pageCounter(pt) {
+  if (pt._counter !== undefined) return pt._counter;
+  let found = null;
+  const all = lines(pt, true);
+  // bottom band first (where counters usually are), then top band; within a band, the strongest kind wins
+  for (const band of ["bottom", "top"]) {
+    const inBand = all.filter(l => band === "bottom" ? l.y0 > pt.h * (1 - T.COUNTER_BAND) : l.y1 < pt.h * T.COUNTER_BAND);
+    const candidates = [];
+    for (const l of inBand) {
+      const t = l.text.normalize("NFKC");
+      COUNTER_PATTERNS.forEach(([kind, re], rank) => {
+        const m = re.exec(t);
+        if (m) candidates.push({ rank, kind, n: kind === "letter" ? +m[2] : +m[1], N: kind === "letter" ? null : +m[2], letter: kind === "letter" ? m[1] : null, line: l, text: m[0].trim() });
+      });
+      if (BLANK_COUNTER.test(t)) candidates.push({ rank: 5, kind: "blank", n: null, N: null, letter: null, line: l, text: "___ of ___" });
+      for (const it of l.items) {
+        const m = BARE_COUNTER.exec(it.s);
+        if (m && +m[1] >= 1) candidates.push({ rank: 4, kind: "bare", n: +m[1], N: null, letter: null, line: { ...l, items: [it] }, text: it.s.trim() });
+      }
+    }
+    const ok = candidates.filter(c => c.kind === "blank" || c.kind === "letter" || c.kind === "bare" || (c.n >= 1 && c.N >= c.n));
+    if (ok.length) {
+      ok.sort((a, b) => a.rank - b.rank);
+      const c = ok[0], it = c.line.items[0], cx = (it.x0 + c.line.items[c.line.items.length - 1].x1) / 2 / pt.w;
+      found = { kind: c.kind, n: c.n, N: c.N, letter: c.letter, band, hpos: cx < 0.36 ? "left" : cx > 0.64 ? "right" : "centre", text: c.text };
+      break;
+    }
+  }
+  return (pt._counter = found);
+}
+// Does page b's counter continue page a's?
+function continuesCounter(a, b) {
+  if (!a || !b || a.kind !== b.kind || a.n == null || b.n == null) return false;
+  if (a.kind === "letter" && a.letter !== b.letter) return false;
+  if (a.N != null && a.N !== b.N) return false;
+  return b.n === a.n + 1;
+}
+// Runs of pages counting on from `start`: the indexes of the pages that belong to the same counted document.
+// Returns { pages: [index...], reachedTotal: bool, kind }.
+function counterRun(pts, start) {
+  const first = pageCounter(pts[start]);
+  const pages = [start];
+  if (!first || first.n == null) return { pages, reachedTotal: false, kind: first ? first.kind : null };
+  let prev = first, i = start + 1;
+  while (i < pts.length) {
+    const c = pageCounter(pts[i]);
+    if (continuesCounter(prev, c)) { pages.push(i); prev = c; i++; continue; }
+    // an OCR dropout: no counter here, but the next page continues two on
+    const next = i + 1 < pts.length ? pageCounter(pts[i + 1]) : null;
+    if (!c && next && prev.kind === next.kind && next.n === prev.n + 2 && (prev.N == null || prev.N === next.N) && prev.letter === next.letter) {
+      pages.push(i, i + 1); prev = next; i += 2; continue;
+    }
+    break;
+  }
+  return { pages, reachedTotal: prev.N != null && prev.n === prev.N, kind: first.kind };
+}
+function counterLabel(c) {
+  if (!c) return "no counter";
+  return c.kind === "blank" ? "blank counter" : `${c.text} (${c.kind}, ${c.band} ${c.hpos})`;
+}
+// Decimal outline items ("1.1", "2.3.1") at the start of lines: the long form of a work package has none on
+// page 1, the short form has several. A form type can carry page1Outline: true/false, learned from the sample.
+function hasOutline(pt) {
+  return lines(pt).filter(l => /^\s*\d{1,2}\.\d{1,2}(?:\.\d{1,2})*\.?\s+\S/.test(l.text)).length >= 2;
+}
+
+/* =====================================================================================================
    SECTION 4. LABELS: from a typed field name to a pattern that finds the label on the page
    "Work Item No." in the list must find "WORK ITEM NO:", "12. Work Item No.", "Work Item No ......" and
    "Work Item No" sitting alone in a grid cell. Matching is word by word, ignoring case, spacing and
@@ -24164,6 +24258,7 @@ function collectBlock(pageLines, j0, st, compiled, prev) {
       ? gap > Math.max(st.lineGap * T.PARAGRAPH_GAP_RATIO, st.lineGap + lineH * T.PARAGRAPH_GAP_EXTRA)
       : gap > lineH * T.PARAGRAPH_GAP_FIRST);
     if (paragraph) {
+      if (st.cols && st.cols.open) break;   // a column with no right edge is one cell's value: it ends at its first paragraph gap
       if (st.blockX === null || Math.abs(line.x0 - st.blockX) > lineH) break;   // a paragraph starts where the block does
       parts.push("\n\n");
     } else if (last && parts.length) {
@@ -24470,6 +24565,14 @@ function extractLabel(pt, fieldName, compiled, ctx, cont, opts) {
         const under = sliceLine(pageLines[i + 1], labelX0 - T.X_TOLERANCE, valueItem.x0 - 2);
         if (under && Math.abs((under.y1 - under.y0) - lineH) > lineH * T.SAME_SIZE) cols = { left: labelX0 - T.X_TOLERANCE, right: valueItem.x0 };
       }
+      // The same, for a label that ENDS its line of labels ("Number    Found By", values on the next line): no
+      // value item follows it, so its column is from its own left edge to the right edge of the page.
+      if (!cols && !value && a > 0 && !valueItem && pageLines[i + 1]) {
+        const under = sliceLine(pageLines[i + 1], labelX0 - T.X_TOLERANCE, Infinity);
+        const leftOfIt = sliceLine(pageLines[i + 1], -Infinity, labelX0 - T.X_TOLERANCE);
+        if (under && leftOfIt && Math.abs(under.x0 - labelX0) <= T.X_TOLERANCE * 2 && Math.abs((under.y1 - under.y0) - lineH) > lineH * T.SAME_SIZE)
+          cols = { left: labelX0 - T.X_TOLERANCE, right: Infinity, open: true };   // open: no right edge, see collectBlock
+      }
       // Inside a container's block, the lines below are read within the block's width only.
       if (region && !cols) cols = { left: region.x0 + 2, right: region.x1 + 2 };
       const st = {
@@ -24520,13 +24623,19 @@ function findForms(template, pts) {
     let skipUntil = -1;
     pts.forEach((pt, i) => {
       if (i <= skipUntil) return;
-      if (norm(pt.items.map(it => it.s).join(" ")).includes(anchor)) { found[form.id].push(i); skipUntil = i + (form.pages || 1) - 1; }
+      if (norm(pt.items.map(it => it.s).join(" ")).includes(anchor)) { found[form.id].push(i); skipUntil = i + formSpan(form, pts, i) - 1; }
     });
   }
   return found;
 }
-// Pages one copy of a form covers: its declared page count, or the rest of the record when it has no anchor.
-function formSpan(form, pts, start) { return form.anchor ? Math.min(form.pages || 1, pts.length - start) : pts.length - start; }
+// Pages one copy of a form covers. form.spanRule:
+//   "pages" (or absent)  its declared page count, or the rest of the record when it has no anchor (v0.7);
+//   "counter"            the pages its page counter keeps counting on from its first page (section 3d): it
+//                        ends where the counter restarts, changes style, or (for "n of N") reaches its total.
+function formSpan(form, pts, start) {
+  if (form.spanRule === "counter") return Math.max(1, counterRun(pts, start).pages.length);
+  return form.anchor ? Math.min(form.pages || 1, pts.length - start) : pts.length - start;
+}
 
 // A value found on page `pi` may go on: on the next page under its label with a continuation marker
 // ("Description of Work (cont.)"), or, when it ran off the bottom of the page (ctx.open), at the top of
@@ -24610,6 +24719,40 @@ function readForm(form, pts, start, used, pagesOut) {
      unreadable    the file could not be opened at all (corrupt, empty, password)
      tool_error    the file opened but THIS TOOL failed while reading it (a bug to report, not a bad file)
    ===================================================================================================== */
+// Which main form type a record holds, decided on its first page. One main form: that one (v0.7 behaviour).
+// Several: each scores on page 1 by its anchor (2 points), the share of its page-1 labels found there (up to 1),
+// and whether page 1 has decimal outline items as its page1Outline says (half a point either way). The
+// highest wins; when the top two are within FORM_TYPE_MARGIN, the record is noted "form type unclear".
+function chooseMainForm(mainForms, pts, starts) {
+  if (mainForms.length <= 1) return { form: mainForms[0] || null, unclear: null };
+  const scores = mainForms.map(form => {
+    const at = starts[form.id] && starts[form.id].length ? starts[form.id][0] : (form.anchor ? null : 0);
+    if (at === null || !pts[at]) return { form, score: -Infinity };
+    let score = form.anchor ? 2 : 0;
+    const compiled = compiledForm(form), ctx = {};
+    const onFirst = form.fields.filter(x => x.method === "label" && !x.container && (x.page === "any" || x.page == null || x.page === 0));
+    if (onFirst.length) score += onFirst.filter(x => extractLabel(pts[at], x.name, compiled, ctx) !== null).length / onFirst.length;
+    if (typeof form.page1Outline === "boolean") score += hasOutline(pts[at]) === form.page1Outline ? 0.5 : -0.5;
+    return { form, score };
+  }).sort((a, b) => b.score - a.score);
+  if (!isFinite(scores[0].score)) return { form: mainForms[0], unclear: null };   // none found: reported as no_main_form
+  const unclear = scores.length > 1 && isFinite(scores[1].score) && scores[0].score - scores[1].score < T.FORM_TYPE_MARGIN
+    ? `form type unclear: ${scores[0].form.name} ${scores[0].score.toFixed(2)} against ${scores[1].form.name} ${scores[1].score.toFixed(2)}` : null;
+  return { form: scores[0].form, unclear };
+}
+// The page map: which pages of the packet were read as what, e.g. "1-14 Long form; 15-17 Appendix 1; 18-40 other".
+function pageMap(template, pts, starts, res) {
+  const label = new Array(pts.length).fill("other");
+  const mark = (from, to, name) => { for (let i = from; i <= to && i < pts.length; i++) label[i] = name; };
+  if (res.mainSpan) mark(res.mainSpan[0] - 1, res.mainSpan[1] - 1, res.formType || (template.forms.find(f => f.kind === "main") || {}).name || "main");
+  for (const f of template.forms.filter(f => f.kind !== "main")) {
+    (starts[f.id] || []).forEach((s, c) => { if (label[s] === "other") mark(s, s + formSpan(f, pts, s) - 1, `${f.name} ${c + 1}`); });
+  }
+  const parts = [];
+  for (let i = 0; i < label.length;) { let j = i; while (j + 1 < label.length && label[j + 1] === label[i]) j++; parts.push(`${i === j ? i + 1 : `${i + 1}-${j + 1}`} ${label[i]}`); i = j + 1; }
+  return parts.join("; ");
+}
+
 async function processFile(file, path, template, parser) {
   const res = { path, size: file.size, mtime: file.lastModified, status: "ok", reason: "", pages: 0,
                 textPages: 0, main: null, mainPages: {}, extras: {}, missing: [], mainText: "" };
@@ -24643,8 +24786,13 @@ async function processFile(file, path, template, parser) {
     markFurniture(pts, template);   // running headers and footers, left out of values (section 3c)
 
     const starts = findForms(template, pts);
-    const mainForm = template.forms.find(f => f.kind === "main");
-    for (const form of template.forms) {
+    const mainForms = template.forms.filter(f => f.kind === "main");
+    // Several main form types (short form, long form): page 1 decides which one this record holds.
+    const choice = chooseMainForm(mainForms, pts, starts);
+    const mainForm = choice.form;
+    if (mainForms.length > 1) { res.formType = mainForm ? mainForm.name : ""; if (choice.unclear) res.notes = (res.notes || []).concat([choice.unclear]); }
+    // The chosen main form first (its pages are needed to keep extra forms out of them), then the extra forms.
+    for (const form of [mainForm, ...template.forms.filter(f => f.kind !== "main")].filter(Boolean)) {
       if (form.kind === "main") {
         if (!starts[form.id].length) continue;
         const used = new Set();
@@ -24657,10 +24805,24 @@ async function processFile(file, path, template, parser) {
         res.mainText = textPages.map(i => lines(pts[i]).map(l => l.text).join("\n")).join("\n\n");
         res.missing = form.fields.filter(x => x.required && !(res.main[x.name] || "").trim()).map(x => x.name);
         res.longFields = Object.keys(res.main).filter(k => (res.main[k] || "").length > T.EXCEL_CELL_MAX);
+        res.mainSpan = [starts[form.id][0] + 1, starts[form.id][0] + formSpan(form, pts, starts[form.id][0])];
+        // A field that declares the form's last page (an "effective pages" table): cross-check the counter.
+        if (form.lastPageField && res.main[form.lastPageField]) {
+          const nums = String(res.main[form.lastPageField]).match(/\d{1,4}/g);
+          const declared = nums ? +nums[nums.length - 1] : null, counted = res.mainSpan[1] - res.mainSpan[0] + 1;
+          if (declared && Math.abs(declared - counted) > 0) res.notes = (res.notes || []).concat([`form end unclear: the page counter gives ${counted} pages, "${form.lastPageField}" says ${declared}`]);
+        }
       } else {
-        res.extras[form.id] = starts[form.id].map(s => { const fieldPages = {}; return { page: s + 1, vals: readForm(form, pts, s, null, fieldPages), fieldPages }; });
+        // When the main form's end comes from its page counter, extra forms are read only outside its pages (their
+        // labels are often the main form's own). A main form without that rule may span the whole record, so then
+        // nothing is excluded (v0.7 behaviour).
+        const bounded = res.mainSpan && mainForm && mainForm.spanRule === "counter";
+        const outside = starts[form.id].filter(s => !bounded || s + 1 < res.mainSpan[0] || s + 1 > res.mainSpan[1]);
+        starts[form.id] = outside;
+        res.extras[form.id] = outside.map(s => { const fieldPages = {}; return { page: s + 1, vals: readForm(form, pts, s, null, fieldPages), fieldPages }; });
       }
     }
+    if (mainForms.length > 1 || template.forms.some(f => f.spanRule === "counter")) res.pageMap = pageMap(template, pts, starts, res);
     if (res.textPages === 0) {
       res.status = "needs_ocr"; res.reason = "no text layer on any page";
     } else if (mainForm && !res.main) {
@@ -24737,7 +24899,7 @@ function newTemplate() {
 // Check a template's shape (it may come from a file the user picked). Throws a plain-English message.
 function validateTemplate(t) {
   if (!t || !Array.isArray(t.forms) || !t.forms.length) throw new Error("no forms in template");
-  if (t.forms.filter(f => f.kind === "main").length !== 1) throw new Error("template needs exactly one main form");
+  if (t.forms.filter(f => f.kind === "main").length < 1) throw new Error("template needs at least one main form");
   if (t.ignoreFurniture != null && typeof t.ignoreFurniture !== "boolean") throw new Error("ignoreFurniture must be true or false");
   const ids = new Set();
   const numbers = (a, n) => Array.isArray(a) && a.every(s => Array.isArray(s) && s.length === n && s.every(x => typeof x === "number" && isFinite(x)));
@@ -24749,6 +24911,9 @@ function validateTemplate(t) {
     if (f.anchor != null && typeof f.anchor !== "string") throw new Error(`form ${f.id}: anchor must be text`);
     if (f.pages != null && !(Number.isInteger(f.pages) && f.pages >= 1)) throw new Error(`form ${f.id}: pages must be a whole number`);
     if (f.maxCopies != null && !(Number.isInteger(f.maxCopies) && f.maxCopies >= 1)) throw new Error(`form ${f.id}: max copies must be a whole number`);
+    if (f.spanRule != null && !(f.spanRule === "pages" || f.spanRule === "counter")) throw new Error(`form ${f.id}: span rule must be pages or counter`);
+    if (f.lastPageField != null && typeof f.lastPageField !== "string") throw new Error(`form ${f.id}: last-page field must be a field name`);
+    if (f.page1Outline != null && typeof f.page1Outline !== "boolean") throw new Error(`form ${f.id}: page1Outline must be true or false`);
     if (f.grids != null) {
       if (typeof f.grids !== "object" || Array.isArray(f.grids)) throw new Error(`form ${f.id}: grids must be an object keyed by page offset`);
       for (const [k, g] of Object.entries(f.grids)) {
@@ -24920,6 +25085,7 @@ let gridsLocked = false;   // test hook: keep the template's grids as they are w
 async function rememberGrid(page, canvas, zoom, pt) {
   const f = currentForm(), offset = await currentOffset(f);
   if (offset === null || gridsLocked) return;
+  if (offset === 0 && f.kind === "main") f.page1Outline = hasOutline(pt);   // used to tell main form types apart
   let grid = { h: [], v: [] };
   try { grid = await vectorLines(page); } catch (e) { /* no path commands readable: the image may still show lines */ }
   try {
@@ -25009,7 +25175,7 @@ async function drawOverlay() {
     overlay.appendChild(d);
   });
   const info = $("pgInfo");
-  info.textContent = info.textContent.replace(/ \u00b7.*$/, "") + (pt.grid ? ` \u00b7 ${cells} cells from ${pt.grid.h.length + pt.grid.v.length} drawn lines` : "") + (furn ? ` \u00b7 ${furn} header/footer items ignored` : "");
+  info.textContent = info.textContent.replace(/ \u00b7.*$/, "") + ` \u00b7 counter: ${counterLabel(pageCounter(pt))}` + (pt.grid ? ` \u00b7 ${cells} cells from ${pt.grid.h.length + pt.grid.v.length} drawn lines` : "") + (furn ? ` \u00b7 ${furn} header/footer items ignored` : "");
   for (const x of f.fields) {
     if (x.method !== "box" || (x.page || 0) !== offset) continue;
     const b = document.createElement("div"); b.className = "fbox";
@@ -25076,15 +25242,19 @@ function parseFieldSpec(line) {
   if (!line || line.startsWith("#")) return null;
   const required = /\*\s*$/.test(line);
   line = line.replace(/\*\s*$/, "").trim();
-  let container = null, occurrence = null;
+  let container = null, occurrence = null, column = null;
+  // "Column = label | label": the CSV column name, then the label(s) as printed on this form type
+  const eq = line.indexOf(" = ");
+  if (eq > 0) { column = line.slice(0, eq).trim(); line = line.slice(eq + 3).trim(); }
   const gt = line.indexOf(">");
   if (gt > 0) { container = aliasesOf(line.slice(0, gt)).join(" | "); line = line.slice(gt + 1).trim(); }
   const occ = /\s#(\d{1,2})$/.exec(line);
   if (occ && +occ[1] >= 1) { occurrence = +occ[1]; line = line.slice(0, occ.index).trim(); }
   const label = aliasesOf(line).join(" | ");
   if (!label || (container !== null && !container)) return null;
-  const name = (container ? aliasesOf(container)[0] + " > " : "") + aliasesOf(label)[0] + (occurrence ? " #" + occurrence : "");
+  const name = column || (container ? aliasesOf(container)[0] + " > " : "") + aliasesOf(label)[0] + (occurrence ? " #" + occurrence : "");
   const field = { name, method: "label", label, page: "any", required, fromList: true };
+  if (column) field.column = true;
   if (container) field.container = container;
   if (occurrence) field.occurrence = occurrence;
   return field;
@@ -25100,7 +25270,7 @@ function parseNameList(text) {
   return out;
 }
 function fieldSpecText(x) {
-  return (x.container ? x.container + " > " : "") + x.label + (x.occurrence ? " #" + x.occurrence : "") + (x.required ? " *" : "");
+  return (x.column ? x.name + " = " : "") + (x.container ? x.container + " > " : "") + x.label + (x.occurrence ? " #" + x.occurrence : "") + (x.required ? " *" : "");
 }
 function nameListText(f) {
   return f.fields.filter(x => x.fromList).map(fieldSpecText).join("\n");
@@ -25294,19 +25464,20 @@ function refreshFormPanel() {
   const f = currentForm();
   $("formName").value = f.name; $("formAnchor").value = f.anchor; $("formPages").value = f.pages || 1;
   $("formKind").value = f.kind; $("formMax").value = f.maxCopies || 3;
+  $("formSpan").value = f.spanRule || "pages"; $("formLastPage").value = f.lastPageField || "";
   $("ignoreFurn").checked = template.ignoreFurniture !== false;
   if (document.activeElement !== $("nameList")) $("nameList").value = nameListText(f);
   $("nameFor").textContent = `for "${f.name}"`;
   $("tplStatus").textContent = `${template.forms.length} form type(s), ${template.forms.reduce((n, f) => n + f.fields.length, 0)} fields`;
 }
 $("formSel").addEventListener("change", () => { currentFormId = $("formSel").value; refreshFormPanel(); drawOverlay(); refreshFieldTable(); });
-for (const [id, key, convert] of [["formName", "name", String], ["formAnchor", "anchor", s => String(s).trim()],
+for (const [id, key, convert] of [["formSpan", "spanRule", String], ["formLastPage", "lastPageField", s => String(s).trim() || undefined],
+                                  ["formName", "name", String], ["formAnchor", "anchor", s => String(s).trim()],
                                   ["formPages", "pages", s => Math.max(1, parseInt(s) || 1)], ["formMax", "maxCopies", s => Math.max(1, parseInt(s) || 1)]]) {
   $(id).addEventListener("change", () => { currentForm()[key] = convert($(id).value); refreshEditor(); });
 }
 $("formKind").addEventListener("change", () => {
-  const kind = $("formKind").value;
-  if (kind === "main") template.forms.forEach(f => { if (f.kind === "main") f.kind = "extra"; });   // only one main form
+  const kind = $("formKind").value;   // several main form types are allowed: page 1 decides which one a record holds
   currentForm().kind = kind;
   if (!template.forms.some(f => f.kind === "main")) { flash("One form must be the main form."); currentForm().kind = "main"; }
   saveTemplate();
@@ -25480,8 +25651,14 @@ function csvCell(v) {
 function csv(rows) { return String.fromCharCode(0xFEFF) + rows.map(r => r.map(csvCell).join(",")).join("\r\n") + "\r\n"; }
 
 function recordsCsv(results, t) {
-  const main = t.forms.find(f => f.kind === "main"), extras = t.forms.filter(f => f.kind !== "main");
+  const mains = t.forms.filter(f => f.kind === "main"), extras = t.forms.filter(f => f.kind !== "main");
+  // Columns of the main form: with several main form types, the union of their field names in order of first
+  // appearance, so a field named the same on the short and the long form shares one column.
+  const mainNames = [...new Set(mains.flatMap(f => f.fields.map(x => x.name)))];
+  const main = { fields: mainNames.map(name => ({ name })) };
+  const packets = mains.length > 1 || t.forms.some(f => f.spanRule === "counter");   // v0.8 columns only then
   const head = ["file", "pages", "main_form_page", "status"];
+  if (packets) head.push("form_type", "main_form_pages", "page_map");
   for (const x of main.fields) head.push(x.name);
   for (const f of extras) {
     head.push(`${f.name}: count`);
@@ -25491,6 +25668,7 @@ function recordsCsv(results, t) {
   for (const r of results) {
     if (!r.main) continue;
     const row = [r.path, r.pages, r.mainPage, r.status];
+    if (packets) row.push(r.formType || (mains[0] && mains[0].name) || "", r.mainSpan ? `${r.mainSpan[0]}-${r.mainSpan[1]}` : "", r.pageMap || "");
     for (const x of main.fields) row.push(r.main[x.name] ?? "");
     for (const f of extras) {
       const copies = (r.extras && r.extras[f.id]) || [];
@@ -25507,6 +25685,7 @@ function problemsCsv(results) {
   const rows = [["file", "problem", "detail", "pages", "pages_with_text"]];
   for (const r of results) {
     if (r.status !== "ok") rows.push([r.path, STATUS_TEXT[r.status] || r.status, r.reason, r.pages ?? "", r.textPages ?? ""]);
+    for (const note of r.notes || []) rows.push([r.path, note.split(":")[0], note, r.pages ?? "", r.textPages ?? ""]);
     if (r.longFields && r.longFields.length) {
       rows.push([r.path, "field too long for one Excel cell",
                  `over ${T.EXCEL_CELL_MAX.toLocaleString()} characters: ${r.longFields.join("; ")}. The CSV holds it all; Excel will show it cut off.`,
@@ -25549,7 +25728,8 @@ function splitChunks(text, max) {
   return packed;
 }
 function recordChunks(r, t) {
-  const out = [], main = t.forms.find(f => f.kind === "main");
+  const mains = t.forms.filter(f => f.kind === "main");
+  const out = [], main = mains.find(f => f.name === r.formType) || mains[0];
   out.push({ id: r.path, level: "document", file: r.path, form: main ? main.name : "", pages: r.pages, main_form_page: r.mainPage ?? null,
              status: r.status, fields: r.main, text: r.mainText || "" });
   const addField = (formName, fieldLabel, value, pages) => {
@@ -25626,6 +25806,9 @@ window.__rh = {
   setTemplate: t => { template = validateTemplate(t); currentFormId = template.forms[0].id; saveTemplate(); refreshFormPanel(); },
   getTemplate: () => JSON.parse(JSON.stringify(template)),
   lockGrids: on => { gridsLocked = !!on; },
+  useForm: id => { currentFormId = id; refreshFormPanel(); },
+  // index of the first sample page whose text contains `text` (0 if none)
+  findPage: async text => { for (let i = 0; i < sample.doc.numPages; i++) { const pt = await samplePageText(i); if (norm(pt.items.map(it => it.s).join(" ")).includes(norm(text))) return i; } return 0; },
   useNames: async (formId, text) => { currentFormId = formId; refreshFormPanel(); $("nameList").value = text; $("nameApply").click(); return currentForm().fields.length; },
   autoDetectCount: async () => { $("autoLabels").click(); await new Promise(r => setTimeout(r, 300)); return currentForm().fields.length; },
   detectLabels: () => sample ? detectLabels(sample.pts[sample.pageIdx]) : [],

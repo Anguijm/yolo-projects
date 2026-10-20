@@ -41,6 +41,11 @@ block: the block is the container label's drawn cell, or, without lines, the col
 left edge to the next text on its line. `Date #3` reads the third Date on the form. Auto-detect proposes
 these names itself when it sees the same label in several cells under block headings.
 
+**Packets (v0.8).** A file can be a packet: a main form of one of several kinds, then attachments and other
+forms. Page 1 decides which main form it is; the page counter ("Pg 3 of 12", a bare "3", "A-1") decides where
+each form ends; fields are read only inside the main form's pages; extra forms are found after it. The CSV
+gains `form_type`, `main_form_pages` and a `page_map` of what every page was read as.
+
 **Comparing records (v0.7).** One filled form cannot always show which text is the form and which is the
 record. "Compare with more records" opens one to four more records of the same form: text that reads the
 same in every record at the same place is a label, text that differs is a value (tinted blue on the sample
@@ -110,18 +115,21 @@ the first words of each cell's label, used to line the grid up on each record: s
     cd dev && npm install                       # pdfjs-dist 4.10.38, puppeteer-core (tests only)
     python3 dev/make_fixtures.py dev/fixtures   # SYNTHETIC records with an answer key
     python3 dev/build.py --version v0.1         # -> dist/pdf-to-csv-v0.1.html
-    node dev/test_run.js dist/pdf-to-csv-v0.7.html dev/fixtures dev/test-template.json             # template file
+    node dev/test_run.js dist/pdf-to-csv-v0.8.html dev/fixtures dev/test-template.json             # template file
     RH_MODE=names node dev/test_run.js ...                     # field names typed into the page
     RH_MODE=names RH_PARTIAL=1 node dev/test_run.js ...        # only two thirds of the names listed
     RH_DUMP=out.csv RH_DUMP_PROB=problems.csv ...              # also save the CSVs the page produced
     python3 dev/check_csv.py out.csv dev/fixtures/truth.json  # independent check with Python's csv module
-    node dev/edge_cases.js dist/pdf-to-csv-v0.7.html            # 16 targeted cases from the code review
+    node dev/edge_cases.js dist/pdf-to-csv-v0.8.html            # 16 targeted cases from the code review
     python3 dev/make_fixtures.py dev/fixtures-huge --n 8 --seed 11 --huge   # multi-page narrative fields
     python3 dev/make_boxed_fixtures.py dev/fixtures-boxed       # dense boxed form, born-digital AND scan-like
-    node dev/test_boxed.js dist/pdf-to-csv-v0.7.html dev/fixtures-boxed digital   # sample = a digital record, then 2 more compared
-    node dev/test_boxed.js dist/pdf-to-csv-v0.7.html dev/fixtures-boxed scanned   # sample = a scan-like record
+    python3 dev/make_packet_fixtures.py dev/fixtures-packets    # packets: short or long main form, counters, attachments
+    node dev/test_packets.js dist/pdf-to-csv-v0.8.html dev/fixtures-packets scanned   # form type, span, fields, extra forms
+    python3 dev/check_chunks.py record-chunks.jsonl dev/fixtures/truth.json             # the retrieval export
+    node dev/test_boxed.js dist/pdf-to-csv-v0.8.html dev/fixtures-boxed digital   # sample = a digital record, then 2 more compared
+    node dev/test_boxed.js dist/pdf-to-csv-v0.8.html dev/fixtures-boxed scanned   # sample = a scan-like record
     RH_NOGRID=1 node dev/test_boxed.js ...                     # the same without the remembered lines
-    node dev/debug_page.js dist/pdf-to-csv-v0.7.html sample.pdf 0 "FORM X" "<js expression>"   # look inside
+    node dev/debug_page.js dist/pdf-to-csv-v0.8.html sample.pdf 0 "FORM X" "<js expression>"   # look inside
 
 The scan-like fixtures are made with poppler: each page becomes a grey JPEG with an invisible OCR-style
 text layer (one item per word, horizontally scaled to the word's box), shifted by a few points like a
