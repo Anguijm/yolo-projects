@@ -1,6 +1,6 @@
 # Prompts B: build the Resource Map app inside GenAI.mil
 
-Version 0.2, 2026-10-22 (v0.1 kept beside it). Tested against Gemini with no code execution, the way the
+Version 0.3, 2026-10-22 (v0.1 and v0.2 kept beside it; v0.3 adds two clarifications from the yolo review of PR 52: verdict precedence and a made-up label on the debug example). Tested against Gemini with no code execution, the way the
 chat inside works: the v0.1 prompts built a file that opened without errors but had four faults (the
 index named two ways, consumption fields stored without underscores, dates shifted a week on a computer
 in Japan time, and nothing calling the verdicts or export after import). Three were found by the check
@@ -277,7 +277,8 @@ view-mode.
    capacity (total hours over total capacity), peak percent, weeks over the band, weeks under it, and
    one plain verdict: "balanced", "spare capacity: pull work in or lend people", "over in peaks:
    contractor or overtime", "short of people all year" (average above the band). Thresholds: over in
-   peaks when more than 8 weeks are over.
+   peaks when more than 8 weeks are over. When more than one applies, the first of these wins: short of
+   people all year, over in peaks, spare capacity, balanced.
 3. The download file name follows the kind: assigned.csv, capacity.csv, consumption.csv,
    shop_week_summary.csv.
 4. No em dashes.
@@ -324,8 +325,8 @@ can paste it over the old one. Do not change anything else.
 
 ```
 I opened the assembled file and did this: <what you loaded and clicked>. I expected <what the sheet or
-the arithmetic says, for example "shop 11 in the week of 10/05 should show 200 assigned hours against
-1376 capacity, 15%">. The page shows <what it shows, for example "a column for 09/28 that is in no
+the arithmetic says, for example, with made-up figures, "shop 11 in the week of 10/05 should show 200
+assigned hours against 1376 capacity, 15%">. The page shows <what it shows, for example "a column for 09/28 that is in no
 sheet, and 0% in that cell">. There is no console error.
 
 Find the cause in the file you wrote and answer with only the corrected function or block, named so I
@@ -338,5 +339,5 @@ In the test here, three of the four faults were silent and were fixed through th
 
 Leveling inside float, farm-out list by trade coverage, emergent reserve by trade from history, and
 what-if (slip a project, add a proposed list). It reuses the logic proven in the laptop prototype
-(the laptop prototype) and needs one more input: per-job float (earliest start, latest finish), which the
+and needs one more input: per-job float (earliest start, latest finish), which the
 resource maps do not carry; that comes from the schedule export, to be analyzed with a prompt like A.
