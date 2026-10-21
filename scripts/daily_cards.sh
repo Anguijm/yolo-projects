@@ -32,22 +32,25 @@ cols = ["video_id","video_url","channel","video_title","published_date","watched
 w = csv.DictWriter(open(d + "/rows.csv", "w", newline=""), fieldnames=cols, extrasaction="ignore", restval="")
 w.writeheader(); [w.writerow(r) for r in rows]; print(len(rows), "rows read from the sheet")
 E
-cd "$REPO"
-git diff --quiet || { echo "repo has uncommitted changes, not touching it"; exit 1; }
-git checkout -q main && git pull -q --ff-only
+# Work in a throwaway copy of the REMOTE main, so commits other sessions left on the local main never ride along.
+cd "$REPO"; git fetch -q origin
+WT=$(mktemp -d /tmp/yolo-cards-XXXXXX); trap 'cd "$REPO"; git worktree remove --force "$WT" 2>/dev/null || true' EXIT
+B="cards/$(date +%F-%H%M)-sheet"
+git worktree add -q -b "$B" "$WT" origin/main
+cd "$WT"
 python3 scripts/cards_from_sheet.py "$CACHE/rows.csv" | tee "$CACHE/cards.log"
-git diff --quiet experiments.json && { echo "no new cards"; exit 0; }
+git diff --quiet experiments.json && { echo "no new cards"; git -C "$REPO" branch -q -D "$B"; exit 0; }
 
-# 4. Branch, commit, push, pull request. Never merged here.
-B="cards/$(date +%F-%H%M)-sheet"; N=$(git diff --numstat experiments.json | awk '{print $1}')
-git checkout -q -b "$B"; git add experiments.json
+# Commit only experiments.json, push, open the pull request, merge it when the secret scan and validation pass
+# (his ruling 2026-10-19: the failing council-script-check is ignored; 2026-10-21: merge on those two checks).
+git add experiments.json
 git commit -q -m "Cards from the Gemini watch sheet ($(date +%F))"
 git push -q -u origin "$B"
 URL=$(gh pr create -R Anguijm/yolo-projects --base main --head "$B" --title "Cards from the Gemini watch sheet ($(date +%F))" \
-  --body "New cards from the YOLO Watch Log sheet, written on the Claude subscription by scripts/cards_from_sheet.py. Not merged automatically.")
-git checkout -q main
-"$HOME/.config/job-guard/notify" "New YOLO cards ready to review: $URL" 2>/dev/null || true
-# Nudge the always-on yolo Claude session (tmux socket "yolo") to review the new cards against the whole
-# project ecosystem (CLAUDE.md "Operating mode"). Typed into its prompt; harmless if the session is down.
-timeout 5 tmux -L yolo send-keys -t yolo "[automated, daily_cards.sh] New cards in $URL: review them per CLAUDE.md Operating mode, log verdicts in .harness/card_reviews.md, and tell John only about the ones worth doing." Enter 2>/dev/null || true
+  --body "New cards from the YOLO Watch Log sheet, written on the Claude subscription by scripts/cards_from_sheet.py. Merged by the daily run when secret-scan and validate pass.")
 echo "$URL"
+n=0; until gh pr checks "$URL" 2>&1 | grep -q "^validate" && ! gh pr checks "$URL" 2>&1 | grep -q -i "pending\|in_progress\|queued"; do
+  n=$((n+1)); [ $n -ge 100 ] && { echo "checks did not finish, left open: $URL"; exit 1; }; sleep 6; done
+if gh pr checks "$URL" 2>&1 | grep -E "^(secret-scan|validate)" | grep -q -v pass; then echo "secret-scan or validate failed, left open: $URL"; exit 1; fi
+gh pr merge "$URL" --squash --delete-branch
+echo "merged $URL"
