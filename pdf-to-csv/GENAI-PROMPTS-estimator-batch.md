@@ -1,6 +1,6 @@
 # Prompts C: add batch mode to the estimator (big files in, one big CSV out)
 
-Version 0.2, 2026-10-22 (v0.1 kept beside it). Tested against Gemini with no code execution, the same
+Version 0.3, 2026-10-22 (v0.1 and v0.2 kept beside it; v0.3 says how rule 2 chains after a phase placed by rule 1, from the yolo review of PR 52). Tested against Gemini with no code execution, the same
 handicap as the chat inside: the v0.1 prompts produced one syntax error on load and four mismatches in
 the batch loader, and the model shortened the placement logic on its own. v0.2 states the pieces that
 drifted and moves placement into its own prompt (C2b), which then worked first time. The test build ran
@@ -214,8 +214,10 @@ Rules, in order; the first rule whose conditions hold for the phase is used:
 2. "sequence": else, if toDate(item.planned_start) is a Date: phases run one after another from
    planned_start in estRows order; each phase's duration comes from the NEWEST analog (the first JCN in
    usedJcns): actual_finish - actual_start when both are Dates and finish is after start, else
-   planned_finish - planned_start under the same test, else 7 days; at least 1 day. The first phase
-   starts at planned_start; each next phase starts at the previous phase's finish.
+   planned_finish - planned_start under the same test, else 7 days; at least 1 day. A rule-2 phase
+   starts at the finish of the most recently placed earlier phase of the same item (in estRows order,
+   whichever rule placed it); if no earlier phase of the item has been placed, it starts at
+   planned_start.
 3. "start_week": else, if toDate(item.planned_start) is a Date: every phase gets week_start = week_end =
    the Monday of planned_start.
 4. Otherwise week_start = week_end = '', placement = '', note = "no dates".
