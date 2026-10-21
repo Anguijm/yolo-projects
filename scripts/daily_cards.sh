@@ -49,8 +49,10 @@ git push -q -u origin "$B"
 URL=$(gh pr create -R Anguijm/yolo-projects --base main --head "$B" --title "Cards from the Gemini watch sheet ($(date +%F))" \
   --body "New cards from the YOLO Watch Log sheet, written on the Claude subscription by scripts/cards_from_sheet.py. Merged by the daily run when secret-scan and validate pass.")
 echo "$URL"
-n=0; until gh pr checks "$URL" 2>&1 | grep -q "^validate" && ! gh pr checks "$URL" 2>&1 | grep -q -i "pending\|in_progress\|queued"; do
+chk() { gh pr checks "$URL" 2>&1 || true; }   # gh exits non-zero while any check fails (the ignored council one), so never let that stop the script
+n=0; until { O=$(chk); echo "$O" | grep -q "^validate" && ! echo "$O" | grep -q -i "pending\|in_progress\|queued"; }; do
   n=$((n+1)); [ $n -ge 100 ] && { echo "checks did not finish, left open: $URL"; exit 1; }; sleep 6; done
-if gh pr checks "$URL" 2>&1 | grep -E "^(secret-scan|validate)" | grep -q -v pass; then echo "secret-scan or validate failed, left open: $URL"; exit 1; fi
+O=$(chk)
+for c in secret-scan validate; do echo "$O" | grep -q "^$c[[:space:]]*pass" || { echo "$c did not pass, left open: $URL"; exit 1; }; done
 gh pr merge "$URL" --squash --delete-branch
 echo "merged $URL"
