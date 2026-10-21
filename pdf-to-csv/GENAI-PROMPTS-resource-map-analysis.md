@@ -1,6 +1,6 @@
 # Prompt A: analyze the resource map workbooks inside GenAI.mil
 
-Version 0.1, 2026-10-22. Run this inside GenAI.mil with the real workbooks attached (if attachments are not
+Version 0.2, 2026-10-22 (v0.1 kept; this version adds the header-label rule the yolo review asked for). Run this inside GenAI.mil with the real workbooks attached (if attachments are not
 accepted for Excel, open each sheet, copy the first 15 rows including the header block, and paste them
 under "Sheet text" in the prompt; the model does not need the values to be real, and you may overtype them
 with made-up numbers first).
@@ -64,16 +64,19 @@ JOINS: whether shop codes and project names match between the assigned sheets an
   and what has to be translated
 PERIOD: how many weeks one workbook covers and whether consecutive workbooks overlap
 
-Last, give a SAMPLE for each data sheet: its real header row(s) exactly as written (headers are not record
-content), followed by three made-up data rows in the same layout, so a program can be tested on them.
-Mark the sample clearly as made up.
+Last, give a SAMPLE for each data sheet: its header row(s) as written, followed by three made-up data rows
+in the same layout, so a program can be tested on them. A header is record content when it names a
+project, hull, availability, person or job (for example when projects run across the columns): replace
+any such header with a made-up label of the same shape and say that you did. Mark the sample clearly as
+made up.
 
 Finish with a list of anything you could not determine and what would settle it.
 ```
 
 ## After the answer
 
-1. Read it. Strike any real value that slipped through. Headers are fine; values are not.
+1. Read it. Strike any real value that slipped through. Column headers that are field names are fine;
+   a header that names a project, hull or person is a value and must be replaced.
 2. Bring the spec and the samples out the way you brought the packet-structure report out.
 3. Paste the whole spec into Prompt B1 of the Resource Map series where it says <PASTE THE DATA SHEET
    SPEC HERE>. The build prompts take the mapping rules from it, so the app reads your sheets as they are.
