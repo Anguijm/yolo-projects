@@ -1,7 +1,8 @@
 #!/bin/bash
 # Daily card run (MS-S1, cron 05:50 JST, under job-guard): reads the Gemini "YOLO Watch Log" sheet through the
 # signed-in Chrome, turns rows from the last 3 days that have no card yet into cards on the Claude subscription,
-# and opens a pull request. It never merges. Added 2026-10-19 (his ruling: "1&2", browser-driven reader).
+# opens a pull request and merges it when secret-scan and validate pass. Added 2026-10-19 (his ruling: "1&2",
+# browser-driven reader).
 set -euo pipefail
 export PATH="$HOME/.local/bin:$PATH"
 REPO="$HOME/projects/yolo-projects"; CACHE="$HOME/.cache/yolo-sheet"; SHEET=1mufW3cDGusQiFWCb1QxH3zsIrg44beDKwKBvgJYdrgU
@@ -34,12 +35,13 @@ w.writeheader(); [w.writerow(r) for r in rows]; print(len(rows), "rows read from
 E
 # Work in a throwaway copy of the REMOTE main, so commits other sessions left on the local main never ride along.
 cd "$REPO"; git fetch -q origin
-WT=$(mktemp -d /tmp/yolo-cards-XXXXXX); trap 'cd "$REPO"; git worktree remove --force "$WT" 2>/dev/null || true' EXIT
 B="cards/$(date +%F-%H%M)-sheet"
+# The local branch can only be deleted once the worktree holding it is gone, so both happen here.
+WT=$(mktemp -d /tmp/yolo-cards-XXXXXX); trap 'cd "$REPO"; git worktree remove --force "$WT" 2>/dev/null || true; git branch -q -D "$B" 2>/dev/null || true' EXIT
 git worktree add -q -b "$B" "$WT" origin/main
 cd "$WT"
 python3 scripts/cards_from_sheet.py "$CACHE/rows.csv" | tee "$CACHE/cards.log"
-git diff --quiet experiments.json && { echo "no new cards"; git -C "$REPO" branch -q -D "$B"; exit 0; }
+git diff --quiet experiments.json && { echo "no new cards"; exit 0; }
 
 # Commit only experiments.json, push, open the pull request, merge it when the secret scan and validation pass
 # (his ruling 2026-10-19: the failing council-script-check is ignored; 2026-10-21: merge on those two checks).
@@ -54,5 +56,8 @@ n=0; until { O=$(chk); echo "$O" | grep -q "^validate" && ! echo "$O" | grep -q 
   n=$((n+1)); [ $n -ge 100 ] && { echo "checks did not finish, left open: $URL"; exit 1; }; sleep 6; done
 O=$(chk)
 for c in secret-scan validate; do echo "$O" | grep -q "^$c[[:space:]]*pass" || { echo "$c did not pass, left open: $URL"; exit 1; }; done
-gh pr merge "$URL" --squash --delete-branch
+# No --delete-branch: it also checks out main locally, which fails inside this worktree because the repo's own
+# checkout already holds main (2026-10-22, PR #49 merged but the run exited 1). Delete the remote branch directly.
+gh pr merge "$URL" --squash
+git push -q origin --delete "$B"
 echo "merged $URL"
