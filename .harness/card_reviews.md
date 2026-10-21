@@ -60,3 +60,11 @@ touching that project), **pass** (noise or already covered). Rule: CLAUDE.md "Op
 ## To do (parked, not dropped)
 - (done: un-parked the same day, John "ok for the model test") Local engine benchmark: experiments/local-engine-bench/plan.md.
 - Local engine benchmark GPU runs: ops said WAIT on 2026-10-21 (the 22:00-03:45 window went to editor training); waiting for ops to name the first free night.
+- 2026-10-22: ops relayed John's approval to run right after writer v2 training finishes today, on ops' GO. run.sh and chat_bench.py ready in experiments/local-engine-bench/; both models on disk, no downloads.
+
+## 2026-10-22 (PRs #45 and #47)
+- 2026-10-22 | nh-2026-10-19-claude-code-deterministic-jobs | pass | brain vault | scripts on cron already do this; Trigger.dev would add a paid outside service for no gain
+- 2026-10-22 | idd-2026-10-19-cheap-gate-vault-capture | maybe | brain vault | hash dedupe plus a cheap classifier before verification; worth it only if the laptop's capture step has no dedupe yet (unchecked, laptop side)
+- 2026-10-22 | idd-2026-10-19-local-classifier-strix-halo | fold in | MS-S1 / ptt | a small-model latency row could ride on the engine benchmark later; not added tonight, the approved scope is fixed
+- 2026-10-22 | az-2026-10-20-local-pii-redaction-gate | pass | ptt | dictation is already local; John ruled out privacy hoops for his own data (2026-10-19)
+- 2026-10-22 | pl-2026-10-18-architecture-review-gate-for-agents | pass | | no method, only a caution
