@@ -4,6 +4,7 @@
 Prompts for studying packets with an AI assistant inside the environment: [GENAI-PROMPTS.md](GENAI-PROMPTS.md).
 More prompt series for GenAI.mil: [the estimator](GENAI-PROMPTS-estimator.md),
 [estimator batch mode](GENAI-PROMPTS-estimator-batch.md),
+[planned jobs, the contractor and the material list](GENAI-PROMPTS-estimator-planned.md),
 [describing the resource map workbooks](GENAI-PROMPTS-resource-map-analysis.md),
 [building the Resource Map app](GENAI-PROMPTS-resource-map.md) and
 [reading Excel workbooks directly](GENAI-PROMPTS-xlsx.md).
