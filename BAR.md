@@ -1,6 +1,6 @@
 # Bar: what perfect looks like for yolo-projects
 
-Version 0.3, written 2026-10-22 (Japan Standard Time, JST) at John's standing order, relayed by ops: "I need you to
+Version 0.4, written 2026-10-22 (Japan Standard Time, JST) at John's standing order, relayed by ops: "I need you to
 know exactly what perfect looks like. And I don't want to have to explain it every time... go find out what perfect
 would look like for that session, and make them keep trying till [they] meet that bar." Template: `~/ops/BAR.md`.
 Drafts and critic verdicts are in `.harness/bar/BAR/`. Labels: FACT (read in a named source), Assessment (my
@@ -11,8 +11,9 @@ in section 5. Today only PDF to CSV and repo upkeep have checks that run; the ot
 section 6 names.
 
 The project delivers five things:
-1. **PDF to CSV** (Portable Document Format to comma-separated values): the built page, its guide and its prompt
-   series, published from `~/projects/pdf-to-csv`.
+1. **PDF to CSV** (Portable Document Format to comma-separated values): the built page and its guide, published
+   from `~/projects/pdf-to-csv`, and the GenAI.mil prompt series, which next-big-thing keeps in its vault and
+   publishes straight to `yolo-projects/pdf-to-csv/` (the source repo has only the first, `GENAI-PROMPTS.md`).
 2. **Markdown Deck**: a single-file markdown-to-slides tool.
 3. **Naval Scribe**: a single-file formatter for Navy letters under SECNAV M-5216.5 (Secretary of the Navy Manual
    5216.5, the Department of the Navy Correspondence Manual) that exports a Word .docx.
@@ -60,6 +61,7 @@ praise of any flagship in the October sources; the only praise is in old memory 
 
 - 2026-10-22: "one question, one channel": anything ops gates goes through ops only. [`~/ops/log.md:213`]
 - 2026-10-22: only ops sessions report job-guard failures. Paraphrase. [`~/ops/log.md:215`]
+- 2026-10-22: approved the fix for the daily card script's false failure (became PR #50). Paraphrase. [`~/ops/log.md:207`]
 - 2026-10-22: "It was supposed to be a dictation off night. Last night, too. That was the plan." A lost night
   delayed this project's benchmark. [`~/ops/log.md:199`]
 - 2026-10-22: "I need you to know exactly what perfect looks like. And I don't want to have to explain it to you
@@ -69,6 +71,8 @@ praise of any flagship in the October sources; the only praise is in old memory 
 - 2026-10-21: cost lanes. Scripted model calls use the home-jobs key per command, with a one-item cost test first;
   no model-call loops without ops. Paraphrase. [memory `claude-cost-lanes.md`; `~/ops/RUNBOOK.md:16`]
 - 2026-10-20: "free inference is free inference". [`~/ops/RUNBOOK.md:171`]
+- 2026-10-20: PRs #43 and #44 (estimator prompts and their README link) merged at his word. Paraphrase. [`~/ops/log.md:161`]
+- 2026-10-20: PDF to CSV v0.8.11 published at his word (PR #42). Paraphrase. [`~/ops/log.md:159`]
 - 2026-10-20: "ok for the model test", the same day he had parked it (git 2bcbf90). [`.harness/card_reviews.md:61`; git 9a5a939]
 - 2026-10-20: "2 - both things in a sensible sequence". [`.harness/card_reviews.md:56`]
 - 2026-10-20: "direct the adversarial agents to actually be adversarial... Finish the 10 rounds". This was a
@@ -119,7 +123,7 @@ Excerpts with URLs and fetch times: `.harness/bar/refs/2026-10-22-references.md`
    from a local web server". Assessment: matching its presenter features while working from `file://` beats it.
 3. **Simon Willison's HTML tools** (https://simonwillison.net/2025/Dec/10/html-tools/ and
    https://tools.simonwillison.net/colophon), the bar for any single-file tool. FACT: one HTML file with inline
-   JavaScript and CSS (Cascading Style Sheets), no build step, copy buttons, state kept in the URL. FACT: the
+   JavaScript and CSS (Cascading Style Sheets), no build step, copy buttons, state kept in the web address (URL). FACT: the
    colophon gives every tool's source, its commit history and often the prompt that made it. Assessment: he loads
    libraries from a content delivery network, which our offline rule forbids, so our bar is "vendored, works
    unplugged" plus his provenance.
@@ -171,7 +175,8 @@ Before anything goes to John (a new flagship version, a card proposal, a merged 
 
 This file went through the loop itself: round 1 FAILED with 11 defects (`.harness/bar/BAR/critic-round-1.md`),
 including seven cards with no review line, which were reviewed the same day. Round 2, run by a critic not shown
-round 1, FAILED with 7 smaller defects (`critic-round-2.md`); v0.3 fixes them.
+round 1, FAILED with 7 smaller defects (`critic-round-2.md`). Round 3 FAILED with 7 more (`critic-round-3.md`).
+v0.4 attempts to fix them; whether it does is for round 4 to say, not this file.
 
 ## 6. Current gap (honest, 2026-10-22)
 
@@ -179,7 +184,9 @@ round 1, FAILED with 7 smaller defects (`critic-round-2.md`); v0.3 fixes them.
   battery is green, with 0 silent wrong values and 0 problems.csv rows on the normal set. Gaps against Camelot:
   no quality figure per record, and problems cannot be sorted by severity. In the source repo, the v0.8.10 and
   v0.8.11 builds are untracked in `dist/`, and the checkout is 23 commits ahead of its private remote.
-  `pdf-to-csv/README.md` links only `GENAI-PROMPTS.md`, not the five newer prompt files. No fresh critic has
+  Both READMEs, `~/projects/pdf-to-csv/README.md` and its published copy `yolo-projects/pdf-to-csv/README.md`,
+  link only `GENAI-PROMPTS.md`; the five newer prompt files exist only in `yolo-projects/pdf-to-csv/` and were
+  never copied back to the source repo. No fresh critic has
   judged the live page against Camelot or Tabula.
 - **Markdown Deck: unverified, and its README is wrong.** Last changed 2026-06-27 (Slide Sorter View). The code
   has presenter, notes, timer and print paths: `grep -c -i` on `markdown-deck/index.html` counts lines with
@@ -187,15 +194,18 @@ round 1, FAILED with 7 smaller defects (`critic-round-2.md`); v0.3 fixes them.
   export" as wishes (`markdown-deck/README.md:12-13`), which breaks "every README claim true". None of the features
   has been run headless against reveal.js's list. He ranked presentation features "lowest priority", so new
   features wait for his go; the README fix and the headless check need no new features.
-- **Naval Scribe: unknown against the bar.** Last changed 2026-06-22. It has never been checked against the
+- **Naval Scribe: unknown against the bar.** Last changed 2026-06-26 (Letter Quality Checker and draft
+  export/import), a built-in checker that has itself never been compared with the manual. It has never been checked against the
   manual, and the manual could not be fetched today. Its README claims (margins, Times New Roman 12 point,
   numbering) are untested in an exported .docx.
 - **Card reviews: covered as of today, with no critic yet.** The BAR critic found seven backlog cards with no
   line, all reviewed in the 2026-10-22 catch-up; the 21 cards discarded on 2026-10-16/17 keep their verdicts in
-  `experiments.json`. No verdict has had a fresh critic, and coverage is checked by hand, not by a script.
+  `experiments.json`. Coverage is now checked by `.harness/bar/check_cards.py`; the remaining gap is that no verdict has had a
+  fresh critic.
 - **Repo upkeep: partly meets the bar.** PRs #50 to #55 merged with checks passing, branches deleted and README
-  links added; main matched origin after each. Misses: card coverage lapsed (above), and `pdf-to-csv/README.md`
-  lags. The root `README.md` "How It Works" section (lines 7-20) still describes the hourly tick/tock cron that
+  links added; main matched origin after each. Misses: card coverage lapsed (above), and the PDF to CSV
+  READMEs lag. As of this commit, local main is ahead of origin by the BAR.md commits; they are pushed only when John
+  asks. The root `README.md` "How It Works" section (lines 7-20) still describes the hourly tick/tock cron that
   he retired on 2026-10-19, which is the same one-fact-everywhere failure he caught that day. Before #50, a false
   job-guard failure reached his alert list.
 - **Not built yet:** the headless check for Markdown Deck and Naval Scribe, the Naval Scribe .docx checker and an
