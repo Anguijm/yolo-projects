@@ -1,6 +1,6 @@
 # Prompts B: build the Resource Map app inside GenAI.mil
 
-Version 0.3, 2026-10-22 (v0.1 and v0.2 kept beside it; v0.3 adds two clarifications from the yolo review of PR 52: verdict precedence and a made-up label on the debug example). Tested against Gemini with no code execution, the way the
+Version 0.4, 2026-10-22 (v0.1 to v0.3 kept beside it; v0.4 only changes how the files get in: Prompts X let the app take the Excel workbook itself, see `GENAI-PROMPTS-xlsx.md`; Prompts B1 to B5 are unchanged from v0.3, which added two clarifications from the yolo review of PR 52: verdict precedence and a made-up label on the debug example). Tested against Gemini with no code execution, the way the
 chat inside works: the v0.1 prompts built a file that opened without errors but had four faults (the
 index named two ways, consumption fields stored without underscores, dates shifted a week on a computer
 in Japan time, and nothing calling the verdicts or export after import). Three were found by the check
@@ -17,8 +17,9 @@ bring out its data sheet spec. B1 and B2 paste that spec in. If the spec leaves 
 unknown, write it in yourself before pasting (which Monday "WK01" is): the app needs one rule.
 
 How to use: one chat, prompts in order, each answer's code block pasted as the prompt says, save as
-`resource-map.html`, open in Edge or Chrome. Save each sheet of the workbooks as CSV (File, Save As, CSV
-UTF-8) and choose those CSVs in the app. Run Prompt B5 before opening the page; the Debug prompts at the
+`resource-map.html`, open in Edge or Chrome. To choose the workbooks themselves in the app, run Prompts X
+(`GENAI-PROMPTS-xlsx.md`) after B4: tested, no library, the browser unpacks the .xlsx. Without
+them, save each sheet as CSV (File, Save As, CSV UTF-8) and choose those CSVs. Run Prompt B5 before opening the page; the Debug prompts at the
 end are the way back from an error or a wrong number.
 
 ## Contract (repeated in every prompt)
