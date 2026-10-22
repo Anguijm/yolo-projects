@@ -3,7 +3,7 @@
 #   run.sh            preflight, then the whole run inside one scope with memguard watching it
 #   run.sh --inner    what runs inside the scope (do not call by hand)
 # Terms from ops (2026-10-22): scope MemoryMax=32G MemorySwapMax=0, memguard floor 20 GB, port 1254,
-# no ptt services touched, swap checked first, no downloads.
+# no ptt services touched, swap checked first, no downloads; nice 5, stop at the first error, no retry.
 set -uo pipefail
 HERE=$(cd "$(dirname "$0")" && pwd)
 PORT=1254
@@ -28,10 +28,10 @@ if [[ ${1:-} != --inner ]]; then
   mkdir -p "$OUT"
   "$HOME/ops/bin/memguard" engine-bench.scope 20 &
   timeout 7200 systemd-run --user --scope --unit=engine-bench -p MemoryMax=32G -p MemorySwapMax=0 \
-    env OUT="$OUT" bash "$0" --inner 2>&1 | tee "$OUT/run.log"
+    nice -n 5 env OUT="$OUT" bash "$0" --inner 2>&1 | tee "$OUT/run.log"; rc=$?
   wait
   grep 'engine-bench' "$HOME/.local/state/memguard.log" | tail -2 | tee -a "$OUT/run.log"
-  exit 0
+  echo "exit $rc" | tee -a "$OUT/run.log"; exit $rc
 fi
 
 # ---- inside the scope ----
@@ -47,7 +47,7 @@ for model in "$M_MOE" "$M_DENSE"; do
     dir=ENG_$eng
     log "llama-bench $eng $mname"
     timeout 1800 "${!dir}/llama-bench" -m "$model" -ngl 99 -p 512 -n 128 -d 4096,16384 -r 2 -o json \
-      > "$OUT/bench-$eng-$mname.json" 2> "$OUT/bench-$eng-$mname.err" || log "llama-bench $eng $mname failed ($?)"
+      > "$OUT/bench-$eng-$mname.json" 2> "$OUT/bench-$eng-$mname.err" || { log "llama-bench $eng $mname failed ($?), stopping"; exit 3; }
   done
   for eng in PTT MF NEW; do
     dir=ENG_$eng
@@ -56,7 +56,7 @@ for model in "$M_MOE" "$M_DENSE"; do
       > "$OUT/server-$eng-$mname.log" 2>&1 &
     server_pid=$!
     timeout 1200 python3 "$HERE/chat_bench.py" $PORT "$eng $mname" "$OUT/chat.jsonl" \
-      > /dev/null || log "chat $eng $mname failed ($?)"
+      > /dev/null || { log "chat $eng $mname failed ($?), stopping"; exit 3; }
     stop_server
   done
 done

@@ -61,6 +61,7 @@ touching that project), **pass** (noise or already covered). Rule: CLAUDE.md "Op
 - (done: un-parked the same day, John "ok for the model test") Local engine benchmark: experiments/local-engine-bench/plan.md.
 - Local engine benchmark GPU runs: ops said WAIT on 2026-10-21 (the 22:00-03:45 window went to editor training); waiting for ops to name the first free night.
 - 2026-10-22: ops relayed John's approval to run right after writer v2 training finishes today, on ops' GO. run.sh and chat_bench.py ready in experiments/local-engine-bench/; both models on disk, no downloads.
+- 2026-10-22: benchmark RAN on ops GO, 08:56-09:11 JST, exit 0. Verdict: no switch, the new build reads long prompts faster (+38% at 16k on the ptt model) but generates at the same speed. experiments/local-engine-bench/results.md.
 
 ## 2026-10-22 (PRs #45 and #47)
 - 2026-10-22 | nh-2026-10-19-claude-code-deterministic-jobs | pass | brain vault | scripts on cron already do this; Trigger.dev would add a paid outside service for no gain
