@@ -1,14 +1,20 @@
 # Prompts D: planned jobs, the contractor, and the material list
 
-Version 0.3, 2026-10-22 (v0.3 answers the review of PR 57: D runs BEFORE Prompts
-X, planned-item material is grouped and divided by the summary's JCN count, one material value per summary, and
-performing is matched on whole words so "control" is not a contractor). Tested against Gemini with no code execution, the same handicap as
-the chat inside: v0.1 recursed on the first history load (the wrapper captures shared a block with the new
-declarations), the rewritten batch loop never ran from the button (MODULE 6 had bound the old function), the
-material quantities were summed, and unscheduled planned phases piled into one week. v0.2 fixes all of that
-in the prompt text and then built working code first time: 127 consumption lines and 67 material lines matching
-an independent computation, with the planned file in hours and in man-days. The test records stay in
-the private source.
+Version 0.4, 2026-10-23. v0.4 applies the project owner's rule for JCNs grouped on one job summary
+(2026-10-23): the hours of a grouped summary are divided by its JCN count, as they have been since the first
+estimator prompts, but the material is NOT. A new JCN that matches a grouped summary gets the complete material list
+at full quantity, and a new column, group_size, says how many JCNs the bundle held (1 = not grouped), so a planner
+knows the list may carry sibling jobs' parts and can trim it. v0.3 divided material by the JCN count (an inference
+from the hours rule, tightened by the review of PR 57); that is reversed here on that rule. The owner also answered the
+pull shape: the material export lists each order line once per phase of a job summary, and it is the JCN history
+that repeats a grouped summary once per JCN, so the tool takes material rows as they are and never collapses or
+divides them. v0.3 answered the review of PR 57: D runs BEFORE Prompts X, one material value per summary with
+every used JCN listed, and performing is matched on whole words so "control" is not a contractor. Earlier, tested
+against Gemini with no code execution, the same handicap as the chat inside: v0.1 recursed on the first history
+load (the wrapper captures shared a block with the new declarations), the rewritten batch loop never ran from the
+button (MODULE 6 had bound the old function), the material quantities were summed, and unscheduled planned phases
+piled into one week; v0.2 fixed all of that in the prompt text and built working code first time. The test records
+stay in the private source.
 
 Three prompts that extend the batch estimator built from Prompts C (`GENAI-PROMPTS-estimator-batch.md`,
 C1, C2, C2b). Run them in the same chat after C2b and BEFORE Prompts X (workbook input): X2's hook must wrap
@@ -27,7 +33,9 @@ What they add:
    shop or contractor), so each estimate line says who did the similar work; a proposed item screened as
    in-house or farm-out carries that mark through; a planned phase carries planning's answer.
 3. **The material list.** A second output, `material_estimate.csv`: for every phase of every item, the stock
-   numbers the similar jobs ordered, with nomenclature and quantity range, and which analogs carried them.
+   numbers the similar jobs ordered, with nomenclature and quantity range, which analogs carried them, and how
+   many JCNs the source summary bundled. Hours from a grouped summary are shared out over its JCNs; material is
+   not: each JCN gets the whole list, marked with the group size.
 
 Contracts added here (everything from Prompts 1 to 5 and C1 to C2b stays as it is):
 
@@ -39,6 +47,9 @@ Contracts added here (everything from Prompts 1 to 5 and C1 to C2b stays as it i
   nounname, description, itemdescription, itemname). A material file is recognized by a quantity column
   together with an item, part, stock number, NIIN or NSN column. A row with a blank item takes its
   stock_number as item; a blank stock_number takes item; a blank nomenclature takes item.
+- The material export lists each order line once per phase of a job summary (the JCN history is what repeats a
+  grouped summary once per JCN). Quantities are taken as they are: never divided by DB.jsCount, never collapsed.
+  Two rows with the same stock number on one phase are two orders and add up.
 - `proposed` gains two optional columns: job_summary (aliases: jobsummary, js, jobsummarynumber) and
   performing (same aliases and normalization as phases).
 - `planned` (new optional input through the batch picker p-files): job_summary, phase_no, phase_title,
@@ -49,7 +60,8 @@ Contracts added here (everything from Prompts 1 to 5 and C1 to C2b stays as it i
   performing ("in-house", "farm-out" or ""), performing_basis ("screening", "planning", "analogs" or "").
   22 cells per line. The Resource Map reads the first 19 by name and ignores the rest.
 - `material_estimate` (new output): proposed_id, hull, project, job_summary, phase_no, phase_title,
-  stock_number, nomenclature, qty_low, qty_high, seen_on, summaries_used, source, analog_jcns.
+  stock_number, nomenclature, qty_low, qty_high, seen_on, summaries_used, group_size, source, analog_jcns.
+  15 cells per line.
 - New weight: W.hoursPerDay (default 8), used to turn planned_mandays into hours.
 - New globals: PLANNED, PROPOSED_EXTRA (plain object, uppercased proposed_id to {job_summary, performing}).
 - New element ids: mat-summary, mat-download.
@@ -182,7 +194,8 @@ charged_high, k, n} and usedJcns is a space-separated string of the JCNs used, n
 placePhases(item, estRows, usedJcns) returns an array parallel to estRows of {week_start, week_end,
 placement, note}. DB.jcns rows {jcn, job_summary, hull, ship_class, ..., received_date, project};
 DB.phasesByJS[JS] phase rows now carry performing ("in-house", "farm-out" or ""); DB.matByJS[JS] rows
-{phase_no, item, stock_number, nomenclature, qty}; DB.jsCount[JS]. DB.hulls holds [HULL, class] with
+{phase_no, item, stock_number, nomenclature, qty}, one row per order line of that summary (the material export
+does not repeat rows per JCN; only the JCN history does); DB.jsCount[JS] = how many JCNs share that summary. DB.hulls holds [HULL, class] with
 the hull uppercased and trimmed. BATCH_AVAIL and DB.availByProject map an uppercased project to
 {project, hull, start, end}. PLANNED maps an uppercased job_summary to rows {phase_no, phase_title,
 shop, planned_hours, scheduled_start, scheduled_finish, performing}. PROPOSED_EXTRA maps an uppercased
@@ -237,27 +250,30 @@ g. Collect one output line per phase, in this order: proposed_id, hull, project,
    performing_basis. 22 cells.
 h. MATERIAL LINES. For a history item after step d: matLines.push(...materialLines(item,
    EST.usedJcns)). For a planned item: if DB.matByJS[extra.job_summary] exists, group its rows by
-   phase_no and stock_number (the export may carry one row per JCN of a consolidated summary), qty = the
-   group's sum of qty divided by (DB.jsCount[extra.job_summary] or 1), one line per group with
-   phase_title from the planned row with that phase_no (or "Phase " + phase_no), qty_low = qty_high =
-   qty, nomenclature from the group's first row, seen_on "1 of 1", summaries_used 1, source "planned",
-   analog_jcns "".
+   phase_no and stock_number, qty = the group's sum of qty (two rows with the same stock number on a phase
+   are two orders; never divide by DB.jsCount: hours are shared out over a grouped summary's JCNs, material
+   is not), one line per group with phase_title from the planned row with that phase_no (or "Phase " +
+   phase_no), qty_low = qty_high = qty, nomenclature from the group's first row, seen_on "1 of 1",
+   summaries_used 1, group_size = DB.jsCount[extra.job_summary] or 1, source "planned", analog_jcns "".
 
 materialLines(item, usedJcns): the batch form of the single-JCN material table. Used summaries = the
 job_summary of each JCN in usedJcns, each once, newest first; n = their count. For each used summary,
 map each of its material rows' phase_no to that summary's phase_title (through DB.phasesByJS; a
 material row whose phase_no has no phase row in that summary gets phase_title ""), and group by
 phase_title and stock_number. For each summary that has the line, ONE value = the sum of that summary's
-qty for the group (its rows with that phase_title and stock_number, which may be one per JCN of a
-consolidated summary) divided by DB.jsCount[summary]; qty_low and qty_high are the smallest and the
-largest of those per-summary values (a line seen on one summary has qty_low = qty_high). nomenclature from the newest summary that had
-the line. One line per group: proposed_id, hull, project, job_summary (extra.job_summary or ""),
-phase_no (look the phase_title up in DB.phasesByJS[newest used summary] and take that row's phase_no;
-"" if no row there has that title; never from the material row), phase_title, stock_number,
-nomenclature, qty_low, qty_high (one decimal), seen_on ("k of n"), summaries_used (n), source
-"history", analog_jcns (walk usedJcns in order and keep every JCN whose summary carried the line, so two
-JCNs of one summary both appear; never a JCN that is not in usedJcns). Order: by phase_no (blank last),
-then stock_number.
+qty for the group (its rows with that phase_title and stock_number; two rows are two orders). Never
+divide by DB.jsCount: a summary that bundled four JCNs gives each new JCN its whole list, because the
+tool cannot tell which parts belonged to which job, and the planner trims a marked list (hours are the
+other way round: buildEstimate shares a grouped summary's hours out over its JCNs, and that stays).
+qty_low and qty_high are the smallest and the largest of those per-summary values (a line seen on one
+summary has qty_low = qty_high). group_size = the largest DB.jsCount among the summaries that carried the
+line (1 when none was grouped). nomenclature from the newest summary that had the line. One line per
+group: proposed_id, hull, project, job_summary (extra.job_summary or ""), phase_no (look the phase_title
+up in DB.phasesByJS[newest used summary] and take that row's phase_no; "" if no row there has that title;
+never from the material row), phase_title, stock_number, nomenclature, qty_low, qty_high (one decimal),
+seen_on ("k of n"), summaries_used (n), group_size, source "history", analog_jcns (walk usedJcns in order
+and keep every JCN whose summary carried the line, so two JCNs of one summary both appear; never a JCN
+that is not in usedJcns). 15 cells. Order: by phase_no (blank last), then stock_number.
 
 finishBatch(rows, stats, ms): as before (batch-summary shows items estimated, items with no analog,
 lines by placement rule, now including "scheduled", total load_hours by shop as a small table, the
@@ -268,7 +284,7 @@ now the 22 names above, plus: batch-summary also shows items from planning (sour
 by performing (in-house, farm-out, blank); mat-summary shows "material estimate: N lines for M items";
 mat-download gets the material_estimate.csv the same way (header: proposed_id, hull, project,
 job_summary, phase_no, phase_title, stock_number, nomenclature, qty_low, qty_high, seen_on,
-summaries_used, source, analog_jcns). Keep the material lines in a variable that estimateBatch fills
+summaries_used, group_size, source, analog_jcns; 15 names). Keep the material lines in a variable that estimateBatch fills
 and finishBatch reads (declare it with var in this block).
 
 No em dashes. Answer with the one <script> block only, and nothing after it.
@@ -288,12 +304,15 @@ I have added MODULE 7 and MODULE 8. Without rewriting the file, check:
    entirely, that their lines carry source "planned", that a scheduled phase's week_start is the
    Monday of scheduled_start, and that an unscheduled planned phase runs seven days after the previous
    one from planned_start with placement "sequence".
-4. That every consumption line has exactly 22 cells and every material line exactly 14, and that no
+4. That every consumption line has exactly 22 cells and every material line exactly 15, and that no
    Date object reaches csvCell unformatted.
 5. That the performing majority rule counts each used summary once and that a tie goes to the newest
    summary with a non-blank value.
 6. That MODULE 7a and 7b sit BEFORE the Prompts X hook block in the file if Prompts X are present, so the
    hook wraps D's loader; if they sit after it, say so and tell me to run X2 again.
+7. That no material quantity is divided by DB.jsCount anywhere (buildEstimate shares a grouped summary's
+   hours out over its JCNs; material lines never do), and that a line from a summary whose DB.jsCount is
+   4 carries group_size 4.
 Then give me a five-step test with a planned.csv of three made-up rows (two phases scheduled, one not)
 and a proposed.csv of four made-up lines: one planned, one screened farm-out with history, one plain
 history item, one unknown hull.
