@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Shop Load Loops</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;700;800&family=Source+Sans+3:wght@400;600&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: one column. First the loops as rings of steps, each tagged by how it closes; then the graphs as small drawings; then the loops that do not close yet. Same palette and faces as the Shop Load Flow page. */
+:root {
+  --bg: #f3f5f4; --surface: #ffffff; --fg: #17201d; --muted: #5b6763; --line: #d5dcd9; --line2: #b9c3bf;
+  --accent: #1f5f8b; --accent-soft: #e2edf5;
+  --k-source: #5b7a94; --k-prompt: #7c5fa8; --k-tool: #2f7a52; --k-people: #b8762a;
+  --c-self: #2f7a52; --c-person: #b8762a; --c-open: #a8433a; --c-algo: #1f5f8b;
+  --display: "Archivo", "Helvetica Neue", Arial, sans-serif;
+  --body: "Source Sans 3", "Segoe UI", system-ui, sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #121816; --surface: #1a2220; --fg: #e4ebe8; --muted: #9aa8a3; --line: #2c3834; --line2: #3b4a45;
+  --accent: #7db4dc; --accent-soft: #1d2d3a;
+  --k-source: #8fb0cc; --k-prompt: #b39ddb; --k-tool: #6fbf8f; --k-people: #e0a65c;
+  --c-self: #6fbf8f; --c-person: #e0a65c; --c-open: #f08a6c; --c-algo: #7db4dc; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #121816; --surface: #1a2220; --fg: #e4ebe8; --muted: #9aa8a3; --line: #2c3834; --line2: #3b4a45;
+  --accent: #7db4dc; --accent-soft: #1d2d3a;
+  --k-source: #8fb0cc; --k-prompt: #b39ddb; --k-tool: #6fbf8f; --k-people: #e0a65c;
+  --c-self: #6fbf8f; --c-person: #e0a65c; --c-open: #f08a6c; --c-algo: #7db4dc; color-scheme: dark }
+
+body { background: var(--bg); color: var(--fg); font-family: var(--body); font-size: 15px; line-height: 1.5; }
+.wrap { max-width: 880px; margin: 0 auto; padding-block: 20px 56px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  display: grid; gap: 30px; }
+h1 { font-family: var(--display); font-weight: 800; font-size: clamp(1.7rem, 4.5vw, 2.4rem); margin: 0; letter-spacing: -0.01em; text-wrap: balance; }
+h2 { font-family: var(--display); font-weight: 700; font-size: 1.2rem; margin: 0; text-wrap: balance; }
+h3 { font-family: var(--display); font-weight: 700; font-size: 1.05rem; margin: 0; text-wrap: balance; }
+p { margin: 0; max-width: 70ch; }
+.lede { color: var(--muted); font-size: 1.05rem; }
+.flag { font-family: var(--mono); font-size: 0.72rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--accent); }
+.eyebrow { font-family: var(--mono); font-size: 0.72rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
+a { color: var(--accent); }
+.legend { display: flex; flex-wrap: wrap; gap: 8px 14px; font-size: 0.85rem; color: var(--muted); align-items: center; }
+.chip { display: inline-block; font-family: var(--mono); font-size: 0.68rem; letter-spacing: 0.04em; text-transform: uppercase;
+  padding: 1px 7px; border-radius: 999px; border: 1px solid currentColor; white-space: nowrap; vertical-align: 1px; }
+.chip.self { color: var(--c-self); } .chip.person { color: var(--c-person); } .chip.open { color: var(--c-open); } .chip.algo { color: var(--c-algo); }
+section { display: grid; gap: 14px; }
+section > header { display: grid; gap: 6px; }
+
+.loops { display: grid; gap: 14px; }
+.loopcard { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 14px 18px 16px; display: grid; gap: 10px; min-width: 0;
+  border-left: 5px solid var(--c-self); }
+.loopcard.person { border-left-color: var(--c-person); } .loopcard.open { border-left-color: var(--c-open); } .loopcard.algo { border-left-color: var(--c-algo); }
+.loopcard header { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: baseline; }
+.loopcard .meta { font-family: var(--mono); font-size: 0.74rem; color: var(--muted); }
+.ring { display: flex; flex-wrap: wrap; gap: 6px 4px; align-items: center; margin: 2px 0; }
+.ring .step { font-size: 0.86rem; padding: 3px 9px; border: 1px solid var(--line2); border-radius: 999px; background: var(--bg); white-space: nowrap; }
+.ring .step.human { border-style: dashed; border-color: var(--c-person); }
+.ring .step.built { border-color: var(--c-self); }
+.ring .arr { color: var(--line2); font-family: var(--mono); font-size: 0.9rem; }
+.ring .back { font-family: var(--mono); font-size: 0.72rem; color: var(--accent); padding: 2px 8px; border: 1px dashed var(--accent); border-radius: 999px; white-space: nowrap; }
+.loopcard p { font-size: 0.95rem; max-width: 75ch; }
+.loopcard p.note { color: var(--muted); }
+
+.graphs { display: grid; gap: 14px; }
+.graph { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 14px 18px 16px; display: grid; gap: 10px; min-width: 0; }
+.graph .scroll { overflow-x: auto; }
+.graph svg { display: block; width: 100%; height: auto; max-width: 100%; font-family: var(--body); }
+.graph svg .n { fill: var(--surface); stroke: var(--line2); stroke-width: 1.2; }
+.graph svg .n.hot { stroke: var(--accent); stroke-width: 1.6; }
+.graph svg .n.soft { fill: var(--accent-soft); }
+.graph svg .e { stroke: var(--line2); stroke-width: 1.4; fill: none; }
+.graph svg .e.acc { stroke: var(--accent); }
+.graph svg .e.dash { stroke-dasharray: 4 3; }
+.graph svg .e.ppl { stroke: var(--c-person); }
+.graph svg .e.org { stroke: var(--c-open); }
+.graph svg text { fill: var(--fg); font-size: 12px; }
+.graph svg text.m { fill: var(--muted); font-size: 11px; }
+.graph svg text.k { font-family: var(--mono); font-size: 10.5px; fill: var(--muted); }
+.graph svg .box { fill: none; stroke: var(--line2); stroke-dasharray: 5 4; }
+.graph p { font-size: 0.95rem; max-width: 75ch; }
+.graph p.note { color: var(--muted); }
+
+.opens { display: grid; gap: 12px; }
+.openloop { display: grid; grid-template-columns: 2.4rem 1fr; gap: 10px; align-items: start; padding: 12px 14px;
+  background: var(--surface); border: 1px solid var(--line); border-radius: 8px; min-width: 0; border-left: 4px solid var(--c-open); }
+.openloop .n { font-family: var(--mono); font-weight: 600; font-size: 1.15rem; color: var(--c-open); line-height: 1.2; }
+.openloop .body { display: grid; gap: 4px; min-width: 0; }
+.openloop .body p { font-size: 0.95rem; max-width: 75ch; }
+.openloop .body .fix { color: var(--muted); }
+.openloop .body .fix b { color: var(--fg); font-weight: 600; }
+.foot { font-size: 0.85rem; color: var(--muted); display: grid; gap: 4px; }
+.foot p { max-width: 80ch; }
+@media (max-width: 480px) { .loopcard, .graph { padding: 12px 14px 14px; } }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <header style="display:grid;gap:8px">
+    <div class="flag">Loops and graphs v0.1 · a reading of the process, 2026-10-23 · no real data on this page</div>
+    <h1>Shop load loops</h1>
+    <p class="lede">The software we built is a straight line: pulls in, estimates and maps out. Every loop in the process runs
+    through people and the yard, and comes back on the next pull. The graphs are what the line carries. This page names each
+    loop by how it closes, draws the graphs, and marks the three loops that do not close yet.</p>
+    <div class="legend">
+      <span>How a loop closes:</span>
+      <span class="chip self">by itself</span> <span>the tools do it on the next draw or pull</span>
+      <span class="chip person">through a person</span> <span>someone has to act for it to come round</span>
+      <span class="chip algo">inside the code</span> <span>an iteration with a stop condition</span>
+      <span class="chip open">open</span> <span>nothing closes it today</span>
+    </div>
+    <p class="note" style="color:var(--muted);font-size:0.9rem">Everything here is an Assessment of the design, except where a sentence says "built", which is a fact about the tested prompts.
+    Companion: <a href="GENAI-PROCESS-FLOW.html">the flow page</a>.</p>
+  </header>
+
+  <section aria-label="The loops">
+    <header>
+      <div class="eyebrow">Part 1 · the loops</div>
+      <h2>Six loops, from the slowest to the fastest</h2>
+      <p>Solid pills are steps the tools take. Dashed pills are steps a person takes. The dashed label at the end says what carries the loop back to its start.</p>
+    </header>
+    <div class="loops">
+
+      <article class="loopcard person">
+        <header><h3>1. The history loop</h3> <span class="chip person">through a person</span> <span class="meta">one turn = one availability · learning loop · the one that teaches the estimator</span></header>
+        <div class="ring">
+          <span class="step">JCN arrives</span><span class="arr">→</span>
+          <span class="step built">estimator scores it against history</span><span class="arr">→</span>
+          <span class="step built">consumption.csv</span><span class="arr">→</span>
+          <span class="step built">map shows the load</span><span class="arr">→</span>
+          <span class="step human">planners plan it</span><span class="arr">→</span>
+          <span class="step built">planned rows replace the guess</span><span class="arr">→</span>
+          <span class="step human">the work runs</span><span class="arr">→</span>
+          <span class="step human">hours charged, material ordered</span><span class="arr">→</span>
+          <span class="step human">next reporting-tool pull</span><span class="arr">→</span>
+          <span class="back">history is one job richer · back to the start</span>
+        </div>
+        <p>Reinforcing: every completed job makes the next analog search better, because the history is the estimator's only memory.
+        Its weak spots are the two open loops below (nothing compares the estimate with what was charged, and deficiency hours never
+        come back) and grouped JCNs, which the division by the JCN count handles.</p>
+      </article>
+
+      <article class="loopcard">
+        <header><h3>2. The planning loop</h3> <span class="chip self">by itself</span> <span class="meta">one turn = one pull · balancing · built (Prompts D)</span></header>
+        <div class="ring">
+          <span class="step human">pull carries planning status</span><span class="arr">→</span>
+          <span class="step built">estimator skips planned summaries</span><span class="arr">→</span>
+          <span class="step built">guessed share of the map falls</span><span class="arr">→</span>
+          <span class="step human">next pull, more planned</span><span class="arr">→</span>
+          <span class="back">until nothing is guessed</span>
+        </div>
+        <p>Balancing: as the planning floor catches up with the work package, the guessed share goes to zero on its own. The map is a
+        mix of planner numbers and history numbers, and the mix shifts toward the planners as the availability nears.</p>
+      </article>
+
+      <article class="loopcard person">
+        <header><h3>3. The what-if loop</h3> <span class="chip person">through a person</span> <span class="meta">one turn = minutes, then one pull · the leveler, built (series B2)</span></header>
+        <div class="ring">
+          <span class="step built">look at the map</span><span class="arr">→</span>
+          <span class="step human">move a job, slip a project, farm out</span><span class="arr">→</span>
+          <span class="step built">see the effect at once</span><span class="arr">→</span>
+          <span class="step human">keep or undo</span><span class="arr">→</span>
+          <span class="step built">export moves.csv</span><span class="arr">→</span>
+          <span class="step human">someone keys the moves into the schedule of record</span><span class="arr">→</span>
+          <span class="step human">next pull shows them as dates of record</span><span class="arr">→</span>
+          <span class="back">the overlay is empty again</span>
+        </div>
+        <p>The first half runs in seconds and is built. The second half is a person with the moves list. If nobody keys the moves in, the
+        what-if and the record drift apart, and the next pull quietly puts everything back where it was.</p>
+      </article>
+
+      <article class="loopcard person">
+        <header><h3>4. The capacity loop</h3> <span class="chip person">through a person</span> <span class="meta">one turn = one pull · balancing against the 80 to 100 percent band</span></header>
+        <div class="ring">
+          <span class="step built">a shop-week over the band</span><span class="arr">→</span>
+          <span class="step human">farm out, lend people, overtime</span><span class="arr">→</span>
+          <span class="step human">the workforce map changes</span><span class="arr">→</span>
+          <span class="step human">next pull</span><span class="arr">→</span>
+          <span class="back">the cell is back in the band</span>
+        </div>
+        <p>The map is the gauge and the band is the setpoint. The contractor line is where farmed work lands, so the gauge also shows
+        whether the contractor is the one going over.</p>
+      </article>
+
+      <article class="loopcard algo">
+        <header><h3>5. The leveler's own loops</h3> <span class="chip algo">inside the code</span> <span class="meta">milliseconds · built (B2-4) · stops on its own</span></header>
+        <div class="ring">
+          <span class="step built">for each movable job, by least float</span><span class="arr">→</span>
+          <span class="step built">try every shift inside the window</span><span class="arr">→</span>
+          <span class="step built">keep the smallest peak</span><span class="arr">→</span>
+          <span class="back">next job</span>
+        </div>
+        <div class="ring">
+          <span class="step built">find the worst shop-week over the band</span><span class="arr">→</span>
+          <span class="step built">send one job to the contractor line</span><span class="arr">→</span>
+          <span class="back">repeat until nothing is over, a week has no candidate (overtime), or 10,000 passes</span>
+        </div>
+        <p>Each pass removes one overload and never adds one back, so the loop terminates. Its answers are suggestions until Apply, when
+        they join loop 3 as moves marked auto.</p>
+      </article>
+
+      <article class="loopcard person">
+        <header><h3>6. The build loop</h3> <span class="chip person">through a person</span> <span class="meta">hours · how the tools themselves are made</span></header>
+        <div class="ring">
+          <span class="step human">write the prompt</span><span class="arr">→</span>
+          <span class="step built">the model writes the module</span><span class="arr">→</span>
+          <span class="step built">assemble, test against an independent twin</span><span class="arr">→</span>
+          <span class="step human">fix the prompt text, never the code</span><span class="arr">→</span>
+          <span class="step built">regenerate</span><span class="arr">→</span>
+          <span class="step human">pull request, review, ruling</span><span class="arr">→</span>
+          <span class="back">prompt version n+1</span>
+        </div>
+        <p>The fix always goes into the prompt, so the thing that improves is the thing that gets reused inside the enclave. Two
+        outer turns sit on it: the reviewer's points and your rulings, one of which reversed an inferred rule last night.</p>
+      </article>
+    </div>
+  </section>
+
+  <section aria-label="The graphs">
+    <header>
+      <div class="eyebrow">Part 2 · the graphs</div>
+      <h2>What the line carries</h2>
+      <p>Five drawings. Boxes are nodes, lines are edges, and the labels on edges are what the tools actually store on them.</p>
+    </header>
+    <div class="graphs">
+
+      <article class="graph">
+        <h3>A. The flow is a DAG; the cycle runs outside it</h3>
+        <div class="scroll"><svg viewBox="0 0 700 230" role="img" aria-label="Pulls feed the estimator, the estimator feeds the map, the map writes files; a dashed arrow returns through the yard and the next pull">
+          <defs><marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="var(--line2)"/></marker>
+          <marker id="ahp" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="var(--c-person)"/></marker></defs>
+          <rect class="n" x="16" y="28" width="118" height="46" rx="8"/><text x="75" y="48" text-anchor="middle">Reporting-tool pulls</text><text class="m" x="75" y="64" text-anchor="middle">history, package, planning</text>
+          <rect class="n hot" x="206" y="28" width="118" height="46" rx="8"/><text x="265" y="48" text-anchor="middle">Estimator</text><text class="m" x="265" y="64" text-anchor="middle">one HTML file</text>
+          <rect class="n hot" x="396" y="28" width="118" height="46" rx="8"/><text x="455" y="48" text-anchor="middle">Resource Map</text><text class="m" x="455" y="64" text-anchor="middle">+ leveler, look</text>
+          <rect class="n" x="586" y="28" width="100" height="46" rx="8"/><text x="636" y="48" text-anchor="middle">Outputs</text><text class="m" x="636" y="64" text-anchor="middle">moves, PNG, CSV</text>
+          <line class="e" x1="134" y1="51" x2="204" y2="51" marker-end="url(#ah)"/>
+          <line class="e acc" x1="324" y1="51" x2="394" y2="51" marker-end="url(#ah)"/><text class="k" x="359" y="44" text-anchor="middle">consumption.csv</text>
+          <line class="e" x1="514" y1="51" x2="584" y2="51" marker-end="url(#ah)"/>
+          <rect class="n soft" x="396" y="124" width="118" height="46" rx="8"/><text x="455" y="144" text-anchor="middle">workforce map workbook</text><text class="m" x="455" y="160" text-anchor="middle">lookup, projects, CTR</text>
+          <line class="e" x1="455" y1="124" x2="455" y2="76" marker-end="url(#ah)"/>
+          <rect class="n soft" x="206" y="124" width="118" height="46" rx="8"/><text x="265" y="144" text-anchor="middle">material_estimate</text><text class="m" x="265" y="160" text-anchor="middle">for the planners</text>
+          <line class="e" x1="265" y1="74" x2="265" y2="122" marker-end="url(#ah)"/>
+          <path class="e ppl dash" d="M636,74 L636,205 L75,205 L75,76" marker-end="url(#ahp)"/>
+          <text class="m" x="355" y="200" text-anchor="middle">the yard runs the work, someone keys the moves, the next pull brings it all back (people, not software)</text>
+        </svg></div>
+        <p>Inside the files nothing feeds back: pulls, estimate, map, outputs, in that order. The only cycles are the ones in Part 1, and
+        each of them passes through the dashed edge at the bottom.</p>
+      </article>
+
+      <article class="graph">
+        <h3>B. The work is a tree with one many-to-one</h3>
+        <div class="scroll"><svg viewBox="0 0 700 240" role="img" aria-label="Project to job summary to phases to shop and material, with several JCNs joining one job summary">
+          <rect class="n" x="290" y="14" width="120" height="34" rx="8"/><text x="350" y="36" text-anchor="middle">project (availability)</text>
+          <rect class="n hot" x="290" y="84" width="120" height="34" rx="8"/><text x="350" y="106" text-anchor="middle">job summary</text>
+          <line class="e" x1="350" y1="48" x2="350" y2="82"/>
+          <rect class="n" x="60" y="84" width="70" height="30" rx="8"/><text x="95" y="104" text-anchor="middle">JCN</text>
+          <rect class="n" x="60" y="124" width="70" height="30" rx="8"/><text x="95" y="144" text-anchor="middle">JCN</text>
+          <rect class="n" x="60" y="164" width="70" height="30" rx="8"/><text x="95" y="184" text-anchor="middle">JCN</text>
+          <path class="e org" d="M130,99 L288,101"/><path class="e org" d="M130,139 L288,103"/><path class="e org" d="M130,179 L288,105"/>
+          <text class="m" x="200" y="86" text-anchor="middle">several JCNs, one summary</text>
+          <text class="k" x="200" y="150" text-anchor="middle">hours ÷ JCN count</text><text class="k" x="200" y="164" text-anchor="middle">material whole, group_size</text>
+          <rect class="n" x="470" y="70" width="110" height="30" rx="8"/><text x="525" y="90" text-anchor="middle">phase 1 · shop 71</text>
+          <rect class="n" x="470" y="106" width="110" height="30" rx="8"/><text x="525" y="126" text-anchor="middle">phase 2 · shop 56</text>
+          <rect class="n" x="470" y="142" width="110" height="30" rx="8"/><text x="525" y="162" text-anchor="middle">phase 3 · shop 38</text>
+          <path class="e" d="M410,101 L468,85"/><path class="e" d="M410,101 L468,121"/><path class="e" d="M410,101 L468,157"/>
+          <rect class="n soft" x="610" y="106" width="76" height="30" rx="8"/><text x="648" y="126" text-anchor="middle">material</text>
+          <path class="e" d="M580,121 L608,121"/>
+          <text class="m" x="525" y="200" text-anchor="middle">each phase: one shop, est and charged hours, planned and actual dates, performing</text>
+          <text class="m" x="350" y="225" text-anchor="middle">consumption.csv is one row per phase; the map spreads each row over its weeks</text>
+        </svg></div>
+        <p>Everything hangs off the job summary in one-to-many steps, except JCN to job summary, which is many-to-one when jobs were
+        grouped. That one edge is why hours are shared out over the JCNs and the material list is given whole with a group size.</p>
+      </article>
+
+      <article class="graph">
+        <h3>C. The load is a bipartite graph: work on one side, shop-weeks on the other</h3>
+        <div class="scroll"><svg viewBox="0 0 700 250" role="img" aria-label="Work nodes on the left connected by hour-weighted edges to shop-week nodes on the right; a move shifts an edge along the weeks, a farm-out re-points it to the contractor">
+          <text class="m" x="90" y="22" text-anchor="middle">work</text><text class="m" x="560" y="22" text-anchor="middle">shop-weeks (map cells)</text>
+          <rect class="n" x="20" y="40" width="150" height="30" rx="8"/><text x="95" y="60" text-anchor="middle">CG-B assigned, shop 11</text>
+          <rect class="n hot" x="20" y="96" width="150" height="30" rx="8"/><text x="95" y="116" text-anchor="middle">P-003 phase 1, shop 11</text>
+          <rect class="n" x="20" y="152" width="150" height="30" rx="8"/><text x="95" y="172" text-anchor="middle">P-003 phase 2, shop 26</text>
+          <rect class="n" x="20" y="208" width="150" height="30" rx="8"/><text x="95" y="228" text-anchor="middle">P-002 phase 1, shop 38</text>
+          <rect class="n" x="470" y="40" width="200" height="30" rx="8"/><text x="570" y="60" text-anchor="middle">shop 11 · week of 10/5</text>
+          <rect class="n" x="470" y="96" width="200" height="30" rx="8"/><text x="570" y="116" text-anchor="middle">shop 11 · week of 10/12</text>
+          <rect class="n" x="470" y="152" width="200" height="30" rx="8"/><text x="570" y="172" text-anchor="middle">shop 26 · week of 10/19</text>
+          <rect class="n soft" x="470" y="208" width="200" height="30" rx="8"/><text x="570" y="228" text-anchor="middle">CTR · week of 10/5</text>
+          <path class="e" d="M170,55 L468,55"/><text class="k" x="319" y="50" text-anchor="middle">200 h</text>
+          <path class="e acc" d="M170,111 L468,55"/><text class="k" x="300" y="78" text-anchor="middle">36 h a week</text>
+          <path class="e acc dash" d="M170,111 L468,111"/><text class="k" x="319" y="106" text-anchor="middle">after a 1-week move</text>
+          <path class="e" d="M170,167 L468,167"/><text class="k" x="319" y="162" text-anchor="middle">12 h a week</text>
+          <path class="e ppl dash" d="M170,223 L468,223"/><text class="k" x="319" y="218" text-anchor="middle">farm-out: re-pointed to CTR</text>
+        </svg></div>
+        <p>A map cell is the sum of the edges into it; the drill-down walks the edges back to their rows. A job move slides all of a
+        job's edges along the week axis together. A farm-out re-points them from the organic shop to the contractor node. The leveler is
+        a search over where the edges land, one job at a time, keeping each job's phases in step.</p>
+      </article>
+
+      <article class="graph">
+        <h3>D. The estimate is a nearest-neighbor graph</h3>
+        <div class="scroll"><svg viewBox="0 0 700 230" role="img" aria-label="A new JCN in the center with weighted edges to past JCNs; a dashed box marks the same class; one past JCN sits outside it">
+          <rect class="box" x="20" y="20" width="520" height="190" rx="10"/><text class="k" x="36" y="40">same ship class (the filter)</text>
+          <rect class="n hot" x="250" y="98" width="110" height="34" rx="8"/><text x="305" y="120" text-anchor="middle">new JCN</text>
+          <rect class="n" x="60" y="60" width="100" height="30" rx="8"/><text x="110" y="80" text-anchor="middle">JCN-0412A</text>
+          <rect class="n" x="60" y="150" width="100" height="30" rx="8"/><text x="110" y="170" text-anchor="middle">JCN-0388B</text>
+          <rect class="n" x="400" y="52" width="100" height="30" rx="8"/><text x="450" y="72" text-anchor="middle">JCN-0501A</text>
+          <rect class="n" x="400" y="156" width="100" height="30" rx="8"/><text x="450" y="176" text-anchor="middle">JCN-0277C</text>
+          <rect class="n" x="580" y="104" width="100" height="30" rx="8"/><text x="630" y="124" text-anchor="middle">JCN-0190D</text>
+          <path class="e acc" d="M250,110 L160,78"/><text class="k" x="196" y="86" text-anchor="middle">40 same equipment</text>
+          <path class="e acc" d="M250,122 L160,163"/><text class="k" x="196" y="154" text-anchor="middle">35 same space</text>
+          <path class="e" d="M360,110 L400,70"/><text class="k" x="392" y="100" text-anchor="middle">12 same SWLIN group</text>
+          <path class="e" d="M360,122 L400,168"/><text class="k" x="392" y="138" text-anchor="middle">5 same system</text>
+          <path class="e dash" d="M360,116 L580,119"/><text class="k" x="470" y="130" text-anchor="middle">fallback only when the class is thin</text>
+          <text class="m" x="305" y="202" text-anchor="middle">every weight times a recency factor; the top few edges carry the estimate; the weights are the editable panel</text>
+        </svg></div>
+        <p>Each new JCN gets a weighted edge to every past JCN in its class, and the few heaviest edges supply the phases, the hours and
+        the material. Changing a weight in the panel reshapes this graph for every item at once.</p>
+      </article>
+
+      <article class="graph">
+        <h3>E. The file is a chain of wrappers</h3>
+        <div class="scroll"><svg viewBox="0 0 700 150" role="img" aria-label="Modules in a row, each wrapping the functions of the earlier ones; the last wrapper of the importer sees a file first">
+          <rect class="n" x="16" y="40" width="120" height="40" rx="8"/><text x="76" y="58" text-anchor="middle">B1 to B4</text><text class="m" x="76" y="73" text-anchor="middle">import, draw, drill, export</text>
+          <rect class="n" x="176" y="40" width="120" height="40" rx="8"/><text x="236" y="58" text-anchor="middle">B2 (the leveler)</text><text class="m" x="236" y="73" text-anchor="middle">wraps all four</text>
+          <rect class="n" x="336" y="40" width="120" height="40" rx="8"/><text x="396" y="58" text-anchor="middle">X2 (workbooks)</text><text class="m" x="396" y="73" text-anchor="middle">wraps import</text>
+          <rect class="n" x="496" y="40" width="120" height="40" rx="8"/><text x="556" y="58" text-anchor="middle">S (the look)</text><text class="m" x="556" y="73" text-anchor="middle">wraps draw</text>
+          <line class="e" x1="136" y1="60" x2="174" y2="60" marker-end="url(#ah)"/><line class="e" x1="296" y1="60" x2="334" y2="60" marker-end="url(#ah)"/><line class="e" x1="456" y1="60" x2="494" y2="60" marker-end="url(#ah)"/>
+          <text class="m" x="350" y="112" text-anchor="middle">a file chosen by the user enters at the LAST wrapper of the importer and passes inward: X2 must unpack a workbook before B2 looks at its headers</text>
+          <text class="m" x="350" y="130" text-anchor="middle">a capture (var importFilesB1 = importFiles) must sit in its own script block, or it captures itself</text>
+        </svg></div>
+        <p>Order is the whole content of this graph. Every ordering fault the tests found was an edge pointing the wrong way in this chain,
+        which is why the build guide fixes the sequence and why a hook prompt names what it captures.</p>
+      </article>
+
+      <article class="graph">
+        <h3>F. Two small matching graphs, and one path</h3>
+        <p>The lookup joins the workforce map's project names to the estimator's project ids, one edge per project (Prompt L drafts it, you confirm
+        each edge). The shop codes are matched across sheets the same way ("Shop 11" and "11" are one node). Inside a job, the phases are a
+        path, one after another; between jobs there are no edges at all, which is the leveler's known simplification: it treats jobs as
+        independent, so a tie like "job B after job A" is not honored.</p>
+      </article>
+    </div>
+  </section>
+
+  <section aria-label="Open loops">
+    <header>
+      <div class="eyebrow">Part 3 · the loops that do not close</div>
+      <h2>Three gaps, each with what would close it</h2>
+    </header>
+    <div class="opens">
+      <div class="openloop"><div class="n">7</div><div class="body">
+        <h3>Calibration: estimate against actual <span class="chip open">open</span></h3>
+        <p>The estimator guesses from history and never hears how the guess did. The data to close it is already in the pulls: est_hours
+        and charged_hours per phase, and the consumption lines the estimator wrote for jobs that have since run.</p>
+        <p class="fix"><b>Closes it:</b> one report per shop and phase title, estimate low to high against charged, from the last pull;
+        then a nudge to the weights, by hand at first. A small prompt on the estimator, not yet written.</p>
+      </div></div>
+      <div class="openloop"><div class="n">8</div><div class="body">
+        <h3>Deficiency and emergent hours <span class="chip open">open</span></h3>
+        <p>Work the package did not predict is charged somewhere, but it never feeds the estimate of the next package, which is the reason
+        history understates effort. The emergent reserve was deferred on 2026-10-22.</p>
+        <p class="fix"><b>Closes it:</b> the reserve per shop and fifth of the availability from JCNs received after the start, as the first
+        design had it, once real pulls carry received dates and project ids.</p>
+      </div></div>
+      <div class="openloop"><div class="n">9</div><div class="body">
+        <h3>Were the moves absorbed? <span class="chip open">open</span></h3>
+        <p>Loop 3 closes only if someone keys the moves list into the schedule of record. Nothing checks, on the next pull, whether the dates
+        of record moved the way the overlay said they should.</p>
+        <p class="fix"><b>Closes it:</b> on import, compare the stored moves with the new baseline (did P-003 really start two weeks later?),
+        mark each move absorbed or still pending, and clear the absorbed ones. A one-prompt addition to series B2.</p>
+      </div></div>
+    </div>
+  </section>
+
+  <footer class="foot">
+    <p>Sources: the prompt files and test records in the private source (series B, B2, D, S and the build guide, 2026-10-20 to 2026-10-23) and the owner's
+    brain dump of 2026-10-22. The loops are an Assessment of the design; "built" marks what the tests exercised. Nothing on this page is a
+    real job, hull, project or person.</p>
+  </footer>
+</div>
+
+</body>
+</html>
