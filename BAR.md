@@ -1,6 +1,6 @@
 # Bar: what perfect looks like for yolo-projects
 
-Version 0.4, written 2026-10-22 (Japan Standard Time, JST) at John's standing order, relayed by ops: "I need you to
+Version 0.5, written 2026-10-22 (Japan Standard Time, JST) at John's standing order, relayed by ops: "I need you to
 know exactly what perfect looks like. And I don't want to have to explain it every time... go find out what perfect
 would look like for that session, and make them keep trying till [they] meet that bar." Template: `~/ops/BAR.md`.
 Drafts and critic verdicts are in `.harness/bar/BAR/`. Labels: FACT (read in a named source), Assessment (my
@@ -62,12 +62,16 @@ praise of any flagship in the October sources; the only praise is in old memory 
 - 2026-10-22: "one question, one channel": anything ops gates goes through ops only. [`~/ops/log.md:213`]
 - 2026-10-22: only ops sessions report job-guard failures. Paraphrase. [`~/ops/log.md:215`]
 - 2026-10-22: approved the fix for the daily card script's false failure (became PR #50). Paraphrase. [`~/ops/log.md:207`]
+- 2026-10-22 04:08: on his order, ops stopped the dictation model servers for writer training and this project's
+  benchmark, and put this session on Opus. Paraphrase. [`~/ops/log.md:200`]
 - 2026-10-22: "It was supposed to be a dictation off night. Last night, too. That was the plan." A lost night
   delayed this project's benchmark. [`~/ops/log.md:199`]
 - 2026-10-22: "I need you to know exactly what perfect looks like. And I don't want to have to explain it to you
   every time..." [`~/ops/BAR.md:3`]
 - 2026-10-22: "Have yolo review and merge them" (the next-big-thing prompt PRs #51 to #55). Unverified: relayed in a
   session message from next-big-thing; not in a file.
+- 2026-10-21: "Stop. Make a plan and think. This is why I don't like weaker models." Then he approved ops choosing
+  the model per session, which put this session back on Opus. [`~/ops/log.md:171-173`]
 - 2026-10-21: cost lanes. Scripted model calls use the home-jobs key per command, with a one-item cost test first;
   no model-call loops without ops. Paraphrase. [memory `claude-cost-lanes.md`; `~/ops/RUNBOOK.md:16`]
 - 2026-10-20: "free inference is free inference". [`~/ops/RUNBOOK.md:171`]
@@ -87,6 +91,9 @@ praise of any flagship in the October sources; the only praise is in old memory 
   names, comes to this machine. [memory `no-work-data-inbound.md:9-10`]
 - 2026-10-19: "I do want a usage guide written up in the github". [`~/projects/pdf-to-csv/status.md:9`]
 - 2026-10-19: "Build 7 then publish". [`~/projects/pdf-to-csv/status.md:98`]
+- 2026-10-19: PDF to CSV v0.3.1 (PR #29) and v0.5.2 (PR #30) published at his go-ahead. Paraphrase. [`~/ops/log.md:60,66`]
+- 2026-10-19: Record Harvest (now PDF to CSV) added as the third flagship and pushed at his request (PR #27).
+  Paraphrase. [`~/ops/log.md:57`]
 - 2026-10-19: his real-record report on v0.5.2 named six faults: label and value glued together, labels cut,
   headers merged across drawn lines, headers and footers inside values, sub-headings ending a box early, and
   repeated signature labels that could not be reached. Paraphrase. [`~/projects/pdf-to-csv/PLAN-v0.6.md:3-19`]
@@ -146,7 +153,8 @@ step: open it in the signed-in Chrome and write out the rules with paragraph num
 | Markdown Deck, Naval Scribe | 0 network requests, 0 console errors, opens from `file://` | the pdf-to-csv headless harness (puppeteer-core) adapted to these pages | not built |
 | Markdown Deck | each README feature works headless (presenter, notes, timer, overview, print) | scripted keypresses and screenshots | not built |
 | Naval Scribe | each manual rule holds in an exported .docx | unpack the .docx and check `word/document.xml` (margins, font, sizes, numbering) | not built; waits for the manual |
-| card reviews | every card ingested since 2026-10-15 has a line in `card_reviews.md` or status discarded; lag over a day is flagged | `python3 .harness/bar/check_cards.py` (exit 1 on any miss) | runs today: 77 cards, 0 missing |
+| card reviews | every card ingested since 2026-10-15 is mentioned in `card_reviews.md` or has status discarded; a card with no mention that is over a day old is flagged late | `python3 .harness/bar/check_cards.py` (exit 1 on any miss) | runs today: 77 cards, 0 missing |
+| card reviews | each line is dated within a day of its card and carries all five fields (date, id, verdict, project, reason) | extend `check_cards.py` to parse each line | not built |
 | docs | no em dashes in prose | `grep -n` for the em dash character on each changed .md (only hits inside code are allowed) | runs today |
 | docs | acronyms expanded on first use | the fresh critic's checklist in section 5 (no script) | runs today, by the critic |
 | docs | one fact everywhere | `grep -n -i "<keyword>"` across README.md, CLAUDE.md and status.md for each changed fact | runs today |
@@ -176,7 +184,8 @@ Before anything goes to John (a new flagship version, a card proposal, a merged 
 This file went through the loop itself: round 1 FAILED with 11 defects (`.harness/bar/BAR/critic-round-1.md`),
 including seven cards with no review line, which were reviewed the same day. Round 2, run by a critic not shown
 round 1, FAILED with 7 smaller defects (`critic-round-2.md`). Round 3 FAILED with 7 more (`critic-round-3.md`).
-v0.4 attempts to fix them; whether it does is for round 4 to say, not this file.
+Round 4 FAILED narrowly with 2 (`critic-round-4.md`: missing rulings, and a check that claimed more than it
+tests). v0.5 attempts to fix them; the next round decides.
 
 ## 6. Current gap (honest, 2026-10-22)
 
