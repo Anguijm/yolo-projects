@@ -1,6 +1,18 @@
 # Prompts B: build the Resource Map app inside GenAI.mil
 
-Version 0.4, 2026-10-22 (v0.1 to v0.3 kept beside it; v0.4 only changes how the files get in: Prompts X let the app take the Excel workbook itself, see `GENAI-PROMPTS-xlsx.md`; Prompts B1 to B5 are unchanged from v0.3, which added two clarifications from the yolo review of PR 52: verdict precedence and a made-up label on the debug example). Tested against Gemini with no code execution, the way the
+Version 0.5, 2026-10-23 (v0.1 to v0.4 kept beside it). v0.5 is the first version regenerated end to end from its own
+text since the v0.2 fixes were written in: B1 to B4 against Gemini with no code execution, assembled as written,
+and the result matched the hand check cell for cell on the first assembly, with no Debug round
+(the private test record). Three small things learned there are written in:
+the view mode "Assigned + proposed" is selected by default (B1), setDownload is written in full by B4 (the skeleton
+had left it a stub, so the download link stayed empty), and B2 names the three long-format tables one by one. One
+thing that is not a fault but worth knowing: the chat must hold the step-1 contract when B3 and B4 run (it does in
+one chat; a test that fed B3 only the skeleton's code got rows keyed "week" instead of "week_start"). Series B2
+(`GENAI-PROMPTS-resource-map-leveling.md`: moves, the contractor line, zoom, snapshot, automatic leveling)
+runs after B4, and the style prompt (`GENAI-PROMPTS-style.md`) last. v0.4 only changed how the files get in:
+Prompts X let the app take the Excel workbook itself, see `GENAI-PROMPTS-xlsx.md`; v0.3 added two
+clarifications from the review of PR 52: verdict precedence and a made-up label on the debug example.
+Tested originally against Gemini with no code execution, the way the
 chat inside works: the v0.1 prompts built a file that opened without errors but had four faults (the
 index named two ways, consumption fields stored without underscores, dates shifted a week on a computer
 in Japan time, and nothing calling the verdicts or export after import). Three were found by the check
@@ -17,9 +29,10 @@ bring out its data sheet spec. B1 and B2 paste that spec in. If the spec leaves 
 unknown, write it in yourself before pasting (which Monday "WK01" is): the app needs one rule.
 
 How to use: one chat, prompts in order, each answer's code block pasted as the prompt says, save as
-`resource-map.html`, open in Edge or Chrome. To choose the workbooks themselves in the app, run Prompts X
-(`GENAI-PROMPTS-xlsx.md`) after B4: tested, no library, the browser unpacks the .xlsx. Without
-them, save each sheet as CSV (File, Save As, CSV UTF-8) and choose those CSVs. Run Prompt B5 before opening the page; the Debug prompts at the
+`resource-map.html`, open in Edge or Chrome. Full order for the whole app: B1, B2, B3, B4, B5 (check), then series
+B2 (B2-1 to B2-5, the leveler), then Prompts X and X2 if the workbooks are to be chosen directly (X2 must come after
+B2 so its hook wraps B2's importer), then Prompt S (the look) last. Without Prompts X, save each sheet as CSV (File,
+Save As, CSV UTF-8) and choose those CSVs. Run Prompt B5 before opening the page; the Debug prompts at the
 end are the way back from an error or a wrong number.
 
 ## Contract (repeated in every prompt)
@@ -120,7 +133,7 @@ The contract every later step relies on (keep names exactly):
 Write the skeleton now:
 1. Sections in order: "1. Load" (file input id files, a status line id datastatus, an empty div id
    mapping, a line id store-line for the stored data and its buttons), "2. View" (a select id view-mode
-   with options "Assigned only", "Assigned + proposed", "Proposed only"; two number inputs id band-lo
+   with options "Assigned only", "Assigned + proposed" (selected by default), "Proposed only"; two number inputs id band-lo
    and band-hi with defaults 80 and 100 and the label "fully loaded band, percent"; a select id
    filter-project with a first option "All projects"; a select id filter-shop with "All shops"), "3.
    Shop by week" (an empty table id map inside a scrolling container, then an empty div id drillbox
@@ -179,9 +192,10 @@ Requirements:
       above, keep rows as objects under the contract names, numbers through num(), week_start and
       week_end through mondayOf(toDate()). Append to DB.consumption, replacing earlier rows with the
       same proposed_id and phase_no.
-   b. A long-format table: a header row containing project, shop, week_start and assigned_hours (or
-      shop, week_start, capacity_hours; or project, hull, start, end). Map by names, mondayOf the week,
-      append to the matching table.
+   b. A long-format table, three kinds, each one handled: a header row containing project, shop, week_start
+      and assigned_hours goes to assigned; shop, week_start and capacity_hours (no project) goes to capacity;
+      project, hull, start and end (no shop, no week_start) goes to projects. Map by names, mondayOf the week
+      or the dates, append to the matching table.
    c. Otherwise a resource map sheet: call sheetToRows(file name, rows). It returns {assigned: [...],
       capacity: [...], projects: [...], skipped: n, notes: [...]}; append its rows.
    After each file, write into datastatus what it was taken for and how many rows it gave, and any notes
@@ -261,7 +275,10 @@ Answer with the one <script> block only, and nothing after it.
 Continue the same file. Write MODULE 4: a single <script> block to paste over <!-- MODULE 4: export and
 verdicts -->. It replaces the stubs exportCSV and renderVerdicts, and declares run() again so that
 run() = renderMap(); renderVerdicts(); exportCSV(the kind selected in csvkind); setDownload(). Plain
-global functions, contract names exact. Do not touch renderMap, rebuildIndex or the store layer.
+global functions, contract names exact. Do not touch renderMap, rebuildIndex or the store layer. Also
+declare setDownload() again in full, with no parameters (the skeleton may have left it a stub): it sets
+btn-download's href to a Blob URL made from the text in csvout (type text/csv;charset=utf-8), revoking
+the previous URL if one was made; exportCSV sets btn-download's download name before calling it.
 
 Contract reminder as in step 1. The per-shop-week index is the global GRID (plain object keyed
 "shop|week" with {assigned, proposed, capacity, ...}), filled by renderMap(), so renderVerdicts and
@@ -336,9 +353,10 @@ can paste it over the old one. Do not change anything else.
 
 In the test here, three of the four faults were silent and were fixed through this second form.
 
-## Series B2 (not written yet)
+## Series B2 and the look
 
-Leveling inside float, farm-out list by trade coverage, emergent reserve by trade from history, and
-what-if (slip a project, add a proposed list). It reuses the logic proven in the laptop prototype
-and needs one more input: per-job float (earliest start, latest finish), which the
-resource maps do not carry; that comes from the schedule export, to be analyzed with a prompt like A.
+Series B2 (`GENAI-PROMPTS-resource-map-leveling.md`) adds the leveler on top of B1 to B4: moves kept as an
+overlay on the dates of record (drag a job, drag a project, farm out by hand), the contractor's own line, the
+project-name lookup, zoom, snapshot, present mode, the moves and farm-out exports, and an automatic level and
+farm-out inside each project's window. Prompt S (`GENAI-PROMPTS-style.md`) gives the page the demo's look
+and runs last.
