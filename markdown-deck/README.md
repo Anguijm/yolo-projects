@@ -6,8 +6,8 @@ Write markdown, get an instant slide deck. Separate slides with `---`, hit Prese
 
 Open `index.html` in a browser.
 
-## What you'd change
+## Built in
 
-- Add themes (light, dark, neon, corporate)
-- Add speaker notes (hidden text below each slide)
-- Add PDF export
+- Themes, templates and a slide sorter
+- Speaker notes and a presenter view with a timer
+- PDF export through the browser's print dialog, plus PPTX and standalone HTML export

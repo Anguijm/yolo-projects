@@ -69,3 +69,13 @@ touching that project), **pass** (noise or already covered). Rule: CLAUDE.md "Op
 - 2026-10-22 | idd-2026-10-19-local-classifier-strix-halo | fold in | MS-S1 / ptt | a small-model latency row could ride on the engine benchmark later; not added tonight, the approved scope is fixed
 - 2026-10-22 | az-2026-10-20-local-pii-redaction-gate | pass | ptt | dictation is already local; John ruled out privacy hoops for his own data (2026-10-19)
 - 2026-10-22 | pl-2026-10-18-architecture-review-gate-for-agents | pass | | no method, only a caution
+
+## 2026-10-22 catch-up (found by the BAR.md critic: seven backlog cards had no line)
+- 2026-10-22 | aie-2026-10-15-mcp-gateway-with-pii-blocking-and-context-optimizer | pass | | an enterprise gateway; one operator, and no privacy hoops for his own data (2026-10-19)
+- 2026-10-22 | eh-2026-10-16-neural-network-interpretability-clean-hypothesis | pass | | a research framing, no project use
+- 2026-10-22 | pl-2026-10-21-pr-comprehension-quiz-gate | pass | | a quiz gate puts work on John; he does not review PRs line by line
+- 2026-10-22 | ail-2026-10-21-independent-cli-reviewer-and-altitude-prompts | folded in | yolo | the independent reviewer is now the fresh-critic step in BAR.md section 5
+- 2026-10-22 | nb-2026-10-20-agent-memory-hygiene-audit | pass | MS-S1 | ops already runs preflight, memguard and job-guard; a Mac-focused video
+- 2026-10-22 | do-2026-10-20-local-inference-sandboxing-strix-halo | maybe, ops-gated | ptt / MS-S1 | MXFP4 serving reported at 72 t/s on a larger model; our 2026-10-22 bench gives the ptt 30B 80 t/s at 4k, so a gain is unproven; needs a download, so ops first
+- 2026-10-22 | aie-2026-10-19-harness-shim-registry | pass | | durable rules are John's (global CLAUDE.md); pruning them is not ours to automate
+- 2026-10-22 | 21 cards dated 2026-10-15 with status discarded in experiments.json | covered | | discarded by the 2026-10-16/17 sweeps (git 33ab6a0, 731e47c) before this log began; verdicts live in experiments.json

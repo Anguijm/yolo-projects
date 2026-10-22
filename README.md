@@ -1,29 +1,21 @@
 # YOLO Projects
 
-AI-assisted build system with human-gated approval. Claude proposes project ideas hourly, a 7-angle Gemini council reviews everything, and nothing ships without human sign-off.
+A portfolio of single-file browser tools and three flagships, kept by a Claude Code session on John's MS-S1. Nothing ships without his say.
 
 ## How It Works
 
-An hourly cron trigger fires a Claude Code remote agent that alternates between two modes:
+Since 2026-10-19 (John's ruling: "We're not doing ticks and tocks any longer") there is no hourly builder. The
+work is two things:
 
-### Tick (New Projects — Approval-Gated)
-1. **If approved ideas exist** — builds the next one: Plan (Gemini critique) → Build → Test → 7-angle Council → Reflect
-2. **If queue is empty** — brainstorms 1 idea, adds to pending queue, does NOT build. Human approves or denies at next check-in.
+1. **Keep up with the flagships**: Markdown Deck, Naval Scribe and PDF to CSV. PDF to CSV is developed by hand in
+   its own repo and published here as a built file.
+2. **Review new cards**: every morning at 05:50 JST, `scripts/daily_cards.sh` turns new rows from John's video
+   watch log into cards in `experiments.json`, opens a pull request and merges it when secret-scan and validate
+   pass. The session judges each card against all of John's projects, logs one line per card in
+   `.harness/card_reviews.md`, and raises only the useful ones with him. Nothing is built until he says go.
 
-### Tock (Flagship Features)
-Alternates between the two cron-maintained flagships (Markdown Deck and Naval Scribe), implementing approved features or brainstorming 2 new proposals for approval. The third flagship, PDF to CSV, is developed by hand outside the cron and published here as a built file.
-
-### Build Pipeline (when approved)
-1. **Plan** — boring-but-high-ROI filter, vertical outline, Gemini critique
-2. **Build** — code from validated plan
-3. **Test** — `test_project.py` (7 checks) + `eval_bugs.py` (26 patterns) + `security_scan.py` (22 rules)
-4. **Review** — 7-angle Gemini council (bugs, security, ui, guide, usefulness, cool, lessons). LESSONS has veto power; four enforcement rules auto-downgrade matching OBJECTs (parse-failure retry, LESSONS precondition_evidence, goalpost-move, BUGS hallucination)
-5. **Reflect** — structured KEEP/IMPROVE/INSIGHT/COUNCIL appended to learnings.md
-
-### Safety
-- `.harness_halt` circuit breaker — 3 test failures = full stop until human intervenes
-- 15-call Gemini cost cap per session
-- No visual-only simulations (enforced in prompt)
+Changes reach `main` through pull requests. The older tick/tock build pipeline (plan, build, test, 7-angle
+council, reflect) and its workflow files are kept for history; the cron stays off.
 
 ## Portfolio
 
@@ -61,7 +53,7 @@ Full 7-angle council on every survivor. Score 5+ on usefulness or get culled.
 Final pass — anything still not genuinely useful gets cut.
 
 ### Phase 4: YouTube Research
-Daily cron (~07:00 JST) auto-discovers new videos from 22 monitored YouTube channels via RSS (the feeds are read on the MS-S1 at home twice a day by `scripts/snapshot_feeds.sh` and pushed to the branch `feeds/snapshot`; the runner fetches live only when that snapshot is missing or over 8 hours old, because YouTube refuses GitHub's runners), pulls auto-captions through supadata.ai, generates experiment proposals (since 2026-10-15 each card carries `relevance_to_yolo_loop` and `relevance_to_operator_projects`, both scored high, medium or none; a card is in scope when either is high), runs them through council cull, and promotes adopted items into the tick queue. Live lifetime counts: see `phase4_run.json`. Per-experiment narrative: `experiments.json` is the source of truth; `experiments/FINAL_REPORT.md` has the most recent comprehensive write-up.
+Off since 2026-10-17; the daily cards from John's watch log replaced it. When it ran, a daily cron (~07:00 JST) auto-discovered new videos from 22 monitored YouTube channels via RSS (the feeds are read on the MS-S1 at home twice a day by `scripts/snapshot_feeds.sh` and pushed to the branch `feeds/snapshot`; the runner fetches live only when that snapshot is missing or over 8 hours old, because YouTube refuses GitHub's runners), pulls auto-captions through supadata.ai, generates experiment proposals (since 2026-10-15 each card carries `relevance_to_yolo_loop` and `relevance_to_operator_projects`, both scored high, medium or none; a card is in scope when either is high), runs them through council cull, and promotes adopted items into the tick queue. Live lifetime counts: see `phase4_run.json`. Per-experiment narrative: `experiments.json` is the source of truth; `experiments/FINAL_REPORT.md` has the most recent comprehensive write-up.
 
 ### Security Scanning
 22-rule regex scanner (`security_scan.py`) runs on every build. Full portfolio triaged: 0 real vulnerabilities. CSP meta tag in design.md boilerplate.
@@ -92,8 +84,9 @@ Key process improvements from Phase 4 research:
 
 | Trigger | Schedule | What |
 |---------|----------|------|
-| Tick-Tock Builder | Hourly | Proposes ideas (tick) or implements flagship features (tock). Builds only approved items. |
-| Phase 4 Research | Daily ~07:00 JST | YouTube RSS scan across 22 channels (feed snapshot from the MS-S1, live fallback), experiment extraction, always commits run report, fails red when zero feeds were read |
+| Daily cards | Daily 05:50 JST (MS-S1 cron) | `scripts/daily_cards.sh`: new cards from the watch log, opened and merged as a pull request on secret-scan and validate |
+| Tick-Tock Builder | Off since 2026-06-28 | Retired 2026-10-19; workflow kept for history |
+| Phase 4 Research | Off since 2026-10-17 (no API key; the daily cards replaced it) | YouTube RSS scan across 22 channels (feed snapshot from the MS-S1, live fallback), experiment extraction, always commits run report, fails red when zero feeds were read |
 
 ## Monitored YouTube Channels (22; authoritative roster in `fetch_youtube_rss.py:CHANNELS`)
 @NateBJones, @MLOps, @DavidOndrej, [un]prompted, @NateHerk, @AIJasonZ, @echohive, @ShawTalebi, @Mark_Kashef, @aiDotEngineer, @mattpocockuk, @indydevdan, @ColeMedin, @AILABS-393, @LatentSpacePod, @anthropic-ai, @LangChain, @donatocapitella, @AZisk, @AliElZoheiry, @PhilippLackner, @PixelArtistry_

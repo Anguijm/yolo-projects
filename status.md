@@ -17,3 +17,10 @@ Card counts at build time: backlog 609, discarded 348, adopted 90, deferred 56, 
 ## Disabled on purpose (do not re-enable)
 - Phase 4 research workflow: off since 2026-10-17 (no API key).
 - Feed snapshot cron: off since 2026-10-18 (John's Gemini task replaced it).
+
+## Direct pushes to main (noted 2026-10-22, at John's request; no history rewrite)
+Nine doc commits by this session reached main without a pull request between 2026-10-20 and 2026-10-22:
+1e26cec, 2bcbf90, d79868a, 78697bf, 03127c9, f1f5765, edcf7e4, 46c783b, 776df60. branch-guard failed on the
+three 2026-10-22 pushes (f1f5765, edcf7e4, 776df60). From 2026-10-22 on, changes go through a pull request.
+Check: `git log origin/main --format='%h %s' | grep -v '(#[0-9]*)$' | grep -v 'Cards from the Gemini'`.
+
