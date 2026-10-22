@@ -1,6 +1,6 @@
 # Prompts C: add batch mode to the estimator (big files in, one big CSV out)
 
-Version 0.4, 2026-10-22 (v0.1 to v0.3 kept beside it; v0.4 only adds the pointer to Prompts X, which let both file pickers take .xlsx workbooks, see `GENAI-PROMPTS-xlsx.md`; C1 to C3 are unchanged from v0.3, which says how rule 2 chains after a phase placed by rule 1, from the yolo review of PR 52). Tested against Gemini with no code execution, the same
+Version 0.6, 2026-10-22 (v0.1 to v0.5 kept in the private source; v0.6 corrects the order: Prompts D in `GENAI-PROMPTS-estimator-planned.md` run after C2b and BEFORE Prompts X, and add planned jobs, the contractor and the material list; v0.4 added the pointer to Prompts X, which let both file pickers take .xlsx workbooks, see `GENAI-PROMPTS-xlsx.md`; C1 to C3 are unchanged from v0.3, which says how rule 2 chains after a phase placed by rule 1, from the yolo review of PR 52). Tested against Gemini with no code execution, the same
 handicap as the chat inside: the v0.1 prompts produced one syntax error on load and four mismatches in
 the batch loader, and the model shortened the placement logic on its own. v0.2 states the pieces that
 drifted and moves placement into its own prompt (C2b), which then worked first time. The test build ran
@@ -9,7 +9,9 @@ drifted and moves placement into its own prompt (C2b), which then worked first t
 Three prompts that extend the estimator built from `GENAI-PROMPTS-estimator.md` (Prompts 1 to 5). Run them in
 the same chat after Prompt 5. Each answer is pasted into the file as the prompt says. To feed Excel files
 directly (the history export as one workbook with a sheet per table, the proposed list as a workbook), run
-Prompts X from `GENAI-PROMPTS-xlsx.md` after C2b; tested with both pickers.
+Prompts X from `GENAI-PROMPTS-xlsx.md` after C2b; tested with both pickers. Prompts D (`GENAI-PROMPTS-estimator-planned.md`: planned job summaries bypass the guess, a performing column for the
+contractor, a material list output) run after C2b and BEFORE Prompts X; if X is already in the file, run X2 again after D so
+its hook wraps D's loader.
 
 What batch mode does: load a CSV of proposed work items (many new JCNs at once) and, for each one, find
 analogs, build the estimate and place its phases in weeks without anyone ticking boxes, then write one big
