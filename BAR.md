@@ -1,6 +1,6 @@
 # Bar: what perfect looks like for yolo-projects
 
-Version 0.6, written 2026-10-22 (Japan Standard Time, JST) at John's standing order, relayed by ops: "I need you to
+Version 0.7, written 2026-10-22 (Japan Standard Time, JST) at John's standing order, relayed by ops: "I need you to
 know exactly what perfect looks like. And I don't want to have to explain it every time... go find out what perfect
 would look like for that session, and make them keep trying till [they] meet that bar." Template: `~/ops/BAR.md`.
 Drafts and critic verdicts are in `.harness/bar/BAR/`. Labels: FACT (read in a named source), Assessment (my
@@ -159,7 +159,7 @@ step: open it in the signed-in Chrome and write out the rules with paragraph num
 | docs | no em dashes in prose | `grep -n` for the em dash character on each changed .md (only hits inside code are allowed) | runs today |
 | docs | acronyms expanded on first use | the fresh critic's checklist in section 5 (no script) | runs today, by the critic |
 | docs | one fact everywhere | `grep -n -i "<keyword>"` across README.md, CLAUDE.md and status.md for each changed fact | runs today |
-| merges | security scan and validate pass (council-script-check excepted by his ruling), branch deleted, local main matches origin; no remote branch left from any merged PR | `gh pr checks N`, `git status -sb`, and `git ls-remote --heads origin` compared with `gh pr list --state merged` | runs today: 6 stale branches (section 6) |
+| merges | security scan and validate pass (council-script-check excepted by his ruling), branch deleted, local main matches origin; no remote branch left from any merged PR | `gh pr checks N`, `git status -sb`, and `git ls-remote --heads origin` compared with `gh pr list --state merged` | runs today: 17 stale branches (section 6) |
 | job alerts | no false failure from this repo | read-only `ls ~/.local/state/job-guard/failing/`; a yolo job listed there is fixed through ops, which reports to John (his ruling 2026-10-22 12:18) | runs today |
 
 ## 5. The loop
@@ -187,7 +187,8 @@ including seven cards with no review line, which were reviewed the same day. Rou
 round 1, FAILED with 7 smaller defects (`critic-round-2.md`). Round 3 FAILED with 7 more (`critic-round-3.md`).
 Round 4 FAILED narrowly with 2 (`critic-round-4.md`: missing rulings, and a check that claimed more than it
 tests). Round 5 FAILED with 2 (`critic-round-5.md`: six stale branches, two acronyms used before expansion).
-v0.6 attempts to fix them; the next round decides.
+Round 6 FAILED with 1 (`critic-round-6.md`): the stale-branch count was copied from round 5's critic instead
+of measured, and the real number is 17. v0.7 reports the measured count with its command; the next round decides.
 
 ## 6. Current gap (honest, 2026-10-22)
 
@@ -215,9 +216,11 @@ v0.6 attempts to fix them; the next round decides.
   fresh critic.
 - **Repo upkeep: partly meets the bar.** PRs #50 to #55 merged with checks passing, branches deleted and README
   links added; main matched origin after each. Misses: card coverage lapsed (above), and the PDF to CSV
-  READMEs lag. Six remote branches of older merged PRs were never deleted: `add-record-harvest-flagship` (#27),
-  `rename-to-pdf-to-csv` (#28), `pdf-to-csv-v0.3.1` (#29), `pdf-to-csv-v0.5.2` (#30),
-  `scripts/daily-cards-worktree` (#46) and `scripts/daily-cards-fix2` (#48). As of this commit, local main is ahead of origin by the BAR.md commits; they are pushed only when John
+  READMEs lag. 17 of the 29 remote branches belong to merged PRs and were never deleted
+  (#1 to #30 era `claude/*` branches, the four PDF to CSV publish branches #27 to #30, and the card-script
+  branches #46 and #48). Measured 2026-10-22 by matching `git ls-remote --heads origin` against
+  `gh pr list --state merged --limit 200`. Squash merges leave no ancestry, so each branch needs a check for
+  commits made after its merge before it is deleted; deleting them changes his remote and waits for his go. As of this commit, local main is ahead of origin by the BAR.md commits; they are pushed only when John
   asks. The root `README.md` "How It Works" section (lines 7-20) still describes the hourly tick/tock cron that
   he retired on 2026-10-19, which is the same one-fact-everywhere failure he caught that day. Before #50, a false
   job-guard failure reached his alert list.
