@@ -1,17 +1,18 @@
 # Bar: what perfect looks like for yolo-projects
 
-Version 0.5, written 2026-10-22 (Japan Standard Time, JST) at John's standing order, relayed by ops: "I need you to
+Version 0.6, written 2026-10-22 (Japan Standard Time, JST) at John's standing order, relayed by ops: "I need you to
 know exactly what perfect looks like. And I don't want to have to explain it every time... go find out what perfect
 would look like for that session, and make them keep trying till [they] meet that bar." Template: `~/ops/BAR.md`.
 Drafts and critic verdicts are in `.harness/bar/BAR/`. Labels: FACT (read in a named source), Assessment (my
 judgment), Unverified (not checked).
 
 In plain words: nothing from this project reaches John until it passes the checks in section 4 and a fresh critic
-in section 5. Today only PDF to CSV and repo upkeep have checks that run; the other deliverables have gaps that
+in section 5. Today only PDF to CSV (the Portable Document Format to comma-separated values converter), card
+reviews and repo upkeep have checks that run; the other deliverables have gaps that
 section 6 names.
 
 The project delivers five things:
-1. **PDF to CSV** (Portable Document Format to comma-separated values): the built page and its guide, published
+1. **PDF to CSV**: the built page and its guide, published
    from `~/projects/pdf-to-csv`, and the GenAI.mil prompt series, which next-big-thing keeps in its vault and
    publishes straight to `yolo-projects/pdf-to-csv/` (the source repo has only the first, `GENAI-PROMPTS.md`).
 2. **Markdown Deck**: a single-file markdown-to-slides tool.
@@ -117,7 +118,7 @@ docs consistent ("two flagships when there were three"), and not to be asked twi
 
 ## 3. Outside references (fetched and read 2026-10-22)
 
-Excerpts with URLs and fetch times: `.harness/bar/refs/2026-10-22-references.md`. Three set the bar:
+Excerpts with web addresses (URLs) and fetch times: `.harness/bar/refs/2026-10-22-references.md`. Three set the bar:
 
 1. **Camelot** (https://camelot-py.readthedocs.io/en/latest/), the bar for PDF to CSV. FACT: every table carries a
    `parsing_report` with accuracy, whitespace, order and page. FACT: users can "discard bad tables based on metrics
@@ -130,7 +131,7 @@ Excerpts with URLs and fetch times: `.harness/bar/refs/2026-10-22-references.md`
    from a local web server". Assessment: matching its presenter features while working from `file://` beats it.
 3. **Simon Willison's HTML tools** (https://simonwillison.net/2025/Dec/10/html-tools/ and
    https://tools.simonwillison.net/colophon), the bar for any single-file tool. FACT: one HTML file with inline
-   JavaScript and CSS (Cascading Style Sheets), no build step, copy buttons, state kept in the web address (URL). FACT: the
+   JavaScript and CSS (Cascading Style Sheets), no build step, copy buttons, state kept in the URL. FACT: the
    colophon gives every tool's source, its commit history and often the prompt that made it. Assessment: he loads
    libraries from a content delivery network, which our offline rule forbids, so our bar is "vendored, works
    unplugged" plus his provenance.
@@ -158,7 +159,7 @@ step: open it in the signed-in Chrome and write out the rules with paragraph num
 | docs | no em dashes in prose | `grep -n` for the em dash character on each changed .md (only hits inside code are allowed) | runs today |
 | docs | acronyms expanded on first use | the fresh critic's checklist in section 5 (no script) | runs today, by the critic |
 | docs | one fact everywhere | `grep -n -i "<keyword>"` across README.md, CLAUDE.md and status.md for each changed fact | runs today |
-| merges | security scan and validate pass (council-script-check excepted by his ruling), branch deleted, local main matches origin | `gh pr checks N`, `git ls-remote --heads origin`, `git status -sb` | runs today |
+| merges | security scan and validate pass (council-script-check excepted by his ruling), branch deleted, local main matches origin; no remote branch left from any merged PR | `gh pr checks N`, `git status -sb`, and `git ls-remote --heads origin` compared with `gh pr list --state merged` | runs today: 6 stale branches (section 6) |
 | job alerts | no false failure from this repo | read-only `ls ~/.local/state/job-guard/failing/`; a yolo job listed there is fixed through ops, which reports to John (his ruling 2026-10-22 12:18) | runs today |
 
 ## 5. The loop
@@ -185,7 +186,8 @@ This file went through the loop itself: round 1 FAILED with 11 defects (`.harnes
 including seven cards with no review line, which were reviewed the same day. Round 2, run by a critic not shown
 round 1, FAILED with 7 smaller defects (`critic-round-2.md`). Round 3 FAILED with 7 more (`critic-round-3.md`).
 Round 4 FAILED narrowly with 2 (`critic-round-4.md`: missing rulings, and a check that claimed more than it
-tests). v0.5 attempts to fix them; the next round decides.
+tests). Round 5 FAILED with 2 (`critic-round-5.md`: six stale branches, two acronyms used before expansion).
+v0.6 attempts to fix them; the next round decides.
 
 ## 6. Current gap (honest, 2026-10-22)
 
@@ -213,7 +215,9 @@ tests). v0.5 attempts to fix them; the next round decides.
   fresh critic.
 - **Repo upkeep: partly meets the bar.** PRs #50 to #55 merged with checks passing, branches deleted and README
   links added; main matched origin after each. Misses: card coverage lapsed (above), and the PDF to CSV
-  READMEs lag. As of this commit, local main is ahead of origin by the BAR.md commits; they are pushed only when John
+  READMEs lag. Six remote branches of older merged PRs were never deleted: `add-record-harvest-flagship` (#27),
+  `rename-to-pdf-to-csv` (#28), `pdf-to-csv-v0.3.1` (#29), `pdf-to-csv-v0.5.2` (#30),
+  `scripts/daily-cards-worktree` (#46) and `scripts/daily-cards-fix2` (#48). As of this commit, local main is ahead of origin by the BAR.md commits; they are pushed only when John
   asks. The root `README.md` "How It Works" section (lines 7-20) still describes the hourly tick/tock cron that
   he retired on 2026-10-19, which is the same one-fact-everywhere failure he caught that day. Before #50, a false
   job-guard failure reached his alert list.
