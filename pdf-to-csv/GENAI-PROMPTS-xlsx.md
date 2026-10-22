@@ -1,6 +1,6 @@
 # Prompts X: read Excel workbooks directly (no CSV step)
 
-Version 0.1, 2026-10-22. The question that started it: "For the inputs can we process in the .xlsx and output the CSV
+Version 0.2, 2026-10-22 (v0.2 answers the yolo review of PR 54: a time or elapsed-time format such as [h]:mm was read as a date; now date styles and time styles are told apart, and a time-styled cell comes out as decimal hours). The question that started it: "For the inputs can we process in the .xlsx and output the CSV
 in js in the html file?" Answer: yes. An .xlsx file is a zip of XML parts, and a browser can open both
 without a library: DecompressionStream("deflate-raw") unpacks the zip entries and DOMParser reads the XML.
 FACT (MDN browser-compat-data, read 2026-10-22): DecompressionStream accepts "deflate-raw" from Chrome 103
@@ -16,8 +16,9 @@ functions. Output stays CSV (the tools already write it).
 Limits: this reads workbooks up to a few tens of MB (a few hundred thousand cells per sheet) in one go.
 The big JCN history export stays CSV when it is bigger than that; the resource maps, the proposed list
 and the availabilities are small. Formulas are read from their cached result (what Excel saved), never
-recalculated. Dates come out as YYYY-MM-DD text; numbers as plain decimals; booleans as TRUE/FALSE; error
-cells as blank.
+recalculated. Dates come out as YYYY-MM-DD text; a cell formatted as a time or an elapsed time (h:mm,
+[h]:mm) comes out as decimal hours (1376.5), which is what such a cell means on a resource map; numbers as
+plain decimals; booleans as TRUE/FALSE; error cells as blank.
 
 Run order inside GenAI.mil: after the tool's last build prompt (B4 for the Resource Map, C2b for the
 estimator), run Prompt X, paste its block after the last script block, then run Prompt X2 and paste its
@@ -85,39 +86,52 @@ getElementsByTagNameNS("*", localName) so namespace prefixes do not matter:
   otherwise it is relative to "xl/" (so "worksheets/sheet1.xml" is "xl/worksheets/sheet1.xml").
 - xl/sharedStrings.xml (optional): the text of each <si> is the concatenation of every <t> inside it
   (rich text splits one string across several <r><t> runs). Keep an array in order.
-- xl/styles.xml (optional): the <xf> elements under <cellXfs> in order; each has numFmtId. A style is a
-  date style when its numFmtId is 14 to 22, 27 to 36, 45 to 47, or 50 to 58, or when the <numFmt>
-  formatCode with that numFmtId (from <numFmts>) contains y, m, d or h after removing quoted sections,
-  [bracketed] sections and backslash-escaped characters, compared in lower case. Keep an array
-  isDateStyle indexed by xf position.
+- xl/styles.xml (optional): the <xf> elements under <cellXfs> in order; each has numFmtId. Two kinds of
+  style matter. A DATE style: numFmtId 14 to 17, 22, 27 to 36 or 50 to 58 (built-in date formats; a few
+  ids in the last two ranges are times in Asian locales, accepted), or a <numFmt> formatCode (from
+  <numFmts>, matched by numFmtId) that contains y or d after stripping. A TIME style (a time of day or an
+  elapsed time such as [h]:mm): numFmtId 18 to 21 or 45 to 47, or a stripped formatCode that contains h
+  or s but neither y nor d. Stripping: remove quoted sections, backslash-escaped characters, and every
+  [bracketed] section EXCEPT [h], [hh], [m], [mm], [s], [ss] (so colors, conditions and locale tags such
+  as [$-409] go, elapsed-time markers stay), then compare in lower case. Anything else is a number style.
+  Keep two arrays, isDateStyle and isTimeStyle, indexed by xf position.
 - Each sheet part: for each <row>, its r attribute is the 1-based row number. For each <c> in it: the r
   attribute gives the cell address and its letters give the column (A is 0, Z is 25, AA is 26); the t
-  attribute gives the type; <v> gives the stored value; <is> gives an inline string.
-  - t="s": sharedStrings[Number(v)].
-  - t="inlineStr": the concatenation of every <t> under <is>.
-  - t="str": v as it is (a formula's text result).
-  - t="b": "TRUE" when v is "1", else "FALSE".
-  - t="e": "" (an error value such as #DIV/0!).
-  - t="d": the first 10 characters of v (a date written as ISO text, rare).
-  - otherwise a number (t="n" or no t): if the cell's s attribute points at a date style, convert the
-    serial to YYYY-MM-DD: the 1900 system counts days from 1899-12-30, the 1904 system from 1904-01-01;
-    take Math.floor of the serial, add that many days (times 86400000) to Date.UTC of the base date, and
-    format with UTC getters, zero padded. Otherwise String(Number(v)), so "1.5E3" becomes "1500" and "40"
-    stays "40". No <v> at all, or an empty <v></v> (a formula without a cached result, as some
-    programs write it): "", never "0".
+  attribute gives the type; <v> gives the stored value; <is> gives an inline string. Decide the cell's
+  text in this order, first match wins:
+  1. t="inlineStr": the concatenation of every <t> under <is>. Such a cell has no <v>, so this check
+     comes before the next one.
+  2. No <v> at all, or an empty <v></v> (a formula without a cached result, as some programs write it):
+     "", never "0".
+  3. t="s": sharedStrings[Number(v)].
+  4. t="str": v as it is (a formula's text result).
+  5. t="b": "TRUE" when v is "1", else "FALSE".
+  6. t="e": "" (an error value such as #DIV/0!).
+  7. t="d": the first 10 characters of v (a date written as ISO text, rare).
+  8. Otherwise a number (t="n" or no t): if the cell's s attribute points at a date style, convert the
+     serial to YYYY-MM-DD: the 1900 system counts days from 1899-12-30, the 1904 system from 1904-01-01;
+     take Math.floor of the serial, add that many days (times 86400000) to Date.UTC of the base date, and
+     format with UTC getters, zero padded. If it points at a time style, convert the serial to decimal
+     hours: the serial times 24, rounded to 4 decimals, as plain text with no trailing zeros (1.5 becomes
+     "36", 57.3541667 becomes "1376.5"), because such a cell holds hours on these sheets. Otherwise
+     String(Number(v)), so "1.5E3" becomes "1500" and "40" stays "40".
   Always read the cached <v>; never evaluate <f>.
   A cell whose column is beyond the row's current length extends the row with "".
 
 Performance: workbooks up to a few tens of MB (a few hundred thousand cells per sheet). Build each row
 as an array; no string concatenation in loops; no querySelector per cell.
 
-Helpers with these exact names: columnIndex(letters), serialToDate(serial, date1904), xmlText(element)
-(concatenated <t> descendants), isDateFormatCode(code), parseZipDirectory(buffer) (returns a plain
+Helpers with these exact names: columnIndex(letters), serialToDate(serial, date1904), serialToHours(serial),
+xmlText(element) (concatenated <t> descendants), stripFormatCode(code), isDateFormatCode(code),
+isTimeFormatCode(code), parseZipDirectory(buffer) (returns a plain
 object: part name to {method, compressedSize, uncompressedSize, localOffset}), readZipPart(buffer, dir,
 name) (async; a string, or null when the part is missing). Also selfTestXlsx(): it needs no file; it
 checks that columnIndex("A") is 0, columnIndex("AA") is 26, serialToDate(46300, false) is "2026-10-05",
-serialToDate(61, false) is "1900-03-01", isDateFormatCode("m/d/yyyy") is true and
-isDateFormatCode("#,##0.00") is false, and returns an array of the failed checks (empty when all pass).
+serialToDate(61, false) is "1900-03-01", serialToHours(1.5) is "36", isDateFormatCode("m/d/yyyy") is true,
+isDateFormatCode("[$-409]ddd m/d/yyyy") is true, isDateFormatCode("#,##0.00") is false,
+isDateFormatCode("[h]:mm") is false, isTimeFormatCode("[h]:mm") is true, isTimeFormatCode("h:mm AM/PM")
+is true, isTimeFormatCode("m/d/yy h:mm") is false (it is a date) and isDateFormatCode('0.00 "days"') is
+false, and returns an array of the failed checks (empty when all pass).
 
 Answer with the one <script> block only, and nothing after it.
 ```
@@ -188,3 +202,7 @@ intended messages; the estimator fed with `history.xlsx` (four sheets) and `prop
 consumption file identical to its CSV-input run; the Resource Map fed with the workbook drew the same map
 and summary as its CSV-input run. Three earlier rounds found four prompt faults (a formula with no cached
 value read as 0; typeof guards; the wrong status element; all now written into the prompts above).
+v0.2 (after the yolo review of PR 54): the date-or-time rule above, and the cell rules as a numbered order
+(a first draft of v0.2 put the blank-cell rule before the inline-string check and blanked every inline
+string). Re-tested: 0 mismatches on 77,694 cells with six new time and date cases, and both tools still
+identical to their CSV runs.
