@@ -1,6 +1,8 @@
 # Prompts D: planned jobs, the contractor, and the material list
 
-Version 0.2, 2026-10-22. Tested against Gemini with no code execution, the same handicap as
+Version 0.3, 2026-10-22 (v0.3 answers the review of PR 57: D runs BEFORE Prompts
+X, planned-item material is grouped and divided by the summary's JCN count, one material value per summary, and
+performing is matched on whole words so "control" is not a contractor). Tested against Gemini with no code execution, the same handicap as
 the chat inside: v0.1 recursed on the first history load (the wrapper captures shared a block with the new
 declarations), the rewritten batch loop never ran from the button (MODULE 6 had bound the old function), the
 material quantities were summed, and unscheduled planned phases piled into one week. v0.2 fixes all of that
@@ -9,8 +11,11 @@ an independent computation, with the planned file in hours and in man-days. The 
 the private source.
 
 Three prompts that extend the batch estimator built from Prompts C (`GENAI-PROMPTS-estimator-batch.md`,
-C1, C2, C2b). Run them in the same chat after C2b. Prompts X (workbook input) can come before or after; D adds
-no file picker. Each answer is pasted into the file as the prompt says.
+C1, C2, C2b). Run them in the same chat after C2b and BEFORE Prompts X (workbook input): X2's hook must wrap
+D's loader, not the other way round, because D captures whatever loadBatchFiles is at the time as its Core, and
+after X that is the workbook expander, so a planned workbook would be read as raw text and never recognized. If
+Prompts X are already in the file, run X2 again after D. D adds no file picker. Each answer is pasted into the
+file as the prompt says.
 
 What they add:
 
@@ -90,8 +95,10 @@ proposed.csv and availabilities.csv by their headers, and enables btn-batch. Hel
 (Date or null), fmtDate, num, csvCell, getMonday. W and DEFAULT_W hold the weights, W_LABELS their
 labels, buildWeightsPanel() redraws them.
 
-1. normPerforming(s): trim, lower case; "" stays ""; if the text contains any of "contr", "farm", "ctr",
-   "cms", "vendor", "sub" it is "farm-out"; anything else non-blank is "in-house".
+1. normPerforming(s): trim, lower case; "" stays "". Split the text into words on anything that is not a
+   letter or digit; it is "farm-out" when any word is one of contr, contractor, contract, contracted, ctr,
+   cms, vendor, sub, subcontractor, subcontract, subk, farm, farmout, outsource, outsourced (whole words, so
+   "control" and "subassembly" do not match); anything else non-blank is "in-house".
 2. SCHEMA, extended in place at the top of this block, before any function runs:
    - phases gains optional performing with aliases performing, performingactivity, activity,
      performer, workby, inhouse, farmout, contractor, org, organic.
@@ -229,23 +236,28 @@ g. Collect one output line per phase, in this order: proposed_id, hull, project,
    history", "no dates", "planned", "performing guessed from analogs"), source, performing,
    performing_basis. 22 cells.
 h. MATERIAL LINES. For a history item after step d: matLines.push(...materialLines(item,
-   EST.usedJcns)). For a planned item: if DB.matByJS[extra.job_summary] exists, one line per material
-   row with phase_title from the planned row with that phase_no (or "Phase " + phase_no), qty_low =
-   qty_high = qty, seen_on "1 of 1", summaries_used 1, source "planned", analog_jcns "".
+   EST.usedJcns)). For a planned item: if DB.matByJS[extra.job_summary] exists, group its rows by
+   phase_no and stock_number (the export may carry one row per JCN of a consolidated summary), qty = the
+   group's sum of qty divided by (DB.jsCount[extra.job_summary] or 1), one line per group with
+   phase_title from the planned row with that phase_no (or "Phase " + phase_no), qty_low = qty_high =
+   qty, nomenclature from the group's first row, seen_on "1 of 1", summaries_used 1, source "planned",
+   analog_jcns "".
 
 materialLines(item, usedJcns): the batch form of the single-JCN material table. Used summaries = the
 job_summary of each JCN in usedJcns, each once, newest first; n = their count. For each used summary,
 map each of its material rows' phase_no to that summary's phase_title (through DB.phasesByJS; a
 material row whose phase_no has no phase row in that summary gets phase_title ""), and group by
-phase_title and stock_number. For each summary that has the line, one value = its qty divided by
-DB.jsCount[summary]; qty_low and qty_high are the smallest and the largest of those values, NOT their
-sum (a line seen on one summary has qty_low = qty_high). nomenclature from the newest summary that had
+phase_title and stock_number. For each summary that has the line, ONE value = the sum of that summary's
+qty for the group (its rows with that phase_title and stock_number, which may be one per JCN of a
+consolidated summary) divided by DB.jsCount[summary]; qty_low and qty_high are the smallest and the
+largest of those per-summary values (a line seen on one summary has qty_low = qty_high). nomenclature from the newest summary that had
 the line. One line per group: proposed_id, hull, project, job_summary (extra.job_summary or ""),
 phase_no (look the phase_title up in DB.phasesByJS[newest used summary] and take that row's phase_no;
 "" if no row there has that title; never from the material row), phase_title, stock_number,
 nomenclature, qty_low, qty_high (one decimal), seen_on ("k of n"), summaries_used (n), source
-"history", analog_jcns (those JCNs of usedJcns, in its order, whose summary carried the line; never a
-JCN that is not in usedJcns). Order: by phase_no (blank last), then stock_number.
+"history", analog_jcns (walk usedJcns in order and keep every JCN whose summary carried the line, so two
+JCNs of one summary both appear; never a JCN that is not in usedJcns). Order: by phase_no (blank last),
+then stock_number.
 
 finishBatch(rows, stats, ms): as before (batch-summary shows items estimated, items with no analog,
 lines by placement rule, now including "scheduled", total load_hours by shop as a small table, the
@@ -280,6 +292,8 @@ I have added MODULE 7 and MODULE 8. Without rewriting the file, check:
    Date object reaches csvCell unformatted.
 5. That the performing majority rule counts each used summary once and that a tie goes to the newest
    summary with a non-blank value.
+6. That MODULE 7a and 7b sit BEFORE the Prompts X hook block in the file if Prompts X are present, so the
+   hook wraps D's loader; if they sit after it, say so and tell me to run X2 again.
 Then give me a five-step test with a planned.csv of three made-up rows (two phases scheduled, one not)
 and a proposed.csv of four made-up lines: one planned, one screened farm-out with history, one plain
 history item, one unknown hull.
