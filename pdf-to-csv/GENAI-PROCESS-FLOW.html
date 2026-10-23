@@ -1,0 +1,494 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Shop Load Flow</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;700;800&family=Source+Sans+3:wght@400;600&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: one column, a vertical chain of stage cards joined by labeled connectors (the file that flows), then the holes and the open decisions. Same palette and faces as the Shop Load Leveler demo. */
+:root {
+  --bg: #f3f5f4; --surface: #ffffff; --fg: #17201d; --muted: #5b6763; --line: #d5dcd9; --line2: #b9c3bf;
+  --accent: #1f5f8b; --accent-soft: #e2edf5;
+  --k-source: #5b7a94; --k-prompt: #7c5fa8; --k-tool: #2f7a52; --k-people: #b8762a;
+  --s-have: #2f7a52; --s-pull: #b8762a; --s-check: #1f5f8b; --s-todo: #a8433a;
+  --display: "Archivo", "Helvetica Neue", Arial, sans-serif;
+  --body: "Source Sans 3", "Segoe UI", system-ui, sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #121816; --surface: #1a2220; --fg: #e4ebe8; --muted: #9aa8a3; --line: #2c3834; --line2: #3b4a45;
+  --accent: #7db4dc; --accent-soft: #1d2d3a;
+  --k-source: #8fb0cc; --k-prompt: #b39ddb; --k-tool: #6fbf8f; --k-people: #e0a65c;
+  --s-have: #6fbf8f; --s-pull: #e0a65c; --s-check: #7db4dc; --s-todo: #f08a6c; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #121816; --surface: #1a2220; --fg: #e4ebe8; --muted: #9aa8a3; --line: #2c3834; --line2: #3b4a45;
+  --accent: #7db4dc; --accent-soft: #1d2d3a;
+  --k-source: #8fb0cc; --k-prompt: #b39ddb; --k-tool: #6fbf8f; --k-people: #e0a65c;
+  --s-have: #6fbf8f; --s-pull: #e0a65c; --s-check: #7db4dc; --s-todo: #f08a6c; color-scheme: dark }
+
+body { background: var(--bg); color: var(--fg); font-family: var(--body); font-size: 15px; line-height: 1.5; }
+.wrap { max-width: 880px; margin: 0 auto; padding-block: 20px 56px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  display: grid; gap: 30px; }
+h1 { font-family: var(--display); font-weight: 800; font-size: clamp(1.7rem, 4.5vw, 2.4rem); margin: 0; letter-spacing: -0.01em; text-wrap: balance; }
+h2 { font-family: var(--display); font-weight: 700; font-size: 1.2rem; margin: 0; text-wrap: balance; }
+h3 { font-family: var(--display); font-weight: 700; font-size: 1.05rem; margin: 0; text-wrap: balance; }
+p { margin: 0; max-width: 68ch; }
+.lede { color: var(--muted); font-size: 1.05rem; }
+.flag { font-family: var(--mono); font-size: 0.72rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--accent); }
+.eyebrow { font-family: var(--mono); font-size: 0.72rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
+a { color: var(--accent); }
+
+.legend { display: flex; flex-wrap: wrap; gap: 8px 14px; font-size: 0.85rem; color: var(--muted); align-items: center; }
+.chip { display: inline-block; font-family: var(--mono); font-size: 0.68rem; letter-spacing: 0.04em; text-transform: uppercase;
+  padding: 1px 7px; border-radius: 999px; border: 1px solid currentColor; white-space: nowrap; vertical-align: 1px; }
+.chip.have { color: var(--s-have); } .chip.pull { color: var(--s-pull); } .chip.check { color: var(--s-check); } .chip.todo { color: var(--s-todo); }
+
+.flow { display: grid; gap: 0; }
+.stage { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 16px 18px 18px;
+  display: grid; gap: 12px; border-left: 5px solid var(--k-tool); min-width: 0; }
+.stage.source { border-left-color: var(--k-source); }
+.stage.prompt { border-left-color: var(--k-prompt); }
+.stage.tool { border-left-color: var(--k-tool); }
+.stage.people { border-left-color: var(--k-people); }
+.stage header { display: grid; gap: 4px; }
+.stage header .who { font-family: var(--mono); font-size: 0.72rem; letter-spacing: 0.06em; text-transform: uppercase; }
+.source header .who { color: var(--k-source); } .prompt header .who { color: var(--k-prompt); }
+.tool header .who { color: var(--k-tool); } .people header .who { color: var(--k-people); }
+.stage .what { color: var(--muted); max-width: 70ch; }
+.io { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 14px; }
+.io > div { min-width: 0; display: grid; gap: 6px; align-content: start; }
+.io ul { margin: 0; padding-left: 18px; display: grid; gap: 5px; }
+.io li { font-size: 0.93rem; }
+.io li b { font-weight: 600; }
+.io li .chip { margin-left: 6px; }
+.file { font-family: var(--mono); font-size: 0.82rem; }
+
+.link { display: grid; justify-items: center; gap: 0; padding: 0; }
+.link .bar { width: 2px; height: 16px; background: var(--line2); }
+.link .lbl { font-family: var(--mono); font-size: 0.74rem; color: var(--fg); background: var(--accent-soft); border: 1px solid var(--line);
+  border-radius: 999px; padding: 3px 11px; max-width: 100%; text-align: center; }
+.link .lbl span { color: var(--muted); }
+.link .arrow { width: 0; height: 0; border-left: 7px solid transparent; border-right: 7px solid transparent; border-top: 9px solid var(--line2); }
+
+.loop { background: var(--surface); border: 1px dashed var(--line2); border-radius: 10px; padding: 14px 18px; display: grid; gap: 6px; }
+.loop p { max-width: 75ch; }
+
+.holes { display: grid; gap: 14px; }
+.hole { display: grid; grid-template-columns: 2.4rem 1fr; gap: 10px; align-items: start; padding: 12px 14px;
+  background: var(--surface); border: 1px solid var(--line); border-radius: 8px; min-width: 0; }
+.hole .n { font-family: var(--mono); font-weight: 600; font-size: 1.15rem; color: var(--accent); font-variant-numeric: tabular-nums; line-height: 1.2; }
+.hole .body { display: grid; gap: 4px; min-width: 0; }
+.hole .body p { max-width: 75ch; font-size: 0.95rem; }
+.hole .body .fix { color: var(--muted); }
+.hole .body .fix b { color: var(--fg); font-weight: 600; }
+
+.decide { display: grid; gap: 10px; }
+.decide .q { padding: 10px 14px; border-left: 3px solid var(--k-people); background: var(--surface); border-radius: 0 8px 8px 0; font-size: 0.95rem; max-width: 80ch; }
+.foot { font-size: 0.85rem; color: var(--muted); display: grid; gap: 4px; }
+.foot p { max-width: 80ch; }
+.pulls { display: grid; gap: 14px; }
+.pull { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px; display: grid; gap: 8px; min-width: 0; }
+.pull .scroll { overflow-x: auto; }
+table.fields { border-collapse: collapse; width: 100%; font-size: 0.88rem; }
+table.fields th, table.fields td { text-align: left; padding: 5px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+table.fields th { font-weight: 600; color: var(--muted); font-size: 0.74rem; text-transform: uppercase; letter-spacing: 0.05em; }
+table.fields td:first-child { font-family: var(--mono); font-size: 0.8rem; white-space: nowrap; }
+@media (prefers-reduced-motion: no-preference) { .stage { transition: border-color 0.2s; } }
+@media (max-width: 480px) { .stage { padding: 14px 14px 16px; } .io { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <header style="display:grid;gap:8px">
+    <div class="flag">Process flow v0.1 · from the owner's brain dump, 2026-10-22 · no real data on this page</div>
+    <h1>Shop load flow</h1>
+    <p class="lede">As soon as JCNs (job control numbers) start arriving for a project, see what each one does to the shop load,
+    before planning has happened. As the planning floor catches up, its estimates and scheduled dates replace the guesses
+    from history, so the map gets more real as the availability gets closer.</p>
+    <div class="legend">
+      <span>What exists today:</span>
+      <span class="chip have">have</span> <span>in hand or built and tested</span>
+      <span class="chip pull">to pull</span> <span>the owner pulls it from the reporting tool</span>
+      <span class="chip check">validate</span> <span>believed, not yet checked</span>
+      <span class="chip todo">not written</span> <span>no prompt for it yet (none left on this page)</span>
+    </div>
+  </header>
+
+  <section class="flow" aria-label="The flow, top to bottom">
+
+    <article class="stage source">
+      <header>
+        <div class="who">1 · Source · the reporting tool, connected to the yard database</div>
+        <h2>Pull the exports</h2>
+        <p class="what">The reporting tool can pull almost anything once the pull is worked out. Field names stay generic here; the real
+        names come out of the reader step below. Each pull is a workbook (.xlsx) or a sheet saved as CSV.</p>
+      </header>
+      <div class="io">
+        <div>
+          <div class="eyebrow">History (the estimator's memory)</div>
+          <ul>
+            <li><b>JCN history</b>: one row per JCN with its job summary, project, hull, class, SWLIN, space, equipment, received date <span class="chip have">have</span></li>
+            <li><b>Phases</b>: one row per phase of a job summary with shop, estimated and charged hours, planned and actual dates <span class="chip have">have</span></li>
+            <li><b>Material</b>: one row per item per end-use phase <span class="chip have">have</span></li>
+            <li><b>Who did each phase</b>: organic shop or contractor <span class="chip pull">to pull</span></li>
+          </ul>
+        </div>
+        <div>
+          <div class="eyebrow">The future (what the estimator scores)</div>
+          <ul>
+            <li><b>Work package</b>: the JCN list for future projects, same columns as the history minus the outcomes. From the reporting tool for all future projects at once, or from the JCN database per project; the JCN database copy carries the in-house or farm-out mark from screening, the reporting tool copy does not <span class="chip pull">to pull</span></li>
+            <li><b>Planning status</b> per job summary: planned yes or no, the planner's man-days by shop, scheduled phase dates <span class="chip pull">to pull</span></li>
+            <li><b>Project list</b>: project, hull, start and end dates <span class="chip check">validate</span> (believed to be on the workforce map)</li>
+          </ul>
+        </div>
+      </div>
+    </article>
+
+    <div class="link"><div class="bar"></div><div class="lbl">workbooks <span>· structure only, no record content</span></div><div class="arrow"></div></div>
+
+    <article class="stage prompt">
+      <header>
+        <div class="who">2 · Prompt, run inside GenAI.mil · one per export</div>
+        <h2>Read the data, learn the field names</h2>
+        <p class="what">Each export is attached to a reader prompt that describes its structure (sheets, columns, what a row is,
+        how weeks are laid out) without copying any record. The answer is a data sheet spec in the real field names.</p>
+      </header>
+      <div class="io">
+        <div>
+          <div class="eyebrow">In</div>
+          <ul>
+            <li>The workforce map and the history exports as workbooks</li>
+            <li>The reader prompt <span class="chip have">have</span> (Prompt A for resource maps; the estimator series has a column-name prompt for history exports)</li>
+          </ul>
+        </div>
+        <div>
+          <div class="eyebrow">Out</div>
+          <ul>
+            <li><b>Data sheet spec</b> per export: pasted into the build prompts so the tools read the real columns</li>
+            <li>A made-up sample in the same layout, for testing outside the enclave</li>
+          </ul>
+        </div>
+      </div>
+    </article>
+
+    <div class="link"><div class="bar"></div><div class="lbl">data sheet specs <span>· pasted into the build prompts</span></div><div class="arrow"></div></div>
+
+    <article class="stage prompt">
+      <header>
+        <div class="who">3 · Prompt series, run inside GenAI.mil · Gemini, GPT or Grok</div>
+        <h2>Build the tools</h2>
+        <p class="what">Each tool is one standalone HTML file: no install, no network, no dependencies, runs on the work computer at
+        IL5 (Impact Level 5). The model writes it from a numbered prompt series; the specs from step 2 tell it the columns.</p>
+      </header>
+      <div class="io">
+        <div>
+          <div class="eyebrow">Prompt files on GitHub (this repo, pdf-to-csv folder)</div>
+          <ul>
+            <li>Estimator, single JCN <span class="chip have">have</span></li>
+            <li>Estimator batch mode <span class="chip have">have</span></li>
+            <li>Workbook reader, .xlsx in with no library <span class="chip have">have</span></li>
+            <li>Resource Map: import, store, shop by week, drill-down <span class="chip have">have</span></li>
+          </ul>
+        </div>
+        <div>
+          <div class="eyebrow">Not yet</div>
+          <ul>
+            <li>Planned-job bypass, contractor handling and the material list in the estimator <span class="chip have">have</span> (Prompts D, tested 2026-10-22 evening, pull request 57 to the reviewer)</li>
+            <li>Leveler: drag a job, drag a project, farm-out, what-if, zoom, snapshot, automatic level and farm out <span class="chip have">have</span> (series B2 v0.2, tested 2026-10-23)</li>
+            <li>Style: the demo's look, light and dark, color squares, summary cards <span class="chip have">have</span> (Prompt S v0.1, tested on both tools 2026-10-23)</li>
+          </ul>
+        </div>
+      </div>
+    </article>
+
+    <div class="link"><div class="bar"></div><div class="lbl">history + work package + planning status</div><div class="arrow"></div></div>
+
+    <article class="stage tool">
+      <header>
+        <div class="who">4 · Tool · the estimator (history plus comparison engine)</div>
+        <h2>Score every future JCN against the past</h2>
+        <p class="what">For each JCN in the work package, the comparison engine finds the most similar completed work (same class
+        first, then equipment, space, SWLIN) or says it found none. A job summary that planning has already estimated skips the
+        guess and carries the planner's numbers instead.</p>
+      </header>
+      <div class="io">
+        <div>
+          <div class="eyebrow">In</div>
+          <ul>
+            <li>JCN history, phases, material (as .xlsx or CSV)</li>
+            <li>The work package: future JCNs for all future projects</li>
+            <li>Planning status: which job summaries are planned, their shop man-days and scheduled dates</li>
+            <li>Project list with dates, so "20% through the avail" has a calendar to land on</li>
+          </ul>
+        </div>
+        <div>
+          <div class="eyebrow">Out · one line per job per phase per shop</div>
+          <ul>
+            <li><b>Phases</b>: the work breakdown the analogs used</li>
+            <li><b>Material</b>: per phase, every stock number the similar jobs ordered, with nomenclature and quantity, and which analog it came from</li>
+            <li><b>Duration</b> and <b>man-days per shop</b>, low and high</li>
+            <li><b>When in the avail</b>: week N or the fraction of the availability where the analogs ran</li>
+            <li><b>Planned or guessed</b>, organic or contractor, the analogs used, "no match" flagged rather than dropped</li>
+          </ul>
+        </div>
+      </div>
+    </article>
+
+    <div class="link"><div class="bar"></div><div class="lbl file">consumption.csv <span>+ workforce map + project list + project lookup</span></div><div class="arrow"></div></div>
+
+    <article class="stage tool">
+      <header>
+        <div class="who">5 · Tool · the resource leveler (the map)</div>
+        <h2>Which jobs consume which shop, when</h2>
+        <p class="what">Every shop, every week: what the workforce map already assigns plus what the estimator says is coming, against the
+        shop's capacity, with the contractor read as its own line. The dates of record are the baseline; everything you drag is
+        a what-if on top of it.</p>
+      </header>
+      <div class="io">
+        <div>
+          <div class="eyebrow">Do</div>
+          <ul>
+            <li>Click an overloaded shop-week: the work in it expands to a job list <span class="chip have">have</span> (drill-down)</li>
+            <li>Drag a job left or right, week to week (a chip onto a week, or 1-week buttons) <span class="chip have">have</span></li>
+            <li>Drag a whole project left or right (the projects strip) <span class="chip have">have</span></li>
+            <li>Zoom to a time frame, then snapshot it (PNG for the TVs, present mode) <span class="chip have">have</span></li>
+            <li>Level and farm out automatically inside each project's window, then compare before, leveled and farmed <span class="chip have">have</span> (suggestions until Apply)</li>
+          </ul>
+        </div>
+        <div>
+          <div class="eyebrow">Out</div>
+          <ul>
+            <li><b>Shop by week load</b> as CSV, pivots in Excel <span class="chip have">have</span></li>
+            <li><b>Moves list</b>: every job or project you dragged, from and to, for someone to key into the schedule of record <span class="chip have">have</span></li>
+            <li><b>Farm-out list</b>: every job on the contractor's line and why (screening, planning, a guess from the analogs, or by hand) <span class="chip have">have</span></li>
+            <li><b>Snapshot</b> (an image of the map for a time frame) for the TVs around the command</li>
+          </ul>
+        </div>
+      </div>
+    </article>
+
+    <div class="link"><div class="bar"></div><div class="lbl">snapshot, moves list, farm-out list</div><div class="arrow"></div></div>
+
+    <article class="stage people">
+      <header>
+        <div class="who">6 · People</div>
+        <h2>Who looks, who decides</h2>
+      </header>
+      <div class="io">
+        <div>
+          <ul>
+            <li><b>You and the chief engineer</b>: the what-if. Move a project, farm out, lend people, and see the year change.</li>
+            <li><b>Planners</b>: what is coming before they plan it, and which guesses their estimates will replace.</li>
+          </ul>
+        </div>
+        <div>
+          <ul>
+            <li><b>The shops</b>, through the TVs: "shop 11 is going to be way overloaded in that stretch" or "fine this time frame", at a glance.</li>
+            <li><b>Back to the reporting tool</b>: nothing writes to the system of record. The moves list is keyed in by whoever owns the schedule.</li>
+          </ul>
+        </div>
+      </div>
+    </article>
+  </section>
+
+  <section class="loop">
+    <div class="eyebrow">The loop that makes it get more real</div>
+    <p>Every new reporting-tool pull carries more planned job summaries and more scheduled phases. The estimator skips those and keeps
+    guessing only the unplanned ones, so the map is a mix of planner numbers and history numbers, and the mix shifts toward
+    planner numbers as the availability approaches. Closed jobs become history on the next pull. Deficiency hours (the work the
+    package did not predict) are not in this loop yet; they are the reason history understates effort.</p>
+  </section>
+
+  <section style="display:grid;gap:14px">
+    <h2>The holes, and what closes each</h2>
+    <p class="lede">You said you left gaping holes. These are the ones I can see from the dump and from what is already built.</p>
+    <div class="holes">
+      <div class="hole"><div class="n">1</div><div class="body">
+        <h3>Project identity <span class="chip have">built</span></h3>
+        <p>The workforce map names a project its own way (name, fiscal year, hull type) and nothing else in the system uses that name. The
+        estimator output and the workforce map cannot be joined without a bridge.</p>
+        <p class="fix"><b>Closes it:</b> one lookup sheet, workforce map project name to the project id the JCN history uses, kept by you as a
+        CSV the map imports. The reader prompt can draft it from the two exports; you confirm each row.</p>
+        <p>Built 2026-10-23: the Resource Map imports lookup.csv (map_name, project, hull) and shows the workforce map's hours under the
+        estimator's project id; Prompt L in the build guide drafts the file from the two name lists.</p>
+      </div></div>
+      <div class="hole"><div class="n">2</div><div class="body">
+        <h3>Project dates <span class="chip check">one file</span></h3>
+        <p>"When in the avail" only lands on a calendar if every future project has a start and an end. You think the workforce map has
+        them; not checked.</p>
+        <p class="fix"><b>Closes it:</b> Prompt A on the workforce map says whether the dates are there. If not, a reporting-tool pull of project, hull,
+        start, end.</p>
+        <p>2026-10-23: either way the map takes a projects.csv (project, hull, start, end); the automatic leveler moves a job only inside its
+        project's window, so a project without a row never moves.</p>
+      </div></div>
+      <div class="hole"><div class="n">3</div><div class="body">
+        <h3>Planned versus guessed <span class="chip have">built</span></h3>
+        <p>The estimator must know which job summaries planning has already estimated, so it carries those numbers instead of
+        guessing. That is a field the current pulls do not have.</p>
+        <p class="fix"><b>Closes it:</b> add to the work package pull, per job summary: planned (yes or no), the planner's man-days
+        by shop, and the scheduled start and finish per phase where they exist. The estimator rule is then one line: planned rows
+        pass through, unplanned rows are scored.</p>
+      </div></div>
+      <div class="hole"><div class="n">4</div><div class="body">
+        <h3>The contractor, about 35% of the work <span class="chip have">estimator side built</span></h3>
+        <p>Three separate questions hide here. Which past phases were contractor work (otherwise their hours inflate the organic
+        estimate). Which future jobs will go to the contractor (not known until planning, so before that it is a guess from the
+        analogs). And how the contractor's capacity line on the workforce map is read (as one more shop, by your description).</p>
+        <p class="fix"><b>Closes it:</b> a performing-activity field on the phases pull (organic shop or contractor); the contractor
+        read as a shop on the map; a contractor job's own man-hour estimate treated as a planned estimate. For a future job, the
+        in-house or farm-out mark from the JCN database screening when the work package comes from there; otherwise the analogs'
+        majority, flagged as a guess.</p>
+      </div></div>
+      <div class="hole"><div class="n">5</div><div class="body">
+        <h3>Dragging changes a plan nobody keeps <span class="chip have">built</span></h3>
+        <p>A drag moves hours on the map, and nothing on the work computer can write that back to the schedule of record.</p>
+        <p class="fix"><b>Closes it:</b> the map exports a moves list (job or project, from week, to week, who moved it, when) as the
+        hand-off. It is a what-if tool until someone keys the moves in, and the page says so.</p>
+        <p>Built 2026-10-23: moves are an overlay on the loaded files, listed with who and when, undone one by one or all at once,
+        exported as moves.csv; the leveler's own moves are marked auto and discarded as a group.</p>
+      </div></div>
+      <div class="hole"><div class="n">6</div><div class="body">
+        <h3>What "amount of material" means <span class="chip have">decided</span></h3>
+        <p>Decided 2026-10-22: per phase, every stock number (NIIN, national item identification number) the similar jobs
+        ordered, its nomenclature and its quantity. The material export already carries those three, so no new field.</p>
+        <p>Decided 2026-10-23, grouped JCNs: when several JCNs sat on one job summary, the hours are shared out over them
+        (divided by the count, as the estimator has done from the start) but the material is not. Each new JCN that matches
+        a grouped summary gets the complete list at full quantity, and a group_size column says how many JCNs the bundle
+        held, so a planner can trim a list that may carry sibling jobs' parts.</p>
+        <p class="fix"><b>Closes it:</b> a material estimate file out of the estimator, one row per analog material line per phase,
+        naming the analog it came from and the size of the bundle it came from (built; Prompts D v0.4).</p>
+      </div></div>
+      <div class="hole"><div class="n">7</div><div class="body">
+        <h3>Timing in the avail needs two things the history may not carry</h3>
+        <p>"Historically we do this in week 5" needs, for every past JCN, the project it ran under and that project's start and end.
+        You said the history export can carry the project; the availability dates would be a second small pull.</p>
+        <p class="fix"><b>Closes it:</b> project on each history row, and a project list with dates covering the history years. The
+        placement rule (same fraction of the availability as the analogs) is already in the batch prompts.</p>
+      </div></div>
+      <div class="hole"><div class="n">8</div><div class="body">
+        <h3>Emergent and deficiency work <span class="chip have">decided</span></h3>
+        <p>Tonight's dump is about the work package. The earlier design also loaded an emergent reserve per shop from history
+        (JCNs received after the availability started), and you have said deficiency forms add hours that never feed back.</p>
+        <p class="fix"><b>Decided 2026-10-22:</b> later. V1 maps the work package and the workforce map only; the reserve comes back once
+        real exports work.</p>
+      </div></div>
+      <div class="hole"><div class="n">9</div><div class="body">
+        <h3>HTML and JavaScript, or something else</h3>
+        <p>Rust or anything compiled needs a binary file a chat model cannot type out, so it cannot be built inside GenAI.mil. The
+        Power Platform route has the data-shaping problem you named. Standalone HTML with JavaScript is the only route where the
+        whole build is text that passes through a prompt window.</p>
+        <p class="fix"><b>Stands:</b> several small HTML files, CSV between them, each built from its own prompt series. The browser's
+        own database inside each file carries the big tables.</p>
+      </div></div>
+      <div class="hole"><div class="n">10</div><div class="body">
+        <h3>Looks <span class="chip have">built</span></h3>
+        <p>The built pages are plain because the prompts never asked for a look. The demo's look is a stylesheet of about sixty
+        lines plus a different map cell (a color square, the number on hover).</p>
+        <p class="fix"><b>Closes it:</b> one style prompt, tested the same way as the others, applied last in every series. Light and
+        dark, dashboard layout, zoom to a time frame, snapshot as an image.</p>
+        <p>Built 2026-10-23: Prompt S carries the demo's stylesheet and the square-cell rule; zoom, snapshot and present mode are in
+        series B2. Tested on both tools; the functional tests still pass on the styled pages.</p>
+      </div></div>
+    </div>
+  </section>
+
+  <section style="display:grid;gap:14px">
+    <h2>Fields to pull from the reporting tool</h2>
+    <p class="lede">Generic names, yours to map. Pull whatever the reporting tool calls them; the reader prompt learns the real names and the
+    build prompts get those. Existing exports keep their columns and gain the one field noted.</p>
+    <div class="pulls">
+      <div class="pull">
+        <h3>Work package <span class="chip pull">to pull</span></h3>
+        <p class="what">One row per future JCN. From the reporting tool for all future projects, or from the JCN database per project.</p>
+        <div class="scroll"><table class="fields">
+          <tr><th>Field</th><th>What it is</th></tr>
+          <tr><td>project</td><td>the project id the JCN history uses, not the workforce map name</td></tr>
+          <tr><td>hull</td><td>hull number</td></tr>
+          <tr><td>ship_class</td><td>class</td></tr>
+          <tr><td>jcn</td><td>the JCN</td></tr>
+          <tr><td>job_summary</td><td>if one is assigned yet, else blank</td></tr>
+          <tr><td>swlin</td><td>SWLIN (ship work line item number)</td></tr>
+          <tr><td>space</td><td>compartment or space number</td></tr>
+          <tr><td>equipment_id</td><td>equipment identifier</td></tr>
+          <tr><td>nomenclature</td><td>equipment nomenclature</td></tr>
+          <tr><td>discrepancy</td><td>the discrepancy or brief description text</td></tr>
+          <tr><td>received_date</td><td>when the JCN arrived</td></tr>
+          <tr><td>performing</td><td>in-house or farm-out from screening (JCN database copy); blank from the reporting tool</td></tr>
+        </table></div>
+      </div>
+      <div class="pull">
+        <h3>Planning status <span class="chip pull">to pull</span></h3>
+        <p class="what">One row per planned phase. A job summary with no rows here is unplanned and gets estimated from history.</p>
+        <div class="scroll"><table class="fields">
+          <tr><th>Field</th><th>What it is</th></tr>
+          <tr><td>job_summary</td><td>the planned job summary</td></tr>
+          <tr><td>phase_no</td><td>phase number in the work breakdown</td></tr>
+          <tr><td>phase_title</td><td>phase title</td></tr>
+          <tr><td>shop</td><td>the shop, or the contractor</td></tr>
+          <tr><td>planned_hours</td><td>the planner's estimate; say in the header whether man-hours or man-days</td></tr>
+          <tr><td>scheduled_start</td><td>scheduled start date, blank if not scheduled yet</td></tr>
+          <tr><td>scheduled_finish</td><td>scheduled finish date, blank if not scheduled yet</td></tr>
+          <tr><td>performing</td><td>organic shop or contractor</td></tr>
+        </table></div>
+      </div>
+      <div class="pull">
+        <h3>Phases, history <span class="chip have">have</span> plus one field</h3>
+        <p class="what">As today (job summary, phase number and title, shop, estimated and charged hours, planned and actual dates), plus
+        <span class="file">performing</span>: organic shop or contractor, per phase. Without it, contractor hours inflate the organic
+        estimate.</p>
+      </div>
+      <div class="pull">
+        <h3>JCN history <span class="chip have">have</span> plus one field</h3>
+        <p class="what">As today, plus <span class="file">project</span>: the availability or project each JCN ran under. You said the
+        export can carry it; it is what lets "week 5 of the avail" be computed.</p>
+      </div>
+      <div class="pull">
+        <h3>Project list <span class="chip check">validate</span></h3>
+        <p class="what">One row per project, past and future (past ones give the history its calendar). Maybe on the workforce map already.</p>
+        <div class="scroll"><table class="fields">
+          <tr><th>Field</th><th>What it is</th></tr>
+          <tr><td>project</td><td>the project id the JCN history uses</td></tr>
+          <tr><td>map_name</td><td>the name the workforce map uses (name, fiscal year, hull type); this row is the lookup</td></tr>
+          <tr><td>hull</td><td>hull number</td></tr>
+          <tr><td>ship_class</td><td>class</td></tr>
+          <tr><td>start</td><td>availability start date</td></tr>
+          <tr><td>end</td><td>availability end date</td></tr>
+        </table></div>
+      </div>
+      <div class="pull">
+        <h3>Material, history <span class="chip have">have</span></h3>
+        <p class="what">As today: job summary, end-use phase, stock number (NIIN or NSN), nomenclature, quantity. Add the unit if the
+        export has one. Shape (the owner, 2026-10-23): one row per order line per phase of a job summary. The JCN history is what
+        repeats a grouped summary once per JCN; the material does not, and the tool takes its rows as they are. If a pull
+        ever lists a line once per JCN, say so before loading it, because the tool would add the copies up.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="decide">
+    <h2>Decisions</h2>
+    <div class="q"><b>Decided 2026-10-22.</b> Work package: both sources, the tool accepts either (the JCN database copy brings the
+    in-house or farm-out mark). Material: every stock number per phase with nomenclature and quantity. Emergent reserve: later.
+    Build order: the estimator's holes first (planned-job bypass, contractor, material list), then the leveler's drag and look.</div>
+    <div class="q"><b>Decided 2026-10-23.</b> Grouped JCNs on one job summary: hours divided by the JCN count, material whole with a
+    group_size mark. Material pull shape: one row per order line per phase of a summary, no JCN column needed.</div>
+    <div class="q"><b>Still open.</b> Does the workforce map carry project start and end dates? Prompt A on it answers this.</div>
+    <div class="q"><b>Still open.</b> How planned hours come out of planning: man-days or man-hours, and per shop per phase or per shop
+    per job summary. The planning pull will show it.</div>
+  </section>
+
+  <footer class="foot">
+    <p>Companion page: <a href="GENAI-LOOPS-AND-GRAPHS.html">the loops and graphs of this process</a> (which loops close by
+    themselves, which need a person, which are still open).</p>
+    <p>Sources: the owner's brain dump, three parts, 2026-10-22 evening (a private note); the
+    system-of-systems note v0.2; the prompt files on GitHub in this repo's pdf-to-csv folder. Nothing on this page is a real job,
+    hull, project or person. Chips are my reading of what exists (Assessment); the holes are my list, not his.</p>
+  </footer>
+</div>
+
+</body>
+</html>
