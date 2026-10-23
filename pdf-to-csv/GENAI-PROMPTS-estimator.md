@@ -1,10 +1,14 @@
 # Prompts for GenAI.mil: build the JCN analog estimator inside the enclave
 
-Version 0.2, 2026-10-20. Tested against Gemini with no code execution before publishing: the v0.1 prompts
-produced four mismatches between the pieces; v0.2 closes each of them by stating the contract more exactly.
-In that test the assembled file opened with one error, fixed by one round of the Debug prompt, then ran.
-A companion to GENAI-PROMPTS.md (the packet-structure prompts); this series builds a different tool, a
-history-based estimator for new jobs.
+Version 0.3, 2026-10-23. v0.3 changes one rule in Prompt 4 and adds one check to Prompt 5: material from a job
+summary that covered several JCNs is listed whole, never divided by the JCN count (the batch tool's Prompts D
+already follow that rule; the review of PR 59 found this series still dividing). Hours are still shared out over
+the JCNs. MODULE 4 was regenerated from the v0.3 text and tested on made-up sample exports before publishing; that
+test also added the rule that a global declared with let is never read through window. v0.2 (2026-10-20) was
+tested against Gemini with no code execution before publishing: the v0.1 prompts produced four mismatches between
+the pieces; v0.2 closed each of them by stating the contract more exactly. In that test the assembled file opened
+with one error, fixed by one round of the Debug prompt, then ran. A companion to GENAI-PROMPTS.md (the
+packet-structure prompts); this series builds a different tool, a history-based estimator for new jobs.
 
 Scope of this series: load exports, enter a new JCN, list the ten closest same-class past jobs with
 reasons, build the phase-hours and material estimate from the ones you tick, write it out as CSV.
@@ -253,7 +257,8 @@ DB.phasesByJS[job_summary] is an array of phase rows (phase_no, phase_title, sho
 charged_hours). DB.matByJS[job_summary] is an array of material rows (phase_no, item, qty).
 DB.jsCount[job_summary] (a plain object, not a Map) is how many JCNs share that summary. readNewJCN()
 returns {hull, cls, swlin, space, eid, nom}. Elements: estnotes, estimate, material, csvout. Helpers
-esc, csvCell, fmtDate, setDownload. Global EST.
+esc, csvCell, fmtDate, setDownload. Global EST, declared with let in the skeleton: read it as EST, never
+as window.EST (that is undefined, because a let global is not a window property).
 
 How the estimate is built:
 1. Take the ticked analogs that have phase data. Use each job_summary once even if two ticked JCNs share
@@ -276,9 +281,16 @@ How the estimate is built:
    if charged ran higher than estimated say by about what percent, and end with "Plan to the charged
    range."
 7. Material: for every used summary, map each material row's phase_no to that summary's phase title,
-   then group by title and item. Show a table: end-use phase, item, qty as low to high (divided by
-   jsCount), and "seen on k of n". Items whose phase title is not in the newest breakdown are listed last
-   and marked "older breakdown only".
+   then group by title and item. Quantities are taken as they are: NEVER divide a quantity by
+   DB.jsCount. Hours are shared out over a grouped summary's JCNs (step 5); material is not, because a
+   summary that covered four JCNs gives the new job its whole list and the planner trims it. Show a
+   table with five columns: end-use phase, item, qty as low to high (the smallest and largest qty seen
+   for that item across the used summaries, as "a to b"), "seen on k of n", and grouped = the largest
+   DB.jsCount[job_summary] among the used summaries that carried that item (1 when none of them was
+   grouped). When any used summary has DB.jsCount above 1, add a note in estnotes: "Material from a
+   summary that covered N JCNs is listed whole; it may include sibling jobs' parts." (N = the largest
+   count). Items whose phase title is not in the newest breakdown are listed last and marked "older
+   breakdown only".
 8. Set EST = {nj: readNewJCN(), rows, used} and then fill csvout with estimateCSV() and call
    setDownload().
 9. estimateCSV(): header new_equipment_id, new_space, new_swlin, new_hull, phase_no, phase_title, shop,
@@ -300,10 +312,13 @@ usually break a file built in pieces, and list each one with the exact fix:
 2. Every element id used in JavaScript that does not exist in the HTML, and the reverse.
 3. Values used across modules under different shapes: DB.jsCount read with .get() although it is a
    plain object; analogs read as a.jcn in one place and a.j.jcn in another; the new JCN read as
-   equipment_id in one place and eid in another.
+   equipment_id in one place and eid in another; a global declared with let read through window
+   (window.EST is undefined).
 4. Any <script> block left unclosed, any placeholder comment left in, and any character outside plain
    ASCII inside the JavaScript that could be a smart quote.
 5. Anything that would be blocked by the Content-Security-Policy in the head.
+6. Any material quantity divided by DB.jsCount. Hours are shared out over a grouped summary's JCNs;
+   material is listed whole, and the grouped column says how many JCNs the summary covered.
 Then give me a short test checklist: five things to do in the opened page, in order, and what I should
 see after each.
 ```
