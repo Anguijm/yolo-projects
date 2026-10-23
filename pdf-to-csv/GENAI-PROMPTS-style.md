@@ -1,6 +1,8 @@
 # Prompt S: the look (the demo's style on any of the built pages, light and dark, color squares, summary cards)
 
-Version 0.2, 2026-10-23. v0.2: item 3 of the Resource Map's MODULE S calls styleBar() from the renderMap hook; v0.1
+Version 0.3, 2026-10-23. v0.3: item 4 wires the map table's hover listeners once per table (a mark in dataset) instead
+of on every draw (optional point in the review of PR 60); MODULE S regenerated from the v0.3 text and retested before
+publishing. v0.2: item 3 of the Resource Map's MODULE S calls styleBar() from the renderMap hook; v0.1
 defined styleBar and never called it (review of PR 60), so a model that followed the text to the letter would never
 create the stats cards or the tip line. The tested answer had called it there on its own, so the text now says what
 the tested code does. One prompt, run LAST in a series: after B2-4 (and X2, if used) for the Resource Map, after
@@ -130,8 +132,10 @@ MODULE S, in the second block:
    label and the last cell is the unplaced column, both left alone; every other <td> gets the class sq when
    document.body has the class squares (and loses it otherwise), keeps its title attribute (the map module wrote
    "shop, week, load and capacity" there) and gets data-text = its own text when sq is set (so the number is not
-   lost; the class makes the text invisible). Wire once per draw, through arrow functions: mouseover and focusin on
-   the table write the hovered or focused cell's title into $("tip"); mouseout clears it.
+   lost; the class makes the text invisible). Wire the table once, through arrow functions: when table.dataset.sWired
+   is not set, set it to "1" and add the listeners (mouseover and focusin on the table write the hovered or focused
+   cell's title into $("tip"); mouseout clears it); a table the map module rebuilt has no such mark and is wired
+   again, a table that persists is never wired twice.
 5. renderStats(): reads the global GRID (keyed "shop|week", cells {assigned, proposed, capacity}), the view mode
    (the select id view-mode, whose values are the option texts "Assigned only", "Assigned + proposed", "Proposed
    only") and band-lo, band-hi; counts shops (DB.shops.length), weeks (DB.weeks.length), shop-weeks over the band

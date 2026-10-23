@@ -1,8 +1,10 @@
 # Prompts B2: the leveler (move work, farm out, zoom, snapshot, automatic leveling) for the Resource Map, inside GenAI.mil
 
-Version 0.3, 2026-10-23. v0.3 renames the lookup column to map_name (the old name carried a workplace report's name,
-which a public copy must not; review of PR 60) and nothing else; the tested build was renamed the same way and
-retested, so the series was not regenerated. v0.2 (2026-10-23; v0.1 of 2026-10-22 was never tested: it needed a
+Version 0.4, 2026-10-23. v0.4 takes two optional points from the review of PR 60: a capacity file loaded twice no
+longer doubles the contractor line (B2-1 item 10 replaces rows by shop and week), and a dropped job chip whose id is
+written in lower case still moves (B2-2 item 4 compares uppercased ids). MODULES 5 and 6 were regenerated from the
+v0.4 text and the whole leveler test rerun before publishing. v0.3 renames the lookup column to map_name (the old
+name carried a workplace report's name, which a public copy must not) and nothing else. v0.2 (2026-10-23; v0.1 of 2026-10-22 was never tested: it needed a
 schedule export with float per phase that does not exist yet) is built around what the owner asked for on 2026-10-22: click an overloaded shop-week
 and see its jobs (series B already does that), drag a job week to week, drag a whole project, keep the dates of record
 as the baseline so every move is a what-if on top of it, read the contractor as its own line, zoom to a time frame,
@@ -130,7 +132,8 @@ Write, in the second block:
    b. For each DB.consumption row: a copy with id = (proposed_id or "").trim().toUpperCase(), project =
       lookupProject(row.project), shift = (projectShift[project] or 0) + (jobShift[id] or 0), week_start and
       week_end each through addWeeks by shift when non-blank and shift is not 0, moved_weeks = shift, performing =
-      performing[id] when present (and performing_basis "manual") else row.performing or "", shop_organic =
+      performing[id] when a performing move exists for id (then performing_basis = "manual"), else row.performing
+      or "" with the row's own performing_basis, shop_organic =
       row.shop, shop = DB.settings.contractor_shop when DB.settings.contractor_line is true and performing is
       "farm-out", else row.shop.
 6. allWeeks(moved): the sorted unique Mondays of DB.capacity week_start, moved.assigned week_start, and every week
@@ -164,14 +167,17 @@ Write, in the second block:
     map_name. "projects": header with project, start and end and NO shop and NO week_start; rows {project
     (normalizeProject), hull, start: mondayOf(toDate()), end: mondayOf(toDate())} replace earlier rows with the
     same project. "capacity": header with shop, week_start and capacity_hours; rows {shop (normalizeShop),
-    week_start (mondayOf(toDate())), capacity_hours (num), src "<file>:<row>"} appended. Return a one-line summary.
-11. importFiles(fileList): the hook. ensureB2(); for each file, read the whole text (these files are small), parse
+    week_start (mondayOf(toDate())), capacity_hours (num), src "<file>:<row>"} replace an earlier DB.capacity row with
+    the same shop and week_start (so loading the same file twice does not double the line), else append. Return a
+    one-line summary.
+11. importFiles(fileList): the hook. ensureB2(); for each file (a for-of loop, no IIFE), read the whole text (these
+    files are small), parse
     with parseCSV, find the header (the first row with at least two non-blank cells), squash its names, and decide:
     proposedid together with loadhours is a consumption file, handled here by importConsumption and NOT passed on
     (so performing survives); mapname (or an alias above) with project is "lookup"; project with start and end and
     without shop or weekstart is "projects"; shop with weekstart and capacityhours is "capacity"; anything else is
-    kept, as the File, for the earlier importer. Append one line per file to datastatus saying what it was taken
-    for and how many rows. When every file is looked at: if any File was kept, call importFilesB1(the array of kept
+    kept, as the File, for the earlier importer. Append one line per file to the element with id datastatus (that
+    exact id, no hyphen) saying what it was taken for and how many rows. When every file is looked at: if any File was kept, call importFilesB1(the array of kept
     Files) (it ends in rebuildIndex); else call rebuildIndex() yourself.
 12. No DOM is built in this module beyond the status lines and the filter-project refill.
 
@@ -228,8 +234,10 @@ Write:
 3. renderDropStrip(): fills dropstrip with one span per week of effectiveWeeks(MOVED), class dropcell, data-week =
    the Monday, text M/D (from the Monday string, no leading zeros), each wired: dragover prevents default (so a
    drop is allowed), drop reads dataTransfer "text/plain" and calls dropOn(data, week).
-4. dropOn(data, week): data is "job:<id>" or "project:<name>". For a job: first = the earliest non-blank week_start
-   among MOVED.consumption rows with that proposed_id; for a project: first = the earliest week_start among
+4. dropOn(data, week): data is "job:<id>" or "project:<name>". For a job: key = the id trimmed and uppercased
+   (addMove uppercases a job key the same way), and first = the earliest non-blank week_start among
+   MOVED.consumption rows whose id (already trimmed and uppercased by applyMoves) equals key, so an id written in
+   lower case still moves; for a project: first = the earliest week_start among
    MOVED.assigned rows of that project and MOVED.consumption rows of that project; weeks = weeksBetween(first,
    week); addMove(kind, key, weeks, "") when first is non-blank and weeks is not 0.
 5. chip(kind, key): returns the HTML of a draggable chip (a span, draggable="true", class chip, text key, with
