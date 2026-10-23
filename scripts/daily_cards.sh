@@ -61,3 +61,7 @@ for c in secret-scan validate; do echo "$O" | grep -q "^$c[[:space:]]*pass" || {
 gh pr merge "$URL" --squash
 git push -q origin --delete "$B"
 echo "merged $URL"
+# Nudge the always-on yolo Claude session (tmux socket "yolo") to review the new cards against the whole project
+# ecosystem (CLAUDE.md "Operating mode"). Typed into its prompt; harmless if the session is down. Dropped by PR #46,
+# restored 2026-10-23 at John's word.
+timeout 5 tmux -L yolo send-keys -t yolo "[automated, daily_cards.sh] New cards merged in $URL: review them per CLAUDE.md Operating mode, log verdicts in .harness/card_reviews.md, and tell John only about the ones worth doing." Enter 2>/dev/null || true
