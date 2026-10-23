@@ -1,5 +1,7 @@
 # PDF to CSV
 
+Current version: **v0.8.11** (2026-10-20), live at https://anguijm.github.io/yolo-projects/pdf-to-csv/index.html.
+
 **Usage guide, step by step: [GUIDE.md](GUIDE.md).** This file is the overview and the reviewer's notes.
 Prompts for studying packets with an AI assistant inside the environment: [GENAI-PROMPTS.md](GENAI-PROMPTS.md).
 More prompt series for GenAI.mil: [the estimator](GENAI-PROMPTS-estimator.md),
@@ -21,7 +23,12 @@ What you get:
 - `problems.csv`: every file it could not open, that has no text layer, that lacks the main form, or that is
   missing a required field, with the reason
 - `needs-ocr.txt`: files with no text layer, to batch through Acrobat Pro's Recognize Text and read again
+- `tables.csv`: one row per table row, for forms with table fields (file, form, copy, table, row, page, then
+  the table's columns); the table's own column in `records.csv` holds its row count
 - `record-text.jsonl`: optional, the main form's text per record, for a retrieval index
+- `record-chunks.jsonl`: optional, the same records cut for a retrieval index at three levels (whole record,
+  one line per field, paragraph-sized chunks of long fields)
+- `pdf-to-csv-template.json`: the template (field map), to reuse on the next folder
 
 Progress is saved in the browser (IndexedDB) as it runs, so a closed tab or a sleeping computer loses nothing:
 choose the same folder and press Start, finished files are skipped.
@@ -54,7 +61,11 @@ these names itself when it sees the same label in several cells under block head
 **Packets (v0.8).** A file can be a packet: a main form of one of several kinds, then attachments and other
 forms. Page 1 decides which main form it is; the page counter ("Pg 3 of 12", a bare "3", "A-1") decides where
 each form ends; fields are read only inside the main form's pages; extra forms are found after it. The CSV
-gains `form_type`, `main_form_pages` and a `page_map` of what every page was read as.
+gains `form_type`, `main_form_pages` and a `page_map` of what every page was read as. Since v0.8.7 to
+v0.8.11 (the adversarial rounds) it also says why: `form_type_basis` (what page 1 showed for each form type),
+`form_end_check` (what confirms where the main form ends), and `page_furniture` (what was set aside as
+repeated header and footer text, and which fields were read from it anyway). Without a page count total, a
+page continues the main form only if its anchor line looks like page 1's.
 
 **Comparing records (v0.7).** One filled form cannot always show which text is the form and which is the
 record. "Compare with more records" opens one to four more records of the same form: text that reads the
@@ -143,6 +154,7 @@ the first words of each cell's label, used to line the grid up on each record: s
     node dev/edge_v08.js dist/pdf-to-csv-v0.8.11.html           # 151 packet cases from the critique rounds
     python3 dev/make_packet_fixtures.py OUT --loss|--types|--furniture|--anchor   # the critique rounds' trap sets
     python3 dev/make_boxed_fixtures.py dev/fixtures-boxed-perturbed --perturbed  # shifted, misread records to compare
+    node dev/test_compare.js dist/pdf-to-csv-v0.8.11.html dev/fixtures-boxed-perturbed digital   # comparing records on shifted, misread copies
     bash dev/battery.sh dist/pdf-to-csv-v0.8.11.html OUTDIR BASEDIR   # everything, one run at a time; BASEDIR = v0.7 CSVs
 
 The scan-like fixtures are made with poppler: each page becomes a grey JPEG with an invisible OCR-style

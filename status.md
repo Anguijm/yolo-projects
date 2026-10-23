@@ -1,8 +1,22 @@
-# yolo-projects: status (index tool)
+# yolo-projects: status
 
-Updated 2026-10-18 (JST).
+Updated 2026-10-23 (JST), docs refresh.
 
-## Query tool: yolo_index.py
+## Current state (2026-10-23)
+- Operating mode since 2026-10-19 (John): no tick/tock. Keep up the three flagships and review the daily cards.
+- Flagships: Markdown Deck (README refreshed 2026-10-22), Naval Scribe (unchanged since 2026-06-26, c20bed6;
+  `naval-scribe/COUNCIL_ESCALATION.md` is the 2026-04-25 record from the old pipeline, kept for history), PDF to CSV
+  v0.8.11 live (source `~/projects/pdf-to-csv`, private remote, all pushed). The GenAI.mil prompt series in
+  `pdf-to-csv/GENAI-*` (estimator, batch, planned, resource map, leveler, style, xlsx, build guide, two design
+  pages) are written by the next-big-thing session and reviewed and merged here (PRs #51 to #65).
+- Daily cards: cron 05:50 JST, `scripts/daily_cards.sh` under job-guard `yolo-cards-daily`, merges its own PR on
+  secret-scan plus validate. It has not nudged this session since PR #46 (2026-10-21); the review is started by
+  hand or by ops. Verdicts: `.harness/card_reviews.md`.
+- Local engine benchmark 2026-10-22 (`experiments/local-engine-bench/results.md`): no switch of dictation's
+  llama.cpp build.
+- DraftKings salary job: paused 2026-10-21 (crontab lines commented; backup `~/fantasy/app/crontab.bak-2026-10-21`).
+
+## Query tool: yolo_index.py (2026-10-18)
 Local search over everything written and unwritten in this repo. Rebuilds `.index/yolo.db` from the files
 on every `build` (the folder is excluded from git via `.git/info/exclude`). No network, no GPU, no API key.
 
