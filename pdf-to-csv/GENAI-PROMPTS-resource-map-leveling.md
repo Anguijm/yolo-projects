@@ -1,7 +1,9 @@
 # Prompts B2: the leveler (move work, farm out, zoom, snapshot, automatic leveling) for the Resource Map, inside GenAI.mil
 
-Version 0.2, 2026-10-23 (v0.1 of 2026-10-22 kept beside it, never tested; it needed a schedule export with float per
-phase that does not exist yet). v0.2 is built around what the owner asked for on 2026-10-22: click an overloaded shop-week
+Version 0.3, 2026-10-23. v0.3 renames the lookup column to map_name (the old name carried a workplace report's name,
+which a public copy must not; review of PR 60) and nothing else; the tested build was renamed the same way and
+retested, so the series was not regenerated. v0.2 (2026-10-23; v0.1 of 2026-10-22 was never tested: it needed a
+schedule export with float per phase that does not exist yet) is built around what the owner asked for on 2026-10-22: click an overloaded shop-week
 and see its jobs (series B already does that), drag a job week to week, drag a whole project, keep the dates of record
 as the baseline so every move is a what-if on top of it, read the contractor as its own line, zoom to a time frame,
 take a snapshot for the TVs, and level and farm out automatically then compare. The windows the automatic leveler
@@ -31,7 +33,7 @@ What it does, in the owner's terms:
    guess, or by hand here) loads the contractor's line on the map instead of the organic shop, when the box is
    ticked. The farm-out list shows what is on that line and why.
 5. **Project names.** The workforce map names a project its own way; the estimator uses the project id from the JCN
-   history. A lookup file (wf300_name, project) joins them; without it, names are used as they are.
+   history. A lookup file (map_name, project) joins them; without it, names are used as they are.
 6. **Zoom and snapshot.** A time frame (from week, to week, or a preset) cuts the map to the weeks that matter; the
    snapshot button draws the visible map as a PNG image to download or copy for the TVs; present mode hides the
    controls and enlarges the map.
@@ -46,8 +48,8 @@ All data in the tests is made up. The prompts never need a real value.
 
 Stored with the rest of DB by the existing saveStore (DB is stored whole):
 
-- `DB.lookup`: array of {wf300_name, project, hull}. lookupProject(name) returns the project of the row whose
-  wf300_name equals name (trimmed, case-insensitive), else name unchanged.
+- `DB.lookup`: array of {map_name, project, hull}. lookupProject(name) returns the project of the row whose
+  map_name equals name (trimmed, case-insensitive), else name unchanged.
 - `DB.projects` (already in the contract): {project, hull, start, end}, start and end as Monday strings.
 - `DB.settings`: {contractor_shop: "CTR", contractor_line: true, zoom_from: "", zoom_to: "", moved_by: ""}.
 - `DB.moves`: array of {id (number, 1 upward), kind ("job", "project" or "performing"), key (the proposed_id, uppercased
@@ -99,7 +101,7 @@ Every Date is built with Date.UTC from parsed parts and read with UTC getters on
 holds the project filter ("" = all).
 
 Contract additions (keep every name exactly):
-- DB.lookup: array of {wf300_name, project, hull}. DB.settings: {contractor_shop: "CTR", contractor_line: true,
+- DB.lookup: array of {map_name, project, hull}. DB.settings: {contractor_shop: "CTR", contractor_line: true,
   zoom_from: "", zoom_to: "", moved_by: ""}. DB.moves: array of {id, kind, key, weeks, performing, by, at, auto}
   (kind "job", "project" or "performing"; key = proposed_id uppercased and trimmed, or the project name as shown on
   the map; weeks a whole number, 0 for performing; performing "farm-out", "in-house" or ""; auto true or false).
@@ -115,7 +117,7 @@ Write, in the second block:
    setUTCDate(getUTCDate() + 7 * n), returned through fmtDate; "" when monday is blank. weeksBetween(a, b): the
    whole number of weeks from Monday a to Monday b, Math.round((Date.UTC of b minus Date.UTC of a) / 604800000);
    negative when b is earlier.
-3. lookupProject(name): the project of the DB.lookup row whose wf300_name equals name after trimming, ignoring
+3. lookupProject(name): the project of the DB.lookup row whose map_name equals name after trimming, ignoring
    case; else name unchanged (trimmed).
 4. spanWeeks(row): the array of Monday strings from row.week_start to row.week_end inclusive (one week when
    week_end is blank, equal, or earlier); [] when week_start is blank.
@@ -157,16 +159,16 @@ Write, in the second block:
    hours through num(), week_start and week_end through mondayOf(toDate()) ("" when blank), shop through
    normalizeShop, project through normalizeProject, everything else trimmed text ("" when the column is absent).
    Replace an earlier DB.consumption row with the same proposed_id and phase_no, else append. Return the count.
-10. importB2(kind, rows, fileName): "lookup": header with wf300_name (aliases wf300name, wf300, mapname,
-    resourcemapname, workforcename) and project; rows {wf300_name, project, hull} replace earlier rows with the same
-    wf300_name. "projects": header with project, start and end and NO shop and NO week_start; rows {project
+10. importB2(kind, rows, fileName): "lookup": header with map_name (aliases mapname, resourcemapname,
+    workforcename, workforcemapname) and project; rows {map_name, project, hull} replace earlier rows with the same
+    map_name. "projects": header with project, start and end and NO shop and NO week_start; rows {project
     (normalizeProject), hull, start: mondayOf(toDate()), end: mondayOf(toDate())} replace earlier rows with the
     same project. "capacity": header with shop, week_start and capacity_hours; rows {shop (normalizeShop),
     week_start (mondayOf(toDate())), capacity_hours (num), src "<file>:<row>"} appended. Return a one-line summary.
 11. importFiles(fileList): the hook. ensureB2(); for each file, read the whole text (these files are small), parse
     with parseCSV, find the header (the first row with at least two non-blank cells), squash its names, and decide:
     proposedid together with loadhours is a consumption file, handled here by importConsumption and NOT passed on
-    (so performing survives); wf300name (or an alias above) with project is "lookup"; project with start and end and
+    (so performing survives); mapname (or an alias above) with project is "lookup"; project with start and end and
     without shop or weekstart is "projects"; shop with weekstart and capacityhours is "capacity"; anything else is
     kept, as the File, for the earlier importer. Append one line per file to datastatus saying what it was taken
     for and how many rows. When every file is looked at: if any File was kept, call importFilesB1(the array of kept
@@ -456,7 +458,7 @@ wrong number with no error.
 
 ## Inputs this series expects (all optional, all through the same file picker)
 
-- `lookup.csv`: wf300_name, project, hull. One row per project on the workforce map, with the project id the JCN
+- `lookup.csv`: map_name, project, hull. One row per project on the workforce map, with the project id the JCN
   history and the estimator use. Prompt L in the build guide drafts it from the two name lists.
 - `projects.csv`: project, hull, start, end. The windows the leveler moves inside. If the workforce map carries the
   dates (Prompt A says), the data sheet spec can make MODULE 2 produce these rows; else this small pull.

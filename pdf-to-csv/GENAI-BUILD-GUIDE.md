@@ -1,6 +1,7 @@
 # Build guide: the estimator and the Resource Map, from prompts, inside GenAI.mil
 
-Version 0.1, 2026-10-23. This is the one page to read before building. It says what the two tools are, what files
+Version 0.2, 2026-10-23. v0.2: the lookup column is map_name, and the leveler series is named in full where "B2" could
+have meant Prompt B2 of series B (review of PR 60). This is the one page to read before building. It says what the two tools are, what files
 they need, which prompt file to run in which order, how to paste the answers, how to test with made-up data, and
 what to do when something breaks. Every prompt series it names has been tested here against Gemini with no code
 execution and a headless browser, on made-up data only; the test records sit beside the prompt files in the
@@ -10,7 +11,7 @@ into a chat: the prompts describe structure, and the tools read the real files o
 ## The system in one picture
 
 ```
-Reporting-tool pulls (workbooks or CSV)                      Workforce map workbook (the workforce map)
+Reporting-tool pulls (workbooks or CSV)                      Workforce map workbook          
   JCN history, phases, material (history)            assigned hours by project, shop, week
   work package (future JCNs)                         shop capacity by week, the contractor as a line
   planning status (planned job summaries)                        |
@@ -48,7 +49,7 @@ spaces and punctuation ignored, so "Job Summary", "job_summary" and "JOBSUMMARY"
 | Planning status | a planned phase | job_summary, phase_no, phase_title, shop, planned_hours or planned_mandays, scheduled_start, scheduled_finish, performing | reporting-tool pull |
 | Project list | a project | project, hull, start, end | reporting-tool pull, or the workforce map if Prompt A finds the dates there |
 | Workforce map | its own layout | described by Prompt A, never retyped | the planning department's workbook |
-| Lookup | a project on the workforce map | wf300_name, project, hull | Prompt L drafts it, you confirm each row |
+| Lookup | a project on the workforce map | map_name, project, hull | Prompt L drafts it, you confirm each row |
 | Contractor capacity | a week of the contractor's line | shop (the line's code, for example CTR), week_start, capacity_hours | the workforce map, or this small file when the map carries no such row |
 
 Dates are read as YYYY-MM-DD, MM/DD/YYYY, DD-MON-YYYY or an Excel serial. Weeks are keyed by their Monday. Hours
@@ -81,8 +82,8 @@ CSV (File, Save As, CSV UTF-8).
 3. `GENAI-PROMPTS-resource-map-leveling.md`: Prompts B2-1 to B2-5. The what-if layer: moves kept on top of the dates
    of record (drag a job, drag a project, farm out by hand), the contractor's own line, the project-name lookup,
    zoom, snapshot, present mode, the moves and farm-out exports, and the automatic level and farm-out with a
-   before, leveled, farmed comparison. B2 runs after B4 and BEFORE Prompts X.
-4. `GENAI-PROMPTS-xlsx.md`: Prompts X and X2, optional. If X was run before B2, run X2 again after B2.
+   before, leveled, farmed comparison. The leveler series (B2-1 to B2-5) runs after B4 and BEFORE Prompts X.
+4. `GENAI-PROMPTS-xlsx.md`: Prompts X and X2, optional. If X was run before the leveler series, run X2 again after it.
 5. `GENAI-PROMPTS-style.md`: Prompt S, last.
 
 Why the order matters: a later hook prompt captures whatever a function is at the time and wraps it. Prompts X2, D
@@ -132,7 +133,7 @@ a project id. The lookup joins them. Paste the two name lists (they are identifi
 ```
 Here are two lists. List A is every project name on the workforce map. List B is every project id in the JCN
 history export for future projects, with its hull. Match each name in A to the one id in B it most likely means
-(same hull, same fiscal year, same availability type), and answer with a CSV of three columns, wf300_name, project,
+(same hull, same fiscal year, same availability type), and answer with a CSV of three columns, map_name, project,
 hull, one row per name in A, with a fourth column "confidence" (sure, likely, guess) and a fifth "why" in a few
 words. Leave project blank where nothing in B fits. Do not invent an id.
 

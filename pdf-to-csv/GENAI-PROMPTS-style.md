@@ -1,6 +1,9 @@
 # Prompt S: the look (the demo's style on any of the built pages, light and dark, color squares, summary cards)
 
-Version 0.1, 2026-10-23. One prompt, run LAST in a series: after B2-4 (and X2, if used) for the Resource Map, after
+Version 0.2, 2026-10-23. v0.2: item 3 of the Resource Map's MODULE S calls styleBar() from the renderMap hook; v0.1
+defined styleBar and never called it (review of PR 60), so a model that followed the text to the letter would never
+create the stats cards or the tip line. The tested answer had called it there on its own, so the text now says what
+the tested code does. One prompt, run LAST in a series: after B2-4 (and X2, if used) for the Resource Map, after
 Prompts D (and X2) for the estimator. It answers hole 10 of the process flow page: the pages built by the series are
 plain because no prompt ever asked for a look. The owner's demo leveler (the demo page) has the look he wants; its
 stylesheet is about sixty lines, plus a different map cell (a color square, the number on hover). Both are written
@@ -117,7 +120,8 @@ MODULE S, in the second block:
    focus a cell for its numbers". Wire: btn-squares toggles the class "squares" on document.body, remembers it in
    localStorage "s-squares" inside try, and calls run(); theme-mode change calls setTheme(value). On first build,
    body gets the class squares unless localStorage "s-squares" is "off".
-3. renderMap(): the hook. renderMapS(); then heatify(); then renderStats().
+3. renderMap(): the hook. renderMapS(); then styleBar() (it inserts once, so calling it on every draw is safe, and
+   the map's container exists by then); then heatify(); then renderStats().
 4. heatify(): find the table: $("map") itself if it has rows, else the first <table> inside $("map"); add the class
    heat to it and clear any inline width and border-collapse the map module wrote on it (table.style.width = "auto";
    table.style.borderCollapse = ""), or the cells cannot shrink to squares. In the header row, every <th> except the first (the shop column) and the
