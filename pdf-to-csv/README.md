@@ -7,7 +7,9 @@ More prompt series for GenAI.mil: [the estimator](GENAI-PROMPTS-estimator.md),
 [planned jobs, the contractor and the material list](GENAI-PROMPTS-estimator-planned.md),
 [describing the resource map workbooks](GENAI-PROMPTS-resource-map-analysis.md),
 [building the Resource Map app](GENAI-PROMPTS-resource-map.md) and
-[reading Excel workbooks directly](GENAI-PROMPTS-xlsx.md).
+[reading Excel workbooks directly](GENAI-PROMPTS-xlsx.md),
+[the leveler on the Resource Map](GENAI-PROMPTS-resource-map-leveling.md) and
+[the look for either tool](GENAI-PROMPTS-style.md). The one-page [build guide](GENAI-BUILD-GUIDE.md) puts them in order.
 
 A scanned-document-library to CSV converter that runs as one HTML file, offline. Type the names of the fields you want, choose a folder, and it reads every PDF in it (subfolders included) into one CSV row per record, with a separate list of the files it could not read and why.
 
