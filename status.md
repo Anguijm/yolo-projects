@@ -10,8 +10,8 @@ Updated 2026-10-23 (JST), docs refresh.
   `pdf-to-csv/GENAI-*` (estimator, batch, planned, resource map, leveler, style, xlsx, build guide, two design
   pages) are written by the next-big-thing session and reviewed and merged here (PRs #51 to #65).
 - Daily cards: cron 05:50 JST, `scripts/daily_cards.sh` under job-guard `yolo-cards-daily`, merges its own PR on
-  secret-scan plus validate. It has not nudged this session since PR #46 (2026-10-21); the review is started by
-  hand or by ops. Verdicts: `.harness/card_reviews.md`.
+  secret-scan plus validate, then nudges this session through `tmux -L yolo` (the nudge was missing from PR #46,
+  2026-10-21, until it was restored 2026-10-23 at John's word). Verdicts: `.harness/card_reviews.md`.
 - Local engine benchmark 2026-10-22 (`experiments/local-engine-bench/results.md`): no switch of dictation's
   llama.cpp build.
 - DraftKings salary job: paused 2026-10-21 (crontab lines commented; backup `~/fantasy/app/crontab.bak-2026-10-21`).

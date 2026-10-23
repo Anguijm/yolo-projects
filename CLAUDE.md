@@ -9,8 +9,8 @@ stays off. The work here is now two things:
    hand; its source is `~/projects/pdf-to-csv`). When a flagship or repo state changes, update the README,
    this file and the project's status.md in the same commit.
 2. **Monitor the new cards** (`experiments.json`, written daily at 05:50 JST by `scripts/daily_cards.sh`,
-   which opens a PR and merges it on secret-scan plus validate; since PR #46 (2026-10-21) it no longer nudges
-   this session, so check `git log origin/main` for "Cards from the Gemini" commits each morning). For each new card, judge it against John's WHOLE
+   which opens a PR, merges it on secret-scan plus validate, and then nudges this session through `tmux -L yolo`;
+   the nudge was missing from PR #46 (2026-10-21) until 2026-10-23). For each new card, judge it against John's WHOLE
    ecosystem of projects (the flagships, every project in `~/ops/RUNBOOK.md`: mini-forge 3D printing on the
    Strix Halo box, push-to-talk dictation, polymarket paper trading, clipper, thoughts, the brain vault,
    editor training, router, and so on), not just this repo. Record every verdict in
