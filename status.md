@@ -19,9 +19,10 @@ Updated 2026-10-24 (JST), docs refresh.
 - DraftKings salary job: paused 2026-10-21 (crontab lines commented; backup `~/fantasy/app/crontab.bak-2026-10-21`).
 
 ## Open items
-- 2026-10-24 | The 05:52 JST card nudge (PR #68) never reached this session, although the yolo tmux session was up; the
-  two cards were found and reviewed during the docs refresh. Watch the 2026-10-25 run; a fix to daily_cards.sh needs
-  John's go. | me, then John
+- 2026-10-25 | The card nudge reaches this session's input box but is never submitted: `tmux capture-pane` shows the
+  PR #68 and PR #78 nudges typed, unsent, at the prompt (the text and Enter in one send-keys call arrive as one paste,
+  so Enter becomes a newline). The likely fix is a second `send-keys -t yolo Enter` about a second later, in
+  daily_cards.sh; that needs John's go. Cards from both days were reviewed by hand. | John
 - 2026-10-24 | GENAI-PROMPTS-converter.md says Prompts X and X2 "stay in the private source", but they are public in
   the folder; next-big-thing fixed its source and will carry it on its next public touch. | next-big-thing
 - 2026-10-23 | The superseded commits of PRs 60 and 61 on GitHub still show the real workforce report name; only GitHub
