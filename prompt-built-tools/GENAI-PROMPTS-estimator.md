@@ -1,6 +1,18 @@
 # Prompts for GenAI.mil: build the JCN analog estimator inside the enclave
 
-Version 0.4, 2026-10-24 (v0.1 to v0.3 kept beside it). v0.4 is the matcher the three-reviewer review and the owner's
+Version 0.5, 2026-10-24 (v0.1 to v0.4 kept in the private source). v0.5 adds the owner's ruling R2 of 2026-10-24: a class-family
+table and hull nearness, both typed by the planner and zero by default, as two more weighted features (family counts
+only for rows of another class, so it orders the fallback rows; hull nearness only within the class). Prompt 1 gains
+the family box, Prompt 3 the two features, Prompt 5 one check; the weight test (tune series v0.2) reads the feature
+keys from DEFAULT_W, so it covers them without a change of its own. Regenerated from this text and tested against a
+Python twin of every rule on made-up data (32 checks, 0 bad; test record kept in the private source). v0.5 also takes the review of PR 69 (the reviewer,
+2026-10-24): buildWeightsPanel() stays as an alias of renderWeights() for the batch and planned series; a function
+loadSavedWeights() that later modules call again after they add weight keys; the attainable score from each
+group's highest weight, so the strength line cannot pass 100 percent after a fit; a recency scale of 0 means no
+recency factor (the factor is exp(-age / scale), not a half-life); two blank space numbers never match; a missing
+text scores 0. Known overlap, kept on purpose: the third equipment tier (same system) scores the same first SWLIN
+character as the lowest SWLIN tier; it exists so the equipment gate does not fire on a same-system job. Earlier
+versions are kept in the private source. v0.4 was the matcher the three-reviewer review and the owner's
 rulings of 2026-10-24 asked for: the discrepancy text is matched (action words and object words, after an
 editable abbreviation dictionary; this was in the design of 2026-10-20 and the v0.1 prompts had lost it); the
 equipment nomenclature is scored by shared words; the SWLIN is scored by how much of its code two jobs share (one,
@@ -9,7 +21,9 @@ every past job is scored as a feature list times the weights, so the weight test
 re-weight without re-matching; an optional gate holds back jobs that match the equipment at no tier (off by
 default, a weight the test can set); a match strength is shown, labeled as strength. Prompt 1 gains the text
 field, the dictionary box and the tune section; Prompt 2 the optional discrepancy column; Prompt 3 is rewritten;
-Prompt 4 is unchanged from v0.3; Prompt 5 gains three checks.
+Prompt 4 pins the EST shape the batch series reads (rows, used, usedJcns, notes); Prompt 2 names the pieces the
+batch series extends (SCHEMA, RAW_DATA, MAPPINGS, cleanCol, detectType, updateStatus, OPTIONAL_FIELDS); Prompt 5
+gains three checks.
 v0.3 (2026-10-23) listed material whole for grouped summaries; v0.2 (2026-10-20) closed four mismatches between
 the pieces (see the private test record).
 
@@ -51,12 +65,13 @@ to array of phase rows), `DB.matByJS` (plain object, job_summary to array of mat
 `DB.hulls` (an array of [hull, ship_class] pairs, unique).
 
 Globals declared with let in the skeleton: `DB`, `W` (weights), `DICT` (abbreviation dictionary, plain
-object short to long), `ANALOGS`, `TICK`, `EST`, `TUNE`. A let global is read by its name, never through
+object short to long), `FAMILY` (class families, an array of arrays of class codes), `ANALOGS`, `TICK`, `EST`,
+`TUNE`. A let global is read by its name, never through
 window.
 
 `readNewJCN()` returns exactly {hull, cls, swlin, space, eid, nom, text}. `features(nj, j)` returns an object
-with exactly these fifteen keys, each a number from 0 to 1: eqId, eqType, eqSys, hull, space, spaceDF,
-spaceDeck, swlin, swlin5, swlin3, swlin2, swlin1, nom, textAction, textObject. `scoreFrom(F, W, age)` turns a
+with exactly these seventeen keys, each a number from 0 to 1: eqId, eqType, eqSys, hull, space, spaceDF,
+spaceDeck, swlin, swlin5, swlin3, swlin2, swlin1, nom, textAction, textObject, family, hullNear. `scoreFrom(F, W, age)` turns a
 feature object, a weight object and an age in years into a score. `findAnalogs(nj)` returns an array of exactly
 {j, score, raw, reasons, note?} where j is a jcn_history row. Every function is a plain global function
 declaration (no IIFE, no module, no `window.x =`); events are wired through arrow functions so a later script
@@ -64,17 +79,19 @@ block can replace a stub by declaring the same name again.
 
 Functions: `parseCSV(text)`, `loadFiles(fileList)`, `buildDB(tables)`, `readNewJCN()`, `words(s)`,
 `cleanCode(s)`, `features(nj, j)`, `scoreFrom(F, W, age)`, `maxScore(W)`, `scoreJCN(nj, j)`,
-`findAnalogs(nj)`, `renderAnalogs()`, `renderWeights()`, `buildEstimate()`, `estimateCSV()`, `run()`,
+`findAnalogs(nj)`, `renderAnalogs()`, `renderWeights()`, `buildWeightsPanel()` (alias), `loadSavedWeights()`,
+`buildEstimate()`, `estimateCSV()`, `run()`,
 `setDownload()`, `tuneRun()`, `adoptWeights(newW)`, `tuneCSV()`, `setTuneDownload()`.
 Helpers: `$(id)`, `esc(s)`, `toDate(s)`, `fmtDate(d)`, `num(s)`, `csvCell(v)`.
 
 Element ids: `files`, `datastatus`, `mapping`, `f-hull`, `f-swlin`, `f-space`, `f-eid`, `f-nom`, `f-text`,
-`btn-run`, `weights`, `dict`, `strength`, `analogs`, `estnotes`, `estimate`, `material`, `csvout`, `btn-copy`,
+`btn-run`, `weights`, `dict`, `family`, `strength`, `analogs`, `estnotes`, `estimate`, `material`, `csvout`, `btn-copy`,
 `btn-download`, `tune-n`, `tune-band`, `btn-tune`, `tune-status`, `tune-table`, `btn-adopt`, `tune-csv`,
 `btn-tune-download`.
 
 Weight keys (W), all editable on the page, defaults: eqId 40, eqType 20, eqSys 5, hull 5, space 5, spaceDF 3,
-spaceDeck 1, swlin 10, swlin5 8, swlin3 6, swlin2 4, swlin1 2, nom 10, textAction 10, textObject 10, noEquip 1
+spaceDeck 1, swlin 10, swlin5 8, swlin3 6, swlin2 4, swlin1 2, nom 10, textAction 10, textObject 10, family 0,
+hullNear 0, noEquip 1
 (a factor from 0 to 1 applied when the equipment matches at no tier; 1 means no gate), recency 3 (years),
 minSame 5 (same-class matches needed before other classes are shown).
 
@@ -129,11 +146,11 @@ The contract that every later step relies on (keep these names exactly):
 - readNewJCN() returns an object with exactly these keys: hull, cls, swlin, space, eid, nom, text.
 - features(nj, j) returns an object with exactly these keys, each a number from 0 to 1: eqId, eqType,
   eqSys, hull, space, spaceDF, spaceDeck, swlin, swlin5, swlin3, swlin2, swlin1, nom, textAction,
-  textObject.
+  textObject, family, hullNear.
 - findAnalogs(nj) returns an array of objects with exactly these keys: j (a jcn_history row), score,
   raw, reasons (array of strings).
 - Element ids: files, datastatus, mapping, f-hull, f-swlin, f-space, f-eid, f-nom, f-text, btn-run,
-  weights, dict, strength, analogs, estnotes, estimate, material, csvout, btn-copy, btn-download, tune-n,
+  weights, dict, family, strength, analogs, estnotes, estimate, material, csvout, btn-copy, btn-download, tune-n,
   tune-band, btn-tune, tune-status, tune-table, btn-adopt, tune-csv, btn-tune-download.
 
 Write the skeleton now:
@@ -142,7 +159,8 @@ Write the skeleton now:
    inputs f-swlin, f-space, f-eid, f-nom with labels, a textarea id f-text labeled "Discrepancy text, as
    written on the JCN", and a button id btn-run "Find similar jobs", written with the disabled attribute
    because step 2 enables it once the exports are loaded), "3. Similar past jobs" (an empty
-   div id weights, then a textarea id dict labeled "Abbreviations, one per line as short=long", then an
+   div id weights, then a textarea id dict labeled "Abbreviations, one per line as short=long", then a
+   textarea id family labeled "Class families, one per line, class codes separated by spaces", then an
    empty div id strength, then an empty table id analogs), "4. Estimate" (an empty div id estnotes, an
    empty table id estimate, then a sub-heading "Material by end-use phase" and an empty table id
    material), "5. Export" (a textarea id csvout, a button id btn-copy "Copy CSV", a link id btn-download
@@ -162,10 +180,11 @@ Write the skeleton now:
    strips commas and returns a number or 0; csvCell(v) that quotes values containing commas, quotes or
    line breaks and prefixes a cell starting with = + - @ with an apostrophe unless it is a plain number.
 3. The globals: let DB = null, let W = {} (weights, filled in step 3), let DICT = {} (abbreviations,
-   filled in step 3), let ANALOGS = [], let TICK = new Set(), let EST = null, let TUNE = null.
+   filled in step 3), let FAMILY = [] (class families, filled in step 3), let ANALOGS = [], let TICK = new
+   Set(), let EST = null, let TUNE = null.
 4. Stubs for every contract function that is not a helper, each one line, for example
    function loadFiles(fileList) { /* step 2 */ }. features(nj, j) as a stub returns an object with the
-   fifteen keys all 0. readNewJCN() as a stub returns the seven keys as empty strings.
+   seventeen keys all 0. readNewJCN() as a stub returns the seven keys as empty strings.
 5. Event wiring at the bottom, always through arrow functions that look the function up by name when
    the event fires, for example $('btn-run').addEventListener('click', () => run()), never
    addEventListener('click', run), because later steps replace the stubs. files change calls
@@ -195,6 +214,13 @@ phase_title, shop, est_hours, charged_hours; material: job_summary, phase_no, it
 (array), DB.phasesByJS (plain object), DB.matByJS (plain object), DB.jsCount (plain object,
 DB.jsCount[job_summary] = count), DB.hulls (array of [hull, ship_class] pairs). Elements: files,
 datastatus, mapping, f-hull.
+
+Names the later series rely on (declare exactly these): the alias table is const SCHEMA (one entry per
+table, each a plain object of field name to alias list, aliases written without spaces); the raw parsed
+files live in let RAW_DATA; the chosen column mappings in let MAPPINGS; cleanCol(s) lower-cases a header
+and strips everything but letters and digits; detectType(headers) returns "jcn_history", "phases",
+"material" or null for a header row; updateStatus() rewrites datastatus; OPTIONAL_FIELDS is a const array
+of the optional field names (just "discrepancy" for now), which later modules extend in place with push.
 
 Requirements:
 1. parseCSV(text): a real CSV parser, not split on commas: handles quoted fields, doubled quotes inside
@@ -243,42 +269,54 @@ after it.
 Continue the same file. Write MODULE 3: a single <script> block that I will paste over the line
 <!-- MODULE 3: matching -->. It replaces the stubs readNewJCN, words, cleanCode, features, scoreFrom,
 maxScore, scoreJCN, findAnalogs, renderAnalogs, renderWeights and run by declaring plain global
-functions of the same names (no IIFE, no module, no assignment to window), and it fills the globals W
-and DICT. Keep every contract name exactly.
+functions of the same names (no IIFE, no module, no assignment to window), adds two more plain global
+functions, loadSavedWeights and buildWeightsPanel, and fills the globals W, DICT and FAMILY. Keep every contract name exactly.
 
 Contract reminder: DB.jcns rows have jcn, job_summary, hull, ship_class, swlin, space, equipment_id,
 equipment_nomenclature, discrepancy (a string, possibly empty), received_date (a Date or null). DB.hulls
 is an ARRAY of [hull, ship_class] pairs: to find the class of a hull, find the pair whose first element
 equals the hull and take its second element. DB.jsCount is a PLAIN OBJECT, read as
 DB.jsCount[job_summary] (not a Map, so never .get()). Globals W, DICT, ANALOGS, TICK, declared with let
-in the skeleton and read by name, never through window. TICK is a Set of jcn strings (the skeleton
+in the skeleton and read by name, never through window (FAMILY too). TICK is a Set of jcn strings (the skeleton
 declares let TICK = new Set()): test it with TICK.has(jcn), change it with TICK.add(jcn) and
 TICK.delete(jcn), and reset it with TICK = new Set([...]); never treat it as an array. Elements: f-hull,
-f-swlin, f-space, f-eid, f-nom, f-text, weights, dict, strength, analogs. Helpers $(id), esc(s),
+f-swlin, f-space, f-eid, f-nom, f-text, weights, dict, family, strength, analogs. Helpers $(id), esc(s),
 fmtDate(d), num(s).
 readNewJCN() returns an object with exactly these keys: hull, cls, swlin, space, eid, nom, text.
-features(nj, j) returns an object with exactly these fifteen keys, each a number from 0 to 1: eqId,
+features(nj, j) returns an object with exactly these seventeen keys, each a number from 0 to 1: eqId,
 eqType, eqSys, hull, space, spaceDF, spaceDeck, swlin, swlin5, swlin3, swlin2, swlin1, nom, textAction,
-textObject.
+textObject, family, hullNear.
 findAnalogs(nj) returns an array of objects with exactly these keys: j (the jcn_history row), score,
 raw, reasons (array of strings), and optionally note (a string, for rows from another class).
 
 The weights. Declare const DEFAULT_W with exactly these keys and values: eqId 40, eqType 20, eqSys 5,
 hull 5, space 5, spaceDF 3, spaceDeck 1, swlin 10, swlin5 8, swlin3 6, swlin2 4, swlin1 2, nom 10,
-textAction 10, textObject 10, noEquip 1, recency 3, minSame 5. The first fifteen are points, one per
-feature key with the same name. noEquip is a factor from 0 to 1. recency is years. minSame is a count.
+textAction 10, textObject 10, family 0, hullNear 0, noEquip 1, recency 3, minSame 5. The first seventeen
+are points, one per feature key with the same name. noEquip is a factor from 0 to 1. recency is years. minSame is a count.
 
 Also declare const W_LABELS: the plain label for every key of DEFAULT_W (for example eqId "Same
 equipment ID", swlin3 "SWLIN shares 3 characters", noEquip "No equipment match factor (1 = off)",
-recency "Recency half-life, years", minSame "Same-class matches needed before other classes are
+family "Same class family (orders the other-class rows)", hullNear "Hull nearness within the class",
+recency "Recency scale, years (0 = off)", minSame "Same-class matches needed before other classes are
 shown"); the weights panel and a later module both read it.
+
+The class families. The textarea family holds one family per line, class codes separated by spaces or
+commas (for example "DDG CG"). Parse it into FAMILY on every change: an array of arrays of uppercased,
+trimmed codes, blank lines ignored; remember the text in localStorage under "estimator.family"
+(try/catch) and load it when the module runs; a change re-runs run(). Two classes are in the same
+family when one line holds both. hullNumber(h): the number made of the digits at the end of the hull
+string (after the last character that is not a digit), or null when the string ends in no digit.
+classSpan(cls): the largest minus the smallest hullNumber over the DB.hulls pairs of that class whose
+number is not null, at least 1; computed on demand and cached in a plain object keyed by class, and the
+cache is cleared at the start of run().
 
 Text helpers:
 1. cleanCode(s): uppercase, then remove every character that is not a letter or a digit. Used for the
    SWLIN and the equipment ID comparisons.
-2. words(s): the result for a given input string is cached in a plain object declared at the top of
-   the module (the cache is cleared whenever DICT changes), because the same strings are looked at
-   many thousands of times. The rule: lowercase; split into tokens on every character that is not a
+2. words(s): an empty, null or undefined input returns an empty array (a job with no discrepancy text
+   scores 0 on the text features, never an error). The result for a given input string is cached in a
+   plain object declared at the top of the module (the cache is cleared whenever DICT changes), because
+   the same strings are looked at many thousands of times. The rule: lowercase; split into tokens on every character that is not a
    letter, a digit or a slash;
    drop empty tokens; then for each token, if DICT has that token as a key, replace it by the words of
    DICT[token] (split on spaces); then drop these stop words: the, a, an, of, to, and, or, is, are, was,
@@ -296,16 +334,17 @@ How matching works (this is the planner's judgment, written as rules):
 4. Ship class is a FILTER, not points. Only past jobs on the same class as the chosen hull are
    candidates. Other classes are shown only when the same class has fewer than W.minSame candidates with
    a score above zero, and each such row gets note = "Other class (X): shown because <class> has only N".
-5. features(nj, j) computes the fifteen features. Tiers inside a group are exclusive: at most one of the
-   group's keys is above 0.
+5. features(nj, j) computes the seventeen features. Tiers inside a group are exclusive: at most one of
+   the group's keys is above 0.
    - Equipment: eqId = 1 when cleanCode(nj.eid) is not empty and equals cleanCode(j.equipment_id); else
      eqType = 1 when the type of both is the same and not empty, where the type is the text before the
      first hyphen of the equipment id, uppercased; else eqSys = 1 when the first character of
      cleanCode(nj.swlin) equals the first character of cleanCode(j.swlin) and both are not empty.
    - hull = 1 when j.hull equals nj.hull.
-   - Space, only when j.ship_class equals nj.cls (for a row of another class all three are 0): space = 1
-     when the space numbers are equal and not empty; else spaceDF = 1 when the first two hyphen-separated
-     parts are equal; else spaceDeck = 1 when the first part is equal.
+   - Space, only when j.ship_class equals nj.cls and both space numbers are non-empty (for a row of
+     another class, or when either space is blank, all three are 0): space = 1 when the space numbers are
+     equal; else spaceDF = 1 when the first two hyphen-separated parts are equal; else spaceDeck = 1 when
+     the first part is equal.
    - SWLIN: let a = cleanCode(nj.swlin), b = cleanCode(j.swlin), both not empty. swlin = 1 when a equals
      b, or when one is a prefix of the other and the shorter has at least three characters (a SWLIN cut
      down to its first characters counts as a full match at the length given). Otherwise let p = the
@@ -317,19 +356,27 @@ How matching works (this is the planner's judgment, written as rules):
      the action words in B, objA = the other words in A, objB = the other words in B. textAction = 1
      when actA and actB share a word; else 0.6 when a word in actA and a word in actB are in the same
      family; else 0. textObject = the Jaccard overlap of objA and objB when both are non-empty; else 0.
-6. scoreFrom(F, W, age): pts = the sum over the fifteen feature keys of W[key] times F[key]; rec = 0.5 +
-   0.5 * exp(-age / W.recency); gate = 1 when F.eqId + F.eqType + F.eqSys is above 0, else W.noEquip;
-   return pts * rec * gate.
-7. maxScore(W) = W.eqId + W.hull + W.space + W.swlin + W.nom + W.textAction + W.textObject (the best
-   tier of each group, with recency 1 and no gate).
+   - family = 1 when j.ship_class differs from nj.cls and one FAMILY line holds both codes; else 0 (so it
+     only ever adds points to a row of another class, which orders the fallback rows).
+   - hullNear, only when j.ship_class equals nj.cls and both hullNumber(nj.hull) and hullNumber(j.hull)
+     are not null: 1 - |a - b| / classSpan(nj.cls), not below 0; else 0.
+6. scoreFrom(F, W, age): pts = the sum over the seventeen feature keys of W[key] times F[key]; rec = 1
+   when W.recency is 0 or below (no recency factor), else 0.5 + 0.5 * exp(-age / W.recency); gate = 1
+   when F.eqId + F.eqType + F.eqSys is above 0, else W.noEquip; return pts * rec * gate.
+7. maxScore(W) = the highest of W.eqId, W.eqType and W.eqSys, plus W.hull, plus the highest of W.space,
+   W.spaceDF and W.spaceDeck, plus the highest of W.swlin, W.swlin5, W.swlin3, W.swlin2 and W.swlin1, plus
+   W.nom, W.textAction and W.textObject (each group's highest weight, so the strength line cannot pass
+   100 percent whatever the weights become; recency 1 and no gate; family and hullNear are left out on
+   purpose: the strength line describes the same-class best case, and hull nearness is a tie-breaker).
 8. scoreJCN(nj, j): F = features(nj, j); age in years from j.received_date to today, 10 when the date is
-   null; score = scoreFrom(F, W, age); raw = the sum of W[key] times F[key] over the fifteen keys (points
+   null; score = scoreFrom(F, W, age); raw = the sum of W[key] times F[key] over the seventeen keys (points
    before recency and gate). reasons: one short plain-English string per feature above 0, such as "Same
    equipment ID", "Same equipment type (FMV)", "Same system (5)", "Same hull", "Same space", "Same deck
    and frame", "Same deck", "Same SWLIN", "SWLIN shares 5 characters (52114)", "SWLIN shares 3 characters
    (521)", "SWLIN shares 2 characters", "SWLIN shares 1 character", "Nomenclature shares: fire main
    valve" (the shared words), "Same action (replace)" or "Related action (overhaul, repair)", "Text
-   shares: valve, seat" (the shared object words); then "No equipment match: score x 0.5" when the gate
+   shares: valve, seat" (the shared object words), "Same class family", "Hull nearness 0.93" (two
+   decimals); then "No equipment match: score x 0.5" when the gate
    applied and W.noEquip is below 1; then "2.3 years ago". Do not include a reason for things that did
    not match. Return {score, raw, reasons, F}.
 9. findAnalogs(nj) scores every DB.jcns row, drops raw == 0, applies the class filter and fallback above,
@@ -347,14 +394,15 @@ How matching works (this is the planner's judgment, written as rules):
     (fmtDate), Score (one decimal), Equipment (id and nomenclature), Space, SWLIN, Why it matched (the
     reasons joined with "; "), and Job summary (with "covers N JCNs" when DB.jsCount[job_summary] is
     above 1, and the note when present). Rows with a note get a muted style.
-12. renderWeights() draws the weights div: one small number input per W key with a plain label (for
-    example "Same equipment ID", "SWLIN shares 3 characters", "No equipment match factor (1 = off)",
-    "Recency half-life, years", "Same-class matches needed before other classes are shown"), step 0.1
-    for noEquip and step 1 for the rest, plus a "Reset weights" button that restores DEFAULT_W and the
-    default dictionary. Changing any value updates W and re-runs run(). Remember W in localStorage
-    under the key "estimator.weights", wrapped in try/catch, and load it when the module runs: start
-    from a copy of DEFAULT_W and copy over it only the saved keys that DEFAULT_W also has, so a saved
-    set from an older version can neither drop a key nor add one. The
+12. loadSavedWeights(): reads localStorage "estimator.weights" (try/catch) and copies into W only the
+    saved keys that DEFAULT_W has at the time of the call, so a saved set from an older version can
+    neither drop a key nor add one; a later module that adds keys to DEFAULT_W and W calls it again, so
+    the saved values of its keys survive a reload. When the module runs: W = a copy of DEFAULT_W, then
+    loadSavedWeights(). buildWeightsPanel() is a one-line alias that calls renderWeights() (an older
+    series calls it by that name). renderWeights() draws the weights div: one small number input per W
+    key with its plain label from W_LABELS, step 0.1 for noEquip and step 1 for the rest, plus a "Reset
+    weights" button that restores DEFAULT_W, the default dictionary and an empty family box. Changing
+    any value updates W, saves W to localStorage "estimator.weights" (try/catch) and re-runs run(). The
     dictionary: when the textarea dict is empty, fill it with these default lines: fmv=fire main valve,
     o/h=overhaul, repl=replace, insp=inspect, inop=inoperable, stk=stuck, lks=leaks, pmp=pump, vlv=valve,
     mtr=motor, sw=seawater, fw=freshwater, hyd=hydraulic, elec=electrical, xfer=transfer. Parse the
@@ -372,8 +420,8 @@ Answer with the one <script> block only, and nothing after it.
 
 ## Prompt 4: the estimate and the CSV
 
-Unchanged from v0.3. Its contract did not change: it reads ANALOGS, TICK, DB.phasesByJS, DB.matByJS,
-DB.jsCount and readNewJCN(), and the extra key text on the new JCN does not affect it.
+As v0.3, plus step 8 pins the EST shape (rows with est_low and the other named fields, used, usedJcns as a
+space-separated string newest first, notes), which the batch and planned series read by name.
 
 ```
 Continue the same file. Write MODULE 4: a single <script> block that I will paste over the line
@@ -422,8 +470,13 @@ How the estimate is built:
    summary that covered N JCNs is listed whole; it may include sibling jobs' parts." (N = the largest
    count). Items whose phase title is not in the newest breakdown are listed last and marked "older
    breakdown only".
-8. Set EST = {nj: readNewJCN(), rows, used} and then fill csvout with estimateCSV() and call
-   setDownload().
+8. Set EST = {nj: readNewJCN(), rows, used, usedJcns, notes} with exactly these shapes, because the batch
+   series reads them by name: rows is the array of estimate rows in the newest breakdown's order, each
+   exactly {phase_no, phase_title, shop, est_low, est_high, charged_low, charged_high, k, n} as numbers
+   (k = how many used summaries had the phase, n = how many summaries were used); used is the number of
+   job summaries used; usedJcns is one string of the ticked JCNs whose summaries were used, joined by
+   single spaces, newest first; notes is the array of the sentences written to estnotes (a later module
+   looks there for "Possible method change"). Then fill csvout with estimateCSV() and call setDownload().
 9. estimateCSV(): header new_equipment_id, new_space, new_swlin, new_hull, phase_no, phase_title, shop,
    est_hours_low, est_hours_high, charged_hours_low, charged_hours_high, summaries_with_phase,
    summaries_used, analog_jcns; one line per phase; CRLF line ends; every cell through csvCell; the new
@@ -454,8 +507,13 @@ usually break a file built in pieces, and list each one with the exact fix:
    the same day.
 6. Any material quantity divided by DB.jsCount. Hours are shared out over a grouped summary's JCNs;
    material is listed whole, and the grouped column says how many JCNs the summary covered.
-7. The fifteen feature keys returned by features() are exactly the fifteen point keys of DEFAULT_W, and
-   scoreFrom() sums over those fifteen only (never noEquip, recency or minSame as points).
+7. The seventeen feature keys returned by features() are exactly the seventeen point keys of DEFAULT_W,
+   and scoreFrom() sums over those seventeen only (never noEquip, recency or minSame as points).
+7a. family is 0 for a row of the new JCN's own class and when the family box is empty; hullNear is 0 for
+   a row of another class and when either hull ends in no digit.
+7b. buildWeightsPanel() exists as an alias of renderWeights(); loadSavedWeights() merges only keys that
+   DEFAULT_W has; W.recency of 0 gives a recency factor of 1, not NaN; maxScore() takes each group's
+   highest weight, so no analog can show a strength above 100 percent.
 8. The three space features are 0 for a row whose ship_class differs from the new JCN's class.
 9. A history without a discrepancy column still loads, with discrepancy = "" on every row, and the text
    features are then 0 rather than an error.

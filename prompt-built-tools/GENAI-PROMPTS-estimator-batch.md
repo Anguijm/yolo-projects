@@ -1,13 +1,18 @@
 # Prompts C: add batch mode to the estimator (big files in, one big CSV out)
 
-Version 0.6, 2026-10-22 (v0.1 to v0.5 kept in the private source; v0.6 corrects the order: Prompts D in `GENAI-PROMPTS-estimator-planned.md` run after C2b and BEFORE Prompts X, and add planned jobs, the contractor and the material list; v0.4 added the pointer to Prompts X, which let both file pickers take .xlsx workbooks, see `GENAI-PROMPTS-xlsx.md`; C1 to C3 are unchanged from v0.3, which says how rule 2 chains after a phase placed by rule 1, from the yolo review of PR 52). Tested against Gemini with no code execution, the same
+Version 0.8, 2026-10-24 (v0.1 to v0.7 kept in the private source; v0.8 builds on the estimator series v0.5: the new JCN
+carries its discrepancy text, so `proposed` gains an optional discrepancy column and nj gains `text` (the owner's ruling
+R4, 2026-10-24); the weights panel is drawn by renderWeights() and the saved weights are merged again through
+loadSavedWeights() after this series adds its keys; the EST shape the batch loop reads is pinned in Prompt 4 of the
+estimator series; all from the review of PR 69; v0.8 was regenerated from this text on the v0.5 estimator and checked
+line by line against an independent calculation of the auto-select and the estimate, test record kept in the private source). v0.7 only moved the pointer to Prompts D v0.4, which stops dividing material by the JCN count and adds group_size; v0.6 corrected the order: Prompts D in `GENAI-PROMPTS-estimator-planned.md` run after C2b and BEFORE Prompts X, and add planned jobs, the contractor and the material list; v0.4 added the pointer to Prompts X, which let both file pickers take .xlsx workbooks, see `GENAI-PROMPTS-xlsx.md`; C1 to C3 are unchanged from v0.3, which says how rule 2 chains after a phase placed by rule 1, from the reviewer's review of PR 52). Tested against Gemini with no code execution, the same
 handicap as the chat inside: the v0.1 prompts produced one syntax error on load and four mismatches in
 the batch loader, and the model shortened the placement logic on its own. v0.2 states the pieces that
 drifted and moves placement into its own prompt (C2b), which then worked first time. The test build ran
-28 proposed items to 135 phase lines with every week inside its availability window. Test records stay in the private source.
+28 proposed items to 135 phase lines with every week inside its availability window. Details in the private test record.
 
-Three prompts that extend the estimator built from `GENAI-PROMPTS-estimator.md` (Prompts 1 to 5). Run them in
-the same chat after Prompt 5. Each answer is pasted into the file as the prompt says. To feed Excel files
+Three prompts that extend the estimator built from `GENAI-PROMPTS-estimator.md` (Prompts 1 to 5, and Prompt T of the
+tune series if you ran it). Run them in the same chat after Prompt 5 (and after T). Each answer is pasted into the file as the prompt says. To feed Excel files
 directly (the history export as one workbook with a sheet per table, the proposed list as a workbook), run
 Prompts X from `GENAI-PROMPTS-xlsx.md` after C2b; tested with both pickers. Prompts D (`GENAI-PROMPTS-estimator-planned.md`: planned job summaries bypass the guess, a performing column for the
 contractor, a material list output) run after C2b and BEFORE Prompts X; if X is already in the file, run X2 again after D so
@@ -25,7 +30,8 @@ Contracts added here (the single-JCN contract from Prompts 1 to 5 stays as it is
   aliases: project, availability, avail, avail id, availability name, period).
 - `availabilities` (optional table): project, hull, start, end.
 - `proposed` (input): proposed_id, hull, project, swlin, space, equipment_id, nomenclature,
-  planned_start (optional).
+  planned_start (optional), discrepancy (optional: the free text as written on the new JCN; aliases
+  discrepancy, discrepancytext, narrative, problem, deficiency, remarks, text).
 - `consumption` (output): proposed_id, hull, project, phase_no, phase_title, shop, est_hours_low,
   est_hours_high, charged_hours_low, charged_hours_high, load_hours, week_start, week_end, placement,
   summaries_used, same_class, top_score, analog_jcns, notes.
@@ -47,27 +53,33 @@ MODULE 2, plus one small HTML block. Keep every contract name exactly; declare p
 IIFE, no module, no window assignment). Where this module redefines a function from MODULE 2, declare it
 again with the same name: the later declaration wins.
 
-Two rules about MODULE 2's variables: it declared SCHEMA with const and RAW_DATA and MAPPINGS with let.
+Two rules about MODULE 2's variables: it declared SCHEMA and OPTIONAL_FIELDS with const and RAW_DATA and
+MAPPINGS with let.
 A second declaration of any of those names in another script block is a syntax error that kills the
-whole block, so never write const SCHEMA, let RAW_DATA or let MAPPINGS again. Extend SCHEMA in place
-(Object.assign(SCHEMA.phases, {...}); SCHEMA.availabilities = {...}) and use RAW_DATA and MAPPINGS as
-they are.
+whole block, so never write const SCHEMA, const OPTIONAL_FIELDS, let RAW_DATA or let MAPPINGS again. Extend SCHEMA in
+place (Object.assign(SCHEMA.phases, {...}); SCHEMA.availabilities = {...}), push the new optional field
+names onto OPTIONAL_FIELDS, and use RAW_DATA and MAPPINGS as they are. MODULE 2 checks that list by field
+name across every table, so push only the names that are optional wherever they appear (planned_start,
+planned_finish, actual_start, actual_finish, project); the availabilities table's own fields (project,
+hull, start, end) are required for it and are never pushed, because hull is required in the history.
 
 Contract reminder: DB.jcns (array of rows: jcn, job_summary, hull, ship_class, swlin, space,
-equipment_id, equipment_nomenclature, received_date as a Date or null), DB.phasesByJS (plain object,
+equipment_id, equipment_nomenclature, discrepancy (a string, as typed, possibly empty), received_date as
+a Date or null), DB.phasesByJS (plain object,
 job_summary to array of {phase_no, phase_title, shop, est_hours, charged_hours}), DB.matByJS,
 DB.jsCount (plain object), DB.hulls (array of [hull, ship_class]). Helpers $(id), esc, toDate, fmtDate,
 num, csvCell. MODULE 2 has parseCSV(text), loadFiles(fileList), buildDB(tables), a SCHEMA of aliases
 (written without spaces, compared through cleanCol(s) = lower case with everything but letters and
-digits removed), a detectType(headers), an updateStatus() and a mapping panel.
+digits removed), OPTIONAL_FIELDS, a detectType(headers), an updateStatus() and a mapping panel; its code
+is above in this chat, so reuse its mapping panel and autoMap as they are rather than guessing at them.
 
 Changes:
 1. Streamed reading. Write streamCSV(file, onProgress): reads the file in 4 MB slices (file.slice, read
    as text), carries the incomplete last record from one slice to the next (quoted fields with line
    breaks inside must still work, so carry the partial record, not just the partial line), parses
-   complete records as it goes, calls onProgress(percent) with a number after each slice, and resolves
-   to {headers, data} where headers is the array of trimmed header strings and data is the array of row
-   objects keyed by header. loadFiles uses it instead of reading the whole file, and shows progress in
+   complete records as it goes, calls onProgress(percent) with a number after each slice when a function
+   was given (a caller may omit it, so guard the call), and resolves to {headers, data} where headers is
+   the array of trimmed header strings and data is the array of row objects keyed by header. loadFiles uses it instead of reading the whole file, and shows progress in
    datastatus ("reading phases.csv: 37%").
 2. More columns. Extend SCHEMA in place: phases gains optional planned_start, planned_finish,
    actual_start, actual_finish (aliases: planned start, plan start, sched start, scheduled start;
@@ -76,8 +88,9 @@ Changes:
    avail, avail id, availability name, period). A fourth optional table availabilities: project, hull,
    start, end (aliases: start, start date, avail start; end, end date, finish, completion), detected by a
    project or availability column together with start and end columns. Optional columns never block the
-   mapping panel or btn-run; they are blank when absent. buildDB keeps the four dates on each phase row
-   as Dates (or null) and project (uppercased) on each jcn row, and stores availabilities in
+   mapping panel or btn-run; they are blank when absent. buildDB keeps every column the first buildDB kept
+   (the optional discrepancy text stays on each jcn row, trimmed, as typed), plus the four dates on each
+   phase row as Dates (or null) and project (uppercased) on each jcn row, and stores availabilities in
    DB.availByProject (plain object, uppercased project to {project, hull, start, end} with Dates).
 3. Local store. Add storeDB(tables) that writes the mapped tables and the mapping to IndexedDB (database
    "estimator", one object store "tables", one record keyed "history" holding {savedAt, rowCounts,
@@ -92,7 +105,11 @@ Changes:
    replace it.
 5. Memory: keep rows as plain objects but do not keep the raw CSV text or the unmapped rows after
    buildDB has run (clear RAW_DATA).
-6. No em dashes. No network access.
+6. After buildDB, btn-run and btn-tune are enabled, as MODULE 2 did; buildDB keeps the material rows as
+   MODULE 2 built them ({job_summary, phase_no, item, qty}) and the phase and jcn rows with every field
+   MODULE 2 gave them, in the same case (nomenclature, phase titles and discrepancy as typed; codes
+   uppercased). Nothing in the file reads a field MODULE 2 did not define.
+7. No em dashes. No network access. No alert, confirm or prompt dialogs.
 
 Also give me this HTML block to paste just before the "2. New JCN" section:
 <div id="hist-store"></div>
@@ -108,18 +125,25 @@ the file, after the MODULE 4 block, plus one HTML block. Declare plain global fu
 module, no window assignment). Keep every contract name exactly.
 
 Contract reminder: findAnalogs(nj) returns [{j, score, raw, reasons, note?}] for a new JCN nj = {hull,
-cls, swlin, space, eid, nom}; rows from another class carry note. DB.hulls holds [HULL, class] pairs with
+cls, swlin, space, eid, nom, text}, where text is the discrepancy as typed (an empty string when the item
+has none; the matcher scores a missing text as 0); rows from another class carry note. DB.hulls holds [HULL, class] pairs with
 the hull uppercased and trimmed, so uppercase and trim the hull before looking it up; uppercase and trim
 project the same way. The single-JCN estimate logic is in buildEstimate() and reads ANALOGS and TICK; do
-not change it; it sets EST = {nj, rows, usedJcns} where rows are {phase_no, phase_title, shop, est_low,
-est_high, charged_low, charged_high, k, n} and usedJcns is a space-separated string of the JCNs used,
-newest first. streamCSV(file, onProgress) from MODULE 5 calls onProgress with a percent number and
-resolves to {headers, data}; cleanCol(s) lower-cases a header and strips everything but letters and
-digits, and every alias list is written in that form ("proposedid", "equipmentid", "plannedstart").
+not change it; it sets EST = {nj, rows, used, usedJcns} where rows are {phase_no, phase_title, shop,
+est_low, est_high, charged_low, charged_high, k, n} and usedJcns is a space-separated string of the JCNs
+used, newest first (Prompt 4 of the estimator series v0.5 pins that shape; if your file came from an
+older series, run its Prompt 4 again first). streamCSV(file, onProgress) from MODULE 5 calls onProgress with a percent number and
+resolves to {headers, data}, where headers is the array of trimmed header strings and data is an array
+of row objects keyed by those header strings (a cell is row[headers[i]] or row["Hull"], never row[i]);
+cleanCol(s) lower-cases a header and strips everything but letters and digits, and every alias list is
+written in that form ("proposedid", "equipmentid", "plannedstart").
 DB.availByProject maps an uppercased project to {project, hull, start, end}. W holds the weights: add
 W.autoMin (default 0.6) and W.autoMax (default 5) to BOTH DEFAULT_W and W, add their labels to W_LABELS,
-and call buildWeightsPanel() again so they show. Helpers $(id), esc, toDate, fmtDate, num, csvCell,
-setDownload. Placement of phases in weeks is written in the NEXT step as placePhases(item, estRows,
+then call loadSavedWeights() (so values of the new keys saved in an earlier session survive a reload) and
+then renderWeights() so they show. Helpers $(id), esc, toDate, fmtDate, num, csvCell,
+setDownload. Declare getMonday(d) in this module (the Monday on or before d, as a Date at midnight; null
+for null or an invalid date), because the placement step and later series call it. Placement of phases
+in weeks is written in the NEXT step as placePhases(item, estRows,
 usedJcns), which returns an array parallel to estRows of {week_start, week_end, placement, note}; in
 this step declare it as a one-line stub that returns, for every row, {week_start: '', week_end: '',
 placement: '', note: 'no dates'}, and call it from the loop as described below.
@@ -128,7 +152,8 @@ New HTML (paste just before the "5. Export" section):
 <div class="section" id="sec-batch">
   <h2>6. Batch: estimate a list of proposed work</h2>
   <p>Choose proposed.csv (columns: proposed_id, hull, project, swlin, space, equipment_id, nomenclature,
-  planned_start optional) and, if you have it, availabilities.csv (project, hull, start, end).</p>
+  planned_start optional, discrepancy optional) and, if you have it, availabilities.csv (project, hull,
+  start, end).</p>
   <input type="file" id="p-files" multiple>
   <div><button id="btn-batch" disabled>Estimate all</button></div>
   <div id="batch-status"></div>
@@ -138,42 +163,59 @@ New HTML (paste just before the "5. Export" section):
 </div>
 
 Behavior:
-1. p-files: read the chosen files with streamCSV. Detect proposed.csv by a proposed id column (aliases
-   proposedid, id, line, item, jcn) together with a hull or equipment column, and availabilities.csv by a
-   project or availability column together with start and end columns, comparing cleanCol(header) with
-   the alias lists; map columns the same way (proposed_id, hull, project, swlin, space, equipment_id
+1. p-files: its change listener calls a plain global function loadBatchFiles(Array.from(this.files)),
+   so the function receives a plain array (a later series wraps that function by name, so it must exist
+   under that name and accept an array). loadBatchFiles reads the files with streamCSV. Detect proposed.csv by a proposed id
+   column (aliases proposedid, id, line, item, jcn) together with a hull or equipment column, and
+   availabilities.csv by a project column (aliases project, availability, avail, availid,
+   availabilityname, period: the list MODULE 5 gave SCHEMA.availabilities.project, so reuse
+   SCHEMA.availabilities for its four fields) together with start and end columns, comparing
+   cleanCol(header) with the alias lists; map columns the same way (proposed_id, hull, project, swlin, space, equipment_id
    (aliases equipmentid, equipment, eid), nomenclature (nomenclature, nom, description), planned_start
-   (plannedstart, plannedstartdate, start)); show a mapping panel if a required column is missing; then
-   enable btn-batch and say in batch-status how many items and how many availabilities were read.
-   Availabilities read here go into BATCH_AVAIL (same shape as DB.availByProject).
+   (plannedstart, plannedstartdate, start), discrepancy (optional: discrepancy, discrepancytext,
+   narrative, problem, deficiency, remarks, text; blank when the column is absent)); show a mapping panel
+   when any of the seven required columns (proposed_id, hull, project, swlin, space, equipment_id,
+   nomenclature) found no column: one <select> of the file's headers per missing field and an Apply
+   button, drawn in batch-status (never an alert, confirm or prompt dialog: every message goes to
+   batch-status); then enable btn-batch and say in batch-status how many items and how many
+   availabilities were read. Availabilities read here go into BATCH_AVAIL (same shape as
+   DB.availByProject: uppercased project to {project, hull, start, end}, start and end through toDate, so
+   Dates or null, never strings). Keep the items in a global BATCH_ITEMS.
 2. btn-batch runs estimateBatch(): for each proposed item, in chunks of 20 items per setTimeout(0) so
    the page stays responsive and batch-status shows "item 140 of 800":
-   a. Build nj from the item with every text field trimmed and uppercased; cls from DB.hulls by the
-      uppercased hull; if the hull is not found, cls is blank and the item note "hull not in history" is
+   a. Build nj from the item: hull, swlin, space, eid and nom trimmed and uppercased; text = the item's
+      discrepancy trimmed and otherwise as typed ("" when absent); cls from DB.hulls by the uppercased
+      hull; if the hull is not found, cls is blank and the item note "hull not in history" is
       recorded. Item notes are fixed before the phase loop; each output line gets a copy of them plus its
       own.
    b. analogs = findAnalogs(nj). Auto-select: same-class rows (no note) with score >= W.autoMin times
       the top same-class score, at most W.autoMax, at least one if any exist. If there is no same-class
       analog, use the top other-class analog alone and set same_class = no. If there are no analogs at
       all, write one output line with blank hours and the note "no analog".
-   c. Set ANALOGS to the analog list and TICK to the selected jcn values, call buildEstimate(), and read
-      EST.rows and EST.usedJcns. It is acceptable that the single-JCN tables show the last item's estimate
-      when the batch ends.
+   c. Set ANALOGS to the analog list and TICK to a new Set of the selected analogs' jcn values (each
+      analog a is {j, score, raw, reasons}, so the value is a.j.jcn), call buildEstimate(), and read
+      EST.rows, EST.usedJcns and EST.notes. It is acceptable that the single-JCN tables show the last
+      item's estimate when the batch ends.
    d. load_hours for a phase = the midpoint of its charged range (if the charged range is blank, the
       midpoint of the estimated range).
    e. const placed = placePhases(item, EST.rows, EST.usedJcns); the line for phase i takes week_start,
       week_end and placement from placed[i], and adds placed[i].note to the line's notes when present.
    f. Collect one output line per phase: proposed_id, hull, project, phase_no, phase_title, shop,
       est_hours_low, est_hours_high, charged_hours_low, charged_hours_high, load_hours, week_start,
-      week_end, placement, summaries_used (the number of JCNs in EST.usedJcns), same_class, top_score
-      (one decimal), analog_jcns (EST.usedJcns), notes (semicolon separated: "possible method change"
-      when EST noted one, "thin history" when n < 3, "no analog", "hull not in history", "no dates").
+      week_end, placement, summaries_used (EST.usedJcns.split(' ').length: the JCNs the estimate used,
+      not the count of ticked analogs), same_class, top_score (one decimal), analog_jcns (EST.usedJcns),
+      notes (semicolon separated, from this fixed list only: "possible method change" when any string in
+      EST.notes begins "Possible method change", "thin history" when n < 3, "no analog", "hull not in
+      history", "no dates"; never copy EST.notes themselves into the line).
 3. When done: batch-summary shows items estimated, items with no analog, lines by placement rule
    (relative, sequence, start_week, blank), total load_hours by shop (a small table), and the elapsed
    time. batch-preview shows the header and the first 50 lines. batch-download gets a Blob URL (or a
-   data: URL) of the whole CSV, UTF-8, CRLF, every cell through csvCell. Build the CSV in an array of
-   lines and join once.
-4. No em dashes.
+   data: URL) of the whole CSV, UTF-8 with no byte-order mark (the Resource Map reads the header by
+   name), CRLF, every cell through csvCell. Build the CSV in an array of lines and join once.
+4. Wire btn-batch through an arrow function: $('btn-batch').addEventListener('click', () =>
+   estimateBatch()), never by passing the function itself, because a later series declares estimateBatch
+   again. finishBatch(rows, stats, ms) is a plain global function with that signature.
+5. No em dashes. No alert, confirm or prompt dialogs anywhere.
 
 Answer with the one <script> block only, and nothing after it (the HTML block is given above; I will
 paste it myself).
@@ -239,8 +281,12 @@ I have added MODULE 5, MODULE 6 and placePhases. Without rewriting the file, che
 1. That MODULE 5 declares no const or let name that MODULE 2 already declared, that its redefinitions of
    loadFiles and buildDB keep every name MODULE 3 and 4 rely on, and that nothing in MODULE 5 runs before
    the elements it touches exist.
-2. That estimateBatch never calls a function that does not exist, calls placePhases once per item, and
-   uppercases the hull before the DB.hulls lookup.
+2. That estimateBatch never calls a function that does not exist (renderWeights, not buildWeightsPanel,
+   draws the weights), calls placePhases once per item, uppercases the hull before the DB.hulls lookup,
+   builds nj with a text key (the item's discrepancy, or ""), counts summaries_used from EST.usedJcns,
+   and writes only the fixed phrases into notes (never the sentences in EST.notes); that MODULE 6 declares
+   getMonday; and that a proposed file missing one of the seven required columns draws the mapping panel
+   in batch-status instead of reading blanks.
 3. That week_start is always a Monday string or blank, and that every output line has exactly 19 cells.
 4. Any Date object that would reach csvCell unformatted.
 Then give me a five-step test for batch mode with a proposed.csv of three made-up lines: one with a known

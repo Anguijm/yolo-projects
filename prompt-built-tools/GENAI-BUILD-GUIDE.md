@@ -1,6 +1,10 @@
 # Build guide: the estimator and the Resource Map, from prompts, inside GenAI.mil
 
-Version 0.3, 2026-10-24 (v0.1 and v0.2 kept beside it). v0.3: the estimator series v0.4 reads the discrepancy text and
+Version 0.4, 2026-10-24 (v0.1 to v0.3 kept in the private source). v0.4: the prompt files live in their own folder,
+prompt-built-tools; the work package carries the discrepancy text and the batch and planned layers pass it to the
+matcher; the matcher has a class-family box and hull nearness, both at zero until the weight test says otherwise; the
+batch and planned series were regenerated on that base and checked line by line against an independent calculation,
+and the batch note "possible method change" is now written. v0.3: the estimator series v0.4 reads the discrepancy text and
 scores the SWLIN by shared code depth, and the new weight test (GENAI-PROMPTS-estimator-tune.md) runs after Prompt 5. v0.2
 (2026-10-23): the lookup column is map_name, and the leveler series is named in full where "B2" could have meant
 Prompt B2 of series B (review of PR 60). This is the one page to read before building. It says what the two tools are, what files
@@ -47,7 +51,7 @@ spaces and punctuation ignored, so "Job Summary", "job_summary" and "JOBSUMMARY"
 | JCN history | a JCN | jcn, job_summary, project, hull, ship_class, swlin, space, equipment_id, equipment_nomenclature, discrepancy (the free text as written, optional), received_date | the reporting tool pull |
 | Phases | a phase of a job summary | job_summary, phase_no, phase_title, shop, est_hours, charged_hours, planned_start, planned_finish, actual_start, actual_finish, performing (organic shop or contractor) | the reporting tool pull |
 | Material | an order line of a phase (once per phase of a job summary, never repeated per JCN) | job_summary, phase_no, stock_number (NIIN or NSN), nomenclature, qty | the reporting tool pull |
-| Work package | a future JCN | proposed_id (the JCN), hull, project, swlin, space, equipment_id, nomenclature, planned_start, job_summary, performing (the screening mark, when the pull comes from the JCN database) | the reporting tool or the JCN database |
+| Work package | a future JCN | proposed_id (the JCN), hull, project, swlin, space, equipment_id, nomenclature, discrepancy (the free text as written, optional), planned_start, job_summary, performing (the screening mark, when the pull comes from the JCN database) | the reporting tool or the JCN database |
 | Planning status | a planned phase | job_summary, phase_no, phase_title, shop, planned_hours or planned_mandays, scheduled_start, scheduled_finish, performing | the reporting tool pull |
 | Project list | a project | project, hull, start, end | the reporting tool pull, or the workforce map if Prompt A finds the dates there |
 | Workforce map | its own layout | described by Prompt A, never retyped | the planning department's workbook |
@@ -64,8 +68,9 @@ CSV (File, Save As, CSV UTF-8).
 
 1. `GENAI-PROMPTS-estimator.md`: Prompts 1 to 5. The page, the history import with column mapping, the matching of a
    new JCN against the past (equipment, hull, space, the SWLIN by how much of its code is shared, the nomenclature
-   and the discrepancy text by shared words after an abbreviation dictionary you keep on the page), the match
-   strength, the estimate and its CSV, the check prompt. Then the optional column-name prompt when the real export
+   and the discrepancy text by shared words after an abbreviation dictionary you keep on the page, and two features
+   you type yourself, the class families and hull nearness, both weighted zero until the weight test moves them),
+   the match strength, the estimate and its CSV, the check prompt. Then the optional column-name prompt when the real export
    names differ.
 2. `GENAI-PROMPTS-estimator-tune.md`: Prompts T and T2, the weight test. It fills section 6 of the same page: every
    finished past job is hidden, estimated from the others and compared with its charged hours, under your weights
@@ -121,7 +126,8 @@ few rows each, with numbers you can add up yourself. Then:
 
 - Estimator: load the three history files and a two-line work package; one proposed JCN should find analogs and
   show an estimate; the batch run should write one consumption line per phase and one material line per stock
-  number; a planned job summary in the planning file should come out with the planner's hours and source
+  number, and its notes column carries only fixed phrases ("thin history", "possible method change", "hull not in
+  history", "no dates", "no analog", "planned", "performing guessed from analogs"); a planned job summary in the planning file should come out with the planner's hours and source
   "planned". Hand-check one phase: the low and high of the analogs' hours, divided by the JCN count of a grouped
   summary.
 - Resource Map: load the two workforce map sheets (as CSV) and the consumption file; pick one shop-week and add the
@@ -210,5 +216,6 @@ Every CSV opens in Excel as a pivot table: one header row, no merged cells, no t
    a field under a squashed name (loadhours) where the contract says load_hours; a date built with new Date(text),
    which shifts a week on a computer off UTC; a function bound to a button by name instead of through an arrow
    function, so a later redeclaration never runs (the planned-jobs prompt replaces the button with a clone for
-   this reason).
+   this reason); a module that read a streamed row by position (row[0]) where the rows are keyed by the header
+   string; a helper a later step needs (getMonday) declared by nobody.
 4. The look (Prompt S) wrong after pasting: almost always a variable name missing from the mapping block; add it.

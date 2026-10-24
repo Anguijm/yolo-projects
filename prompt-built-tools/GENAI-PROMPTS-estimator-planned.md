@@ -1,20 +1,24 @@
 # Prompts D: planned jobs, the contractor, and the material list
 
-Version 0.4, 2026-10-23. v0.4 applies the project owner's rule for JCNs grouped on one job summary
+Version 0.5, 2026-10-24 (v0.1 to v0.4 kept in the private source). v0.5 builds on Prompts C v0.8 and the estimator
+series v0.5: the new JCN carries its discrepancy text (nj gains `text`, read from the proposed file's optional
+discrepancy column), the weights panel is renderWeights() with loadSavedWeights() merged again after this series adds
+its key, and the EST shape is the one Prompt 4 v0.5 pins (all from the review of PR 69); regenerated from this text
+on the batch stack v0.8 and passed the planned harness first time, test record kept in the private source.
+v0.4 applied the owner's rule for JCNs grouped on one job summary
 (2026-10-23): the hours of a grouped summary are divided by its JCN count, as they have been since the first
 estimator prompts, but the material is NOT. A new JCN that matches a grouped summary gets the complete material list
 at full quantity, and a new column, group_size, says how many JCNs the bundle held (1 = not grouped), so a planner
 knows the list may carry sibling jobs' parts and can trim it. v0.3 divided material by the JCN count (an inference
-from the hours rule, tightened by the review of PR 57); that is reversed here on that rule. The owner also answered the
+from the hours rule, tightened by the reviewer's review of PR 57); that is reversed here on his word. He also answered the
 pull shape: the material export lists each order line once per phase of a job summary, and it is the JCN history
 that repeats a grouped summary once per JCN, so the tool takes material rows as they are and never collapses or
-divides them. v0.3 answered the review of PR 57: D runs BEFORE Prompts X, one material value per summary with
+divides them. v0.3 answered the reviewer's review of PR 57: D runs BEFORE Prompts X, one material value per summary with
 every used JCN listed, and performing is matched on whole words so "control" is not a contractor. Earlier, tested
 against Gemini with no code execution, the same handicap as the chat inside: v0.1 recursed on the first history
 load (the wrapper captures shared a block with the new declarations), the rewritten batch loop never ran from the
 button (MODULE 6 had bound the old function), the material quantities were summed, and unscheduled planned phases
-piled into one week; v0.2 fixed all of that in the prompt text and built working code first time. The test records
-stay in the private source.
+piled into one week; v0.2 fixed all of that in the prompt text and built working code first time. Test record kept in the private source.
 
 Three prompts that extend the batch estimator built from Prompts C (`GENAI-PROMPTS-estimator-batch.md`,
 C1, C2, C2b). Run them in the same chat after C2b and BEFORE Prompts X (workbook input): X2's hook must wrap
@@ -23,7 +27,7 @@ after X that is the workbook expander, so a planned workbook would be read as ra
 Prompts X are already in the file, run X2 again after D. D adds no file picker. Each answer is pasted into the
 file as the prompt says.
 
-What they add:
+What they add, from the owner's flow of 2026-10-22:
 
 1. **Planned jobs bypass the guess.** Planning gives some job summaries a real estimate (man-hours or man-days
    by shop, per phase) and, later, scheduled dates. A new optional table `planned` carries those. A proposed
@@ -105,7 +109,8 @@ material rows {phase_no, item, qty}), DB.jsCount, DB.hulls, DB.availByProject; i
 job_summary keys. loadBatchFiles(files) reads the batch picker's files with streamCSV, recognizes
 proposed.csv and availabilities.csv by their headers, and enables btn-batch. Helpers $(id), esc, toDate
 (Date or null), fmtDate, num, csvCell, getMonday. W and DEFAULT_W hold the weights, W_LABELS their
-labels, buildWeightsPanel() redraws them.
+labels, renderWeights() redraws them and loadSavedWeights() merges the saved values of whatever keys
+DEFAULT_W has.
 
 1. normPerforming(s): trim, lower case; "" stays "". Split the text into words on anything that is not a
    letter or digit; it is "farm-out" when any word is one of contr, contractor, contract, contracted, ctr,
@@ -118,10 +123,10 @@ labels, buildWeightsPanel() redraws them.
      partnumber, partno, nationalstocknumber) and optional nomenclature (aliases nomenclature, noun,
      nounname, description, itemdescription, itemname). Remove nsn and description from item's aliases
      if they are there, so a NIIN column maps to stock_number and a description column to nomenclature.
-   - If an earlier block keeps a list of optional fields (MODULE 5 may have declared one with const,
-     such as OPTIONAL_FIELDS), add item, stock_number, nomenclature and performing to it in place with
-     push; never declare it again. The point: a material file with stock_number and qty but no item
-     column needs no mapping panel.
+   - MODULE 2 declared const OPTIONAL_FIELDS, the list of optional field names, and MODULE 5 pushed its
+     own onto it; push item, stock_number, nomenclature and performing onto it the same way, never
+     declare it again. The point: a material file with stock_number and qty but no item column needs
+     no mapping panel.
 3. detectType(headers): call detectTypeCore(headers); if it returns a table name, return it. Otherwise
    return "material" when the cleaned headers contain a quantity column (qty, quantity) together with any
    of item, part, material, stocknumber, niin, nsn; else return what Core returned.
@@ -157,7 +162,7 @@ labels, buildWeightsPanel() redraws them.
    accept an array; if Core indexes a FileList, an array works the same way). If no files remain (only
    a planned file was chosen), do not call Core; just report.
 7. Weights: W.hoursPerDay = 8 in both DEFAULT_W and W (only if not already set), W_LABELS.hoursPerDay =
-   "Hours per man-day (planned_mandays)", then buildWeightsPanel().
+   "Hours per man-day (planned_mandays)", then loadSavedWeights(), then renderWeights().
 8. PLANNED and PROPOSED_EXTRA are declared with var at the top of this block as empty objects.
 9. No em dashes. No network access.
 
@@ -176,21 +181,23 @@ Continue the same file. Write MODULE 8: a single <script> block that I will past
 the file, after MODULE 7. It declares estimateBatch and finishBatch again, in full, with the same names
 and the same signatures as MODULE 6 (finishBatch(rows, stats, ms)); the later declarations win. Also
 declare materialLines(item, usedJcns). Plain global function declarations only; no IIFE, no module, no
-window assignment; never redeclare with const or let a name an earlier block declared. One thing a new
-declaration cannot reach: MODULE 6 wired the button by passing the function itself
-(addEventListener('click', estimateBatch)), which bound MODULE 6's estimateBatch for good. So at the END
-of this block, after the declarations, replace the button with a clone of itself to drop every old
-listener (var b = $('btn-batch'); var b2 = b.cloneNode(true); b.parentNode.replaceChild(b2, b);) and
-wire the click again through an arrow function: $('btn-batch').addEventListener('click', () =>
-estimateBatch()). Everything
+window assignment; never redeclare with const or let a name an earlier block declared. MODULE 6 wired the
+button through an arrow function, so a new declaration is reached; still, at the END of this block, after
+the declarations, replace the button with a clone of itself to drop every old listener (var b =
+$('btn-batch'); var b2 = b.cloneNode(true); b.parentNode.replaceChild(b2, b);) and wire the click again
+through an arrow function: $('btn-batch').addEventListener('click', () => estimateBatch()), so the file
+works whichever way an earlier block wired it. Everything
 MODULE 6's estimateBatch did stays exactly as it was; this prompt lists it again so nothing is lost, and
 adds the planned bypass, the performing columns and the material lines. If the answer would be too long,
 say so instead of shortening the logic.
 
 Contract reminder: findAnalogs(nj) returns [{j, score, raw, reasons, note?}] for nj = {hull, cls, swlin,
-space, eid, nom}; rows from another class carry note. buildEstimate() reads ANALOGS and TICK and sets
-EST = {nj, rows, usedJcns} where rows are {phase_no, phase_title, shop, est_low, est_high, charged_low,
-charged_high, k, n} and usedJcns is a space-separated string of the JCNs used, newest first.
+space, eid, nom, text} (text = the discrepancy as typed, "" when none); rows from another class carry
+note. buildEstimate() reads ANALOGS (an array of {j, score, raw, reasons}) and TICK (a Set of jcn
+strings) and sets EST = {nj, rows, used, usedJcns, notes} where rows are {phase_no, phase_title, shop,
+est_low, est_high, charged_low, charged_high, k, n}, usedJcns is a space-separated string of the JCNs
+used, newest first, and notes is an array of strings (one begins "Possible method change" when the
+phase lists disagree).
 placePhases(item, estRows, usedJcns) returns an array parallel to estRows of {week_start, week_end,
 placement, note}. DB.jcns rows {jcn, job_summary, hull, ship_class, ..., received_date, project};
 DB.phasesByJS[JS] phase rows now carry performing ("in-house", "farm-out" or ""); DB.matByJS[JS] rows
@@ -205,10 +212,11 @@ mat-download. W.autoMin, W.autoMax, W.hoursPerDay.
 
 estimateBatch(), for each proposed item, in chunks of 20 items per setTimeout(0) with batch-status
 showing "item 140 of 800":
-a. Build nj from the item with every text field trimmed and uppercased; cls from DB.hulls by the
-   uppercased hull; if the hull is not found, cls is blank and the item note "hull not in history" is
-   recorded. Item notes are fixed before the phase loop; each output line gets a copy plus its own.
-   extra = PROPOSED_EXTRA[uppercased proposed_id] or {job_summary: "", performing: ""}.
+a. Build nj from the item: hull, swlin, space, eid and nom trimmed and uppercased; text = the item's
+   discrepancy trimmed and otherwise as typed ("" when the proposed file has no such column); cls from
+   DB.hulls by the uppercased hull; if the hull is not found, cls is blank and the item note "hull not in
+   history" is recorded. Item notes are fixed before the phase loop; each output line gets a copy plus its
+   own. extra = PROPOSED_EXTRA[uppercased proposed_id] or {job_summary: "", performing: ""}.
 b. PLANNED BYPASS. If extra.job_summary is non-blank and PLANNED[extra.job_summary] exists: do not
    call findAnalogs or buildEstimate. estRows = one row per planned phase row, in file order:
    {phase_no, phase_title, shop, est_low: planned_hours, est_high: planned_hours, charged_low:
@@ -229,8 +237,9 @@ c. analogs = findAnalogs(nj). Auto-select: same-class rows (no note) with score 
    use the top other-class analog alone and set same_class = no. If there are no analogs at all, write
    one output line with blank hours, the note "no analog", source "history", performing =
    extra.performing with basis "screening" if non-blank else "" and "", and go to the next item.
-d. Set ANALOGS to the analog list and TICK to the selected jcn values, call buildEstimate(), read
-   EST.rows and EST.usedJcns. It is acceptable that the single-JCN tables show the last item's estimate.
+d. Set ANALOGS to the analog list and TICK to a new Set of the selected analogs' jcn values (a.j.jcn),
+   call buildEstimate(), read EST.rows, EST.usedJcns and EST.notes. It is acceptable that the single-JCN
+   tables show the last item's estimate.
 e. load_hours for a phase = the midpoint of its charged range (if blank, the midpoint of the estimated
    range).
 f. placed = placePhases(item, EST.rows, EST.usedJcns); the line for phase i takes week_start, week_end
@@ -243,11 +252,12 @@ f. placed = placePhases(item, EST.rows, EST.usedJcns); the line for phase i take
    gets basis "analogs" and the line note "performing guessed from analogs".
 g. Collect one output line per phase, in this order: proposed_id, hull, project, phase_no,
    phase_title, shop, est_hours_low, est_hours_high, charged_hours_low, charged_hours_high,
-   load_hours, week_start, week_end, placement, summaries_used (number of JCNs in EST.usedJcns),
-   same_class, top_score (one decimal), analog_jcns (EST.usedJcns), notes (semicolon separated:
-   "possible method change" when EST noted one, "thin history" when n < 3, "no analog", "hull not in
-   history", "no dates", "planned", "performing guessed from analogs"), source, performing,
-   performing_basis. 22 cells.
+   load_hours, week_start, week_end, placement, summaries_used (EST.usedJcns.split(' ').length, the
+   JCNs the estimate used), same_class, top_score (one decimal), analog_jcns (EST.usedJcns), notes
+   (semicolon separated, from this fixed list only: "possible method change" when any string in
+   EST.notes begins "Possible method change", "thin history" when n < 3, "no analog", "hull not in
+   history", "no dates", "planned", "performing guessed from analogs"; never copy EST.notes themselves
+   into the line), source, performing, performing_basis. 22 cells.
 h. MATERIAL LINES. For a history item after step d: matLines.push(...materialLines(item,
    EST.usedJcns)). For a planned item: if DB.matByJS[extra.job_summary] exists, group its rows by
    phase_no and stock_number, qty = the group's sum of qty (two rows with the same stock number on a phase
@@ -304,8 +314,9 @@ I have added MODULE 7 and MODULE 8. Without rewriting the file, check:
    entirely, that their lines carry source "planned", that a scheduled phase's week_start is the
    Monday of scheduled_start, and that an unscheduled planned phase runs seven days after the previous
    one from planned_start with placement "sequence".
-4. That every consumption line has exactly 22 cells and every material line exactly 15, and that no
-   Date object reaches csvCell unformatted.
+4. That every consumption line has exactly 22 cells and every material line exactly 15, that no Date
+   object reaches csvCell unformatted, and that estimateBatch builds nj with a text key and calls
+   renderWeights, never buildWeightsPanel.
 5. That the performing majority rule counts each used summary once and that a tie goes to the newest
    summary with a non-blank value.
 6. That MODULE 7a and 7b sit BEFORE the Prompts X hook block in the file if Prompts X are present, so the
