@@ -26,8 +26,6 @@ Updated 2026-10-24 (JST), docs refresh.
   the folder; next-big-thing fixed its source and will carry it on its next public touch. | next-big-thing
 - 2026-10-23 | The superseded commits of PRs 60 and 61 on GitHub still show the real workforce report name; only GitHub
   support can purge them. | John
-- 2026-10-24 | pdf-to-csv: dist/pdf-to-csv-v0.8.10.html and v0.8.11.html are untracked (git-sync-check flags them);
-  committing built files is a code commit. | John
 - daily | Review the 05:50 JST cards and log verdicts in `.harness/card_reviews.md`. | me
 
 ## Query tool: yolo_index.py (2026-10-18)
