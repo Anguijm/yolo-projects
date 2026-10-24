@@ -4,16 +4,9 @@ Current version: **v0.8.11** (2026-10-20), live at https://anguijm.github.io/yol
 
 **Usage guide, step by step: [GUIDE.md](GUIDE.md).** This file is the overview and the reviewer's notes.
 Prompts for studying packets with an AI assistant inside the environment: [GENAI-PROMPTS.md](GENAI-PROMPTS.md).
-More prompt series for GenAI.mil: [the estimator](GENAI-PROMPTS-estimator.md),
-[estimator batch mode](GENAI-PROMPTS-estimator-batch.md),
-[planned jobs, the contractor and the material list](GENAI-PROMPTS-estimator-planned.md),
-[describing the resource map workbooks](GENAI-PROMPTS-resource-map-analysis.md),
-[building the Resource Map app](GENAI-PROMPTS-resource-map.md) and
-[reading Excel workbooks directly](GENAI-PROMPTS-xlsx.md),
-[the leveler on the Resource Map](GENAI-PROMPTS-resource-map-leveling.md) and
-[the look for either tool](GENAI-PROMPTS-style.md). The one-page [build guide](GENAI-BUILD-GUIDE.md) puts them in order.
-Two design pages, made-up data, open them in a browser: [the process flow](GENAI-PROCESS-FLOW.html) and
-[its loops and graphs](GENAI-LOOPS-AND-GRAPHS.html).
+The prompt series for GenAI.mil (the estimator, its batch and planned layers, the weight test, the Resource Map, the
+leveler, the look, the build guide and the two design pages) moved to [prompt-built-tools/](../prompt-built-tools/README.md)
+on 2026-10-24.
 
 A scanned-document-library to CSV converter that runs as one HTML file, offline. Type the names of the fields you want, choose a folder, and it reads every PDF in it (subfolders included) into one CSV row per record, with a separate list of the files it could not read and why.
 

@@ -1,7 +1,9 @@
 # Build guide: the estimator and the Resource Map, from prompts, inside GenAI.mil
 
-Version 0.2, 2026-10-23. v0.2: the lookup column is map_name, and the leveler series is named in full where "B2" could
-have meant Prompt B2 of series B (review of PR 60). This is the one page to read before building. It says what the two tools are, what files
+Version 0.3, 2026-10-24 (v0.1 and v0.2 kept beside it). v0.3: the estimator series v0.4 reads the discrepancy text and
+scores the SWLIN by shared code depth, and the new weight test (GENAI-PROMPTS-estimator-tune.md) runs after Prompt 5. v0.2
+(2026-10-23): the lookup column is map_name, and the leveler series is named in full where "B2" could have meant
+Prompt B2 of series B (review of PR 60). This is the one page to read before building. It says what the two tools are, what files
 they need, which prompt file to run in which order, how to paste the answers, how to test with made-up data, and
 what to do when something breaks. Every prompt series it names has been tested here against Gemini with no code
 execution and a headless browser, on made-up data only; the test records sit beside the prompt files in the
@@ -11,7 +13,7 @@ into a chat: the prompts describe structure, and the tools read the real files o
 ## The system in one picture
 
 ```
-Reporting-tool pulls (workbooks or CSV)                      Workforce map workbook          
+the reporting tool pulls (workbooks or CSV)                      Workforce map workbook          
   JCN history, phases, material (history)            assigned hours by project, shop, week
   work package (future JCNs)                         shop capacity by week, the contractor as a line
   planning status (planned job summaries)                        |
@@ -42,12 +44,12 @@ spaces and punctuation ignored, so "Job Summary", "job_summary" and "JOBSUMMARY"
 
 | File | One row is | Columns the tools look for | Where it comes from |
 |---|---|---|---|
-| JCN history | a JCN | jcn, job_summary, project, hull, ship_class, swlin, space, equipment_id, equipment_nomenclature, received_date | reporting-tool pull |
-| Phases | a phase of a job summary | job_summary, phase_no, phase_title, shop, est_hours, charged_hours, planned_start, planned_finish, actual_start, actual_finish, performing (organic shop or contractor) | reporting-tool pull |
-| Material | an order line of a phase (once per phase of a job summary, never repeated per JCN) | job_summary, phase_no, stock_number (NIIN or NSN), nomenclature, qty | reporting-tool pull |
+| JCN history | a JCN | jcn, job_summary, project, hull, ship_class, swlin, space, equipment_id, equipment_nomenclature, discrepancy (the free text as written, optional), received_date | the reporting tool pull |
+| Phases | a phase of a job summary | job_summary, phase_no, phase_title, shop, est_hours, charged_hours, planned_start, planned_finish, actual_start, actual_finish, performing (organic shop or contractor) | the reporting tool pull |
+| Material | an order line of a phase (once per phase of a job summary, never repeated per JCN) | job_summary, phase_no, stock_number (NIIN or NSN), nomenclature, qty | the reporting tool pull |
 | Work package | a future JCN | proposed_id (the JCN), hull, project, swlin, space, equipment_id, nomenclature, planned_start, job_summary, performing (the screening mark, when the pull comes from the JCN database) | the reporting tool or the JCN database |
-| Planning status | a planned phase | job_summary, phase_no, phase_title, shop, planned_hours or planned_mandays, scheduled_start, scheduled_finish, performing | reporting-tool pull |
-| Project list | a project | project, hull, start, end | reporting-tool pull, or the workforce map if Prompt A finds the dates there |
+| Planning status | a planned phase | job_summary, phase_no, phase_title, shop, planned_hours or planned_mandays, scheduled_start, scheduled_finish, performing | the reporting tool pull |
+| Project list | a project | project, hull, start, end | the reporting tool pull, or the workforce map if Prompt A finds the dates there |
 | Workforce map | its own layout | described by Prompt A, never retyped | the planning department's workbook |
 | Lookup | a project on the workforce map | map_name, project, hull | Prompt L drafts it, you confirm each row |
 | Contractor capacity | a week of the contractor's line | shop (the line's code, for example CTR), week_start, capacity_hours | the workforce map, or this small file when the map carries no such row |
@@ -61,16 +63,22 @@ CSV (File, Save As, CSV UTF-8).
 **Tool 1, the estimator** (one chat):
 
 1. `GENAI-PROMPTS-estimator.md`: Prompts 1 to 5. The page, the history import with column mapping, the matching of a
-   new JCN against the past, the estimate and its CSV, the check prompt. Then the optional column-name prompt when
-   the real export names differ.
-2. `GENAI-PROMPTS-estimator-batch.md`: Prompts C1, C2, C2b. The whole work package at once, streamed import of big
+   new JCN against the past (equipment, hull, space, the SWLIN by how much of its code is shared, the nomenclature
+   and the discrepancy text by shared words after an abbreviation dictionary you keep on the page), the match
+   strength, the estimate and its CSV, the check prompt. Then the optional column-name prompt when the real export
+   names differ.
+2. `GENAI-PROMPTS-estimator-tune.md`: Prompts T and T2, the weight test. It fills section 6 of the same page: every
+   finished past job is hidden, estimated from the others and compared with its charged hours, under your weights
+   and under weights the test fits on one half of the history and judges on the other. Runs after Prompt 5 and
+   before the batch series, which keeps it.
+3. `GENAI-PROMPTS-estimator-batch.md`: Prompts C1, C2, C2b. The whole work package at once, streamed import of big
    history files, the local store, placement of each phase in the project's weeks, one consumption CSV out.
-3. `GENAI-PROMPTS-estimator-planned.md`: Prompts D1, D2, D3. Planned job summaries pass through with the planner's
+4. `GENAI-PROMPTS-estimator-planned.md`: Prompts D1, D2, D3. Planned job summaries pass through with the planner's
    numbers, the contractor mark on every line, the material list per phase (material_estimate.csv). D runs after
    C2b and BEFORE Prompts X.
-4. `GENAI-PROMPTS-xlsx.md`: Prompts X and X2, optional, to choose workbooks instead of CSVs. If X was run before D,
+5. `GENAI-PROMPTS-xlsx.md`: Prompts X and X2, optional, to choose workbooks instead of CSVs. If X was run before D,
    run X2 again after D.
-5. `GENAI-PROMPTS-style.md`: Prompt S, the estimator variant, last.
+6. `GENAI-PROMPTS-style.md`: Prompt S, the estimator variant, last.
 
 **Tool 2, the Resource Map** (one chat):
 
@@ -100,7 +108,7 @@ last to wrap.
   as the function it captures recurses forever.
 - Save the file with the name the series gives (`estimator.html`, `resource-map.html`). Open it in Edge or Chrome.
   Press F12 for the console if anything looks wrong.
-- Run the check prompt (5, D3, B5, B2-5) before opening the page. It lists what to fix and gives a small test.
+- Run the check prompt (5, T2, D3, B5, B2-5) before opening the page. It lists what to fix and gives a small test.
 - When a chat gets long and the model forgets an earlier module, paste that module's code back into the chat: the
   "contract reminder" paragraph in every prompt is the minimum it needs, and it is already in the prompt.
 - If a step produces something that will not fit in one answer, the prompt tells the model to say so instead of
@@ -124,6 +132,26 @@ few rows each, with numbers you can add up yourself. Then:
 
 What "working" means here is what it meant in the tests: the page's numbers equal a calculation made by hand or by
 another program on the same files.
+
+## The weight test (section 6 of the estimator)
+
+Nobody should guess the matching weights, so the page carries a test that fits them from the history itself. Load
+the three exports, set "Jobs tested per half" (300 is plenty; fewer runs faster) and press "Run the weight test".
+It splits the finished past jobs into two halves, hides each tested job, finds its closest past jobs among the
+other half, estimates its hours the way the tool does (the median of the top five analogs' charged hours), and
+compares with what the job actually charged. It does that under your weights, then changes one weight at a time
+through a short ladder and keeps what lowers the error, fitting on one half and judging on the other, both ways.
+The table shows your weights beside the fitted ones with the error under each; "(held out)" marks the honest
+numbers, the ones judged on the half the weights were not fitted on. "Adopt suggested weights" writes the fitted
+set into the weights panel; you can still edit any of them.
+
+What to read: the Suggested column's error on both runs; the optimistic share (estimates more than the band under
+the charged hours, the error that lets work overrun its window) matters more than the conservative share. Limits:
+the test judges same-class matching only; it needs charged hours on the phases; each tested job keeps its 500
+closest past rows under the starting weights (with that cap a 200,000-row made-up history ran in about 90 seconds
+at 330 MB in the test here; without it the browser passed 2.8 GB and an hour); and on made-up data it only proves
+that the test runs. The weights are a property
+of the history, so run it again when the export grows.
 
 ## Prompt L: draft the project lookup
 
