@@ -1,6 +1,10 @@
 # Build guide: the estimator and the Resource Map, from prompts, inside GenAI.mil
 
-Version 0.4, 2026-10-24 (v0.1 to v0.3 kept in the private source). v0.4: the prompt files live in their own folder,
+Version 0.5, 2026-10-25 (v0.1 to v0.4 kept in the private source). v0.5: the dictionary page, a third tool of its
+own (GENAI-PROMPTS-dictionary.md): it reads the JCN history once, puts the shorthand in the free text in front of a
+planner with counts and examples, and writes dictionary.json, which the estimator now loads through a file picker
+(Prompt K4); the estimator's attainable score counts hull nearness (v0.6 of its series, from the review of PR 71).
+v0.4: the prompt files live in their own folder,
 prompt-built-tools; the work package carries the discrepancy text and the batch and planned layers pass it to the
 matcher; the matcher has a class-family box and hull nearness, both at zero until the weight test says otherwise; the
 batch and planned series were regenerated on that base and checked line by line against an independent calculation,
@@ -27,9 +31,14 @@ the reporting tool pulls (workbooks or CSV)                      Workforce map w
   Estimator (one HTML file)  ---consumption.csv-------->   import, store, shop by week, drill-down,
   score each future JCN against the past,                  verdicts, export (series B)
   planned jobs pass through, material list                 + the leveler: moves on top of the dates of
-        |                                                    record, contractor line, lookup, zoom,
-        +---material_estimate.csv (for planners)             snapshot, automatic level and farm out
-                                                             (series B2), the look (Prompt S)
+        ^       |                                            record, contractor line, lookup, zoom,
+        |       +---material_estimate.csv (for planners)     snapshot, automatic level and farm out
+  dictionary.json                                            (series B2), the look (Prompt S)
+        |
+  Dictionary page (one HTML file, series K)
+  reads the JCN history once, lists the shorthand in the
+  free text with counts and examples, a planner decides
+  each term, exports the dictionary
                                                                  |
                                                                  v
                                                   moves list, farm-out list, snapshot for the TVs,
@@ -56,6 +65,7 @@ spaces and punctuation ignored, so "Job Summary", "job_summary" and "JOBSUMMARY"
 | Project list | a project | project, hull, start, end | the reporting tool pull, or the workforce map if Prompt A finds the dates there |
 | Workforce map | its own layout | described by Prompt A, never retyped | the planning department's workbook |
 | Lookup | a project on the workforce map | map_name, project, hull | Prompt L drafts it, you confirm each row |
+| Dictionary | a piece of the yard's shorthand | the token and its long form (dictionary.json is a plain map, short to long) | the dictionary page, from the JCN history's text, decided by a planner |
 | Contractor capacity | a week of the contractor's line | shop (the line's code, for example CTR), week_start, capacity_hours | the workforce map, or this small file when the map carries no such row |
 
 Dates are read as YYYY-MM-DD, MM/DD/YYYY, DD-MON-YYYY or an Excel serial. Weeks are keyed by their Monday. Hours
@@ -85,6 +95,18 @@ CSV (File, Save As, CSV UTF-8).
    run X2 again after D.
 6. `GENAI-PROMPTS-style.md`: Prompt S, the estimator variant, last.
 
+7. `GENAI-PROMPTS-dictionary.md`, Prompt K4 only: the estimator's file picker for dictionary.json (any time after
+   Prompt 5; the other K prompts build the dictionary page, below).
+
+**Tool 3, the dictionary page** (one chat, short):
+
+1. `GENAI-PROMPTS-dictionary.md`: Prompts K1 to K3. The page and its two loaders (the JCN history, an earlier
+   dictionary or review file), the harvest (every token in the free text, counted by jobs, shorthand first, three
+   example sentences each), the review table (type the long form, or mark a plain word as ignore), the trial sentence
+   (what the estimator will compare, before and after), the exports (dictionary.json for the estimator,
+   dictionary-review.json to resume), the check prompt. It splits text exactly as the estimator does, so a term the
+   page shows is a term the matcher compares.
+
 **Tool 2, the Resource Map** (one chat):
 
 1. `GENAI-PROMPTS-resource-map-analysis.md`: Prompt A, with the workforce map workbook attached. It answers with a
@@ -113,7 +135,7 @@ last to wrap.
   as the function it captures recurses forever.
 - Save the file with the name the series gives (`estimator.html`, `resource-map.html`). Open it in Edge or Chrome.
   Press F12 for the console if anything looks wrong.
-- Run the check prompt (5, T2, D3, B5, B2-5) before opening the page. It lists what to fix and gives a small test.
+- Run the check prompt (5, T2, D3, K3, B5, B2-5) before opening the page. It lists what to fix and gives a small test.
 - When a chat gets long and the model forgets an earlier module, paste that module's code back into the chat: the
   "contract reminder" paragraph in every prompt is the minimum it needs, and it is already in the prompt.
 - If a step produces something that will not fit in one answer, the prompt tells the model to say so instead of
@@ -134,6 +156,10 @@ few rows each, with numbers you can add up yourself. Then:
   sheet's hours for it yourself; the cell's percent must be that sum over the capacity. Nudge a job one week later
   from the drill-down and watch its hours move; farm a job out and see it land on the contractor's line; set the
   high band low (say 15) and press "Level and farm out" to see suggestions; export the moves list.
+- Dictionary page: load the history, press Harvest; the top rows should be the shorthand (slashes, no vowels,
+  capitals); type a long form for one, mark a plain word as ignore, and the summary line should count both;
+  download dictionary.json, load it into the estimator through its picker, and the estimator's abbreviation box
+  should show the merged lines and re-run the match.
 - Reload the page: everything comes back from the browser's store, moves included.
 
 What "working" means here is what it meant in the tests: the page's numbers equal a calculation made by hand or by
@@ -185,6 +211,8 @@ Resource Map with the other files. A name with no match stays as it is on the ma
 
 | File | Written by | Columns |
 |---|---|---|
+| dictionary.json | dictionary page | a JSON object, token to long form, only the mapped terms (the estimator's picker reads it) |
+| dictionary-review.json | dictionary page | savedAt, history (the file name), rows (token to {long, status, count}) for every decided term, to resume or share the review |
 | consumption.csv | estimator, batch | proposed_id, hull, project, phase_no, phase_title, shop, est_hours_low, est_hours_high, charged_hours_low, charged_hours_high, load_hours, week_start, week_end, placement, summaries_used, same_class, top_score, analog_jcns, notes, source, performing, performing_basis (22) |
 | material_estimate.csv | estimator, batch | proposed_id, hull, project, job_summary, phase_no, phase_title, stock_number, nomenclature, qty_low, qty_high, seen_on, summaries_used, group_size, source, analog_jcns (15) |
 | shop_week_summary.csv | Resource Map | shop, week_start, assigned_hours, proposed_hours, capacity_hours, load_percent, band |

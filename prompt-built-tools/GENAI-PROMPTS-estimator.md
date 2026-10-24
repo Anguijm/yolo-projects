@@ -1,6 +1,10 @@
 # Prompts for GenAI.mil: build the JCN analog estimator inside the enclave
 
-Version 0.5, 2026-10-24 (v0.1 to v0.4 kept in the private source). v0.5 adds the owner's ruling R2 of 2026-10-24: a class-family
+Version 0.6, 2026-10-24 (v0.1 to v0.5 kept in the private source). v0.6 fixes one thing from the review of PR 71
+(the reviewer, 2026-10-24): maxScore() now counts W.hullNear, because hull nearness scores same-class rows, and without it a
+same-class perfect match would show a strength above 100 percent once the weight test gives hull nearness a weight;
+family stays out, since a row of the new JCN's own class can never score it. Prompt 3 step 7 and check 7b say so;
+the matcher was regenerated from this text and the twin harness gained two checks for it. v0.5 added the owner's ruling R2 of 2026-10-24: a class-family
 table and hull nearness, both typed by the planner and zero by default, as two more weighted features (family counts
 only for rows of another class, so it orders the fallback rows; hull nearness only within the class). Prompt 1 gains
 the family box, Prompt 3 the two features, Prompt 5 one check; the weight test (tune series v0.2) reads the feature
@@ -365,9 +369,10 @@ How matching works (this is the planner's judgment, written as rules):
    when F.eqId + F.eqType + F.eqSys is above 0, else W.noEquip; return pts * rec * gate.
 7. maxScore(W) = the highest of W.eqId, W.eqType and W.eqSys, plus W.hull, plus the highest of W.space,
    W.spaceDF and W.spaceDeck, plus the highest of W.swlin, W.swlin5, W.swlin3, W.swlin2 and W.swlin1, plus
-   W.nom, W.textAction and W.textObject (each group's highest weight, so the strength line cannot pass
-   100 percent whatever the weights become; recency 1 and no gate; family and hullNear are left out on
-   purpose: the strength line describes the same-class best case, and hull nearness is a tie-breaker).
+   W.nom, W.textAction, W.textObject and W.hullNear (each group's highest weight, so the strength line
+   cannot pass 100 percent whatever the weights become; recency 1 and no gate; hullNear counts because a
+   same-class row can score it; family is left out because a row of the new JCN's own class never scores
+   it, and the strength line describes the same-class best case).
 8. scoreJCN(nj, j): F = features(nj, j); age in years from j.received_date to today, 10 when the date is
    null; score = scoreFrom(F, W, age); raw = the sum of W[key] times F[key] over the seventeen keys (points
    before recency and gate). reasons: one short plain-English string per feature above 0, such as "Same
@@ -513,7 +518,8 @@ usually break a file built in pieces, and list each one with the exact fix:
    a row of another class and when either hull ends in no digit.
 7b. buildWeightsPanel() exists as an alias of renderWeights(); loadSavedWeights() merges only keys that
    DEFAULT_W has; W.recency of 0 gives a recency factor of 1, not NaN; maxScore() takes each group's
-   highest weight, so no analog can show a strength above 100 percent.
+   highest weight and counts W.hullNear, so no same-class analog can show a strength above 100 percent
+   even after the weight test raises hullNear.
 8. The three space features are 0 for a row whose ship_class differs from the new JCN's class.
 9. A history without a discrepancy column still loads, with discrepancy = "" on every row, and the text
    features are then 0 rather than an error.
