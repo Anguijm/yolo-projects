@@ -21,7 +21,8 @@ Tool 1, the estimator (one chat):
    consumption CSV out.
 4. [GENAI-PROMPTS-estimator-planned.md](GENAI-PROMPTS-estimator-planned.md): planned job summaries, the
    contractor mark, the material list.
-5. [GENAI-PROMPTS-xlsx.md](GENAI-PROMPTS-xlsx.md): read Excel workbooks directly (optional).
+5. [GENAI-PROMPTS-xlsx.md](GENAI-PROMPTS-xlsx.md): read Excel workbooks directly (optional; superseded by the
+   converter page below for new builds).
 6. [GENAI-PROMPTS-style.md](GENAI-PROMPTS-style.md): the look, last.
 7. [GENAI-PROMPTS-dictionary.md](GENAI-PROMPTS-dictionary.md), Prompt K4 only: a file picker that loads the
    dictionary page's dictionary.json into the estimator's abbreviation box (any time after Prompt 5).
@@ -32,6 +33,12 @@ Tool 3, the dictionary page (one chat, short):
    once, lists the shorthand in the free text with counts and example sentences, lets a planner type each long
    form or mark a plain word as ignore, and writes dictionary.json for the estimator and a review file to resume.
 
+Tool 4, the workbook converter (one chat, two prompts):
+
+1. [GENAI-PROMPTS-converter.md](GENAI-PROMPTS-converter.md): Prompts W1 to W3. Excel workbooks in, one CSV per
+   sheet out, named "<workbook> - <sheet>.csv", with the same cell rules the tools' reader always applied; the
+   tools keep reading CSV.
+
 Tool 2, the Resource Map (one chat):
 
 1. [GENAI-PROMPTS-resource-map-analysis.md](GENAI-PROMPTS-resource-map-analysis.md): describe the workforce
@@ -39,7 +46,8 @@ Tool 2, the Resource Map (one chat):
 2. [GENAI-PROMPTS-resource-map.md](GENAI-PROMPTS-resource-map.md): the Resource Map app.
 3. [GENAI-PROMPTS-resource-map-leveling.md](GENAI-PROMPTS-resource-map-leveling.md): the leveler (moves, the
    contractor line, zoom, snapshot, automatic level and farm-out).
-4. [GENAI-PROMPTS-xlsx.md](GENAI-PROMPTS-xlsx.md) and [GENAI-PROMPTS-style.md](GENAI-PROMPTS-style.md), as above.
+4. [GENAI-PROMPTS-xlsx.md](GENAI-PROMPTS-xlsx.md) (optional, superseded by the converter page) and
+   [GENAI-PROMPTS-style.md](GENAI-PROMPTS-style.md), as above.
 
 ## Two design pages
 

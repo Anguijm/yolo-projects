@@ -1,6 +1,8 @@
 # Build guide: the estimator and the Resource Map, from prompts, inside GenAI.mil
 
-Version 0.5, 2026-10-25 (v0.1 to v0.4 kept in the private source). v0.5: the dictionary page, a third tool of its
+Version 0.6, 2026-10-25 (v0.1 to v0.5 kept in the private source). v0.6: the workbook converter page, a fourth tool
+(GENAI-PROMPTS-converter.md): workbooks in, one CSV per sheet out, with the reader the tools already used inside; a
+new build no longer runs Prompts X and X2 in each tool. v0.5: the dictionary page, a third tool of its
 own (GENAI-PROMPTS-dictionary.md): it reads the JCN history once, puts the shorthand in the free text in front of a
 planner with counts and examples, and writes dictionary.json, which the estimator now loads through a file picker
 (Prompt K4); the estimator's attainable score counts hull nearness (v0.6 of its series, from the review of PR 71).
@@ -69,8 +71,9 @@ spaces and punctuation ignored, so "Job Summary", "job_summary" and "JOBSUMMARY"
 | Contractor capacity | a week of the contractor's line | shop (the line's code, for example CTR), week_start, capacity_hours | the workforce map, or this small file when the map carries no such row |
 
 Dates are read as YYYY-MM-DD, MM/DD/YYYY, DD-MON-YYYY or an Excel serial. Weeks are keyed by their Monday. Hours
-are decimals. Workbooks (.xlsx) can be chosen directly once Prompts X are in a tool; otherwise save each sheet as
-CSV (File, Save As, CSV UTF-8).
+are decimals. Workbooks (.xlsx) go through the converter page (tool 4), which writes one CSV per sheet; the older
+route, Prompts X and X2 pasted into each tool, still works for tools built with it, and Excel's own File, Save As,
+CSV UTF-8 works too.
 
 ## The order of the prompt files
 
@@ -91,8 +94,8 @@ CSV (File, Save As, CSV UTF-8).
 4. `GENAI-PROMPTS-estimator-planned.md`: Prompts D1, D2, D3. Planned job summaries pass through with the planner's
    numbers, the contractor mark on every line, the material list per phase (material_estimate.csv). D runs after
    C2b and BEFORE Prompts X.
-5. `GENAI-PROMPTS-xlsx.md`: Prompts X and X2, optional, to choose workbooks instead of CSVs. If X was run before D,
-   run X2 again after D.
+5. `GENAI-PROMPTS-xlsx.md`: Prompts X and X2, optional and superseded by the converter page (tool 4); only for a
+   tool that must take workbooks directly. If X was run before D, run X2 again after D.
 6. `GENAI-PROMPTS-style.md`: Prompt S, the estimator variant, last.
 
 7. `GENAI-PROMPTS-dictionary.md`, Prompt K4 only: the estimator's file picker for dictionary.json (any time after
@@ -118,8 +121,16 @@ CSV (File, Save As, CSV UTF-8).
    of record (drag a job, drag a project, farm out by hand), the contractor's own line, the project-name lookup,
    zoom, snapshot, present mode, the moves and farm-out exports, and the automatic level and farm-out with a
    before, leveled, farmed comparison. The leveler series (B2-1 to B2-5) runs after B4 and BEFORE Prompts X.
-4. `GENAI-PROMPTS-xlsx.md`: Prompts X and X2, optional. If X was run before the leveler series, run X2 again after it.
+4. `GENAI-PROMPTS-xlsx.md`: Prompts X and X2, optional and superseded by the converter page (tool 4). If X was run
+   before the leveler series, run X2 again after it.
 5. `GENAI-PROMPTS-style.md`: Prompt S, last.
+
+**Tool 4, the workbook converter** (one chat, two prompts):
+
+1. `GENAI-PROMPTS-converter.md`: Prompt W1 (the reader, the same text as Prompt X), Prompt W2 (the page: choose
+   workbooks, a table of sheets with counts and a first-row preview, one Download link per sheet named
+   "<workbook> - <sheet>.csv", Download all), Prompt W3 (the check). The CSVs carry exactly what the reader read:
+   dates YYYY-MM-DD, times as decimal hours, numbers plain, booleans TRUE/FALSE, error cells blank.
 
 Why the order matters: a later hook prompt captures whatever a function is at the time and wraps it. Prompts X2, D
 and B2 all wrap the file importer, so the one that must see the files first (the workbook unpacker) must be the
@@ -135,7 +146,7 @@ last to wrap.
   as the function it captures recurses forever.
 - Save the file with the name the series gives (`estimator.html`, `resource-map.html`). Open it in Edge or Chrome.
   Press F12 for the console if anything looks wrong.
-- Run the check prompt (5, T2, D3, K3, B5, B2-5) before opening the page. It lists what to fix and gives a small test.
+- Run the check prompt (5, T2, D3, K3, W3, B5, B2-5) before opening the page. It lists what to fix and gives a small test.
 - When a chat gets long and the model forgets an earlier module, paste that module's code back into the chat: the
   "contract reminder" paragraph in every prompt is the minimum it needs, and it is already in the prompt.
 - If a step produces something that will not fit in one answer, the prompt tells the model to say so instead of
@@ -160,6 +171,9 @@ few rows each, with numbers you can add up yourself. Then:
   capitals); type a long form for one, mark a plain word as ignore, and the summary line should count both;
   download dictionary.json, load it into the estimator through its picker, and the estimator's abbreviation box
   should show the merged lines and re-run the match.
+- Converter: choose a workbook with three sheets, one empty; the table should list the two with content, the
+  rows and non-empty cell counts should match what Excel shows, a date cell should read YYYY-MM-DD in the CSV and a
+  text cell holding a comma should come out quoted.
 - Reload the page: everything comes back from the browser's store, moves included.
 
 What "working" means here is what it meant in the tests: the page's numbers equal a calculation made by hand or by
@@ -211,6 +225,7 @@ Resource Map with the other files. A name with no match stays as it is on the ma
 
 | File | Written by | Columns |
 |---|---|---|
+| <workbook> - <sheet>.csv | converter page | the sheet as the reader read it, every cell quoted only when it holds a comma, a quote, CR or LF; CRLF rows; UTF-8, no byte-order mark |
 | dictionary.json | dictionary page | a JSON object, token to long form, only the mapped terms (the estimator's picker reads it) |
 | dictionary-review.json | dictionary page | savedAt, history (the file name), rows (token to {long, status, count}) for every decided term, to resume or share the review |
 | consumption.csv | estimator, batch | proposed_id, hull, project, phase_no, phase_title, shop, est_hours_low, est_hours_high, charged_hours_low, charged_hours_high, load_hours, week_start, week_end, placement, summaries_used, same_class, top_score, analog_jcns, notes, source, performing, performing_basis (22) |
