@@ -1,13 +1,13 @@
 # Prompts W: the workbook converter page (Excel workbooks in, one CSV per sheet out)
 
-Version 0.1, 2026-10-25. Built on the owner's ruling of 2026-10-24 ("Ask me": a standalone workbook converter page
+Version 0.1, 2026-10-24. Built on the owner's ruling of 2026-10-24 ("Ask me": a standalone workbook converter page
 replaces the X and X2 hooks). Until now a tool that had to take an .xlsx directly carried the workbook reader inside
 it (Prompt X) and a hook around its file pickers (Prompt X2), and every tool needed both pasted in the right order,
 which cost one wrong-order fault in the tests. This page does the conversion once, outside the tools: choose one or
 more workbooks, get one CSV per sheet, named "<workbook> - <sheet>.csv", with the same cell rules the reader has
 always applied (dates as YYYY-MM-DD, times as decimal hours, numbers plain, booleans TRUE/FALSE, error cells blank,
 cached formula results, never a recalculation). The tools keep reading CSV, which they already do. Prompts X and X2
-(`GENAI-PROMPTS-xlsx.md`) stay in the private source for tools already built with them; a new build uses this
+(`GENAI-PROMPTS-xlsx.md`) stay in the folder for tools already built with them; a new build uses this
 page instead and skips X.
 
 Tested: the page built from this text by Gemini with no earlier answers in the chat (two rounds of W2), assembled

@@ -1,7 +1,13 @@
 # Prompts D: planned jobs, the contractor, and the material list
 
-Version 0.5, 2026-10-24 (v0.1 to v0.4 kept in the private source). v0.5 builds on Prompts C v0.8 and the estimator
-series v0.5: the new JCN carries its discrepancy text (nj gains `text`, read from the proposed file's optional
+Version 0.6, 2026-10-25 (v0.1 to v0.5 kept in the private source). v0.6 follows the estimator series v0.7 and the
+batch series v0.9 to the task-based history of the owner's pulls: `performing` sits on the task record and the base
+loader keeps it as typed, so D1 only normalizes it in place; the planned table from planning is task-level too (one
+row per task, with optional task, task_no and crew_size) and is rolled up to phase and shop like the history; the
+estimate rows carry a `tasks` text, so a consumption line has 23 cells (the 22 as before, then tasks) and the
+material_estimate keeps its 15; the performing of a history line is read from that shop's task records in that
+phase. D1 and D2 regenerated from this text on the v0.9 batch stack, test record kept in the private source. v0.5
+(2026-10-24) built on Prompts C v0.8 and the estimator series v0.5: the new JCN carries its discrepancy text (nj gains `text`, read from the proposed file's optional
 discrepancy column), the weights panel is renderWeights() with loadSavedWeights() merged again after this series adds
 its key, and the EST shape is the one Prompt 4 v0.5 pins (all from the review of PR 69); regenerated from this text
 on the batch stack v0.8 and passed the planned harness first time, test record kept in the private source.
@@ -33,8 +39,8 @@ What they add, from the owner's flow of 2026-10-22:
    by shop, per phase) and, later, scheduled dates. A new optional table `planned` carries those. A proposed
    item whose job summary is in it is written out from the planner's numbers, not from history, and its weeks
    come from the schedule when there is one.
-2. **The contractor.** About a third of the work is farmed out. The history phases gain `performing` (organic
-   shop or contractor), so each estimate line says who did the similar work; a proposed item screened as
+2. **The contractor.** About a third of the work is farmed out. The history's task records carry `performing`
+   (organic shop or contractor), so each estimate line (one phase and shop) says who did the similar work; a proposed item screened as
    in-house or farm-out carries that mark through; a planned phase carries planning's answer.
 3. **The material list.** A second output, `material_estimate.csv`: for every phase of every item, the stock
    numbers the similar jobs ordered, with nomenclature and quantity range, which analogs carried them, and how
@@ -43,9 +49,9 @@ What they add, from the owner's flow of 2026-10-22:
 
 Contracts added here (everything from Prompts 1 to 5 and C1 to C2b stays as it is):
 
-- `phases` gains one optional column: performing (aliases: performing, performingactivity, activity,
-  performer, workby, inhouse, farmout, contractor, org, organic). Values are normalized to "farm-out",
-  "in-house" or "".
+- `tasks`: performing is already an optional column of the task record (estimator series v0.7; aliases
+  there: performing, performing activity, activity, performer, work by, in house, farm out, contractor,
+  org, organic). D1 normalizes it in place to "farm-out", "in-house" or "".
 - `material`: item becomes optional; two optional columns are added, stock_number (aliases: stocknumber,
   niin, nsn, stock, partnumber, partno, nationalstocknumber) and nomenclature (aliases: nomenclature, noun,
   nounname, description, itemdescription, itemname). A material file is recognized by a quantity column
@@ -55,14 +61,16 @@ Contracts added here (everything from Prompts 1 to 5 and C1 to C2b stays as it i
   grouped summary once per JCN). Quantities are taken as they are: never divided by DB.jsCount, never collapsed.
   Two rows with the same stock number on one phase are two orders and add up.
 - `proposed` gains two optional columns: job_summary (aliases: jobsummary, js, jobsummarynumber) and
-  performing (same aliases and normalization as phases).
-- `planned` (new optional input through the batch picker p-files): job_summary, phase_no, phase_title,
-  shop, planned_hours OR planned_mandays (one of them), scheduled_start, scheduled_finish, performing
-  (all but job_summary, phase_no and the hours column optional). Kept in the global PLANNED (a plain object,
-  uppercased job_summary to an array of phase rows with planned_hours always in hours).
-- `consumption` (output) gains three columns at the end, after notes: source ("history" or "planned"),
-  performing ("in-house", "farm-out" or ""), performing_basis ("screening", "planning", "analogs" or "").
-  22 cells per line. The Resource Map reads the first 19 by name and ignores the rest.
+  performing (same aliases and normalization as the task records).
+- `planned` (new optional input through the batch picker p-files): one row per planned task: job_summary,
+  phase_no, phase_title, task, task_no, shop, crew_size (read, not used), planned_hours OR planned_mandays
+  (one of them), scheduled_start, scheduled_finish, performing (all but job_summary, phase_no, shop and
+  the hours column optional). Kept in the global PLANNED (a plain object, uppercased job_summary to an
+  array of task rows with planned_hours always in hours); the batch loop rolls them up to phase and shop.
+- `consumption` (output): the 19 contract columns, then source ("history" or "planned"), performing
+  ("in-house", "farm-out" or ""), performing_basis ("screening", "planning", "analogs" or ""), then tasks
+  (the batch series' last column moves to the end). 23 cells per line, one line per item, phase and shop.
+  The Resource Map reads the first 19 by name and ignores the rest.
 - `material_estimate` (new output): proposed_id, hull, project, job_summary, phase_no, phase_title,
   stock_number, nomenclature, qty_low, qty_high, seen_on, summaries_used, group_size, source, analog_jcns.
   15 cells per line.
@@ -103,10 +111,11 @@ without spaces and compared through cleanCol(s) (lower case, everything but lett
 removed). MODULE 5 extended SCHEMA in place with Object.assign; do the same. detectType(headers) names
 the table a header row belongs to. loadFiles reads the history files through streamCSV(file, onProgress),
 which resolves to {headers, data} (data: row objects keyed by header). buildDB(tables) builds
-DB.jcns, DB.phasesByJS (job_summary to phase rows {phase_no, phase_title, shop, est_hours,
-charged_hours, planned_start, planned_finish, actual_start, actual_finish}), DB.matByJS (job_summary to
-material rows {phase_no, item, qty}), DB.jsCount, DB.hulls, DB.availByProject; it uppercases
-job_summary keys. loadBatchFiles(files) reads the batch picker's files with streamCSV, recognizes
+DB.jcns, DB.tasksByJS (job_summary to task rows {phase_no, phase_title, description, task_no, task, shop,
+crew_size, est_hours, charged_hours, performing (as typed, "" when the column was absent), planned_start,
+planned_finish, actual_start, actual_finish}, one row per task of a phase), DB.phasesByJS (job_summary to
+the phases {phase_no, phase_title, description and the four dates}), DB.matByJS (job_summary to material
+rows {phase_no, item, qty}), DB.jsCount, DB.hulls, DB.availByProject; it uppercases job_summary keys. loadBatchFiles(files) reads the batch picker's files with streamCSV, recognizes
 proposed.csv and availabilities.csv by their headers, and enables btn-batch. Helpers $(id), esc, toDate
 (Date or null), fmtDate, num, csvCell, getMonday. W and DEFAULT_W hold the weights, W_LABELS their
 labels, renderWeights() redraws them and loadSavedWeights() merges the saved values of whatever keys
@@ -117,44 +126,48 @@ DEFAULT_W has.
    cms, vendor, sub, subcontractor, subcontract, subk, farm, farmout, outsource, outsourced (whole words, so
    "control" and "subassembly" do not match); anything else non-blank is "in-house".
 2. SCHEMA, extended in place at the top of this block, before any function runs:
-   - phases gains optional performing with aliases performing, performingactivity, activity,
-     performer, workby, inhouse, farmout, contractor, org, organic.
+   - tasks: performing is already optional in SCHEMA.tasks (the estimator's loader keeps it as typed);
+     add to its alias list any of these it lacks: performing, performingactivity, activity, performer,
+     workby, inhouse, farmout, contractor, org, organic.
    - material: item becomes optional. Add optional stock_number (aliases stocknumber, niin, nsn, stock,
      partnumber, partno, nationalstocknumber) and optional nomenclature (aliases nomenclature, noun,
      nounname, description, itemdescription, itemname). Remove nsn and description from item's aliases
      if they are there, so a NIIN column maps to stock_number and a description column to nomenclature.
    - MODULE 2 declared const OPTIONAL_FIELDS, the list of optional field names, and MODULE 5 pushed its
-     own onto it; push item, stock_number, nomenclature and performing onto it the same way, never
+     own onto it; push item, stock_number and nomenclature onto it the same way (performing is already on it), never
      declare it again. The point: a material file with stock_number and qty but no item column needs
      no mapping panel.
 3. detectType(headers): call detectTypeCore(headers); if it returns a table name, return it. Otherwise
    return "material" when the cleaned headers contain a quantity column (qty, quantity) together with any
    of item, part, material, stocknumber, niin, nsn; else return what Core returned.
 4. buildDB(tables): call buildDBCore(tables), then augmentDB(tables):
-   - For every row of tables.phases: find DB.phasesByJS[uppercased job_summary] and in it the phase row
-     with the same phase_no (through num()); set that row's performing = normPerforming(row.performing).
-     Rows with no match are skipped. A phase row that gets no value has performing "".
+   - For every task row of every DB.tasksByJS[js] (Core kept performing as typed, or ""): row.performing
+     = normPerforming(row.performing). Nothing is looked up by position or phase number; DB.phasesByJS is
+     not touched.
    - Rebuild DB.matByJS from tables.material: one row per input row, {phase_no: num(phase_no), item,
      stock_number, nomenclature, qty: num(qty)} with the blank-fill rules: blank item takes stock_number,
      blank stock_number takes item, blank nomenclature takes item; all three trimmed; keyed by the
      uppercased job_summary, in file order.
 5. loadPlanned(file): streamCSV, then map columns by cleanCol against these alias lists: job_summary
    (jobsummary, js, jobsummarynumber), phase_no (phaseno, phase, phasenumber, keyop), phase_title
-   (phasetitle, title, phasename, task), shop (shop, trade, workcenter), planned_hours (plannedhours,
+   (phasetitle, title, phasename), task (task, tasktitle, taskdescription, taskname, tasktext), task_no
+   (taskno, tasknumber, taskseq, seq, line), crew_size (crew, crewsize, people, headcount; read and not
+   used), shop (shop, trade, workcenter, shopcode), planned_hours (plannedhours,
    planhours, hours, manhours, mh, esthours, estimatedhours), planned_mandays (plannedmandays, mandays,
    manday, md, days), scheduled_start (scheduledstart, schedstart, start, startdate, plannedstart),
    scheduled_finish (scheduledfinish, schedfinish, finish, finishdate, end, enddate, plannedfinish),
-   performing (as in SCHEMA). Required: job_summary, phase_no and one of planned_hours or
+   performing (as in SCHEMA). Required: job_summary, phase_no, shop and one of planned_hours or
    planned_mandays. Build PLANNED: for each row, hours = planned_hours if that column exists, else
    planned_mandays times W.hoursPerDay; push {phase_no: num, phase_title (trimmed; if blank, "Phase " +
-   phase_no), shop (uppercased, trimmed), planned_hours: hours, scheduled_start: toDate or null,
-   scheduled_finish: toDate or null, performing: normPerforming} under the uppercased job_summary.
+   phase_no), task (trimmed, "" when absent), task_no: num, shop (uppercased, trimmed), planned_hours:
+   hours, scheduled_start: toDate or null, scheduled_finish: toDate or null, performing: normPerforming}
+   under the uppercased job_summary, in file order.
    Return the number of rows read. A required column missing: write which in batch-status and read
    nothing from that file.
 6. loadBatchFiles(files): for each file in files, read its headers with streamCSV and decide: a planned
    file has a job summary column and a planned hours or man-days column and NO hull, equipment or
    proposed id column; a proposed file is what Core recognizes. Planned files go to loadPlanned and are
-   NOT passed to Core; write the line "planned: N phase rows for M job summaries" into batch-summary
+   NOT passed to Core; write the line "planned: N task rows for M job summaries" into batch-summary
    (Core overwrites batch-status when it finishes, so the line would be lost there). For a
    proposed file, also record PROPOSED_EXTRA[uppercased proposed_id] = {job_summary: uppercased or "",
    performing: normPerforming(value or "")} from its rows, mapping the two columns by the aliases above,
@@ -194,18 +207,21 @@ say so instead of shortening the logic.
 Contract reminder: findAnalogs(nj) returns [{j, score, raw, reasons, note?}] for nj = {hull, cls, swlin,
 space, eid, nom, text} (text = the discrepancy as typed, "" when none); rows from another class carry
 note. buildEstimate() reads ANALOGS (an array of {j, score, raw, reasons}) and TICK (a Set of jcn
-strings) and sets EST = {nj, rows, used, usedJcns, notes} where rows are {phase_no, phase_title, shop,
-est_low, est_high, charged_low, charged_high, k, n}, usedJcns is a space-separated string of the JCNs
+strings) and sets EST = {nj, rows, used, usedJcns, notes} where rows are {phase_no, phase_title, shop, tasks,
+est_low, est_high, charged_low, charged_high, k, n}, ONE ROW PER PHASE AND SHOP of the newest analog
+(consecutive rows share a phase; tasks is a string), usedJcns is a space-separated string of the JCNs
 used, newest first, and notes is an array of strings (one begins "Possible method change" when the
 phase lists disagree).
 placePhases(item, estRows, usedJcns) returns an array parallel to estRows of {week_start, week_end,
 placement, note}. DB.jcns rows {jcn, job_summary, hull, ship_class, ..., received_date, project};
-DB.phasesByJS[JS] phase rows now carry performing ("in-house", "farm-out" or ""); DB.matByJS[JS] rows
+DB.tasksByJS[JS] task rows {phase_no, phase_title, task, shop, est_hours, charged_hours, performing
+("in-house", "farm-out" or "" after MODULE 7), ...}; DB.phasesByJS[JS] the phases {phase_no, phase_title,
+description, planned_start, planned_finish, actual_start, actual_finish}; DB.matByJS[JS] rows
 {phase_no, item, stock_number, nomenclature, qty}, one row per order line of that summary (the material export
 does not repeat rows per JCN; only the JCN history does); DB.jsCount[JS] = how many JCNs share that summary. DB.hulls holds [HULL, class] with
 the hull uppercased and trimmed. BATCH_AVAIL and DB.availByProject map an uppercased project to
-{project, hull, start, end}. PLANNED maps an uppercased job_summary to rows {phase_no, phase_title,
-shop, planned_hours, scheduled_start, scheduled_finish, performing}. PROPOSED_EXTRA maps an uppercased
+{project, hull, start, end}. PLANNED maps an uppercased job_summary to task rows {phase_no, phase_title,
+task, task_no, shop, planned_hours, scheduled_start, scheduled_finish, performing}, in file order. PROPOSED_EXTRA maps an uppercased
 proposed_id to {job_summary, performing}. Helpers $(id), esc, toDate, fmtDate, getMonday, num, csvCell,
 setDownload. Elements batch-status, batch-summary, batch-preview, batch-download, mat-summary,
 mat-download. W.autoMin, W.autoMax, W.hoursPerDay.
@@ -218,18 +234,23 @@ a. Build nj from the item: hull, swlin, space, eid and nom trimmed and uppercase
    history" is recorded. Item notes are fixed before the phase loop; each output line gets a copy plus its
    own. extra = PROPOSED_EXTRA[uppercased proposed_id] or {job_summary: "", performing: ""}.
 b. PLANNED BYPASS. If extra.job_summary is non-blank and PLANNED[extra.job_summary] exists: do not
-   call findAnalogs or buildEstimate. estRows = one row per planned phase row, in file order:
-   {phase_no, phase_title, shop, est_low: planned_hours, est_high: planned_hours, charged_low:
-   planned_hours, charged_high: planned_hours, k: 1, n: 1}. Do not call placePhases for a planned
-   item; place its rows here: a row whose scheduled_start is a Date gets week_start = fmtDate(getMonday(
-   scheduled_start)), week_end = fmtDate(getMonday(scheduled_finish)) if scheduled_finish is a Date on
-   or after scheduled_start else week_start, placement "scheduled"; otherwise, if toDate(
-   item.planned_start) is a Date, the unscheduled rows run one after another from planned_start, 7
-   days each (the first unscheduled row starts at planned_start, each next one at the previous
-   finish), week_start = fmtDate(getMonday(start)), week_end = fmtDate(getMonday(finish)), placement
-   "sequence"; otherwise week_start = week_end = "", placement "", note "no dates". load_hours =
-   planned_hours. Line fields: summaries_used 0, same_class "", top_score "", analog_jcns "", notes
-   "planned" plus any item notes, source "planned", performing = the planned row's performing if
+   call findAnalogs or buildEstimate. Roll planning's task rows up to phase and shop: group
+   PLANNED[js] by phase_no and shop, groups in order of first appearance; each group gives one estRow
+   {phase_no, phase_title (the group's first non-blank, else "Phase " + phase_no), shop, tasks (the
+   group's distinct non-blank task texts joined with "; "), est_low, est_high, charged_low,
+   charged_high all = the sum of the group's planned_hours, k: 1, n: 1}, and, held with the row for
+   placement, start = the earliest scheduled_start among the group's rows that have one (null when
+   none), finish = the latest scheduled_finish (null when none), performing = the group's first
+   non-blank performing. Do not call placePhases for a planned item; place its rows here: a row whose
+   start is a Date gets week_start = fmtDate(getMonday(start)), week_end = fmtDate(getMonday(finish))
+   if finish is a Date on or after start else week_start, placement "scheduled"; otherwise, if
+   toDate(item.planned_start) is a Date, the unscheduled PHASES run one after another from
+   planned_start, 7 days each (the first unscheduled phase starts at planned_start, each next
+   unscheduled phase at the previous one's finish), and every row of such a phase takes that phase's
+   week_start = fmtDate(getMonday(start)), week_end = fmtDate(getMonday(finish)), placement "sequence";
+   otherwise week_start = week_end = "", placement "", note "no dates". load_hours = the row's planned
+   hours (its est_low). Line fields: summaries_used 0, same_class "", top_score "", analog_jcns "",
+   notes "planned" plus any item notes, source "planned", performing = the group's performing if
    non-blank (basis "planning"), else extra.performing if non-blank (basis "screening"), else "" with
    basis "". Go to step g.
 c. analogs = findAnalogs(nj). Auto-select: same-class rows (no note) with score >= W.autoMin times the
@@ -245,19 +266,23 @@ e. load_hours for a phase = the midpoint of its charged range (if blank, the mid
 f. placed = placePhases(item, EST.rows, EST.usedJcns); the line for phase i takes week_start, week_end
    and placement from placed[i] and adds placed[i].note to its notes when present.
    PERFORMING for a history line: if extra.performing is non-blank, every line of the item gets it
-   with basis "screening". Otherwise, per phase: walk the used summaries (the job_summary of each JCN
-   in EST.usedJcns, newest first, each summary once) and take the performing of the phase with the same
-   phase_title; count "farm-out" against "in-house"; the majority wins; a tie goes to the newest
-   summary that had a non-blank value; if every value was blank, "" with basis "". A non-blank result
-   gets basis "analogs" and the line note "performing guessed from analogs".
-g. Collect one output line per phase, in this order: proposed_id, hull, project, phase_no,
-   phase_title, shop, est_hours_low, est_hours_high, charged_hours_low, charged_hours_high,
-   load_hours, week_start, week_end, placement, summaries_used (EST.usedJcns.split(' ').length, the
-   JCNs the estimate used), same_class, top_score (one decimal), analog_jcns (EST.usedJcns), notes
-   (semicolon separated, from this fixed list only: "possible method change" when any string in
-   EST.notes begins "Possible method change", "thin history" when n < 3, "no analog", "hull not in
-   history", "no dates", "planned", "performing guessed from analogs"; never copy EST.notes themselves
-   into the line), source, performing, performing_basis. 22 cells.
+   with basis "screening". Otherwise, per estimate row (one phase title and shop): walk the used
+   summaries (the job_summary of each JCN in EST.usedJcns, newest first, each summary once); a
+   summary's value is read from its DB.tasksByJS rows whose phase_title (trimmed, uppercased) equals
+   the row's and whose shop equals the row's shop: "farm-out" when any of them is farm-out, else
+   "in-house" when any is in-house, else blank; count "farm-out" against "in-house" across the
+   summaries; the majority wins; a tie goes to the newest summary with a non-blank value; if every
+   value was blank, "" with basis "". A non-blank result gets basis "analogs" and the line note
+   "performing guessed from analogs".
+g. Collect one output line per estimate row (phase and shop), in this order: proposed_id, hull,
+   project, phase_no, phase_title, shop, est_hours_low, est_hours_high, charged_hours_low,
+   charged_hours_high, load_hours, week_start, week_end, placement, summaries_used
+   (EST.usedJcns.split(' ').length, the JCNs the estimate used), same_class, top_score (one decimal),
+   analog_jcns (EST.usedJcns), notes (semicolon separated, from this fixed list only: "possible method
+   change" when any string in EST.notes begins "Possible method change", "thin history" when n < 3, "no
+   analog", "hull not in history", "no dates", "planned", "performing guessed from analogs"; never copy
+   EST.notes themselves into the line), source, performing, performing_basis, tasks (the estRow's tasks
+   string; "" on a no-analog line). 23 cells.
 h. MATERIAL LINES. For a history item after step d: matLines.push(...materialLines(item,
    EST.usedJcns)). For a planned item: if DB.matByJS[extra.job_summary] exists, group its rows by
    phase_no and stock_number, qty = the group's sum of qty (two rows with the same stock number on a phase
@@ -290,7 +315,7 @@ lines by placement rule, now including "scheduled", total load_hours by shop as 
 elapsed time; batch-preview
 shows the header and the first 50 lines; batch-download gets a Blob or data: URL of the whole CSV,
 UTF-8, CRLF, every cell through csvCell, built in an array of lines and joined once), with the header
-now the 22 names above, plus: batch-summary also shows items from planning (source planned) and lines
+now the 23 names above, plus: batch-summary also shows items from planning (source planned) and lines
 by performing (in-house, farm-out, blank); mat-summary shows "material estimate: N lines for M items";
 mat-download gets the material_estimate.csv the same way (header: proposed_id, hull, project,
 job_summary, phase_no, phase_title, stock_number, nomenclature, qty_low, qty_high, seen_on,
@@ -314,9 +339,9 @@ I have added MODULE 7 and MODULE 8. Without rewriting the file, check:
    entirely, that their lines carry source "planned", that a scheduled phase's week_start is the
    Monday of scheduled_start, and that an unscheduled planned phase runs seven days after the previous
    one from planned_start with placement "sequence".
-4. That every consumption line has exactly 22 cells and every material line exactly 15, that no Date
-   object reaches csvCell unformatted, and that estimateBatch builds nj with a text key and calls
-   renderWeights, never buildWeightsPanel.
+4. That every consumption line has exactly 23 cells (tasks last) and every material line exactly 15,
+   that no Date object reaches csvCell unformatted, and that estimateBatch builds nj with a text key and
+   calls renderWeights, never buildWeightsPanel.
 5. That the performing majority rule counts each used summary once and that a tie goes to the newest
    summary with a non-blank value.
 6. That MODULE 7a and 7b sit BEFORE the Prompts X hook block in the file if Prompts X are present, so the
@@ -324,6 +349,9 @@ I have added MODULE 7 and MODULE 8. Without rewriting the file, check:
 7. That no material quantity is divided by DB.jsCount anywhere (buildEstimate shares a grouped summary's
    hours out over its JCNs; material lines never do), and that a line from a summary whose DB.jsCount is
    4 carries group_size 4.
+8. That the performing of a history line is read from the task rows of that phase and shop (never from a
+   phase row), that a planned item's task rows are rolled up to phase and shop with their hours summed,
+   and that the rows of one unscheduled planned phase share the same weeks.
 Then give me a five-step test with a planned.csv of three made-up rows (two phases scheduled, one not)
 and a proposed.csv of four made-up lines: one planned, one screened farm-out with history, one plain
 history item, one unknown hull.
@@ -336,7 +364,7 @@ result with no error) unchanged.
 
 ## What the Resource Map does with the new columns (for series B2, not here)
 
-The map still reads the 19 columns it knows and ignores source, performing and performing_basis. The
+The map still reads the 19 columns it knows and ignores source, performing, performing_basis and tasks. The
 leveler work will use performing: a farm-out line should load the contractor's capacity line on the
 workforce map, not the organic shop, and the farm-out list should show the lines whose basis is "analogs" as
 guesses. That is a series B2 change and is written there, not in these prompts.

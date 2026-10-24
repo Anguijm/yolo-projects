@@ -1,6 +1,14 @@
 # Build guide: the estimator and the Resource Map, from prompts, inside GenAI.mil
 
-Version 0.6, 2026-10-25 (v0.1 to v0.5 kept in the private source). v0.6: the workbook converter page, a fourth tool
+Version 0.7, 2026-10-25 (v0.1 to v0.6 kept in the private source). v0.7: the history is task-based, the way the owner's
+pulls come: a job summary holds phases, each phase has a tasks table (one record per task: the shop, the task that shop is
+to do, the crew size, the man-hour estimate; the shop's charges land on its task) and a material table (one record per
+item, keyed by job summary and phase number); the pull is one flat task table with the phase fields repeated. The
+estimator estimates per phase AND shop (a shop's tasks summed within the phase, low to high across the similar jobs),
+the consumption file is one line per job, phase and shop with a tasks column last, planning's table is task-level and
+rolled up the same way, and the Resource Map and leveler keep every shop line of a phase on import (a re-import
+replaces each job whole). Estimator v0.7, tune v0.3, batch v0.9, planned v0.6, Resource Map v0.6, leveler v0.5, all
+regenerated and tested against twins on the fourth made-up data set in one round. v0.6: the workbook converter page, a fourth tool
 (GENAI-PROMPTS-converter.md): workbooks in, one CSV per sheet out, with the reader the tools already used inside; a
 new build no longer runs Prompts X and X2 in each tool. v0.5: the dictionary page, a third tool of its
 own (GENAI-PROMPTS-dictionary.md): it reads the JCN history once, puts the shorthand in the free text in front of a
@@ -24,7 +32,7 @@ into a chat: the prompts describe structure, and the tools read the real files o
 
 ```
 the reporting tool pulls (workbooks or CSV)                      Workforce map workbook          
-  JCN history, phases, material (history)            assigned hours by project, shop, week
+  JCN history, tasks, material (history)             assigned hours by project, shop, week
   work package (future JCNs)                         shop capacity by week, the contractor as a line
   planning status (planned job summaries)                        |
   project list (start, end)                                      | Prompt A describes its layout (no content)
@@ -60,10 +68,10 @@ spaces and punctuation ignored, so "Job Summary", "job_summary" and "JOBSUMMARY"
 | File | One row is | Columns the tools look for | Where it comes from |
 |---|---|---|---|
 | JCN history | a JCN | jcn, job_summary, project, hull, ship_class, swlin, space, equipment_id, equipment_nomenclature, discrepancy (the free text as written, optional), received_date | the reporting tool pull |
-| Phases | a phase of a job summary | job_summary, phase_no, phase_title, shop, est_hours, charged_hours, planned_start, planned_finish, actual_start, actual_finish, performing (organic shop or contractor) | the reporting tool pull |
+| Tasks | a task of a phase of a job summary (one record per task; the phase's title, description block and planned and actual dates repeat on every task of the phase, and a shop may be tasked more than once in a phase) | job_summary, phase_no, shop, est_hours, charged_hours, and the optional phase_title, description, task, task_no, crew_size (read, not used), performing (organic shop or contractor), planned_start, planned_finish, actual_start, actual_finish | the reporting tool pull (one flat table; a separate phase-level file is accepted but not needed) |
 | Material | an order line of a phase (once per phase of a job summary, never repeated per JCN) | job_summary, phase_no, stock_number (NIIN or NSN), nomenclature, qty | the reporting tool pull |
 | Work package | a future JCN | proposed_id (the JCN), hull, project, swlin, space, equipment_id, nomenclature, discrepancy (the free text as written, optional), planned_start, job_summary, performing (the screening mark, when the pull comes from the JCN database) | the reporting tool or the JCN database |
-| Planning status | a planned phase | job_summary, phase_no, phase_title, shop, planned_hours or planned_mandays, scheduled_start, scheduled_finish, performing | the reporting tool pull |
+| Planning status | a planned task | job_summary, phase_no, phase_title, task, task_no, shop, crew_size (read, not used), planned_hours or planned_mandays, scheduled_start, scheduled_finish, performing | the reporting tool pull |
 | Project list | a project | project, hull, start, end | the reporting tool pull, or the workforce map if Prompt A finds the dates there |
 | Workforce map | its own layout | described by Prompt A, never retyped | the planning department's workbook |
 | Lookup | a project on the workforce map | map_name, project, hull | Prompt L drafts it, you confirm each row |
@@ -90,7 +98,8 @@ CSV UTF-8 works too.
    and under weights the test fits on one half of the history and judges on the other. Runs after Prompt 5 and
    before the batch series, which keeps it.
 3. `GENAI-PROMPTS-estimator-batch.md`: Prompts C1, C2, C2b. The whole work package at once, streamed import of big
-   history files, the local store, placement of each phase in the project's weeks, one consumption CSV out.
+   history files, the local store, placement of each phase in the project's weeks (every shop row of a phase on the
+   same weeks), one consumption CSV out, one line per job, phase and shop.
 4. `GENAI-PROMPTS-estimator-planned.md`: Prompts D1, D2, D3. Planned job summaries pass through with the planner's
    numbers, the contractor mark on every line, the material list per phase (material_estimate.csv). D runs after
    C2b and BEFORE Prompts X.
@@ -158,13 +167,16 @@ Every check prompt ends with a five-step test on made-up files. Make them by han
 few rows each, with numbers you can add up yourself. Then:
 
 - Estimator: load the three history files and a two-line work package; one proposed JCN should find analogs and
-  show an estimate; the batch run should write one consumption line per phase and one material line per stock
+  show an estimate with one row per phase and shop (a phase worked by three shops is three rows with their own
+  hours); the batch run should write one consumption line per phase and shop and one material line per stock
   number, and its notes column carries only fixed phrases ("thin history", "possible method change", "hull not in
   history", "no dates", "no analog", "planned", "performing guessed from analogs"); a planned job summary in the planning file should come out with the planner's hours and source
-  "planned". Hand-check one phase: the low and high of the analogs' hours, divided by the JCN count of a grouped
-  summary.
+  "planned". Hand-check one phase and shop: sum that shop's tasks in the phase on each similar job, divide by the JCN
+  count of a grouped summary, and the row's low and high are the smallest and largest of those sums.
 - Resource Map: load the two workforce map sheets (as CSV) and the consumption file; pick one shop-week and add the
-  sheet's hours for it yourself; the cell's percent must be that sum over the capacity. Nudge a job one week later
+  sheet's hours for it yourself; the cell's percent must be that sum over the capacity. Import a consumption file in
+  which one phase has several shop lines and check that every line is kept (the count in the status line equals the
+  file's), then import the same file again and check the count does not change. Nudge a job one week later
   from the drill-down and watch its hours move; farm a job out and see it land on the contractor's line; set the
   high band low (say 15) and press "Level and farm out" to see suggestions; export the moves list.
 - Dictionary page: load the history, press Harvest; the top rows should be the shorthand (slashes, no vowels,
@@ -228,11 +240,11 @@ Resource Map with the other files. A name with no match stays as it is on the ma
 | <workbook> - <sheet>.csv | converter page | the sheet as the reader read it, every cell quoted only when it holds a comma, a quote, CR or LF; CRLF rows; UTF-8, no byte-order mark |
 | dictionary.json | dictionary page | a JSON object, token to long form, only the mapped terms (the estimator's picker reads it) |
 | dictionary-review.json | dictionary page | savedAt, history (the file name), rows (token to {long, status, count}) for every decided term, to resume or share the review |
-| consumption.csv | estimator, batch | proposed_id, hull, project, phase_no, phase_title, shop, est_hours_low, est_hours_high, charged_hours_low, charged_hours_high, load_hours, week_start, week_end, placement, summaries_used, same_class, top_score, analog_jcns, notes, source, performing, performing_basis (22) |
+| consumption.csv | estimator, batch | one line per job, phase and shop: proposed_id, hull, project, phase_no, phase_title, shop, est_hours_low, est_hours_high, charged_hours_low, charged_hours_high, load_hours, week_start, week_end, placement, summaries_used, same_class, top_score, analog_jcns, notes, source, performing, performing_basis, tasks (23; 20 without the planned series, tasks still last) |
 | material_estimate.csv | estimator, batch | proposed_id, hull, project, job_summary, phase_no, phase_title, stock_number, nomenclature, qty_low, qty_high, seen_on, summaries_used, group_size, source, analog_jcns (15) |
 | shop_week_summary.csv | Resource Map | shop, week_start, assigned_hours, proposed_hours, capacity_hours, load_percent, band |
 | moves.csv | Resource Map, leveler | id, kind, key, weeks, performing, by, at, auto |
-| consumption_moved.csv | Resource Map, leveler | the 22 columns above plus moved_weeks and shop_organic |
+| consumption_moved.csv | Resource Map, leveler | the first 22 columns above plus moved_weeks and shop_organic (tasks is not carried) |
 | assigned_moved.csv | Resource Map, leveler | project, shop, week_start, assigned_hours, moved_weeks, src |
 | farmout_list.csv | Resource Map, leveler | proposed_id, project, hull, phases, hours, first week, last week, organic shops, basis, flag |
 | resource-map-snapshot.png | Resource Map, leveler | the map as shown, for the TVs |
