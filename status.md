@@ -1,20 +1,34 @@
 # yolo-projects: status
 
-Updated 2026-10-23 (JST), docs refresh.
+Updated 2026-10-24 (JST), docs refresh.
 
-## Current state (2026-10-23)
+## Current state (2026-10-24)
 - Operating mode since 2026-10-19 (John): no tick/tock. Keep up the three flagships and review the daily cards.
 - Flagships: Markdown Deck (README refreshed 2026-10-22), Naval Scribe (unchanged since 2026-06-26, c20bed6;
   `naval-scribe/COUNCIL_ESCALATION.md` is the 2026-04-25 record from the old pipeline, kept for history), PDF to CSV
   v0.8.11 live (source `~/projects/pdf-to-csv`, private remote, all pushed). The GenAI.mil prompt series in
-  `prompt-built-tools/GENAI-*` (moved from pdf-to-csv/ on 2026-10-24, PR #69; estimator, batch, planned, resource map, leveler, style, xlsx, build guide, two design
-  pages) are written by the next-big-thing session and reviewed and merged here (PRs #51 to #65).
+  `prompt-built-tools/GENAI-*` (moved from pdf-to-csv/ on 2026-10-24, PR #69; estimator v0.6, the weight test v0.2, batch v0.8, planned v0.5,
+  resource map, leveler, style, xlsx (superseded for new builds by the converter), the dictionary page (PR #72),
+  the workbook converter page (PR #74), build guide v0.6, two design pages) are written by the next-big-thing
+  session and reviewed and merged here (PRs #51 to #75). Next-big-thing reports nothing further queued.
 - Daily cards: cron 05:50 JST, `scripts/daily_cards.sh` under job-guard `yolo-cards-daily`, merges its own PR on
   secret-scan plus validate, then nudges this session through `tmux -L yolo` (the nudge was missing from PR #46,
   2026-10-21, until it was restored 2026-10-23 at John's word). Verdicts: `.harness/card_reviews.md`.
 - Local engine benchmark 2026-10-22 (`experiments/local-engine-bench/results.md`): no switch of dictation's
   llama.cpp build.
 - DraftKings salary job: paused 2026-10-21 (crontab lines commented; backup `~/fantasy/app/crontab.bak-2026-10-21`).
+
+## Open items
+- 2026-10-24 | The 05:52 JST card nudge (PR #68) never reached this session, although the yolo tmux session was up; the
+  two cards were found and reviewed during the docs refresh. Watch the 2026-10-25 run; a fix to daily_cards.sh needs
+  John's go. | me, then John
+- 2026-10-24 | GENAI-PROMPTS-converter.md says Prompts X and X2 "stay in the private source", but they are public in
+  the folder; next-big-thing fixed its source and will carry it on its next public touch. | next-big-thing
+- 2026-10-23 | The superseded commits of PRs 60 and 61 on GitHub still show the real workforce report name; only GitHub
+  support can purge them. | John
+- 2026-10-24 | pdf-to-csv: dist/pdf-to-csv-v0.8.10.html and v0.8.11.html are untracked (git-sync-check flags them);
+  committing built files is a code commit. | John
+- daily | Review the 05:50 JST cards and log verdicts in `.harness/card_reviews.md`. | me
 
 ## Query tool: yolo_index.py (2026-10-18)
 Local search over everything written and unwritten in this repo. Rebuilds `.index/yolo.db` from the files
