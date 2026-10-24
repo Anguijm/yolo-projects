@@ -63,5 +63,8 @@ git push -q origin --delete "$B"
 echo "merged $URL"
 # Nudge the always-on yolo Claude session (tmux socket "yolo") to review the new cards against the whole project
 # ecosystem (CLAUDE.md "Operating mode"). Typed into its prompt; harmless if the session is down. Dropped by PR #46,
-# restored 2026-10-23 at John's word.
-timeout 5 tmux -L yolo send-keys -t yolo "[automated, daily_cards.sh] New cards merged in $URL: review them per CLAUDE.md Operating mode, log verdicts in .harness/card_reviews.md, and tell John only about the ones worth doing." Enter 2>/dev/null || true
+# restored 2026-10-23 at John's word. Enter goes as its own keystroke a second later: sent in the same call, the
+# prompt took text and Enter as one paste and the nudge sat unsent in the input box (2026-10-24 and 2026-10-25).
+timeout 5 tmux -L yolo send-keys -t yolo -l "[automated, daily_cards.sh] New cards merged in $URL: review them per CLAUDE.md Operating mode, log verdicts in .harness/card_reviews.md, and tell John only about the ones worth doing." 2>/dev/null || true
+timeout 1 tail -f /dev/null
+timeout 5 tmux -L yolo send-keys -t yolo Enter 2>/dev/null || true
