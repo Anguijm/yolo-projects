@@ -13,8 +13,9 @@ what to do when something breaks.
 
 Tool 1, the estimator (one chat):
 
-1. [GENAI-PROMPTS-estimator.md](GENAI-PROMPTS-estimator.md): the page, the history import, the matching of a new
-   JCN against the past with the reasons and a match strength, the estimate and its CSV, the check prompt.
+1. [GENAI-PROMPTS-estimator.md](GENAI-PROMPTS-estimator.md): the page, the history import (one record per task of a
+   phase, the way the yard's pulls come), the matching of a new JCN against the past with the reasons and a match
+   strength, the estimate per phase and shop and its CSV, the check prompt.
 2. [GENAI-PROMPTS-estimator-tune.md](GENAI-PROMPTS-estimator-tune.md): the weight test (hide each finished past
    job, estimate it from the others, fit the weights on one half and judge on the other).
 3. [GENAI-PROMPTS-estimator-batch.md](GENAI-PROMPTS-estimator-batch.md): the whole work package at once, one

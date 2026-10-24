@@ -1,9 +1,14 @@
 # Prompts B: build the Resource Map app inside GenAI.mil
 
-Version 0.5, 2026-10-23 (v0.1 to v0.4 kept beside it). v0.5 is the first version regenerated end to end from its own
-text since the v0.2 fixes were written in: B1 to B4 against Gemini with no code execution, assembled as written,
+Version 0.6, 2026-10-25 (v0.1 to v0.5 kept in the private source). v0.6 changes one import rule in B2: a consumption file has one
+line per job, phase AND shop (the estimator series v0.7 estimates per phase and shop, from the task records of the
+owner's pulls), so a re-import replaces each job's lines whole, by proposed_id, instead of replacing by proposed_id
+and phase_no, which kept one shop per phase and dropped the rest (found 2026-10-25 on a several-shops file: 182
+lines in, 104 kept, the status line still saying 182). MODULE 2 regenerated from this text, the v0.5 harness rerun
+and a several-shops import check added (the private test record, "v0.6"). v0.5 (2026-10-23) was the
+first version regenerated end to end from its own text since the v0.2 fixes were written in: B1 to B4 against Gemini with no code execution, assembled as written,
 and the result matched the hand check cell for cell on the first assembly, with no Debug round
-(the private test record). Three small things learned there are written in:
+(the private test record, "v0.4 regenerated"). Three small things learned there are written in:
 the view mode "Assigned + proposed" is selected by default (B1), setDownload is written in full by B4 (the skeleton
 had left it a stub, so the download link stayed empty), and B2 names the three long-format tables one by one. One
 thing that is not a fault but worth knowing: the chat must hold the step-1 contract when B3 and B4 run (it does in
@@ -11,14 +16,14 @@ one chat; a test that fed B3 only the skeleton's code got rows keyed "week" inst
 (`GENAI-PROMPTS-resource-map-leveling.md`: moves, the contractor line, zoom, snapshot, automatic leveling)
 runs after B4, and the style prompt (`GENAI-PROMPTS-style.md`) last. v0.4 only changed how the files get in:
 Prompts X let the app take the Excel workbook itself, see `GENAI-PROMPTS-xlsx.md`; v0.3 added two
-clarifications from the review of PR 52: verdict precedence and a made-up label on the debug example.
+clarifications from the reviewer's review of PR 52: verdict precedence and a made-up label on the debug example.
 Tested originally against Gemini with no code execution, the way the
 chat inside works: the v0.1 prompts built a file that opened without errors but had four faults (the
 index named two ways, consumption fields stored without underscores, dates shifted a week on a computer
 in Japan time, and nothing calling the verdicts or export after import). Three were found by the check
 prompt (B5) before opening the page; all four were fixed by one round of the Debug prompts; the file
 then matched a hand calculation cell for cell and kept its data across a reload. v0.2 writes those
-fixes into the prompts so they do not happen. Test records stay in the private source.
+fixes into the prompts so they do not happen. Test records: the private test record.
 
 Series B1 (this file): import the resource maps and the estimator's consumption file, keep them in a
 local store, show shop by week load with drill-down, export. Series B2 (leveling, farm-out, what-if)
@@ -44,7 +49,9 @@ Tables, all long format, stored in IndexedDB (database "resourcemap"):
 - `consumption` (from the estimator): proposed_id, hull, project, phase_no, phase_title, shop,
   est_hours_low, est_hours_high, charged_hours_low, charged_hours_high, load_hours, week_start, week_end,
   placement, summaries_used, same_class, top_score, analog_jcns, notes. Rows are stored under exactly
-  these names, underscores included, whatever the CSV header spelled.
+  these names, underscores included, whatever the CSV header spelled. A job has one line per phase AND
+  shop (a phase worked by three shops is three lines); later columns (source, performing,
+  performing_basis, tasks) ride along and are ignored here.
 
 week_start is always the Monday, as YYYY-MM-DD text. Every Date is built with Date.UTC from parsed parts
 and read with UTC getters, never with new Date(text) on a month/day/year string, so the same file gives
@@ -177,7 +184,8 @@ projects {project, hull, start, end}; consumption rows carry the 19 contract fie
 names (proposed_id, hull, project, phase_no, phase_title, shop, est_hours_low, est_hours_high,
 charged_hours_low, charged_hours_high, load_hours, week_start, week_end, placement, summaries_used,
 same_class, top_score, analog_jcns, notes), with the hours as numbers and week_start, week_end as Monday
-strings. A CSV header is matched to a field by comparing both with case, spaces, underscores and
+strings. A job has one line per phase AND shop (a phase worked by three shops is three lines); later columns
+(source, performing, performing_basis, tasks) ride along and are ignored here. A CSV header is matched to a field by comparing both with case, spaces, underscores and
 punctuation removed, but the row is stored under the contract name with its underscores, never under
 the squashed header. Helpers $(id), esc, toDate, fmtDate, mondayOf, num, csvCell. Elements files,
 datastatus, mapping, store-line, filter-project, filter-shop. rebuildIndex() ends by calling run().
@@ -190,8 +198,10 @@ Requirements:
    the incomplete last record across slices; parse; then classify the file:
    a. A consumption file: a header row that contains proposed_id and load_hours. Map by header names as
       above, keep rows as objects under the contract names, numbers through num(), week_start and
-      week_end through mondayOf(toDate()). Append to DB.consumption, replacing earlier rows with the
-      same proposed_id and phase_no.
+      week_end through mondayOf(toDate()). Before appending, drop every earlier DB.consumption row
+      whose proposed_id (trimmed, uppercased) appears in this file, then append all of the file's rows:
+      a re-import replaces each job whole. Never replace by proposed_id and phase_no: a phase has one
+      line per shop, and that rule would keep one shop and drop the others.
    b. A long-format table, three kinds, each one handled: a header row containing project, shop, week_start
       and assigned_hours goes to assigned; shop, week_start and capacity_hours (no project) goes to capacity;
       project, hull, start and end (no shop, no week_start) goes to projects. Map by names, mondayOf the week
@@ -324,6 +334,9 @@ usually break a file built in pieces, and list each one with the exact fix:
    (an endless loop) or leaves the verdicts stale after a view change.
 6. The IndexedDB round trip: anything stored that would not come back the same (Dates, Maps, Sets).
 7. Anything blocked by the Content-Security-Policy; any <script> left unclosed; any placeholder left in.
+8. That a consumption file's lines are all kept (a job has one line per phase AND shop), and that
+   importing the same file again leaves the same count: earlier rows of a job in the file are dropped
+   whole, never matched by proposed_id and phase_no.
 Then give me a five-step test using the two resource map sheets saved as CSV plus a three-line
 consumption.csv, and what I should see after each step.
 ```

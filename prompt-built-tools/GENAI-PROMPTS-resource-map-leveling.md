@@ -1,11 +1,19 @@
 # Prompts B2: the leveler (move work, farm out, zoom, snapshot, automatic leveling) for the Resource Map, inside GenAI.mil
 
-Version 0.4, 2026-10-23. v0.4 takes two optional points from the review of PR 60: a capacity file loaded twice no
-longer doubles the contractor line (B2-1 item 10 replaces rows by shop and week), and a dropped job chip whose id is
-written in lower case still moves (B2-2 item 4 compares uppercased ids). MODULES 5 and 6 were regenerated from the
-v0.4 text and the whole leveler test rerun before publishing. v0.3 renames the lookup column to map_name (the old
-name carried a workplace report's name, which a public copy must not) and nothing else. v0.2 (2026-10-23; v0.1 of 2026-10-22 was never tested: it needed a
-schedule export with float per phase that does not exist yet) is built around what the owner asked for on 2026-10-22: click an overloaded shop-week
+Version 0.5, 2026-10-25 (v0.1 to v0.4 kept in the private source). v0.5 changes one import rule in B2-1 (item 9): the estimator's
+consumption file has one line per job, phase AND shop (estimator series v0.7, from the task records of the owner's
+pulls), so a re-import replaces each job's lines whole, by proposed_id, instead of by proposed_id and phase_no, which
+kept one shop per phase and silently dropped the rest (found 2026-10-25 on a several-shops file: 182 lines in, 104
+kept, the status line still saying 182). Consumption rows also keep the file's tasks column; the consumption_moved
+export keeps its 24 columns (tasks is not exported). MODULE 5 regenerated from this text on the Resource Map v0.6
+base and the whole leveler test rerun with a several-shops import check (the private test record, round 5).
+v0.4 (2026-10-23) took two optional points from the review of PR 60: a
+capacity file loaded twice no longer doubles the contractor line (B2-1 item 10 replaces rows by shop and week), and
+a dropped job chip whose id is written in lower case still moves (B2-2 item 4 compares uppercased ids). MODULES 5 and
+6 were regenerated from the v0.4 text and the whole leveler test rerun (the private test record, round 4).
+v0.3 renames the lookup column to map_name (the old name carried a workplace report's name, which the public copy
+must not; review of PR 60) and nothing else; the tested build was renamed the same way and retested. v0.2 (2026-10-23; v0.1 of 2026-10-22 was never
+tested: it needed a schedule export with float per phase that does not exist yet) is built around what the owner asked for on 2026-10-22: click an overloaded shop-week
 and see its jobs (series B already does that), drag a job week to week, drag a whole project, keep the dates of record
 as the baseline so every move is a what-if on top of it, read the contractor as its own line, zoom to a time frame,
 take a snapshot for the TVs, and level and farm out automatically then compare. The windows the automatic leveler
@@ -107,8 +115,8 @@ Contract additions (keep every name exactly):
   zoom_from: "", zoom_to: "", moved_by: ""}. DB.moves: array of {id, kind, key, weeks, performing, by, at, auto}
   (kind "job", "project" or "performing"; key = proposed_id uppercased and trimmed, or the project name as shown on
   the map; weeks a whole number, 0 for performing; performing "farm-out", "in-house" or ""; auto true or false).
-- Consumption rows keep every column of the file: the 19 fields plus source, performing, performing_basis (blank
-  when the file has no such column).
+- Consumption rows keep every column of the file: the 19 fields plus source, performing, performing_basis, tasks
+  (blank when the file has no such column). A job has one row per phase AND shop.
 - Global `var MOVED = null;` declared at the top of the second block.
 
 Write, in the second block:
@@ -158,10 +166,12 @@ Write, in the second block:
    non-blank cells; match headers to these fields by squashed name (case, spaces, underscores and punctuation
    removed): proposed_id, hull, project, phase_no, phase_title, shop, est_hours_low, est_hours_high,
    charged_hours_low, charged_hours_high, load_hours, week_start, week_end, placement, summaries_used, same_class,
-   top_score, analog_jcns, notes, source, performing, performing_basis. Store every row under the contract names:
+   top_score, analog_jcns, notes, source, performing, performing_basis, tasks. Store every row under the contract names:
    hours through num(), week_start and week_end through mondayOf(toDate()) ("" when blank), shop through
    normalizeShop, project through normalizeProject, everything else trimmed text ("" when the column is absent).
-   Replace an earlier DB.consumption row with the same proposed_id and phase_no, else append. Return the count.
+   Before appending, drop every earlier DB.consumption row whose proposed_id (trimmed, uppercased) appears in this
+   file, then append all of the file's rows, so a re-import replaces each job whole; never replace by proposed_id and
+   phase_no, because a phase has one row per shop and that rule keeps one shop and drops the others. Return the count.
 10. importB2(kind, rows, fileName): "lookup": header with map_name (aliases mapname, resourcemapname,
     workforcename, workforcemapname) and project; rows {map_name, project, hull} replace earlier rows with the same
     map_name. "projects": header with project, start and end and NO shop and NO week_start; rows {project
@@ -453,6 +463,8 @@ check it for the mistakes that usually break a file built in pieces, and list ea
    every map draw and rebuilds the drop strip from the shown weeks.
 7. Anything blocked by the Content-Security-Policy (the snapshot uses a canvas and a data: URL, which the policy
    allows for img-src); any <script> left unclosed; any placeholder left in.
+8. That importConsumption keeps every line of a file (a job has one row per phase AND shop) and, on a re-import,
+   drops the file's jobs whole before appending, never matching by proposed_id and phase_no.
 Then give me a five-step test using the two resource map sheets, a six-line consumption.csv with a performing
 column, a two-line lookup.csv, a two-line projects.csv, a contractor capacity.csv, and what I should see after each
 step: the status lines, one cell that changes after a 1-week move, the contractor line after a farm-out, and one

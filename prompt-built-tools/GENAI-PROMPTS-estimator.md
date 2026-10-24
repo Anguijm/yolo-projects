@@ -1,6 +1,20 @@
 # Prompts for GenAI.mil: build the JCN analog estimator inside the enclave
 
-Version 0.6, 2026-10-24 (v0.1 to v0.5 kept in the private source). v0.6 fixes one thing from the review of PR 71
+Version 0.7, 2026-10-25 (v0.1 to v0.6 kept in the private source). v0.7 moves the history to the shape of the owner's own
+pulls, as he described and ruled on 2026-10-25: a job summary holds phases, and inside each phase there is a tasks
+table, one record per task, with the shop, the task that shop is to do, the crew size and the man-hour estimate; the
+shop's charges land on its task; the material is one record per item keyed by job summary and phase number. The pull
+is ONE flat task table in which every record repeats the phase-level fields (title, description block, planned and
+actual dates), and the tool derives the phases from it. The estimate is therefore built per phase AND shop: for each
+phase of the newest similar job, one row per shop, that shop's tasks summed within the phase, low to high across the
+similar jobs. (v0.6 keyed a phase by its title alone and assumed one shop per phase; on a phase worked by three shops
+it listed three rows and gave every one the first shop's hours. Found on the third made-up data set, 2026-10-25.)
+Crew size is read and not used (the owner's ruling). The `tasks` table replaces `phases` in Prompts 1 and 2;
+DB.tasksByJS holds the task rows and DB.phasesByJS the derived phases; Prompt 4 is rewritten; Prompt 5 gains two
+checks; the estimate CSV gains a tasks column. The tune series (v0.3), the batch series (v0.9), the planned series
+(v0.6), the Resource Map (v0.6) and the leveler (v0.5) move with it, all in one round. Regenerated from this text and
+tested against a Python twin on the fourth made-up data set (test record kept in the private source).
+v0.6 (2026-10-24) fixed one thing from the review of PR 71
 (the reviewer, 2026-10-24): maxScore() now counts W.hullNear, because hull nearness scores same-class rows, and without it a
 same-class perfect match would show a strength above 100 percent once the weight test gives hull nearness a weight;
 family stays out, since a row of the new JCN's own class can never score it. Prompt 3 step 7 and check 7b say so;
@@ -32,7 +46,8 @@ v0.3 (2026-10-23) listed material whole for grouped summaries; v0.2 (2026-10-20)
 the pieces (see the private test record).
 
 Scope of this series: load exports, enter a new JCN, list the ten closest same-class past jobs with reasons and
-a match strength, build the phase-hours and material estimate from the ones you tick, write it out as CSV. The
+a match strength, build the hours estimate by phase and shop and the material estimate from the ones you tick,
+write it out as CSV. The
 weight test is its own prompt file (`GENAI-PROMPTS-estimator-tune.md`) and runs after Prompt 5 of this series.
 
 ## How to use
@@ -44,7 +59,7 @@ weight test is its own prompt file (`GENAI-PROMPTS-estimator-tune.md`) and runs 
    the matching placeholder line in the file. Prompt 5 checks the assembled file. The tune series adds one
    more block over the MODULE T placeholder.
 3. Save as `estimator.html` (plain text, UTF-8). Open it in the browser. Use the file picker on the page
-   to choose your three exports. Nothing leaves the computer: the page has no network access by design.
+   to choose your three exports (JCN history, tasks, material). Nothing leaves the computer: the page has no network access by design.
 4. If something fails, press F12, copy the red error text from the Console tab, and use the Debug prompt
    at the end.
 
@@ -60,13 +75,27 @@ these field names:
 
 - `jcn_history`: jcn, job_summary, hull, ship_class, swlin, space, equipment_id, equipment_nomenclature,
   discrepancy (optional, free text), received_date
-- `phases`: job_summary, phase_no, phase_title, shop, est_hours, charged_hours
+- `tasks`: one record per task. Required: job_summary, phase_no, shop, est_hours, charged_hours. Optional:
+  phase_title, description (the phase's description block), task (the task text), task_no, crew_size (read, not
+  used), performing (who did it, as typed), planned_start, planned_finish, actual_start, actual_finish. The
+  phase-level fields (title, description, dates) repeat on every task of the phase; the first non-blank value per
+  phase is used.
 - `material`: job_summary, phase_no (the end-use phase), item, qty
+- `phases` (optional fourth file, accepted when a pull gives the phase level separately): job_summary, phase_no,
+  phase_title, description, planned_start, planned_finish, actual_start, actual_finish. Without it the phases are
+  derived from the tasks.
 
-One global object `DB`: `DB.jcns` (array of jcn_history rows), `DB.phasesByJS` (plain object, job_summary
-to array of phase rows), `DB.matByJS` (plain object, job_summary to array of material rows), `DB.jsCount`
-(plain object, job_summary to the number of JCNs that share it, read as `DB.jsCount[job_summary]`),
-`DB.hulls` (an array of [hull, ship_class] pairs, unique).
+One global object `DB`: `DB.jcns` (array of jcn_history rows), `DB.tasksByJS` (plain object, job_summary to array
+of task rows in file order), `DB.phasesByJS` (plain object, job_summary to array of phase rows {phase_no,
+phase_title, description, planned_start, planned_finish, actual_start, actual_finish} ordered by phase_no, derived
+from the tasks unless a phases file was loaded; phase_title is never blank: "Phase 3" when the pull had none),
+`DB.matByJS` (plain object, job_summary to array of material rows), `DB.jsCount` (plain object, job_summary to the
+number of JCNs that share it, read as `DB.jsCount[job_summary]`), `DB.hulls` (an array of [hull, ship_class] pairs,
+unique).
+
+The unit of the estimate is the phase AND the shop (the owner's rule, 2026-10-25): a shop's charges land on its
+tasks, and for estimating and comparing, a shop's tasks within a phase are summed. `EST.rows` is one row per phase
+and shop of the newest similar job.
 
 Globals declared with let in the skeleton: `DB`, `W` (weights), `DICT` (abbreviation dictionary, plain
 object short to long), `FAMILY` (class families, an array of arrays of class codes), `ANALOGS`, `TICK`, `EST`,
@@ -113,8 +142,8 @@ What the tool does: a planner loads three CSV exports from the maintenance syste
 (a JCN, job control number) including the discrepancy text as written, and the tool lists the ten most
 similar past jobs with the reason each one matched and how strong the best match is. The planner ticks
 the ones that are really the same kind of work, and the tool builds an estimate from them: the phases of
-work, the hours by shop as low-to-high ranges (both what was estimated and what was actually charged),
-and the material by the phase that uses it. The estimate can be copied or downloaded as CSV. A last
+work and, within each phase, the hours by shop (each shop's tasks summed) as low-to-high ranges (both
+what was estimated and what was actually charged), and the material by the phase that uses it. The estimate can be copied or downloaded as CSV. A last
 section runs a weight test on the loaded history (a later step fills it in).
 
 Hard rules for the file:
@@ -137,12 +166,18 @@ Hard rules for the file:
 The contract that every later step relies on (keep these names exactly):
 - Three CSV exports, identified by their columns, not file names. After column mapping the page uses:
   jcn_history: jcn, job_summary, hull, ship_class, swlin, space, equipment_id, equipment_nomenclature,
-  discrepancy (optional free text), received_date; phases: job_summary, phase_no, phase_title, shop,
-  est_hours, charged_hours; material: job_summary, phase_no (end-use phase), item, qty.
-- One global object DB: DB.jcns (array of jcn_history rows), DB.phasesByJS (plain object, job_summary to
-  array of phase rows), DB.matByJS (plain object, job_summary to array of material rows), DB.jsCount
-  (plain object, job_summary to the number of JCNs sharing it, read as DB.jsCount[job_summary]),
-  DB.hulls (an array of [hull, ship_class] pairs, unique).
+  discrepancy (optional free text), received_date; tasks (one record per task of a phase): job_summary,
+  phase_no, shop, est_hours, charged_hours, plus optional phase_title, description, task, task_no,
+  crew_size, performing, planned_start, planned_finish, actual_start, actual_finish; material:
+  job_summary, phase_no (end-use phase), item, qty. An optional fourth file, phases (job_summary,
+  phase_no, phase_title, description and the four dates), may be loaded instead of repeating those
+  fields on the tasks.
+- One global object DB: DB.jcns (array of jcn_history rows), DB.tasksByJS (plain object, job_summary to
+  array of task rows in file order), DB.phasesByJS (plain object, job_summary to array of phase rows
+  {phase_no, phase_title, description, planned_start, planned_finish, actual_start, actual_finish},
+  ordered by phase_no, derived from the tasks when no phases file is loaded), DB.matByJS (plain object,
+  job_summary to array of material rows), DB.jsCount (plain object, job_summary to the number of JCNs
+  sharing it, read as DB.jsCount[job_summary]), DB.hulls (an array of [hull, ship_class] pairs, unique).
 - Global functions: parseCSV(text), loadFiles(fileList), buildDB(tables), readNewJCN(), words(s),
   cleanCode(s), features(nj, j), scoreFrom(F, W, age), maxScore(W), scoreJCN(nj, j), findAnalogs(nj),
   renderAnalogs(), renderWeights(), buildEstimate(), estimateCSV(), run(), tuneRun(), adoptWeights(newW),
@@ -213,18 +248,31 @@ plain global functions of the same names (no IIFE, no module, no assignment to w
 in the contract from step 1 exactly.
 
 Contract reminder: jcn_history: jcn, job_summary, hull, ship_class, swlin, space, equipment_id,
-equipment_nomenclature, discrepancy (optional), received_date; phases: job_summary, phase_no,
-phase_title, shop, est_hours, charged_hours; material: job_summary, phase_no, item, qty. DB.jcns
-(array), DB.phasesByJS (plain object), DB.matByJS (plain object), DB.jsCount (plain object,
+equipment_nomenclature, discrepancy (optional), received_date; tasks: job_summary, phase_no, shop,
+est_hours, charged_hours, and the optional phase_title, description, task, task_no, crew_size,
+performing, planned_start, planned_finish, actual_start, actual_finish; material: job_summary,
+phase_no, item, qty; phases (optional file): job_summary, phase_no, and the optional phase_title,
+description, planned_start, planned_finish, actual_start, actual_finish. DB.jcns (array), DB.tasksByJS
+(plain object), DB.phasesByJS (plain object), DB.matByJS (plain object), DB.jsCount (plain object,
 DB.jsCount[job_summary] = count), DB.hulls (array of [hull, ship_class] pairs). Elements: files,
 datastatus, mapping, f-hull.
+
+How the history is shaped (so the loader fits it): a job summary holds phases; each phase has one or
+more tasks, one record each, naming the shop, what that shop does, its crew and its estimated hours,
+and the shop's charges land on its task; a shop is usually tasked once in a phase but can be tasked
+twice. The pull is one flat task table in which the phase-level fields (title, description block,
+planned and actual dates) repeat on every task of the phase. A separate phases file may exist but
+usually does not.
 
 Names the later series rely on (declare exactly these): the alias table is const SCHEMA (one entry per
 table, each a plain object of field name to alias list, aliases written without spaces); the raw parsed
 files live in let RAW_DATA; the chosen column mappings in let MAPPINGS; cleanCol(s) lower-cases a header
-and strips everything but letters and digits; detectType(headers) returns "jcn_history", "phases",
+and strips everything but letters and digits; detectType(headers) returns "jcn_history", "tasks", "phases",
 "material" or null for a header row; updateStatus() rewrites datastatus; OPTIONAL_FIELDS is a const array
-of the optional field names (just "discrepancy" for now), which later modules extend in place with push.
+of the optional field names (discrepancy, phase_title, description, task, task_no, crew_size, performing,
+planned_start, planned_finish, actual_start, actual_finish), which later modules extend in place with push;
+MODULE 2 checks that list by field name across every table, so only names that are optional wherever they
+appear belong on it.
 
 Requirements:
 1. parseCSV(text): a real CSV parser, not split on commas: handles quoted fields, doubled quotes inside
@@ -232,35 +280,56 @@ Requirements:
    keyed by the header row, with header names trimmed.
 2. loadFiles(fileList): reads each chosen file with FileReader as UTF-8, parses it, and decides which
    export it is from its columns: a file is jcn_history if it has a jcn column and an equipment column;
-   phases if it has a phase title column and an estimated hours column; material if it has an item or
-   part column and a quantity column. Matching is case-insensitive, ignores spaces, underscores and
-   punctuation, and accepts these aliases for each field (extend them sensibly): jcn: jcn, job control
-   number; job_summary: job summary, js, job summary number; hull: hull, ship, ship name, hull number;
-   ship_class: class, ship class; swlin: swlin, swlin number, swlin line item, eswbs; space: space,
-   compartment, space number, location; equipment_id: equipment id, equipment, eqpt, eid, component;
-   equipment_nomenclature: nomenclature, equipment nomenclature, noun name, equipment noun;
-   discrepancy: discrepancy, discrepancy text, narrative, problem, problem description, deficiency,
-   remarks, csmp narrative, description; received_date: received, received date, date received, jcn
-   date; phase_no: phase, phase no, phase number, key op, keyop; phase_title: phase title, title, phase
-   name, task; shop: shop, trade, work center; est_hours: estimated hours, est hours, planned hours,
-   estimate; charged_hours: charged hours, actual hours, charged, expended hours; item: item, part,
-   material, nsn, stock number; qty: qty, quantity.
-3. discrepancy is optional: when no column matches it, every row gets discrepancy = "" and no mapping
+   tasks if it has a job summary column, a shop column and an estimated or charged hours column; material
+   if it has an item, part, NIIN, NSN or stock number column and a quantity column; phases if it has a job
+   summary column and a phase title or phase number column and NO shop, hours, item or quantity column.
+   Test the four kinds in this order: jcn_history, tasks, material, phases, because a material file also
+   has a job summary and a phase number column.
+   Matching is case-insensitive, ignores spaces, underscores and punctuation, and accepts these aliases
+   for each field (extend them sensibly): jcn: jcn, job control number; job_summary: job summary, js, job
+   summary number; hull: hull, ship, ship name, hull number; ship_class: class, ship class; swlin: swlin,
+   swlin number, swlin line item, eswbs; space: space, compartment, space number, location; equipment_id:
+   equipment id, equipment, eqpt, eid, component; equipment_nomenclature: nomenclature, equipment
+   nomenclature, noun name, equipment noun; discrepancy: discrepancy, discrepancy text, narrative, problem,
+   problem description, deficiency, remarks, csmp narrative, description; received_date: received,
+   received date, date received, jcn date; phase_no: phase, phase no, phase number, key op, keyop, key
+   event; phase_title: phase title, title, phase name; description: description, description block, phase
+   description, procedure, work description; task: task, task title, task description, task name, task
+   text; task_no: task no, task number, task seq, seq, line; shop: shop, trade, work center, shop code;
+   crew_size: crew, crew size, people, headcount; est_hours: estimated hours, est hours, planned hours,
+   estimate, man hours, mh; charged_hours: charged hours, actual hours, charged, expended hours, actuals;
+   performing: performing, performing activity, activity, performer, work by, in house, farm out,
+   contractor, org, organic; planned_start: planned start, plan start, sched start, scheduled start;
+   planned_finish: planned finish, plan finish, sched finish, scheduled finish; actual_start: actual
+   start, act start, start date; actual_finish: actual finish, act finish, finish date, completed; item:
+   item, part, material, nsn, niin, stock number, part number; qty: qty, quantity. The alias "description"
+   belongs to discrepancy in the jcn_history table and to description in the tasks and phases tables
+   (SCHEMA is per table, so both are fine).
+3. Optional fields: when no column matches one, every row gets "" (or null for a date) and no mapping
    row is drawn for it. For any REQUIRED field that no column matches, do not fail: draw a small mapping
    row in div mapping with the file name, the field name, and a <select> of that file's columns; when
-   the user picks one, use it and rebuild. Also list in datastatus which of the three exports are loaded
-   and how many rows each has, whether the history has discrepancy text, and name any export still
-   missing.
-4. buildDB(tables): takes {jcn_history, phases, material} as arrays of mapped rows and builds DB. DB
-   is null until then, so its first line is DB = {jcns: [], phasesByJS: {}, matByJS: {}, jsCount: {},
-   hulls: []}, assigned by name (never window.DB). Normalize: trim strings; uppercase jcn, job_summary,
-   hull, swlin, space, equipment_id, shop; keep
-   discrepancy and equipment_nomenclature as typed (trimmed only); phase_no and hours and qty through
-   num(); received_date through toDate() kept as a Date (null if unreadable). DB.jsCount counts jcn rows
-   per job_summary. DB.hulls is unique [hull, ship_class] sorted by hull. Then fill the f-hull select
-   with one option per hull showing "hull (class)".
-5. When all three exports are loaded and mapped, call buildDB, then enable btn-run and btn-tune. Before
-   that, both are disabled.
+   the user picks one, use it and rebuild. Also list in datastatus which of the exports are loaded and
+   how many rows each has (for tasks also how many phases and job summaries they hold, once buildDB has
+   run), whether the history has discrepancy text, whether a phases file was given or the phases were
+   derived, and name any required export still missing (jcn_history, tasks, material).
+4. buildDB(tables): takes {jcn_history, tasks, material, phases (may be absent)} as arrays of mapped rows
+   and builds DB. DB is null until then, so its first line is DB = {jcns: [], tasksByJS: {}, phasesByJS:
+   {}, matByJS: {}, jsCount: {}, hulls: []}, assigned by name (never window.DB). Normalize: trim strings;
+   uppercase jcn, job_summary, hull, swlin, space, equipment_id, shop; keep discrepancy,
+   equipment_nomenclature, phase_title, description, task and performing as typed (trimmed only);
+   phase_no, task_no, crew_size, hours and qty through num(); received_date and the four task dates
+   through toDate() kept as Dates (null if unreadable). DB.tasksByJS[job_summary] is that summary's task
+   rows in file order. DB.phasesByJS[job_summary]: when a phases file was loaded, one row per
+   job_summary and phase_no from it (the first row wins on a repeat), then any phase_no present in the
+   summary's tasks but missing from the file is added from the tasks; without a phases file, every
+   phase is derived from the tasks: for each distinct phase_no (compared as numbers) of the summary, in
+   ascending order, phase_title = the first non-blank phase_title among its task rows, description the
+   first non-blank description, each of the four dates the first non-null; a blank phase_title becomes
+   "Phase " + phase_no. DB.jsCount counts jcn rows per job_summary. DB.hulls is unique [hull,
+   ship_class] sorted by hull. Then fill the f-hull select with one option per hull showing "hull
+   (class)".
+5. When jcn_history, tasks and material are loaded and mapped (phases is optional), call buildDB, then
+   enable btn-run and btn-tune. Before that, both are disabled.
 6. No em dashes. No network access.
 
 Answer with the one <script> block only, starting with <script> and ending with </script>, and nothing
@@ -425,8 +494,8 @@ Answer with the one <script> block only, and nothing after it.
 
 ## Prompt 4: the estimate and the CSV
 
-As v0.3, plus step 8 pins the EST shape (rows with est_low and the other named fields, used, usedJcns as a
-space-separated string newest first, notes), which the batch and planned series read by name.
+Rewritten for v0.7: the unit of the estimate is the phase and the shop, read from the task records, and the
+row shape the batch series reads gains `tasks`.
 
 ```
 Continue the same file. Write MODULE 4: a single <script> block that I will paste over the line
@@ -436,56 +505,90 @@ name exactly.
 
 Contract reminder: ANALOGS is the array returned by findAnalogs, each element {j, score, raw, reasons}
 where j is a jcn_history row with jcn, job_summary, hull, ship_class, swlin, space, equipment_id,
-equipment_nomenclature, received_date (a Date or null). TICK is the Set of ticked jcn values.
-DB.phasesByJS[job_summary] is an array of phase rows (phase_no, phase_title, shop, est_hours,
-charged_hours). DB.matByJS[job_summary] is an array of material rows (phase_no, item, qty).
-DB.jsCount[job_summary] (a plain object, not a Map) is how many JCNs share that summary. readNewJCN()
-returns {hull, cls, swlin, space, eid, nom, text}. Elements: estnotes, estimate, material, csvout. Helpers
-esc, csvCell, fmtDate, setDownload. Global EST, declared with let in the skeleton: read it as EST, never
-as window.EST (that is undefined, because a let global is not a window property).
+equipment_nomenclature, received_date (a Date or null). An analog's JCN is a.j.jcn, its summary
+a.j.job_summary and its date a.j.received_date (the row sits under j; a.jcn is undefined). TICK is the
+Set of ticked jcn values. DB.tasksByJS[job_summary] is an array of task rows in file order: {phase_no, phase_title, description,
+task_no, task, shop, crew_size, est_hours, charged_hours, performing, planned_start, planned_finish,
+actual_start, actual_finish} (numbers through num, dates as Date or null, text as typed). A phase is
+worked by one or more shops, and a shop is usually tasked once in a phase but can be tasked twice.
+DB.phasesByJS[job_summary] is the array of that summary's phases {phase_no, phase_title, description,
+planned_start, planned_finish, actual_start, actual_finish}, ordered by phase_no, built by MODULE 2
+(phase_title is never blank there: "Phase 3" when the pull had none). DB.matByJS[job_summary] is an
+array of material rows (phase_no, item, qty). DB.jsCount[job_summary] (a plain object, not a Map) is
+how many JCNs share that summary. readNewJCN() returns {hull, cls, swlin, space, eid, nom, text}.
+Elements: estnotes, estimate, material, csvout. Helpers esc, csvCell, fmtDate, setDownload. Global EST,
+declared with let in the skeleton: read it as EST, never as window.EST (that is undefined, because a
+let global is not a window property).
+
+The unit of the estimate is the phase AND the shop. The rule from the owner of the data: a shop's
+charges land on its tasks, and for estimating and comparing, a shop's tasks within a phase are summed
+(a second task of the same shop in a phase is simply added in). Crew size is not used.
+
+Write two small plain global helpers first: phaseKey(title) = the title trimmed and uppercased (phases
+are matched across summaries by title); shopHours(js, title, shop) = over DB.tasksByJS[js], the rows
+whose phaseKey(phase_title) equals phaseKey(title) and whose shop equals shop: null when there is no
+such row, else {est: the sum of their est_hours, charged: the sum of their charged_hours, tasks: their
+distinct non-blank task texts in file order}.
 
 How the estimate is built:
-1. Take the ticked analogs that have phase data. Use each job_summary once even if two ticked JCNs share
-   it. If none, write a note in estnotes asking the user to tick at least one job with phase data, clear
-   the tables and csvout, call setDownload(), and return.
-2. Sort the used job summaries newest first by received_date. The phase breakdown (the list of phases
-   and their order) comes from the NEWEST one. Note in estnotes which JCN it came from, its date
-   (fmtDate), how many phases, and how many job summaries are behind the numbers.
-3. Method change check: for each other used summary, compare its set of phase titles with the newest
-   one's; if fewer than 80% of the combined titles are shared, add a visible note "Possible method
-   change" naming that JCN, its date and its phase count, and saying to check how the work is done today
-   before trusting older hours.
+1. Take the ticked analogs that have task data (DB.tasksByJS[job_summary] exists and is non-empty).
+   Use each job_summary once even if two ticked JCNs share it. If none, write a note in estnotes asking
+   the user to tick at least one job with task data, clear the tables and csvout, call setDownload(),
+   and return.
+2. Sort the used job summaries newest first by received_date. The breakdown comes from the NEWEST one:
+   its phases in DB.phasesByJS order, and under each phase its shops in order of first appearance among
+   that phase's task rows (the task rows whose phaseKey(phase_title) equals the phase's). One estimate
+   row per phase and shop. Note in estnotes which JCN the breakdown came from, its date (fmtDate), how
+   many phases and how many rows it has, and how many job summaries are behind the numbers.
+3. Method change check: for each other used summary, compare its set of phaseKey titles (from
+   DB.phasesByJS) with the newest one's; if fewer than 80% of the combined titles are shared, add a
+   visible note "Possible method change" naming that JCN, its date and its phase count, and saying to
+   check how the work is done today before trusting older hours.
 4. If fewer than three summaries are used, add a note that the ranges are a starting point for the
    planner, not a forecast.
-5. For each phase of the newest breakdown, find the phase with the same title in every used summary.
-   Collect est_hours and charged_hours, each divided by that summary's DB.jsCount (a summary that covered
-   several JCNs is shared out). Show low to high of each as "a to b" (one decimal), the shop from the
-   newest breakdown, and "k of n" for how many summaries had that phase.
-6. Totals: sum the low and high of est and of charged across phases, state both ranges in estnotes, and
+5. For each row (phase title, shop) of the newest breakdown: for every used summary js, h =
+   shopHours(js, title, shop); when h is not null, collect h.est / DB.jsCount[js] and h.charged /
+   DB.jsCount[js] (a summary that covered several JCNs is shared out) and count that summary in k. A
+   summary that has the phase but not that shop on it is left out of the row (never counted as zero).
+   est_low and est_high are the smallest and largest collected est, charged_low and charged_high the
+   same for charged. The table estimate has the columns Phase (number and title), Shop, Tasks (newest
+   job), Estimated hours, Charged hours, Summaries; show the hours as "a to b" (one decimal), the tasks
+   as shopHours(newest, title, shop).tasks joined with "; ", and "k of n" for how many used summaries had
+   that phase and shop (k is at least 1, because the newest summary has it). Set the innerHTML of table
+   estimate (and of table material in step 7) to a thead and a tbody; never put a second table inside
+   them. Reach every element through $(id), never through a bare element id used as a global.
+6. Totals: sum the low and high of est and of charged across rows, state both ranges in estnotes, and
    if charged ran higher than estimated say by about what percent, and end with "Plan to the charged
-   range."
-7. Material: for every used summary, map each material row's phase_no to that summary's phase title,
-   then group by title and item. Quantities are taken as they are: NEVER divide a quantity by
-   DB.jsCount. Hours are shared out over a grouped summary's JCNs (step 5); material is not, because a
-   summary that covered four JCNs gives the new job its whole list and the planner trims it. Show a
-   table with five columns: end-use phase, item, qty as low to high (the smallest and largest qty seen
-   for that item across the used summaries, as "a to b"), "seen on k of n", and grouped = the largest
+   range." Under the notes add one <details> element titled "What the newest job's phases say" listing,
+   for each phase of the newest breakdown whose description is non-blank, the phase title and its
+   description block, so the planner can read what the hours were for.
+7. Material: for every used summary, map each material row's phase_no to that summary's phase title
+   (through DB.phasesByJS[js]; a phase_no with no phase row gets the title "Phase " + phase_no), then
+   group by phaseKey and item. Quantities are taken as they are: NEVER divide a quantity by DB.jsCount.
+   Hours are shared out over a grouped summary's JCNs (step 5); material is not, because a summary that
+   covered four JCNs gives the new job its whole list and the planner trims it. Show a table with five
+   columns: end-use phase, item, qty as low to high (the smallest and largest qty seen for that item
+   across the used summaries, as "a to b"), "seen on k of n", and grouped = the largest
    DB.jsCount[job_summary] among the used summaries that carried that item (1 when none of them was
    grouped). When any used summary has DB.jsCount above 1, add a note in estnotes: "Material from a
    summary that covered N JCNs is listed whole; it may include sibling jobs' parts." (N = the largest
    count). Items whose phase title is not in the newest breakdown are listed last and marked "older
    breakdown only".
-8. Set EST = {nj: readNewJCN(), rows, used, usedJcns, notes} with exactly these shapes, because the batch
-   series reads them by name: rows is the array of estimate rows in the newest breakdown's order, each
-   exactly {phase_no, phase_title, shop, est_low, est_high, charged_low, charged_high, k, n} as numbers
-   (k = how many used summaries had the phase, n = how many summaries were used); used is the number of
-   job summaries used; usedJcns is one string of the ticked JCNs whose summaries were used, joined by
-   single spaces, newest first; notes is the array of the sentences written to estnotes (a later module
-   looks there for "Possible method change"). Then fill csvout with estimateCSV() and call setDownload().
+8. Set EST = {nj: readNewJCN(), rows, used, usedJcns, notes} with exactly these shapes, because the
+   batch series reads them by name: rows is the array of estimate rows in the newest breakdown's order,
+   each exactly {phase_no, phase_title, shop, tasks, est_low, est_high, charged_low, charged_high, k, n}
+   (phase_no, the four hours, k and n as numbers; phase_title, shop and tasks as strings, tasks being the
+   newest summary's task texts for that phase and shop joined with "; ", "" when blank; k = how many
+   used summaries had the phase and shop, n = how many summaries were used); used is the number of job
+   summaries used; usedJcns is one string of the ticked JCNs whose summaries were used, joined by single
+   spaces, newest first; notes is the array of the sentences written to estnotes (a later module looks
+   there for "Possible method change"). Then set $('csvout').value = estimateCSV() (the textarea's
+   value) and call setDownload().
 9. estimateCSV(): header new_equipment_id, new_space, new_swlin, new_hull, phase_no, phase_title, shop,
    est_hours_low, est_hours_high, charged_hours_low, charged_hours_high, summaries_with_phase,
-   summaries_used, analog_jcns; one line per phase; CRLF line ends; every cell through csvCell; the new
-   job's values come from EST.nj.eid, EST.nj.space, EST.nj.swlin, EST.nj.hull.
+   summaries_used, analog_jcns, tasks; one line per estimate row (phase and shop); CRLF line ends; every
+   cell through csvCell; the new job's values come from EST.nj.eid, EST.nj.space, EST.nj.swlin,
+   EST.nj.hull.
 10. No em dashes. Tables are plain HTML with a header row; numbers right-aligned.
 
 Answer with the one <script> block only, and nothing after it.
@@ -523,6 +626,14 @@ usually break a file built in pieces, and list each one with the exact fix:
 8. The three space features are 0 for a row whose ship_class differs from the new JCN's class.
 9. A history without a discrepancy column still loads, with discrepancy = "" on every row, and the text
    features are then 0 rather than an error.
+10. The unit of the estimate is the phase and the shop: shopHours sums a shop's tasks within a phase; a
+   phase worked by three shops gives three estimate rows with their own hours, never the first shop's
+   hours repeated; a used summary that has the phase but not the shop is left out of that row's range,
+   not counted as zero; EST.rows carries tasks as a string.
+11. buildDB derives DB.phasesByJS from the tasks when no phases file is loaded (one row per distinct
+   phase_no, ascending, "Phase N" for a blank title, the first non-blank description and dates), a tasks
+   file is recognized by its job summary, shop and hours columns, and the status line reports the tasks
+   with their phase and job summary counts.
 Then give me a short test checklist: five things to do in the opened page, in order, and what I should
 see after each.
 ```
@@ -543,20 +654,23 @@ can paste it over the old one. Do not change anything else.
 ```
 My three exports have these header rows (names only, no data):
 jcn_history: <paste the header row>
-phases: <paste the header row>
+tasks: <paste the header row>
 material: <paste the header row>
 Update the alias lists in loadFiles so each of these headers maps to the right contract field, and tell
 me which contract fields, if any, have no matching column so I know what to add in the export. The
-discrepancy field is optional; say whether it was found.
+discrepancy field and the task table's phase title, description, task, task number, crew size,
+performing and date fields are optional; say which were found.
 ```
 
 ## Test checklist (what the test here saw, for comparison)
 
 1. Open the file: six numbered sections, "Find similar jobs" and "Run the weight test" greyed out.
-2. Choose the three exports: the status line names all three with their row counts and says whether the
-   history has discrepancy text; no mapping rows if the columns matched; both buttons turn on.
+2. Choose the three exports: the status line names all three with their row counts (the tasks with their
+   phase and job summary counts, and whether the phases were derived) and says whether the history has
+   discrepancy text; no mapping rows if the columns matched; both buttons turn on.
 3. Pick a hull, type an equipment ID, space, SWLIN and a line of discrepancy text, click: the strength
    line, then ten rows, the exact-match job first, each with its reasons (including the shared words)
    and a tick box.
-4. Untick a row: the estimate recomputes; the note says which JCN the breakdown came from.
-5. The CSV box fills with one line per phase; Download saves estimate.csv.
+4. Untick a row: the estimate recomputes; the note says which JCN the breakdown came from; a phase worked
+   by several shops shows one row per shop with different hours.
+5. The CSV box fills with one line per phase and shop; Download saves estimate.csv.

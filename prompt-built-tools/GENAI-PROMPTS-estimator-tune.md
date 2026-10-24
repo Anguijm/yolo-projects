@@ -1,13 +1,16 @@
 # Prompts for GenAI.mil: the weight test for the JCN analog estimator
 
-Version 0.2, 2026-10-24 (v0.1 kept in the private source). v0.2 reads the feature keys from DEFAULT_W instead of
+Version 0.3, 2026-10-25 (v0.1 and v0.2 kept in the private source). v0.3 follows the estimator series v0.7 to the
+task-based history: the charged hours of a finished job are summed over its task records (DB.tasksByJS) instead of
+phase rows; nothing else in the test changes, because the test compares whole-job hours. Regenerated from this text
+on the v0.7 estimator and checked against the Python twin (test record kept in the private source). v0.2 (2026-10-24) read the feature keys from DEFAULT_W instead of
 naming fifteen, so the two features the estimator series v0.5 added (class family, hull nearness) are tuned too, and
 a weight whose default is 0 gets a ladder of its own. v0.2 also takes the review of PR 69 (the reviewer, 2026-10-24): a
 question sees only history received before its own date, with age measured from that date, as a planner at the
 time could; the candidate cap is ranked by a neutral weight set rather than the starting weights; the Suggested
 column is described as the blend it is. Regenerated from this text with the estimator v0.5 and tested against a Python
 twin of every rule (test record kept in the private source). One prompt (T) that adds a weight test to the estimator built by the estimator series
-v0.4 (`GENAI-PROMPTS-estimator.md`), plus a check prompt (T2). Run it in the same chat, after Prompt 5 of that
+v0.7 (`GENAI-PROMPTS-estimator.md`), plus a check prompt (T2). Run it in the same chat, after Prompt 5 of that
 series and before the batch series (prompts C), because the batch tool is built on top of this file and keeps
 the test.
 
@@ -23,7 +26,7 @@ What it cannot do: tell the right weights from made-up data. On a made-up histor
 and the arithmetic holds. The numbers mean something only on the real exports at work, and they stay there.
 
 Limits, stated in the page: the test judges same-class matching only (other-class fallback rows are not
-scored); it needs charged hours on the phases; a half with fewer than 20 finished jobs stops the test; each
+scored); it needs charged hours on the tasks; a half with fewer than 20 finished jobs stops the test; each
 tested job keeps its 500 closest past rows under the starting weights (measured here on a 200,000-row made-up
 history with 300 questions per half: about 90 seconds and 330 MB with the cap; without it the browser passed 2.8 GB
 and an hour).
@@ -39,9 +42,9 @@ global functions of the same names (no IIFE, no module, no assignment to window)
 plain global functions whose names start with tune. Keep every contract name exactly.
 
 Contract reminder: DB.jcns rows have jcn, job_summary, hull, ship_class, swlin, space, equipment_id,
-equipment_nomenclature, discrepancy, received_date (a Date or null). DB.phasesByJS[job_summary] is an
-array of phase rows with charged_hours (numbers). DB.jsCount[job_summary] is a plain object (never
-.get()). Globals W (the weights, a plain object with the same keys as DEFAULT_W: the feature keys, then
+equipment_nomenclature, discrepancy, received_date (a Date or null). DB.tasksByJS[job_summary] is an
+array of task rows (one per task of a phase; several shops work one phase) with charged_hours (numbers).
+DB.jsCount[job_summary] is a plain object (never .get()). Globals W (the weights, a plain object with the same keys as DEFAULT_W: the feature keys, then
 noEquip, recency, minSame),
 DICT, FAMILY, TUNE, all declared with let and read by name, never through window. const DEFAULT_W exists.
 Functions already in the file: features(nj, j) returning the feature keys, each 0 to 1: the feature keys
@@ -56,9 +59,9 @@ The test, as rules. Every rule is deterministic: no Math.random anywhere, so two
 give the same table.
 1. First group DB.jcns by job_summary in ONE pass into a plain object (job_summary to array of rows);
    never loop over all of DB.jcns once per summary, because the real history has 200,000 rows.
-   Finished summaries: every job_summary in DB.phasesByJS whose phases have charged_hours summing above
+   Finished summaries: every job_summary in DB.tasksByJS whose tasks have charged_hours summing above
    0 and that has at least one row in that grouping. actualHours(js) = the sum of charged_hours over its
-   phases divided by DB.jsCount[js] (a summary that covered several JCNs is shared out, the same rule the
+   tasks (every shop, every phase) divided by DB.jsCount[js] (a summary that covered several JCNs is shared out, the same rule the
    estimate uses). The question row of a summary is its row with the smallest jcn string.
 2. Halves: sort the finished summaries by job_summary string; the ones at even positions (0, 2, 4, ...)
    are half 1, the odd positions half 2.
