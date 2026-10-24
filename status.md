@@ -7,7 +7,7 @@ Updated 2026-10-23 (JST), docs refresh.
 - Flagships: Markdown Deck (README refreshed 2026-10-22), Naval Scribe (unchanged since 2026-06-26, c20bed6;
   `naval-scribe/COUNCIL_ESCALATION.md` is the 2026-04-25 record from the old pipeline, kept for history), PDF to CSV
   v0.8.11 live (source `~/projects/pdf-to-csv`, private remote, all pushed). The GenAI.mil prompt series in
-  `pdf-to-csv/GENAI-*` (estimator, batch, planned, resource map, leveler, style, xlsx, build guide, two design
+  `prompt-built-tools/GENAI-*` (moved from pdf-to-csv/ on 2026-10-24, PR #69; estimator, batch, planned, resource map, leveler, style, xlsx, build guide, two design
   pages) are written by the next-big-thing session and reviewed and merged here (PRs #51 to #65).
 - Daily cards: cron 05:50 JST, `scripts/daily_cards.sh` under job-guard `yolo-cards-daily`, merges its own PR on
   secret-scan plus validate, then nudges this session through `tmux -L yolo` (the nudge was missing from PR #46,
