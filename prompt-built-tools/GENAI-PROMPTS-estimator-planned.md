@@ -1,6 +1,10 @@
 # Prompts D: planned jobs, the contractor, and the material list
 
-Version 0.6, 2026-10-25 (v0.1 to v0.5 kept in the private source). v0.6 follows the estimator series v0.7 and the
+Version 0.7, 2026-10-25 (v0.1 to v0.6 kept in the private source). v0.7 closes the edge the reviewer of pull request 79
+raised: in the planned bypass, a shop row with no scheduled dates in a phase where another shop row has them now takes
+that phase's window (placement "scheduled", line note "dates from phase") instead of falling to the sequence rule, so
+the shops of one phase land on the same weeks whichever rows planning dated. D2 regenerated from this text on the v0.9
+batch stack, with a split phase added to the made-up planning rows so the harness reaches the case; test record kept in the private source. v0.6 follows the estimator series v0.7 and the
 batch series v0.9 to the task-based history of the owner's pulls: `performing` sits on the task record and the base
 loader keeps it as typed, so D1 only normalizes it in place; the planned table from planning is task-level too (one
 row per task, with optional task, task_no and crew_size) and is rolled up to phase and shop like the history; the
@@ -220,15 +224,21 @@ description, planned_start, planned_finish, actual_start, actual_finish}; DB.mat
 {phase_no, item, stock_number, nomenclature, qty}, one row per order line of that summary (the material export
 does not repeat rows per JCN; only the JCN history does); DB.jsCount[JS] = how many JCNs share that summary. DB.hulls holds [HULL, class] with
 the hull uppercased and trimmed. BATCH_AVAIL and DB.availByProject map an uppercased project to
-{project, hull, start, end}. PLANNED maps an uppercased job_summary to task rows {phase_no, phase_title,
-task, task_no, shop, planned_hours, scheduled_start, scheduled_finish, performing}, in file order. PROPOSED_EXTRA maps an uppercased
-proposed_id to {job_summary, performing}. Helpers $(id), esc, toDate, fmtDate, getMonday, num, csvCell,
-setDownload. Elements batch-status, batch-summary, batch-preview, batch-download, mat-summary,
+{project, hull, start, end}. PLANNED maps an uppercased job_summary to task rows {phase_no (a number), phase_title,
+task, task_no, shop, planned_hours (a number, in hours), scheduled_start, scheduled_finish (Dates or null: MODULE 7
+ran them through toDate when it read the file, so use them as they are and never pass them to toDate, which takes
+a string and throws on a Date), performing}, in file order. item.planned_start is text as typed and does go through toDate. PROPOSED_EXTRA maps an uppercased
+proposed_id to {job_summary, performing}. BATCH_ITEMS is the global array of the proposed items as MODULE 6's
+loader built them: one plain object per row with the keys proposed_id, hull, project, swlin, space, equipment_id,
+nomenclature, planned_start and discrepancy (values as typed, "" when the file lacks the column); it is the only
+list of proposed items, and estimateBatch walks it. Helpers $(id), esc, toDate, fmtDate, getMonday, num, csvCell
+(setDownload() belongs to the single-JCN section, takes no arguments and is not used here). Elements batch-status, batch-summary, batch-preview, batch-download, mat-summary,
 mat-download. W.autoMin, W.autoMax, W.hoursPerDay.
 
 estimateBatch(), for each proposed item, in chunks of 20 items per setTimeout(0) with batch-status
 showing "item 140 of 800":
-a. Build nj from the item: hull, swlin, space, eid and nom trimmed and uppercased; text = the item's
+a. Build nj from the item: hull, swlin and space from the item's fields of those names, eid from
+   item.equipment_id and nom from item.nomenclature, all trimmed and uppercased; text = the item's
    discrepancy trimmed and otherwise as typed ("" when the proposed file has no such column); cls from
    DB.hulls by the uppercased hull; if the hull is not found, cls is blank and the item note "hull not in
    history" is recorded. Item notes are fixed before the phase loop; each output line gets a copy plus its
@@ -241,14 +251,20 @@ b. PLANNED BYPASS. If extra.job_summary is non-blank and PLANNED[extra.job_summa
    charged_high all = the sum of the group's planned_hours, k: 1, n: 1}, and, held with the row for
    placement, start = the earliest scheduled_start among the group's rows that have one (null when
    none), finish = the latest scheduled_finish (null when none), performing = the group's first
-   non-blank performing. Do not call placePhases for a planned item; place its rows here: a row whose
-   start is a Date gets week_start = fmtDate(getMonday(start)), week_end = fmtDate(getMonday(finish))
-   if finish is a Date on or after start else week_start, placement "scheduled"; otherwise, if
-   toDate(item.planned_start) is a Date, the unscheduled PHASES run one after another from
-   planned_start, 7 days each (the first unscheduled phase starts at planned_start, each next
-   unscheduled phase at the previous one's finish), and every row of such a phase takes that phase's
-   week_start = fmtDate(getMonday(start)), week_end = fmtDate(getMonday(finish)), placement "sequence";
-   otherwise week_start = week_end = "", placement "", note "no dates". load_hours = the row's planned
+   non-blank performing. Do not call placePhases for a planned item; place its rows here. First work out each PHASE's
+   window from every row of that phase that has a scheduled_start: the earliest scheduled_start among
+   them and the latest scheduled_finish among them (a phase with no dated row has no window). Then per
+   row: a row whose own start is a Date gets week_start = fmtDate(getMonday(start)), week_end =
+   fmtDate(getMonday(finish)) if finish is a Date on or after start else week_start, placement
+   "scheduled"; a row with no start whose phase HAS a window takes the window the same way (week_start
+   from the phase's earliest start, week_end from its latest finish, or week_start when there is no finish
+   or it is before the start), placement "scheduled", and the line note "dates from phase" (planning
+   dated the phase, not that shop's row); otherwise, if toDate(item.planned_start) is a Date, the phases
+   with NO window run one after another from planned_start, 7 days each (the first such phase starts at
+   planned_start, each next one at the previous one's finish), and every row of such a phase takes that
+   phase's week_start = fmtDate(getMonday(start)), week_end = fmtDate(getMonday(finish)), placement
+   "sequence"; otherwise week_start = week_end = "", placement "", note "no dates". A phase that has a
+   window never enters the sequence, and the shop rows of one phase always share their weeks. load_hours = the row's planned
    hours (its est_low). Line fields: summaries_used 0, same_class "", top_score "", analog_jcns "",
    notes "planned" plus any item notes, source "planned", performing = the group's performing if
    non-blank (basis "planning"), else extra.performing if non-blank (basis "screening"), else "" with
@@ -280,7 +296,7 @@ g. Collect one output line per estimate row (phase and shop), in this order: pro
    (EST.usedJcns.split(' ').length, the JCNs the estimate used), same_class, top_score (one decimal),
    analog_jcns (EST.usedJcns), notes (semicolon separated, from this fixed list only: "possible method
    change" when any string in EST.notes begins "Possible method change", "thin history" when n < 3, "no
-   analog", "hull not in history", "no dates", "planned", "performing guessed from analogs"; never copy
+   analog", "hull not in history", "no dates", "dates from phase", "planned", "performing guessed from analogs"; never copy
    EST.notes themselves into the line), source, performing, performing_basis, tasks (the estRow's tasks
    string; "" on a no-analog line). 23 cells.
 h. MATERIAL LINES. For a history item after step d: matLines.push(...materialLines(item,
@@ -304,20 +320,22 @@ qty_low and qty_high are the smallest and the largest of those per-summary value
 summary has qty_low = qty_high). group_size = the largest DB.jsCount among the summaries that carried the
 line (1 when none was grouped). nomenclature from the newest summary that had the line. One line per
 group: proposed_id, hull, project, job_summary (extra.job_summary or ""), phase_no (look the phase_title
-up in DB.phasesByJS[newest used summary] and take that row's phase_no; "" if no row there has that title;
-never from the material row), phase_title, stock_number, nomenclature, qty_low, qty_high (one decimal),
+up in DB.phasesByJS of the NEWEST USED SUMMARY, the first summary in usedJcns' order whether or not it carried
+this line, never the newest summary that had the line, and take that row's phase_no; "" if no row there has
+that title; never from the material row), phase_title, stock_number, nomenclature, qty_low, qty_high (one decimal),
 seen_on ("k of n"), summaries_used (n), group_size, source "history", analog_jcns (walk usedJcns in order
 and keep every JCN whose summary carried the line, so two JCNs of one summary both appear; never a JCN
 that is not in usedJcns). 15 cells. Order: by phase_no (blank last), then stock_number.
 
 finishBatch(rows, stats, ms): as before (batch-summary shows items estimated, items with no analog,
 lines by placement rule, now including "scheduled", total load_hours by shop as a small table, the
-elapsed time; batch-preview
-shows the header and the first 50 lines; batch-download gets a Blob or data: URL of the whole CSV,
+elapsed time; batch-preview (a textarea: set its value) shows the header line and the first 50 CSV lines;
+batch-download's href gets a Blob URL (URL.createObjectURL) or a data: URL of the whole CSV, set directly on the anchor,
 UTF-8, CRLF, every cell through csvCell, built in an array of lines and joined once), with the header
 now the 23 names above, plus: batch-summary also shows items from planning (source planned) and lines
 by performing (in-house, farm-out, blank); mat-summary shows "material estimate: N lines for M items";
-mat-download gets the material_estimate.csv the same way (header: proposed_id, hull, project,
+mat-download gets the material_estimate.csv the same way (leave both anchors' download attributes as the
+HTML set them; header: proposed_id, hull, project,
 job_summary, phase_no, phase_title, stock_number, nomenclature, qty_low, qty_high, seen_on,
 summaries_used, group_size, source, analog_jcns; 15 names). Keep the material lines in a variable that estimateBatch fills
 and finishBatch reads (declare it with var in this block).
@@ -338,7 +356,8 @@ I have added MODULE 7 and MODULE 8. Without rewriting the file, check:
 3. That a planned file whose job summaries match proposed items takes those items past findAnalogs
    entirely, that their lines carry source "planned", that a scheduled phase's week_start is the
    Monday of scheduled_start, and that an unscheduled planned phase runs seven days after the previous
-   one from planned_start with placement "sequence".
+   one from planned_start with placement "sequence", and that a shop row without dates in a phase whose
+   other shop row has them takes that phase's weeks with the note "dates from phase", never the sequence.
 4. That every consumption line has exactly 23 cells (tasks last) and every material line exactly 15,
    that no Date object reaches csvCell unformatted, and that estimateBatch builds nj with a text key and
    calls renderWeights, never buildWeightsPanel.
@@ -351,8 +370,10 @@ I have added MODULE 7 and MODULE 8. Without rewriting the file, check:
    4 carries group_size 4.
 8. That the performing of a history line is read from the task rows of that phase and shop (never from a
    phase row), that a planned item's task rows are rolled up to phase and shop with their hours summed,
-   and that the rows of one unscheduled planned phase share the same weeks.
-Then give me a five-step test with a planned.csv of three made-up rows (two phases scheduled, one not)
+   and that the rows of one planned phase share the same weeks, whether planning dated the phase or the
+   sequence placed it.
+Then give me a five-step test with a planned.csv of four made-up rows (two phases scheduled, one of them with a second
+shop row that has no dates, one phase not scheduled)
 and a proposed.csv of four made-up lines: one planned, one screened farm-out with history, one plain
 history item, one unknown hull.
 ```

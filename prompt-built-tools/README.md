@@ -20,8 +20,8 @@ Tool 1, the estimator (one chat):
    job, estimate it from the others, fit the weights on one half and judge on the other).
 3. [GENAI-PROMPTS-estimator-batch.md](GENAI-PROMPTS-estimator-batch.md): the whole work package at once, one
    consumption CSV out.
-4. [GENAI-PROMPTS-estimator-planned.md](GENAI-PROMPTS-estimator-planned.md): planned job summaries, the
-   contractor mark, the material list.
+4. [GENAI-PROMPTS-estimator-planned.md](GENAI-PROMPTS-estimator-planned.md): planned job summaries (a shop row
+   planning left undated takes its phase's window), the contractor mark, the material list.
 5. [GENAI-PROMPTS-xlsx.md](GENAI-PROMPTS-xlsx.md): read Excel workbooks directly (optional; superseded by the
    converter page below for new builds).
 6. [GENAI-PROMPTS-style.md](GENAI-PROMPTS-style.md): the look, last.
@@ -32,7 +32,9 @@ Tool 3, the dictionary page (one chat, short):
 
 1. [GENAI-PROMPTS-dictionary.md](GENAI-PROMPTS-dictionary.md): Prompts K1 to K3. The page reads the JCN history
    once, lists the shorthand in the free text with counts and example sentences, lets a planner type each long
-   form or mark a plain word as ignore, and writes dictionary.json for the estimator and a review file to resume.
+   form or mark a plain word as ignore, drops the form's own boilerplate (a token on more than a set share of the
+   jobs, 60 percent by default, listed under the summary instead of ranked), and writes dictionary.json for the
+   estimator and a review file to resume.
 
 Tool 4, the workbook converter (one chat, two prompts):
 
