@@ -1,6 +1,6 @@
 # Prompts X: read Excel workbooks directly (no CSV step)
 
-Version 0.2, 2026-10-22 (v0.1 kept in the private source; v0.2 answers the reviewer's review of PR 54: a time or elapsed-time format such as [h]:mm was read as a date; now date styles and time styles are told apart, and a time-styled cell comes out as decimal hours). the owner's question: "For the inputs can we process in the .xlsx and output the CSV
+Version 0.2, 2026-10-22 (v0.1 kept in the private source; v0.2 answers the review of PR 54: a time or elapsed-time format such as [h]:mm was read as a date; now date styles and time styles are told apart, and a time-styled cell comes out as decimal hours). The owner's question: "For the inputs can we process in the .xlsx and output the CSV
 in js in the html file?" Answer: yes. An .xlsx file is a zip of XML parts, and a browser can open both
 without a library: DecompressionStream("deflate-raw") unpacks the zip entries and DOMParser reads the XML.
 FACT (MDN browser-compat-data, read 2026-10-22): DecompressionStream accepts "deflate-raw" from Chrome 103
@@ -10,7 +10,7 @@ anything from 2023 on is fine.
 Two prompts. Prompt X writes a module that turns a workbook into sheets of text cells. Prompt X2 hooks it
 into a tool so a workbook chosen in the file picker is read as if each sheet were a CSV file named
 "<workbook> / <sheet>.csv"; nothing else in the tool changes. The same two prompts work for the Resource
-Map (series B) and the estimator (Prompts 1 to 5 plus C); only one line in X2 names the tool's loader
+Map (`GENAI-PROMPTS-resource-map.md`) and the estimator (`GENAI-PROMPTS-estimator.md` plus `GENAI-PROMPTS-estimator-batch.md`); only one line in X2 names the tool's loader
 functions. Output stays CSV (the tools already write it).
 
 Limits: this reads workbooks up to a few tens of MB (a few hundred thousand cells per sheet) in one go.
@@ -202,7 +202,7 @@ intended messages; the estimator fed with `history.xlsx` (four sheets) and `prop
 consumption file identical to its CSV-input run; the Resource Map fed with the workbook drew the same map
 and summary as its CSV-input run. Three earlier rounds found four prompt faults (a formula with no cached
 value read as 0; typeof guards; the wrong status element; all now written into the prompts above).
-v0.2 (after the reviewer's review of PR 54): the date-or-time rule above, and the cell rules as a numbered order
+v0.2 (after the review of PR 54): the date-or-time rule above, and the cell rules as a numbered order
 (a first draft of v0.2 put the blank-cell rule before the inline-string check and blanked every inline
 string). Re-tested: 0 mismatches on 77,694 cells with six new time and date cases, and both tools still
 identical to their CSV runs.
