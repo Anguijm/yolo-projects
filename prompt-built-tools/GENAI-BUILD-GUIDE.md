@@ -1,6 +1,11 @@
 # Build guide: the estimator and the Resource Map, from prompts, inside GenAI.mil
 
-Version 0.8, 2026-10-25 (v0.1 to v0.7 kept in the private source). v0.8: a fifth tool, the resource burn forecast page
+Version 0.9, 2026-10-25 (v0.1 to v0.8 kept in the private source). v0.9: two fixes from the day's reviews, each
+regenerated from its text and tested against the twin the same way as the rest. The dictionary page (its series at
+v0.2) drops boilerplate: a token on more than a set share of the jobs (h-max, 60 percent by default) is the form's own
+text, not shorthand, and is listed under the summary line instead of ranked at the top of the table. The planned
+bypass (its series at v0.7) gives a shop row that planning left undated the window of its phase when another row of
+the phase has one, with the note "dates from phase", instead of sending it to the sequence. v0.8: a fifth tool, the resource burn forecast page
 (GENAI-PROMPTS-forecast.md): one prompt builds a page that forecasts a job's weekly hours from the weeks already seen,
 with a p10 to p90 band, the schedule's planned hours as a known future, and an honesty check against "same as last
 week"; built and tested the same way as the others. v0.7: the history is task-based, the way the owner's
@@ -104,8 +109,9 @@ CSV UTF-8 works too.
    history files, the local store, placement of each phase in the project's weeks (every shop row of a phase on the
    same weeks), one consumption CSV out, one line per job, phase and shop.
 4. `GENAI-PROMPTS-estimator-planned.md`: Prompts D1, D2, D3. Planned job summaries pass through with the planner's
-   numbers, the contractor mark on every line, the material list per phase (material_estimate.csv). D runs after
-   C2b and BEFORE Prompts X.
+   numbers (a shop row planning left undated takes its phase's window when another row of the phase has one), the
+   contractor mark on every line, the material list per phase (material_estimate.csv). D runs after C2b and BEFORE
+   Prompts X.
 5. `GENAI-PROMPTS-xlsx.md`: Prompts X and X2, optional and superseded by the converter page (tool 4); only for a
    tool that must take workbooks directly. If X was run before D, run X2 again after D.
 6. `GENAI-PROMPTS-style.md`: Prompt S, the estimator variant, last.
@@ -124,7 +130,8 @@ beside the prompt file (GENAI-FORECAST-sample.html, forecast-sample.csv).
 
 1. `GENAI-PROMPTS-dictionary.md`: Prompts K1 to K3. The page and its two loaders (the JCN history, an earlier
    dictionary or review file), the harvest (every token in the free text, counted by jobs, shorthand first, three
-   example sentences each), the review table (type the long form, or mark a plain word as ignore), the trial sentence
+   example sentences each; a token on more than h-max percent of the jobs, 60 by default, is the form's own
+   boilerplate and is listed under the summary instead of ranked), the review table (type the long form, or mark a plain word as ignore), the trial sentence
    (what the estimator will compare, before and after), the exports (dictionary.json for the estimator,
    dictionary-review.json to resume), the check prompt. It splits text exactly as the estimator does, so a term the
    page shows is a term the matcher compares.

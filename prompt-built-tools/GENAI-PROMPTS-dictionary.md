@@ -1,6 +1,11 @@
 # Prompts K: the dictionary page (harvest the yard's shorthand, decide it once, hand it to the estimator)
 
-Version 0.1, 2026-10-24. Built on the owner's ruling of 2026-10-24 ("Ask me": the dictionary development file is its own
+Version 0.2, 2026-10-25 (v0.1 kept in the private source). v0.2 adds the boilerplate cutoff the owner chose on 2026-10-25
+after describing the real text's shape: a port engineer's standard block (field labels, codes, slashes) opens nearly
+every record, and a frequency list would put those tokens first. A token that appears on more than a set share of the
+jobs (h-max, 60 percent by default) is boilerplate: it is dropped from the candidates and the phrase pairs at drawing
+time, whatever its type, and listed under the summary line so the planner sees what went and can raise the cutoff.
+Nothing else in the rules changed. K1 and K2 regenerated from this text; test record kept in the private source. Version 0.1, 2026-10-24, built on the owner's ruling of 2026-10-24 ("Ask me": the dictionary development file is its own
 standalone page, separate from the estimator and the weight test) and on his question to Gemini the same day ("Is it
 possible to have JavaScript kind of read through a bunch of these long text forms and pull out the things that need to
 be expanded on or clarified and added to the dictionary, and then I could go make the dictionary correction"). Gemini's
@@ -39,8 +44,8 @@ Contracts:
 - Output, the text: the same entries as `short=long` lines, one per line, sorted, for the estimator's textarea.
 - Output `dictionary-review.json`: {savedAt, history (the file name), rows: {token: {long, status, count}}} for every
   token with a status other than pending.
-- Element ids: h-file, h-status, h-mapping, d-file, d-status, d-text, btn-harvest, h-top, h-min, h-search, h-summary,
-  h-table, h-pairs, t-text, btn-try, t-out, x-text, btn-copy, dl-json, dl-review.
+- Element ids: h-file, h-status, h-mapping, d-file, d-status, d-text, btn-harvest, h-top, h-min, h-max, h-search, h-summary,
+  h-boiler, h-table, h-pairs, t-text, btn-try, t-out, x-text, btn-copy, dl-json, dl-review.
 - Globals (declared with let in the skeleton): TEXTS (array of {jcn, text} after a load), HARVEST (null until a
   harvest; then {tokens: an array of token records, byToken: a plain object token to its jobs count, pairs: an
   array, total: a number}; the h-min threshold is applied when drawing), REVIEW (plain object, token to {long, status, count}), and the const STOP (the stop list).
@@ -70,8 +75,9 @@ Page sections, in order, with these exact element ids:
    dictionary-review.json or a short=long text file (optional)"; div id d-status; a textarea id d-text labeled
    "Decided entries, one per line as short=long (you can type here too)".
 3. "3. Harvest the shorthand": a number input id h-top (label "Rows to show", value 200), a number input id
-   h-min (label "Least jobs a term must appear on", value 3), a text input id h-search (label "Find a term"),
-   a button id btn-harvest "Harvest" that starts disabled, div id h-summary, table id h-table, then a small
+   h-min (label "Least jobs a term must appear on", value 3), a number input id h-max (label "Most jobs a term may appear on, percent", value 60, min 1,
+   max 100), a text input id h-search (label "Find a term"),
+   a button id btn-harvest "Harvest" that starts disabled, div id h-summary, div id h-boiler, table id h-table, then a small
    heading "Words seen together (for your understanding; the matcher compares single words)" and table id
    h-pairs.
 4. "4. Try a sentence": textarea id t-text, button id btn-try "Show the words", div id t-out.
@@ -129,7 +135,7 @@ Script block, in this order:
   first file); d-file change calls loadDictionaryFile(the first file); d-text change calls applyDText();
   btn-harvest click calls harvest(); btn-try click calls tryText(); btn-copy click selects x-text and copies
   it (navigator.clipboard.writeText inside the click handler, with a try/catch fallback to select() and
-  document.execCommand('copy')); h-search input and h-top change and h-min change call renderHarvest(). Wire
+  document.execCommand('copy')); h-search input and h-top change and h-min change and h-max change call renderHarvest(). Wire
   them at the end of the script (the elements exist because the script is at the end of the body); no
   DOMContentLoaded listener.
 
@@ -149,8 +155,8 @@ byToken, pairs, total}; tokenize(s) is the estimator's split (lowercase; split o
 every character that is not a letter, a digit or a slash; drop empty tokens; repeats kept); STOP is a Set of
 stop words; REVIEW is a plain object token to {long, status, count} with status "mapped", "ignore" or
 "pending" (a pending token with no long form is not stored at all); setRow(token, long, status) stores one
-decision and refreshes d-text and x-text; HARVEST starts null. Elements h-top, h-min, h-search, h-summary,
-h-table, h-pairs, h-status, t-text, t-out, x-text, dl-json, dl-review. Helpers $(id), esc(s).
+decision and refreshes d-text and x-text; HARVEST starts null. Elements h-top, h-min, h-max, h-search, h-summary,
+h-boiler, h-table, h-pairs, h-status, t-text, t-out, x-text, dl-json, dl-review. Helpers $(id), esc(s).
 
 1. harvest(): walk TEXTS in chunks of 5000 rows per setTimeout(0) (h-status shows "harvesting: row 40000 of
    183000"), building, per token: jobs (how many TEXTS rows contain the token at least once), caps (true when
@@ -158,24 +164,32 @@ h-table, h-pairs, h-status, t-text, t-out, x-text, dl-json, dl-review. Helpers $
    case-sensitive search for the token's letters in upper case, only when the token has at least one
    letter), and up to three examples (a snippet of the row's text around the first occurrence, about 90
    characters, each from a different row). Also count adjacent token pairs per row (both tokens kept, see 2),
-   once per row; a pair is two consecutive tokens of the row AFTER the stop words and the digit-only tokens
-   are removed (so "fmv 3-100-10 stk" gives the pair "fmv stk"), and the row's first kept token pairs with
-   nothing before it (never with null or an empty string). When done: HARVEST = {tokens, byToken, pairs, total}, where tokens is the array of records
+   once per row (keep a Set of the row's phrases, so a phrase repeated inside one row counts once); a pair is two consecutive tokens of the row AFTER the stop words, the digit-only tokens and the
+   one-character tokens are removed (the same tokens that never become candidates; so "fmv 3-100-10 stk"
+   gives the pair "fmv stk", and "n / deferred" gives no pair holding "n" or "/"), and the row's first kept
+   token pairs with nothing before it (never with null or an empty string). When done: HARVEST = {tokens, byToken, pairs, total}, where tokens is the array of records
    {token, jobs, type, examples} for every token that is not in STOP, not digits only and longer than one
    character (h-min is applied when drawing, not here, so a change of h-min needs no new harvest), byToken a
    plain object from every such token to its jobs count (setRow reads it), pairs the array of {phrase, jobs}
-   (top 50 by jobs), and total the number of TEXTS rows; then renderHarvest(). The run is deterministic (no random numbers) and never blocks the page
+   (top 200 by jobs descending, ties by phrase A to Z; the draw shows at most 50 of them), and total the number of TEXTS rows; then renderHarvest(). The run is deterministic (no random numbers) and never blocks the page
    for more than one chunk.
-2. A token is a candidate when it is in HARVEST.tokens and its jobs count is at least the value of h-min at
-   drawing time. Its type is "shorthand" when it contains a slash, or
+2. A token is a candidate when it is in HARVEST.tokens, its jobs count is at least the value of h-min at
+   drawing time, and its share of the jobs (jobs divided by HARVEST.total, times 100) is not above the value
+   of h-max at drawing time. A token above h-max is BOILERPLATE: the fixed text of a form that opens nearly
+   every record (field labels, codes repeated on every job). It is never a candidate and never a row of the
+   table, whatever its type, and a pair that contains a boilerplate token is not shown. Both thresholds are
+   read when drawing, so a change of h-min or h-max needs no new harvest. A token's type is "shorthand" when it contains a slash, or
    has no vowel (a, e, i, o, u, y) and is at most 6 characters long, or appeared in capitals and is at most 5
-   characters long; otherwise "word". A pair never contains a stop word or a digit-only token (they are removed
-   before the pairs are read off). The word "depot" is never dropped and never a stop word.
-3. renderHarvest(): if HARVEST is null, return. Take the candidates (jobs at least h-min), order them shorthand
+   characters long; otherwise "word". A pair never contains a stop word, a digit-only token or a one-character token (they are
+   removed before the pairs are read off). The word "depot" is never dropped and never a stop word.
+3. renderHarvest(): if HARVEST is null, return. Take the candidates (rule 2: jobs at least h-min and not
+   boilerplate), order them shorthand
    first, then words, each group by jobs descending then token ascending. Apply h-search (a token contains the typed text, lowercased) and
    show the first h-top rows. h-summary says: "N candidate terms on M jobs; D decided (K mapped, I ignored),
-   covering P% of candidate occurrences" where occurrences are the sum of jobs over candidates and the
-   covered share is the sum over decided ones. The table h-table (set its innerHTML to a thead and a tbody,
+   covering P% of candidate occurrences" where M is HARVEST.total (the jobs read), occurrences are the sum of jobs over candidates and the
+   covered share is the sum over decided ones. h-boiler shows one line: "Boilerplate (on more than H% of jobs,
+   not listed): token (P%), token (P%), ..." for every token above h-max, by jobs descending, the percents
+   without decimals, or "Boilerplate: none" when no token is above h-max. The table h-table (set its innerHTML to a thead and a tbody,
    never a table inside a table): columns Term, Jobs, Type, Examples (the three snippets joined with " | ",
    escaped), Long form (a text input, value REVIEW[token].long or ""), Status (a select with pending, mapped,
    ignore; value from REVIEW or pending). Typing in the long form input (on change) calls setRow(token, the
@@ -183,7 +197,8 @@ h-table, h-pairs, h-status, t-text, t-out, x-text, dl-json, dl-review. Helpers $
    long form, the chosen status), and choosing ignore clears the long form. After either, refresh the summary
    line (h-summary) without redrawing the table, so the focus stays where the planner is typing. Wire these
    listeners once per draw, by querying the inputs after the innerHTML is set, with the token in a data-token attribute; never
-   with inline event attributes. The pairs table h-pairs shows phrase and jobs for HARVEST.pairs. Keep the
+   with inline event attributes. The pairs table h-pairs shows phrase and jobs for the first 50 entries of HARVEST.pairs in which neither
+   token is boilerplate at drawing time. Keep the
    draw fast: build one HTML string and set it once.
 4. tryText(): tokens = tokenize(t-text's value); before = those tokens; after = for each token, if REVIEW has
    it with status mapped, the words of its long form (split on spaces), else the token itself; then drop
@@ -192,8 +207,9 @@ h-table, h-pairs, h-status, t-text, t-out, x-text, dl-json, dl-review. Helpers $
    "Before: ..." (the tokens exactly as split, stop words included), "After: ..." (what the estimator will
    compare), "Undecided: ..." (or "none").
 5. exportText(): returns the short=long lines for every REVIEW token with status mapped, sorted by token,
-   joined with "\n"; it is what x-text shows. exportJSON(): builds the JSON object of the same entries (keys
-   sorted, two-space indent) and sets dl-json's href to a Blob URL of it (type application/json);
+   joined with "\n"; it is what x-text shows. exportJSON(): builds a plain JSON object of the same entries, each key the token and each
+   value the long form as a STRING (never the {long, status, count} record: dictionary.json is what the
+   estimator reads as short to long), keys sorted, two-space indent, and sets dl-json's href to a Blob URL of it (type application/json);
    exportReview(): {savedAt: ISO date-time, history: HISTORY_NAME, rows: every REVIEW entry whose status is
    not pending} as JSON to dl-review the same way. setRow() already calls exportJSON() and exportReview()
    after every decision; call both at the end of harvest() too, and once at the end of this code block, so the
@@ -221,8 +237,10 @@ I have pasted K2 over the stubs. Without rewriting the file, check:
 5. That loading dictionary.json and then dictionary-review.json merges (the later file wins per token), and
    that typing in d-text and removing a line sends that token back to pending.
 6. That the Blob URLs behind dl-json and dl-review are refreshed after every decision.
+7. That a token above h-max is absent from the table and from the pairs, listed in h-boiler with its percent,
+   and comes back as a candidate when h-max is set to 100, without a new harvest.
 Then give me a five-step test with a made-up history of six rows whose text uses three abbreviations, one of
-them in capitals, one with a slash.
+them in capitals, one with a slash, and a fixed label that opens every row.
 ```
 
 ## Prompt K4: the estimator's dictionary picker (run in the ESTIMATOR chat, any time after its Prompt 5)
