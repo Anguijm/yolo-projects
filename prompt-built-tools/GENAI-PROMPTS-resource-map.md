@@ -16,7 +16,7 @@ one chat; a test that fed B3 only the skeleton's code got rows keyed "week" inst
 (`GENAI-PROMPTS-resource-map-leveling.md`: moves, the contractor line, zoom, snapshot, automatic leveling)
 runs after B4, and the style prompt (`GENAI-PROMPTS-style.md`) last. v0.4 only changed how the files get in:
 Prompts X let the app take the Excel workbook itself, see `GENAI-PROMPTS-xlsx.md`; v0.3 added two
-clarifications from the reviewer's review of PR 52: verdict precedence and a made-up label on the debug example.
+clarifications from the review of PR 52: verdict precedence and a made-up label on the debug example.
 Tested originally against Gemini with no code execution, the way the
 chat inside works: the v0.1 prompts built a file that opened without errors but had four faults (the
 index named two ways, consumption fields stored without underscores, dates shifted a week on a computer

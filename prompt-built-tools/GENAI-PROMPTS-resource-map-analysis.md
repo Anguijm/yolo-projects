@@ -1,6 +1,6 @@
 # Prompt A: analyze the resource map workbooks inside GenAI.mil
 
-Version 0.2, 2026-10-22 (v0.1 kept; this version adds the header-label rule the yolo review asked for). Run this inside GenAI.mil with the real workbooks attached (if attachments are not
+Version 0.2, 2026-10-22 (v0.1 kept; this version adds the header-label rule a review asked for). Run this inside GenAI.mil with the real workbooks attached (if attachments are not
 accepted for Excel, open each sheet, copy the first 15 rows including the header block, and paste them
 under "Sheet text" in the prompt; the model does not need the values to be real, and you may overtype them
 with made-up numbers first).

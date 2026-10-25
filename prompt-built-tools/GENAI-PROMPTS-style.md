@@ -1,18 +1,18 @@
 # Prompt S: the look (the demo's style on any of the built pages, light and dark, color squares, summary cards)
 
-Version 0.3, 2026-10-23. v0.3: item 4 wires the map table's hover listeners once per table (a mark in dataset) instead
-of on every draw (optional point in the review of PR 60); MODULE S regenerated from the v0.3 text and retested before
-publishing. v0.2: item 3 of the Resource Map's MODULE S calls styleBar() from the renderMap hook; v0.1
-defined styleBar and never called it (review of PR 60), so a model that followed the text to the letter would never
-create the stats cards or the tip line. The tested answer had called it there on its own, so the text now says what
-the tested code does. One prompt, run LAST in a series: after B2-4 (and X2, if used) for the Resource Map, after
+Version 0.3, 2026-10-23 (v0.1 and v0.2 kept in the private source). v0.3: item 4 wires the map table's hover listeners once per
+table (a mark in dataset) instead of on every draw (optional point in the review of PR 60); MODULE S regenerated from
+the v0.3 text and retested. v0.2: item 3 of the Resource Map's MODULE S calls styleBar() from the
+renderMap hook; v0.1 defined styleBar and never called it (review of PR 60), so a model that followed the text to the
+letter would never create the stats cards or the tip line. The tested answer had called it there on its own, so the
+text now says what the tested code does. One prompt, run LAST in a series: after B2-4 (and X2, if used) for the Resource Map, after
 Prompts D (and X2) for the estimator. It answers hole 10 of the process flow page: the pages built by the series are
 plain because no prompt ever asked for a look. The owner's demo leveler (the demo page) has the look he wants; its
 stylesheet is about sixty lines, plus a different map cell (a color square, the number on hover). Both are written
 into this prompt, so the model inside the enclave pastes a look rather than inventing one. Fonts are the system
 stack only: no web fonts can load at IL5, and the demo rendered with the network blocked still looks right.
 
-Tested here on the leveler build and on the estimator build (private test record): no console errors,
+Tested here on the leveler build and on the estimator build (the private test record): no console errors,
 the map cells become 14 by 22 px squares, the band colors come from the tokens, dark mode follows the system and
 the toggle, and the whole leveler test still passes on the styled page (the look changes nothing underneath).
 

@@ -20,10 +20,10 @@ v0.4 applied the owner's rule for JCNs grouped on one job summary
 estimator prompts, but the material is NOT. A new JCN that matches a grouped summary gets the complete material list
 at full quantity, and a new column, group_size, says how many JCNs the bundle held (1 = not grouped), so a planner
 knows the list may carry sibling jobs' parts and can trim it. v0.3 divided material by the JCN count (an inference
-from the hours rule, tightened by the reviewer's review of PR 57); that is reversed here on his word. He also answered the
+from the hours rule, tightened by the review of PR 57); that is reversed here on his word. He also answered the
 pull shape: the material export lists each order line once per phase of a job summary, and it is the JCN history
 that repeats a grouped summary once per JCN, so the tool takes material rows as they are and never collapses or
-divides them. v0.3 answered the reviewer's review of PR 57: D runs BEFORE Prompts X, one material value per summary with
+divides them. v0.3 answered the review of PR 57: D runs BEFORE Prompts X, one material value per summary with
 every used JCN listed, and performing is matched on whole words so "control" is not a contractor. Earlier, tested
 against Gemini with no code execution, the same handicap as the chat inside: v0.1 recursed on the first history
 load (the wrapper captures shared a block with the new declarations), the rewritten batch loop never ran from the
