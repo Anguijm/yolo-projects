@@ -40,6 +40,14 @@ Tool 4, the workbook converter (one chat, two prompts):
    sheet out, named "<workbook> - <sheet>.csv", with the same cell rules the tools' reader always applied; the
    tools keep reading CSV.
 
+Tool 5, the resource burn forecast page (one chat, two prompts):
+
+1. [GENAI-PROMPTS-forecast.md](GENAI-PROMPTS-forecast.md): Prompts F1 and F2. One page that forecasts how a job or an
+   availability burns a resource week by week from the weeks already charged, with a p10, p50, p90 band from its own
+   past errors, the schedule's planned hours as a known future, and an honesty check against "same as last week" on
+   weeks it hides from itself. [GENAI-FORECAST-sample.html](GENAI-FORECAST-sample.html) is the page Gemini built from
+   F1, tested on [forecast-sample.csv](forecast-sample.csv) (made-up weekly hours for twelve series).
+
 Tool 2, the Resource Map (one chat):
 
 1. [GENAI-PROMPTS-resource-map-analysis.md](GENAI-PROMPTS-resource-map-analysis.md): describe the workforce

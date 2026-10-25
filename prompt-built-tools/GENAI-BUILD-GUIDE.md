@@ -1,6 +1,9 @@
 # Build guide: the estimator and the Resource Map, from prompts, inside GenAI.mil
 
-Version 0.7, 2026-10-25 (v0.1 to v0.6 kept in the private source). v0.7: the history is task-based, the way the owner's
+Version 0.8, 2026-10-25 (v0.1 to v0.7 kept in the private source). v0.8: a fifth tool, the resource burn forecast page
+(GENAI-PROMPTS-forecast.md): one prompt builds a page that forecasts a job's weekly hours from the weeks already seen,
+with a p10 to p90 band, the schedule's planned hours as a known future, and an honesty check against "same as last
+week"; built and tested the same way as the others. v0.7: the history is task-based, the way the owner's
 pulls come: a job summary holds phases, each phase has a tasks table (one record per task: the shop, the task that shop is
 to do, the crew size, the man-hour estimate; the shop's charges land on its task) and a material table (one record per
 item, keyed by job summary and phase number); the pull is one flat task table with the phase fields repeated. The
@@ -106,6 +109,13 @@ CSV UTF-8 works too.
 5. `GENAI-PROMPTS-xlsx.md`: Prompts X and X2, optional and superseded by the converter page (tool 4); only for a
    tool that must take workbooks directly. If X was run before D, run X2 again after D.
 6. `GENAI-PROMPTS-style.md`: Prompt S, the estimator variant, last.
+
+Tool 5, the resource burn forecast page (one chat, two prompts): `GENAI-PROMPTS-forecast.md`, Prompts F1 and F2. The
+page forecasts how a job or an availability will burn a resource week by week from the weeks already charged, gives a
+p10, p50, p90 band from its own past errors, leans on the planned hours as a known future, and checks itself against
+"same as last week" on weeks it hides from itself; it reads a pasted or chosen CSV (date, value, optional plan,
+optional series columns) and writes a forecast CSV. A page built from it and the made-up data it was tested on sit
+beside the prompt file (GENAI-FORECAST-sample.html, forecast-sample.csv).
 
 7. `GENAI-PROMPTS-dictionary.md`, Prompt K4 only: the estimator's file picker for dictionary.json (any time after
    Prompt 5; the other K prompts build the dictionary page, below).
@@ -247,6 +257,7 @@ Resource Map with the other files. A name with no match stays as it is on the ma
 | consumption_moved.csv | Resource Map, leveler | the first 22 columns above plus moved_weeks and shop_organic (tasks is not carried) |
 | assigned_moved.csv | Resource Map, leveler | project, shop, week_start, assigned_hours, moved_weeks, src |
 | farmout_list.csv | Resource Map, leveler | proposed_id, project, hull, phases, hours, first week, last week, organic shops, basis, flag |
+| burn_forecast.csv | forecast page | series, week, plan, p10, p50, p90, band_basis, model |
 | resource-map-snapshot.png | Resource Map, leveler | the map as shown, for the TVs |
 
 Every CSV opens in Excel as a pivot table: one header row, no merged cells, no totals rows.
