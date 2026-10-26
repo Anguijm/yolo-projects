@@ -1,6 +1,10 @@
 # Build guide: the estimator and the Resource Map, from prompts, inside GenAI.mil
 
-Version 0.9, 2026-10-25 (v0.1 to v0.8 kept in the private source). v0.9: two fixes from the day's reviews, each
+Version 0.10, 2026-10-26 (v0.1 to v0.9 kept in the private source). v0.10: the converter page (its series at v0.2)
+after the owner's first run on a real 53-tab workbook: the reader and the page are named W1 and W2 throughout and a
+how-to-run block opens the file; every sheet row has a checkbox; the ticked sheets download as one zip written by hand
+(no library, one browser prompt) in place of the burst of separate downloads the browser used to cut short; and a
+workbook with a single sheet names its CSV after the workbook alone. v0.9: two fixes from the day's reviews, each
 regenerated from its text and tested against the twin the same way as the rest. The dictionary page (its series at
 v0.2) drops boilerplate: a token on more than a set share of the jobs (h-max, 60 percent by default) is the form's own
 text, not shorthand, and is listed under the summary line instead of ranked at the top of the table. The planned
@@ -151,12 +155,13 @@ beside the prompt file (GENAI-FORECAST-sample.html, forecast-sample.csv).
    before the leveler series, run X2 again after it.
 5. `GENAI-PROMPTS-style.md`: Prompt S, last.
 
-**Tool 4, the workbook converter** (one chat, two prompts):
+**Tool 4, the workbook converter** (one chat, three prompts; the file opens with a how-to-run block):
 
-1. `GENAI-PROMPTS-converter.md`: Prompt W1 (the reader, the same text as Prompt X), Prompt W2 (the page: choose
-   workbooks, a table of sheets with counts and a first-row preview, one Download link per sheet named
-   "<workbook> - <sheet>.csv", Download all), Prompt W3 (the check). The CSVs carry exactly what the reader read:
-   dates YYYY-MM-DD, times as decimal hours, numbers plain, booleans TRUE/FALSE, error cells blank.
+1. `GENAI-PROMPTS-converter.md`: Prompt W1 (the reader, MODULE W1), Prompt W2 (the page: choose workbooks, a table
+   of sheets with counts, a first-row preview and a checkbox on every row, one Download link per sheet, and one button
+   that zips the ticked sheets into one file so the browser asks once; a workbook with a single sheet names its CSV
+   "<workbook>.csv", several sheets "<workbook> - <sheet>.csv"), Prompt W3 (the check). The CSVs carry exactly what
+   the reader read: dates YYYY-MM-DD, times as decimal hours, numbers plain, booleans TRUE/FALSE, error cells blank.
 
 Why the order matters: a later hook prompt captures whatever a function is at the time and wraps it. Prompts X2, D
 and B2 all wrap the file importer, so the one that must see the files first (the workbook unpacker) must be the
