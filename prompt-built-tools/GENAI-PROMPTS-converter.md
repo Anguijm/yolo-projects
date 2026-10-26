@@ -1,23 +1,25 @@
-# Prompts W: the workbook converter page (Excel workbooks in, one CSV per sheet out)
+# Prompts W: the workbook converter page (Excel workbooks in, one CSV per sheet out, one zip down)
 
-Version 0.1, 2026-10-24. Built on the owner's ruling of 2026-10-24 ("Ask me": a standalone workbook converter page
-replaces the X and X2 hooks). Until now a tool that had to take an .xlsx directly carried the workbook reader inside
-it (Prompt X) and a hook around its file pickers (Prompt X2), and every tool needed both pasted in the right order,
-which cost one wrong-order fault in the tests. This page does the conversion once, outside the tools: choose one or
-more workbooks, get one CSV per sheet, named "<workbook> - <sheet>.csv", with the same cell rules the reader has
-always applied (dates as YYYY-MM-DD, times as decimal hours, numbers plain, booleans TRUE/FALSE, error cells blank,
-cached formula results, never a recalculation). The tools keep reading CSV, which they already do. Prompts X and X2
-(`GENAI-PROMPTS-xlsx.md`) stay in the folder for tools already built with them; a new build uses this
-page instead and skips X.
+Version 0.2, 2026-10-26 (v0.1 kept in the private source). v0.2 answers the owner's first run on a real workbook at work
+(53 tabs; nothing from it came here). The instructions were vague and called the reader MODULE X inside a series
+named W, so the reader is MODULE W1 and the page MODULE W2 everywhere and a "how to run it" block opens the file.
+"Download all" fired 53 separate downloads and the browser kept about 50, so it is gone: every sheet row has a
+checkbox (all ticked after a load) and one button zips the ticked sheets into one file, written by hand in the zip
+format's uncompressed form so no library is needed and the browser asks once. A workbook that yields a single sheet
+names its CSV after the workbook alone ("<workbook>.csv"); several sheets keep "<workbook> - <sheet>.csv". The
+per-row Download link stays for one file at a time. W2 regenerated from this text and tested headless against
+openpyxl and Python's zipfile on the made-up workbooks, a 53-tab one included; test record kept in the private source ("v0.2").
 
-Tested: the page built from this text by Gemini with no earlier answers in the chat (two rounds of W2), assembled
-with the proven reader, and checked in a headless browser against openpyxl on five made-up workbooks: all 77,694
-cells of the twelve converted sheets equal, names, counts, CRLF, no byte-order mark, a bad file reported, Blob URLs
-revoked. Test record kept in the private source.
+How to run it (one chat in GenAI.mil, three prompts, nothing else needed):
+1. Paste Prompt W1. Save the answer (one script block, from <script> to </script>) in a text file.
+2. Paste Prompt W2 in the same chat. Save the answer as converter.html, open it in a text editor, find the line
+   <!-- MODULE W1 --> and paste the W1 block over that line. Open converter.html in Edge or Chrome.
+3. Paste Prompt W3 and run the five-step test it gives. If something fails, use a Debug prompt (at the end).
 
-The reader module is the one Prompt X built and the record proved on 77,694 cells against openpyxl (the same text,
-reproduced here as Prompt W1 so this file stands alone; the only change is the sentence that says where the block is
-pasted). The page around it is new (Prompt W2). The check is W3.
+What the page does. Choose one or more workbooks (.xlsx or .xlsm); every sheet with content becomes a CSV with the
+same cell rules the tools' reader has always applied (dates as YYYY-MM-DD, times as decimal hours, numbers plain,
+booleans TRUE/FALSE, error cells blank, cached formula results, never a recalculation). Tick the sheets you want and
+download them as one zip, or save one sheet from its row. The planning tools keep reading CSV, which they already do.
 
 Contracts:
 
@@ -26,25 +28,30 @@ Contracts:
   only when it holds a comma, a double quote, a carriage return or a line feed, with inner quotes doubled; the text
   is never otherwise changed (no apostrophe before an equals sign, no trimming); rows end with CRLF, the last one too;
   UTF-8 without a byte-order mark. The whole sheet goes out, header block and all, so a tool's sheet reader sees the
-  same rows it would see from a CSV saved out of Excel.
-- File name: the workbook's name without its extension, a space, a hyphen, a space, the sheet name, ".csv"; the
-  characters \ / : * ? " < > | in either part become "_".
-- Element ids: w-file, w-status, w-table, btn-all, w-note.
+  same rows it would see from a CSV saved out of Excel. The ticked sheets go out together as one zip (the store form
+  of the zip format, no compression, UTF-8 names), one download.
+- File name: when the workbook yielded exactly one sheet with content, the workbook's name without its extension
+  and ".csv"; otherwise the workbook's name without its extension, a space, a hyphen, a space, the sheet name,
+  ".csv". The characters \ / : * ? " < > | in either part become "_". A name repeated inside one zip gets " (2)",
+  " (3)" and so on before ".csv". The zip is named after the workbook (without its extension, ".zip") when the
+  ticked sheets come from one workbook, "converted.zip" otherwise.
+- Element ids: w-file, w-status, w-table, btn-on, btn-off, btn-zip, w-note.
 - Globals (let, at the top of the page's own script): SHEETS (array of {workbook, sheet, rows, cols, cells, size,
-  fileName, url}), plus whatever MODULE X declares.
-- Functions (page): csvCell(v), sheetToCSV(rows), fileNameFor(workbook, sheet), loadWorkbooks(files),
-  renderSheets(), downloadAll(). Functions (reader, from W1): readXlsx(file), sheetToTable(rows),
+  fileName, url, blob, selected}), CRC_TABLE (null until first use), plus whatever MODULE W1 declares.
+- Functions (page): csvCell(v), sheetToCSV(rows), cleanName(s), fileNameFor(workbook, sheet, single),
+  loadWorkbooks(files), renderSheets(), updateZipButton(), selectAll(on), crc32(bytes), zipStore(entries),
+  zipNameFor(), downloadSelected(). Functions (reader, from W1): readXlsx(file), sheetToTable(rows),
   isWorkbookFile(file), columnIndex, serialToDate, serialToHours, xmlText, stripFormatCode, isDateFormatCode,
   isTimeFormatCode, parseZipDirectory, readZipPart, selfTestXlsx.
 
 ---
 
-## Prompt W1: the workbook reader module (the text of Prompt X, pasted into this page)
+## Prompt W1: the workbook reader module
 
 ```
 I am building offline tools for a ship repair planning department: single HTML files, vanilla JavaScript,
 no libraries, no network, run on a work computer in Edge or Chrome. The tools read spreadsheets. Up to now
-they read CSV only, which forces the planner to save every sheet as CSV first. Write MODULE X: one
+they read CSV only, which forces the planner to save every sheet as CSV first. Write MODULE W1: one
 <script> block that reads an Excel workbook (.xlsx or .xlsm) with nothing but built-in browser features,
 so a converter page can turn a workbook into CSV files. I will paste the block into that page after its helpers.
 
@@ -149,6 +156,7 @@ false, and returns an array of the failed checks (empty when all pass).
 Answer with the one <script> block only, and nothing after it.
 ```
 
+
 ## Prompt W2: the converter page around the reader
 
 ```
@@ -161,7 +169,7 @@ no module, no class, never assigned through window); every global is declared wi
 the page's own script block. Light and dark follow the system (prefers-color-scheme) with system fonts.
 No em dashes anywhere in the file. Never use alert, confirm or prompt.
 
-The file has two script blocks, in this order: first the line <!-- MODULE X --> on its own, after the
+The file has two script blocks, in this order: first the line <!-- MODULE W1 --> on its own, after the
 body's content and OUTSIDE any <script> tag, because the reader block from the previous step brings its
 own <script> and </script> tags and is pasted over that line as it is (it declares readXlsx(file), which
 resolves to [{name, rows}] with rows as padded arrays of strings, isWorkbookFile(file), sheetToTable(rows)
@@ -169,14 +177,17 @@ and selfTestXlsx(), which returns an array of failed self-checks); then the page
 may call those by name because it comes after.
 
 Page, in order, with these exact element ids:
-1. A one-line heading and one sentence: the workbooks are read in the browser and never leave the
-   computer; each sheet comes out as a CSV the planning tools read.
+1. A one-line heading and this sentence, capital letter and all: "The workbooks are read in the browser
+   and never leave the computer; each sheet comes out as a CSV the planning tools read."
 2. "1. Choose workbooks": <input type="file" id="w-file" accept=".xlsx,.xlsm" multiple>; div id w-status.
-3. "2. Sheets": table id w-table; <button id="btn-all" disabled>Download all</button>; div id w-note
-   holding this sentence: "If the browser asks whether this page may download several files, allow it."
+3. "2. Sheets": table id w-table; then three buttons in one line: <button id="btn-on">Select all</button>,
+   <button id="btn-off">Select none</button>, <button id="btn-zip" disabled>Download the ticked sheets as
+   one zip</button>; then div id w-note holding this sentence: "The ticked sheets go into one zip file, so
+   the browser asks once; the Download link on a row saves that one CSV by itself."
 
 Script, in this order:
-- Globals: let SHEETS = []; (array of {workbook, sheet, rows, cols, cells, size, fileName, url}).
+- Globals: let SHEETS = []; (array of {workbook, sheet, rows, cols, cells, size, fileName, url, blob,
+  selected}); let CRC_TABLE = null;
 - Helpers: $(id); esc(s) (HTML-escapes &, <, >, " and ').
 - csvCell(v): v as a string; if it contains a comma, a double quote, a carriage return or a line feed,
   wrap it in double quotes with every inner double quote doubled; otherwise return it unchanged. Never
@@ -184,40 +195,84 @@ Script, in this order:
   the reader gave.
 - sheetToCSV(rows): every row's cells through csvCell joined with commas, rows joined with CRLF, and one
   CRLF after the last row. The whole sheet, header block and all.
-- fileNameFor(workbook, sheet): the workbook's file name without its last extension, then " - ", then the
-  sheet name, then ".csv"; in both parts replace each of the characters \ / : * ? " < > | with "_".
+- cleanName(s): s with each of the characters \ / : * ? " < > | replaced by "_".
+- fileNameFor(workbook, sheet, single): base = cleanName(the workbook's file name without its last
+  extension). When single is true (the workbook yielded exactly one sheet with content), return base +
+  ".csv"; otherwise return base + " - " + cleanName(sheet) + ".csv".
 - loadWorkbooks(files): revoke every url in SHEETS (URL.revokeObjectURL) and empty SHEETS and w-status.
   Then for each file in order: if isWorkbookFile is false, append the line "<name>: not a workbook,
   skipped" to w-status and go on. Otherwise await readXlsx(file); if it rejects, append "could not read
-  <name>: <message>" and go on. For each sheet: if no cell is non-empty, count it as skipped; else build
-  the CSV with sheetToCSV, make a Blob of it (type "text/csv;charset=utf-8", no byte-order mark), and push
+  <name>: <message>" and go on. Keep the sheets that have at least one non-empty cell, in workbook order,
+  and count the others as skipped; single = (exactly one sheet was kept). For each kept sheet: build the
+  CSV with sheetToCSV, make a Blob of it (type "text/csv;charset=utf-8", no byte-order mark), and push
   {workbook: file name, sheet: sheet name, rows: the number of rows, cols: the width, cells: the number of
-  non-empty cells, size: the CSV's length in bytes (the Blob's size), fileName: fileNameFor(...), url:
-  URL.createObjectURL(blob)}. Append "<name>: N sheets converted, M empty sheets skipped" to w-status.
-  After the last file: renderSheets(), and enable btn-all when SHEETS is not empty.
+  non-empty cells, size: the Blob's size, fileName: fileNameFor(file name, sheet name, single), url:
+  URL.createObjectURL(blob), blob: the Blob, selected: true}. Append "<name>: N sheets converted, M empty
+  sheets skipped" to w-status. After the last file: renderSheets().
 - renderSheets(): set w-table's innerHTML to a thead and a tbody (never a table inside a table) with
-  columns Workbook, Sheet, Rows, Columns, Non-empty cells, First row (the first row that has a non-empty
-  cell, its first six cells joined with " | ", escaped, then " ..." when the row is wider), Size (KB, one
-  decimal), Download (an <a> with href = url and download = fileName, text "Download"). One HTML string,
-  set once.
-- downloadAll(): click each sheet's download link in table order, 400 milliseconds apart (setTimeout),
-  so a browser that allows several downloads saves them all; write "downloading N files" in w-note and
-  the sentence above back after the last one.
+  columns: a checkbox (<input type="checkbox" data-i="<the index in SHEETS>">, checked when the sheet is
+  selected), Workbook, Sheet, Rows, Columns, Non-empty cells, First row (the first row that has a
+  non-empty cell, its first six cells joined with " | ", escaped, then " ..." when the row is wider), Size
+  (KB, one decimal), File name (the sheet's fileName), Download (an <a> with href = url and download =
+  fileName, text "Download"). One HTML string, set once. Then query the checkboxes and wire each one's
+  change event (never an inline attribute) to set SHEETS[i].selected from its checked state and call
+  updateZipButton(); then call updateZipButton() once.
+- updateZipButton(): count the selected sheets; btn-zip is enabled when the count is at least 1 and
+  disabled otherwise; its text is "Download the N ticked sheets as one zip" (for N = 1, "Download the 1
+  ticked sheet as one zip"; for N = 0, "Download the ticked sheets as one zip").
+- selectAll(on): set every SHEETS[i].selected to on, set every checkbox in w-table to match, then
+  updateZipButton().
+- crc32(bytes): the standard CRC-32 over a Uint8Array (polynomial 0xEDB88320; build the 256-entry table
+  once into CRC_TABLE; start at 0xFFFFFFFF, finish with xor 0xFFFFFFFF, return the value as an unsigned
+  32-bit number, so crc32 of the ASCII bytes of "123456789" is 0xCBF43926).
+- zipStore(entries): entries is an array of {name, bytes} (name a string, bytes a Uint8Array); returns a
+  Blob (type "application/zip") holding a ZIP file in the store form (method 0, no compression), which
+  every unzipper opens. Write it by hand with DataView, every integer little endian, in this order:
+  1. For each entry, a local file header, then its bytes: signature 0x04034b50 (4 bytes), version needed
+     20 (2), general purpose flags 0x0800 (2; the name is UTF-8), method 0 (2), modification time (2)
+     and date (2) in MS-DOS form from the current clock (time = hours shifted left 11, plus minutes
+     shifted left 5, plus seconds halved; date = the year minus 1980 shifted left 9, plus the month 1 to
+     12 shifted left 5, plus the day), CRC-32 of the bytes (4), compressed size (4) and uncompressed size
+     (4), both the byte length, name length (2), extra field length 0 (2), then the name as UTF-8 bytes
+     (TextEncoder), then the bytes themselves. Remember the offset of each entry's local header.
+  2. Then the central directory, one record per entry: signature 0x02014b50 (4), version made by 20 (2),
+     version needed 20 (2), flags 0x0800 (2), method 0 (2), the same time (2) and date (2), CRC-32 (4),
+     compressed size (4), uncompressed size (4), name length (2), extra length 0 (2), comment length 0
+     (2), disk number 0 (2), internal attributes 0 (2), external attributes 0 (4), the entry's local
+     header offset (4), then the name bytes.
+  3. Then the end record: signature 0x06054b50 (4), disk number 0 (2), directory disk 0 (2), entries on
+     this disk (2), entries in all (2), central directory size (4), central directory offset (4),
+     comment length 0 (2).
+  Build the pieces as Uint8Arrays in an array and make one Blob from that array at the end (never join
+  strings). Before writing, if the entries number more than 65,535, or any size or offset would not fit
+  in 32 bits, throw an Error whose message says the zip would be too large and to download in smaller
+  picks.
+- zipNameFor(): the distinct workbook names among the selected sheets; when there is exactly one,
+  cleanName(that name without its last extension) + ".zip"; otherwise "converted.zip".
+- downloadSelected(): take the selected sheets in table order; if there are none, return. For each,
+  bytes = new Uint8Array(await sheet.blob.arrayBuffer()); the entry name is the sheet's fileName, and
+  when a name repeats inside this zip, the second gets " (2)" before ".csv", the third " (3)", and so on.
+  Then zipStore(entries) inside try/catch: on an error write its message into w-note and stop. Otherwise
+  make an object URL of the zip Blob, create an <a> with href = that URL and download = zipNameFor(),
+  append it to the body, click it, remove it, and revoke the URL after one second (setTimeout). Write
+  "zipped N files, M KB" (M one decimal, the zip Blob's size) into w-note, and put the sentence above
+  back after ten seconds.
 - At the end of the script: run selfTestXlsx(); when it returns a non-empty array, write "reader
   self-test failed: <the items joined with ', '>" into w-status, else nothing. Wire w-file change to
-  loadWorkbooks(Array.from(this.files)) and btn-all click to () => downloadAll(), both through arrow
-  functions, at the end of the script; no DOMContentLoaded listener.
+  loadWorkbooks(Array.from(this.files)), btn-on click to () => selectAll(true), btn-off click to () =>
+  selectAll(false) and btn-zip click to () => downloadSelected(), all through arrow functions, at the end
+  of the script; no DOMContentLoaded listener.
 
-Answer with the complete HTML file in one code block, with the <!-- MODULE X --> line where the reader
+Answer with the complete HTML file in one code block, with the <!-- MODULE W1 --> line where the reader
 goes, and nothing after it.
 ```
 
 ## Prompt W3: check the converter (run in the same chat; it needs the whole file)
 
 ```
-I have pasted MODULE X over its placeholder. Without rewriting the file, check:
-1. That the page's script comes after MODULE X and calls nothing that MODULE X does not declare, that no
-   function is assigned through window, no element carries an inline event attribute, nothing calls
+I have pasted MODULE W1 over its placeholder. Without rewriting the file, check:
+1. That the page's script comes after MODULE W1 and calls nothing that MODULE W1 does not declare, that
+   no function is assigned through window, no element carries an inline event attribute, nothing calls
    alert, confirm or prompt, and the CSP meta tag is present.
 2. That csvCell quotes only on a comma, a double quote, CR or LF, doubles inner quotes, and never changes
    the text otherwise; that sheetToCSV ends every row, the last included, with CRLF; that the Blob has no
@@ -226,13 +281,32 @@ I have pasted MODULE X over its placeholder. Without rewriting the file, check:
    reported and skipped without stopping the others, and that a rejected workbook's message reaches
    w-status.
 4. That every Blob URL from an earlier pick is revoked when a new pick is loaded, and that the file names
-   follow the rule (workbook name without extension, " - ", sheet name, ".csv", forbidden characters
-   replaced).
-Then give me a five-step test with one made-up workbook of three sheets, one of them empty, one with a
-date column, a time column and a text cell holding a comma.
+   follow the rule: a workbook that yielded one sheet gives "<workbook>.csv", otherwise "<workbook> -
+   <sheet>.csv", forbidden characters replaced, a repeated name inside a zip numbered.
+5. That the zip is the store form: every local file header, central directory record and end record
+   carries the fields in the order listed, with little-endian integers and UTF-8 names (flag 0x0800);
+   that crc32 of the ASCII bytes of "123456789" is 0xCBF43926; and that the zip holds exactly the ticked
+   sheets in table order.
+6. That btn-zip is disabled with nothing ticked and its text counts the ticked sheets, that Select all
+   and Select none change both the boxes and SHEETS, and that the zip is named after the workbook when
+   the ticked sheets come from one workbook and converted.zip otherwise.
+Then give me a five-step test with two made-up workbooks: one with a single sheet (its CSV must be named
+after the workbook alone), one with three sheets, one of them empty, one with a date column, a time
+column and a text cell holding a comma; tick two sheets, download the zip, open it, and check the names
+and the contents against the sheets.
 ```
 
 ## Debug prompts
 
 Use the two Debug prompts at the end of `GENAI-PROMPTS-estimator-batch.md` (console error; wrong result
 with no error) unchanged.
+
+## History: Prompts X and X2
+
+Until this page existed, a tool that had to take an .xlsx directly carried the workbook reader inside it (Prompt X)
+and a hook around its file pickers (Prompt X2), and every tool needed both pasted in the right order, which cost one
+wrong-order fault in the tests. Prompt W1 is that reader's text with its new name; the record proved it on 77,694
+cells against openpyxl. Prompts X and X2 (`GENAI-PROMPTS-xlsx.md`) stay in the folder for tools already built
+with them; a new build uses this page instead and skips X. v0.1 of this page (2026-10-24) had one Download link per
+sheet and a "Download all" that clicked them 400 milliseconds apart; the page was built from its text by Gemini
+(two rounds of W2) and checked against openpyxl on five made-up workbooks, all 77,694 cells equal.

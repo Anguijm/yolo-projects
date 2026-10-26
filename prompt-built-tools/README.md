@@ -36,10 +36,11 @@ Tool 3, the dictionary page (one chat, short):
    jobs, 60 percent by default, listed under the summary instead of ranked), and writes dictionary.json for the
    estimator and a review file to resume.
 
-Tool 4, the workbook converter (one chat, two prompts):
+Tool 4, the workbook converter (one chat, three prompts; the file opens with a how-to-run block):
 
 1. [GENAI-PROMPTS-converter.md](GENAI-PROMPTS-converter.md): Prompts W1 to W3. Excel workbooks in, one CSV per
-   sheet out, named "<workbook> - <sheet>.csv", with the same cell rules the tools' reader always applied; the
+   sheet out (a workbook with a single sheet is named "<workbook>.csv", several sheets "<workbook> - <sheet>.csv");
+   tick the sheets you want and download them as one zip; the same cell rules the tools' reader always applied; the
    tools keep reading CSV.
 
 Tool 5, the resource burn forecast page (one chat, two prompts):
