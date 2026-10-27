@@ -22,11 +22,14 @@ Updated 2026-10-24 (JST), docs refresh.
 - 2026-10-25 | The card nudge reaches this session's input box but is never submitted: `tmux capture-pane` shows the
   PR #68 and PR #78 nudges typed, unsent, at the prompt (the text and Enter in one send-keys call arrive as one paste,
   so Enter becomes a newline). Fixed 2026-10-25 at John's go: daily_cards.sh sends the text, then Enter on its own a
-  second later. Cards from both days were reviewed by hand. Not yet confirmed: the 2026-10-26 05:50 run failed before the nudge (see next line). Confirm at the 2026-10-27 run. | me
+  second later. Cards from both days were reviewed by hand. Still failing on 2026-10-27: the PR #88 nudge sat unsent in the input box like the others. A throwaway session on its own
+  tmux socket takes the same text plus a separate Enter and runs it, even with older text already in the box, so the fault is
+  specific to this session (remote control on; a dialog on screen at 05:52 would eat the Enter, which the test reproduced).
+  Cards from PR #88 reviewed by hand. Next step is John's call. | me
 - 2026-10-26 | The 05:50 run wrote no rows.json: a second Claude in Chrome browser has been connected since 2026-10-25, and
   the reader would not pick one. Fixed in PR #86: the reader selects this Chrome by device id (`CHROME_DEVICE` in
   `scripts/daily_cards.sh`), both browsers stay connected (John's ruling via ops). Reader tested alone: 7 rows. The
-  missed rows fall inside the next run's 3-day window. Confirm at the 2026-10-27 run. | me
+  missed rows fall inside the next run's 3-day window. Confirmed 2026-10-27: 11 rows read, 6 cards merged as PR #88. | me
 - 2026-10-24 | GENAI-PROMPTS-converter.md says Prompts X and X2 "stay in the private source", but they are public in
   the folder; next-big-thing fixed its source and will carry it on its next public touch. | next-big-thing
 - 2026-10-23 | The superseded commits of PRs 60 and 61 on GitHub still show the real workforce report name; only GitHub
