@@ -37,8 +37,9 @@ Contracts:
   description and the four dates the first non-blank; every other column the first row's value.
 - Names: streamCSV(file, onProgress) declared again (the later declaration wins), tasksColumns(headers),
   isHistoryTasks(headers), rollUpTasks(headers) (returns the accumulator with add(row) and rows()),
-  performingOf(values), internText(s, table) (a flat copy of a field's text, shared when the same text recurs),
-  var LAST_ROLLUP. Each phase's description is kept on the first rolled row of its job summary and phase only; the
+  performingOf(values), internText(s, table) (a flat copy of a field's text, shared when the same text recurs; the
+  table is a Map, as is every lookup the block keys by free text, because a plain object inherits names such as
+  constructor and __proto__), var LAST_ROLLUP. Each phase's description is kept on the first rolled row of its job summary and phase only; the
   other shop rows of that phase carry "" (the loader takes a phase's description from the first non-blank). The line "<file>: N task rows rolled up to M rows (one per job summary,
   phase and shop)" goes into a div with id l-status that the block creates once, right after datastatus (the loader
   rewrites datastatus itself after every load, so a line appended there would be lost).
@@ -76,8 +77,12 @@ module may have declared normPerforming(s), which maps a performing value to "fa
 
 Write, in this order:
 1. var LAST_ROLLUP = null; (the last file's counts, for the status line).
-1a. internText(s, table): table is a plain object used as a map from text to its stored copy, one per file.
-   If table has s, return the stored copy; otherwise store and return a FLAT copy of s, made as (" " + s).slice(1)
+1a. internText(s, table): table is a Map (new Map(); has, get, set) from text to its stored copy, one per file,
+   never a plain object: a plain object inherits names such as constructor, toString, hasOwnProperty and
+   __proto__, so a field whose text is one of those would read back a function or fail to store, and fields are
+   free text. The same rule holds for every lookup this block keys by free text, the distinct task texts of a group
+   included: a Map or a Set, never a plain object. If table has s, return the stored copy; otherwise store and
+   return a FLAT copy of s, made as (" " + s).slice(1)
    (a string built by adding characters one at a time is a chain of pieces inside the engine, many times its
    own length; adding one character and slicing it off forces one flat copy). Every field value of every record
    goes through internText before it is used or stored, in the rolled path and in the pass-through path alike,
@@ -103,7 +108,8 @@ Write, in this order:
    typed); then fold the row in: est_hours and charged_hours are kept as running numbers (num() of each
    row's value added; write the sums into the output row's hours columns as numbers); the task column
    collects the distinct non-blank trimmed task texts in file order (joined with "; " when rows() is
-   called); task_no stays the first row's; crew_size, phase_title, description, planned_start,
+   called; keep them in an array with a Set for the lookup, never a plain object keyed by the text); task_no
+   stays the first row's; crew_size, phase_title, description, planned_start,
    planned_finish, actual_start and actual_finish each take the first non-blank value seen in ITS OWN
    column (write the seven as one loop over their names, never one line per column, so no column reads
    another's); the performing
@@ -121,8 +127,8 @@ Write, in this order:
    with a real CSV parser whose state (inside quotes or not, the current field, the current record) is
    carried from one slice to the next: quoted fields, doubled quotes inside quotes, line breaks inside
    quotes, CRLF or LF, and a last record without a line break (flush it at the end). The first record is
-   the header row: trim the headers. Create one plain object as the interning table for this file, and
-   pass every field of every record through internText(field, table) as the record is completed. Then,
+   the header row: trim the headers. Create one Map as the interning table for this file, and pass every
+   field of every record through internText(field, table) as the record is completed. Then,
    if isHistoryTasks(headers), create roll = rollUpTasks(headers) and pass every following record, as a
    row object keyed by header, to roll.add and drop it; otherwise push every row object into data as
    before. The table is dropped with the function's locals when the file is done. Call onProgress(Math.round(percent)) after each slice when
@@ -160,13 +166,16 @@ I have pasted MODULE L as the last script in the file. Without rewriting it, che
    with "; ", its performing "farm-out" when any row named a contractor, "in-house" when any row had a
    non-blank performing otherwise, else "", and its phase fields the first non-blank, with the description
    on the first rolled row of each job summary and phase only; that the output rows keep the file's header
-   names so the mapping panel and buildDB see nothing new; and that every stored field value went through
-   internText (a flat copy, shared when the text recurs).
+   names so the mapping panel and buildDB see nothing new; that every stored field value went through
+   internText (a flat copy, shared when the text recurs); and that the interning table and the group's set of
+   task texts are a Map and a Set, so a field whose text is "constructor" or "__proto__" comes through as
+   itself.
 5. That no array of the dropped records or copy of the file's text survives the call.
-Then give me a five-step test with a made-up tasks CSV of eight rows: two job summaries, one of them with
+Then give me a five-step test with a made-up tasks CSV of ten rows: two job summaries, one of them with
 two phases, one shop tasked twice in one phase (the two rows must add up to one row), one row whose
-performing says CMS and another in the same group that says ORG (the group must come out farm-out), and
-the expected three output rows with their sums and texts.
+performing says CMS and another in the same group that says ORG (the group must come out farm-out), two
+rows in one group whose task texts are "constructor" and "__proto__" (both must appear in the joined text),
+and the expected three output rows with their sums and texts.
 ```
 
 ## Debug prompts
