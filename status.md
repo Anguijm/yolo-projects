@@ -10,7 +10,10 @@ Updated 2026-10-24 (JST), docs refresh.
   `prompt-built-tools/GENAI-*` (moved from pdf-to-csv/ on 2026-10-24, PR #69; estimator v0.6, the weight test v0.2, batch v0.8, planned v0.5,
   resource map, leveler, style, xlsx (superseded for new builds by the converter), the dictionary page (PR #72),
   the workbook converter page (PR #74), build guide v0.6, two design pages) are written by the next-big-thing
-  session and reviewed and merged here (PRs #51 to #75). Next-big-thing reports nothing further queued.
+  session and reviewed and merged here (PRs #51 to #89). From 2026-10-27 (John's ruling, relayed by next-big-thing): when
+  John tells it to handle or push a series, or that he is walking away, next-big-thing merges its own prompt PR once the
+  build passes and its scan is clean; this session then reviews the merged commit and any point becomes its next PR.
+  PRs opened without that instruction are still reviewed and merged here.
 - Daily cards: cron 05:50 JST, `scripts/daily_cards.sh` under job-guard `yolo-cards-daily`, merges its own PR on
   secret-scan plus validate, then nudges this session through `tmux -L yolo` (the nudge was missing from PR #46,
   2026-10-21, until it was restored 2026-10-23 at John's word). Verdicts: `.harness/card_reviews.md`.
