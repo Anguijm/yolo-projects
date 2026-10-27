@@ -27,6 +27,9 @@ Tool 1, the estimator (one chat):
 6. [GENAI-PROMPTS-style.md](GENAI-PROMPTS-style.md): the look, last.
 7. [GENAI-PROMPTS-dictionary.md](GENAI-PROMPTS-dictionary.md), Prompt K4 only: a file picker that loads the
    dictionary page's dictionary.json into the estimator's abbreviation box (any time after Prompt 5).
+8. [GENAI-PROMPTS-estimator-large.md](GENAI-PROMPTS-estimator-large.md): Prompt L1, pasted last, only when the
+   tasks export is huge: it rolls the file up while it streams to one row per job summary, phase and shop, so the
+   page never holds one object per task; the numbers downstream do not change. Needs Prompt C1 in the build.
 
 Tool 3, the dictionary page (one chat, short):
 

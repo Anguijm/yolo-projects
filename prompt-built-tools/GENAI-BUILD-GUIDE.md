@@ -1,6 +1,9 @@
 # Build guide: the estimator and the Resource Map, from prompts, inside GenAI.mil
 
-Version 0.10, 2026-10-26 (v0.1 to v0.9 kept in the private source). v0.10: the converter page (its series at v0.2)
+Version 0.11, 2026-10-27 (v0.1 to v0.10 kept in the private source). v0.11: a sixth prompt file for the estimator,
+`GENAI-PROMPTS-estimator-large.md` (Prompt L1): when the tasks export is huge (the owner's came out of the converter
+at 1.2 GB), one block pasted last rolls it up while it streams to one row per job summary, phase and shop, so the page
+never holds one object per task; nothing else in the build changes. v0.10: the converter page (its series at v0.2)
 after the owner's first run on a real 53-tab workbook: the reader and the page are named W1 and W2 throughout and a
 how-to-run block opens the file; every sheet row has a checkbox; the ticked sheets download as one zip written by hand
 (no library, one browser prompt) in place of the burst of separate downloads the browser used to cut short; and a
@@ -129,6 +132,11 @@ beside the prompt file (GENAI-FORECAST-sample.html, forecast-sample.csv).
 
 7. `GENAI-PROMPTS-dictionary.md`, Prompt K4 only: the estimator's file picker for dictionary.json (any time after
    Prompt 5; the other K prompts build the dictionary page, below).
+8. `GENAI-PROMPTS-estimator-large.md`: Prompt L1, pasted as the LAST script, only when the tasks export is huge
+   (hundreds of megabytes or more). It declares the streaming reader again so a history tasks file is rolled up as it
+   streams to one row per job summary, phase and shop (hours summed, task texts joined, the performing mark decided);
+   every other file passes through unchanged and the estimate, the weight test, the batch and the planned bypass see
+   the same numbers as before. Needs MODULE 5 (Prompt C1) in the build. Prompt L2 checks it.
 
 **Tool 3, the dictionary page** (one chat, short):
 
