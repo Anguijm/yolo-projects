@@ -72,6 +72,22 @@ echo "merged $URL"
 # ecosystem (CLAUDE.md "Operating mode"). Typed into its prompt; harmless if the session is down. Dropped by PR #46,
 # restored 2026-10-23 at John's word. Enter goes as its own keystroke a second later: sent in the same call, the
 # prompt took text and Enter as one paste and the nudge sat unsent in the input box (2026-10-24 and 2026-10-25).
+# 2026-10-27: still unsent, though a throwaway session on its own socket takes the same keys; so the screen is saved
+# before and after the Enter (nudge-*.txt in $CACHE), and if the nudge is still in the input box (between the last two
+# rule lines) one more Enter goes 5 seconds later (John's pick: "snapshot and retry").
+in_box() { timeout 5 tmux -L yolo capture-pane -p -t yolo 2>/dev/null | awk '/^─/{n++; buf[n]=""; next} {buf[n]=buf[n] $0} END{print buf[n-1]}' | tr -s ' ' | grep -q -F "$URL"; }
+timeout 5 tmux -L yolo capture-pane -p -t yolo > "$CACHE/nudge-before.txt" 2>/dev/null || true
 timeout 5 tmux -L yolo send-keys -t yolo -l "[automated, daily_cards.sh] New cards merged in $URL: review them per CLAUDE.md Operating mode, log verdicts in .harness/card_reviews.md, and tell John only about the ones worth doing." 2>/dev/null || true
 timeout 1 tail -f /dev/null
 timeout 5 tmux -L yolo send-keys -t yolo Enter 2>/dev/null || true
+timeout 5 tail -f /dev/null
+timeout 5 tmux -L yolo capture-pane -p -t yolo > "$CACHE/nudge-after.txt" 2>/dev/null || true
+if in_box; then
+  echo "nudge still in the input box after Enter; one retry"
+  timeout 5 tmux -L yolo send-keys -t yolo Enter 2>/dev/null || true
+  timeout 5 tail -f /dev/null
+  timeout 5 tmux -L yolo capture-pane -p -t yolo > "$CACHE/nudge-retry.txt" 2>/dev/null || true
+  if in_box; then echo "nudge still unsent after the retry (see $CACHE/nudge-*.txt)"; else echo "nudge sent on the retry"; fi
+else
+  echo "nudge sent"
+fi
