@@ -37110,5 +37110,179 @@
     "outcome": null,
     "verdict": null,
     "notes": ""
+  },
+  {
+    "id": "ail-2026-10-28-token-economizer-pruning",
+    "source": {
+      "channel": "ail",
+      "video_title": "This Is Microsoft's New Plan To Fix Claude's Usage Limits",
+      "video_url": "https://www.youtube.com/watch?v=1kQ_1_QL5Es",
+      "published_date": "2026-10-28",
+      "ingested_date": "2026-10-28"
+    },
+    "experiment": {
+      "title": "Trial Token Economizer tool pruning in Claude Code",
+      "hypothesis": "If we install Microsoft's Token Economizer with tool pruning enabled in a Claude Code project, then per-message context and session cost will drop by about 20-30% without lowering task completion, because tools unused across consecutive sessions are disabled automatically.",
+      "what_they_did": "The speaker installed the open-source Token Economizer plugin and configured lifecycle hooks. Tools unused across 10 messages over two consecutive sessions were turned off. On a sample project, 276 tools were disabled and per-message context fell from 34.3K to 24.4K tokens. A practical task dropped from 99 to 79 steps at 21% lower cost. The speaker checked results with the status, tool-prune and tool-prune-measure commands, and restored wrongly disabled tools with tool-prune-restore.",
+      "effort_estimate": "low",
+      "relevance_to_yolo_loop": "high: Direct Claude Code harness practice (hooks, context pruning, token cost) that can be measured with before/after runs.",
+      "relevance_to_operator_projects": "high: Claude Code agent workflows and harnesses; it trims token usage across all the operator's Claude Code projects."
+    },
+    "status": "backlog",
+    "status_history": [
+      {
+        "status": "backlog",
+        "date": "2026-10-28",
+        "note": "Extracted from YOLO Watch Log sheet (Gemini)"
+      }
+    ],
+    "outcome": null,
+    "verdict": null,
+    "notes": ""
+  },
+  {
+    "id": "ail-2026-10-28-micro-skills-failure-memory",
+    "source": {
+      "channel": "ail",
+      "video_title": "This Is Microsoft's New Plan To Fix Claude's Usage Limits",
+      "video_url": "https://www.youtube.com/watch?v=1kQ_1_QL5Es",
+      "published_date": "2026-10-28",
+      "ingested_date": "2026-10-28"
+    },
+    "experiment": {
+      "title": "Test cross-session failure micro-skills with injection guard",
+      "hypothesis": "If we synthesize repeated command failures into project micro-skills every few sessions and seed them from existing session history, then repeat failures and stuck loops will decrease because the agent keeps cross-session failure memory.",
+      "what_they_did": "The speaker enabled micro-skills synthesis, where an LLM reviews recent session logs every three sessions and extracts repeated failures. They modified the plugin startup script to ingest past sessions from the .claude folder to avoid a cold start. They also enabled stuck-loop detection, which prompts the model to try alternatives before advising manual termination. They noted that untrusted command output could inject malicious instructions into the micro-skills.",
+      "effort_estimate": "medium",
+      "relevance_to_yolo_loop": "high: Cross-session memory and loop detection are core harness and verification-loop concerns, and the prompt-injection risk needs a mitigation check.",
+      "relevance_to_operator_projects": "high: Claude Code agent workflows and harnesses (memory, hooks, verification loops)."
+    },
+    "status": "backlog",
+    "status_history": [
+      {
+        "status": "backlog",
+        "date": "2026-10-28",
+        "note": "Extracted from YOLO Watch Log sheet (Gemini)"
+      }
+    ],
+    "outcome": null,
+    "verdict": null,
+    "notes": ""
+  },
+  {
+    "id": "aie-2026-10-27-markdown-memory-file",
+    "source": {
+      "channel": "aie",
+      "video_title": "We Kept Rebuilding Our AI Agent. Here's What Survived - Fuad Ali, Arize AI",
+      "video_url": "https://www.youtube.com/watch?v=YIhvrvHtonk",
+      "published_date": "2026-10-27",
+      "ingested_date": "2026-10-28"
+    },
+    "experiment": {
+      "title": "Replace agent memory with a capped markdown file",
+      "hypothesis": "If we keep agent long-term memory as a single markdown file capped at 8,000 characters and updated by an async background job, then memory will be simpler and easier to audit than heavier stores with no loss in usefulness, because flat text is inspectable and cheap.",
+      "what_they_did": "Arize dropped temporal knowledge graphs, vector databases and episodic stores. They used one per-user markdown file capped at 8,000 characters, updated by an asynchronous background job. They reported it beat the alternatives on cost, simplicity and auditability. They also consolidated 10 specialist sub-agents into one agent that loads skills on demand.",
+      "effort_estimate": "low",
+      "relevance_to_yolo_loop": "high: Concrete, simple memory design for agent harnesses that can be compared against the current memory setup.",
+      "relevance_to_operator_projects": "high: Claude Code agent workflows and harnesses (memory, skills); the same pattern could also serve the Markdown knowledge vault."
+    },
+    "status": "backlog",
+    "status_history": [
+      {
+        "status": "backlog",
+        "date": "2026-10-28",
+        "note": "Extracted from YOLO Watch Log sheet (Gemini)"
+      }
+    ],
+    "outcome": null,
+    "verdict": null,
+    "notes": ""
+  },
+  {
+    "id": "aie-2026-10-27-deterministic-finish-gate",
+    "source": {
+      "channel": "aie",
+      "video_title": "We Kept Rebuilding Our AI Agent. Here's What Survived - Fuad Ali, Arize AI",
+      "video_url": "https://www.youtube.com/watch?v=YIhvrvHtonk",
+      "published_date": "2026-10-27",
+      "ingested_date": "2026-10-28"
+    },
+    "experiment": {
+      "title": "Add a harness finish gate and rendered plan state",
+      "hypothesis": "If we render plan state in messages and add a hook-enforced finish gate that blocks ending a turn while planned items remain open, then agents will conclude prematurely less often and burn fewer calls on to-do tools, because planning lives in deterministic code rather than model tool calls.",
+      "what_they_did": "Arize moved planning, math and aggregation out of the model into harness code after iterating on to-do list tools more than 20 times. Plan state was rendered directly in conversation messages. A finish gate stopped agents from ending turns with open items. Oversized JSON tool outputs were truncated, and the agent queried the full data with jq. They converted production traces into CI regression fixtures and found failures like 43 identical tool calls in one turn.",
+      "effort_estimate": "medium",
+      "relevance_to_yolo_loop": "high: Deterministic gates and trace-based regression fixtures are verification-loop patterns that can be built as Claude Code hooks.",
+      "relevance_to_operator_projects": "high: Claude Code agent workflows and harnesses (hooks, verification loops)."
+    },
+    "status": "backlog",
+    "status_history": [
+      {
+        "status": "backlog",
+        "date": "2026-10-28",
+        "note": "Extracted from YOLO Watch Log sheet (Gemini)"
+      }
+    ],
+    "outcome": null,
+    "verdict": null,
+    "notes": ""
+  },
+  {
+    "id": "nb-2026-10-27-agent-stopping-rules",
+    "source": {
+      "channel": "nb",
+      "video_title": "Are Your AI Agents Doing Real Work Or Productivity Theater? Here Are 4 Principles I Use.",
+      "video_url": "https://www.youtube.com/watch?v=NIRFVjttNvA",
+      "published_date": "2026-10-27",
+      "ingested_date": "2026-10-28"
+    },
+    "experiment": {
+      "title": "Add stopping rules and attention budgets to recurring agent tasks",
+      "hypothesis": "If we define explicit termination conditions and an attention budget before enabling any recurring scheduled agent task, then unread reports and wasted tokens will decrease, because unmonitored recurring output is a compounding tax on attention.",
+      "what_they_did": "The speaker set stopping rules before scheduling recurring tasks, such as terminating if unread for 3 days or when extra passes stop yielding new insight. They gave a chief-of-staff agent an attention budget so it interrupts humans only for high-leverage items. They required agents to show raw measurements and formulas, which exposed a contractor's wrong floor-area multiplier. They added a truth-teller meta-prompt to counter sycophancy and counted downstream human review hours before prompting.",
+      "effort_estimate": "low",
+      "relevance_to_yolo_loop": "high: Directly applicable to scheduled and looping YOLO agents: termination conditions, show-your-work verification and anti-sycophancy checks.",
+      "relevance_to_operator_projects": "medium: Applies to Claude Code agent workflows (scheduled loops, verification) but is a process guideline rather than a specific tool."
+    },
+    "status": "backlog",
+    "status_history": [
+      {
+        "status": "backlog",
+        "date": "2026-10-28",
+        "note": "Extracted from YOLO Watch Log sheet (Gemini)"
+      }
+    ],
+    "outcome": null,
+    "verdict": null,
+    "notes": ""
+  },
+  {
+    "id": "ls-2026-10-27-evals-as-code",
+    "source": {
+      "channel": "ls",
+      "video_title": "How Anthropic ships the #1 LLM in the World \u2014 with Katelyn Lesse and Angela Jiang",
+      "video_url": "https://www.youtube.com/watch?v=MRQTlwcW-aQ",
+      "published_date": "2026-10-27",
+      "ingested_date": "2026-10-28"
+    },
+    "experiment": {
+      "title": "Turn harness requirements into evals-as-code with a golden set",
+      "hypothesis": "If we formalize each Claude Code skill or hook requirement as an automated eval backed by a small human-reviewed golden dataset, then regressions and benchmark drift will be caught earlier, because requirements become executable tests.",
+      "what_they_did": "The guests described treating AI product engineering as empirical research. Feature requirements become automated eval benchmarks, and frontier models generate synthetic test cases. Human reviewers give binary preference scores that produce Elo ratings, which Claude uses to update system prompts. Human-reviewed golden datasets are kept to catch subtle benchmark drift. They also described using effort control, defaulting Claude Code to medium and toggling high for complex multi-file work.",
+      "effort_estimate": "medium",
+      "relevance_to_yolo_loop": "high: Evals-as-code and golden sets are a verification-loop pattern that could harden skills, hooks and councils.",
+      "relevance_to_operator_projects": "high: Claude Code agent workflows and harnesses (skills, verification loops)."
+    },
+    "status": "backlog",
+    "status_history": [
+      {
+        "status": "backlog",
+        "date": "2026-10-28",
+        "note": "Extracted from YOLO Watch Log sheet (Gemini)"
+      }
+    ],
+    "outcome": null,
+    "verdict": null,
+    "notes": ""
   }
 ]
