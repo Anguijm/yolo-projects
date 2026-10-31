@@ -1,6 +1,10 @@
 # Prompts L: the large tasks export (roll it up while it streams)
 
-Version 0.1, 2026-10-27. Built on the owner's report from work the same day: his tasks export comes out of the converter at
+Version 0.2, 2026-10-31 (v0.1 kept in the private source). v0.2, from the edge-case tests of 2026-10-31
+(the private test record): the row objects and the rolled output rows are created with Object.create(null), so a
+header named __proto__ keeps its value; headers is [] for an empty file, never null; a CR LF pair inside a quoted
+field is field text (a regeneration ended the record there); the reader's decoding and its Map and Set rules were
+already right and read a two-byte character astride a slice boundary whole. v0.1 (2026-10-27) was built on the owner's report from work that day: his tasks export comes out of the converter at
 1.2 GB (the workbook is 65 MB), and he has already built the estimator, so the fix has to paste into the build he
 has. The loader already streams a CSV in 4 MB slices (MODULE 5, Prompt C1); what breaks is holding one object per task
 row. Prompt L1 writes one script block, pasted last, that declares the streaming reader again: a history tasks file is
@@ -103,7 +107,8 @@ Write, in this order:
 5. rollUpTasks(headers): returns an accumulator {add(row), rows(), count} for one file. cols =
    tasksColumns(headers). It keeps a plain object of groups keyed by the trimmed uppercased job_summary,
    "|", num(phase_no), "|", the trimmed uppercased shop, and an array of the keys in order of first
-   appearance. add(row): count increments; find or create the group's output row, a plain object keyed
+   appearance. add(row): count increments; find or create the group's output row, an object created with
+   Object.create(null) (never an object literal, so a header named __proto__ keeps its value) keyed
    by the SAME header names as the file, built from the first row of the group (every column copied as
    typed); then fold the row in: est_hours and charged_hours are kept as running numbers (num() of each
    row's value added; write the sums into the output row's hours columns as numbers); the task column
@@ -122,15 +127,18 @@ Write, in this order:
    must be callable once. Nothing from a row is kept except what the output rows hold.
 6. streamCSV(file, onProgress): declared again in full (the later declaration wins). Read the file in
    4 MB slices with await file.slice(start, end).arrayBuffer(), and decode every slice with ONE
-   TextDecoder("utf-8") created for the file and called with {stream: true}, so a character split across
+   TextDecoder("utf-8") created for the file and called with {stream: true}, and decode the final flush
+   (decoder.decode() with no argument after the last slice, fed to the same parser), so a character split across
    two slices decodes whole (never readAsText on a slice); drop a leading byte-order mark. Parse records
    with a real CSV parser whose state (inside quotes or not, the current field, the current record) is
    carried from one slice to the next: quoted fields, doubled quotes inside quotes, line breaks inside
-   quotes, CRLF or LF, and a last record without a line break (flush it at the end). The first record is
+   quotes (a CR LF pair inside quotes is field text and both characters stay; only outside quotes does CR LF,
+   or a lone LF, end a record), CRLF or LF, and a last record without a line break (flush it at the end). The first record is
    the header row: trim the headers. Create one Map as the interning table for this file, and pass every
    field of every record through internText(field, table) as the record is completed. Then,
    if isHistoryTasks(headers), create roll = rollUpTasks(headers) and pass every following record, as a
-   row object keyed by header, to roll.add and drop it; otherwise push every row object into data as
+   row object created with Object.create(null) and keyed by header, to roll.add and drop it; otherwise push
+   every such row object into data as
    before. The table is dropped with the function's locals when the file is done. Call onProgress(Math.round(percent)) after each slice when
    a function was given (guard the call), and let the page breathe between slices (await a resolved
    promise or a zero setTimeout) so the status repaints. At the end: for a rolled file set LAST_ROLLUP =
@@ -139,7 +147,8 @@ Write, in this order:
    that div once if it does not exist yet (document.createElement, inserted right after the datastatus
    element with insertAdjacentElement("afterend")), and set its textContent, because the loader rewrites
    datastatus itself after every load and a line appended there would be lost; then resolve {headers,
-   data: roll.rows()}; for any other file resolve {headers, data} and leave l-status as it is.
+   data: roll.rows()}; for any other file resolve {headers, data} and leave l-status as it is. headers is
+   [] when the file had no header row (an empty file), never null: the loader's detector maps over it.
    Never keep the file's text or the dropped records; never read the whole file at once. Build each
    field by appending to a string as the characters come, but store only what internText returns.
 7. Nothing else: do not touch parseCSV, loadFiles, buildDB, the mapping panel, the store or any

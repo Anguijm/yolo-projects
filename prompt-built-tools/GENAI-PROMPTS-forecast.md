@@ -1,6 +1,9 @@
 # Prompts for GenAI.mil: a resource burn forecast page, one offline HTML file
 
-Version 0.1, 2026-10-25. One prompt (F1) that makes the model write a single HTML file, plus a check prompt (F2) and a
+Version 0.2, 2026-10-31 (v0.1 kept in the private source). v0.2, from the edge-case tests of 2026-10-31
+(the record sits with the estimator's test files): a row whose date does not parse was dropped in silence; it is now kept in
+file order, as the reading rule already said, and datastatus counts such rows and shows the first three as typed. One
+prompt (F1) that makes the model write a single HTML file, plus a check prompt (F2) and a
 debug prompt. The page forecasts how a job or an availability will burn a resource week by week (hours charged by a shop,
 material drawn) from the weeks already seen, gives a low, middle and high band (p10, p50, p90), takes the schedule's
 planned hours as a known future, and checks itself against "same as last week" on weeks it has hidden from itself. It
@@ -71,7 +74,10 @@ Sections, in order, each with a numbered heading:
 The CSV reader: a real parser (quoted fields, doubled quotes, line breaks inside quotes, CRLF, a leading
 byte-order mark); header names trimmed; rows keyed by header. Dates: YYYY-MM-DD, MM/DD/YYYY and
 DD-MON-YYYY, built with Date.UTC and read with UTC getters, so the week does not shift on a computer in
-another time zone; rows sorted by date when every row has one, else kept in file order. The series:
+another time zone; rows sorted by date when every row has one, else kept in file order; a row whose date
+does not parse is KEPT (its value and plan count like any other row's, in file order) and datastatus says
+how many rows had a date the page could not read and shows the first three as typed, so no week vanishes
+without a word (the edge tests of 2026-10-31 found such a row dropped in silence). The series:
 the rows whose series key equals the chosen one; actual weeks are the rows whose value is a number
 (their plan held with them, NaN when blank); future weeks are the rows with a plan and no value, in
 order; the horizon is the number of future weeks when there are any, else the horizon input; future
@@ -186,6 +192,7 @@ Without rewriting the file, check it and list each problem with the exact fix:
    week inside when p10 <= actual <= p90.
 6. Dates built with Date.UTC and read with UTC getters; a textarea's value is read as text; the CSV uses
    CRLF; nothing uses fetch, eval, a library or a web font; no em dashes.
+7. A row whose date does not parse is kept in file order and counted in datastatus, never dropped.
 Then give me a five-step test with a ten-week made-up series: what the status line, the table, the
 verdict and the chart should show after each step.
 ```

@@ -1,6 +1,11 @@
 # Prompts C: add batch mode to the estimator (big files in, one big CSV out)
 
-Version 0.9, 2026-10-25 (v0.1 to v0.8 kept in the private source). v0.9 follows the estimator series v0.7 to the
+Version 0.10, 2026-10-31 (v0.1 to v0.9 kept in the private source). v0.10 answers the edge-case tests of 2026-10-31
+(the private test record): C1's streaming reader decodes its slices with one TextDecoder in streaming mode, so a
+two-byte character astride a 4 MB slice boundary reads whole (it came out as two replacement marks), carries its
+parser's state across slices without looking past a slice end (the first regeneration lost a doubled quote astride a
+boundary), and its row objects are created with Object.create(null). Nothing else changes; the held items (C1 as one script, C2b's placement)
+wait for the owner's list. v0.9 follows the estimator series v0.7 to the
 task-based history of the owner's pulls: the history's `tasks` table (one record per task, the phase-level fields
 repeated on each) already carries the four dates, so C1 no longer adds them to a phases table; the estimate rows are
 one per phase AND shop with a `tasks` text (Prompt 4 v0.7), so the consumption file is one line per item, phase and
@@ -89,12 +94,21 @@ digits removed), OPTIONAL_FIELDS, a detectType(headers), an updateStatus() and a
 is above in this chat, so reuse its mapping panel and autoMap as they are rather than guessing at them.
 
 Changes:
-1. Streamed reading. Write streamCSV(file, onProgress): reads the file in 4 MB slices (file.slice, read
-   as text), carries the incomplete last record from one slice to the next (quoted fields with line
-   breaks inside must still work, so carry the partial record, not just the partial line), parses
+1. Streamed reading. Write streamCSV(file, onProgress): reads the file in 4 MB slices (await
+   file.slice(start, end).arrayBuffer()), decodes every slice with ONE TextDecoder("utf-8") created for
+   the file and called with {stream: true}, and decodes the final flush, so a character split across two
+   slices decodes whole (never readAsText on a slice: the edge tests of 2026-10-31 found a two-byte
+   character astride the 4 MB boundary coming out as two replacement marks), carries the incomplete last
+   record from one slice to the next (quoted fields with line
+   breaks inside must still work, so carry the partial record, not just the partial line) and the parser's
+   own state with it (inside quotes or not, a quote just seen, the current field and record), never looking
+   ahead past the end of a slice, because a doubled quote or a CR LF pair can straddle the cut (the edge
+   tests of 2026-10-31 lost a doubled quote that way), parses
    complete records as it goes, calls onProgress(percent) with a number after each slice when a function
    was given (a caller may omit it, so guard the call), and resolves to {headers, data} where headers is
-   the array of trimmed header strings and data is the array of row objects keyed by header. loadFiles uses it instead of reading the whole file, and shows progress in
+   the array of trimmed header strings ([] when the file has no header row, so an empty file is reported as
+   unrecognized, never an error) and data is the array of row objects keyed by header, each created
+   with Object.create(null) so a header named __proto__ keeps its value. loadFiles uses it instead of reading the whole file, and shows progress in
    datastatus ("reading tasks.csv: 37%").
 2. More columns. Extend SCHEMA in place: jcn_history gains optional project (aliases: project,
    availability, avail, avail id, availability name, period). A fourth optional table availabilities: project, hull,
@@ -116,8 +130,12 @@ Changes:
    hist-store with a line "Stored history: saved <date>, N JCNs, M tasks" and two buttons "Use stored"
    (calls loadStoredDB) and "Forget" (deletes the record). The file picker still works as before to
    replace it.
-5. Memory: keep rows as plain objects but do not keep the raw CSV text or the unmapped rows after
-   buildDB has run (clear RAW_DATA).
+5. Memory: keep rows as the small objects they are (no classes) but do not keep the raw CSV text or the unmapped rows after
+   buildDB has run (clear RAW_DATA), and keep a small record in its place (each loaded type's file name and row count) so
+   that updateStatus still prints what MODULE 2's did: one line per loaded export with its file name and row count, the
+   files it could not place with their first header cells, then the saved-in-this-browser line. Never replace that list
+   with a summary of DB (one regeneration printed JCN, job summary and phase counts instead, and the reader could no
+   longer see which file loaded with how many rows).
 6. After buildDB, btn-run and btn-tune are enabled, as MODULE 2 did; buildDB keeps the material rows as
    MODULE 2 built them ({job_summary, phase_no, item, qty}) and the task, phase and jcn rows with every
    field MODULE 2 gave them, in the same case (nomenclature, phase titles, descriptions, task texts,

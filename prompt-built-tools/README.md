@@ -74,3 +74,8 @@ Made-up data; open them in a browser: [the process flow](GENAI-PROCESS-FLOW.html
 No real data, names or system names; the series are written so the real column names are learned by a prompt, not
 typed into one; every series was tested with made-up data in a headless browser before it was committed; no em
 dashes.
+
+Since 2026-10-31 every series is also run against a set of made-up nasty inputs (byte-order marks, CRLF, quoted line
+breaks, a two-byte character astride a 4 MB slice, headers and values named constructor or __proto__, merged cells,
+every date shape, header-only and empty files, names that differ only by case), and the eight faults that set found
+were pinned in the texts and regenerated. On bad data a tool finishes the rest and lists the misses ([TASTE.md](TASTE.md)).

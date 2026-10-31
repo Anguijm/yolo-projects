@@ -1,1020 +1,1255 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:; connect-src 'none'; form-action 'none'">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Resource Burn Forecast</title>
-    <style>
-        :root {
-            --bg: #ffffff;
-            --fg: #222222;
-            --bg-panel: #f8f9fa;
-            --border: #cccccc;
-            --accent: #0066cc;
-            --band: rgba(0, 102, 204, 0.2);
-            --plan: #28a745;
-            --naive: #999999;
-            --grid: #eeeeee;
-        }
-        @media (prefers-color-scheme: dark) {
-            :root {
-                --bg: #1e1e1e;
-                --fg: #e0e0e0;
-                --bg-panel: #2a2a2a;
-                --border: #555555;
-                --accent: #4da6ff;
-                --band: rgba(77, 166, 255, 0.3);
-                --plan: #5cd67d;
-                --naive: #aaaaaa;
-                --grid: #333333;
-            }
-        }
-        body {
-            font-family: system-ui, -apple-system, sans-serif;
-            background-color: var(--bg);
-            color: var(--fg);
-            line-height: 1.5;
-            margin: 0;
-            padding: 1rem;
-            box-sizing: border-box;
-            max-width: 1200px;
-            margin-inline: auto;
-        }
-        h1, h2, h3 { margin-top: 0; }
-        section {
-            background: var(--bg-panel);
-            border: 1px solid var(--border);
-            border-radius: 8px;
-            padding: 1rem;
-            margin-bottom: 1.5rem;
-        }
-        .row { display: flex; flex-wrap: wrap; gap: 1rem; margin-bottom: 1rem; align-items: end; }
-        .col { display: flex; flex-direction: column; gap: 0.25rem; }
-        textarea {
-            width: 100%; height: 100px; resize: vertical;
-            background: var(--bg); color: var(--fg); border: 1px solid var(--border);
-        }
-        input, select, button {
-            padding: 0.5rem; background: var(--bg); color: var(--fg); border: 1px solid var(--border);
-        }
-        button { cursor: pointer; background: var(--border); }
-        button:disabled { opacity: 0.5; cursor: not-allowed; }
-        canvas { width: 100%; height: 300px; border: 1px solid var(--border); display: block; margin-bottom: 1rem; }
-        table { width: 100%; border-collapse: collapse; margin-bottom: 1rem; font-size: 0.9rem; }
-        th, td { border: 1px solid var(--border); padding: 0.4rem; text-align: left; }
-        th { background: var(--border); color: var(--fg); }
-        .status { font-weight: bold; margin-bottom: 1rem; }
-        .verdict-box { border: 2px solid var(--border); padding: 1rem; font-weight: bold; margin-bottom: 1rem; }
-        a.btn { display: inline-block; padding: 0.5rem; background: var(--border); color: var(--fg); text-decoration: none; border: 1px solid var(--border); }
-        ul { margin-top: 0; }
-    </style>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:; connect-src 'none'; form-action 'none'">
+<title>Burn Forecast</title>
+<style>
+  :root {
+    --bg: #ffffff;
+    --text: #1a1a1a;
+    --surface: #f5f5f5;
+    --border: #cccccc;
+    --accent: #0056b3;
+    --accent-hover: #004494;
+    --plan: #d97706;
+    --band: rgba(0, 86, 179, 0.2);
+    --naive: #666666;
+    --danger: #dc2626;
+    --ok: #16a34a;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #121212;
+      --text: #e5e5e5;
+      --surface: #1e1e1e;
+      --border: #404040;
+      --accent: #3b82f6;
+      --accent-hover: #60a5fa;
+      --plan: #f59e0b;
+      --band: rgba(59, 130, 246, 0.3);
+      --naive: #999999;
+      --danger: #ef4444;
+      --ok: #22c55e;
+    }
+  }
+  body {
+    font-family: system-ui, -apple-system, sans-serif;
+    background-color: var(--bg);
+    color: var(--text);
+    line-height: 1.5;
+    margin: 0;
+    padding: 1rem;
+  }
+  h1, h2 {
+    margin-top: 1.5rem;
+    margin-bottom: 0.5rem;
+  }
+  .section {
+    margin-bottom: 2rem;
+    padding: 1rem;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+  }
+  textarea {
+    width: 100%;
+    height: 150px;
+    background: var(--bg);
+    color: var(--text);
+    border: 1px solid var(--border);
+    padding: 0.5rem;
+    box-sizing: border-box;
+    font-family: monospace;
+    margin-bottom: 0.5rem;
+  }
+  input, select, button {
+    background: var(--bg);
+    color: var(--text);
+    border: 1px solid var(--border);
+    padding: 0.5rem;
+    margin: 0.25rem 0;
+    border-radius: 4px;
+    font-size: 1rem;
+  }
+  button {
+    background: var(--accent);
+    color: #ffffff;
+    border: none;
+    cursor: pointer;
+    font-weight: bold;
+  }
+  button:hover {
+    background: var(--accent-hover);
+  }
+  button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+  .controls-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1rem;
+    align-items: center;
+  }
+  .control-group {
+    display: flex;
+    flex-direction: column;
+  }
+  .status {
+    font-size: 0.9rem;
+    color: var(--text);
+    margin-top: 0.5rem;
+  }
+  .table-container {
+    overflow-x: auto;
+    margin-top: 1rem;
+  }
+  table {
+    border-collapse: collapse;
+    width: 100%;
+    text-align: right;
+  }
+  th, td {
+    border: 1px solid var(--border);
+    padding: 0.5rem;
+  }
+  th {
+    background: var(--surface);
+    text-align: center;
+  }
+  canvas {
+    width: 100%;
+    height: 400px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    margin-top: 1rem;
+  }
+  .legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
+    margin-top: 0.5rem;
+    font-size: 0.9rem;
+  }
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+  }
+  .legend-box {
+    width: 16px;
+    height: 16px;
+    border: 1px solid var(--border);
+  }
+  .verdict-box {
+    padding: 1rem;
+    border-left: 4px solid var(--accent);
+    background: var(--bg);
+    margin-bottom: 1rem;
+  }
+</style>
 </head>
 <body>
+  <h1>Ship Repair Resource Burn Forecast</h1>
 
-    <h1>Resource Burn Forecast</h1>
+  <div class="section" id="sec-data">
+    <h2>1. Data</h2>
+    <textarea id="csvin" placeholder="Paste CSV here..."></textarea>
+    <div>
+      <button id="btn-sample">Load the made-up sample</button>
+      <input type="file" id="file" accept=".csv">
+    </div>
+    <div class="controls-grid" style="margin-top: 1rem;">
+      <div class="control-group">
+        <label for="c-date">Period Column</label>
+        <select id="c-date"></select>
+      </div>
+      <div class="control-group">
+        <label for="c-value">Value Column</label>
+        <select id="c-value"></select>
+      </div>
+      <div class="control-group">
+        <label for="c-plan">Plan Column</label>
+        <select id="c-plan"><option value="">(none)</option></select>
+      </div>
+      <div class="control-group">
+        <label for="c-series">Series 1 Column</label>
+        <select id="c-series"><option value="">(none)</option></select>
+      </div>
+      <div class="control-group">
+        <label for="c-series2">Series 2 Column</label>
+        <select id="c-series2"><option value="">(none)</option></select>
+      </div>
+      <div class="control-group">
+        <label for="series">Series to Forecast</label>
+        <select id="series"></select>
+      </div>
+    </div>
+    <div id="datastatus" class="status">Awaiting data.</div>
+  </div>
 
-    <section id="sec-data">
-        <h2>1. Data</h2>
-        <div class="row">
-            <div class="col" style="flex: 1 1 100%;">
-                <label for="csvin">Paste CSV Data</label>
-                <textarea id="csvin"></textarea>
-            </div>
-        </div>
-        <div class="row">
-            <div class="col">
-                <button id="btn-sample">Load the made-up sample</button>
-            </div>
-            <div class="col">
-                <input type="file" id="file" accept=".csv">
-            </div>
-        </div>
-        <div class="row">
-            <div class="col"><label for="c-date">Period Column</label><select id="c-date"></select></div>
-            <div class="col"><label for="c-value">Value Column</label><select id="c-value"></select></div>
-            <div class="col"><label for="c-plan">Plan Column</label><select id="c-plan"></select></div>
-            <div class="col"><label for="c-series">Series Column 1</label><select id="c-series"></select></div>
-            <div class="col"><label for="c-series2">Series Column 2</label><select id="c-series2"></select></div>
-            <div class="col"><label for="series">Series to Forecast</label><select id="series"></select></div>
-        </div>
-        <div class="status" id="datastatus">Awaiting data...</div>
-    </section>
+  <div class="section" id="sec-settings">
+    <h2>2. Settings</h2>
+    <div class="controls-grid">
+      <div class="control-group">
+        <label for="horizon">Horizon (weeks)</label>
+        <input type="number" id="horizon" value="8" min="1">
+      </div>
+      <div class="control-group">
+        <label for="season">Season (weeks, 0=none)</label>
+        <input type="number" id="season" value="0" min="0">
+      </div>
+      <div class="control-group">
+        <label for="holdout">Holdout (weeks)</label>
+        <input type="number" id="holdout" value="6" min="1">
+      </div>
+      <div class="control-group">
+        <label for="useplan">Use Plan as known future</label>
+        <select id="useplan">
+          <option value="yes" selected>yes</option>
+          <option value="no">no</option>
+        </select>
+      </div>
+      <div class="control-group">
+        <label>&nbsp;</label>
+        <button id="btn-run" disabled>Forecast</button>
+      </div>
+    </div>
+    <div id="runstatus" class="status"></div>
+  </div>
 
-    <section id="sec-settings">
-        <h2>2. Settings</h2>
-        <div class="row">
-            <div class="col"><label for="horizon">Horizon (weeks)</label><input type="number" id="horizon" value="8" min="1"></div>
-            <div class="col"><label for="season">Season (weeks)</label><input type="number" id="season" value="0" min="0"></div>
-            <div class="col"><label for="holdout">Holdout (weeks)</label><input type="number" id="holdout" value="6" min="1"></div>
-            <div class="col"><label for="useplan">Use Plan?</label><select id="useplan"><option value="yes">Yes</option><option value="no">No</option></select></div>
-            <div class="col"><button id="btn-run" disabled>Forecast</button></div>
-        </div>
-        <div class="status" id="runstatus"></div>
-    </section>
+  <div class="section" id="sec-forecast">
+    <h2>3. The forecast</h2>
+    <canvas id="chart"></canvas>
+    <div class="legend">
+      <div class="legend-item"><div class="legend-box" style="background: var(--text);"></div> Actuals</div>
+      <div class="legend-item"><div class="legend-box" style="background: var(--accent);"></div> p50 Forecast</div>
+      <div class="legend-item"><div class="legend-box" style="background: var(--band);"></div> p10 to p90 Band</div>
+      <div class="legend-item"><div class="legend-box" style="background: var(--plan);"></div> Plan</div>
+      <div class="legend-item"><div class="legend-box" style="background: var(--naive); border-style: dashed;"></div> Same as last week</div>
+    </div>
+    <div id="fcnotes" class="status" style="margin-top: 0.5rem; font-weight: bold;"></div>
+    <div class="table-container">
+      <table id="fctable">
+        <thead>
+          <tr><th>Week</th><th>Plan</th><th>p10</th><th>p50</th><th>p90</th><th>Band Basis</th></tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
 
-    <section id="sec-forecast">
-        <h2>3. The Forecast</h2>
-        <canvas id="chart"></canvas>
-        <div id="fcnotes" style="margin-bottom: 1rem; font-style: italic;"></div>
-        <table id="fctable">
-            <thead>
-                <tr>
-                    <th>Week</th>
-                    <th>Plan</th>
-                    <th>p10</th>
-                    <th>p50</th>
-                    <th>p90</th>
-                    <th>Band Basis</th>
-                </tr>
-            </thead>
-            <tbody></tbody>
-        </table>
-    </section>
+  <div class="section" id="sec-check">
+    <h2>4. Honesty check</h2>
+    <div id="verdict" class="verdict-box">Run the forecast to see the holdout check.</div>
+    <div class="table-container">
+      <table id="checktable">
+        <thead></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
 
-    <section id="sec-check">
-        <h2>4. Honesty Check</h2>
-        <div class="verdict-box" id="verdict">Run the forecast to see the honesty check.</div>
-        <table id="checktable">
-            <thead>
-                <tr>
-                    <th>Metric / Hidden Week</th>
-                    <th>Value</th>
-                </tr>
-            </thead>
-            <tbody></tbody>
-        </table>
-    </section>
+  <div class="section" id="sec-export">
+    <h2>5. Export</h2>
+    <textarea id="csvout" readonly placeholder="Output CSV will appear here..."></textarea>
+    <div>
+      <button id="btn-copy">Copy to Clipboard</button>
+      <a id="btn-download" download="burn_forecast.csv" style="margin-left: 1rem; color: var(--accent); font-weight: bold; text-decoration: none;">Download CSV</a>
+    </div>
+  </div>
 
-    <section id="sec-export">
-        <h2>5. Export</h2>
-        <div class="row">
-            <div class="col" style="flex: 1 1 100%;">
-                <textarea id="csvout" readonly></textarea>
-            </div>
-        </div>
-        <div class="row">
-            <div class="col"><button id="btn-copy">Copy CSV</button></div>
-            <div class="col"><a href="#" id="btn-download" download="burn_forecast.csv" class="btn">Download CSV</a></div>
-        </div>
-    </section>
+  <div class="section" id="sec-how">
+    <h2>6. How it works, and what it is not</h2>
+    <ul>
+      <li><strong>The model:</strong> Level and trend smoothing, a season when asked, a damped trend, weights chosen by a grid on the one-week-ahead error, about a hundred lines of arithmetic.</li>
+      <li><strong>The plan as a known future:</strong> Regress the actuals on the plan, smooth the leftover, forecast the line on the future plan plus the leftover's forecast; the idea behind known-future inputs in time-series models.</li>
+      <li><strong>The band:</strong> From the model's own past errors by horizon, a normal fallback with few errors.</li>
+      <li><strong>The honesty check:</strong> A holdout against "same as last week"; a model that loses is not worth using.</li>
+      <li><strong>What the page is not:</strong> A learned model, several series learning from each other, growth the schedule never planned, judgment about why a week ran high.</li>
+      <li><strong>Columns:</strong> The real columns are learned by the column-name prompt, never typed into a chat.</li>
+    </ul>
+  </div>
 
-    <section id="sec-about">
-        <h2>6. How it works, and what it is not</h2>
-        <ul>
-            <li>The model: level and trend smoothing, a season when asked, a damped trend, weights chosen by a grid on the one-week-ahead error, about a hundred lines of arithmetic.</li>
-            <li>The plan as a known future: regress the actuals on the plan, smooth the leftover, forecast the line on the future plan plus the leftover's forecast; the idea behind known-future inputs in time-series models.</li>
-            <li>The band: from the model's own past errors by horizon, a normal fallback with few errors.</li>
-            <li>The honesty check: a holdout against "same as last week"; a model that loses is not worth using.</li>
-            <li>What the page is not: a learned model, several series learning from each other, growth the schedule never planned, judgment about why a week ran high.</li>
-            <li>Data privacy: the real columns are learned by the column-name prompt, never typed into a chat.</li>
-        </ul>
-    </section>
+<script>
+var FC = null;
+var parsedData = [];
+var headers = [];
 
-    <script>
-        var SAMPLE_CSV =
-"project,shop,week_start,planned_hours,charged_hours\n" +
-"Alpha,Pipe,2026-08-03,100,0\n" +
-"Alpha,Pipe,2026-08-10,200,105\n" +
-"Alpha,Pipe,2026-08-17,300,210\n" +
-"Alpha,Pipe,2026-08-24,400,290\n" +
-"Alpha,Pipe,2026-08-31,500,395\n" +
-"Alpha,Pipe,2026-09-07,600,480\n" +
-"Alpha,Pipe,2026-09-14,600,610\n" +
-"Alpha,Pipe,2026-09-21,600,595\n" +
-"Alpha,Pipe,2026-09-28,600,605\n" +
-"Alpha,Pipe,2026-10-05,600,590\n" +
-"Alpha,Pipe,2026-10-12,600,620\n" +
-"Alpha,Pipe,2026-10-19,600,580\n" +
-"Alpha,Pipe,2026-10-26,600,615\n" +
-"Alpha,Pipe,2026-11-02,600,600\n" +
-"Alpha,Pipe,2026-11-09,600,300\n" +
-"Alpha,Pipe,2026-11-16,600,650\n" +
-"Alpha,Pipe,2026-11-23,600,590\n" +
-"Alpha,Pipe,2026-11-30,600,610\n" +
-"Alpha,Pipe,2026-12-07,600,595\n" +
-"Alpha,Pipe,2026-12-14,600,605\n" +
-"Alpha,Pipe,2026-12-21,600,580\n" +
-"Alpha,Pipe,2026-12-28,600,620\n" +
-"Alpha,Pipe,2027-01-04,500,\n" +
-"Alpha,Pipe,2027-01-11,400,\n" +
-"Alpha,Pipe,2027-01-18,300,\n" +
-"Alpha,Pipe,2027-01-25,200,\n" +
-"Alpha,Pipe,2027-02-01,100,\n" +
-"Alpha,Pipe,2027-02-08,50,\n" +
-"Alpha,Pipe,2027-02-15,0,\n" +
-"Alpha,Pipe,2027-02-22,0,\n" +
-"Beta,Weld,2026-08-03,50,0\n" +
-"Beta,Weld,2026-08-10,100,55\n" +
-"Beta,Weld,2026-08-17,150,110\n" +
-"Beta,Weld,2026-08-24,200,145\n" +
-"Beta,Weld,2026-08-31,250,195\n" +
-"Beta,Weld,2026-09-07,300,240\n" +
-"Beta,Weld,2026-09-14,300,305\n" +
-"Beta,Weld,2026-09-21,300,295\n" +
-"Beta,Weld,2026-09-28,300,302\n" +
-"Beta,Weld,2026-10-05,300,290\n" +
-"Beta,Weld,2026-10-12,300,310\n" +
-"Beta,Weld,2026-10-19,300,285\n" +
-"Beta,Weld,2026-10-26,300,308\n" +
-"Beta,Weld,2026-11-02,300,300\n" +
-"Beta,Weld,2026-11-09,300,150\n" +
-"Beta,Weld,2026-11-16,300,325\n" +
-"Beta,Weld,2026-11-23,300,295\n" +
-"Beta,Weld,2026-11-30,300,305\n" +
-"Beta,Weld,2026-12-07,300,298\n" +
-"Beta,Weld,2026-12-14,300,302\n" +
-"Beta,Weld,2026-12-21,300,290\n" +
-"Beta,Weld,2026-12-28,300,310\n" +
-"Beta,Weld,2027-01-04,250,\n" +
-"Beta,Weld,2027-01-11,200,\n" +
-"Beta,Weld,2027-01-18,150,\n" +
-"Beta,Weld,2027-01-25,100,\n" +
-"Beta,Weld,2027-02-01,50,\n" +
-"Beta,Weld,2027-02-08,25,\n" +
-"Beta,Weld,2027-02-15,0,\n" +
-"Beta,Weld,2027-02-22,0,\n";
+const SAMPLE_CSV = `project,shop,week_start,planned_hours,charged_hours
+ProjA,ShopX,2026-08-03,0,0
+ProjA,ShopX,2026-08-10,20,5
+ProjA,ShopX,2026-08-17,40,25
+ProjA,ShopX,2026-08-24,60,35
+ProjA,ShopX,2026-08-31,80,55
+ProjA,ShopX,2026-09-07,100,75
+ProjA,ShopX,2026-09-14,100,90
+ProjA,ShopX,2026-09-21,100,105
+ProjA,ShopX,2026-09-28,100,100
+ProjA,ShopX,2026-10-05,100,110
+ProjA,ShopX,2026-10-12,100,95
+ProjA,ShopX,2026-10-19,100,90
+ProjA,ShopX,2026-10-26,100,40
+ProjA,ShopX,2026-11-02,100,60
+ProjA,ShopX,2026-11-09,100,95
+ProjA,ShopX,2026-11-16,100,105
+ProjA,ShopX,2026-11-23,80,100
+ProjA,ShopX,2026-11-30,60,85
+ProjA,ShopX,2026-12-07,40,70
+ProjA,ShopX,2026-12-14,20,50
+ProjA,ShopX,2026-12-21,0,30
+ProjA,ShopX,2026-12-28,0,10
+ProjA,ShopX,2027-01-04,0,0
+ProjA,ShopX,2027-01-11,0,0
+ProjA,ShopX,2027-01-18,0,
+ProjA,ShopX,2027-01-25,0,
+ProjA,ShopX,2027-02-01,0,
+ProjA,ShopX,2027-02-08,0,
+ProjA,ShopX,2027-02-15,0,
+ProjA,ShopX,2027-02-22,0,
+ProjA,ShopX,2027-03-01,0,
+ProjA,ShopX,2027-03-08,0,
+ProjB,ShopY,2026-08-03,50,45
+ProjB,ShopY,2026-08-10,50,55
+ProjB,ShopY,2026-08-17,50,48
+ProjB,ShopY,2026-08-24,50,52
+ProjB,ShopY,2026-08-31,60,50
+ProjB,ShopY,2026-09-07,70,58
+ProjB,ShopY,2026-09-14,80,65
+ProjB,ShopY,2026-09-21,90,78
+ProjB,ShopY,2026-09-28,100,85
+ProjB,ShopY,2026-10-05,100,95
+ProjB,ShopY,2026-10-12,100,105
+ProjB,ShopY,2026-10-19,100,100
+ProjB,ShopY,2026-10-26,100,90
+ProjB,ShopY,2026-11-02,100,102
+ProjB,ShopY,2026-11-09,100,98
+ProjB,ShopY,2026-11-16,100,105
+ProjB,ShopY,2026-11-23,100,95
+ProjB,ShopY,2026-11-30,100,100
+ProjB,ShopY,2026-12-07,100,100
+ProjB,ShopY,2026-12-14,90,105
+ProjB,ShopY,2026-12-21,80,95
+ProjB,ShopY,2026-12-28,70,85
+ProjB,ShopY,2027-01-04,60,75
+ProjB,ShopY,2027-01-11,50,65
+ProjB,ShopY,2027-01-18,40,
+ProjB,ShopY,2027-01-25,30,
+ProjB,ShopY,2027-02-01,20,
+ProjB,ShopY,2027-02-08,10,
+ProjB,ShopY,2027-02-15,0,
+ProjB,ShopY,2027-02-22,0,
+ProjB,ShopY,2027-03-01,0,
+ProjB,ShopY,2027-03-08,0,`;
 
-        var parsedData = { headers: [], data: [] };
-        var FC = null;
+function parseCSV(text) {
+  text = text.replace(/^\uFEFF/, '');
+  let rows = [];
+  let row = [];
+  let cell = "";
+  let inQuotes = false;
+  for (let i = 0; i < text.length; i++) {
+    let c = text[i];
+    let next = text[i + 1];
+    if (inQuotes) {
+      if (c === '"' && next === '"') {
+        cell += '"';
+        i++;
+      } else if (c === '"') {
+        inQuotes = false;
+      } else {
+        cell += c;
+      }
+    } else {
+      if (c === '"') {
+        inQuotes = true;
+      } else if (c === ',') {
+        row.push(cell);
+        cell = "";
+      } else if (c === '\r' && next === '\n') {
+        row.push(cell);
+        rows.push(row);
+        row = [];
+        cell = "";
+        i++;
+      } else if (c === '\n' || c === '\r') {
+        row.push(cell);
+        rows.push(row);
+        row = [];
+        cell = "";
+      } else {
+        cell += c;
+      }
+    }
+  }
+  if (cell !== "" || row.length > 0) {
+    row.push(cell);
+    rows.push(row);
+  }
+  return rows;
+}
 
-        // Data & UI Setup
-        document.getElementById('btn-sample').addEventListener('click', () => {
-            document.getElementById('csvin').value = SAMPLE_CSV;
-            handleCSVText(SAMPLE_CSV);
-        });
+function writeCSVCell(val) {
+  if (val === null || val === undefined) return "";
+  let s = String(val);
+  let isNum = !isNaN(parseFloat(s)) && isFinite(s);
+  if (!isNum && /^[=+\-@]/.test(s)) {
+    s = "'" + s;
+  }
+  if (s.indexOf(',') !== -1 || s.indexOf('"') !== -1 || s.indexOf('\n') !== -1 || s.indexOf('\r') !== -1) {
+    s = '"' + s.replace(/"/g, '""') + '"';
+  }
+  return s;
+}
 
-        document.getElementById('csvin').addEventListener('input', (e) => {
-            handleCSVText(e.target.value);
-        });
+function parseDateUTC(s) {
+  if (!s) return NaN;
+  s = s.trim();
+  let m;
+  if ((m = /^(\d{4})-(\d{1,2})-(\d{1,2})$/.exec(s))) {
+    return Date.UTC(parseInt(m[1], 10), parseInt(m[2], 10) - 1, parseInt(m[3], 10));
+  }
+  if ((m = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(s))) {
+    return Date.UTC(parseInt(m[3], 10), parseInt(m[1], 10) - 1, parseInt(m[2], 10));
+  }
+  if ((m = /^(\d{1,2})-([a-zA-Z]{3})-(\d{4})$/.exec(s))) {
+    let months = {jan:0,feb:1,mar:2,apr:3,may:4,jun:5,jul:6,aug:7,sep:8,oct:9,nov:10,dec:11};
+    let mo = months[m[2].toLowerCase()];
+    if (mo !== undefined) return Date.UTC(parseInt(m[3], 10), mo, parseInt(m[1], 10));
+  }
+  return NaN;
+}
 
-        document.getElementById('file').addEventListener('change', (e) => {
-            var file = e.target.files[0];
-            if (!file) return;
-            var reader = new FileReader();
-            reader.onload = (event) => {
-                var text = event.target.result;
-                document.getElementById('csvin').value = text;
-                handleCSVText(text);
-            };
-            reader.readAsText(file);
-        });
+function formatDateUTC(ms) {
+  let d = new Date(ms);
+  let y = d.getUTCFullYear();
+  let m = String(d.getUTCMonth() + 1).padStart(2, '0');
+  let day = String(d.getUTCDate()).padStart(2, '0');
+  return y + "-" + m + "-" + day;
+}
 
-        document.getElementById('btn-run').addEventListener('click', () => { run(); });
-        document.getElementById('btn-copy').addEventListener('click', () => {
-            var out = document.getElementById('csvout');
-            out.select();
-            document.execCommand('copy');
-        });
+function getKeywordsMatch(head, keywords) {
+  let low = head.toLowerCase();
+  for (let kw of keywords) {
+    if (low.indexOf(kw) !== -1) return true;
+  }
+  return false;
+}
 
-        var selects = ['c-date', 'c-value', 'c-plan', 'c-series', 'c-series2'];
-        selects.forEach(id => {
-            document.getElementById(id).addEventListener('change', () => { buildSeriesSelect(); });
-        });
+function guessColumns() {
+  let dateKws = ["week", "date", "period"];
+  let valueKws = ["charged", "actual", "hours", "value"];
+  let planKws = ["planned", "plan", "scheduled"];
+  let ser1Kws = ["project", "availability", "job"];
+  let ser2Kws = ["shop", "trade"];
 
-        function handleCSVText(text) {
-            parsedData = parseCSV(text);
-            if (parsedData.headers.length === 0) {
-                document.getElementById('datastatus').innerText = "No data found.";
-                document.getElementById('btn-run').disabled = true;
-                return;
-            }
-            populateSelects();
-            buildSeriesSelect();
-            document.getElementById('datastatus').innerText = "Loaded " + parsedData.data.length + " rows.";
-            document.getElementById('btn-run').disabled = false;
+  let cDate="", cValue="", cPlan="", cSer1="", cSer2="";
+
+  for (let k of dateKws) {
+    let f = headers.find(h => h.toLowerCase().indexOf(k) !== -1);
+    if (f && !cDate) { cDate = f; break; }
+  }
+  for (let k of valueKws) {
+    let f = headers.find(h => h.toLowerCase().indexOf(k) !== -1);
+    if (f && !cValue) { cValue = f; break; }
+  }
+  for (let k of planKws) {
+    let f = headers.find(h => h.toLowerCase().indexOf(k) !== -1);
+    if (f && !cPlan) { cPlan = f; break; }
+  }
+  for (let k of ser1Kws) {
+    let f = headers.find(h => h.toLowerCase().indexOf(k) !== -1);
+    if (f && !cSer1) { cSer1 = f; break; }
+  }
+  for (let k of ser2Kws) {
+    let f = headers.find(h => h.toLowerCase().indexOf(k) !== -1);
+    if (f && !cSer2 && f !== cSer1) { cSer2 = f; break; }
+  }
+
+  function setSel(id, val) {
+    let sel = document.getElementById(id);
+    if (val && Array.from(sel.options).some(o => o.value === val)) {
+      sel.value = val;
+    }
+  }
+  setSel('c-date', cDate || headers[0]);
+  setSel('c-value', cValue || headers[1]);
+  if (cPlan) setSel('c-plan', cPlan);
+  if (cSer1) setSel('c-series', cSer1);
+  if (cSer2) setSel('c-series2', cSer2);
+}
+
+function populateSelects() {
+  let selects = ['c-date', 'c-value', 'c-plan', 'c-series', 'c-series2'];
+  selects.forEach(id => {
+    let sel = document.getElementById(id);
+    let html = id !== 'c-date' && id !== 'c-value' ? '<option value="">(none)</option>' : '';
+    headers.forEach(h => {
+      html += '<option value="' + h.replace(/"/g, '&quot;') + '">' + h + '</option>';
+    });
+    let old = sel.value;
+    sel.innerHTML = html;
+    if (old && Array.from(sel.options).some(o => o.value === old)) sel.value = old;
+  });
+}
+
+function updateSeriesDropdown() {
+  let s1 = document.getElementById('c-series').value;
+  let s2 = document.getElementById('c-series2').value;
+  let keys = new Set();
+  parsedData.forEach(row => {
+    let parts = [];
+    if (s1 && row[s1]) parts.push(row[s1]);
+    if (s2 && row[s2]) parts.push(row[s2]);
+    if (parts.length > 0) keys.add(parts.join(" / "));
+  });
+  let sel = document.getElementById('series');
+  let old = sel.value;
+  sel.innerHTML = "";
+  Array.from(keys).sort().forEach(k => {
+    let opt = document.createElement('option');
+    opt.value = k;
+    opt.textContent = k;
+    sel.appendChild(opt);
+  });
+  if (old && Array.from(sel.options).some(o => o.value === old)) sel.value = old;
+  else if (sel.options.length > 0) sel.selectedIndex = 0;
+}
+
+function loadDataText(text) {
+  let rawRows = parseCSV(text);
+  if (rawRows.length < 2) return;
+  headers = rawRows[0].map(h => h.trim());
+  parsedData = [];
+
+  let allDatesOk = true;
+  let badDates = [];
+
+  for (let i = 1; i < rawRows.length; i++) {
+    let r = rawRows[i];
+    if (r.length === 1 && r[0].trim() === "") continue;
+    let obj = {};
+    for (let j = 0; j < headers.length; j++) {
+      obj[headers[j]] = r[j] || "";
+    }
+    parsedData.push(obj);
+  }
+
+  populateSelects();
+  guessColumns();
+  updateSeriesDropdown();
+
+  let cDate = document.getElementById('c-date').value;
+  parsedData.forEach(row => {
+    let ms = parseDateUTC(row[cDate]);
+    row._ms = ms;
+    if (isNaN(ms)) {
+      allDatesOk = false;
+      if (badDates.length < 3) badDates.push(row[cDate]);
+    }
+  });
+
+  if (allDatesOk) {
+    parsedData.sort((a, b) => a._ms - b._ms);
+    document.getElementById('datastatus').textContent = parsedData.length + " rows loaded.";
+  } else {
+    let msg = parsedData.length + " rows loaded. " + parsedData.filter(r => isNaN(r._ms)).length + " rows had a date the page could not read and are kept in file order. First bad dates: " + badDates.join(", ");
+    document.getElementById('datastatus').textContent = msg;
+  }
+
+  document.getElementById('btn-run').disabled = false;
+}
+
+function ols(y, x) {
+  let valid = [];
+  for (let i = 0; i < y.length; i++) {
+    if (typeof x[i] === 'number' && !isNaN(x[i])) {
+      valid.push({y: y[i], x: x[i]});
+    }
+  }
+  let n = valid.length;
+  if (n < 4) return null;
+  let sumX = 0, sumY = 0;
+  for (let i = 0; i < n; i++) {
+    sumX += valid[i].x;
+    sumY += valid[i].y;
+  }
+  let meanX = sumX / n;
+  let meanY = sumY / n;
+  let cov = 0, varX = 0;
+  for (let i = 0; i < n; i++) {
+    let dx = valid[i].x - meanX;
+    cov += dx * (valid[i].y - meanY);
+    varX += dx * dx;
+  }
+  if (varX === 0) return null;
+  let b = cov / varX;
+  let a = meanY - b * meanX;
+  return {a: a, b: b, n: n};
+}
+
+function hwFit(y, m, a, b, g, phi) {
+  let seasonal = m > 1 && y.length >= 2 * m;
+  let level = 0, trend = 0;
+  let season = [];
+
+  if (seasonal) {
+    let sum1 = 0, sum2 = 0;
+    for (let i = 0; i < m; i++) {
+      sum1 += y[i];
+      sum2 += y[i + m];
+    }
+    level = sum1 / m;
+    trend = ((sum2 / m) - level) / m;
+    for (let i = 0; i < m; i++) {
+      season.push(y[i] - level);
+    }
+  } else {
+    level = y[0];
+    trend = y.length > 1 ? y[1] - y[0] : 0;
+  }
+
+  let states = [];
+  let fittedLine = [];
+  let errors = [];
+
+  for (let t = 0; t < y.length; t++) {
+    let s = seasonal ? season[t % m] : 0;
+    let fitted = level + phi * trend + s;
+    let error = y[t] - fitted;
+    let newLevel = a * (y[t] - s) + (1 - a) * (level + phi * trend);
+    let newTrend = b * (newLevel - level) + (1 - b) * phi * trend;
+    if (seasonal) {
+      season[t % m] = g * (y[t] - newLevel) + (1 - g) * s;
+    }
+    level = newLevel;
+    trend = newTrend;
+    fittedLine.push(fitted);
+    errors.push(error);
+    states.push({
+      level: level,
+      trend: trend,
+      season: seasonal ? season.slice() : null,
+      t: t
+    });
+  }
+  return {fitted: fittedLine, errors: errors, states: states, m: m, seasonal: seasonal, a: a, b: b, g: g, phi: phi};
+}
+
+function hwForecast(state, fit, h) {
+  let ph = 0;
+  let p = fit.phi;
+  for (let i = 0; i < h; i++) {
+    ph += p;
+    p *= fit.phi;
+  }
+  let s = 0;
+  if (fit.seasonal && state.season) {
+    s = state.season[(state.t + h) % fit.m];
+  }
+  return state.level + ph * state.trend + s;
+}
+
+function gridSearch(y, m) {
+  let best = null;
+  let minSSE = Infinity;
+  let seasonal = m > 1 && y.length >= 2 * m;
+  let startIdx = seasonal ? m : 1;
+
+  for (let alpha = 0.1; alpha <= 0.9; alpha += 0.1) {
+    for (let beta = 0; beta <= 0.5; beta += 0.1) {
+      let gammaList = seasonal ? [0, 0.1, 0.2, 0.3, 0.4, 0.5] : [0];
+      for (let gamma of gammaList) {
+        for (let phi of [1, 0.9]) {
+          let fit = hwFit(y, m, alpha, beta, gamma, phi);
+          let sse = 0;
+          for (let t = startIdx; t < fit.errors.length; t++) {
+            sse += fit.errors[t] * fit.errors[t];
+          }
+          if (sse < minSSE - 1e-9) {
+            minSSE = sse;
+            best = {a: alpha, b: beta, g: gamma, phi: phi, sse: sse};
+          }
         }
-
-        function parseCSV(text) {
-            text = text.replace(/^﻿/, '');
-            var lines = [];
-            var row = [];
-            var inQuotes = false;
-            var val = "";
-            for (var i = 0; i < text.length; i++) {
-                var c = text[i];
-                var nc = text[i+1];
-                if (inQuotes) {
-                    if (c === '"' && nc === '"') { val += '"'; i++; }
-                    else if (c === '"') { inQuotes = false; }
-                    else { val += c; }
-                } else {
-                    if (c === '"') { inQuotes = true; }
-                    else if (c === ',') { row.push(val); val = ""; }
-                    else if (c === '\r' && nc === '\n') { row.push(val); lines.push(row); row = []; val = ""; i++; }
-                    else if (c === '\n' || c === '\r') { row.push(val); lines.push(row); row = []; val = ""; }
-                    else { val += c; }
-                }
-            }
-            if (val || text[text.length-1] === ',') row.push(val);
-            if (row.length > 0) lines.push(row);
-            if (lines.length === 0) return {headers: [], data: []};
-            var headers = lines[0].map(h => h.trim());
-            var data = [];
-            for (var r = 1; r < lines.length; r++) {
-                if (lines[r].length === 1 && lines[r][0] === "") continue;
-                var obj = {};
-                for (var c = 0; c < headers.length; c++) {
-                    obj[headers[c]] = (lines[r][c] || "").trim();
-                }
-                data.push(obj);
-            }
-            return { headers: headers, data: data };
-        }
-
-        function guessColumns() {
-            var h = parsedData.headers.map(s => s.toLowerCase());
-            var cDate = "", cValue = "", cPlan = "", cSeries = "", cSeries2 = "";
-            var kDate = ["week", "date", "period"];
-            var kValue = ["charged", "actual", "hours", "value"];
-            var kPlan = ["planned", "plan", "scheduled"];
-            var kSer = ["project", "availability", "job"];
-            var kSer2 = ["shop", "trade"];
-
-            function findCol(keywords) {
-                for (var i = 0; i < keywords.length; i++) {
-                    for (var j = 0; j < h.length; j++) {
-                        if (h[j].indexOf(keywords[i]) !== -1) return parsedData.headers[j];
-                    }
-                }
-                return "";
-            }
-            cDate = findCol(kDate) || parsedData.headers[0];
-            cValue = findCol(kValue) || parsedData.headers[1] || "";
-            cPlan = findCol(kPlan) || "";
-            cSeries = findCol(kSer) || "";
-            cSeries2 = findCol(kSer2) || "";
-            return { date: cDate, value: cValue, plan: cPlan, s1: cSeries, s2: cSeries2 };
-        }
-
-        function populateSelects() {
-            var h = parsedData.headers;
-            var guesses = guessColumns();
-
-            function fill(id, val, allowNone) {
-                var sel = document.getElementById(id);
-                sel.innerHTML = "";
-                if (allowNone) {
-                    var opt = document.createElement('option');
-                    opt.value = "(none)"; opt.innerText = "(none)";
-                    sel.appendChild(opt);
-                }
-                h.forEach(col => {
-                    var opt = document.createElement('option');
-                    opt.value = col; opt.innerText = col;
-                    if (col === val) opt.selected = true;
-                    sel.appendChild(opt);
-                });
-            }
-            fill('c-date', guesses.date, false);
-            fill('c-value', guesses.value, false);
-            fill('c-plan', guesses.plan, true);
-            fill('c-series', guesses.s1, true);
-            fill('c-series2', guesses.s2, true);
-        }
-
-        function buildSeriesSelect() {
-            var s1 = document.getElementById('c-series').value;
-            var s2 = document.getElementById('c-series2').value;
-            var keys = {};
-            parsedData.data.forEach(row => {
-                var p1 = s1 !== "(none)" ? row[s1] : "";
-                var p2 = s2 !== "(none)" ? row[s2] : "";
-                var key = p1;
-                if (p2) key = key ? key + " / " + p2 : p2;
-                if (!key) key = "All";
-                keys[key] = true;
-            });
-            var sel = document.getElementById('series');
-            var oldVal = sel.value;
-            sel.innerHTML = "";
-            Object.keys(keys).sort().forEach(k => {
-                var opt = document.createElement('option');
-                opt.value = k; opt.innerText = k;
-                if (k === oldVal) opt.selected = true;
-                sel.appendChild(opt);
-            });
-        }
-
-        function parseDateToUTC(s) {
-            if (!s) return NaN;
-            s = s.trim().toUpperCase();
-            var m1 = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
-            if (m1) return Date.UTC(parseInt(m1[1]), parseInt(m1[2])-1, parseInt(m1[3]));
-            var m2 = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
-            if (m2) return Date.UTC(parseInt(m2[3]), parseInt(m2[1])-1, parseInt(m2[2]));
-            var months = {"JAN":0,"FEB":1,"MAR":2,"APR":3,"MAY":4,"JUN":5,"JUL":6,"AUG":7,"SEP":8,"OCT":9,"NOV":10,"DEC":11};
-            var m3 = s.match(/^(\d{1,2})-([A-Z]{3})-(\d{4})$/);
-            if (m3 && months[m3[2]] !== undefined) return Date.UTC(parseInt(m3[3]), months[m3[2]], parseInt(m3[1]));
-            return NaN;
-        }
-
-        function formatDateUTC(utc) {
-            var d = new Date(utc);
-            if (isNaN(d)) return "";
-            var y = d.getUTCFullYear();
-            var m = ("0" + (d.getUTCMonth() + 1)).slice(-2);
-            var dd = ("0" + d.getUTCDate()).slice(-2);
-            return y + "-" + m + "-" + dd;
-        }
-
-        // Model
-        function hwFit(y, m, a, b, g, phi) {
-            var seasonal = (m > 1 && y.length >= 2 * m);
-            var level, trend;
-            var season = [];
-            if (seasonal) {
-                var sum1 = 0, sum2 = 0;
-                for (var i = 0; i < m; i++) { sum1 += y[i]; sum2 += y[i + m]; }
-                var mean1 = sum1 / m, mean2 = sum2 / m;
-                level = mean1;
-                trend = (mean2 - mean1) / m;
-                for (var i = 0; i < m; i++) season.push(y[i] - mean1);
-            } else {
-                level = y[0];
-                trend = y.length > 1 ? y[1] - y[0] : 0;
-            }
-            var fitted = [], errors = [], states = [];
-            for (var t = 0; t < y.length; t++) {
-                var s = seasonal ? season[t % m] : 0;
-                var fit_t = level + phi * trend + s;
-                var err_t = y[t] - fit_t;
-                fitted.push(fit_t);
-                errors.push(err_t);
-
-                var newLevel = a * (y[t] - s) + (1 - a) * (level + phi * trend);
-                var newTrend = b * (newLevel - level) + (1 - b) * phi * trend;
-                if (seasonal) {
-                    season[t % m] = g * (y[t] - newLevel) + (1 - g) * s;
-                }
-                level = newLevel;
-                trend = newTrend;
-                var seasonCopy = seasonal ? season.slice() : [];
-                states.push({ level: level, trend: trend, season: seasonCopy, t: t });
-            }
-            return { fitted: fitted, errors: errors, states: states, m: m, seasonal: seasonal, a: a, b: b, g: g, phi: phi };
-        }
-
-        function hwForecast(state, fit, h) {
-            var forecast = [];
-            var l = state.level, t_val = state.trend, s = state.season, t_idx = state.t;
-            for (var k = 1; k <= h; k++) {
-                var ph = 0, p_power = fit.phi;
-                for (var j = 1; j <= k; j++) { ph += p_power; p_power *= fit.phi; }
-                var s_val = fit.seasonal ? s[(t_idx + k) % fit.m] : 0;
-                forecast.push(l + ph * t_val + s_val);
-            }
-            return forecast;
-        }
-
-        function gridSearch(y, m) {
-            var bestFit = null, bestSSE = Infinity;
-            var isSeasonal = (m > 1 && y.length >= 2 * m);
-            var alphas = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9];
-            var betas = [0.0, 0.1, 0.2, 0.3, 0.4, 0.5];
-            var gammas = isSeasonal ? [0.0, 0.1, 0.2, 0.3, 0.4, 0.5] : [0.0];
-            var phis = [1.0, 0.9];
-
-            for (var ai = 0; ai < alphas.length; ai++) {
-                for (var bi = 0; bi < betas.length; bi++) {
-                    for (var gi = 0; gi < gammas.length; gi++) {
-                        for (var pi = 0; pi < phis.length; pi++) {
-                            var fit = hwFit(y, m, alphas[ai], betas[bi], gammas[gi], phis[pi]);
-                            var sse = 0;
-                            var startIdx = isSeasonal ? m : 1;
-                            for (var t = startIdx; t < y.length; t++) {
-                                sse += fit.errors[t] * fit.errors[t];
-                            }
-                            if (sse < bestSSE - 1e-9) {
-                                bestSSE = sse;
-                                bestFit = fit;
-                            }
-                        }
-                    }
-                }
-            }
-            return bestFit;
-        }
-
-        function ols(y, x) {
-            var n = 0, sumX = 0, sumY = 0, sumXY = 0, sumXX = 0;
-            for (var i = 0; i < y.length; i++) {
-                if (!isNaN(x[i])) {
-                    n++; sumX += x[i]; sumY += y[i];
-                    sumXY += x[i] * y[i]; sumXX += x[i] * x[i];
-                }
-            }
-            if (n < 4) return null;
-            var meanX = sumX / n;
-            var varX = sumXX / n - meanX * meanX;
-            if (varX < 1e-9) return null;
-            var b = (sumXY / n - meanX * (sumY / n)) / varX;
-            var a = (sumY / n) - b * meanX;
-            return { a: a, b: b, n: n };
-        }
-
-        function backtestErrors(y, fit, H) {
-            var errsByH = [];
-            for (var h = 0; h < H; h++) errsByH.push([]);
-            var startOrigin = fit.seasonal ? Math.max(2 * fit.m, 3) : 3;
-            for (var t = startOrigin; t <= y.length - 2; t++) {
-                var state = fit.states[t];
-                var hMax = Math.min(H, y.length - 1 - t);
-                var fcast = hwForecast(state, fit, hMax);
-                for (var hIdx = 1; hIdx <= hMax; hIdx++) {
-                    errsByH[hIdx - 1].push(y[t + hIdx] - fcast[hIdx - 1]);
-                }
-            }
-            return errsByH;
-        }
-
-        function bands(point, byH, oneStepErrors) {
-            var res = [];
-            var H = point.length;
-            var sumSq = 0;
-            var lenE = oneStepErrors.length;
-            for (var i = 0; i < lenE; i++) sumSq += oneStepErrors[i] * oneStepErrors[i];
-            var sd = (lenE > 1) ? Math.sqrt(sumSq / (lenE - 1)) : 0;
-
-            for (var h = 1; h <= H; h++) {
-                var errs = byH[h - 1] || [];
-                var n = errs.length;
-                var p10, p50, p90, basis;
-                var pt = point[h - 1];
-
-                if (n >= 10) {
-                    var sorted = errs.slice().sort((a,b) => a - b);
-                    var pctl = function(p) {
-                        var idx = p * (n - 1);
-                        var lower = Math.floor(idx);
-                        var upper = Math.ceil(idx);
-                        var weight = idx - lower;
-                        return sorted[lower] * (1 - weight) + sorted[upper] * weight;
-                    };
-                    p10 = pt + pctl(0.1);
-                    p50 = pt;
-                    p90 = pt + pctl(0.9);
-                    basis = "errors";
-                } else {
-                    var margin = 1.2816 * sd * Math.sqrt(h);
-                    p10 = pt - margin;
-                    p50 = pt;
-                    p90 = pt + margin;
-                    basis = "normal";
-                }
-                res.push({
-                    p10: Math.max(0, p10),
-                    p50: Math.max(0, p50),
-                    p90: Math.max(0, p90),
-                    basis: basis,
-                    n: n
-                });
-            }
-            return res;
-        }
-
-        function forecastSeries(y, plan, planFuture, m, H, usePlan) {
-            var reg = null;
-            var ts = y;
-            if (usePlan) {
-                reg = ols(y, plan);
-                if (reg) {
-                    ts = [];
-                    for (var i = 0; i < y.length; i++) {
-                        var p = isNaN(plan[i]) ? 0 : plan[i];
-                        ts.push(y[i] - (reg.a + reg.b * p));
-                    }
-                }
-            }
-            var fit = gridSearch(ts, m);
-            var lastState = fit.states[fit.states.length - 1];
-            var fcastTs = hwForecast(lastState, fit, H);
-
-            var point = [];
-            var planUsed = [];
-            var lastPlan = NaN;
-            for (var i = 0; i < plan.length; i++) {
-                if (!isNaN(plan[i])) lastPlan = plan[i];
-            }
-            var notePlanCarried = false;
-
-            for (var h = 0; h < H; h++) {
-                var pt = fcastTs[h];
-                var pu = NaN;
-                if (reg) {
-                    var pF = planFuture[h];
-                    if (isNaN(pF)) {
-                        pF = isNaN(lastPlan) ? 0 : lastPlan;
-                        notePlanCarried = true;
-                    } else {
-                        lastPlan = pF;
-                    }
-                    pt += reg.a + reg.b * pF;
-                    pu = pF;
-                }
-                point.push(pt);
-                planUsed.push(pu);
-            }
-
-            var bErrs = backtestErrors(ts, fit, H);
-            var startIdx = fit.seasonal ? fit.m : 1;
-            var oneStep = fit.errors.slice(startIdx);
-            var bandData = bands(point, bErrs, oneStep);
-
-            return {
-                fit: { a: fit.a, b: fit.b, g: fit.g, phi: fit.phi, seasonal: fit.seasonal },
-                reg: reg,
-                point: point,
-                bands: bandData,
-                planUsed: planUsed,
-                notePlanCarried: notePlanCarried
-            };
-        }
-
-        function holdoutCheck(y, plan, planFuture, m, H, Ht, usePlan) {
-            if (y.length - Ht < 6) return { ok: false, reason: "fewer than six weeks would remain to fit" };
-            var yTrim = y.slice(0, y.length - Ht);
-            var planTrim = plan.slice(0, plan.length - Ht);
-            var planFutTrim = plan.slice(plan.length - Ht);
-
-            var res = forecastSeries(yTrim, planTrim, planFutTrim, m, Ht, usePlan);
-
-            var yHold = y.slice(y.length - Ht);
-            var naive = [];
-            var lastActual = yTrim[yTrim.length - 1];
-            for (var i = 0; i < Ht; i++) naive.push(lastActual);
-
-            var sNaive = [];
-            var canSNaive = (m > 1 && yTrim.length >= m);
-            for (var i = 0; i < Ht; i++) {
-                sNaive.push(canSNaive ? yTrim[yTrim.length - m + (i % m)] : NaN);
-            }
-
-            var sumErrModel = 0, sumErrNaive = 0, sumErrSNaive = 0, inBand = 0, sumBias = 0;
-            for (var i = 0; i < Ht; i++) {
-                var actual = yHold[i];
-                var pt = res.point[i];
-                sumErrModel += Math.abs(actual - pt);
-                sumErrNaive += Math.abs(actual - naive[i]);
-                if (canSNaive) sumErrSNaive += Math.abs(actual - sNaive[i]);
-                sumBias += (pt - actual);
-
-                var band = res.bands[i];
-                if (actual >= band.p10 && actual <= band.p90) inBand++;
-            }
-
-            return {
-                ok: true,
-                Ht: Ht,
-                fitLen: yTrim.length,
-                yHold: yHold,
-                naive: naive,
-                maeModel: sumErrModel / Ht,
-                maeNaive: sumErrNaive / Ht,
-                maeSnaive: canSNaive ? (sumErrSNaive / Ht) : NaN,
-                coverage: inBand / Ht,
-                bias: sumBias / Ht,
-                model: { point: res.point, bands: res.bands }
-            };
-        }
-
-        // Main Execution
-        function run() {
-            document.getElementById('runstatus').innerText = "";
-            document.getElementById('verdict').innerText = "";
-            document.getElementById('fcnotes').innerText = "";
-            document.getElementById('fctable').querySelector('tbody').innerHTML = "";
-            document.getElementById('checktable').querySelector('tbody').innerHTML = "";
-            var ctx = document.getElementById('chart').getContext('2d');
-            ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
-
-            var cDate = document.getElementById('c-date').value;
-            var cValue = document.getElementById('c-value').value;
-            var cPlan = document.getElementById('c-plan').value;
-            var s1 = document.getElementById('c-series').value;
-            var s2 = document.getElementById('c-series2').value;
-            var targetSeries = document.getElementById('series').value;
-
-            var horizIn = parseInt(document.getElementById('horizon').value, 10) || 8;
-            var m = parseInt(document.getElementById('season').value, 10) || 0;
-            var holdoutIn = parseInt(document.getElementById('holdout').value, 10) || 6;
-            var optUsePlan = document.getElementById('useplan').value === "yes";
-            var usePlan = optUsePlan && cPlan !== "(none)";
-
-            var rows = [];
-            parsedData.data.forEach(row => {
-                var p1 = s1 !== "(none)" ? row[s1] : "";
-                var p2 = s2 !== "(none)" ? row[s2] : "";
-                var key = p1;
-                if (p2) key = key ? key + " / " + p2 : p2;
-                if (!key) key = "All";
-                if (key === targetSeries) {
-                    var dt = parseDateToUTC(row[cDate]);
-                    if (!isNaN(dt)) {
-                        var v = parseFloat(row[cValue]);
-                        var p = cPlan !== "(none)" ? parseFloat(row[cPlan]) : NaN;
-                        rows.push({ dt: dt, val: v, plan: p, rawDate: row[cDate] });
-                    }
-                }
-            });
-
-            var allDatesValid = rows.length > 0 && rows.every(r => !isNaN(r.dt));
-            if (allDatesValid) rows.sort((a, b) => a.dt - b.dt);
-
-            var actuals = [], future = [];
-            rows.forEach(r => {
-                if (!isNaN(r.val)) actuals.push(r);
-                else if (!isNaN(r.plan)) future.push(r);
-            });
-
-            if (actuals.length < 6) {
-                document.getElementById('runstatus').innerText = "This series has " + actuals.length + " weeks of actuals; six is the least the model can work with.";
-                return;
-            }
-
-            var y = actuals.map(r => r.val);
-            var plan = actuals.map(r => r.plan);
-            var planFuture = future.map(r => r.plan);
-            var H = planFuture.length > 0 ? planFuture.length : horizIn;
-
-            var futureLabels = [];
-            if (future.length > 0) {
-                futureLabels = future.map(r => formatDateUTC(r.dt) || r.rawDate);
-            } else {
-                var lastDt = actuals[actuals.length - 1].dt;
-                for (var i = 1; i <= H; i++) {
-                    futureLabels.push(formatDateUTC(lastDt + i * 7 * 86400000));
-                }
-            }
-
-            var check = holdoutCheck(y, plan, planFuture, m, H, holdoutIn, usePlan);
-            var res = forecastSeries(y, plan, planFuture, m, H, usePlan);
-
-            var notes = [];
-            var rstat = "Fitted " + y.length + " weeks. Weights: a=" + res.fit.a + " b=" + res.fit.b;
-            if (res.fit.seasonal) rstat += " g=" + res.fit.g;
-            rstat += " phi=" + res.fit.phi + ". ";
-            if (res.reg) {
-                rstat += "Regression: charged = " + res.reg.a.toFixed(2) + " + " + res.reg.b.toFixed(2) + " x planned. ";
-            }
-            rstat += "Horizon: " + H + " weeks.";
-            document.getElementById('runstatus').innerText = rstat;
-
-            if (res.notePlanCarried) notes.push("Note: The future plan ran out before the horizon; the last known plan was carried forward.");
-
-            FC = {
-                series: targetSeries,
-                m: m,
-                usePlan: res.reg !== null,
-                H: H,
-                fit: res.fit,
-                reg: res.reg,
-                point: res.point,
-                bands: res.bands,
-                futureLabels: futureLabels,
-                planUsed: res.planUsed,
-                check: check,
-                notes: notes
-            };
-
-            if (notes.length > 0) document.getElementById('fcnotes').innerText = notes.join(" ");
-
-            drawForecastTable();
-            drawCheckTable(check);
-            drawChart(actuals, futureLabels, res, check);
-            exportCSV();
-        }
-
-        function drawForecastTable() {
-            var tbody = document.getElementById('fctable').querySelector('tbody');
-            for (var i = 0; i < FC.H; i++) {
-                var tr = document.createElement('tr');
-                var b = FC.bands[i];
-                var p = FC.planUsed[i];
-                var pStr = isNaN(p) ? "" : p.toFixed(1);
-                tr.innerHTML = "<td>" + FC.futureLabels[i] + "</td>" +
-                               "<td>" + pStr + "</td>" +
-                               "<td>" + b.p10.toFixed(1) + "</td>" +
-                               "<td>" + b.p50.toFixed(1) + "</td>" +
-                               "<td>" + b.p90.toFixed(1) + "</td>" +
-                               "<td>" + b.basis + "</td>";
-                tbody.appendChild(tr);
-            }
-        }
-
-        function drawCheckTable(check) {
-            var vbox = document.getElementById('verdict');
-            var tbody = document.getElementById('checktable').querySelector('tbody');
-            if (!check.ok) {
-                vbox.innerText = "Honesty check could not run: " + check.reason + ".";
-                return;
-            }
-
-            var ratio = check.maeModel / check.maeNaive;
-            var vText = "";
-            if (ratio < 0.9) vText = "The model beats \"same as last week\" on the hidden " + check.Ht + " weeks. ";
-            else if (ratio <= 1.1) vText = "The model and \"same as last week\" miss the hidden " + check.Ht + " weeks by about the same. ";
-            else vText = "\"Same as last week\" beats the model on the hidden " + check.Ht + " weeks. ";
-
-            var covPct = Math.round(check.coverage * 100);
-            vText += covPct + " percent of the hidden weeks fell inside p10 to p90 (80 is the target). ";
-
-            if (covPct < 70) vText += "The band is too narrow. ";
-            else if (covPct > 90) vText += "The band is too wide. ";
-            else vText += "The band is honest. ";
-
-            if (check.bias > 5) vText += "The forecast ran high.";
-            else if (check.bias < -5) vText += "The forecast ran low.";
-
-            vbox.innerText = vText;
-
-            function addRow(label, val) {
-                var tr = document.createElement('tr');
-                tr.innerHTML = "<td>" + label + "</td><td>" + val + "</td>";
-                tbody.appendChild(tr);
-            }
-            addRow("Model miss (avg abs)", check.maeModel.toFixed(1));
-            addRow("\"Same as last week\" miss", check.maeNaive.toFixed(1));
-            addRow("\"Same as last season\" miss", isNaN(check.maeSnaive) ? "none" : check.maeSnaive.toFixed(1));
-            addRow("Ratio (Model / Naive)", ratio.toFixed(2));
-            addRow("Coverage", covPct + "%");
-
-            for (var i = 0; i < check.Ht; i++) {
-                var act = check.yHold[i];
-                var fcast = check.model.point[i];
-                var b = check.model.bands[i];
-                var inside = (act >= b.p10 && act <= b.p90) ? "inside" : "outside";
-                addRow("Week " + (i+1) + " (act, fc, band)", act.toFixed(1) + ", " + fcast.toFixed(1) + ", " + inside);
-            }
-        }
-
-        function drawChart(actuals, fLabels, res, check) {
-            var canvas = document.getElementById('chart');
-            var ctx = canvas.getContext('2d');
-            var w = canvas.clientWidth;
-            var h = 300;
-            canvas.width = w; canvas.height = h;
-
-            var y = actuals.map(r => r.val);
-            var plan = actuals.map(r => r.plan);
-            var nA = y.length;
-            var nF = res.point.length;
-            var totalN = nA + nF;
-
-            var maxV = 0;
-            for (var i = 0; i < nA; i++) {
-                if (y[i] > maxV) maxV = y[i];
-                if (!isNaN(plan[i]) && plan[i] > maxV) maxV = plan[i];
-            }
-            for (var i = 0; i < nF; i++) {
-                if (res.bands[i].p90 > maxV) maxV = res.bands[i].p90;
-                var pu = res.planUsed[i];
-                if (!isNaN(pu) && pu > maxV) maxV = pu;
-            }
-            maxV = maxV * 1.1 || 10;
-
-            var padL = 40, padR = 20, padT = 20, padB = 40;
-            var plotW = w - padL - padR;
-            var plotH = h - padT - padB;
-
-            function getX(idx) { return padL + (idx / Math.max(1, totalN - 1)) * plotW; }
-            function getY(val) { return padT + plotH - (val / maxV) * plotH; }
-
-            ctx.fillStyle = getComputedStyle(document.body).getPropertyValue('--bg').trim();
-            ctx.fillRect(0, 0, w, h);
-
-            // Axes
-            ctx.beginPath();
-            ctx.strokeStyle = getComputedStyle(document.body).getPropertyValue('--border').trim();
-            ctx.moveTo(padL, padT); ctx.lineTo(padL, padT + plotH); ctx.lineTo(padL + plotW, padT + plotH);
-            ctx.stroke();
-
-            ctx.fillStyle = getComputedStyle(document.body).getPropertyValue('--fg').trim();
-            ctx.textAlign = "right"; ctx.textBaseline = "middle"; ctx.font = "12px sans-serif";
-            var ticks = 5;
-            for (var i = 0; i <= ticks; i++) {
-                var v = maxV * (i / ticks);
-                var yy = getY(v);
-                ctx.fillText(Math.round(v), padL - 5, yy);
-            }
-            ctx.textAlign = "center"; ctx.textBaseline = "top";
-            ctx.fillText(actuals[0].rawDate, getX(0), padT + plotH + 5);
-            ctx.fillText(fLabels[fLabels.length-1], getX(totalN-1), padT + plotH + 5);
-
-            // Band
-            var colorBand = getComputedStyle(document.body).getPropertyValue('--band').trim();
-            ctx.fillStyle = colorBand;
-            ctx.beginPath();
-            ctx.moveTo(getX(nA - 1), getY(y[nA - 1]));
-            for (var i = 0; i < nF; i++) ctx.lineTo(getX(nA + i), getY(res.bands[i].p90));
-            for (var i = nF - 1; i >= 0; i--) ctx.lineTo(getX(nA + i), getY(res.bands[i].p10));
-            ctx.closePath();
-            ctx.fill();
-
-            // Plan
-            var colorPlan = getComputedStyle(document.body).getPropertyValue('--plan').trim();
-            ctx.beginPath(); ctx.strokeStyle = colorPlan; ctx.setLineDash([2, 2]); ctx.lineWidth = 2;
-            var pStarted = false;
-            for (var i = 0; i < nA; i++) {
-                if (!isNaN(plan[i])) {
-                    if (!pStarted) { ctx.moveTo(getX(i), getY(plan[i])); pStarted = true; }
-                    else ctx.lineTo(getX(i), getY(plan[i]));
-                }
-            }
-            for (var i = 0; i < nF; i++) {
-                if (!isNaN(res.planUsed[i])) {
-                    if (!pStarted) { ctx.moveTo(getX(nA + i), getY(res.planUsed[i])); pStarted = true; }
-                    else ctx.lineTo(getX(nA + i), getY(res.planUsed[i]));
-                }
-            }
-            ctx.stroke(); ctx.setLineDash([]);
-
-            // P50
-            var colorAcc = getComputedStyle(document.body).getPropertyValue('--accent').trim();
-            ctx.beginPath(); ctx.strokeStyle = colorAcc; ctx.lineWidth = 2;
-            ctx.moveTo(getX(nA - 1), getY(y[nA - 1]));
-            for (var i = 0; i < nF; i++) ctx.lineTo(getX(nA + i), getY(res.bands[i].p50));
-            ctx.stroke();
-
-            // Naive (Holdout)
-            if (check.ok) {
-                var colorNaive = getComputedStyle(document.body).getPropertyValue('--naive').trim();
-                ctx.beginPath(); ctx.strokeStyle = colorNaive; ctx.setLineDash([5, 5]); ctx.lineWidth = 2;
-                var startH = nA - check.Ht;
-                ctx.moveTo(getX(startH - 1), getY(y[startH - 1]));
-                for (var i = 0; i < check.Ht; i++) ctx.lineTo(getX(startH + i), getY(check.naive[i]));
-                ctx.stroke(); ctx.setLineDash([]);
-            }
-
-            // Actuals
-            var colorFg = getComputedStyle(document.body).getPropertyValue('--fg').trim();
-            ctx.beginPath(); ctx.strokeStyle = colorFg; ctx.lineWidth = 2;
-            ctx.moveTo(getX(0), getY(y[0]));
-            for (var i = 1; i < nA; i++) ctx.lineTo(getX(i), getY(y[i]));
-            ctx.stroke();
-
-            // Vert Line
-            ctx.beginPath(); ctx.strokeStyle = colorFg; ctx.setLineDash([2, 4]); ctx.lineWidth = 1;
-            ctx.moveTo(getX(nA - 1), padT); ctx.lineTo(getX(nA - 1), padT + plotH);
-            ctx.stroke(); ctx.setLineDash([]);
-
-            // Legend
-            var legX = padL + 10, legY = padT + 10;
-            ctx.textAlign = "left"; ctx.textBaseline = "middle";
-            function leg(color, text, dash) {
-                ctx.beginPath(); ctx.strokeStyle = color; ctx.lineWidth = 2;
-                if (dash) ctx.setLineDash(dash); else ctx.setLineDash([]);
-                ctx.moveTo(legX, legY); ctx.lineTo(legX + 20, legY); ctx.stroke(); ctx.setLineDash([]);
-                ctx.fillStyle = colorFg; ctx.fillText(text, legX + 25, legY);
-                legY += 15;
-            }
-            leg(colorFg, "Actuals");
-            leg(colorAcc, "p50 Forecast");
-            leg(colorPlan, "Plan", [2, 2]);
-            if (check.ok) leg(colorNaive, "Naive (Holdout)", [5, 5]);
-            ctx.fillStyle = colorBand; ctx.fillRect(legX, legY - 5, 20, 10);
-            ctx.fillStyle = colorFg; ctx.fillText("p10 - p90 Band", legX + 25, legY);
-        }
-
-        function safeCSV(val) {
-            if (val == null || isNaN(val) && typeof val === 'number') return "";
-            var s = String(val);
-            if (/^[=+\-@]/.test(s) && isNaN(parseFloat(s))) s = "'" + s;
-            if (s.indexOf(',') !== -1 || s.indexOf('"') !== -1 || s.indexOf('\n') !== -1) {
-                s = '"' + s.replace(/"/g, '""') + '"';
-            }
-            return s;
-        }
-
-        function exportCSV() {
-            var modelStr = FC.fit.seasonal ? "holt-winters m=" + FC.m : "holt";
-            modelStr += " a=" + FC.fit.a + " b=" + FC.fit.b;
-            if (FC.fit.seasonal) modelStr += " g=" + FC.fit.g;
-            modelStr += " phi=" + FC.fit.phi;
-            if (FC.usePlan) modelStr += " with plan";
-
-            var lines = [];
-            lines.push(["series", "week", "plan", "p10", "p50", "p90", "band_basis", "model"].join(","));
-
-            for (var i = 0; i < FC.H; i++) {
-                var row = [
-                    safeCSV(FC.series),
-                    safeCSV(FC.futureLabels[i]),
-                    safeCSV(FC.planUsed[i]),
-                    safeCSV(FC.bands[i].p10),
-                    safeCSV(FC.bands[i].p50),
-                    safeCSV(FC.bands[i].p90),
-                    safeCSV(FC.bands[i].basis),
-                    safeCSV(modelStr)
-                ];
-                lines.push(row.join(","));
-            }
-            var csvStr = lines.join("\r\n") + "\r\n";
-            document.getElementById('csvout').value = csvStr;
-            var dataUrl = "data:text/csv;charset=utf-8," + encodeURIComponent(csvStr);
-            document.getElementById('btn-download').href = dataUrl;
-        }
-
-    </script>
+      }
+    }
+  }
+  return best;
+}
+
+function backtestErrors(y, fit, H) {
+  let byH = [];
+  for (let h = 0; h <= H; h++) byH.push([]);
+  let seasonal = fit.seasonal;
+  let startOrigin = Math.max(seasonal ? 2 * fit.m : 3, 3);
+
+  for (let t = startOrigin; t <= y.length - 2; t++) {
+    let state = fit.states[t];
+    let maxK = Math.min(H, y.length - 1 - t);
+    for (let k = 1; k <= maxK; k++) {
+      let fc = hwForecast(state, fit, k);
+      byH[k].push(y[t + k] - fc);
+    }
+  }
+  return byH;
+}
+
+function bands(point, byH, oneStepErrors) {
+  let res = [];
+  let nOneStep = oneStepErrors.length;
+  let sumSq = 0;
+  for (let i = 0; i < nOneStep; i++) sumSq += oneStepErrors[i] * oneStepErrors[i];
+  let sd = nOneStep > 1 ? Math.sqrt(sumSq / (nOneStep - 1)) : 0;
+
+  for (let h = 1; h < byH.length; h++) {
+    let errs = byH[h].slice().sort((a, b) => a - b);
+    let p10, p50, p90, basis;
+    if (errs.length >= 10) {
+      let idx10 = (errs.length - 1) * 0.1;
+      let idx90 = (errs.length - 1) * 0.9;
+      let getP = (idx) => {
+        let low = Math.floor(idx);
+        let high = Math.ceil(idx);
+        if (low === high) return errs[low];
+        return errs[low] + (idx - low) * (errs[high] - errs[low]);
+      };
+      p10 = point[h - 1] + getP(idx10);
+      p90 = point[h - 1] + getP(idx90);
+      p50 = point[h - 1];
+      basis = "errors";
+    } else {
+      let margin = 1.2816 * sd * Math.sqrt(h);
+      p10 = point[h - 1] - margin;
+      p90 = point[h - 1] + margin;
+      p50 = point[h - 1];
+      basis = "normal";
+    }
+    res.push({
+      p10: Math.max(0, p10),
+      p50: Math.max(0, p50),
+      p90: Math.max(0, p90),
+      basis: basis,
+      n: errs.length
+    });
+  }
+  return res;
+}
+
+function forecastSeries(y, plan, planFuture, m, H, usePlan) {
+  let reg = null;
+  let target = y.slice();
+
+  if (usePlan && plan) {
+    reg = ols(y, plan);
+    if (reg) {
+      for (let i = 0; i < y.length; i++) {
+        let p = plan[i];
+        let pVal = (typeof p === 'number' && !isNaN(p)) ? p : 0;
+        target[i] = y[i] - (reg.a + reg.b * pVal);
+      }
+    }
+  }
+
+  let best = gridSearch(target, m);
+  if (!best) return null;
+  let fit = hwFit(target, m, best.a, best.b, best.g, best.phi);
+  let bErrs = backtestErrors(target, fit, H);
+
+  let point = [];
+  let lastState = fit.states[fit.states.length - 1];
+  for (let h = 1; h <= H; h++) {
+    let fc = hwForecast(lastState, fit, h);
+    if (reg) {
+      let pFuture = planFuture[h - 1];
+      let pVal = (typeof pFuture === 'number' && !isNaN(pFuture)) ? pFuture : 0;
+      fc += reg.a + reg.b * pVal;
+    }
+    point.push(fc);
+  }
+
+  let startIdx = fit.seasonal ? m : 1;
+  let oneStep = fit.errors.slice(startIdx);
+  let bds = bands(point, bErrs, oneStep);
+
+  return {fit: fit, reg: reg, point: point, bands: bds};
+}
+
+function holdoutCheck(y, plan, m, Ht, usePlanSet) {
+  if (y.length - Ht < 6) return {ok: false, reason: "Too few weeks to fit (" + (y.length - Ht) + ")"};
+  let yTrain = y.slice(0, y.length - Ht);
+  let planTrain = plan ? plan.slice(0, y.length - Ht) : null;
+  let planHoldout = plan ? plan.slice(y.length - Ht, y.length) : null;
+
+  let res = forecastSeries(yTrain, planTrain, planHoldout, m, Ht, usePlanSet);
+  if (!res) return {ok: false, reason: "Grid search failed"};
+
+  let yHold = y.slice(y.length - Ht, y.length);
+  let naive = [];
+  let lastActual = yTrain[yTrain.length - 1];
+  for (let i = 0; i < Ht; i++) naive.push(lastActual);
+
+  let snaive = [];
+  let doSnaive = m > 1 && yTrain.length >= m;
+  if (doSnaive) {
+    for (let i = 0; i < Ht; i++) {
+      let sIdx = yTrain.length - m + (i % m);
+      snaive.push(yTrain[sIdx]);
+    }
+  }
+
+  let maeModel = 0, maeNaive = 0, maeSnaive = 0;
+  let biasSum = 0;
+  let inBand = 0;
+
+  for (let i = 0; i < Ht; i++) {
+    let act = yHold[i];
+    maeModel += Math.abs(act - res.point[i]);
+    maeNaive += Math.abs(act - naive[i]);
+    if (doSnaive) maeSnaive += Math.abs(act - snaive[i]);
+    biasSum += (res.point[i] - act);
+
+    let b = res.bands[i];
+    if (act >= b.p10 && act <= b.p90) inBand++;
+  }
+
+  maeModel /= Ht;
+  maeNaive /= Ht;
+  if (doSnaive) maeSnaive /= Ht;
+  let bias = biasSum / Ht;
+  let coverage = inBand / Ht;
+
+  return {
+    ok: true,
+    Ht: Ht,
+    fitLen: yTrain.length,
+    yHold: yHold,
+    naive: naive,
+    maeModel: maeModel,
+    maeNaive: maeNaive,
+    maeSnaive: doSnaive ? maeSnaive : NaN,
+    coverage: coverage,
+    bias: bias,
+    model: res
+  };
+}
+
+function run() {
+  let s1 = document.getElementById('c-series').value;
+  let s2 = document.getElementById('c-series2').value;
+  let tSeries = document.getElementById('series').value;
+  let cDate = document.getElementById('c-date').value;
+  let cValue = document.getElementById('c-value').value;
+  let cPlan = document.getElementById('c-plan').value;
+
+  let m = parseInt(document.getElementById('season').value, 10) || 0;
+  let paramH = parseInt(document.getElementById('horizon').value, 10) || 8;
+  let Ht = parseInt(document.getElementById('holdout').value, 10) || 6;
+  let usePlanSet = document.getElementById('useplan').value === 'yes';
+
+  let rows = [];
+  parsedData.forEach(r => {
+    let parts = [];
+    if (s1 && r[s1]) parts.push(r[s1]);
+    if (s2 && r[s2]) parts.push(r[s2]);
+    let key = parts.join(" / ");
+    if (key === tSeries) rows.push(r);
+  });
+
+  let actualRows = [];
+  let futureRows = [];
+  let lastActualMs = NaN;
+
+  rows.forEach(r => {
+    let v = parseFloat(r[cValue]);
+    let p = cPlan ? parseFloat(r[cPlan]) : NaN;
+    if (!isNaN(v)) {
+      actualRows.push({v: v, p: p, ms: r._ms, rawDate: r[cDate]});
+      if (!isNaN(r._ms)) lastActualMs = Math.max(lastActualMs || r._ms, r._ms);
+    } else if (cPlan && !isNaN(p)) {
+      futureRows.push({p: p, ms: r._ms, rawDate: r[cDate]});
+    }
+  });
+
+  if (actualRows.length < 6) {
+    document.getElementById('runstatus').textContent = "This series has " + actualRows.length + " weeks of actuals; six is the least the model can work with.";
+    return;
+  }
+
+  let y = actualRows.map(r => r.v);
+  let plan = cPlan ? actualRows.map(r => r.p) : null;
+  let H = futureRows.length > 0 ? futureRows.length : paramH;
+
+  let planFuture = [];
+  let futureLabels = [];
+  let planUsed = [];
+  let notes = [];
+
+  let lastKnownPlan = plan && plan.length > 0 ? plan[plan.length - 1] : NaN;
+
+  for (let i = 0; i < H; i++) {
+    if (i < futureRows.length) {
+      planFuture.push(futureRows[i].p);
+      futureLabels.push(futureRows[i].rawDate || formatDateUTC(futureRows[i].ms));
+      planUsed.push(futureRows[i].p);
+    } else {
+      planFuture.push(lastKnownPlan);
+      planUsed.push(lastKnownPlan);
+      let dStr = "Future+" + (i + 1);
+      if (!isNaN(lastActualMs)) {
+        let step = futureRows.length > 0 && !isNaN(futureRows[futureRows.length - 1].ms) ? futureRows[futureRows.length - 1].ms : lastActualMs;
+        let diff = (i - futureRows.length + 1) * 7 * 86400000;
+        dStr = formatDateUTC(step + diff);
+      }
+      futureLabels.push(dStr);
+    }
+  }
+
+  if (futureRows.length > 0 && H > futureRows.length) {
+    notes.push("Plan ran out after " + futureRows.length + " weeks; last known plan carried forward.");
+  }
+
+  let usePlan = false;
+  if (usePlanSet && cPlan && plan && plan.some(p => !isNaN(p))) usePlan = true;
+
+  let modelRes = forecastSeries(y, plan, planFuture, m, H, usePlan);
+  if (!modelRes) {
+    document.getElementById('runstatus').textContent = "Forecast model failed to fit.";
+    return;
+  }
+
+  let check = holdoutCheck(y, plan, m, Ht, usePlan);
+
+  FC = {
+    series: tSeries,
+    m: m,
+    usePlan: usePlan && modelRes.reg !== null,
+    H: H,
+    fit: {
+      a: modelRes.fit.a,
+      b: modelRes.fit.b,
+      g: modelRes.fit.g,
+      phi: modelRes.fit.phi,
+      seasonal: modelRes.fit.seasonal
+    },
+    reg: modelRes.reg,
+    point: modelRes.point,
+    bands: modelRes.bands,
+    futureLabels: futureLabels,
+    planUsed: planUsed,
+    check: check,
+    notes: notes
+  };
+
+  let statTxt = "Fitted " + y.length + " weeks. Weights: a=" + FC.fit.a + ", b=" + FC.fit.b;
+  if (FC.fit.seasonal) statTxt += ", g=" + FC.fit.g;
+  statTxt += ", phi=" + FC.fit.phi + ". Horizon: " + H + " weeks.";
+  if (FC.usePlan && FC.reg) {
+    statTxt += " Regression: " + cValue + " = " + FC.reg.a.toFixed(2) + " + " + FC.reg.b.toFixed(2) + " x " + cPlan + ".";
+  }
+  document.getElementById('runstatus').textContent = statTxt;
+
+  document.getElementById('fcnotes').innerHTML = FC.notes.join("<br>");
+
+  let tbody = document.querySelector('#fctable tbody');
+  tbody.innerHTML = "";
+  for (let h = 0; h < FC.H; h++) {
+    let tr = document.createElement('tr');
+    let tdW = document.createElement('td'); tdW.textContent = FC.futureLabels[h];
+    let tdPl = document.createElement('td'); tdPl.textContent = isNaN(FC.planUsed[h]) ? "" : FC.planUsed[h].toFixed(1);
+    let tdP10 = document.createElement('td'); tdP10.textContent = FC.bands[h].p10.toFixed(1);
+    let tdP50 = document.createElement('td'); tdP50.textContent = FC.bands[h].p50.toFixed(1);
+    let tdP90 = document.createElement('td'); tdP90.textContent = FC.bands[h].p90.toFixed(1);
+    let tdBas = document.createElement('td'); tdBas.textContent = FC.bands[h].basis;
+    tr.appendChild(tdW); tr.appendChild(tdPl); tr.appendChild(tdP10); tr.appendChild(tdP50); tr.appendChild(tdP90); tr.appendChild(tdBas);
+    tbody.appendChild(tr);
+  }
+
+  let verd = document.getElementById('verdict');
+  let cthead = document.querySelector('#checktable thead');
+  let ctbody = document.querySelector('#checktable tbody');
+  cthead.innerHTML = "";
+  ctbody.innerHTML = "";
+
+  if (!check.ok) {
+    verd.textContent = "Honesty check could not run: " + check.reason;
+    verd.style.borderLeftColor = "var(--danger)";
+  } else {
+    let ratio = check.maeNaive > 0 ? check.maeModel / check.maeNaive : 999;
+    let txt = "";
+    if (ratio < 0.9) txt = "The model beats \"same as last week\" on the hidden " + check.Ht + " weeks. ";
+    else if (ratio <= 1.1) txt = "The model and \"same as last week\" miss the hidden " + check.Ht + " weeks by about the same. ";
+    else txt = "\"Same as last week\" beats the model on the hidden " + check.Ht + " weeks. ";
+
+    txt += Math.round(check.coverage * 100) + " percent of the hidden weeks fell inside p10 to p90 (80 is the target). ";
+
+    let cov = check.coverage;
+    if (cov >= 0.7 && cov <= 0.9) txt += "The band is honest. ";
+    else if (cov < 0.7) txt += "The band is too narrow. ";
+    else txt += "The band is too wide. ";
+
+    if (check.bias > 0.01) txt += "The forecast ran high.";
+    else if (check.bias < -0.01) txt += "The forecast ran low.";
+
+    verd.textContent = txt;
+    if (ratio > 1.1 || cov < 0.7) verd.style.borderLeftColor = "var(--danger)";
+    else verd.style.borderLeftColor = "var(--ok)";
+
+    let hTr = document.createElement('tr');
+    hTr.innerHTML = "<th>Metric</th><th>Value</th>";
+    cthead.appendChild(hTr);
+
+    let metrics = [
+      ["Model miss", check.maeModel.toFixed(1)],
+      ["Same as last week miss", check.maeNaive.toFixed(1)],
+      ["Same as last season miss", isNaN(check.maeSnaive) ? "none" : check.maeSnaive.toFixed(1)],
+      ["Ratio", ratio.toFixed(2)],
+      ["Coverage", (check.coverage * 100).toFixed(0) + "%"]
+    ];
+    metrics.forEach(m => {
+      let tr = document.createElement('tr');
+      tr.innerHTML = "<td>" + m[0] + "</td><td>" + m[1] + "</td>";
+      ctbody.appendChild(tr);
+    });
+
+    let trSep = document.createElement('tr');
+    trSep.innerHTML = "<th colspan='2' style='text-align:center;'>Hidden Weeks Details</th>";
+    ctbody.appendChild(trSep);
+
+    for (let i = 0; i < check.Ht; i++) {
+      let act = check.yHold[i];
+      let fcast = check.model.point[i];
+      let b = check.model.bands[i];
+      let ins = (act >= b.p10 && act <= b.p90) ? "inside" : "outside";
+      let dLabel = actualRows[actualRows.length - check.Ht + i].rawDate;
+      let valStr = "Act " + act.toFixed(1) + ", Fc " + fcast.toFixed(1) + " (" + ins + ")";
+      let tr = document.createElement('tr');
+      tr.innerHTML = "<td>" + dLabel + "</td><td>" + valStr + "</td>";
+      ctbody.appendChild(tr);
+    }
+  }
+
+  drawChart(y, plan, actualRows);
+  generateCSV();
+}
+
+function drawChart(y, plan, actualRows) {
+  let canvas = document.getElementById('chart');
+  let ctx = canvas.getContext('2d');
+  let w = canvas.width = canvas.clientWidth;
+  let h = canvas.height = canvas.clientHeight;
+  ctx.clearRect(0, 0, w, h);
+
+  let style = getComputedStyle(document.body);
+  let cText = style.getPropertyValue('--text').trim();
+  let cBorder = style.getPropertyValue('--border').trim();
+  let cAccent = style.getPropertyValue('--accent').trim();
+  let cBand = style.getPropertyValue('--band').trim();
+  let cPlan = style.getPropertyValue('--plan').trim();
+  let cNaive = style.getPropertyValue('--naive').trim();
+
+  let allY = y.slice();
+  if (plan) plan.forEach(p => { if(!isNaN(p)) allY.push(p); });
+  FC.bands.forEach(b => { allY.push(b.p10, b.p90, b.p50); });
+  FC.planUsed.forEach(p => { if(!isNaN(p)) allY.push(p); });
+  if (FC.check.ok) {
+    FC.check.naive.forEach(n => allY.push(n));
+    FC.check.model.bands.forEach(b => { allY.push(b.p10, b.p90, b.p50); });
+  }
+
+  let minY = Math.min(...allY, 0);
+  let maxY = Math.max(...allY, 1);
+  let rangeY = maxY - minY;
+
+  let padX = 50;
+  let padY = 30;
+  let chartW = w - padX * 2;
+  let chartH = h - padY * 2;
+
+  let totalN = y.length + FC.H;
+  let dx = chartW / Math.max(totalN - 1, 1);
+
+  function getX(i) { return padX + i * dx; }
+  function getY(v) { return h - padY - ((v - minY) / rangeY) * chartH; }
+
+  ctx.strokeStyle = cBorder;
+  ctx.beginPath();
+  ctx.moveTo(padX, padY);
+  ctx.lineTo(padX, h - padY);
+  ctx.lineTo(w - padX, h - padY);
+  ctx.stroke();
+
+  ctx.fillStyle = cText;
+  ctx.font = "12px sans-serif";
+  ctx.textAlign = "right";
+  ctx.fillText(minY.toFixed(0), padX - 5, h - padY);
+  ctx.fillText(maxY.toFixed(0), padX - 5, padY + 5);
+  ctx.fillText(((minY + maxY) / 2).toFixed(0), padX - 5, padY + chartH / 2 + 5);
+
+  ctx.textAlign = "center";
+  let step = Math.ceil(totalN / 10);
+  for (let i = 0; i < totalN; i += step) {
+    let lbl = i < y.length ? actualRows[i].rawDate : FC.futureLabels[i - y.length];
+    ctx.fillText(lbl, getX(i), h - padY + 15);
+  }
+
+  let fcStart = y.length - 1;
+  ctx.beginPath();
+  ctx.strokeStyle = cBorder;
+  ctx.setLineDash([2, 2]);
+  ctx.moveTo(getX(fcStart), padY);
+  ctx.lineTo(getX(fcStart), h - padY);
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  if (plan && plan.length > 0) {
+    ctx.beginPath();
+    ctx.strokeStyle = cPlan;
+    ctx.setLineDash([4, 4]);
+    let started = false;
+    for (let i = 0; i < totalN; i++) {
+      let pv = i < y.length ? plan[i] : FC.planUsed[i - y.length];
+      if (isNaN(pv)) continue;
+      if (!started) { ctx.moveTo(getX(i), getY(pv)); started = true; }
+      else { ctx.lineTo(getX(i), getY(pv)); }
+    }
+    ctx.stroke();
+    ctx.setLineDash([]);
+  }
+
+  if (FC.check.ok) {
+    let holdStart = FC.check.fitLen;
+
+    ctx.fillStyle = cBand;
+    ctx.beginPath();
+    let startedB = false;
+    for (let i = 0; i < FC.check.Ht; i++) {
+      let b = FC.check.model.bands[i];
+      let xi = holdStart + i;
+      if (!startedB) { ctx.moveTo(getX(xi), getY(b.p90)); startedB = true; }
+      else ctx.lineTo(getX(xi), getY(b.p90));
+    }
+    for (let i = FC.check.Ht - 1; i >= 0; i--) {
+      ctx.lineTo(getX(holdStart + i), getY(FC.check.model.bands[i].p10));
+    }
+    ctx.fill();
+
+    ctx.beginPath();
+    ctx.strokeStyle = cAccent;
+    startedB = false;
+    for (let i = 0; i < FC.check.Ht; i++) {
+      let xi = holdStart + i;
+      let fv = FC.check.model.bands[i].p50;
+      if (!startedB) { ctx.moveTo(getX(xi), getY(fv)); startedB = true; }
+      else ctx.lineTo(getX(xi), getY(fv));
+    }
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.strokeStyle = cNaive;
+    ctx.setLineDash([5, 5]);
+    ctx.moveTo(getX(holdStart - 1), getY(FC.check.naive[0]));
+    for (let i = 0; i < FC.check.Ht; i++) {
+      ctx.lineTo(getX(holdStart + i), getY(FC.check.naive[i]));
+    }
+    ctx.stroke();
+    ctx.setLineDash([]);
+  }
+
+  ctx.fillStyle = cBand;
+  ctx.beginPath();
+  ctx.moveTo(getX(fcStart), getY(y[fcStart]));
+  for (let i = 0; i < FC.H; i++) {
+    ctx.lineTo(getX(fcStart + 1 + i), getY(FC.bands[i].p90));
+  }
+  for (let i = FC.H - 1; i >= 0; i--) {
+    ctx.lineTo(getX(fcStart + 1 + i), getY(FC.bands[i].p10));
+  }
+  ctx.lineTo(getX(fcStart), getY(y[fcStart]));
+  ctx.fill();
+
+  ctx.beginPath();
+  ctx.strokeStyle = cAccent;
+  ctx.moveTo(getX(fcStart), getY(y[fcStart]));
+  for (let i = 0; i < FC.H; i++) {
+    ctx.lineTo(getX(fcStart + 1 + i), getY(FC.bands[i].p50));
+  }
+  ctx.stroke();
+
+  ctx.beginPath();
+  ctx.strokeStyle = cText;
+  ctx.moveTo(getX(0), getY(y[0]));
+  for (let i = 1; i < y.length; i++) {
+    ctx.lineTo(getX(i), getY(y[i]));
+  }
+  ctx.stroke();
+}
+
+function generateCSV() {
+  let lines = [];
+  lines.push("series,week,plan,p10,p50,p90,band_basis,model");
+  let modStr = FC.fit.seasonal ? "holt-winters m=" + FC.m : "holt";
+  modStr += " a=" + FC.fit.a + " b=" + FC.fit.b;
+  if (FC.fit.seasonal) modStr += " g=" + FC.fit.g;
+  modStr += " p=" + FC.fit.phi;
+  if (FC.usePlan) modStr += " with plan";
+
+  for (let h = 0; h < FC.H; h++) {
+    let row = [
+      FC.series,
+      FC.futureLabels[h],
+      isNaN(FC.planUsed[h]) ? "" : FC.planUsed[h].toFixed(2),
+      FC.bands[h].p10.toFixed(2),
+      FC.bands[h].p50.toFixed(2),
+      FC.bands[h].p90.toFixed(2),
+      FC.bands[h].basis,
+      modStr
+    ];
+    lines.push(row.map(writeCSVCell).join(','));
+  }
+  let txt = lines.join('\r\n');
+  document.getElementById('csvout').value = txt;
+  let b64 = "data:text/csv;charset=utf-8," + encodeURIComponent(txt);
+  document.getElementById('btn-download').href = b64;
+}
+
+document.getElementById('file').addEventListener('change', (e) => {
+  let f = e.target.files[0];
+  if (!f) return;
+  let reader = new FileReader();
+  reader.onload = (ev) => {
+    document.getElementById('csvin').value = ev.target.result;
+    loadDataText(ev.target.result);
+  };
+  reader.readAsText(f);
+});
+
+document.getElementById('csvin').addEventListener('input', (e) => {
+  loadDataText(e.target.value);
+});
+
+document.getElementById('btn-sample').addEventListener('click', () => {
+  document.getElementById('csvin').value = SAMPLE_CSV;
+  loadDataText(SAMPLE_CSV);
+});
+
+['c-date', 'c-value', 'c-plan', 'c-series', 'c-series2'].forEach(id => {
+  document.getElementById(id).addEventListener('change', () => {
+    updateSeriesDropdown();
+  });
+});
+
+document.getElementById('btn-run').addEventListener('click', () => {
+  run();
+});
+
+document.getElementById('btn-copy').addEventListener('click', () => {
+  let ta = document.getElementById('csvout');
+  ta.select();
+  document.execCommand('copy');
+});
+
+</script>
 </body>
 </html>

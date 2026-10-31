@@ -1,6 +1,18 @@
 # Build guide: the estimator and the Resource Map, from prompts, inside GenAI.mil
 
-Version 0.11, 2026-10-27 (v0.1 to v0.10 kept in the private source). v0.11: a sixth prompt file for the estimator,
+Version 0.12, 2026-10-31 (v0.1 to v0.11 kept in the private source). v0.12: the edge-case round. A set of made-up nasty
+inputs (byte-order marks, CRLF, quoted line breaks, a two-byte character astride a 4 MB slice, headers and values named
+constructor or __proto__, merged cells, every date shape, header-only and empty files, names that differ only by case)
+was run against every tool's build, and eight faults were pinned in the series texts, each regenerated and retested
+the same way as before: the estimator's matcher no longer crashes on the word constructor (its series at v0.8, which
+also names a file it could not place and keeps a column named __proto__); the batch, dictionary and Resource Map
+readers decode their slices in streaming mode so a two-byte character astride a boundary reads whole, and the two
+estimator readers carry their parser state across a slice end so a doubled quote or a CR LF pair astride one survives
+(batch v0.10, dictionary v0.3, Resource Map v0.7, large v0.2); the forecast page keeps a week whose date it could not read and says
+so (v0.2); the workbook reader counts duplicate headers in a Map (converter v0.3, direct-workbook series v0.3) and the
+converter numbers file names that match without regard to case; the Resource Map folds case and spaces in shop and
+project names and the leveler inherits that. Nothing in the build steps changes: the same prompts in the same order.
+v0.11: a sixth prompt file for the estimator,
 `GENAI-PROMPTS-estimator-large.md` (Prompt L1): when the tasks export is huge (the owner's came out of the converter
 at 1.2 GB), one block pasted last rolls it up while it streams to one row per job summary, phase and shop, so the page
 never holds one object per task; nothing else in the build changes. v0.10: the converter page (its series at v0.2)

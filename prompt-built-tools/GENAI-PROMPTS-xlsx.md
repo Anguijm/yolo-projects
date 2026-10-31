@@ -1,6 +1,8 @@
 # Prompts X: read Excel workbooks directly (no CSV step)
 
-Version 0.2, 2026-10-22 (v0.1 kept in the private source; v0.2 answers the review of PR 54: a time or elapsed-time format such as [h]:mm was read as a date; now date styles and time styles are told apart, and a time-styled cell comes out as decimal hours). The owner's question: "For the inputs can we process in the .xlsx and output the CSV
+Version 0.3, 2026-10-31 (v0.1 and v0.2 kept in the private source; v0.3 carries the same sheetToTable fix as the
+converter series v0.3, from the edge-case tests of 2026-10-31: duplicate headers counted in a Map, row objects from
+Object.create(null); v0.2 answers the review of PR 54: a time or elapsed-time format such as [h]:mm was read as a date; now date styles and time styles are told apart, and a time-styled cell comes out as decimal hours). The owner's question: "For the inputs can we process in the .xlsx and output the CSV
 in js in the html file?" Answer: yes. An .xlsx file is a zip of XML parts, and a browser can open both
 without a library: DecompressionStream("deflate-raw") unpacks the zip entries and DOMParser reads the XML.
 FACT (MDN browser-compat-data, read 2026-10-22): DecompressionStream accepts "deflate-raw" from Chrome 103
@@ -51,9 +53,12 @@ Functions to write, with these exact names and shapes:
    150 MB, save it as CSV".
 
 2. function sheetToTable(rows): the same row shape to {headers, data}: headers is the first row that has
-   at least two non-empty cells, trimmed; data is an array of plain objects, one per later row that has
-   at least one non-empty cell, keyed by header text (a blank header gets "col" + its 1-based column
-   number; a duplicate header gets a suffix " 2", " 3"). This is the shape the tools' CSV reader already
+   at least two non-empty cells, trimmed; data is an array of objects created with Object.create(null)
+   (never object literals: a header is free text and may read constructor or __proto__), one per later row
+   that has at least one non-empty cell, keyed by header text (a blank header gets "col" + its 1-based
+   column number; a duplicate header gets a suffix " 2", " 3", counted in a Map keyed by the header text,
+   never in a plain object, which inherits constructor and toString and turned those headers into
+   "constructor NaN" in the edge tests of 2026-10-31). This is the shape the tools' CSV reader already
    returns.
 
 3. function isWorkbookFile(file): true when the file name ends in .xlsx or .xlsm (any case).
