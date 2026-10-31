@@ -7,7 +7,8 @@ stays off. The work here is now two things:
 
 1. **Keep up with the flagships**: Markdown Deck, Naval Scribe and PDF to CSV (PDF to CSV is developed by
    hand; its source is `~/projects/pdf-to-csv`). When a flagship or repo state changes, update the README,
-   this file and the project's status.md in the same commit.
+   this file and the project's status.md in the same commit. When building or changing a flagship, follow
+   `TASTE.md`; the prompt-built work tools follow `prompt-built-tools/TASTE.md` (John's answers, accepted 2026-10-31).
 2. **Monitor the new cards** (`experiments.json`, written daily at 05:50 JST by `scripts/daily_cards.sh`,
    which opens a PR, merges it on secret-scan plus validate, and then nudges this session through `tmux -L yolo`;
    the nudge was missing from PR #46 (2026-10-21) until 2026-10-23). For each new card, judge it against John's WHOLE
