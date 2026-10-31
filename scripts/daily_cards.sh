@@ -78,14 +78,14 @@ echo "merged $URL"
 in_box() { timeout 5 tmux -L yolo capture-pane -p -t yolo 2>/dev/null | awk '/^─/{n++; buf[n]=""; next} {buf[n]=buf[n] $0} END{print buf[n-1]}' | tr -s ' ' | grep -q -F "$URL"; }
 timeout 5 tmux -L yolo capture-pane -p -t yolo > "$CACHE/nudge-before.txt" 2>/dev/null || true
 timeout 5 tmux -L yolo send-keys -t yolo -l "[automated, daily_cards.sh] New cards merged in $URL: review them per CLAUDE.md Operating mode, log verdicts in .harness/card_reviews.md, and tell John only about the ones worth doing." 2>/dev/null || true
-timeout 1 tail -f /dev/null
+timeout 1 tail -f /dev/null || true  # a timed-out wait exits 124, which set -e would treat as a failure
 timeout 5 tmux -L yolo send-keys -t yolo Enter 2>/dev/null || true
-timeout 5 tail -f /dev/null
+timeout 5 tail -f /dev/null || true  # a timed-out wait exits 124, which set -e would treat as a failure
 timeout 5 tmux -L yolo capture-pane -p -t yolo > "$CACHE/nudge-after.txt" 2>/dev/null || true
 if in_box; then
   echo "nudge still in the input box after Enter; one retry"
   timeout 5 tmux -L yolo send-keys -t yolo Enter 2>/dev/null || true
-  timeout 5 tail -f /dev/null
+  timeout 5 tail -f /dev/null || true  # a timed-out wait exits 124, which set -e would treat as a failure
   timeout 5 tmux -L yolo capture-pane -p -t yolo > "$CACHE/nudge-retry.txt" 2>/dev/null || true
   if in_box; then echo "nudge still unsent after the retry (see $CACHE/nudge-*.txt)"; else echo "nudge sent on the retry"; fi
 else
