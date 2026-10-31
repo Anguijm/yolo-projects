@@ -30,7 +30,7 @@ Updated 2026-10-24 (JST), docs refresh.
   specific to this session (remote control on; a dialog on screen at 05:52 would eat the Enter, which the test reproduced).
   Cards from PR #88 reviewed by hand. PR #90 (John: snapshot and retry) saves the pane to nudge-*.txt and retries Enter once. Root cause found 2026-10-31: under set -e the 124 exit of the
   one-second wait ended the script before every Enter since PR #81 (only nudge-before.txt was ever written); fixed in PR #95.
-  Cards from PRs #91 to #94 reviewed by hand 2026-10-31. Confirm at the 2026-11-01 run. | me
+  Cards from PRs #91 to #94 reviewed by hand 2026-10-31. Confirmed 2026-11-01: PR #99 run logged "nudge sent on the retry" (the first Enter left it in the box, the retry submitted it, and the eight stacked nudges from PRs #68 to #99 arrived as one message). The tighter card rules (PR #96) made 1 card that day. | me
 - 2026-10-26 | The 05:50 run wrote no rows.json: a second Claude in Chrome browser has been connected since 2026-10-25, and
   the reader would not pick one. Fixed in PR #86: the reader selects this Chrome by device id (`CHROME_DEVICE` in
   `scripts/daily_cards.sh`), both browsers stay connected (John's ruling via ops). Reader tested alone: 7 rows. The
