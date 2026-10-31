@@ -13,6 +13,16 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from process_experiments import OPERATOR_PROJECTS, canonicalize_card_channel  # noqa: E402
 
+# Patterns that already run here (John's ruling 2026-10-31: tighten the card writer, most cards restated these).
+IN_PLACE = """\
+- Fresh-context or second-model reviewers, blind critics, a multi-persona review council, cross-model review with a filter
+- Hard gates that stop work being called done: checks that exit non-zero, a printability gate, twin scripts that recompute every number
+- Scheduled jobs that do the work and wait for one human tap or merge; a failure guard that alerts on broken jobs
+- Digests of where sessions failed, a model-upgrade checklist, memory files and CLAUDE.md rules written by the operator
+- Loops that stop on an outcome (a blind win plus a gate) rather than running open-ended
+- Tools and skills loaded on demand rather than all at once
+- General advice: specs or intent first, small tasks, verify before claiming done, keep humans on the irreversible steps"""
+
 REPO = Path(__file__).resolve().parent.parent
 EXP = REPO / "experiments.json"
 SHORT = {"@NateBJones": "nb", "@MLOps": "mlops", "@DavidOndrej": "do", "[un]prompted": "up", "@NateHerk": "nh",
@@ -42,16 +52,23 @@ def main():
         f"published {r['published_date']} | {r['duration_min']} min | {r['format']}\nTitle: {r['video_title']}\nURL: {r['video_url']}\n"
         f"Summary: {r['summary']}\nMethods: {r['methods']}\nClaims: {r['claims']}\nDemos: {r['demos']}\nCaveats: {r['caveats']}"
         for r in new)
+    recent = "\n".join("- " + e.get("experiment", {}).get("title", "") for e in exp[-40:])
     prompt = f"""You are the Phase 4 YouTube Experiment Tracker. Generate experiment cards from these watched-video records. Each record is a factual account of what the video says, written by another assistant; base hypothesis and what_they_did on it.
 
 {block}
 
-For each video, create 1-2 experiment cards IF it contains an actionable idea for EITHER (a) an AI development system (agent workflows, harnesses, Claude Code practice) OR (b) one of the operator's projects below. Skip pure news or commentary with no actionable experiment.
+Most videos should get NO card. Create at most ONE card per video, and only when it holds an idea that is both new here and concrete enough to try in a day or two with what the operator already has. Skip news, commentary and opinion talks with nothing to try.
+
+Practices ALREADY IN PLACE (a card that only restates one of these, or a variant of it, gets no card):
+{IN_PLACE}
+
+Cards made in the last weeks (never repeat one of these ideas):
+{recent}
 
 The operator's projects (judge relevance_to_operator_projects against these):
 {OPERATOR_PROJECTS}
 
-Score both relevance fields: start with high, medium or none, then a colon and one sentence (name the project for the projects field). A card is in scope when either field is high; a video high on neither gets no card.
+Score both relevance fields: start with high, medium or none, then a colon and one sentence. relevance_to_operator_projects is high ONLY when the sentence names one project above AND the specific change to it (what to try, with which tool or number from the video); fitting a project's general area is medium. relevance_to_yolo_loop (AI development practice) is high ONLY for a technique that is not in the list above. A card is in scope when either field is high; a video high on neither gets no card. An empty array [] is a good answer.
 
 Output a JSON array. Each card must have exactly this structure:
 {{"id": "<shortcode>-<YYYY-MM-DD published>-<slug>",

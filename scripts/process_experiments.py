@@ -27,13 +27,16 @@ BATCH_SIZE = 15
 # (experiments/backlog-triage-2026-06-24.md) discarded local-model, hardware,
 # game-engine and app-development items as off-domain.
 OPERATOR_PROJECTS = """\
-- Claude Code agent workflows and harnesses (skills, hooks, councils, memory, verification loops)
+- The flagship pages in this repo: Markdown Deck, Naval Scribe and PDF to CSV (offline single-file web tools), plus offline tools built from prompts inside a locked-down work chat model (an estimator, a resource map, a workbook converter)
 - Push to Talk: an Android dictation bubble and keyboard backed by whisper.cpp and llama.cpp on a 128 GB AMD Strix Halo box (Ryzen AI Max+ 395, Radeon 8060S, Vulkan and ROCm); local inference, quantization and serving on that hardware count
+- Local model training on the same box: fine-tuned writer and editor models (LoRA), and a shared CPU forecasting service
+- mini-forge: text or image to 3D to Bambu Lab X1C miniature printing (local image generation, Hunyuan3D, Pixal3D, TRELLIS, mesh cleanup, slicing)
 - A Flutter family calendar app (Android, self-hosted backend)
-- A Firebase road-trip planner (web app on Firebase App Hosting)
-- Ghosts with Guns: an Unreal Engine 5.8 port of an action game (gameplay systems, Blueprints and C++, asset pipelines)
-- mini-forge: text to 3D to Bambu Lab X1C miniature printing (TRELLIS, Hunyuan3D, mesh cleanup, slicing)
-- A Markdown knowledge vault with a Quartz digital garden and a weekly newsletter (capture, verify, publish pipeline)"""
+- Roadtripper: a road-trip planner web app on Firebase App Hosting
+- Ghosts with Guns: an Unreal Engine 5.8 port of an action game, and video editing with Unreal effects
+- A Markdown knowledge vault with a Quartz digital garden and a weekly newsletter (capture, verify, publish), and a daily researched-stories newsletter
+- Forecasting side projects: Polymarket paper trading, fantasy football, NCAA bracket predictions
+- Home operations: always-on Claude Code sessions run by an ops session, scheduled jobs under a failure guard, the home network"""
 
 # Valid channel-shortcode pattern. The id prefix (e.g., "aie" in
 # "aie-2026-06-11-foo") is the catalog's canonical channel identifier;
