@@ -10,7 +10,7 @@ Updated 2026-10-24 (JST), docs refresh.
   `prompt-built-tools/GENAI-*` (moved from pdf-to-csv/ on 2026-10-24, PR #69; estimator v0.6, the weight test v0.2, batch v0.8, planned v0.5,
   resource map, leveler, style, xlsx (superseded for new builds by the converter), the dictionary page (PR #72),
   the workbook converter page (PR #74), build guide v0.6, two design pages) are written by the next-big-thing
-  session and reviewed and merged here (PRs #51 to #89). From 2026-10-27 (John's ruling, relayed by next-big-thing): when
+  session and reviewed and merged here (PRs #51 to #98; #98, 2026-10-31, was the edge-case round John lifted his hold for: eight faults plus two slice-boundary gaps pinned, 237 edge checks, 0 failing). From 2026-10-27 (John's ruling, relayed by next-big-thing): when
   John tells it to handle or push a series, or that he is walking away, next-big-thing merges its own prompt PR once the
   build passes and its scan is clean; this session then reviews the merged commit and any point becomes its next PR.
   PRs opened without that instruction are still reviewed and merged here.
