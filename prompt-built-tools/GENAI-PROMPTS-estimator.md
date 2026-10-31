@@ -1,6 +1,10 @@
 # Prompts for GenAI.mil: build the JCN analog estimator inside the enclave
 
-Version 0.7, 2026-10-25 (v0.1 to v0.6 kept in the private source). v0.7 moves the history to the shape of the owner's own
+Version 0.8, 2026-10-31 (v0.1 to v0.7 kept in the private source). v0.8 answers the edge-case tests of 2026-10-31
+(the private test record): Prompt 3's word splitter crashed on the word constructor because DICT is a plain object
+(own-key tests now, a Map for the words cache, a Set for the action words); Prompt 2 builds its row objects with
+Object.create(null) so a header named __proto__ keeps its value, and names a chosen file whose columns match no export,
+with its first header cells, instead of passing over it in silence. v0.7 moves the history to the shape of the owner's own
 pulls, as he described and ruled on 2026-10-25: a job summary holds phases, and inside each phase there is a tasks
 table, one record per task, with the shop, the task that shop is to do, the crew size and the man-hour estimate; the
 shop's charges land on its task; the material is one record per item keyed by job summary and phase number. The pull
@@ -253,9 +257,10 @@ est_hours, charged_hours, and the optional phase_title, description, task, task_
 performing, planned_start, planned_finish, actual_start, actual_finish; material: job_summary,
 phase_no, item, qty; phases (optional file): job_summary, phase_no, and the optional phase_title,
 description, planned_start, planned_finish, actual_start, actual_finish. DB.jcns (array), DB.tasksByJS
-(plain object), DB.phasesByJS (plain object), DB.matByJS (plain object), DB.jsCount (plain object,
-DB.jsCount[job_summary] = count), DB.hulls (array of [hull, ship_class] pairs). Elements: files,
-datastatus, mapping, f-hull.
+(plain object), DB.phasesByJS (plain object, job_summary to an ARRAY of phase rows in ascending phase_no,
+never an object keyed by the phase number: later modules loop over it), DB.matByJS (plain object),
+DB.jsCount (plain object, DB.jsCount[job_summary] = count), DB.hulls (array of [hull, ship_class] pairs).
+Elements: files, datastatus, mapping, f-hull.
 
 How the history is shaped (so the loader fits it): a job summary holds phases; each phase has one or
 more tasks, one record each, naming the shop, what that shop does, its crew and its estimated hours,
@@ -277,7 +282,13 @@ appear belong on it.
 Requirements:
 1. parseCSV(text): a real CSV parser, not split on commas: handles quoted fields, doubled quotes inside
    quotes, line breaks inside quotes, CRLF, and a leading byte-order mark. Returns an array of objects
-   keyed by the header row, with header names trimmed.
+   keyed by the header row, with header names trimmed. Each row object is created with Object.create(null),
+   never {} or an object literal, so a header named __proto__, constructor or toString keeps its value like
+   any other (a plain object inherits those names; the edge tests of 2026-10-31 found a __proto__ column
+   losing its values). An empty text, or one with no header row, returns an empty array whose header list
+   is an empty array, never undefined; loadFiles treats such a file as one whose columns match no export
+   (named in datastatus like any other file the page could not place, see 3, even though it has no header
+   cells to list), never as an error that stops the other files.
 2. loadFiles(fileList): reads each chosen file with FileReader as UTF-8, parses it, and decides which
    export it is from its columns: a file is jcn_history if it has a jcn column and an equipment column;
    tasks if it has a job summary column, a shop column and an estimated or charged hours column; material
@@ -311,11 +322,14 @@ Requirements:
    the user picks one, use it and rebuild. Also list in datastatus which of the exports are loaded and
    how many rows each has (for tasks also how many phases and job summaries they hold, once buildDB has
    run), whether the history has discrepancy text, whether a phases file was given or the phases were
-   derived, and name any required export still missing (jcn_history, tasks, material).
-4. buildDB(tables): takes {jcn_history, tasks, material, phases (may be absent)} as arrays of mapped rows
-   and builds DB. DB is null until then, so its first line is DB = {jcns: [], tasksByJS: {}, phasesByJS:
+   derived, and name any required export still missing (jcn_history, tasks, material). A chosen file whose
+   columns match no export is not stored: datastatus names it and lists its first six header cells, so the
+   user sees what the page could not place, and the other files load as if it were not there.
+4. buildDB(tables): takes {jcn_history, tasks, material, phases (may be absent)} as arrays of mapped rows,
+   its only input (it never reads RAW_DATA or MAPPINGS itself: a later module calls it with tables read
+   back from the browser store), and builds DB. DB is null until then, so its first line is DB = {jcns: [], tasksByJS: {}, phasesByJS:
    {}, matByJS: {}, jsCount: {}, hulls: []}, assigned by name (never window.DB). Normalize: trim strings;
-   uppercase jcn, job_summary, hull, swlin, space, equipment_id, shop; keep discrepancy,
+   uppercase jcn, job_summary, hull, swlin, space, equipment_id, shop; keep ship_class, discrepancy,
    equipment_nomenclature, phase_title, description, task and performing as typed (trimmed only);
    phase_no, task_no, crew_size, hours and qty through num(); received_date and the four task dates
    through toDate() kept as Dates (null if unreadable). DB.tasksByJS[job_summary] is that summary's task
@@ -327,7 +341,7 @@ Requirements:
    first non-blank description, each of the four dates the first non-null; a blank phase_title becomes
    "Phase " + phase_no. DB.jsCount counts jcn rows per job_summary. DB.hulls is unique [hull,
    ship_class] sorted by hull. Then fill the f-hull select with one option per hull showing "hull
-   (class)".
+   (class)" and nothing else (no All or blank entry; the first hull is the default).
 5. When jcn_history, tasks and material are loaded and mapped (phases is optional), call buildDB, then
    enable btn-run and btn-tune. Before that, both are disabled.
 6. No em dashes. No network access.
@@ -388,10 +402,14 @@ Text helpers:
    SWLIN and the equipment ID comparisons.
 2. words(s): an empty, null or undefined input returns an empty array (a job with no discrepancy text
    scores 0 on the text features, never an error). The result for a given input string is cached in a
-   plain object declared at the top of the module (the cache is cleared whenever DICT changes), because
+   Map declared at the top of the module, keyed by the input string (never a plain object: the strings are
+   free text; the cache is cleared whenever DICT changes), because
    the same strings are looked at many thousands of times. The rule: lowercase; split into tokens on every character that is not a
    letter, a digit or a slash;
-   drop empty tokens; then for each token, if DICT has that token as a key, replace it by the words of
+   drop empty tokens; then for each token, if DICT has that token as an OWN key (test with
+   Object.prototype.hasOwnProperty.call(DICT, token), never a bare DICT[token]: DICT is a plain object and
+   inherits names such as constructor, so the bare test hands back a function for that word and the split
+   throws; the edge tests of 2026-10-31 crashed every build this way), replace it by the words of
    DICT[token] (split on spaces); then drop these stop words: the, a, an, of, to, and, or, is, are, was,
    were, be, been, in, on, at, for, with, by, it, its, this, that, these, those, as, from, request,
    requested, req, please, properly, ships, ship's, force, sf, unable, able, not, no, does, do, did,
@@ -401,7 +419,9 @@ Text helpers:
    kind of work: ["replace","renew","install","replacement","renewal"], ["overhaul","rebuild","repair",
    "refurbish"], ["inspect","test","troubleshoot","calibrate","check","verify","inspection"],
    ["clean","adjust","lubricate","tighten"], ["remove","removal"]. A word is an action word when it is
-   in any family.
+   in any family; test that with a Set or a Map built from the families (or with
+   Object.prototype.hasOwnProperty.call on a lookup object), never a bare lookup[word], for the reason given
+   under words().
 
 How matching works (this is the planner's judgment, written as rules):
 4. Ship class is a FILTER, not points. Only past jobs on the same class as the chosen hull are
@@ -467,7 +487,10 @@ How matching works (this is the planner's judgment, written as rules):
     class, Received
     (fmtDate), Score (one decimal), Equipment (id and nomenclature), Space, SWLIN, Why it matched (the
     reasons joined with "; "), and Job summary (with "covers N JCNs" when DB.jsCount[job_summary] is
-    above 1, and the note when present). Rows with a note get a muted style.
+    above 1, and the note when present). Rows with a note get a muted style. Wire the checkboxes, and
+    every input and button this module draws (the weight inputs, the Reset button, the dict and family
+    textareas), with addEventListener after the HTML is set, never with an inline event attribute such as
+    onchange or onclick: the house rule for every file, and a fresh chat has only this prompt to learn it from.
 12. loadSavedWeights(): reads localStorage "estimator.weights" (try/catch) and copies into W only the
     saved keys that DEFAULT_W has at the time of the call, so a saved set from an older version can
     neither drop a key nor add one; a later module that adds keys to DEFAULT_W and W calls it again, so

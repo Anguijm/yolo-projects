@@ -1,6 +1,9 @@
 # Prompts K: the dictionary page (harvest the yard's shorthand, decide it once, hand it to the estimator)
 
-Version 0.2, 2026-10-25 (v0.1 kept in the private source). v0.2 adds the boilerplate cutoff the owner chose on 2026-10-25
+Version 0.3, 2026-10-31 (v0.1 and v0.2 kept in the private source). v0.3, from the edge-case tests of 2026-10-31
+(the private test record): K1's streaming reader decodes its slices with one TextDecoder in streaming mode, so a
+two-byte character astride a 4 MB slice boundary reads whole (it came out as two replacement marks); nothing else
+changes, and the page's lookups keyed by a token (REVIEW, byToken) already passed the constructor case. v0.2 adds the boilerplate cutoff the owner chose on 2026-10-25
 after describing the real text's shape: a port engineer's standard block (field labels, codes, slashes) opens nearly
 every record, and a frequency list would put those tokens first. A token that appears on more than a set share of the
 jobs (h-max, 60 percent by default) is boilerplate: it is dropped from the candidates and the phrase pairs at drawing
@@ -96,7 +99,9 @@ Script block, in this order:
   every character that is not a letter, a digit or a slash, drop empty tokens, return the array in order with
   repeats kept (the caller decides about distinctness). This is the estimator's own split rule and must not be
   improved.
-- streamCSV(file, onProgress): reads the file in 4 MB slices (file.slice, FileReader.readAsText as UTF-8),
+- streamCSV(file, onProgress): reads the file in 4 MB slices (await file.slice(start, end).arrayBuffer(),
+  decoded with ONE TextDecoder("utf-8") created for the file and called with {stream: true}, the final flush
+  decoded too, so a character split across two slices decodes whole; never readAsText on a slice),
   carries the incomplete last record from one slice to the next (quoted fields with line breaks inside must
   still work, so carry the parser state, not just the partial line), handles quoted fields, doubled quotes,
   CRLF and a leading byte-order mark, calls onProgress(percent) after each slice when a function was given,

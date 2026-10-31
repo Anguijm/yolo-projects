@@ -1,6 +1,10 @@
 # Prompts B: build the Resource Map app inside GenAI.mil
 
-Version 0.6, 2026-10-25 (v0.1 to v0.5 kept in the private source). v0.6 changes one import rule in B2: a consumption file has one
+Version 0.7, 2026-10-31 (v0.1 to v0.6 kept in the private source). v0.7, from the edge-case tests of 2026-10-31
+(the private test record): B2 decodes its 4 MB slices with one TextDecoder in streaming mode, so a two-byte
+character astride a boundary reads whole; a consumption row's shop and project go through normalizeShop and
+normalizeProject (the map alone had kept "Shop 56" and "56" as two shops; the leveler's importer already normalized);
+and both helpers trim and uppercase, so "av27-cgb" and "AV27-CGB" are one project. v0.6 changes one import rule in B2: a consumption file has one
 line per job, phase AND shop (the estimator series v0.7 estimates per phase and shop, from the task records of the
 owner's pulls), so a re-import replaces each job's lines whole, by proposed_id, instead of replacing by proposed_id
 and phase_no, which kept one shop per phase and dropped the rest (found 2026-10-25 on a several-shops file: 182
@@ -194,11 +198,15 @@ Requirements:
 1. parseCSV(text): a real CSV parser (quoted fields, doubled quotes, line breaks inside quotes, CRLF,
    leading byte-order mark), returning an array of arrays (rows of cells), because the resource map
    sheets have header blocks that are not a single header row.
-2. importFiles(fileList): read each file as text in 4 MB slices (file.slice, read as text), carrying
+2. importFiles(fileList): read each file in 4 MB slices (await file.slice(start, end).arrayBuffer()),
+   decoding every slice with ONE TextDecoder("utf-8") created for the file and called with {stream: true},
+   the final flush decoded too, so a character split across two slices decodes whole (never readAsText on
+   a slice), carrying
    the incomplete last record across slices; parse; then classify the file:
    a. A consumption file: a header row that contains proposed_id and load_hours. Map by header names as
       above, keep rows as objects under the contract names, numbers through num(), week_start and
-      week_end through mondayOf(toDate()). Before appending, drop every earlier DB.consumption row
+      week_end through mondayOf(toDate()), shop through normalizeShop and project through
+      normalizeProject (so "Shop 56", "shop 56" and " 56" are the map's one shop "56"). Before appending, drop every earlier DB.consumption row
       whose proposed_id (trimmed, uppercased) appears in this file, then append all of the file's rows:
       a re-import replaces each job whole. Never replace by proposed_id and phase_no: a phase has one
       line per shop, and that rule would keep one shop and drop the others.
@@ -220,15 +228,20 @@ Requirements:
    through blank continuation cells where the spec says so; skip the total and subtotal rows and
    columns the spec describes; treat blank as zero only if the spec says so; use the spec's identifier
    rules so shop codes and project names come out in one consistent form across sheets (write
-   normalizeShop(s) and normalizeProject(s)). Each produced row's src is "<file>:<row number>:<column
+   normalizeShop(s) and normalizeProject(s); both trim and uppercase the text, normalizeShop after it has
+   removed the word Shop and the space before the code, so names that differ only by case or by spaces
+   are one name everywhere, in every table and in every file this module reads). Each produced row's src is "<file>:<row number>:<column
    letter>". Where the spec says a sheet holds capacity, produce capacity rows; where it says assigned,
-   produce assigned rows; where a project sheet exists, produce projects rows.
+   produce assigned rows; where a project sheet exists, produce projects rows. The Project Level sheet
+   yields assigned rows only, never projects rows (a project's dates come from a projects file or from a
+   sheet whose ROLE is projects), so a projects file loaded beside it is the only source of DB.projects.
 4. rebuildIndex(): recompute DB.weeks (sorted unique Mondays across assigned, capacity and consumption,
    expanded so consumption rows with week_start and week_end cover every Monday between them) and
    DB.shops (sorted unique). Fill filter-project (all projects from assigned and consumption) and
    filter-shop, keeping the current selection if it still exists. Then call saveStore() and run().
 5. A mapping panel in div mapping only when a long-format or consumption file is missing a required
-   column: file name, field, a select of that file's headers; choosing one re-imports that file.
+   column: file name, field, a select of that file's headers; choosing one re-imports that file. The
+   select is wired with addEventListener after it is drawn, never with an inline onchange attribute.
 6. No em dashes. No network access.
 
 Answer with the one <script> block only, and nothing after it.

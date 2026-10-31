@@ -1,6 +1,10 @@
 # Prompts W: the workbook converter page (Excel workbooks in, one CSV per sheet out, one zip down)
 
-Version 0.2, 2026-10-26 (v0.1 kept in the private source). v0.2 answers the owner's first run on a real workbook at work
+Version 0.3, 2026-10-31 (v0.1 and v0.2 kept in the private source). v0.3, from the edge-case tests of 2026-10-31
+(the private test record): the reader's sheetToTable counts duplicate headers in a Map and builds its row objects
+with Object.create(null) (a header named constructor came out as "constructor NaN"; the CSV output never went through
+it and was right on every cell), and the page numbers file names that match without regard to case, so a zip never
+holds Case.csv and case.csv side by side (the review's point on PR 87). v0.2 answers the owner's first run on a real workbook at work
 (53 tabs; nothing from it came here). The instructions were vague and called the reader MODULE X inside a series
 named W, so the reader is MODULE W1 and the page MODULE W2 everywhere and a "how to run it" block opens the file.
 "Download all" fired 53 separate downloads and the browser kept about 50, so it is gone: every sheet row has a
@@ -71,9 +75,12 @@ Functions to write, with these exact names and shapes:
    150 MB, save it as CSV".
 
 2. function sheetToTable(rows): the same row shape to {headers, data}: headers is the first row that has
-   at least two non-empty cells, trimmed; data is an array of plain objects, one per later row that has
-   at least one non-empty cell, keyed by header text (a blank header gets "col" + its 1-based column
-   number; a duplicate header gets a suffix " 2", " 3"). This is the shape the tools' CSV reader already
+   at least two non-empty cells, trimmed; data is an array of objects created with Object.create(null)
+   (never object literals: a header is free text and may read constructor or __proto__), one per later row
+   that has at least one non-empty cell, keyed by header text (a blank header gets "col" + its 1-based
+   column number; a duplicate header gets a suffix " 2", " 3", counted in a Map keyed by the header text,
+   never in a plain object, which inherits constructor and toString and turned those headers into
+   "constructor NaN" in the edge tests of 2026-10-31). This is the shape the tools' CSV reader already
    returns.
 
 3. function isWorkbookFile(file): true when the file name ends in .xlsx or .xlsm (any case).
@@ -207,7 +214,10 @@ Script, in this order:
   CSV with sheetToCSV, make a Blob of it (type "text/csv;charset=utf-8", no byte-order mark), and push
   {workbook: file name, sheet: sheet name, rows: the number of rows, cols: the width, cells: the number of
   non-empty cells, size: the Blob's size, fileName: fileNameFor(file name, sheet name, single), url:
-  URL.createObjectURL(blob), blob: the Blob, selected: true}. Append "<name>: N sheets converted, M empty
+  URL.createObjectURL(blob), blob: the Blob, selected: true}. Before pushing, if that fileName, compared
+  without regard to case, equals the fileName of any sheet already in SHEETS, insert " 2" (then " 3", and
+  so on, the first free number) before the ".csv", because a Windows desktop treats Case.csv and case.csv
+  as one file and the zip would lose one of them. Append "<name>: N sheets converted, M empty
   sheets skipped" to w-status. After the last file: renderSheets().
 - renderSheets(): set w-table's innerHTML to a thead and a tbody (never a table inside a table) with
   columns: a checkbox (<input type="checkbox" data-i="<the index in SHEETS>">, checked when the sheet is
@@ -282,7 +292,8 @@ I have pasted MODULE W1 over its placeholder. Without rewriting the file, check:
    w-status.
 4. That every Blob URL from an earlier pick is revoked when a new pick is loaded, and that the file names
    follow the rule: a workbook that yielded one sheet gives "<workbook>.csv", otherwise "<workbook> -
-   <sheet>.csv", forbidden characters replaced, a repeated name inside a zip numbered.
+   <sheet>.csv", forbidden characters replaced, a repeated name inside a zip numbered, names that match
+   without regard to case included (Case.csv, then case 2.csv).
 5. That the zip is the store form: every local file header, central directory record and end record
    carries the fields in the order listed, with little-endian integers and UTF-8 names (flag 0x0800);
    that crc32 of the ASCII bytes of "123456789" is 0xCBF43926; and that the zip holds exactly the ticked
