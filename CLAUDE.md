@@ -20,6 +20,23 @@ stays off. The work here is now two things:
    go. Most cards are noise: say so in one line and move on. Heavy work (downloads, model runs, builds,
    anything over 5 minutes) checks in with the MS-S1 ops session first.
 
+## Rules that came from getting it wrong
+
+Owned by this session; one dated line per correction, read at every start (convention from ops, John's go 2026-11-02).
+
+- **2026-10-31: a timed-out wait is a failure under `set -e`.** `timeout N tail -f /dev/null` exits 124, so in a
+  `set -euo pipefail` script it kills the run silently. End every such wait with `|| true` (PR #95). The nudge died
+  this way for ten days, and the only trace was a missing `nudge-after.txt`.
+- **2026-10-31: find the failing line before naming a cause.** The unsent nudge was first blamed on a remote-control
+  dialog. Which snapshot files existed showed where the script stopped, and that pointed to the real cause.
+- **2026-10-26: a scheduled browser job pins its browser.** With two Chrome browsers connected, the card reader stopped
+  to ask which one to use, and nobody was there to answer. `daily_cards.sh` passes the device ID to `select_browser`
+  (PR #86).
+- **2026-10-27: no plain object as a lookup keyed by free text.** A word such as "constructor" or "\_\_proto\_\_" hits
+  inherited names. Use a Map or Set, or `Object.create(null)`, and check reviewed prompts for this (PRs #89, #98).
+- **2026-11-02: count before you claim.** A card verdict said John "picked Recommended on every menu"; he had not.
+  State only what the record shows.
+
 The tick/tock material below is kept for history and for the paused workflow files.
 
 ## Responding to "status"
